@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	verticalAlign="middle"
+	gap="10">
+
+	<fx:Script>
+		<![CDATA[
+			[Bindable]
+			public var showDropShadow:Boolean = true;
+			
+			[Bindable]
+			public var spinnerWidth:int = 20;
+			
+			[Bindable]
+			public var spinnerHeight:int = 20;
+			
+			private var _message:String;
+			
+			[Bindable( event = "messageChange" )]
+			public function get message():String
+			{
+				return _message;
+			}
+			
+			/**
+			 * Password
+			 * @param value
+			 */
+			public function set message( value:String ):void
+			{
+				_message = value;
+				dispatchEvent( new Event( "messageChange" ) );
+				
+				if ( value && value.length != 0 )
+				{
+					busyIndicator.visible = true;
+					this.visible = true;
+				}
+				else
+				{
+					busyIndicator.visible = false;
+					this.visible = false;
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- Message Label -->
+	<common:InfLabel 
+		text="{ message }"
+		maxDisplayedLines="1"
+		showDropShadow="{ showDropShadow }" />
+
+	<!-- Busy Indicator -->
+	<component:BusyIndicator id="busyIndicator"
+		height="{ spinnerHeight }"
+		width="{ spinnerWidth }"
+		symbolColor="{ this.getStyle( 'symbolColor' ) }" />
+
+</s:HGroup>

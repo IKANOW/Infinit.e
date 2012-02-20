@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<swiz:BeanProvider xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:community="com.ikanow.infinit.e.community.model.manager.*"
+	xmlns:history="com.ikanow.infinit.e.history.model.manager.*"
+	xmlns:manager="com.ikanow.infinit.e.shared.model.manager.*"
+	xmlns:profile="com.ikanow.infinit.e.profile.model.manager.*"
+	xmlns:query="com.ikanow.infinit.e.query.model.manager.*"
+	xmlns:source="com.ikanow.infinit.e.source.model.manager.*"
+	xmlns:widget="com.ikanow.infinit.e.widget.model.manager.*"
+	xmlns:workspace="com.ikanow.infinit.e.workspace.model.manager.*">
+
+	<fx:Declarations>
+
+		<!-- Navigation -->
+		<manager:NavigationManager />
+
+		<!-- Session -->
+		<manager:SessionManager id="sessionManager" />
+
+		<!-- User -->
+		<manager:UserManager id="userManager" />
+
+		<!-- Profile -->
+		<profile:ProfileManager id="profileManager" />
+
+		<!-- Setup -->
+		<manager:SetupManager id="setupManager" />
+
+		<!-- Module Manager -->
+		<manager:WidgetModuleManager id="widgetModuleManager" />
+
+		<!-- Community -->
+		<community:CommunityManager id="communityManager" />
+
+		<!-- Source -->
+		<source:SourceManager id="sourceManager" />
+
+		<!-- Query -->
+		<query:QueryManager id="queryManager" />
+
+		<!-- History -->
+		<history:HistoryManager id="historyManager" />
+
+		<!-- Widget -->
+		<widget:WidgetManager id="widgetManager" />
+
+		<!-- Workspace -->
+		<workspace:WorkspaceManager id="workspaceManager" />
+
+	</fx:Declarations>
+
+</swiz:BeanProvider>

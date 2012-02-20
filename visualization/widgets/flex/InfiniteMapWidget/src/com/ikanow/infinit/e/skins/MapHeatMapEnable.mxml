@@ -1,0 +1,124 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+    ADOBE SYSTEMS INCORPORATED
+    Copyright 2008 Adobe Systems Incorporated
+    All Rights Reserved.
+
+    NOTICE: Adobe permits you to use, modify, and distribute this file
+    in accordance with the terms of the license agreement accompanying it.
+
+-->
+
+<!--- The default skin class for the Spark Button component.  
+
+       @see spark.components.Button
+        
+      @langversion 3.0
+      @playerversion Flash 10
+      @playerversion AIR 1.5
+      @productversion Flex 4
+-->
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark" 
+             xmlns:fb="http://ns.adobe.com/flashbuilder/2009" minWidth="30" minHeight="30" alpha.disabled="0.5" width="20" height="20">
+    
+    <!-- host component -->
+    <fx:Metadata>
+        <![CDATA[ 
+        /** 
+         * @copy spark.skins.spark.ApplicationSkin#hostComponent
+         */
+        [HostComponent("spark.components.Button")]
+        ]]>
+    </fx:Metadata>
+    
+	<fx:Script fb:purpose='styling'>
+		<![CDATA[    
+			private var selected:Boolean = false;
+			
+			public function changeSelected(isSelected:Boolean, mouseOver:Boolean = true):void
+			{
+				selected = isSelected;
+				if (mouseOver) {
+					stateChanged(this.currentState, "over",false);						
+				}
+				else {
+					stateChanged(this.currentState, "up",false);					
+				}
+			}
+			public function isSelected():Boolean
+			{
+				return selected;
+			}
+			
+			override protected function stateChanged(oldState:String, newState:String, recursive:Boolean):void
+			{		
+				if ( selected ) //show selected skins
+				{
+					if ( newState == "up" )
+					{
+						this.currentState = "selectedUpSkin";
+					}
+					else if ( newState == "over" )
+					{
+						this.currentState = "selectedOverSkin";
+					}
+					else if ( newState == "down" )
+					{
+						this.currentState = "selectedDownSkin";
+					}
+				}	
+				else
+				{
+					if ( newState == "up" )
+					{
+						this.currentState = "up";
+					}
+					else if ( newState == "over" )
+					{
+						this.currentState = "over";
+					}
+					else if ( newState == "down" )
+					{
+						this.currentState = "down";
+					}
+				}
+			}			
+		]]>        
+	</fx:Script>
+	
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />	
+		<s:State name="selectedOverSkin" />	
+		<s:State name="selectedDownSkin" />	
+		<s:State name="selectedUpSkin" />	
+	</s:states>
+	
+	<s:Rect width="20" height="20" includeIn="selectedUpSkin,selectedDownSkin" >	
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry color="#000000"
+								 alpha=".25" />
+				<s:GradientEntry color="#000000"
+								 alpha=".25" />
+			</s:LinearGradient>
+		</s:fill>
+	</s:Rect>
+	<s:Rect width="20" height="20" includeIn="over,selectedOverSkin" >	
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry color="#FFFFFF"
+								 alpha=".5" />
+				<s:GradientEntry color="#838080"
+								 alpha=".5" />
+			</s:LinearGradient>
+		</s:fill>
+	</s:Rect>
+	<s:BitmapImage  id="Degree" source="@Embed('../assets/icons/map_three.png')"  y="2" x="2" width="18" height="18" verticalCenter="0" horizontalCenter="0"/>
+
+</s:SparkSkin>

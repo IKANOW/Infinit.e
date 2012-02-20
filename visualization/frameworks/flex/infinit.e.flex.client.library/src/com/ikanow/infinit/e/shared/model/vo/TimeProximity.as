@@ -1,0 +1,63 @@
+package com.ikanow.infinit.e.shared.model.vo
+{
+	import com.ikanow.infinit.e.shared.model.constant.Constants;
+	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+	import com.ikanow.infinit.e.shared.model.constant.settings.QueryAdvancedSettingsConstants;
+	import com.ikanow.infinit.e.shared.util.FormatterUtil;
+	import flash.events.EventDispatcher;
+	
+	[Bindable]
+	public class TimeProximity extends EventDispatcher
+	{
+		
+		//======================================
+		// public properties 
+		//======================================
+		
+		public var decay:String;
+		
+		public var time:String;
+		
+		//======================================
+		// constructor 
+		//======================================
+		
+		public function TimeProximity()
+		{
+			super();
+			reset();
+		}
+		
+		
+		//======================================
+		// public methods 
+		//======================================
+		
+		public function apply( options:TimeProximity ):void
+		{
+			decay = options.decay;
+			time = options.time;
+			
+			var today:String = FormatterUtil.getFormattedDateString( new Date() );
+			
+			if ( time == today || time == Constants.BLANK )
+				time = QueryConstants.NOW;
+		}
+		
+		public function clone():TimeProximity
+		{
+			var clone:TimeProximity = new TimeProximity();
+			
+			clone.decay = decay;
+			clone.time = time;
+			
+			return clone;
+		}
+		
+		public function reset():void
+		{
+			decay = QueryAdvancedSettingsConstants.SCORING_TIME_PROX_DECAY;
+			time = QueryConstants.NOW;
+		}
+	}
+}

@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="24"
+	rollOut="rollOutHandler()"
+	rollOver="rollOverHandler()"
+	autoDrawBackground="false">
+
+	<fx:Script>
+		<![CDATA[
+			protected function rollOutHandler():void
+			{
+				checkBox.setHovered( false );
+			}
+			
+			protected function rollOverHandler():void
+			{
+				checkBox.setHovered( true );
+				
+				this.toolTip = "";
+				
+				if ( checkBox.labelDisplay.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = data.label;
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<s:Rect id="indicator"
+		width="100%"
+		height="100%"
+		excludeFrom="normal">
+		<s:fill>
+			<s:SolidColor 
+				color.hovered="{ getStyle( 'rollOverColor' ) }"
+				color.selected="{ getStyle( 'selectionColor' ) }" />
+		</s:fill>
+	</s:Rect>
+
+	<components:WidgetCheckBox id="checkBox"
+		width="100%"
+		label="{ data.label }"
+		selected="{ data.toggled }"
+		left="4"
+		verticalCenter="0"
+		mouseEnabled="false" />
+
+</s:ItemRenderer>

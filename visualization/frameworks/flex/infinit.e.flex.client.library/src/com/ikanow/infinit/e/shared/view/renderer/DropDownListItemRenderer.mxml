@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="24"
+	autoDrawBackground="false">
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<s:Rect id="indicator"
+		width="100%"
+		height="100%"
+		excludeFrom="normal">
+		<s:fill>
+			<s:SolidColor 
+				color.hovered="{ getStyle( 'rollOverColor' ) }"
+				color.selected="{ getStyle( 'selectionColor' ) }" />
+		</s:fill>
+	</s:Rect>
+
+	<s:Label 
+		width="100%"
+		text="{ label }"
+		styleName="white"
+		styleName.hovered="black"
+		styleName.selected="black"
+		paddingLeft="4"
+		verticalCenter="0" />
+
+</s:ItemRenderer>

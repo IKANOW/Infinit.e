@@ -1,0 +1,40 @@
+# /etc/cron.d/infinite: infinite crontab
+# Unlike any other crontab you don't have to run the `crontab'
+# command to install the new version when you edit this file
+# since it is in /etc/cron.d. These files also have username fields,
+# that none of the other crontabs do.
+
+# use full cron commands after a cron modification
+# stop the cron service
+# sudo stop cron
+# start the cron service
+# sudo start cron
+# verify the cron log
+# tail -f /var/log/syslog
+# verify the infinite log 
+# tail -f /opt/infinite-home/logs/logfile.log
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+# m h dom mon dow user  command
+# At midnight delete old logs
+00 00    * * *   root	find /opt/infinite-home/logs -mtime +30 -a -name "*.log.*" | xargs rm -f 
+01 00    * * *   root	if [ -d /opt/tomcat-infinite/index-engine/logs ]; then find /opt/tomcat-infinite/index-engine/logs -mtime +30 -a -name "*.log" | xargs rm -f; fi 
+02 00    * * *   root	if [ -d /opt/tomcat-infinite/interface-engine/logs ]; then find /opt/tomcat-infinite/interface-engine/logs -mtime +30 -a -name "*.log" | xargs rm -f; fi
+03 00    * * *   root	if [ -d /var/log/elasticsearch ]; then find /var/log/elasticsearch -mtime +30 -a -name "*.log" | xargs rm -f; fi
+
+# Report if the Alchemy Limit has been reached by checking hourly
+00 *     * * *   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/AlchemyLimitExceededAlert.python
+ 
+# Report if the API Search Time has spiked or jumped above a set time once daily at 8pm
+00 20    * * *   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/APITimeAlert.python
+ 
+# Report the API Search Times Weekly (Sundays)
+00 14    * * 0   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyAPITimeStatus.python
+ 
+# Report the Alchemy message counts weekly (Sundays)
+00 14    * * 0   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyExtractorStatus.python
+
+# Report if the API does not receive 100 Results on a common search (Hourly between 6am and 9pm)
+00 6-21    * * *   root service tomcat6-interface-engine status | grep -q 'is running' && sh /opt/infinite-home/scripts/APINumResultsCheck.sh localhost:8080/api

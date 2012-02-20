@@ -1,0 +1,456 @@
+package com.ikanow.infinit.e.community.model.manager
+{
+	import com.adobe.utils.StringUtil;
+	import com.ikanow.infinit.e.shared.event.SourceEvent;
+	import com.ikanow.infinit.e.shared.model.constant.Constants;
+	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
+	import com.ikanow.infinit.e.shared.model.vo.Community;
+	import com.ikanow.infinit.e.shared.model.vo.CommunityApproval;
+	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
+	import com.ikanow.infinit.e.shared.model.vo.Setup;
+	import com.ikanow.infinit.e.shared.model.vo.Source;
+	import com.ikanow.infinit.e.shared.model.vo.User;
+	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
+	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
+	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
+	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	import flash.events.Event;
+	import flash.events.EventDispatcher;
+	import mx.collections.ArrayCollection;
+	import mx.collections.SortField;
+	import mx.resources.ResourceManager;
+	
+	/**
+	 * Community Manager
+	 */
+	public class CommunityManager extends InfiniteManager
+	{
+		
+		//======================================
+		// public properties 
+		//======================================
+		
+		[Bindable]
+		/**
+		 * The collection of communities
+		 */
+		public var communities:ArrayCollection;
+		
+		[Bindable]
+		/**
+		 * The Current User's Communities Collection
+		 */
+		public var userCommunities:ArrayCollection;
+		
+		[Bindable]
+		/**
+		 * The selected communities for the query
+		 */
+		public var selectedCommunity:Community;
+		
+		/**
+		 * The selected communities for the query
+		 */
+		private var _selectedCommunities:ArrayCollection;
+		
+		
+		[Bindable( event = "selectedCommunitiesChange" )]
+		public function get selectedCommunities():ArrayCollection
+		{
+			return _selectedCommunities;
+		}
+		
+		public function set selectedCommunities( value:ArrayCollection ):void
+		{
+			if ( _selectedCommunities != value )
+			{
+				_selectedCommunities = value;
+				dispatchEvent( new Event( "selectedCommunitiesChange" ) );
+			}
+		}
+		
+		[Bindable]
+		/**
+		 * Community approval for join
+		 */
+		public var communityApproval:CommunityApproval;
+		
+		//======================================
+		// protected properties 
+		//======================================
+		
+		/**
+		 * The current query string that is being modified for a new query
+		 */
+		protected var currentQueryStringRequest:QueryStringRequest;
+		
+		/**
+		 * The current user
+		 */
+		protected var currentUser:User;
+		
+		
+		//======================================
+		// public methods 
+		//======================================
+		
+		/**
+		 * Join Community result handler
+		 * @param value
+		 */
+		public function joinCommunity_resultHandler( value:CommunityApproval ):void
+		{
+			communityApproval = value;
+			
+			if ( value.approved )
+			{
+				selectedCommunity.isUserMember = true;
+				selectedCommunity.sortOrder = 0;
+				currentUser.communities.addItem( selectedCommunity );
+				communities.refresh();
+				processCommunities();
+				getSourcesGood();
+			}
+		}
+		
+		/**
+		 * Leave Community response handler
+		 * @param value
+		 */
+		public function leaveCommunity_resultHandler():void
+		{
+			selectedCommunity.isUserMember = false;
+			selectedCommunity.selected = false;
+			selectedCommunity.sortOrder = 1;
+			communities.refresh();
+		
+			// TODO: remove the community from currentUser.communities,
+			// and make sure that the current user in QueryManager is updated, so that 
+			// invalid community ids aren't used in a history query
+		
+			// TODO: update the sources
+		}
+		
+		/**
+		 * Reset
+		 * Used to reset on logout
+		 */
+		public function reset():void
+		{
+			communities = null;
+			userCommunities = null;
+			selectedCommunities = null;
+			selectedCommunity = null;
+		}
+		
+		/**
+		 * Select all communities
+		 * @param value
+		 */
+		public function selectAllCommunities():void
+		{
+			for each ( var community:Community in communities )
+			{
+				if ( community.isUserMember )
+				{
+					community.selected = true;
+				}
+			}
+			
+			updateSelectedCommunities();
+		}
+		
+		/**
+		 * Select no communities
+		 * @param value
+		 */
+		public function selectNoCommunities():void
+		{
+			for each ( var community:Community in communities )
+			{
+				if ( community.isUserMember )
+				{
+					community.selected = false;
+				}
+			}
+			
+			updateSelectedCommunities();
+		}
+		
+		/**
+		 * Public Communities Collection
+		 * @param value
+		 */
+		public function setCommunities( value:ArrayCollection ):void
+		{
+			communities = value;
+			
+			// Process the communities
+			processCommunities();
+			
+			// get the sources
+			if ( value )
+				getSourcesGood();
+		}
+		
+		[Inject( "queryManager.currentQueryStringRequest", bind = "true" )]
+		/**
+		 * set the current query string
+		 * @param value
+		 */
+		public function setCurrentQueryString( value:QueryStringRequest ):void
+		{
+			currentQueryStringRequest = value;
+			
+			// initialize the selected Communities from the query string
+			initSelectedCommunitiesFromQueryString();
+			
+			// Process the communities
+			processCommunities();
+		}
+		
+		/**
+		 * Person Get response from server
+		 * @param value
+		 */
+		[Inject( "userManager.currentUser", bind = "true" )]
+		public function setCurrentUser( value:User ):void
+		{
+			currentUser = value;
+			
+			// initialize the selected Communities from the current user
+			if ( !selectedCommunities )
+				initSelectedCommunitiesFromCurrentUser();
+			
+			// Process the communities
+			processCommunities();
+			
+			// get the sources
+			if ( value && communities )
+				getSourcesGood();
+		}
+		
+		/**
+		 * The selected community
+		 * @param value
+		 */
+		public function setSelectedCommunity( value:Community ):void
+		{
+			selectedCommunity = value;
+			
+			if ( value.isUserMember )
+			{
+				value.selected = !value.selected;
+				updateSelectedCommunities();
+			}
+		}
+		
+		//======================================
+		// protected methods 
+		//======================================
+		
+		/**
+		 * Get Sources Good
+		 */
+		protected function getSourcesGood():void
+		{
+			var communityIDs:String = Constants.BLANK;
+			
+			for each ( var community:Community in communities )
+			{
+				if ( community.isUserMember )
+				{
+					if ( communityIDs != Constants.BLANK )
+						communityIDs += Constants.COMMA;
+					
+					communityIDs += community._id;
+				}
+			}
+			
+			var sourceEvent:SourceEvent = new SourceEvent( SourceEvent.GET_SOURCES_GOOD );
+			sourceEvent.communityIDs = communityIDs;
+			sourceEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'sourceService.getSourcesGood' ) );
+			dispatcher.dispatchEvent( sourceEvent );
+		}
+		
+		/**
+		 * Creates the initial collection of selected communities from the current user
+		 */
+		protected function initSelectedCommunitiesFromCurrentUser():void
+		{
+			if ( currentUser && currentUser.communities )
+			{
+				var selectedCommunitiesNew:ArrayCollection = new ArrayCollection();
+				
+				for each ( var community:Community in currentUser.communities )
+				{
+					var newCommunity:Community = new Community();
+					newCommunity._id = community._id;
+					selectedCommunitiesNew.addItem( newCommunity );
+				}
+				
+				selectedCommunities = selectedCommunitiesNew;
+			}
+		}
+		
+		/**
+		 * Creates the initial collection of selected communities from the currentQueryStringRequest
+		 */
+		protected function initSelectedCommunitiesFromQueryString():void
+		{
+			if ( currentQueryStringRequest )
+			{
+				var selectedCommunitiesNew:ArrayCollection = new ArrayCollection();
+				
+				for each ( var communityId:String in currentQueryStringRequest.communityIds )
+				{
+					var newCommunity:Community = new Community();
+					newCommunity._id = communityId;
+					
+					// make sure that the user is still a member of the community
+					if ( isUserCommunity( newCommunity ) )
+						selectedCommunitiesNew.addItem( newCommunity );
+				}
+				
+				selectedCommunities = selectedCommunitiesNew;
+			}
+		}
+		
+		/**
+		 * Determines if a community was used in the last query
+		 * @param community
+		 * @return Boolean
+		 */
+		protected function isCommunitySelected( community:Community ):Boolean
+		{
+			// if the community is found in the selectedCommunities, return true
+			if ( selectedCommunities )
+			{
+				for each ( var selectedCommunity:Community in selectedCommunities )
+				{
+					if ( selectedCommunity._id == community._id )
+					{
+						selectedCommunity.name = community.name;
+						return true;
+					}
+				}
+			}
+			
+			return false;
+		}
+		
+		/**
+		 * Determines if a user community is a public community
+		 * @param community
+		 * @return Boolean
+		 */
+		protected function isPublicCommunity( userCommunity:Community ):Boolean
+		{
+			// if the community is found in the public communities, return true
+			if ( currentUser && currentUser.communities )
+			{
+				for each ( var community:Community in communities )
+				{
+					if ( userCommunity._id == community._id )
+						return true;
+				}
+			}
+			
+			return false;
+		}
+		
+		/**
+		 * Determines if the current user is a member of a community
+		 * @param community
+		 * @return Boolean
+		 */
+		protected function isUserCommunity( community:Community ):Boolean
+		{
+			// if the community is found in the user's communities, return true
+			if ( currentUser && currentUser.communities )
+			{
+				for each ( var userCommunity:Community in currentUser.communities )
+				{
+					if ( userCommunity._id == community._id )
+						return true;
+				}
+			}
+			
+			return false;
+		}
+		
+		/**
+		 * Updates the sort order of the communities and sets the userCommunities collection
+		 */
+		protected function processCommunities():void
+		{
+			var userCommunitiesNew:ArrayCollection = new ArrayCollection();
+			
+			if ( communities && currentUser && selectedCommunities )
+			{
+				// create the userCommunities collection and set properties
+				for each ( var community:Community in communities )
+				{
+					if ( isUserCommunity( community ) )
+					{
+						community.isUserMember = true;
+						community.selected = isCommunitySelected( community );
+						community.sortOrder = 0;
+						userCommunitiesNew.addItem( community );
+					}
+					else
+					{
+						community.isUserMember = false;
+						community.sortOrder = 1;
+					}
+				}
+				
+				// if the community is found in the user's communities, return true
+				if ( currentUser && currentUser.communities )
+				{
+					for each ( var userCommunity:Community in currentUser.communities )
+					{
+						if ( !isPublicCommunity( userCommunity ) )
+						{
+							userCommunity.isUserMember = true;
+							userCommunity.selected = isCommunitySelected( userCommunity );
+							userCommunity.sortOrder = 0;
+							userCommunitiesNew.addItem( userCommunity );
+							communities.addItem( userCommunity );
+						}
+					}
+				}
+				
+				// sort the communities
+				CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, false, true ), new SortField( Constants.NAME_PROPERTY, true ) ] );
+				communities.refresh();
+				
+				// set and sort the user communities
+				userCommunities = userCommunitiesNew;
+				CollectionUtil.applySort( userCommunities, [ new SortField( Constants.NAME_PROPERTY, true ) ] );
+				userCommunities.refresh();
+			}
+		}
+		
+		/**
+		 * Creates the collection of selected communities from the communities that are selected
+		 */
+		protected function updateSelectedCommunities():void
+		{
+			if ( communities )
+			{
+				var selectedCommunitiesNew:ArrayCollection = new ArrayCollection();
+				
+				for each ( var community:Community in communities )
+				{
+					if ( community.selected )
+					{
+						selectedCommunitiesNew.addItem( community );
+					}
+				}
+				
+				selectedCommunities = selectedCommunitiesNew;
+			}
+		}
+	}
+}

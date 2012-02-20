@@ -1,0 +1,87 @@
+#####################################################
+# infinite.service.properties
+# Generated from infinite.service.properties.TEMPLATE 
+#####################################################
+app.appname=infinit.e library
+app.version=1.0
+app.copyright=2010
+
+#####################################################
+# Amazon Web Services Properties
+use.aws=USE_AWS
+aws.access.key=AWS_ACCESS_KEY
+aws.secret.key=AWS_SECRET_KEY
+
+#####################################################
+# MongoDB Properties
+db.server=DB_SERVER
+db.port=DB_PORT
+db.config.servers=DB_CONFIG_SERVERS
+db.replica.sets=DB_REPLICA_SETS
+db.sharded=DB_SHARDED
+db.cluster.subnet=DB_CLUSTER_SUBNET
+db.capacity=DB_CAPACITY
+
+#####################################################
+# elasticsearch Properties
+elastic.node.discovery=DISCOVERY_MODE
+elastic.url=ELASTIC_URL
+elastic.cluster=ELASTIC_CLUSTER
+elastic.search.nodes=ELASTIC_NODES
+################################################################################
+# mlockall = should equal true except if running on a machine with < 4GB of RAM
+bootstrap.mlockall=BOOTSTRAP_MLOCKALL
+
+#####################################################
+# Root API Url (used for email notifications)
+url.root=URL_ROOT
+
+#####################################################
+# Harvester Properties
+harvester.types=HARVESTER_TYPES
+harvest.feed.wait=HARVEST_FEED_WAIT
+harvest.mintime.ms=HARVESTER_MINTIME_MS
+harvest.maxdocs_persource=HARVESTER_MAXDOCS_SOURCE
+harvest.threads=HARVESTER_THREADS
+
+#####################################################
+#Mail Server Settings
+mail.server=MAIL_SERVER
+mail.username=MAIL_USERNAME
+mail.password=MAIL_PASSWORD
+
+#####################################################
+# EMail Addresses for log files etc.
+log.files.mail.from=MAIL_FROM
+log.files.mail.to=MAIL_TO
+
+#####################################################
+# Entity and Text Extractor Properties
+extractor.key.alchemyapi=ALCHEMY_KEY
+extractor.key.opencalais=OPENCALAIS_KEY
+extractor.entity.default=DEFAULT_ENTITY_EXTRACTOR
+extractor.text.default=DEFAULT_TEXT_EXTRACTOR
+
+#####################################################
+# Alchemy Postproc Settings
+# 1==people postproc, 2==geo postproc, 3==both
+app.alchemy.postproc=ALCHEMY_POSTPROC_VAL
+
+#####################################################
+# Hadoop config path
+hadoop.configpath=/mnt/opt/hadoop-infinite/mapreduce/
+
+#####################################################
+# JDBC Drives Supported by Infinit.e
+jdbc.db2.class=com.ibm.db2.jcc.DB2Driver
+jdbc.db2.url=db2
+jdbc.mysql.class=com.mysql.jdbc.Driver
+jdbc.mysql.url=mysql
+jdbc.oracle.class=oracle.jdbc.driver.OracleDriver
+jdbc.oracle.url=oracle:thin
+jdbc.mssqlserver.class=net.sourceforge.jtds.jdbc.Driver
+jdbc.mssqlserver.url=jtds:sqlserver
+jdbc.postgre.class=org.postgresql.Driver
+jdbc.postgre.url=postgresql
+jdbc.sybase.class=net.sourceforge.jtds.jdbc.Driver
+jdbc.sybase.url=jtds:sybase

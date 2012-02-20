@@ -1,0 +1,34 @@
+import time
+import socket
+import splunk
+import splunk.auth   as au
+import splunk.search as se
+import commands
+
+# Import ConfigParser module and read python.cfg file for email addresses
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read('/opt/infinite-home/config/python.cfg')
+sendEmailTo = config.get('config', 'mail.to')
+sendEmailFrom = config.get('config', 'mail.from')
+serveraddr = commands.getoutput("/sbin/ifconfig | grep -o 'addr:[0-9.]*' | grep -v '127.0.0.1'")
+
+source = '/opt/infinite-home/logs/infinit.e.api.log'
+
+fulldata = se.dispatch('search "knowledge/query" | bin _time span=1w as Week_Beginning | convert timeformat="%m/%d/%y" ctime(Week_Beginning) | stats avg(time) as avg, avg(mongoTime) as average_mongo, avg(luceneTime) as average_lucene, avg(setupTime) as average_setup, avg(procTime) as average_proc by Week_Beginning | eval Weekly_Average(sec)=avg/1000 | eval Weekly_Mongo_Average(sec)=average_mongo/1000 | eval Weekly_Lucene_Average(sec)=average_lucene/1000 | eval Weekly_Setup_Average(sec)=average_setup/1000 | eval Weekly_Proc_Average(sec)=average_proc/1000 | table Weekly_Average(sec), Weekly_Mongo_Average(sec), Weekly_Lucene_Average(sec), Weekly_Setup_Average(sec), Weekly_Proc_Average(sec), Week_Beginning',source = source, earliest_time ='-4w@d', latest_time = '@d')
+
+while not fulldata.isDone:
+    time.sleep(1)
+	
+	
+if fulldata.resultCount > 0:
+	
+	week_time = str(fulldata.results[fulldata.resultCount-1]['Weekly_Average(sec)'])
+
+	print 'Time: ' + str(week_time) + 's'
+	fulldata.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[STATUS] Infinit.e API Average Search Time ['+serveraddr+']" sendresults=true')
+	r = fulldata.results[0]
+	print 'Email Sent to ' + sendEmailTo
+
+fulldata.cancel()
+

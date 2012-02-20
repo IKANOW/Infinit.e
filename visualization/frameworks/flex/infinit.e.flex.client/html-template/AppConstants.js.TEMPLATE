@@ -1,0 +1,30 @@
+function getEndPointUrl() {
+	url = "END_POINT_URL";
+    return url;
+}
+
+function getDomainUrl() {
+	domainURL = "DOMAIN_URL";
+	return domainURL;
+}
+
+function getForgottenPasswordUrl() {
+	forgotUrl = getEndPointUrl() + "auth/forgotpassword"; //app.saas=false
+	forgotUrl = getDomainUrl() + "FORGOT_PASSWORD_URL"; // app.saas=true
+	return forgotUrl;
+}
+
+function getDomainLogoutUrl() {
+	logoutURL = ""; //app.saas=false
+	logoutURL = getDomainUrl() + "LOGOUT_URL"; // app.saas=true
+	return logoutURL;
+}
+
+function getMapLicenseKey() {
+	key =  "GOOGLE_MAPS_API_KEY";
+	return key;
+}
+
+function getTimeoutSeconds() {
+	return ACCESS_TIMEOUT;
+}

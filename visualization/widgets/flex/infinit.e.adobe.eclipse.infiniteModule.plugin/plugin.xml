@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<?eclipse version="3.4"?>
+<plugin>
+
+   <extension
+         point="org.eclipse.ui.editors">
+      <editor
+            name="Infinit.e Module Creator"
+            extensions="mxml"
+            icon="icons/favicon2.gif"
+            contributorClass="infinit.e.adobe.eclipse.infinitemodule.plugin.editors.Infinit.eModuleContributor"
+            class="infinit.e.adobe.eclipse.infinitemodule.plugin.editors.InfiniteModule"
+            id="infinit.e.adobe.eclipse.infinitemodule.plugin.editors.InfiniteModule">
+      </editor>
+   </extension>
+    
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <category
+            name="Infinit.e Module"
+            id="infinit.e.adobe.eclipse.infiniteModule.plugin">
+      </category>
+      <wizard
+            name="Infinite Module"
+            icon="icons/favicon2.gif"
+            category="com.adobe.flexbuilder.project.ui.wizards.newWizards"
+            class="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard"
+            id="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard">
+            <description>Create a new Infinite Module file</description>
+      </wizard>
+   </extension>
+   <extension
+         point="org.eclipse.ui.newWizards">
+      <category
+            name="Infinte Module"
+            id="infinit.e.adobe.eclipse.infiniteModule.plugins">
+      </category>
+      <wizard
+            name="Infinite Module"
+            icon="icons/favicon2.gif"
+            category="infinit.e.adobe.eclipse.infiniteModule.plugins"
+            class="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard"
+            id="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard">
+            <description>Create a new Infinite Module file</description>
+      </wizard>
+   </extension>
+    <!--extension
+         point="org.eclipse.ui.newWizards">
+      <category
+            name="Infinte Module"
+            id="infinit.e.adobe.eclipse.infiniteModule.plugin"
+            parentCategory="org.eclipse.ui.Examples">
+      </category>
+      <wizard
+            name="Infinite Module"
+            icon="icons/favicon2.gif"
+            category="org.eclipse.ui.Examples/infinit.e.adobe.eclipse.infiniteModule.plugin"
+            class="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard"
+            id="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard">
+      </wizard>
+   </extension-->
+    <!--extension
+         point="org.eclipse.ui.newWizards">
+      <category
+            name="Infinit.e Module"
+            id="infinit.e.adobe.eclipse.infiniteModule.plugins">
+      </category>
+      <wizard
+            name="Infinite Module"
+            icon="icons/favicon.gif"
+            category="com.adobe.flexbuilder.mxml.editor.ui.wizards.newWizards"
+            class="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard"
+            id="infinit.e.adobe.eclipse.infinitemodule.plugin.wizards.InfinteModuleWizard">
+      </wizard>
+   </extension-->
+   <!--infinit.e.adobe.eclipse.infiniteModule.plugin-->
+</plugin>

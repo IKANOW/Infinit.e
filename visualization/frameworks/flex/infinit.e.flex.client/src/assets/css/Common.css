@@ -1,0 +1,822 @@
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+@namespace local "*";
+@namespace spark "spark.skins.spark.*";
+@namespace component "com.ikanow.infinit.e.shared.view.component.*";
+@namespace busyIndicator "com.ikanow.infinit.e.shared.view.component.busyIndicator.*";
+
+/*===================================
+	Global
+===================================*/
+
+s|CheckBox
+{
+	fontFamily : infiniteDefaultFont;
+	skinClass : ClassReference("assets.skins.InfCheckBoxSkin");
+}
+
+s|CheckBox.checkMarkDark
+{
+	fontFamily : infiniteDefaultFont;
+	rollOverColor: #FFFFFF;
+	color      : #bbbec1;
+	skinClass : ClassReference("assets.skins.InfCheckBoxDarkSkin");
+}
+
+component|HSeparator
+{
+	lineColor: #262b2f;
+	shadowColor: #4a4f53;
+	strokeWeight: 2;
+}
+
+component|VSeparator
+{
+	lineColor: #262b2f;
+	shadowColor: #4a4f53;
+	strokeWeight: 2;
+}
+
+s|DataGrid
+{
+	skinClass : ClassReference("assets.skins.InfDataGridSkin");
+	borderVisible: false;
+	fontFamily : infiniteDefaultFont;
+}
+
+mx|DateField
+{
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	fontFamily: infiniteNonCFFFont;
+	textInputStyleName: dateFieldTextInputStyle;
+}
+
+.dateFieldTextInputStyle
+{
+	corner-radius: 5;
+	paddingTop: 10;
+	borderSkin: ClassReference("assets.skins.DateFieldSkin");  
+}
+
+s|DropDownList
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 12;
+	fontWeight: bold;
+	color: #FFFFFF;
+	shadowColor: #373C3F;
+	cornerRadius: 6;
+	selectionColor: #878D8F;
+	rollOverColor: #575C60;
+	textSelectedColor: #FFFFFF;
+	textRollOverColor: #FFFFFF;
+	contentBackgroundColor: #383F45;
+	skinClass: ClassReference("assets.skins.InfDropDownListSkin"); 
+}
+
+s|VScrollBar
+{
+	skinClass : ClassReference("assets.skins.scrollbar.InfVScrollBarSkin");	
+}
+
+s|HScrollBar
+{
+	skinClass : ClassReference("assets.skins.scrollbar.InfHScrollBarSkin");	
+}
+
+mx|ScrollBar
+{
+	up-arrow-skin: ClassReference(null);
+	down-arrow-skin: ClassReference(null);
+	trackSkin: Embed(source="/assets/skins/ScrollBarTrack.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbUpSkin: Embed(source="/assets/skins/ScrollBarThumb_up.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbOverSkin: Embed(source="/assets/skins/ScrollBarThumb_over.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbDownSkin: Embed(source="/assets/skins/ScrollBarThumb_down.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+}
+
+.lightSeparator
+{
+	lineColor: #b4b4b6;
+	shadowColor: #f8f8fa;
+	strokeWeight: 1;
+}
+
+/*===================================
+	Backgrounds
+===================================*/
+
+.background
+{
+	start-ratio: .5;
+	start-color: #373d44;
+	end-color: #373d44;
+	rotation: 90;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.lightBackground
+{
+	start-ratio: .5;
+	start-color: #DCDDDF;
+	end-color: #DCDDDF;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.modalBackground
+{
+	backgroundColor: #262b2f;
+	disabledColor: #262b2f;
+	disabledAlpha: 0;
+}
+
+.noModalBackground
+{
+	disabledAlpha: 1.0;
+}
+
+.stripedBackground
+{
+	gap: 5;
+	stripe-color: #40484B;
+	backgroundColor: #373d44;
+}
+
+/*===================================
+	Common Buttons
+===================================*/
+
+.deleteBlackButton
+{
+	skinClass : ClassReference("assets.skins.DeleteBlackButtonSkin");	
+}
+
+.cancelButton
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	rollOverColor: #dfdfdf;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+.clearButton
+{
+	skinClass : ClassReference("assets.skins.ClearButtonSkin");	
+}
+
+.closeButton
+{
+	skinClass : ClassReference("assets.skins.CloseButtonSkin");	
+}
+
+.communityButton
+{
+	skinClass : ClassReference("assets.skins.sources.CommunityButtonSkin");
+}
+
+.infoButton
+{
+	skinClass : ClassReference("assets.skins.InfoButtonSkin");	
+}
+
+.filterButton
+{
+	skinClass : ClassReference("assets.skins.FilterButtonSkin");	
+}
+
+.magnifyingGlassButton
+{
+	skinClass : ClassReference( "assets.skins.MagnifyingGlassButtonSkin" );
+}
+
+.optionsButton
+{
+	skinClass : ClassReference("assets.skins.OptionsButtonSkin");	
+}
+
+.roundedBlueButton
+{
+	skinClass : ClassReference( "assets.skins.RoundedBlueButtonSkin" );
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+}
+
+.roundedBlueButtonSmall
+{
+	skinClass : ClassReference( "assets.skins.RoundedBlueButtonSmallSkin" );
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+}
+
+.roundedRedBorderButton
+{
+	skinClass : ClassReference( "assets.skins.RoundedRedBorderButtonSkin" );
+	color      : #6b0001;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+}
+
+.searchWhiteButton
+{
+	skinClass : ClassReference("assets.skins.SearchWhiteButtonSkin");	
+}
+
+.searchWhiteArrowToggleButton
+{
+	skinClass : ClassReference("assets.skins.SearchWhiteArrowToggleButtonSkin");	
+}
+
+.selectAllButton
+{
+	skinClass : ClassReference("assets.skins.SelectAllButtonSkin");	
+}
+
+.selectAllIconButton
+{
+	skinClass : ClassReference("assets.skins.SelectAllIconButtonSkin");	
+}
+
+.sliderToggleButton
+{
+	skinClass : ClassReference("assets.skins.SliderToggleButtonSkin");
+}
+
+.switchButtonBar
+{
+	skinClass : ClassReference("assets.skins.buttonbar.SwitchButtonBarSkin");	
+}
+
+.transparentButton
+{
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+.transparentLightGreyButton
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	rollOverColor: #ffffff;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+/*===================================
+	Components
+===================================*/
+
+busyIndicator|BusyIndicator
+{
+	rotationInterval: 50;
+	symbolColor: #ffffff;
+}
+
+.columnSelectorList
+{
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	contentBackgroundColor: #575C60;
+	borderVisible: false;
+}
+
+.columnSelector
+{
+	start-ratio: 0;
+	start-color: #6E7174;
+	end-color: #6E7174;
+	rotation: 90;
+	cornerRadius: 6;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.columnSelectorSelected
+{
+	start-ratio: 0;
+	start-color: #A3BBC5;
+	end-color: #A3BBC5;
+	rotation: 90;
+	cornerRadius: 6;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.columnSelectorCountButton
+{
+	color: #777777;
+	rollOverColor: #AAAAAA;
+	fontSize: 14pt;
+	cornerRadius: 4;
+	skin-class: ClassReference("assets.skins.ColumnSelectorCountButtonSkin");
+}
+
+.dataGridHeader
+{
+	backgroundColor: #353D40;	
+}
+
+.dataGridHover
+{
+	start-ratio: 0;
+	start-color: #D2DBE0;
+	end-color: #A3B8BD;
+	rotation: 90;
+	skinClass : ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.dataGridSelection
+{
+	start-ratio: 0;
+	start-color: #D2DBE0;
+	end-color: #A3B8BD;
+	rotation: 90;
+	skinClass : ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.dialog
+{	
+	background-color: #000000;
+	fontSize   : 14pt;
+	color: #dfdfdf;
+	corner-radius: 8;
+	modalTransparency: .1;
+	modalTransparencyColor: #000000;
+}
+
+component|DialogPanel
+{
+	skinClass : ClassReference("assets.skins.DialogPanelSkin");	
+	panel-color : #575C60;
+	headerHeight: 49;
+}
+
+.filterTextInput
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "assets.skins.FilterTextInputSkin" );
+}
+
+.filterTextInputSmall
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 12;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "assets.skins.FilterTextInputSmallSkin" );
+}
+
+.infTextInput
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "assets.skins.InfTextInputSkin" );
+}
+
+.loadingDataBusyIndicatorLabel
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	symbolColor: #FFFFFF;
+}
+
+.optionsDropDownList
+{
+	color: #ffffff;
+	textRollOverColor: #000000;
+	textSelectedColor: #000000;
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	borderColor: #464A4D;
+	chromeColor: #5E6367;
+	alternatingItemColors: #5E6367, #5E6367;
+	backgroundColor: #5E6367;
+	contentBackgroundColor: #5E6367;
+	skinClass : ClassReference("assets.skins.OptionsDropDownListSkin");	
+}
+
+.panelSeparator
+{
+	lineColor: #4e5357;
+	shadowColor: #757a7e;
+	strokeWeight: 2;
+}
+
+.selectAllDropDownList
+{
+	color: #ffffff;
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	borderColor: #464A4D;
+	chromeColor: #464A4D;
+	alternatingItemColors: #464A4D, #464A4D;
+	backgroundColor: #464A4D;
+	skinClass : ClassReference("assets.skins.SelectAllDropDownListSkin");	
+}
+
+.selectAllIconDropDownList
+{
+	color: #ffffff;
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	borderColor: #464A4D;
+	chromeColor: #464A4D;
+	alternatingItemColors: #464A4D, #464A4D;
+	backgroundColor: #464A4D;
+	skinClass : ClassReference("assets.skins.SelectAllIconDropDownListSkin");	
+}
+
+.simpleSearchTextInput
+{
+	skinClass : ClassReference( "assets.skins.SimpleSearchTextInputSkin" );
+}
+
+.smallSearchTextInput
+{
+	borderVisible: false;
+	skinClass : ClassReference( "assets.skins.SearchTextInputSmallSkin" );
+}
+
+.titleWindowBasic
+{
+	backgroundColor: #5E6367;
+	skinClass : ClassReference("assets.skins.TitleWindowBasicSkin");	
+	cornerRadius: 4;
+}
+
+.titleWindowBasic
+{
+	backgroundColor: #5E6367;
+	skinClass : ClassReference("assets.skins.TitleWindowBasicSkin");	
+	cornerRadius: 4;
+}
+
+.titleWindowSearch
+{
+	backgroundColor: #5E6367;
+	skinClass : ClassReference("assets.skins.TitleWindowSearchSkin");	
+	cornerRadius: 4;
+	fontSize: 12pt;
+}
+
+.titleWindowList
+{
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	contentBackgroundColor: #5E6367;
+	borderVisible: false;
+}
+
+.validationStatusTextInput
+{
+	skinClass : ClassReference( "assets.skins.TextInputWithValidationStatusSkin" );
+}
+
+/*===================================
+	Login
+===================================*/
+
+.loginHeaderBackground
+{
+	start-ratio: 0;
+	start-color: #272B30;
+	end-color: #535C67;
+	rotation: 90;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.loginHeaderSeparator
+{
+	lineColor: #262b2f;
+	shadowColor: #40484B;
+	strokeWeight: 1.5;
+}
+
+.loginForgotPasswordButton
+{
+	color      : #82b43f;
+	rollOverColor: #8EC644;
+	fontWeight: bold;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+.loginBusyIndicatorLabel
+{
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+	shadowColor: #373C3F;
+	symbolColor: #000000;
+}
+
+/*===================================
+	Header
+===================================*/
+
+.headerDialogsButtonBar
+{
+	skinClass : ClassReference( "assets.skins.header.HeaderDialogsButtonBarSkin" );
+	iconPlacement: top;
+}
+
+.headerActionsButtonBar
+{
+	skinClass : ClassReference( "assets.skins.header.HeaderActionsButtonBarSkin" );
+}
+
+.headerActionsButtonSeparator
+{
+	lineColor: #454a4e;
+	shadowColor: #707579;
+	strokeWeight: 1;
+}
+
+/*===================================
+	Widgets
+===================================*/
+
+.widgetsTitleButton
+{
+	color: #777777;
+	rollOverColor: #AAAAAA;
+	fontSize: 14pt;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+/*===================================
+Profile
+===================================*/
+
+.profilePoup
+{
+	skinClass : ClassReference("assets.skins.DialogPanelSkin");	
+	panel-color : #575C60;
+	headerHeight: 30;
+}
+
+/*===================================
+	Sources
+===================================*/
+
+.sourcesButtonBar
+{
+	skinClass : ClassReference("assets.skins.sources.SourcesButtonBarSkin");	
+}
+
+.addNewSourceButton
+{
+	skinClass : ClassReference("assets.skins.sources.AddNewSourceButtonSkin");	
+}
+
+/*===================================
+	Community
+===================================*/
+
+.joinCommunityButton
+{
+	skinClass : ClassReference("assets.skins.community.CommunityAddButtonSkin");	
+}
+
+/*===================================
+Text Styles
+===================================*/
+
+.black
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blackItalic
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontStyle  : italic;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blackBold
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.blackTextBold
+{
+	fontSize   : 16pt;
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blueText
+{
+	color      : #A3BBC5;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blueTextBold
+{
+	fontSize   : 16pt;
+	color      : #A3BBC5;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greenText
+{
+	color      : #82b43f;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greenTextBold
+{
+	fontSize   : 16pt;
+	color      : #82b43f;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greyTextLarge
+{
+	fontSize   : 16pt;
+	color      : #656565;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greyTextSmall
+{
+	color      : #919395;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyHeader
+{
+	fontSize   : 24pt;
+	color      : #bbbec1;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGrey
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyLargeBold
+{
+	fontSize   : 16pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontWeight: bold;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyItalic
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontStyle  : italic;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyBold
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontWeight: bold;
+	fontFamily : infiniteDefaultFont;
+}
+
+.veryLightGrey
+{
+	fontSize   : 14pt;
+	color      : #dfdfdf;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.veryLightGreyLarge
+{
+	fontSize   : 16pt;
+	color      : #dfdfdf;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.white
+{
+	fontSize   : 14pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.whiteBold
+{
+	fontSize   : 12pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.whiteLarge
+{
+	fontSize   : 16pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.darkGrey
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.darkGreyBold
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.mediumGrey
+{
+	fontSize  : 14pt;
+	color     : #999999;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.redTextLarge
+{
+	fontSize   : 16pt;
+	color      : #FF0000;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyMX
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}
+
+.whiteMX
+{
+	fontSize   : 14pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}
+
+.blackMX
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}

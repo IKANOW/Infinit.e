@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx"
+		  horizontalAlign="center" verticalAlign="middle">
+	<s:Label id="percentile" text="Zoom Level" fontWeight="bold"/>
+	<s:HGroup width="100%" horizontalAlign="center" verticalAlign="middle">
+		<s:Label id="minZoom" text="0"  fontSize="9" />   
+		<s:HSlider id="bzoom" stepSize="1" minimum="0" maximum="100" value="42" liveDragging="true" change="updateVScale(null)"/>
+		<s:Label id="maxZoom" text="100"  fontSize="9" />  
+	</s:HGroup>
+		     
+	<fx:Script>
+		<![CDATA[
+			import org.un.cava.birdeye.ravis.utils.LogUtil;
+			import org.un.cava.birdeye.ravis.utils.events.VGraphEvent;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.VisualGraph;
+			import org.un.cava.birdeye.ravis.assets.icons.EmbeddedIcons;
+			
+			private static const _LOG:String = "components.ui.controls.vgraphControls.BirdEyeZoom";
+			
+			private var _vgraph:VisualGraph;
+			
+			/**
+			 * Provides access to the registered vgraph object.
+			 * */
+			public function set vgraph(v:VisualGraph):void {
+				_vgraph = v;
+				registerListeners();
+			}
+			
+			
+			/**
+			 * @private
+			 * */
+			public function get vgraph():VisualGraph {
+				return _vgraph;
+			}
+			
+			/** 
+			 * update the scale of the VGraph, thus creating a BirdEye zoom effect
+			 * this function can be passed a MouseEvent to handle scrollwheel zooming
+			 * @param event A MouseEvent.MOUSE_WHEEL
+			 * */           
+			public function updateVScale(event:MouseEvent):void {
+				
+				if(bzoom == null) {
+					return;
+				}
+				
+				if(_vgraph == null) {
+					LogUtil.warn(_LOG, "BirdEyeZoom NOT changed, no valid vgraph!");
+					return;
+				}
+				//_vgraph.scale = bzoom.value;
+				
+				// Handle the update for mousewheel events outside the component
+				if(event != null) 
+				{
+					if(event.delta != 0) 
+					{
+						if(bzoom.value == bzoom.minimum) 
+						{
+							if(event.delta > 0) 
+							{
+								bzoom.value = bzoom.value+(event.delta*0.01);
+								_vgraph.scale = calculateScale(bzoom.value);
+							}
+						}
+						else if(bzoom.value == bzoom.maximum) 
+						{
+							if(event.delta < 0) 
+							{
+								bzoom.value = bzoom.value+(event.delta*0.01);
+								_vgraph.scale = calculateScale(bzoom.value);
+							}
+						} 
+						else 
+						{
+							bzoom.value = bzoom.value+(event.delta*0.01);
+							_vgraph.scale = calculateScale(bzoom.value);
+						}
+					}
+				}
+					// Handle the update for the zoom buttons
+				else 
+				{
+					if(bzoom.value <= bzoom.minimum) 
+					{
+						bzoom.value = bzoom.minimum;
+						return;
+					} 
+					else 
+					{
+						_vgraph.scale = calculateScale(bzoom.value);
+					}
+					
+					if(bzoom.value >= bzoom.maximum) 
+					{
+						bzoom.value = bzoom.maximum;
+						return;
+					} 
+					else 
+					{
+						_vgraph.scale = calculateScale(bzoom.value);
+					}
+				}
+			}
+			
+			/**
+			 * Calculates a value between .25 <-> 2 from a percentage (0->100)
+			 * Therefore    0 = .25
+			 * and    		100 = 2
+			 * Scale from 0->1.75, add .25 at end
+			 */ 
+			private function calculateScale(percent:Number):Number
+			{
+				return (((1.75*percent)/100) + .25);
+			}
+			
+			/* refresh the slider from the scaleX value */
+			public function refreshVScale(e:VGraphEvent = null):void {
+				if(bzoom == null) {
+					return;
+				}
+				if(_vgraph == null) {
+					LogUtil.warn(_LOG, "BirdEyeZoom NOT refreshed, no valid vgraph!");
+					return;
+				}
+				bzoom.value = _vgraph.scale;
+			}
+			
+			/**
+			 * register listeners
+			 * */
+			private function registerListeners():void {
+				_vgraph.addEventListener(VGraphEvent.VGRAPH_CHANGED,refreshVScale);
+				/* testing*/
+				this.addEventListener(MouseEvent.MOUSE_WHEEL,updateVScale);
+			}
+		]]>
+	</fx:Script>
+</s:VGroup>	

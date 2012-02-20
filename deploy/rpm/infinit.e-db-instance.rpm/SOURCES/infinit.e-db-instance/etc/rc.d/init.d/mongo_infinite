@@ -1,0 +1,344 @@
+#!/bin/bash
+# chkconfig: 35 85 15
+# description: Custom Startup Script of Mongo for Infinit.e
+# processname: mongo_infinite
+################################################################################
+. /etc/rc.d/init.d/functions
+
+start()
+{
+	## It can be assumed with this install that...
+	## there will only be one config server per server and it will reside on port 27016
+	## there will only be one MongoS instance per server and it will reside on port 27017
+	## db_instance values are to be numeric for the calculation of ports to run on
+	## If an arbiter is used, it will reside on port 27217+n (for db_instance n)
+	## for replica set n, the db instance will run on port 27017+n
+	## Note: having a db_instance of 1 and 201 would cause ports to conflict
+	## there will either be no replication or replica sets of 2 members, where an arbiter will be added.
+	## EC2 Boxes must have a setup key in order to be considered
+	## if there are multiple db_instance ids, they will be listed in numerical order from the EC2 key/value and separated by a comma
+
+	MONGO_IP=$(infdb my_ip)
+	echo "My IP: $MONGO_IP"
+
+	################################ Config Server Setup #######################################
+	echo "Beginning mongo_infinite start"
+	
+	if [ $(infdb is_config) == "true" ]; then 
+		echo "Starting Configuration Server"
+		mkdir -p /data/configdb/ >/dev/null
+		chown -R mongod.mongod /data/ >/dev/null
+		runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --configsvr --port 27016 --logpath /var/log/mongo/mongod.config.log --dbpath /data/configdb/ --fork"
+	else
+		echo "Note: This is not a configuration Server."
+	fi
+
+	############################### MongoS Server Setup #####################################
+	config_string=""
+	
+	if [[ $(infdb is_mongos) == "true" || $(infdb is_dbinstance) == "true" ]]; then 
+		counter=0
+		
+		while [[ $counter -ne 1 && $counter -ne 3 ]]; do 
+			counter=0
+			config_ips=$(infdb config_ips)
+			for ip in $config_ips
+			do
+				if [ $counter -eq 0 ]; then
+					config_string="$ip:27016"
+				else
+					config_string="$config_string, $ip:27016"
+				fi
+				counter=$(($counter+1))
+			done
+			
+			echo "$counter config servers found"
+			if [[ $counter -eq 1 || $counter -eq 3 ]]; then
+				echo "Connecting to Config Servers"
+			else
+				echo "Looking for 1 or 3 config servers [found $counter]... Sleeping"
+				#Sleep for one minute
+				sleep 60
+			fi
+		done
+		
+		while [ "$(infdb all_configs_running)" != true ]; do
+			echo "Waiting for all configs to start up. This may take some time on initial install."
+			sleep 15
+		done
+		
+		## Every DB Data location will have it's own MongoS found on port 27017
+		runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
+	fi
+
+	###############################  DB Data Setup ########################################
+
+	#the name of this current instance
+	this_instance=$(infdb my_instance)
+	this_ip=$(infdb my_ip)
+
+	#find the replica sets that this server is a member of
+	repl_sets=$(infdb repl_sets)
+	num_repls=$(echo $repl_sets | wc -w)
+	echo "This server is a member of $num_repls Replica Sets"
+
+	for x in $repl_sets
+		do
+			port=$((27017+$x))
+			echo "Starting DB on Port $port"
+			already_running=$(ps -ef | grep mongo | awk "/port $port/" | wc -l)
+			
+			if [ $already_running -eq 0 ]; then
+				mkdir -p /data/rs$x >/dev/null 2>&1
+				chown -R mongod.mongod /data/ >/dev/null 2>&1
+				
+				##Oplog should be 20480MB, if it is smaller, it's for debugging purposes
+				runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.rs$x.log --port $port --logappend --dbpath /data/rs$x --shardsvr --rest --fork --nojournal --oplogSize 20480" >/dev/null 2>&1
+				
+				members=$(infdb all_members_of_set $x)
+				num_members=$( echo $members | wc -w )
+					
+				while [ "$(infdb mongo_running 27017 2>&1)" != "true" ]; do
+					echo -e "Waiting for local mongoS to start."
+					sleep 20
+				done
+					
+					# only a sole member to the replica set
+					
+					if [ $num_members -ge 1 ]; then	
+							#create configuration
+							config="{_id: \"replica_set$x\", members: ["
+
+							id=0
+							for member in $members
+								do
+									config=$(echo "$config{_id: $id, host: \"$member:$port\"}")
+									if [ "$(infdb mongo_running $port $member 2>&1)" != "true" ]; then
+										wait="true"
+									fi
+									id=$(($id+1))
+									if [ $id -lt $num_members ]; then
+										config=$(echo "$config,")
+									fi
+								done
+
+							#If even number of members, add an arbiter
+							if [ $(($num_members % 2)) -eq 0 ]; then
+								#See if an arbiter has already been started
+								arbExists="false"
+								arbport=$((27217+$x))
+								for member in $members
+								do
+									if [ "$(infdb mongo_running $arbport $member 2>&1)" == "true" ]; then
+										arbExists=$member
+									fi
+								done
+								
+								#if an arbiter does not yet exist, start it.
+								if [ "$(echo $arbExists)" == "false" ]; then
+									config=$(echo "$config ,{_id: $id, host: \"$(infdb my_ip):$arbport\", arbiterOnly: true}")
+									mkdir -p /data/arbiter$x
+									chown -R mongod.mongod /data/
+									
+									echo "Starting Arbiter on Port $arbport"
+									runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.arbiter.rs$x.log --port $arbport --logappend --nojournal --dbpath /data/arbiter$x --fork --oplogSize 1" >/dev/null
+									
+									#wait for arbiter to come up before continuing
+									echo "Waiting for arbiter to come online"
+									while [ "$(infdb mongo_running $arbport $(infdb my_ip) 2>&1)" != "true" ]; do
+									 sleep 1
+									done
+								fi
+							fi
+							
+							while [ "$(echo $wait)" == "true" ]; do
+								echo "Must wait for all members to come up...waiting"
+								sleep 15
+								wait="false"
+								for member in $members
+								do
+									if [ "$(infdb mongo_running $port $member 2>&1 )" != "true" ]; then
+										echo "waiting on $member:$port"
+										wait="true"
+									fi
+								done
+							done
+
+							echo "Initiating the Replica Set (This may take quite some time)"
+							if [[ "$(echo $arbExists)" == "" || "$(echo $arbExists)" == "false" ]]; then
+								config=$(echo "$config ]}")
+								#echo $config
+								reply=$(mongo <<EOF --port $port
+use admin
+rs.initiate($config);
+exit
+EOF
+)
+							err_count=$(echo $reply | grep errmsg | wc -l)
+							while [ $err_count -gt 0 ]; do
+								echo "Initialization did not complete successfully"
+								rs_master=$(infdb master_of_set $x)
+								if [ $(echo $rs_master | grep '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\:[0-9]\+' | wc -l) -gt 0 ]; then
+									echo "Replica Set is Currently running. Master: $rs_master"
+									echo "Attempting to reconfigure..."
+									recon=$(mongo $rs_master << EOF
+use admin
+rs.reconfig($config)
+exit
+EOF
+)
+									err_count=$(echo $recon | grep errmsg | wc -l)
+									if [ $err_count -gt 0 ]; then
+										echo $recon
+									fi
+									
+								else
+									echo "Master was not found"
+								fi
+							done
+													
+								#wait one minute for configuration to come online
+								echo "Waiting 1 minute for configuration to come online"
+								sleep 60
+								
+								################################################################################
+								# Is the MongoDB instance to be sharded or not
+								SERVICE_PROPERTY_FILE='/mnt/opt/infinite-home/config/infinite.service.properties'
+								DB_SHARDED=`grep "^db.sharded=" $SERVICE_PROPERTY_FILE | sed s/'db.sharded='// | sed s/' '//g`
+								
+								######################################################################
+								# Only do the next block of the DB has one or more shards
+								#if [ "$DB_SHARDED"="1" ]; then
+									echo "Informing mongoS of shard (will error if shard as already been added successfully)"							
+									#connect to a mongoS instance and inform it of the shard
+									mongo <<EOF
+use admin
+db.runCommand({addShard:"replica_set$x/$this_ip:$port"});
+exit
+EOF
+>/dev/null
+								#fi
+								# End sharding block
+								######################################################################
+								
+							fi
+					fi
+			else
+				echo "Mongo Already Running On Port $port.... Skipping"
+			fi			
+	done
+
+	echo "mongo_infinite start complete"
+}
+
+stop_instance()
+{
+	echo "Beginning mongo_infinite Stop (instance only)"
+	infdb kill_db 27018
+}
+
+stop()
+{
+	echo "Beginning mongo_infinite Stop"
+	###############################  DB Instance Kill ########################################
+
+	if [ $(infdb is_config) == "true" ]; then
+		echo "This will shutdown the config server - this may not be what you want ... use stop_instance if not (sleeping for 10s to give you a chance to make up your mind!)"
+		sleep 10
+	fi 
+
+
+	repl_sets=$(infdb repl_sets)
+	echo "Replica Sets: $repl_sets"
+	
+	for x in $repl_sets
+	do
+		echo "Stopping DB Instance (replica_set $x)"
+		port=$((27017+$x))
+		arbport=$((27217+$x))
+		
+		count=0
+		while [[ "$(infdb mongo_running $port 2>&1)" == "true" && $count -lt 10 ]]; do
+			infdb kill_db $port >/dev/null 2>&1
+			sleep 6
+			count=$((1+$count))
+		done
+		
+		if [ $count -ge 10 ]; then
+			echo "Tried multiple times, MongoD on port $port would not stop"
+		fi
+		
+		if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
+		echo "Stopping Aribiter"
+		infdb kill_db $arbport >/dev/null 2>&1
+	fi
+	done
+
+	################################ Config Server Kill #######################################
+
+	if [ $(infdb is_config) == "true" ]; then 
+		echo "Stopping Config Server on Port 27016"
+		infdb kill_db 27016 >/dev/null 2>&1
+		count=0
+		while [[ "$(infdb mongo_running 27016 2>&1)" == "true" && $count -lt 10 ]]; do
+			infdb kill_db 27016 >/dev/null 2>&1
+			sleep 3
+			count=$((1+$count))
+		done
+		
+		if [ $count -ge 10 ]; then
+			echo "Tried multiple times, Mongo Config would not stop"
+		fi
+	fi
+
+	############################### MongoS Server Kill #####################################
+	if [[ $(infdb is_mongos) == "true" || $(infdb is_dbinstance) == "true" ]]; then  
+		echo "Stopping MongoS"
+		infdb kill_db 27017 >/dev/null 2>&1
+		count=0
+		while [[ "$(infdb mongo_running 27017 2>&1)" == "true" && $count -lt 10 ]]; do
+			infdb kill_db 27017 >/dev/null 2>&1
+			sleep 3
+			count=$((1+$count))
+		done
+		
+		if [ $count -ge 10 ]; then
+			echo "Tried multiple times, MongoS would not stop"
+		fi
+	fi
+
+	if [ $(ps -ef | grep mongo | grep -v grep | grep -v mongo_infinite | wc -l) -eq 0 ]; then
+		echo "All Mongo Instances have been verified as stopped"
+	else
+		echo "Stop was run but there are still mongo processes running:"
+		ps -ef | grep mongo | grep -v grep | grep -v mongo_infinite
+	fi	
+}
+
+restart () {
+	stop
+	start
+}
+
+ulimit -n 12000
+RETVAL=0
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop
+    ;;
+  stop_instance)
+    stop_instance
+    ;;
+  restart|reload|force-reload)
+    restart
+    ;;
+  *)
+    echo "Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart}"
+    RETVAL=1
+esac
+
+exit $RETVAL

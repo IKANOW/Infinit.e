@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="18"
+	minHeight="18"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        	[HostComponent("spark.components.Button")]
+        ]]>
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.assets.WidgetAssets;
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<s:Image 
+		alpha.down=".6"
+		alpha.over="1"
+		alpha.up=".8"
+		source="{ WidgetAssets.WIDGET_MOVE_BUTTON }" />
+
+</s:SparkButtonSkin>

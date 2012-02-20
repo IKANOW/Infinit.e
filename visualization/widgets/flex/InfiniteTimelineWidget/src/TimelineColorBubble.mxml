@@ -1,0 +1,377 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actionscript:TimelineExpandCollapseRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:actionscript="actionscript.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	currentState="baseState"
+	height.baseState="70"
+	width.baseState="280"
+	height.expanded="{ this.owner.height - 80 }"
+	width.expanded="{ this.owner.width - 80 }"
+	x.expanded="40"
+	y.expanded="40"
+	includeInLayout.expanded="false"
+	click.baseState="highlightSkin(event)"
+	creationComplete="init()"
+	contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+	depth.expanded="2"
+	highlighted="false">
+	<actionscript:states>
+		<s:State name="baseState" />
+		<s:State name="expanded" />
+	</actionscript:states>
+
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ibm.ilog.elixir.timeline.components.supportClasses.TimelineBandBase;
+			import com.ikanow.infinit.e.widget.library.utility.ColorConfig;
+			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import mx.controls.Alert;
+			import mx.controls.LinkButton;
+			import mx.controls.Spacer;
+			import mx.core.UIComponent;
+			import mx.graphics.SolidColorStroke;
+			import spark.primitives.Line;
+			
+			public function hightlightNode( highlight_now:Boolean ):void
+			{
+				
+				highlighted = !highlight_now;
+				highlightSkin( null );
+			}
+			
+			/**
+			 * function to format the date for the feed
+			 *
+			 * @param date The date of the feed
+			 */
+			private function formatDate( date:String ):void
+			{
+				//var _date:Date = new Date(Number(date));
+			
+				//timeDate.text = _date.toString();
+			}
+			
+			/**
+			 * THIS IS NOT USED
+			 * function to add entities to the dimension explorer
+			 *
+			 * @param entity The entity to send
+			 */
+			/*private function send2Query(entity:Object):void
+			{
+				var queryHandler:QueryContainer = new QueryContainer();
+				var queryObject:QueryObject = new QueryObject();
+				var name:String = "";
+			
+				if(entity.disambiguous_name != null)
+				{
+					name = entity.disambiguous_name;
+				}
+				else
+				{
+					name = entity.actual_name;
+				}
+				queryObject.keywordString = name.toLowerCase();
+				queryObject.boolString = "AND";
+				queryObject.queryType = "entity";
+				if ( null != entity.type )
+				{
+					queryObject.keywordString += "&" + entity.type.toLowerCase();
+				}
+				else
+				{
+					queryObject.keywordString += "&null";
+				}
+				queryHandler.qObjects.addItem(queryObject);
+				var eventObj:QueryBrowserEventClass = new QueryBrowserEventClass("addEntities",queryHandler);
+				parentDocument.parentDocument.parentDocument.dispatchEvent(eventObj);
+			}*/
+			
+			private function formatHtmlText( unformatted:String ):String
+			{
+				return HtmlConvert.convertEntities( unformatted );
+			}
+			
+			/**
+			 * function to format the text for the timeline labels
+			 *
+			 * @param title The title of the current feed
+			 *
+			 * @return The formatted title
+			 */
+			private function formatText( title:String, signif:String ):String
+			{
+				var newTitle:String = title;
+				var newSignif:String = new Number( signif ).toFixed( 1 ).toString();
+				var MAXLENGTH:int = 55 - newSignif.length;
+				
+				if ( newTitle.length > MAXLENGTH )
+				{
+					newTitle = HtmlConvert.convertEntities_txt( title.substring( 0, MAXLENGTH - 3 ) ) + "...";
+				}
+				else
+				{
+					newTitle = HtmlConvert.convertEntities_txt( title.substring( 0, MAXLENGTH ) );
+				}
+				
+				return newTitle + " (Score: " + newSignif + ")";
+			}
+			
+			/**
+			 * function to get the media color based on its media type
+			 *
+			 * @param mediaType The media type of the current feed
+			 *
+			 * @return The color for the media type
+			 */
+			private function getMediaColor( mediaType:String ):uint
+			{
+				var mediaTypeUC:String = mediaType.toLowerCase();
+				
+				if ( mediaType != null )
+				{
+					if ( mediaTypeUC == "news" )
+						return ColorConfig.MEDIATYPE_NEWS;
+					else if ( mediaTypeUC == "social" )
+						return ColorConfig.MEDIATYPE_SOCIAL;
+					else if ( mediaTypeUC == "video" )
+						return ColorConfig.MEDIATYPE_VIDEO;
+					else if ( mediaTypeUC == "discussion" )
+						return ColorConfig.MEDIATYPE_DISCUSSION;
+					else if ( mediaTypeUC == "blog" )
+						return ColorConfig.MEDIATYPE_BLOG;
+					else if ( mediaTypeUC == "report" )
+						return ColorConfig.MEDIATYPE_INTEL;
+					else if ( mediaTypeUC == "intel" )
+						return ColorConfig.MEDIATYPE_INTEL;
+					else if ( mediaTypeUC == "record" )
+						return ColorConfig.MEDIATYPE_RECORD;
+					else if ( mediaTypeUC == "imagery" )
+						return ColorConfig.MEDIATYPE_IMAGERY;
+				}
+				return ColorConfig.MEDIATYPE_NONE;
+			}
+			
+			/**
+			 * function to highlight the skin
+			 *
+			 * @param event The MouseEvent received when the skin is clicked
+			 */
+			private function highlightSkin( event:MouseEvent ):void
+			{
+				if ( !highlighted )
+				{
+					bContainer.setStyle( "borderColor", "0x000000" );
+				}
+				else if ( highlighted )
+				{
+					bContainer.setStyle( "borderColor", "0xFFFFFF" );
+				}
+				highlighted = !highlighted;
+				data[ "highlighted" ] = highlighted;
+			}
+			
+			/**
+			 * function to set default values on creation
+			 *
+			 */
+			private function init():void
+			{
+				//add item renderers to parent so it can highlight them
+				//if necessary
+				var timelinemod:InfiniteTimelineWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineWidget;
+				timelinemod.addNode( this );
+			}
+			
+			/**
+			 * Determines what action to take when a title/url is clicked.
+			 * If the item is a website will open site in a new tab.  If
+			 * it is a record will Alert show the metadata fields, otherwise will
+			 * show the description.
+			 **/
+			private function labelClick( data:Object ):void
+			{
+				if ( data.url != null && data.url.indexOf( "http" ) > -1 )
+				{
+					navigateToUrl( data.url );
+				}
+				else if ( null != data.metadata )
+				{
+					Alert.show( JSONEncoder.encode( data.metadata ), "Metadata fields" );
+				}
+				else if ( null != data.description )
+				{
+					Alert.show( data.description );
+				}
+				else
+				{
+					Alert.show( "No more information is available." );
+				}
+			}
+			
+			/**
+			 * function to navigate to the url of the feed
+			 *
+			 * @param _url The url of the feed
+			 */
+			private function navigateToUrl( _url:String ):void
+			{
+				var url:URLRequest = new URLRequest( _url );
+				navigateToURL( url, "_blank" );
+			}
+			
+			/**
+			 * function to switch the states of the item renderer
+			 * to show more data for the feed
+			 *
+			 * @param event The MouseEvent received when an expand or collapse is requested
+			 */
+			private function switchStates( event:MouseEvent ):void
+			{
+				expanded = !expanded;
+				event.stopImmediatePropagation();
+			}
+		]]>
+	</fx:Script>
+
+	<s:BorderContainer id="bContainer"
+		width="100%"
+		height="70"
+		borderColor="0xFFFFFF"
+		borderStyle="solid"
+		cornerRadius="8"
+		borderWeight="3"
+		contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+		includeIn="baseState">
+		<s:backgroundFill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry color="0xFFFFFF" />
+					<s:GradientEntry color="{ getMediaColor( data.mediaType ) }" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:backgroundFill>
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			bottom="0"
+			horizontalAlign="left"
+			left="0"
+			paddingBottom="5"
+			paddingLeft="5"
+			paddingRight="5"
+			paddingTop="5"
+			right="0"
+			top="0"
+			verticalAlign="top"
+			contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+			includeIn="baseState">
+			<s:HGroup id="topgroup"
+				height="20"
+				width="100%"
+				horizontalAlign="left"
+				verticalAlign="middle"
+				contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+				includeIn="baseState">
+				<s:Label id="timeDate"
+					x="0"
+					y="0"
+					text="{ data.published.toString() }"
+					fontWeight="bold"
+					includeIn="baseState" />
+
+				<s:HGroup 
+					width="100%"
+					horizontalAlign="right"
+					verticalAlign="middle"
+					contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+					includeIn="baseState">
+					<s:Button id="expandWindow"
+						click="switchStates(event)"
+						includeIn="baseState"
+						skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin" />
+				</s:HGroup>
+			</s:HGroup>
+			<s:Label id="article"
+				height="44"
+				text="{ formatText( data.title, data.score ) }"
+				width="{ topgroup.width }"
+				fontWeight="bold"
+				includeIn="baseState"
+				lineBreak="toFit" />
+		</s:VGroup>
+	</s:BorderContainer>
+	<s:BorderContainer id="bContainerExpanded"
+		width="100%"
+		height="100%"
+		backgroundColor="0xFFFFFF"
+		borderColor="{ getMediaColor( data.mediaType ) }"
+		borderStyle="solid"
+		cornerRadius="8"
+		borderWeight="3"
+		contentBackgroundColor="0xFFFFFF"
+		includeIn="expanded">
+		<s:VGroup 
+			width="{ bContainerExpanded.width }"
+			height="{ bContainerExpanded.height }"
+			horizontalAlign="left"
+			paddingBottom="5"
+			paddingLeft="5"
+			paddingRight="5"
+			paddingTop="5"
+			verticalAlign="top"
+			contentBackgroundColor="0xFFFFFF"
+			includeIn="expanded">
+			<!--<s:HGroup id="topgroupExpanded" width="100%" verticalAlign="middle" includeIn="expanded" contentBackgroundColor="0xFFFFFF">
+
+
+			</s:HGroup>	-->
+			<s:Label id="timeDateExpanded"
+				width="100%"
+				text="{ data.published.toString() }"
+				fontWeight="bold"
+				includeIn="expanded" />
+			<mx:Label id="articleExpanded"
+				htmlText="{ formatHtmlText( data.title ) }"
+				maxWidth="{ bContainerExpanded.width - 20 }"
+				color="blue"
+				fontSize="14"
+				fontWeight="bold"
+				textDecoration="underline"
+				click="{ labelClick( data ) }"
+				buttonMode="true"
+				includeIn="expanded"
+				mouseChildren="false"
+				useHandCursor="true" />
+			<mx:LinkButton id="link"
+				label="{ data.url }"
+				maxWidth="{ bContainerExpanded.width - 20 }"
+				toolTip="[Mouse: open URL in new tab]"
+				color="green"
+				fontSize="12"
+				textAlign="left"
+				click="{ labelClick( data ) }" />
+			<mx:Text id="snippet"
+				width="100%"
+				height="100%"
+				htmlText="{ formatHtmlText( data.description ) }"
+				fontSize="12" />
+			<!--<mx:Spacer height="5"/>-->
+
+		</s:VGroup>
+		<s:Button id="expandWindowExpanded"
+			width="15"
+			height="15"
+			right="12"
+			top="5"
+			click="switchStates(event)"
+			includeIn="expanded"
+			skinClass.expanded="skins.TimelineMinimizeButtonSkin" />
+	</s:BorderContainer>
+</actionscript:TimelineExpandCollapseRenderer>

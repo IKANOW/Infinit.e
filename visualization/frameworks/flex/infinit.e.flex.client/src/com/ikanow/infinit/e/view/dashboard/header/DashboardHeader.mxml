@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	resize="resizeHandler(event)"
+	clipAndEnableScrolling="false"
+	mouseChildren="true"
+	mouseEnabled="false">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.dashboard.header.DashboardHeaderModel;
+			import com.ikanow.infinit.e.model.presentation.dashboard.header.DashboardHeaderNavigator;
+			import com.ikanow.infinit.e.profile.view.Profile;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import com.ikanow.infinit.e.shared.model.constant.types.QueryDimensionTypes;
+			import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
+			import flash.utils.setTimeout;
+			import mx.controls.Button;
+			import mx.core.FlexGlobals;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.FlexMouseEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.ResizeEvent;
+			import mx.managers.PopUpManager;
+			import mx.managers.PopUpManagerChildList;
+			import spark.components.ButtonBarButton;
+			import spark.events.IndexChangeEvent;
+			import assets.EmbeddedAssets;
+			
+			[Bindable]
+			[Inject]
+			public var model:DashboardHeaderModel;
+			
+			protected var profilePopup:Profile;
+			
+			[Bindable]
+			protected var simpleSearchHasFocus:Boolean = false;
+			
+			private var topOfSuggestionsList:Boolean = false;
+			
+			/**
+			 * Close the profile popup
+			 */
+			public function closeProfilePopup( event:Event = null ):void
+			{
+				if ( profilePopup )
+				{
+					profilePopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, profilePopup_clickOutsideHandler );
+					profilePopup.removeEventListener( CloseEvent.CLOSE, closeProfilePopup );
+					PopUpManager.removePopUp( profilePopup );
+					profilePopup = null;
+					model.navigator.resetActions();
+				}
+			}
+			
+			/**
+			 * Handles navigation when a user action button is clicked
+			 */
+			protected function actionButtons_clickHandler( event:MouseEvent ):void
+			{
+				if ( event.target is ButtonBarButton && ButtonBarButton( event.target ).itemIndex == DashboardHeaderNavigator.PROFILE_INDEX )
+				{
+					model.hideSuggestionsList();
+					
+					if ( model.navigator.selectedActionIndex == DashboardHeaderNavigator.PROFILE_INDEX )
+					{
+						model.navigator.resetActions();;
+						closeProfilePopup();
+					}
+					else
+					{
+						showProfilePopup();
+					}
+				}
+			}
+			
+			/**
+			 * Handles navigation when a dialog tab button is clicked
+			 */
+			protected function dialogButtons_clickHandler( event:MouseEvent ):void
+			{
+				model.hideSuggestionsList();
+				
+				if ( event.target is ButtonBarButton && ButtonBarButton( event.target ).itemIndex == model.navigator.selectedDialogIndex )
+				{
+					model.navigator.hideWorkspacesDialogs();
+				}
+			}
+			
+			/**
+			 * Position the profile popup
+			 */
+			protected function positionProfilePopup():void
+			{
+				if ( profilePopup )
+				{
+					var loginButton:ButtonBarButton = actionButtons.dataGroup.getChildAt( 0 ) as ButtonBarButton;
+					profilePopup.x = this.width - ( profilePopup.width ) - loginButton.width;
+					profilePopup.y = loginButton.height - 4;
+				}
+			}
+			
+			/**
+			 * Click outside handler for the profile popup
+			 */
+			protected function profilePopup_clickOutsideHandler( event:Event ):void
+			{
+				var profileButton:ButtonBarButton = actionButtons.dataGroup.getChildAt( 1 ) as ButtonBarButton;
+				
+				if ( event is MouseEvent && profilePopup )
+				{
+					var mouseEvent:MouseEvent = MouseEvent( event );
+					
+					if ( mouseEvent.target != profilePopup || mouseEvent.relatedObject == profileButton )
+					{
+						return;
+					}
+					
+					if ( !profilePopup.hitTestPoint( mouseEvent.stageX, mouseEvent.stageY, true ) )
+					{
+						closeProfilePopup();
+					}
+				}
+			}
+			
+			protected function querySummary_removeHandler( event:Event ):void
+			{
+				model.navigator.hideWorkspacesDialogs();
+				model.clearLastQuery();
+				simpleSearch.setFocus();
+			}
+			
+			/**
+			 * Resize Handler
+			 */
+			protected function resizeHandler( event:ResizeEvent ):void
+			{
+				positionProfilePopup();
+			}
+			
+			protected function setTopOfSuggestionListFlag():void
+			{
+				topOfSuggestionsList = suggestions.selectedIndex == 0;
+			}
+			
+			/**
+			 * Show the profile popup
+			 */
+			protected function showProfilePopup():void
+			{
+				model.navigator.hideWorkspacesDialogs();
+				
+				if ( profilePopup )
+				{
+					closeProfilePopup();
+				}
+				else
+				{
+					profilePopup = PopUpManager.createPopUp( DisplayObject( FlexGlobals.topLevelApplication ), Profile, false, PopUpManagerChildList.APPLICATION ) as Profile;
+					profilePopup.addEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, profilePopup_clickOutsideHandler, false, 0, true );
+					profilePopup.addEventListener( CloseEvent.CLOSE, closeProfilePopup, false, 0, true );
+					
+					positionProfilePopup();
+				}
+			}
+			
+			/**
+			 * Charcter channge in the search text input
+			 */
+			protected function simpleSearch_changeHandler():void
+			{
+				if ( simpleSearch.text != null )
+					model.getQuerySuggestions( simpleSearch.text );
+			}
+			
+			/**
+			 * Enter key pressed in the search text input control
+			 */
+			protected function simpleSearch_enterHandler():void
+			{
+				submitQuery();
+				
+				model.hideSuggestionsList();
+			}
+			
+			protected function simpleSearch_focusInHandler():void
+			{
+				if ( model.lastQuerySummary )
+					querySummary.setFocus();
+				
+				simpleSearchHasFocus = true;
+				
+				if ( simpleSearch.text.length > 0 )
+					simpleSearch.selectRange( simpleSearch.text.length, simpleSearch.text.length );
+			}
+			
+			protected function simpleSearch_focusOutHandler( event:FocusEvent ):void
+			{
+				simpleSearchHasFocus = false;
+			}
+			
+			protected function simpleSearch_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( event.keyCode == Keyboard.DOWN )
+				{
+					if ( !suggestions.visible )
+					{
+						if ( !model.suggestions || model.suggestions.length == 0 )
+						{
+							model.getQuerySuggestions( Constants.WILDCARD ); // No current search suggestions, go find some
+						}
+						
+						// set the selected index and scroll to item
+						if ( model.suggestions && suggestions.selectedIndex == -1 )
+						{
+							model.setSuggestionsSelectedIndex( 0 );
+							suggestions.ensureIndexIsVisible( 0 );
+							suggestions_changeHandler();
+						}
+						
+						model.showSuggestionsList();
+					}
+					
+					suggestions.setFocus();
+					setTopOfSuggestionListFlag();
+				}
+				else if ( event.keyCode == Keyboard.UP )
+				{
+					if ( !suggestions.visible )
+					{
+						if ( !model.suggestions )
+						{
+							model.getQuerySuggestions( Constants.WILDCARD ); // No current search suggestions, go find some
+						}
+						
+						model.showSuggestionsList();
+					}
+					
+					// set focus to the suggestions list
+					suggestions.setFocus();
+					
+					// set the selected index and scroll to item
+					if ( model.suggestions && suggestions.selectedIndex < 1 )
+					{
+						model.setSuggestionsSelectedIndex( model.suggestions.length - 1 );
+						suggestions.ensureIndexIsVisible( model.suggestions.length - 1 );
+						suggestions_changeHandler();
+					}
+					
+					setTopOfSuggestionListFlag();
+					
+				}
+				else if ( event.keyCode == Keyboard.ESCAPE )
+				{
+					model.hideSuggestionsList();
+				}
+			}
+			
+			protected function simpleSearch_valueCommitHandler( event:FlexEvent ):void
+			{
+				if ( simpleSearch.text == Constants.WILDCARD )
+					simpleSearch.selectRange( simpleSearch.text.length, simpleSearch.text.length );
+			}
+			
+			/**
+			 * Submit the query
+			 */
+			protected function submitQuery():void
+			{
+				model.navigator.hideWorkspacesDialogs();
+				model.hideSuggestionsList();
+				model.submitQuery();
+			}
+			
+			protected function suggestions_changeHandler():void
+			{
+				model.setSelectedSuggestion( suggestions.selectedItem as QuerySuggestion );
+				setTopOfSuggestionListFlag();
+			}
+			
+			protected function suggestions_focusInHandler():void
+			{
+				if ( suggestions.selectedIndex == -1 )
+				{
+					model.setSuggestionsSelectedIndex( 0 );
+					setTopOfSuggestionListFlag();
+				}
+			}
+			
+			protected function suggestions_focusOutHandler():void
+			{
+				model.hideSuggestionsList();
+			}
+			
+			protected function suggestions_itemClickHandler( event:ItemClickEvent ):void
+			{
+				suggestions_changeHandler();
+				model.hideSuggestionsList();
+				setTimeout( simpleSearch.setFocus, 100 );
+			}
+			
+			protected function suggestions_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( ( event.keyCode == Keyboard.UP ) || ( event.keyCode == Keyboard.DOWN ) )
+				{
+					// if we're at the top and try to go up, return to simpleSearch		
+					if ( topOfSuggestionsList && event.keyCode == Keyboard.UP )
+					{
+						simpleSearch.setFocus(); // ( second time through we're headed back to the simpleSearch )
+					}
+					else
+					{
+						setTopOfSuggestionListFlag();
+					}
+				}
+				else // Any other key
+				{
+					model.hideSuggestionsList();
+					simpleSearch.setFocus();
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="simple" />
+		<s:State name="advanced" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:Group 
+		height="100%"
+		width="100%">
+
+		<s:layout>
+			<s:HorizontalLayout 
+				verticalAlign="middle"
+				gap="0" />
+		</s:layout>
+
+		<!-- Search -->
+		<s:Group 
+			width="45%"
+			height="100%">
+
+			<!-- Search Input -->
+			<textInput:InfTextInput id="simpleSearch"
+				styleName="simpleSearchTextInput"
+				text="{ model.selectedSuggestion.value }"
+				bottom="16"
+				left="16"
+				paddingLeft="34"
+				right="12"
+				top="16"
+				change="simpleSearch_changeHandler()"
+				focusIn="simpleSearch_focusInHandler()"
+				focusOut="simpleSearch_focusOutHandler(event)"
+				keyDown="simpleSearch_keyDownHandler(event)"
+				valueCommit="simpleSearch_valueCommitHandler(event)"
+				enter="simpleSearch_enterHandler()"
+				submitQuery="submitQuery()" />
+
+			<!-- Selected Suggestion Icon -->
+			<s:Group 
+				width="24"
+				height="100%"
+				left="22"
+				visible="{ simpleSearch.text != '' || simpleSearchHasFocus }">
+				<s:Image 
+					horizontalCenter="0"
+					verticalCenter="1"
+					source="{ model.selectedSuggestion ? QueryDimensionTypes.getIcon( model.selectedSuggestion.dimension ) : EmbeddedAssets.ENTITY_TEXT_EXACT }" />
+			</s:Group>
+
+			<!-- Last Query Summary -->
+			<component:QuerySummary id="querySummary"
+				includeInLayout="{ model.lastQuerySummary != null }"
+				maxWidth="{ simpleSearch.width - 43 }"
+				bottom="20"
+				left="20"
+				top="21"
+				remove="querySummary_removeHandler(event)"
+				show="querySummary.setFocus()"
+				querySummary="{ model.lastQuerySummary }"
+				showQuery="model.navigator.showQueryDialog()"
+				visible="{ model.lastQuerySummary != null }" />
+
+		</s:Group>
+
+		<!-- Dialog Tab Buttons -->
+		<common:InfButtonBar id="dialogButtons"
+			height="100%"
+			styleName="headerDialogsButtonBar"
+			dataProvider="{ model.navigator.dialogs }"
+			selectedIndex="{ model.navigator.selectedDialogIndex }"
+			change="model.navigator.navigate( dialogButtons.selectedItem )"
+			click="dialogButtons_clickHandler(event)" />
+
+	</s:Group>
+
+	<!-- User Action Buttons -->
+	<common:InfButtonBar id="actionButtons"
+		styleName="headerActionsButtonBar"
+		dataProvider="{ model.navigator.actions }"
+		selectedIndex="{ model.navigator.selectedActionIndex }"
+		right="0"
+		change="model.navigator.navigate( actionButtons.selectedItem )"
+		click="actionButtons_clickHandler(event)" />
+
+	<!-- Bottom Separator -->
+	<component:HSeparator 
+		width="100%"
+		bottom="0" />
+
+	<!-- Search Suggestions -->
+	<s:Group>
+		<common:InfItemClickList id="suggestions"
+			maxHeight="540"
+			styleName="querySuggestionList"
+			dataProvider="{ model.suggestions }"
+			selectedIndex="{ model.suggestionsSelectedIndex }"
+			labelField="displayValueHTML"
+			width="{ model.showSuggestions ? simpleSearch.width : 0 }"
+			includeInLayout="{ model.showSuggestions }"
+			horizontalScrollPolicy="off"
+			left="16"
+			top="{ simpleSearch.height + 19 }"
+			change="suggestions_changeHandler()"
+			focusIn="suggestions_focusInHandler()"
+			focusOut="suggestions_focusOutHandler()"
+			itemClick="suggestions_itemClickHandler(event)"
+			keyDown="suggestions_keyDownHandler(event)"
+			itemRenderer="com.ikanow.infinit.e.shared.view.renderer.QuerySuggestionItemRenderer"
+			visible="{ model.showSuggestions }">
+			<common:layout>
+				<s:VerticalLayout 
+					paddingBottom="6"
+					paddingTop="6"
+					requestedMinRowCount="1"
+					useVirtualLayout="false" />
+			</common:layout>
+		</common:InfItemClickList>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x000000"
+				alpha=".7"
+				angle="45"
+				blurX="8"
+				blurY="8"
+				distance="8" />
+		</s:filters>
+	</s:Group>
+
+</s:Group>

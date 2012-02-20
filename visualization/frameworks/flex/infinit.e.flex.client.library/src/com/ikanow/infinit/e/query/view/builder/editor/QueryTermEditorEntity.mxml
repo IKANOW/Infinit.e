@@ -1,0 +1,290 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	paddingLeft="6"
+	paddingRight="6"
+	addedToStage="addedToStageHandler(event)"
+	gap="3">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Events ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[Event( name = "updateQueryTerm", type = "flash.events.Event" )]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.types.EditModeTypes;
+			import com.ikanow.infinit.e.shared.model.constant.types.QueryDimensionTypes;
+			import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
+			import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
+			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			import assets.EmbeddedAssets;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryTermEditorModel;
+			
+			[Bindable]
+			public var selectedSuggestion:QuerySuggestion;
+			
+			[Bindable]
+			protected var simpleSearchHasFocus:Boolean = false;
+			
+			protected var topOfSuggestionsList:Boolean;
+			
+			/**
+			 * Update the query term
+			 */
+			public function updateQueryTerm():void
+			{
+				model.hideSuggestionsList();
+				
+				dispatchEvent( new Event( "updateQueryTerm", true ) );
+				
+				model.updateEntityQueryType();
+			}
+			
+			protected function addedToStageHandler( event:Event ):void
+			{
+				if ( simpleSearch )
+				{
+					callLater( simpleSearch.setFocus );
+					callLater( simpleSearch.selectRange, [ simpleSearch.text.length, simpleSearch.text.length ] );
+					simpleSearchHasFocus = true;
+				}
+			}
+			
+			protected function setTopOfSuggestionListFlag():void
+			{
+				topOfSuggestionsList = suggestions.selectedIndex == 0;
+			}
+			
+			/**
+			 * Charcter channge in the search text input
+			 */
+			protected function simpleSearch_changeHandler():void
+			{
+				if ( simpleSearch.text != null )
+					model.getQuerySuggestions( simpleSearch.text );
+			}
+			
+			/**
+			 * Enter key pressed in the search text input control
+			 */
+			protected function simpleSearch_enterHandler():void
+			{
+				updateQueryTerm();
+				
+				model.hideSuggestionsList();
+			}
+			
+			protected function simpleSearch_focusInHandler():void
+			{
+				simpleSearchHasFocus = true;
+				
+				if ( simpleSearch.text.length > 0 )
+					simpleSearch.selectRange( simpleSearch.text.length, simpleSearch.text.length );
+			}
+			
+			protected function simpleSearch_focusOutHandler( event:FocusEvent ):void
+			{
+				simpleSearchHasFocus = false;
+			}
+			
+			protected function simpleSearch_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( event.keyCode == Keyboard.DOWN )
+				{
+					if ( !suggestions.visible )
+					{
+						if ( !model.suggestions || model.suggestions.length == 0 )
+						{
+							if ( simpleSearch.text != Constants.BLANK )
+							{
+								model.getQuerySuggestions( simpleSearch.text ); // No current search suggestions, go find some
+							}
+							else
+							{
+								model.getQuerySuggestions( Constants.WILDCARD ); // No current search suggestions, go find some
+							}
+						}
+						
+						// set the selected index and scroll to item
+						if ( model.suggestions && suggestions.selectedIndex == -1 )
+						{
+							model.setSuggestionsSelectedIndex( 0 );
+							suggestions.ensureIndexIsVisible( 0 );
+							suggestions_changeHandler();
+						}
+						
+						model.showSuggestionsList();
+					}
+					
+					suggestions.setFocus();
+					setTopOfSuggestionListFlag();
+				}
+				else if ( event.keyCode == Keyboard.UP )
+				{
+					if ( !suggestions.visible )
+					{
+						if ( simpleSearch.text != Constants.BLANK )
+						{
+							model.getQuerySuggestions( simpleSearch.text ); // No current search suggestions, go find some
+						}
+						else
+						{
+							model.getQuerySuggestions( Constants.WILDCARD ); // No current search suggestions, go find some
+						}
+						
+						model.showSuggestionsList();
+					}
+					
+					// set focus to the suggestions list
+					suggestions.setFocus();
+					
+					// set the selected index and scroll to item
+					if ( model.suggestions && suggestions.selectedIndex < 1 )
+					{
+						model.setSuggestionsSelectedIndex( model.suggestions.length - 1 );
+						suggestions.ensureIndexIsVisible( model.suggestions.length - 1 );
+						suggestions_changeHandler();
+					}
+					
+					setTopOfSuggestionListFlag();
+					
+				}
+				else if ( event.keyCode == Keyboard.ESCAPE )
+				{
+					if ( model )
+						model.hideSuggestionsList();
+				}
+			}
+			
+			protected function simpleSearch_valueCommitHandler( event:FlexEvent ):void
+			{
+				if ( simpleSearch.text == Constants.WILDCARD )
+					simpleSearch.selectRange( simpleSearch.text.length, simpleSearch.text.length );
+			}
+			
+			protected function suggestions_changeHandler():void
+			{
+				model.setSelectedSuggestion( suggestions.selectedItem as QuerySuggestion );
+				setTopOfSuggestionListFlag();
+			}
+			
+			protected function suggestions_focusInHandler():void
+			{
+				if ( suggestions.selectedIndex == -1 )
+				{
+					model.setSuggestionsSelectedIndex( 0 );
+					setTopOfSuggestionListFlag();
+				}
+			}
+			
+			protected function suggestions_focusOutHandler():void
+			{
+				if ( model )
+					model.hideSuggestionsList();
+			}
+			
+			protected function suggestions_itemClickHandler( event:ItemClickEvent ):void
+			{
+				suggestions_changeHandler();
+				model.hideSuggestionsList();
+				setTimeout( simpleSearch.setFocus, 100 );
+			}
+			
+			protected function suggestions_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( ( event.keyCode == Keyboard.UP ) || ( event.keyCode == Keyboard.DOWN ) )
+				{
+					// if we're at the top and try to go up, return to simpleSearch		
+					if ( topOfSuggestionsList && event.keyCode == Keyboard.UP )
+					{
+						simpleSearch.setFocus(); // ( second time through we're headed back to the simpleSearch )
+					}
+					else
+					{
+						setTopOfSuggestionListFlag();
+					}
+				}
+				else // Any other key
+				{
+					model.hideSuggestionsList();
+					simpleSearch.setFocus();
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:Group width="100%">
+
+		<!-- Simple Search -->
+		<textInput:InfTextInput id="simpleSearch"
+			width="100%"
+			height="40"
+			text="{ model.selectedSuggestion.value }"
+			styleName="querySearchTermTextInput"
+			paddingLeft="34"
+			change="simpleSearch_changeHandler()"
+			focusIn="simpleSearch_focusInHandler()"
+			focusOut="simpleSearch_focusOutHandler(event)"
+			keyDown="simpleSearch_keyDownHandler(event)"
+			valueCommit="simpleSearch_valueCommitHandler(event)"
+			enter="simpleSearch_enterHandler()" />
+
+		<!-- Selected Suggestion Icon -->
+		<s:Group 
+			width="24"
+			height="100%"
+			left="6"
+			visible="{ simpleSearch.text != '' || simpleSearchHasFocus }">
+			<s:Image 
+				horizontalCenter="0"
+				verticalCenter="1"
+				source="{ model.selectedSuggestion ? QueryDimensionTypes.getIcon( model.selectedSuggestion.dimension ) : EmbeddedAssets.ENTITY_TEXT_EXACT }" />
+		</s:Group>
+
+	</s:Group>
+
+	<!-- Suggestions -->
+	<common:InfItemClickList id="suggestions"
+		width="608"
+		maxHeight="300"
+		styleName="queryEditorSuggestionList"
+		labelField="displayValueHTML"
+		horizontalScrollPolicy="off"
+		dataProvider="{ model.suggestions }"
+		includeInLayout="{ model.showSuggestions }"
+		selectedIndex="{ model.suggestionsSelectedIndex }"
+		change="suggestions_changeHandler()"
+		focusIn="suggestions_focusInHandler()"
+		focusOut="suggestions_focusOutHandler()"
+		itemClick="suggestions_itemClickHandler(event)"
+		keyDown="suggestions_keyDownHandler(event)"
+		itemRenderer="com.ikanow.infinit.e.shared.view.renderer.QuerySuggestionItemRenderer"
+		visible="{ model.showSuggestions }">
+		<common:layout>
+			<s:VerticalLayout 
+				paddingBottom="6"
+				paddingTop="8"
+				requestedMinRowCount="1"
+				useVirtualLayout="false" />
+		</common:layout>
+	</common:InfItemClickList>
+
+</s:VGroup>

@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        /** 
+         * @copy spark.skins.spark.ApplicationSkin#hostComponent
+         */
+        [HostComponent("spark.components.SkinnableContainer")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			/**
+			 *  @private
+			 */
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				// Push backgroundColor and backgroundAlpha directly.
+				// Handle undefined backgroundColor by hiding the background object.
+				if ( isNaN( getStyle( "backgroundColor" ) ) )
+				{
+					background.visible = false;
+				}
+				else
+				{
+					background.visible = true;
+					bgFill.color = getStyle( "backgroundColor" );
+					bgFill.alpha = getStyle( "backgroundAlpha" );
+				}
+				
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!--- Defines the appearance of the SkinnableContainer class's background. -->
+	<s:Rect id="background"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0"
+		radiusX="20"
+		radiusY="20">
+		<s:fill>
+			<!--- @private -->
+			<s:SolidColor id="bgFill"
+				color="#FFFFFF" />
+		</s:fill>
+		<s:stroke>
+			<s:SolidColorStroke 
+				color="0xAAAAAA"
+				joints="round"
+				miterLimit="20"
+				weight="1" />
+		</s:stroke>
+	</s:Rect>
+
+	<!--
+		Note: setting the minimum size to 0 here so that changes to the host component's
+		size will not be thwarted by this skin part's minimum size.   This is a compromise,
+		more about it here: http://bugs.adobe.com/jira/browse/SDK-21143
+	-->
+	<!--- @copy spark.components.SkinnableContainer#contentGroup -->
+	<s:Group id="contentGroup"
+		minWidth="0"
+		minHeight="0"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0">
+		<s:layout>
+			<s:HorizontalLayout />
+		</s:layout>
+	</s:Group>
+
+</s:Skin>

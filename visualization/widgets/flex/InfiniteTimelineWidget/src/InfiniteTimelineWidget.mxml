@@ -1,0 +1,1162 @@
+<?xml version="1.0" encoding="utf-8"?>
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	currentState="nodata"
+	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+	<components:states>
+		<s:State name="dataview" />
+		<s:State name="nodata" />
+	</components:states>
+	<fx:Style source="com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace ibm "http://www.ibm.com/xmlns/prod/ilog/elixir/2010";
+		@namespace Knowledge "Knowledge.*";
+		
+		ibm|TimeAxis		
+		{
+			major-ticks-visible: true;
+			minor-ticks-visible: true;	
+			minor-labels-visible: true;
+		}
+		
+		ibm|TimelineGrid
+		{
+			major-lines-visible: true;
+			minor-lines-visible: true;			
+		}
+	</fx:Style>
+	<fx:Script>
+<![CDATA[
+	import actionscript.TimelineExpandCollapseRenderer;
+	
+	import com.ibm.ilog.elixir.timeline.events.TimelineRangeEvent;
+	import com.ibm.ilog.elixir.timeline.supportClasses.TickItem;
+	import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
+	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
+	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
+	import com.ikanow.infinit.e.widget.library.utility.DateConverter;
+	import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+	import com.ikanow.infinit.e.widget.library.widget.IWidget;
+	import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+	
+	import flash.utils.describeType;
+	
+	import flexlib.mdi.containers.MDIWindow;
+	
+	import mx.charts.HitData;
+	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
+	import mx.events.FlexEvent;
+	import mx.events.MenuEvent;
+	import mx.managers.CursorManager;
+	
+	import org.alivepdf.pdf.PDF;
+	
+	import skins.InfiniteFilterApplyOrIgnore;
+	
+	import spark.events.IndexChangeEvent;
+	
+	import system.data.Set;
+	import system.data.maps.HashMap;
+	import system.data.sets.HashSet;
+			
+			[Bindable]
+			private var queryData:ArrayCollection = new ArrayCollection();
+			private var currData:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var minDate:Date = new Date();
+			
+			[Bindable]
+			private var maxDate:Date = new Date();
+			
+			[Bindable]
+			private var overViewMinDate:Date = new Date();
+			[Bindable]
+			private var overViewMaxDate:Date = new Date();
+			private var _hasData:Boolean = false;
+			
+			[Bindable]
+			public static var lastExpanded:TimelineExpandCollapseRenderer = null;			
+			private var months:Array = new Array(12);
+			private var nodes:ArrayCollection = new ArrayCollection();
+			private var currHashMap:HashMap = new HashMap();
+			private var busyCursorCounter:int = 0;
+			
+			// Determines if filtering results are immediately applied:
+			private var ignoreLocalFilter:Boolean = false;
+			private var internalFilterUpdate:Boolean = false;
+			private var filterResults:SelectedItem = null;
+			private var timeline:TimelineInfinite = new TimelineInfinite();
+			
+			// 
+			private var linechart:LineChart = new LineChart();
+			
+			//
+			private var tempint:int = 0;
+			
+			//
+			private var _context:IWidgetContext;
+			private var isFilter:Boolean = false;
+	
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+	
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete(event:Event):void
+			{
+				var events:Event = new Event("Done Loading");
+				dispatchEvent(events);
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit(context:IWidgetContext):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{	
+				isFilter = false;
+				startSpinner(); // (need dataview)
+				if (null == timelinegroup) // Not yet ready
+				{
+					return;
+				}
+				
+				removeOldTimeline();
+				queryData = _context.getQuery_AllResults().getTopDocuments();
+				if ( queryData.length == 0 )
+					queryData = _context.getQuery_TopResults().getTopDocuments();
+				currHashMap.clear();
+				
+				// Get data for document count line chart
+				try
+				{
+					documentCount = _context.getQuery_AllResults().getTimeCounts();
+					documentTimeCountInterval = _context.getQuery_AllResults().getTimeCountInterval();
+				}
+				catch (e:Error) {}
+				
+				for each (var feed:Object in queryData)
+				{
+					currHashMap.put(feed._id,feed);
+				}
+				
+				currData.removeAll();
+				currData.addAll(queryData);
+				populateTimeline();			
+				createNewTimeline();
+				
+				populateLineChart();
+				
+				if ( !internalFilterUpdate )
+					resetIgnoreLocalFilter();
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */  
+			public function onReceiveNewFilter():void
+			{			
+				isFilter = true;
+				startSpinner(); // (need dataview)
+				
+				removeOldTimeline();
+				queryData = _context.getQuery_FilteredResults().getTopDocuments();
+				if ( queryData.length == 0 )
+					queryData = _context.getQuery_FilteredResults().getTopDocuments();
+				currHashMap.clear();
+				
+				// Get data for document count line chart
+				try
+				{
+					documentCount = _context.getQuery_FilteredResults().getTimeCounts();
+					documentTimeCountInterval = _context.getQuery_FilteredResults().getTimeCountInterval();
+				}
+				catch (e:Error) {}
+				
+				for each (var feed:Object in queryData)
+				{
+					currHashMap.put(feed._id,feed);
+				}
+				
+				currData.removeAll();
+				currData.addAll(queryData);
+				populateTimeline();			
+				createNewTimeline();
+				
+				populateLineChart();
+				
+				if ( !internalFilterUpdate )
+					resetIgnoreLocalFilter();
+				
+			}
+			
+			/*****************************************************************************/
+			/***************************Do not edit these methods*************************/
+			/*****************************************************************************/
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 * 
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */ 
+			// (some localized code because the timeline is v v slow to resize)
+			private var tmpHeight:Number = 0;
+			private var tmpWidth:Number = 0;
+			private var resizeTimer:Timer = null;
+			public function onParentResize(newHeight:Number,newWidth:Number):void
+			{
+				if (null == resizeTimer) {
+					resizeTimer = new Timer(100, 1);
+					resizeTimer.addEventListener(TimerEvent.TIMER_COMPLETE, doneResizing);
+				}
+				resizeTimer.stop();
+				resizeTimer.start();
+				this.tmpHeight = newHeight;
+				this.tmpWidth = newWidth;						
+			}
+			private function doneResizing(event:Event):void {
+				this.height = tmpHeight;
+				this.width = tmpWidth;						
+			}
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 * 
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData(filename:String, format:String):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output 
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 * 
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF(printPDF:PDF, title:String):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 * 
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions(widgetOptions:Object):void
+			{
+				//TODO
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 * 
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				return null;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			
+			private function removeOldTimeline():void
+			{
+				timeline.dataProvider = null;
+				timelinegroup.removeAllElements();
+			}
+			
+			
+			private function createNewTimeline():void
+			{
+				timelinegroup.removeAllElements();
+				timeline = new TimelineInfinite();
+				timeline.minTime = overViewMinDate;
+				timeline.maxTime = overViewMaxDate;
+				timeline.overviewStartTime = overViewMinDate;
+				timeline.overviewEndTime = overViewMaxDate;
+				timeline.startTime = minDate;
+				timeline.endTime = maxDate;
+				timeline.tickLabelFunction = tickFunction;
+				if ((null != currData) && (currData.length > 0)) {
+					timeline.dataProvider = currData;
+				}
+				timeline.labelFunction = formatText;	
+				timeline.addEventListener(TimelineRangeEvent.VISIBLE_RANGE_CHANGED, onTimelineChange);
+				timeline.addEventListener(TimelineRangeEvent.MIN_MAX_RANGE_CHANGED, onTimelineChange);
+				timelinegroup.addElement(timeline);	
+			}
+			
+			/**
+			 * onTimelineChange
+			 * Called when the Visible Range of Dates on the timeline chages and used to
+			 * call the populateLineChart function used to draw the line chart
+			 * @return void
+			 */
+			private function onTimelineChange(event:Event):void 
+			{
+				populateLineChart();
+			}
+			
+			//
+			[Bindable]
+			private var documentCount:ArrayCollection = new ArrayCollection();
+			private var documentTimeCountInterval:int = 0;
+			[Bindable]
+			private var visibleDocs:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var maxDocuments:int = 0;
+			
+			[Bindable]
+			private var bottomPadding:int = 39;
+			
+			/**
+			 * populateLineChart
+			 * Adds document objects in documentCount array collection that are
+			 * within the range of visible dates on the timeline control
+			 * @return void
+			 */ 
+			private function populateLineChart():void
+			{
+				if ((null == timeline)||(null==timeline.startTime)||(null==timeline.endTime)) 
+				{
+					return; // Will come back later when there's something to display over....
+				}
+				
+				recordlinechart.dataProvider = null;
+				try
+				{
+					var old_doc:Object = null;
+					var inserted_first_point:Boolean = false;
+					var inserted_last_point:Boolean = false;
+					var lastDocDate:Number = 0;
+					
+					visibleDocs = new ArrayCollection();
+					// (note the following code assumes the counts are sequential in time...)
+					for each (var doc:Object in documentCount)
+					{
+						
+						
+						if ((doc.time >= timeline.startTime.time) && (doc.time <= timeline.endTime.time))
+						{
+							if (!inserted_first_point) 
+							{
+								inserted_first_point = true;
+								
+								if (doc.time != timeline.startTime.time) // else nothing to do 
+								{  
+									if (null == old_doc) 
+									{
+										old_doc = new Object();
+										old_doc["time"] = timeline.startTime.time;
+										old_doc["count"] = 0;
+										visibleDocs.addItem(old_doc);
+									}
+									else // Interpolate
+									{ 
+										var gradient:Number = Number(doc.count - old_doc.count)/Number(doc.time - old_doc.time);
+										var old_doc2:Object = new Object();
+										old_doc2["count"] = int(old_doc.count + gradient*Number(timeline.startTime.time - old_doc.time));
+										old_doc2["time"] = timeline.startTime.time;
+										visibleDocs.addItem(old_doc2);
+									}
+									//TODO adjust for start of graph relative to start of timeline
+								}
+							}
+							else 
+							{
+								if ((doc.time - old_doc.time) > documentTimeCountInterval)
+								{
+									var emptyDoc:Object = new Object();
+									emptyDoc["count"] = 0;
+									emptyDoc["time"] = (old_doc.time + documentTimeCountInterval);
+									visibleDocs.addItem(emptyDoc);
+									if ((doc.time - old_doc.time) > (documentTimeCountInterval*2))
+									{
+										var emptyDoc:Object = new Object();
+										emptyDoc["count"] = 0;
+										emptyDoc["time"] = (doc.time - documentTimeCountInterval);
+										visibleDocs.addItem(emptyDoc);
+									}
+								}
+								
+							}
+							visibleDocs.addItem(doc);	
+						}
+						else if ((doc.time > timeline.endTime.time) && (!inserted_last_point)) 
+						{
+							inserted_last_point = true;
+							if ((old_doc != null) && (old_doc.time != timeline.endTime.time)) // else nothign to do 
+							{ 
+								// Interpolate
+								gradient = Number(doc.count - old_doc.count)/Number(doc.time - old_doc.time);
+								old_doc2 = new Object();
+								old_doc2["count"] = int(old_doc.count + gradient*Number(timeline.endTime.time - old_doc.time));
+								old_doc2["time"] = timeline.endTime.time;
+								visibleDocs.addItem(old_doc2);
+							}		
+						}
+						old_doc = doc;
+					} // end loop over all docs
+					
+					if (!inserted_last_point) // Off the end of the graph, there's still some chart... 
+					{ 
+						old_doc = new Object();
+						old_doc["time"] = timeline.endTime;
+						old_doc["count"] = 0;
+						visibleDocs.addItem(old_doc);
+					}
+					
+					recordlinechart.dataProvider = visibleDocs;
+				}
+				catch (e:Error)
+				{
+					//Alert.show(e.message + " / " + e.getStackTrace());					
+					recordlinechart.visible = false;	
+				}
+				
+				
+				// Get the min and max number of docs shown in a given view
+				maxDocuments = 0;
+				for each (var doc:Object in visibleDocs)
+				{
+					maxDocuments = (doc.count > maxDocuments) ? doc.count : maxDocuments;
+				}
+				maxDocumentsLabel.text = "Max No. of Docs: " + maxDocuments;
+			}
+			
+			
+			/**
+			 * dataTipFunction
+			 * Creates custom data tips for the line chart control
+			 * @param HitData
+			 * @return String
+			 */
+			private function dataTipFunction(data:HitData):String
+			{
+				var info:String = "<HTML><FONT COLOR=\"#FFFFFF\"><b>";
+				try
+				{
+					var d:Date = new Date( data.item.time );
+					info += "Date: " + d.toLocaleDateString() + "<br>";
+				}
+				catch (e:Error) {}
+				
+				info += "Documents: " + data.item.count ;
+				info += "</b></FONT></HTML?>";
+				return info;
+			}
+			
+			
+			private function formatText(item:Object):String
+			{
+				return HtmlConvert.convertEntities_txt(item.title) + " (Score: " + new Number(item.score).toFixed(1) + ")";				
+			}
+			
+			/**
+			 * Creates a label for the tick marks on timeline.
+			 * Minor ticks get a day/month/year label i.e. 5/27/1987
+			 * Major ticks get a month name label i.e. January
+			 * 
+			 * @param tickItem The tick mark that needs a label
+			 * @return Returns the label to be displayed on minor and major ticks
+			 */
+			private function tickFunction(tickItem:TickItem):String
+			{
+				var itemDate:Date = tickItem.value as Date;
+				if ( tickItem.isMinor )
+				{
+					return (itemDate.month+1) + "/" + itemDate.date + "/" + itemDate.fullYear;
+				}
+				else
+				{
+					return months[itemDate.month];
+				}
+			}				
+			
+			private function populateTimeline():void
+			{				
+				//var d:Date = DateConverter.parseDate("Mon Jan 10 08:30:00 EST 2011");
+				if ( currData != null && currData.length > 0 )
+				{						
+					//this.currentState="dataview";
+					//set min and max dates to compare to other dates to set the timelines range				
+					minDate = DateConverter.parseDate(currData[0].publishedDate);
+					maxDate = DateConverter.parseDate(currData[0].publishedDate);
+					
+					for each(var feed:Object in currData)
+					{
+						feed.highlighted = false;
+						//feed.created = new Date(Number(feed.created));
+						feed.published = DateConverter.parseDate(feed.publishedDate);
+						//check if the new dates are greater than the minDate and less than the maxDate and 
+						//change them accordingly
+						if(feed.published < minDate)
+						{
+							minDate = feed.published;
+						}
+						else if ( feed.published > maxDate)
+						{
+							maxDate = feed.published;
+						}
+					} 
+					
+					//add a cushion for the min and max dates		
+					overViewMinDate = new Date(minDate.fullYear,minDate.month - 2, minDate.date);
+					overViewMaxDate = new Date(maxDate.fullYear,maxDate.month + 2, maxDate.date);
+					minDate = new Date(minDate.fullYear,minDate.month, minDate.date - 10);
+					// Start with the range 10d either side of the start...
+					maxDate = new Date(minDate.fullYear,minDate.month, minDate.date + 10);
+					
+					//set the data provider of the timeline
+					nodes.removeAll();
+					
+					//timeline.dataProvider = currData;
+					_hasData = true;
+				}
+				else if ((null != documentCount) && (documentCount.length > 0)) { // If there are no documents but there is a line chart, that's fine too
+					// Set the limit dates to those provided by the time aggregation:
+					var time:Number = documentCount[documentCount.length - 1].time - 25*documentTimeCountInterval;
+					if (time < documentCount[0].time) {
+						time = documentCount[0].time;
+					}
+					minDate.setTime(time);
+					maxDate.setTime(documentCount[documentCount.length - 1].time);
+					overViewMinDate.setTime(documentCount[0].time);
+					overViewMaxDate.setTime(documentCount[documentCount.length - 1].time);
+					nodes.removeAll();
+					_hasData = true;
+				}
+				else 
+				{
+					this.currentState = "nodata";
+				}
+				
+				CursorManager.removeBusyCursor();
+				busyCursorCounter--;
+				this.enabled = true;
+			}						
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results		
+			private function onClickIgnoreLocalFilter():void
+			{	
+				internalFilterUpdate = true;
+				
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if ( !this.ignoreLocalFilter )
+				{
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					if ( isFilter )
+						this.onReceiveNewFilter();
+					else
+						this.onReceiveNewQuery();
+				}
+				else
+				{
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					this.onReceiveNewQuery();
+				}
+				
+				internalFilterUpdate = false;
+			}
+			
+			
+			/**
+			 * onSelectedTimeFilterQuery
+			 * @param Event
+			 * @return void
+			 */
+			private function onSelectedTimeFilterQuery(event:Event):void 
+			{
+				if ((timeline.startTime != null) && (timeline.endTime != null))
+				{
+					addTimeToQuery_fromPresentation(timeline.startTime, timeline.endTime);
+				}
+			}
+			
+			
+			/**
+			 * onSelectedTimeFilterDecay
+			 * @param Event
+			 * @return void
+			 */ 
+			private function onSelectedTimeFilterDecay(event:Event):void
+			{
+				setTimeDecay();
+			}
+			
+			private function setTimeDecay():void
+			{
+				try
+				{
+					// Get the query context so that we can update the query
+					var query:Object = this._context.getCurrentQuery();
+					var queryScoring:Object = query["score"];
+					if (queryScoring == null)
+					{
+						queryScoring = new Object();
+					}
+					else
+					{
+						// Clear the time decay setting by setting it to null
+						query["score"]["timeProx"] = null;
+					}
+					
+					// Calculate the midpoint between the end and start times on the visible timeline
+					var d:Number = (timeline.endTime.time - timeline.startTime.time) / 2 + timeline.startTime.time;
+					var midPointDate:Date = new Date(d);
+					
+					// The number of visible days used to determine the decay 
+					var noOfDays:Number = (timeline.endTime.time - timeline.startTime.time) / 86400000;
+					var decay:String = calculateTimeDecay(noOfDays);
+					
+					//
+					var newTimeDecay:Object = new Object();
+					newTimeDecay["time"] = getDateString(midPointDate);
+					newTimeDecay["decay"] = decay;
+					queryScoring["timeProx"] = newTimeDecay;
+					
+					// 
+					this._context.setCurrentQuery(query, "score");
+				}
+				catch (e:Error)
+				{
+					Alert.show("Exception: " + e.message + " " + e.getStackTrace());					
+				}
+			}
+			
+			
+			/**
+			 * calculateTimeDecay
+			 * @param numberOfDays:Number
+			 * @return String
+			 */
+			private function calculateTimeDecay(numberOfDays:Number):String
+			{
+				var decay:String = "1m";
+				numberOfDays = Math.round(numberOfDays / 2);
+				
+				if (numberOfDays < 7)
+				{
+					decay = numberOfDays.toString() + "d";
+				}
+				else if (numberOfDays > 6 && numberOfDays < 31)
+				{
+					decay = Math.round(numberOfDays / 7).toString() + "w";
+				}
+				else if (numberOfDays > 30 && numberOfDays < 365)
+				{
+					decay = Math.round(numberOfDays / 30).toString() + "m";
+				}
+				else
+				{
+					decay = "1y";
+				}					
+				return decay;
+			}
+			
+			
+			/**
+			 * addTimeToQuery_fromPresentation
+			 * @param start date, end date
+			 * @return void
+			 */
+			public function addTimeToQuery_fromPresentation(start:Date, end:Date):void 
+			{
+				try
+				{
+					// Get the query context so that we can update the query
+					var query:Object = this._context.getCurrentQuery();
+					var queryTerms:ArrayCollection =  new ArrayCollection(query["qt"]);
+					
+					// Set the start and end date for the query
+					var newTerm:Object = new Object();
+					var newTimeTerm:Object = new Object();
+					newTimeTerm["min"] = getDateString(start);
+					newTimeTerm["max"] = getDateString(end);
+					newTerm["time"] = newTimeTerm;
+					queryTerms.addItem(newTerm);
+					
+					// Clear the time decay setting by setting it to null
+					query["score"]["timeProx"] = null;
+					
+					// Update the query in the dimension explorer
+					this._context.setCurrentQuery(query, null);
+				}
+				catch (e:Error)
+				{
+					Alert.show("Exception: " + e.message + " " + e.getStackTrace());
+				}
+			}
+			
+			
+			/**
+			 * getDateString
+			 * @param Date
+			 * @return String mm/dd/yyyy
+			 */
+			private function getDateString(val:Date):String
+			{
+				var retVal:String;
+				try
+				{
+					var month:Number = val.month + 1;
+					retVal = (month < 10) ? "0" + month.toString() : month.toString() ;
+					retVal += (val.date < 10) ? "/0" + val.date.toString() : "/" + val.date.toString() ;
+					retVal += "/" + val.fullYear.toString() ;
+				}
+				catch (e:Error)
+				{
+					return "";
+				}
+				return retVal;
+			}			
+			
+			/**
+			 * function to start the components spinner when it is receiving data
+			 */
+			public function startSpinner():void
+			{				
+				this.currentState = "dataview";
+				this.enabled = false;
+			}
+			
+			/**
+			 * function to broadcast if the module has data so it doesn't repass data to itself
+			 * when new modules are being loaded with data on first load up
+			 * 
+			 * @return If the module has data
+			 */
+			public function hasData():Boolean
+			{
+				//return true if data is already present
+				return _hasData;
+			}
+			
+			/**
+			 * function to dispatch an event to the parent when the module is down creation
+			 * 
+			 * @param event The FlexEvent received when the module is done creation
+			 */
+			private function moduleCreationCompleteHandler(event:FlexEvent):void
+			{				
+				var events:Event = new Event("Done Loading");
+				dispatchEvent(events);
+				
+				this.parent.parent.width = 800;
+				this.parent.parent.height = 450;
+				
+				months[0] = "January";
+				months[1] = "February";
+				months[2] = "March";
+				months[3] = "April";
+				months[4] = "May";
+				months[5] = "June";
+				months[6] = "July";
+				months[7] = "August";
+				months[8] = "September";
+				months[9] = "October";
+				months[10] = "November";
+				months[11] = "December";
+			}
+			/*****************************************************************************/
+			/***************************Do not edit these methods*************************/
+			/*****************************************************************************/
+			
+			private function load():void {
+				//timeline.dataProvider = new XMLListCollection(xmldata.*);
+			}
+			
+			
+			/**
+			 * function to receive events from the parent and other modules
+			 * 
+			 * @param event The Event received
+			 */
+			public function receiveEvent(event:Event):void
+			{
+				
+			}			
+			
+			/**
+			 * Function to go through and select/deselect all nodes,
+			 * reaches into item renderes on timeline and forces them
+			 * to highlight/redraw
+			 * 
+			 * @param select If true highlights all nodes, if false, deselects all nodes
+			 **/
+			private function highlightAllNodes(select:Boolean):void
+			{
+				for each ( var node:TimelineColorBubble in nodes)
+				{
+					node.hightlightNode(select);
+				}
+			}
+			
+			/**
+			 * Function for an item renderer on timeline to add
+			 * itself to the renderer list. This is our backwards
+			 * way of storing the item renderers so we are able to
+			 * highlight the nodes from the outside.  There is probably
+			 * a better way to do this that does not involve us saving
+			 * the item renderes of all the nodes
+			 * 
+			 * @param node The item renderer to be added to the list.
+			 **/
+			public function addNode(node:TimelineColorBubble):void
+			{
+				nodes.addItem(node);
+			}
+	
+			/**
+			 * function to send all documents that are highlighted
+			 * 
+			 * @param event The MouseEvent received when send all documents is clicked
+			 */
+			private function filterOptions_changeHandler( event:IndexChangeEvent ):void
+			{
+				if ( event.newIndex == 0 ) //select all logic
+				{					
+					highlightAllNodes(true);
+				}
+				else if (event.newIndex == 1)  //deselect all logic
+				{ 
+					highlightAllNodes(false);
+				}
+				else if ( event.newIndex == 3 ) //send hidden
+				{
+					var hiddenFeeds:ArrayCollection =  new ArrayCollection(currData.toArray());
+					//Remove all nodes that are already displayed and anything off screen
+					var start:Date = timeline.startTime;
+					var end:Date = timeline.endTime;
+					
+					for each ( var node:TimelineColorBubble in nodes)
+					{
+						if ( node.visible || node.data.published > end || node.data.published < start ) //visible nodes are ones that are drawn
+						{
+							for each(var feed1:Object in hiddenFeeds)
+							{
+								if ( node.data._id == feed1._id ) //found match
+								{
+									hiddenFeeds.removeItemAt(hiddenFeeds.getItemIndex(feed1));
+									break;
+								}
+							}
+						}
+					}
+					//create the selected item object
+					var feedids1:Set = new HashSet();
+					var desc1:String = "Feed Filter: ";
+					
+					var j:int = 0;
+					for each(var feed2:Object in hiddenFeeds)
+					{
+						var ents1:ArrayCollection = new ArrayCollection();
+						
+						if(feed2.entities != null)
+						{	
+							for each(var _ent1:Object in feed2.entities)
+							{
+								ents1.addItem(_ent1.index);
+							}							
+						}
+						feedids1.add(feed2._id.toString());
+						if (0 != j) 
+						{
+							desc1 += " OR ";
+						}
+						desc1 += "'" + HtmlConvert.convertEntities_txt(feed2.title) + "'";
+						j++;						
+					}
+					
+					if ( !feedids1.isEmpty() )
+					{
+						highlightAllNodes(false);
+						_context.filterByDocField(FilterDataSetEnum.FILTER_FILTERED_DATA,feedids1,"_id",desc1);
+					}
+					else
+					{
+						Alert.show("No hidden items.");
+					}
+				}
+				else if ( event.newIndex == 4 )
+				{
+					var timerangeFeeds:ArrayCollection =  new ArrayCollection(currData.toArray());
+					//Remove all nodes that are already displayed and anything off screen
+					var start:Date = timeline.startTime;
+					var end:Date = timeline.endTime;
+					var feedids2:Set = new HashSet();
+					for each ( var feed2:Object in timerangeFeeds )
+					{
+						if ( feed2.published > start && feed2.published < end )
+						{
+							feedids2.add(feed2._id.toString());
+						}
+					}
+					//CBURCH: This way seems ass backwards, we are we not just adding feeds in the timerange..
+					//TODO: no time to change currently can go back later
+					/*for each ( var tnode:TimelineColorBubble in nodes)
+					{
+						if ( tnode.data.published > end || tnode.data.published < start ) //remove only nodes outside time range
+						{
+							for each(var feed2:Object in timerangeFeeds)
+							{
+								if ( tnode.data._id == feed2._id ) //found match
+								{
+									timerangeFeeds.removeItemAt(timerangeFeeds.getItemIndex(feed2));
+									break;
+								}
+							}
+						}
+					}*/
+					//create the selected item object
+										
+					var desc2:String = "Time Filter: " + start.toUTCString() + " + to " + end.toUTCString();
+					
+					/*for each(var feed3:Object in timerangeFeeds)
+					{						
+						feedids2.add(feed2._id.toString());									
+					}*/
+					if ( !feedids2.isEmpty() )					
+					{
+						highlightAllNodes(false);
+						_context.filterByDocField(FilterDataSetEnum.FILTER_FILTERED_DATA,feedids2,"_id",desc2);						
+					}
+					else
+					{
+						Alert.show("No items in date range.");
+					}
+				}
+				else
+				{
+					//create the selected item object
+					var feedids:Set = new HashSet();					
+					var desc:String = "Feed Filter: ";
+					
+					var i:int = 0;
+					for each(var feed:Object in timeline.dataProvider)
+					{
+						if(feed.highlighted == true)
+						{
+							feed.highlighted = false;							
+							feedids.add(feed._id.toString());							
+							if (0 != i) {
+								desc += " OR ";
+							}
+							desc += "'" + HtmlConvert.convertEntities_txt(feed.title) + "'";
+							i++;
+						}
+					}
+					
+					if( !feedids.isEmpty() )
+					{
+						highlightAllNodes(false);
+						_context.filterByDocField(FilterDataSetEnum.FILTER_FILTERED_DATA,feedids,"_id",desc);
+					}
+					else
+					{
+						Alert.show("Please Select An Item First.");
+					}
+				}
+				
+				filterOptions.selectedIndex = -1;
+			}
+			
+			/**
+			 * Removes all busy cursors this module was responsible for upon closing
+			 * 
+			 * @param event Closing event (not used)
+			 * 
+			 */
+			protected function module1_removedFromStageHandler(event:Event):void
+			{
+				while (busyCursorCounter > 0 )
+				{					
+					CursorManager.removeBusyCursor();
+					busyCursorCounter--;
+				}
+			}
+			
+		]]></fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+
+	<!-- Header -->
+	<components:headerContent>
+
+		<s:HGroup gap="-3">
+
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+				toolTip="Ignore Workspace Filtering - Show All Results"
+				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+
+			<!-- Filter Options Drop Down List -->
+			<components:WidgetPromptDropDownList id="filterOptions"
+				selectedIndex="-1"
+				width="82"
+				change="setTimeout( filterOptions_changeHandler, 100, event )"
+				listWidth="280"
+				prompt="Filter">
+				<components:dataProvider>
+					<s:ArrayList source="[Select all documents,
+								 Deselect all documents,
+								 Add selected documents to filter,
+								 Add on-screen hidden documents to filter,
+								 Filter: Current time range]" />
+				</components:dataProvider>
+			</components:WidgetPromptDropDownList>
+
+			<!-- Add to Query Button -->
+			<components:WidgetPlusButton id="addToQueryButton"
+				toolTip="Add current time range to query"
+				click="onSelectedTimeFilterQuery(event)" />
+
+			<!-- Set Time Decay Button -->
+			<components:WidgetDecayButton id="setTimeDecayButton"
+				toolTip="Set Time Decay Date to central date in the visible time range"
+				click="onSelectedTimeFilterDecay(event)" />
+
+		</s:HGroup>
+
+	</components:headerContent>
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="middle"
+		includeIn="nodata">
+		<s:Label 
+			text="No data, try running a query"
+			includeIn="nodata" />
+	</s:VGroup>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		includeIn="dataview">
+		<s:Group id="timelineMainGroup"
+			width="100%"
+			height="100%"
+			x="0"
+			y="0"
+			clipAndEnableScrolling="true"
+			includeIn="dataview">
+
+			<!-- Min/Max Document Count Labels -->
+			<mx:Label id="maxDocumentsLabel"
+				x="2"
+				y="2"
+				color="#ffffff"
+				depth="2" />
+			<!-- <mx:Label id="minDocumentsLabel" x="2" y="400" depth="2" color="#ffffff" /> -->
+
+			<!-- Line chart used to display the number of records (mediatype) returned for a query -->
+			<mx:LineChart id="recordlinechart"
+				dataProvider="{ visibleDocs }"
+				width="100%"
+				height="100%"
+				paddingBottom="{ bottomPadding }"
+				paddingLeft="-60"
+				alpha="0.75"
+				dataTipFunction="dataTipFunction"
+				depth="1"
+				includeIn="dataview"
+				mouseEnabled="false"
+				showDataTips="true"
+				visible="true">
+
+				<mx:backgroundElements>
+					<mx:GridLines visible="false" />
+				</mx:backgroundElements>
+
+				<mx:series>
+					<mx:LineSeries 
+						xField="time"
+						yField="count">
+						<mx:lineStroke>
+							<mx:Stroke 
+								color="#FFFF00"
+								alpha=".75"
+								weight="2" />
+						</mx:lineStroke>
+					</mx:LineSeries>
+				</mx:series>
+			</mx:LineChart>
+			<mx:Legend 
+				dataProvider="{ recordlinechart }"
+				includeIn="dataview"
+				visible="false" />
+
+			<!-- Timeline Group -->
+			<s:VGroup id="timelinegroup"
+				width="100%"
+				height="100%"
+				x="0"
+				y="0"
+				depth="0"
+				includeIn="dataview">
+			</s:VGroup>
+		</s:Group>
+	</s:HGroup>
+
+</components:WidgetModule>

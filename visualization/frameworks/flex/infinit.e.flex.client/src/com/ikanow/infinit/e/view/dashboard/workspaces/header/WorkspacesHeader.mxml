@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:GradientContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	styleName="workspacesHeaderBackground"
+	addedToStage="addedToStageHandler(event)">
+
+	<fx:Declarations>
+		<mx:NumberFormatter id="numberFormatter"
+			precision="0"
+			useThousandsSeparator="true" />
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header.WorkspacesHeaderModel;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			import com.ikanow.infinit.e.shared.model.vo.ui.NavigationItem;
+			import mx.events.ItemClickEvent;
+			import spark.components.RichEditableText;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspacesHeaderModel;
+			
+			protected function addedToStageHandler( event:Event ):void
+			{
+				selectedWidgetsList.setFocus();
+				stage.addEventListener( KeyboardEvent.KEY_DOWN, showPreviosOrNextWidget );
+			}
+			
+			protected function selectOptions_changeHandler():void
+			{
+				model.navigator.navigate( selectOptions.selectedItem as NavigationItem );
+				
+				selectOptions.selectedIndex = -1;
+			}
+			
+			protected function selectOptions_creationCompleteHandler():void
+			{
+				this.selectOptions.selectedIndex = -1;
+			}
+			
+			protected function selectedWidgetsList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				model.maximizeWidget( event.item as Widget );
+				
+				selectOptions.setFocus();
+			}
+			
+			protected function showPreviosOrNextWidget( event:KeyboardEvent ):void
+			{
+				// show previous widget
+				if ( event.keyCode == Keyboard.LEFT && !( event.target is InfItemClickList ) )
+				{
+					model.maximizePreviousWidget();
+				}
+				
+				// show next widget
+				if ( event.keyCode == Keyboard.RIGHT && !( event.target is InfItemClickList ) )
+				{
+					model.maximizeNextWidget();
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:HGroup 
+		height="100%"
+		width="100%"
+		paddingLeft="15"
+		paddingRight="29"
+		paddingTop="-3"
+		clipAndEnableScrolling="false"
+		gap="24">
+
+		<s:Group minWidth="100">
+
+			<!-- Results Count -->
+			<common:InfLabel 
+				minWidth="200"
+				text="{ model.filterActive ? model.resultsCountMessage + Constants.SPACE + Constants.SPACE + resourceManager.getString( 'infinite', 'workspacesHeader.filtered' ) : model.resultsCountMessage }"
+				styleName="lightGrey"
+				paddingLeft="2"
+				paddingTop="8"
+				visible="{ model.showResultsCount }" />
+
+			<!-- Loading Data Feedback Indicator -->
+			<busyIndicator:BusyIndicatorLabel id="loadingDataFeedbackIndicator"
+				styleName="loadingDataBusyIndicatorLabel"
+				left="1"
+				top="5"
+				message="{ model.busyIndicatorMessage }" />
+
+		</s:Group>
+
+		<!-- Remove Filters Button -->
+		<s:HGroup 
+			height="100%"
+			paddingTop="6">
+			<common:InfButton 
+				label="{ resourceManager.getString( 'infinite', 'workspacesHeader.removeFilter' ) }"
+				styleName="filterButton"
+				enabled="{ model.filterActive }"
+				toolTip="{ model.filterToolTip }"
+				click="model.clearWidgetFilters()"
+				visible="{ model.filterActive }" />
+		</s:HGroup>
+
+		<!-- Spacer -->
+		<s:Spacer width="100%" />
+
+		<!-- Options Navigation -->
+		<s:DropDownList id="selectOptions"
+			width="80"
+			dataProvider="{ model.navigator.actions }"
+			labelField="label"
+			focusEnabled="false"
+			styleName="optionsDropDownList"
+			change="selectOptions_changeHandler()"
+			creationComplete="selectOptions_creationCompleteHandler()"
+			itemRenderer="com.ikanow.infinit.e.shared.view.renderer.DropDownListItemRenderer" />
+
+	</s:HGroup>
+
+	<!-- Selected Widgets List -->
+	<common:InfItemClickList id="selectedWidgetsList"
+		dataProvider="{ model.selectedWidgetsSorted }"
+		styleName="workspacesSelectedWidgetsList"
+		labelField="title"
+		focusEnabled="false"
+		horizontalScrollPolicy="off"
+		includeInLayout="{ model.maximized }"
+		horizontalCenter="0"
+		verticalCenter="-2"
+		itemClick="selectedWidgetsList_itemClickHandler(event)"
+		contentBackgroundAlpha="0"
+		itemRenderer="com.ikanow.infinit.e.view.dashboard.workspaces.header.WorkspacesHeaderWidgetItemRenderer"
+		selectedItem="{ model.maximizedWidget }"
+		visible="{ model.maximized }">
+		<common:layout>
+			<s:HorizontalLayout gap="10" />
+		</common:layout>
+	</common:InfItemClickList>
+
+</component:GradientContainer>

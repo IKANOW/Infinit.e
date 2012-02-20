@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<flexLibProperties includeAllClasses="true" version="3">
+  <includeClasses>
+    <classEntry path="com.ikanow.infinit.e.widget.library.utility.DateConverter"/>
+    <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetModule"/>
+    <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetDropDownListItemRenderer"/>
+    <classEntry path="com.ikanow.infinit.e.widget.library.assets.skins.WidgetOptionsGroupSkin"/>
+    <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetOptionsGroup"/>
+  </includeClasses>
+  <includeResources/>
+  <namespaceManifests/>
+</flexLibProperties>

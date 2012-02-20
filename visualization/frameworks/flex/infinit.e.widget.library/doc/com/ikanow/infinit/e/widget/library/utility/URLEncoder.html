@@ -1,0 +1,41 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd"><!-- saved from url=(0014)about:internet --><html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8"><link rel="stylesheet" href="../../../../../../../style.css" type="text/css" media="screen"><link rel="stylesheet" href="../../../../../../../print.css" type="text/css" media="print"><link rel="stylesheet" href="../../../../../../../override.css" type="text/css"><meta name="keywords" content="URLEncoder,com.ikanow.infinit.e.widget.library.utility.URLEncoder,convertEntities_txt,convertEntities,decode,encode,encode,getIcon,hashPassword,htmlDecode,parseDate,replaceMultipleWhitespace"><title>com.ikanow.infinit.e.widget.library.utility.URLEncoder</title></head><body><script language="javascript" type="text/javascript" src="../../../../../../../asdoc.js"></script><script language="javascript" type="text/javascript" src="../../../../../../../help.js"></script><script language="javascript" type="text/javascript" src="../../../../../../../cookies.js"></script><script language="javascript" type="text/javascript"><!--
+				asdocTitle = 'URLEncoder - Infinit.e Widget Library';
+				var baseRef = '../../../../../../../';
+				window.onload = configPage;
+			--></script>
+<script type="text/javascript">
+			scrollToNameAnchor();
+		</script><table class="titleTable" cellpadding="0" cellspacing="0" id="titleTable" style="display:none"><tr><td class="titleTableTitle" align="left">Infinit.e Widget Library</td><td class="titleTableTopNav" align="right"><a href="../../../../../../../package-summary.html" onclick="loadClassListFrame('../../../../../../../all-classes.html')">All Packages</a>&nbsp;|&nbsp;<a href="../../../../../../../class-summary.html" onclick="loadClassListFrame('../../../../../../../all-classes.html')">All Classes</a>&nbsp;|&nbsp;<a href="../../../../../../../all-index-A.html" onclick="loadClassListFrame('../../../../../../../index-list.html')">Index</a>&nbsp;|&nbsp;<a id="framesLink1" href="../../../../../../../index.html?com/ikanow/infinit/e/widget/library/utility/URLEncoder.html&amp;com/ikanow/infinit/e/widget/library/utility/class-list.html">Frames</a><a id="noFramesLink1" style="display:none" href="" onclick="parent.location=document.location"> No Frames </a></td><td class="titleTableLogo" align="right" rowspan="3"><img src="../../../../../../../images/logo.jpg" class="logoImage" alt=" Adobe Logo " title=" Adobe Logo "></td></tr><tr class="titleTableRow2"><td class="titleTableSubTitle" id="subTitle" align="left">URLEncoder</td><td class="titleTableSubNav" id="subNav" align="right"><a href="#methodSummary">Methods</a></td></tr><tr class="titleTableRow3"><td colspan="3">&nbsp;</td></tr></table><script language="javascript" type="text/javascript" xml:space="preserve">
+				<!--
+				
+					if (!isEclipse() || window.name != ECLIPSE_FRAME_NAME) {titleBar_setSubTitle("URLEncoder"); titleBar_setSubNav(false,false,false,false,false,false,false,false,true,false,false	,false,false,false,false,false);}	
+				-->
+			</script><div xmlns:fn="http://www.w3.org/2005/xpath-functions" class="MainContent"><table class="classHeaderTable" cellpadding="0" cellspacing="0"><tr><td class="classHeaderTableLabel">Package</td><td><a href="package-detail.html" onclick="javascript:loadClassListFrame('class-list.html')">com.ikanow.infinit.e.widget.library.utility</a></td></tr><tr><td class="classHeaderTableLabel">Class</td><td class="classSignature">public  class  URLEncoder</td></tr><tr><td class="classHeaderTableLabel">Inheritance</td><td class="inheritanceList">URLEncoder  <img src="../../../../../../../images/inherit-arrow.gif" title="Inheritance" alt="Inheritance" class="inheritArrow"> Object</td></tr></table><p></p><p></p><p></p>
+	 URL encoding helper classes for sending API calls
+	 without characters that will break RESTful calls.
+	 <p></p><br/><hr></div><a name="methodSummary"></a><div class="summarySection"><div class="summaryTableTitle">Public Methods </div><table cellspacing="0" cellpadding="3" class="summaryTable " id="summaryTableMethod"><tr><th>&nbsp;</th><th colspan="2">Method</th><th class="summaryTableOwnerCol">Defined By</th></tr><tr class=""><td class="summaryTablePaddingCol">&nbsp;</td><td class="summaryTableInheritanceCol">&nbsp;</td><td class="summaryTableSignatureCol"><div class="summarySignature"><a href="#encode()" class="signatureLink">encode</a>(toEncode:String):String</div><div class="summaryTableDescription">[static] 
+		 function to encode the url
+		 By default the escape function does not escape the + character
+		 so a regex was added after escaping to add that exception in.</div></td><td class="summaryTableOwnerCol">URLEncoder</td></tr><tr class=""><td class="summaryTablePaddingCol">&nbsp;</td><td class="summaryTableInheritanceCol">&nbsp;</td><td class="summaryTableSignatureCol"><div class="summarySignature"><a href="#replaceMultipleWhitespace()" class="signatureLink">replaceMultipleWhitespace</a>(toReplace:String):String</div><div class="summaryTableDescription">[static] 
+		 Replaces multiple whitespace into a single space  For example
+		 [white  \t\n   house] becomes [white house] and
+		 [obama          white     house] becomes [obama white house]
+		 
+		 </div></td><td class="summaryTableOwnerCol">URLEncoder</td></tr></table></div><script language="javascript" type="text/javascript"><!--
+										showHideInherited();
+										--></script><div class="MainContent"><a name="methodDetail"></a><div class="detailSectionHeader">Method Detail</div><a name="encode()"></a><a name="encode(String)"></a><table class="detailHeader" cellpadding="0" cellspacing="0"><tr><td class="detailHeaderName">encode</td><td class="detailHeaderParens">()</td><td class="detailHeaderType">method</td></tr></table><div class="detailBody"><code> public static function encode(toEncode:String):String</code><p></p><p></p><p>
+		 function to encode the url
+		 By default the escape function does not escape the + character
+		 so a regex was added after escaping to add that exception in.
+		 
+		 The java api's that urldecode the string
+		 
+		 </p><p><span class="label"> Parameters </span><table cellpadding="0" cellspacing="0" border="0"><tr><td width="20px"></td><td><code><span class="label">toEncode</span>:String</code> &mdash; The url to encode
+		 
+		 </td></tr></table></p><p></p><span class="label">Returns</span><table cellpadding="0" cellspacing="0" border="0"><tr><td width="20"></td><td><code>String</code> &mdash; The encoded url
+		 </td></tr></table></div><a name="replaceMultipleWhitespace()"></a><a name="replaceMultipleWhitespace(String)"></a><table class="detailHeader" cellpadding="0" cellspacing="0"><tr><td class="detailHeaderName">replaceMultipleWhitespace</td><td class="detailHeaderParens">()</td><td class="detailHeaderType">method</td><td class="detailHeaderRule">&nbsp;</td></tr></table><div class="detailBody"><code> public static function replaceMultipleWhitespace(toReplace:String):String</code><p></p><p></p><p>
+		 Replaces multiple whitespace into a single space  For example
+		 [white  \t\n   house] becomes [white house] and
+		 [obama          white     house] becomes [obama white house]
+		 
+		 </p><p><span class="label"> Parameters </span><table cellpadding="0" cellspacing="0" border="0"><tr><td width="20px"></td><td><code><span class="label">toReplace</span>:String</code></td></tr></table></p><p></p><span class="label">Returns</span><table cellpadding="0" cellspacing="0" border="0"><tr><td width="20"></td><td><code>String</code></td></tr></table></div><br/><br/><hr><br/><p></p><center class="copyright"><footer></footer><br/>Mon Aug 29 2011, 08:27 AM -04:00  </center></div></body></html><!--<br/>Mon Aug 29 2011, 08:27 AM -04:00  -->

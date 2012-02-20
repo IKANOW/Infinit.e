@@ -1,0 +1,169 @@
+#!/bin/sh
+################################################################################
+
+if [ ! -f "/usr/bin/aws" ]
+then
+	echo -e "\aaws file prerequisite not met"
+else
+	this_instance=$(curl -s http://169.254.169.254/1.0/meta-data/instance-id)
+	cluster_name=$(aws dtags --filter "resource-id=$this_instance" --filter "key=cluster-name" --simple | gawk '{ print $4 }' | tr "," "\n")
+	case "$1" in 
+		config_ips)
+			if [ $cluster_name ]; then
+				echo $(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		my_ip)
+			echo $(curl -s http://169.254.169.254/1.0/meta-data/local-ipv4)
+		;;
+		my_instance)
+			echo $this_instance
+		;;
+		mongos_ip)
+			if [ $cluster_name ]; then
+				echo $(aws din --filter 'private-ip-address=*' --filter "tag:db_interface=1" --filter "tag:cluster-name=$cluster_name" | awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'| tail -1)
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		num_repl_sets)
+			repl_sets=$(aws dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
+			echo $(echo $repl_sets | wc -w)
+		;;
+		repl_sets)
+			echo $(aws dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
+		;;
+		cluster-name)
+			if [ $cluster_name ]; then
+				echo $cluster_name
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		kill_db)
+			mongo <<EOF admin --port $2
+db.shutdownServer()
+exit
+EOF
+		;;
+		is_config)
+			is_mongos=$(aws dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
+			if [ "$is_mongos" != "" ]; then
+				echo true
+			else
+				echo false
+			fi
+		;;
+		is_dbinstance)
+			num_repls=$(infdb repl_sets | wc -w)
+			if [ "$num_repls" -eq 0 ]; then
+				echo false;
+			else
+				echo true;
+			fi
+		;;
+		is_mongos)
+			is_config=$(aws dtags --filter "resource-id=$this_instance" --filter "key=db_interface" --filter "value=1" --simple)
+			if [ "$is_config" != "" ]; then
+				echo true
+			else
+				echo false
+			fi
+		;;
+		all_configs_running)
+			if [ $cluster_name ]; then
+				config_ips=$(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+				total=0
+				started=0
+				for ip in $config_ips
+				do
+					if [ $(mongo $ip:27016 --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+					started=$(($started+1))
+					fi
+					total=$(($total+1))
+				done
+
+				if [ $total -eq $started ]; then
+					echo true
+				else
+					echo false
+				fi
+			else
+				echo "cluster-name not set"
+			fi
+		;;
+		mongo_running)
+			if [ $2 ]; then
+				if [ $3 ]; then
+					mip="$3:$2"
+				else
+					mip="--port $2"
+				fi
+					if [ $(mongo $mip --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+						echo "true"
+					else
+						echo "false"
+					fi
+			else
+				echo -e "\aMust supply port Parameter"
+			fi
+		;;
+		all_members_of_set)
+			if [ $cluster_name ]; then
+				if [ $2 ]; then
+					ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+					for pip in $ipCandidates
+					do
+						reg_ex_chk=$(aws din --filter "private-ip-address=$pip" --filter "tag:db_instance=*$2*" | awk '{print $19"="$21}' | sed -rn 's/^db_instance=(.*)/\1/p' | egrep "(^|,)$2(,|$)")
+						if [ $reg_ex_chk ]; then
+							echo -e "$pip"
+						fi
+					done
+					
+					
+				else
+					echo -e "\aMust supply Replica Set Parameter"
+				fi
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		master_of_set)
+			if [ $cluster_name ]; then
+				if [ $2 ]; then
+					port=$((27017+$2))
+					ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+					for pip in $ipCandidates
+					do
+						reg_ex_chk=$(aws din --filter "private-ip-address=$pip" --filter "tag:db_instance=*$2*" | awk '{print $19"="$21}' | sed -rn 's/^db_instance=(.*)/\1/p' | egrep "(^|,)$2(,|$)")
+						if [ $reg_ex_chk ]; then
+							if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
+								echo $pip:$port
+								break
+							fi													
+						fi
+					done
+				else
+					echo -e "\aMust supply Replica Set Parameter"
+				fi
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		mongos_running)
+			if [ $(ps -ef | grep mongos | wc -l) -eq 0 ]; then
+				echo false
+			else
+				echo true
+			fi
+		;;
+		"help")
+			separator="\t\t\t\t"
+			echo -e "Commands: \n my_ip $separator\t returns the ec2 internal ip address \n config_ips $separator returns a comma delimited list of config servers \n my_instance $separator returns the ec2 instance ID number \n mongos_ip $separator returns a single MongoS ip address \n num_repl_sets $separator returns the total number of replica sets you are a member of \n repl_sets $separator returns IP address to replica sets you are a member of \n cluster-name $separator displays the cluster-name for the local machine \n kill_db {port number} \t\t\t kills the mongo instance on the specified port \n all_members_of_set {replica set id} \t returns all members of specified replica set id \n is_config $separator returns if config=1 \n is_dbinstance $separator returns if db_instance=# \n is_mongos $separator returns if db_interface=1 \n mongos_running \t\t\t returns if MongoS is running locally on port 27017 \n mongo_running {port} {ip:optional} \t returns if mongo can be connected to on specified port \n configs_running \t\t\t returns if all config servers are running \n help $separator\t brings up this menu";
+		;;
+		*) echo "Command Not Found. Type help for a list of commands."
+		;;
+	esac
+fi

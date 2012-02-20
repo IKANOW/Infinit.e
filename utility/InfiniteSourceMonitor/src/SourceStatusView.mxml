@@ -1,0 +1,482 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	creationComplete="vgroup1_creationCompleteHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import com.adobe.serialization.json.JSONDecoder;
+			import com.adobe.utils.StringUtil;
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.controls.DateField;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.formatters.DateFormatter;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectUtil;
+			import spark.components.Button;
+			import util.DateConverter;
+			
+			private static var ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
+			
+			[Bindable]
+			
+			[Embed( source = "assets/greencheck.png" )]
+			public var greencheck:Class;
+			
+			[Bindable]
+			
+			[Embed( source = "assets/redx.png" )]
+			public var redx:Class;
+			
+			[Bindable]
+			
+			[Embed( source = "assets/yellowexclamation.png" )]
+			public var yellowexclamation:Class;
+			
+			[Bindable]
+			private var currsourceData:ArrayCollection = new ArrayCollection();
+			
+			private var sourceData:ArrayCollection = new ArrayCollection();
+			
+			private var communityData:ArrayCollection;
+			
+			private var timer:Timer = new Timer( 5000 );
+			
+			private var sortFlip:Boolean = false;
+			
+			private var sortLast:String = "";
+			
+			public function loadSourceData( communityInfo:ArrayCollection ):void
+			{
+				communityData = communityInfo;
+				var commString:String = "";
+				
+				for each ( var o:Object in communityData )
+				{
+					commString += o._id + ",";
+				}
+				commString = commString.substring( 0, commString.length - 1 );
+				goodSourceService.url = ENDPOINT_URL + "config/source/good/" + commString;
+				goodSourceService.send();
+				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/" + commString;
+				pendingSourceService.send();
+			}
+			
+			protected function filter_enterHandler( event:FlexEvent ):void
+			{
+				var sort:Sort = currsourceData.sort as Sort;
+				currsourceData.sort = null;
+				currsourceData.removeAll();
+				currsourceData.refresh();
+				var filterPattern:RegExp = new RegExp( filterInput.text, "i" );
+				
+				for each ( var o:Object in sourceData )
+				{
+					if ( ( o._id as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( ( o.title as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( ( o.communityID as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( ( o.communityName as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( o.harvest != null && o.harvest.harvest_status != null && ( o.harvest.harvest_status as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( o.harvest != null && o.harvest.harvest_message != null && ( o.harvest.harvest_message as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+				}
+				currsourceData.sort = sort;
+				currsourceData.refresh();
+			}
+			
+			
+			protected function goodSourceService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to get good sources" );
+			}
+			
+			protected function goodSourceService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				var sourceItems:ArrayCollection = new ArrayCollection( data.data );
+				
+				for each ( var o:Object in sourceItems )
+				{
+					o.communityName = setCommunityName( o.communityIds[ 0 ] );
+					o.communityID = o.communityIds[ 0 ];
+					
+					if ( o.title == null )
+						o.title = "";
+					o.title = StringUtil.trim( o.title.toString() );
+					
+					if ( o.harvest == null || o.harvest.harvest_status == null || o.isApproved == false )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0xEEEE00;
+						o.harvestDate = null;
+					}
+					else if ( o.harvest.harvest_status == "success" )
+					{
+						o.statusImage = greencheck;
+						o.statusColor = 0x00FF00;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+					else
+					{
+						o.statusImage = redx;
+						o.statusColor = 0xFF0000;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+				}
+				sourceData.addAll( sourceItems );
+				currsourceData.addAll( sourceItems );
+			}
+			
+			
+			protected function pendingSourceService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to get pending sources" );
+			}
+			
+			
+			protected function pendingSourceService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				var sourceItems:ArrayCollection = new ArrayCollection( data.data );
+				
+				for each ( var o:Object in sourceItems )
+				{
+					o.communityName = setCommunityName( o.groupID[ 0 ] );
+					o.communityID = o.groupID[ 0 ];
+					
+					if ( o.title == null )
+						o.title = "";
+					o.title = StringUtil.trim( o.title.toString() );
+					
+					if ( o.harvest == null || o.harvest.harvest_status == null || o.isApproved == false )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0xEEEE00;
+						o.harvestDate = null;
+					}
+					else if ( o.harvest.harvest_status == "success" )
+					{
+						o.statusImage = greencheck;
+						o.statusColor = 0x00FF00;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+					else
+					{
+						o.statusImage = redx;
+						o.statusColor = 0xFF0000;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+				}
+				sourceData.addAll( sourceItems );
+				currsourceData.addAll( sourceItems );
+			}
+			
+			protected function sort_clickHandler( event:MouseEvent ):void
+			{
+				var buttonid:String = ( event.currentTarget as Button ).id;
+				var sortField:SortField = new SortField();
+				var sort:Sort = new Sort();
+				
+				if ( buttonid == "titleSortButton" )
+				{
+					sortField.name = "title";
+					sortField.caseInsensitive = true;
+				}
+				else if ( buttonid == "dateSortButton" )
+				{
+					sortField.name = "harvestDate";
+					sort.compareFunction = dateCompareFunction;
+				}
+				else if ( buttonid == "errorSortButton" )
+				{
+					sortField.name = "harvest.harvest_status";
+					sort.compareFunction = errorCompareFunction;
+				}
+				else if ( buttonid == "idSortButton" )
+				{
+					sortField.name = "_id";
+				}
+				else if ( buttonid == "successSortButton" )
+				{
+					sortField.name = "harvest.harvest_status";
+					sortField.compareFunction = statusCompareFunction;
+				}
+				else if ( buttonid == "messageSortButton" )
+				{
+					sortField.name = "harvest.harvest_message";
+					sortField.compareFunction = messageCompareFunction
+				}
+				
+				
+				sortField.numeric = false;
+				sort.fields = [ sortField ];
+				
+				if ( sortLast == buttonid )
+				{
+					sortFlip = !sortFlip;
+				}
+				else
+				{
+					sortFlip = false;
+				}
+				
+				if ( sortFlip )
+					sort.reverse();
+				sortLast = buttonid;
+				currsourceData.sort = sort;
+				currsourceData.refresh();
+			}
+			
+			protected function statusDG_itemDoubleClickHandler( event:ListEvent ):void
+			{
+				var col:DataGridColumn = statusDG.columns[ event.columnIndex ];
+				var colname:Array = col.dataField.split( "." );
+				var obj:Object = statusDG.selectedItem;
+				
+				for each ( var s:String in colname )
+				{
+					obj = obj[ s ];
+				}
+				var selectedData:String = " ";
+				
+				if ( obj != null )
+					selectedData = obj.toString();
+				System.setClipboard( selectedData );
+				debugLabel.text = "Data cell copied to clipboard.";
+				debugFadeOut.stop();
+				debugFadeIn.stop();
+				debugLabel.visible = true;
+				timer.start();
+			}
+			
+			
+			protected function statusDG_rollOverHandler( event:ListEvent ):void
+			{
+				statusDG.setStyle( "rollOverColor", event.itemRenderer.data.statusColor );
+				statusDG.validateNow();
+			}
+			
+			protected function timer_event( event:TimerEvent ):void
+			{
+				timer.stop();
+				debugLabel.visible = false;
+			}
+			
+			
+			protected function vgroup1_creationCompleteHandler( event:FlexEvent ):void
+			{
+				timer.addEventListener( TimerEvent.TIMER, timer_event );
+				statusDG.addEventListener( ListEvent.ITEM_ROLL_OVER, statusDG_rollOverHandler );
+			}
+			
+			private function dateCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			{
+				var result:int = ObjectUtil.dateCompare( objA.harvestDate, objB.harvestDate );
+				
+				//if you want null to show up as the largest date, comment out the next 2 lines
+				if ( objA.harvestDate == null )
+					result = -1;
+				else if ( objB.harvestDate == null )
+					result = 1;
+				
+				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1;
+				return result;
+			}
+			
+			private function docCountCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			{
+				var result:int = -1;
+				
+				if ( objA.harvest == null || objA.harvest.doccount == null )
+					result = -1;
+				else if ( objB.harvest == null || objB.harvest.doccount == null )
+					result = 1;
+				else
+					result = ObjectUtil.numericCompare( objA.harvest.doccount, objB.harvest.doccount );
+				
+				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1;
+				return result;
+			}
+			
+			private function errorCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			{
+				var result:int = -1;
+				
+				if ( ( objA.harvest == null || objA.harvest.harvest_status == null ) && ( objB.harvest == null || objB.harvest.harvest_status == null ) )
+					result = 0;
+				else if ( ( objA.harvest == null || objA.harvest.harvest_status == null ) && objB.harvest.harvest_status == "success" )
+					result = -1;
+				else if ( ( objA.harvest == null || objA.harvest.harvest_status == null ) && objB.harvest.harvest_status == "error" )
+					result = 1;
+				else if ( ( objB.harvest == null || objB.harvest.harvest_status == null ) && objA.harvest.harvest_status == "success" )
+					result = 1;
+				else if ( ( objB.harvest == null || objB.harvest.harvest_status == null ) && objA.harvest.harvest_status == "error" )
+					result = -1;
+				else if ( objA.harvest.harvest_status == objB.harvest.harvest_status )
+					result = 0;
+				else if ( objA.harvest.harvest_status == "success" )
+					result = 1;
+				else
+					result = -1;
+				
+				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1;
+				return result;
+			}
+			
+			private function messageCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			{
+				var result:int = -1;
+				
+				if ( objA.harvest == null || objA.harvest.harvest_message == null )
+					result = -1;
+				else if ( objB.harvest == null || objB.harvest.harvest_message == null )
+					result = 1;
+				else
+					result = ObjectUtil.stringCompare( objA.harvest.harvest_message, objB.harvest.harvest_message, true );
+				
+				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1;
+				return result;
+			}
+			
+			private function setCommunityName( commid:String ):String
+			{
+				for each ( var o:Object in communityData )
+				{
+					if ( o._id == commid )
+						return o.name;
+				}
+				return "Error: Couldn't find matching community.";
+			}
+			
+			private function statusCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			{
+				var result:int = -1;
+				
+				if ( objA.harvest == null || objA.harvest.harvest_status == null )
+					result = -1;
+				else if ( objB.harvest == null || objB.harvest.harvest_status == null )
+					result = 1;
+				else
+					result = ObjectUtil.stringCompare( objA.harvest.harvest_status, objB.harvest.harvest_status, true );
+				
+				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1;
+				return result;
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:HTTPService id="goodSourceService"
+			fault="goodSourceService_faultHandler(event)"
+			result="goodSourceService_resultHandler(event)" />
+		<s:HTTPService id="pendingSourceService"
+			fault="pendingSourceService_faultHandler(event)"
+			result="pendingSourceService_resultHandler(event)" />
+		<s:Fade id="debugFadeOut"
+			alphaFrom="1"
+			alphaTo="0"
+			duration="3000" />
+		<s:Fade id="debugFadeIn"
+			alphaFrom="0"
+			alphaTo="1"
+			duration="1000" />
+	</fx:Declarations>
+
+	<s:HGroup 
+		paddingLeft="5"
+		verticalAlign="middle">
+		<s:Label text="Search: " />
+		<s:TextInput id="filterInput"
+			enter="filter_enterHandler(event)" />
+		<s:Spacer width="100" />
+		<s:Label id="debugLabel"
+			width="100%"
+			hideEffect="{ debugFadeOut }"
+			showEffect="{ debugFadeIn }"
+			visible="false" />
+	</s:HGroup>
+	<mx:DataGrid id="statusDG"
+		width="100%"
+		height="100%"
+		dataProvider="{ currsourceData }"
+		doubleClickEnabled="true"
+		verticalAlign="middle"
+		itemDoubleClick="statusDG_itemDoubleClickHandler(event)">
+		<mx:columns>
+			<mx:DataGridColumn 
+				width="50"
+				dataField="statusColor"
+				headerText="Status"
+				itemRenderer="StatusColorDGItemRenderer" />
+			<mx:DataGridColumn 
+				width="200"
+				dataField="title"
+				headerText="Title" />
+			<mx:DataGridColumn 
+				width="200"
+				dataField="_id"
+				headerText="ID" />
+			<mx:DataGridColumn 
+				width="200"
+				dataField="communityName"
+				headerText="Community" />
+			<mx:DataGridColumn 
+				width="200"
+				dataField="communityID"
+				headerText="Community ID" />
+			<mx:DataGridColumn 
+				width="100"
+				dataField="isApproved"
+				headerText="Approved" />
+			<mx:DataGridColumn 
+				width="100"
+				dataField="harvest.harvest_status"
+				headerText="Harvest Status"
+				sortCompareFunction="statusCompareFunction" />
+			<mx:DataGridColumn 
+				width="90"
+				dataField="harvest.doccount"
+				headerText="Doc Count"
+				sortCompareFunction="docCountCompareFunction" />
+			<mx:DataGridColumn 
+				width="175"
+				dataField="harvest.harvested"
+				headerText="Last Harvest Date"
+				sortCompareFunction="dateCompareFunction" />
+			<mx:DataGridColumn 
+				dataField="harvest.harvest_message"
+				editable="true"
+				headerText="Harvest Error Message"
+				sortCompareFunction="messageCompareFunction" />
+		</mx:columns>
+	</mx:DataGrid>
+</s:VGroup>

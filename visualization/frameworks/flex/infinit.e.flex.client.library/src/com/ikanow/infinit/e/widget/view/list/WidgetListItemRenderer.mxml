@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	doubleClickEnabled="true"
+	toolTip="{ widgetToolTip }"
+	styleName="widgetListItemRenderer"
+	doubleClick="addWidget()"
+	autoDrawBackground="false">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.event.NavigationEvent;
+			import com.ikanow.infinit.e.shared.event.SessionEvent;
+			import com.ikanow.infinit.e.shared.event.SetupEvent;
+			import com.ikanow.infinit.e.shared.event.WorkspaceEvent;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import com.ikanow.infinit.e.shared.model.constant.WidgetConstants;
+			import com.ikanow.infinit.e.shared.model.manager.NavigationManager;
+			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value == null )
+					return;
+				
+				widget = value as Widget;
+				
+				setToolTip();
+			}
+			
+			[Inject]
+			public var navigationManager:NavigationManager;
+			
+			[Bindable]
+			protected var widgetToolTip:String;
+			
+			[Bindable]
+			protected var widget:Widget;
+			
+			protected function addWidget():void
+			{
+				// close the drawer
+				navigationManager.navigateById( NavigationConstants.WORKSPACES_BODY_DRAWER_CLOSED_ID );
+				
+				// widgets added in this manner use index == -1
+				dispatchEvent( new WorkspaceEvent( WorkspaceEvent.ADD_WIDGET, data as Widget, WidgetConstants.USE_NEXT_AVAILABLE_INDEX ) );
+			}
+			
+			protected function selectFavoriteWidget():void
+			{
+				var setupEvent:SetupEvent = new SetupEvent( SetupEvent.SELECT_MODULE_FAVORITE );
+				setupEvent.moduleId = data._id;
+				setupEvent.selected = favoriteBtn.selected;
+				dispatchEvent( setupEvent );
+			}
+			
+			protected function setToolTip():void
+			{
+				if ( widget )
+				{
+					if ( widget.isBeingDragged )
+					{
+						widgetToolTip = Constants.BLANK;
+					}
+					else
+					{
+						widgetToolTip = widget.description;
+						widgetToolTip += Constants.LINE_BREAK;
+						widgetToolTip += resourceManager.getString( 'infinite', 'widgetListItemRenderer.author' ) + Constants.COLON + Constants.SPACE + widget.author;
+						widgetToolTip += Constants.LINE_BREAK;
+						widgetToolTip += resourceManager.getString( 'infinite', 'widgetListItemRenderer.version' ) + Constants.COLON + Constants.SPACE + widget.version;
+					}
+				}
+				
+				invalidateDisplayList();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- widget thumbnail image -->
+	<s:Image 
+		width="180"
+		height="160"
+		mask="{ imgMask }"
+		scaleMode="stretch"
+		source="{ data.imageurl }">
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x373C3F"
+				alpha=".5"
+				angle="75"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+			<s:DropShadowFilter 
+				color="0xFFFFFF"
+				alpha=".5"
+				angle="270"
+				blurX="1"
+				blurY="1"
+				distance="1"
+				inner="true" />
+		</s:filters>
+	</s:Image>
+
+	<!-- rounded corner image mask -->
+	<s:Group id="imgMask"
+		width="180"
+		height="160">
+		<s:Rect 
+			width="100%"
+			height="100%"
+			radiusX="9"
+			radiusY="9">
+			<s:fill>
+				<s:SolidColor color="#000000" />
+			</s:fill>
+		</s:Rect>
+	</s:Group>
+
+	<!-- label with white bg -->
+	<s:Group 
+		height="25"
+		minWidth="50"
+		bottom="12"
+		horizontalCenter="0">
+		<s:Rect 
+			width="100%"
+			height="100%"
+			radiusX="7"
+			radiusY="7">
+			<s:fill>
+				<s:SolidColor 
+					color="#CCCCCC"
+					alpha=".75" />
+			</s:fill>
+		</s:Rect>
+		<s:Label 
+			text="{ data.title }"
+			horizontalCenter="0"
+			paddingLeft="15"
+			paddingRight="15"
+			verticalCenter="0" />
+	</s:Group>
+
+	<common:InfToggleButton id="favoriteBtn"
+		selected="{ data.favorite }"
+		toolTip="{ favoriteBtn.selected ? resourceManager.getString( 'infinite', 'widgetListItemRenderer.removeFavorite' ) : resourceManager.getString( 'infinite', 'widgetListItemRenderer.addFavorite' ) }"
+		styleName="widgetListFavoriteButtonSkin"
+		right="10"
+		top="6"
+		click="selectFavoriteWidget()" />
+
+	<common:InfButton id="addBtn"
+		toolTip="{ resourceManager.getString( 'infinite', 'widgetListItemRenderer.add' ) }"
+		styleName="widgetListAddButtonSkin"
+		right="5"
+		top="6"
+		click="addWidget()" />
+
+</s:ItemRenderer>

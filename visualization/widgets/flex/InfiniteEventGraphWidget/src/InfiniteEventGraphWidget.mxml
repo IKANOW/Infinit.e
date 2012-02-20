@@ -1,0 +1,1127 @@
+<?xml version="1.0" encoding="utf-8"?>
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:components1="components.*"
+	xmlns:layouterControls="org.un.cava.birdeye.ravis.components.ui.controls.layouterControls.*"
+	xmlns:vgraphControls="org.un.cava.birdeye.ravis.components.ui.controls.vgraphControls.*"
+	xmlns:visual="org.un.cava.birdeye.ravis.enhancedGraphLayout.visual.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	currentState="nodata"
+	creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+	<fx:Style source="com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		/* If you need to override a style in our stylesheet, or add another
+		style that we did not support you can do so here, an example has been commented out
+		Please see documentation about over-riding MX component styles to display fonts*/
+		/*
+		mx|Text
+		{
+		font-family: infiniteNonCFFFont;
+		}
+		*/
+	</fx:Style>
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
+			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.widget.IResultSet;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.events.IndexChangedEvent;
+			import mx.events.ModuleEvent;
+			import mx.modules.ModuleLoader;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ColorUtil;
+			import spark.components.ToggleButton;
+			import spark.events.IndexChangeEvent;
+			import actionscript.AlphaFlowEdgeRenderer;
+			import actionscript.EventGraph;
+			import actionscript.GraphMLRenderer;
+			import flexlib.mdi.containers.MDIWindow;
+			import org.alivepdf.pdf.PDF;
+			import org.un.cava.birdeye.ravis.components.renderers.RendererIconFactory;
+			import org.un.cava.birdeye.ravis.components.renderers.edgeLabels.BaseEdgeLabelRenderer;
+			import org.un.cava.birdeye.ravis.components.renderers.nodes.BaseNodeRenderer;
+			import org.un.cava.birdeye.ravis.components.renderers.nodes.SimpleCircleNodeRenderer;
+			import org.un.cava.birdeye.ravis.graphLayout.data.Graph;
+			import org.un.cava.birdeye.ravis.graphLayout.data.IGraph;
+			import org.un.cava.birdeye.ravis.graphLayout.layout.CircularLayouter;
+			import org.un.cava.birdeye.ravis.graphLayout.layout.ConcentricRadialLayouter;
+			import org.un.cava.birdeye.ravis.graphLayout.layout.ForceDirectedLayouter;
+			import org.un.cava.birdeye.ravis.graphLayout.layout.ILayoutAlgorithm;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.IVisualNode;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.VisualGraph;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.CircularEdgeRenderer;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.DirectedArrowEdgeRenderer;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.DirectedArrowScalingEdgeRenderer;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.FlowCurveEdgeRenderer;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.FlowEdgeRenderer;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+			
+			private var _context:IWidgetContext;
+			
+			//private var titleArray:ArrayCollection = new ArrayCollection();
+			private var loadOptions:Object = null;
+			
+			//graph variables
+			private var graph:IGraph = null;
+			
+			private var layouter:ILayoutAlgorithm = null;
+			
+			private var currentResultSet_facts:IResultSet = null;
+			
+			private var currentResultSet_events:IResultSet = null;
+			
+			private var visibleEvents:ArrayCollection = new ArrayCollection();
+			
+			private var ignoreLocalFilter:Boolean = false;
+			
+			// Handle the regex changing (just create a timer to avoid it happening too often)
+			
+			//(some horrible hackery)
+			private var _filterModifyTimer:Timer = new Timer( 300, 1 ); // (runs once after 250ms)
+			
+			private var _regexFilter:RegExp = null;
+			
+			private var hasFilter:Boolean = false;
+			
+			private var dataSorted:Boolean = false;
+			
+			private var internalFilterUpdate:Boolean = false;
+			
+			private var exporter:GraphMLRenderer = null;
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				// Useful info:
+				//ac.addItem( "mixed.graphml" );
+				//ac.addItem( "partial.graphml" );
+				//ac.addItem( "pure.graphml" );
+				
+				if ( null == this.exporter )
+				{
+					this.exporter = new GraphMLRenderer();
+				}
+				var xmlDoc:XML = null;
+				var crossDim:int;
+				
+				switch ( format.toLowerCase() )
+				{
+					case "mixed.graphml":
+						crossDim = GraphMLRenderer.CXDIM_FULL;
+						break;
+					case "partial.graphml":
+						crossDim = GraphMLRenderer.CXDIM_PARTIAL;
+						break;
+					case "pure.graphml":
+						crossDim = GraphMLRenderer.CXDIM_PURE;
+						break;
+					default:
+						return null;
+				}
+				
+				if ( dataOptionsList.selectedIndex == 1 )
+				{
+					xmlDoc = this.exporter.createGraphML( currentResultSet_events, null, _regexFilter, crossDim );
+				}
+				else if ( dataOptionsList.selectedIndex == 2 )
+				{
+					xmlDoc = this.exporter.createGraphML( null, currentResultSet_facts, _regexFilter, crossDim );
+				}
+				else
+				{
+					xmlDoc = this.exporter.createGraphML( currentResultSet_events, currentResultSet_facts, _regexFilter, crossDim );
+				}
+				
+				if ( null != xmlDoc )
+				{
+					var ba:ByteArray = new ByteArray();
+					ba.writeUTFBytes( "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n" );
+					ba.writeUTFBytes( xmlDoc );
+					return ba;
+				}
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			{
+				if ( widgetOptions != null )
+				{
+					//set icon button, should fire change event and update correctly (also should happen before query on load)
+					if ( dataOptionsList == null )
+					{
+						loadOptions = widgetOptions;
+					}
+					else
+					{
+						dataOptionsList.selectedIndex = widgetOptions.buttonbarIndex;
+					}
+				}
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = true;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				dataSorted = false;
+				currentState = "dataviewOptionsHidden";
+				
+				currentResultSet_events = _context.getQuery_FilteredResults();
+				currentResultSet_facts = _context.getQuery_FilteredResults();
+				
+				evtSlider.value = 10;
+				
+				changeGraphSelection();
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				dataSorted = false;
+				currentState = "dataviewOptionsHidden";
+				currentResultSet_facts = _context.getQuery_AllResults();
+				currentResultSet_events = _context.getQuery_AllResults();
+				
+				
+				if ( currentResultSet_events.getEvents().length == 0 )
+					currentResultSet_events = _context.getQuery_TopResults();
+				
+				if ( currentResultSet_facts.getFacts().length == 0 )
+					currentResultSet_facts = _context.getQuery_TopResults();
+				
+				evtSlider.value = 10;
+				changeGraphSelection();
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				var saveOptions:Object = new Object();
+				saveOptions[ "buttonbarIndex" ] = dataOptionsList.selectedIndex;
+				return saveOptions;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				var ac:ArrayCollection = new ArrayCollection();
+				ac.addItem( "mixed.graphml" );
+				ac.addItem( "partial.graphml" );
+				ac.addItem( "pure.graphml" );
+				return ac;
+			}
+			
+			protected function edgeRankDropDown_changeHandler( event:IndexChangeEvent ):void
+			{
+				//edge weight changed, redraw graph
+				dataSorted = false;
+				changeGraphSelection();
+			}
+			
+			protected function optionsToggleButton_changeHandler( event:Event ):void
+			{
+				currentState = optionsToggleButton.selected ? "dataviewOptionsVisible" : "dataviewOptionsHidden";
+			}
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+			
+			private function buttonBarChangeHandler( event:IndexChangeEvent ):void
+			{
+				if ( _context.getQuery_AllResults() != null )
+				{
+					changeGraphSelection();
+				}
+			}
+			
+			private function changeGraphSelection():void
+			{
+				removeOldGraph();
+				var currSel:Number = evtSlider.value;
+				
+				if ( dataOptionsList.selectedIndex == 1 )
+				{
+					var events:ArrayCollection = currentResultSet_events.getEvents();
+					maxEvt.text = events.length + "";
+					evtSlider.maximum = events.length;
+					
+					if ( events.length < currSel )
+						evtSlider.value = events.length;
+					sortData( events );
+					createGraph( events );
+				}
+				else if ( dataOptionsList.selectedIndex == 2 )
+				{
+					var facts:ArrayCollection = currentResultSet_facts.getFacts();
+					maxEvt.text = facts.length + "";
+					evtSlider.maximum = facts.length;
+					
+					if ( facts.length < currSel )
+						evtSlider.value = facts.length;
+					sortData( facts );
+					createGraph( facts );
+				}
+				else
+				{
+					var events1:ArrayCollection = currentResultSet_events.getEvents();
+					var facts1:ArrayCollection = currentResultSet_facts.getFacts();
+					var all:ArrayCollection = new ArrayCollection();
+					all.addAll( events1 );
+					all.addAll( facts1 );
+					maxEvt.text = all.length + "";
+					evtSlider.maximum = all.length;
+					
+					if ( all.length < currSel )
+						evtSlider.value = all.length;
+					sortData( all );
+					createGraph( all );
+				}
+				evtSlider.stepSize = Math.round( Number( maxEvt.text ) / 10 );
+				percentile.text = "Showing top " + evtSlider.value + " events";
+			}
+			
+			private function createGraph( events:ArrayCollection ):void
+			{
+				var edgeDesc:String = "";
+				//Find how negative intensity can be and then multiply by -1, we will use
+				//this number to add to Log10(doc_count/total_doc_count) to get positive values between 0->and this number		
+				var maxEdgeValue:Number = 1;
+				
+				if ( edgeRankDropDown.selectedIndex == 1 )
+				{
+					edgeDesc = "\nDoc Count: ";
+					maxEdgeValue = _context.getQuery_AllResults().getQuerySetSize();
+				}
+				else if ( events != null && events.length > 0 )
+				{
+					edgeDesc = "\nSignificance: ";
+					//because the events are sorted, the first event will always have the largest sig
+					maxEdgeValue = events[ 0 ].assoc_sig;
+				}
+				
+				var maxIntensity:Number = Math.log( 1 / maxEdgeValue );
+				
+				if ( maxIntensity == 0 )
+					maxIntensity = 1;
+				var intensity:Number;
+				var brightness:Number;
+				
+				var num_events_max:int = evtSlider.value;
+				var egraph:EventGraph = new EventGraph();
+				
+				if ( events != null && events.length > 0 )
+				{
+					//hold nodes in hashmap for easy matching
+					var nodeMap:HashMap = new HashMap();
+					var nodeID:Number = 1;
+					var num_events:int = 0;
+					var color:uint;
+					
+					//calculate flowratio
+					var maxFlow:Number = 0;
+					
+					for each ( var eventFlow:Object in events )
+					{
+						if ( edgeRankDropDown.selectedIndex == 1 )
+						{
+							eventFlow.edgeValue = eventFlow.doccount;
+							
+							if ( eventFlow.doccount > maxFlow )
+								maxFlow = eventFlow.doccount;
+						}
+						else
+						{
+							eventFlow.edgeValue = eventFlow.assoc_sig;
+							
+							if ( eventFlow.assoc_sig > maxFlow )
+								maxFlow = eventFlow.assoc_sig;
+						}
+						
+					}
+					//we want flow between 1-100
+					var flowRatio:Number = 100 / maxFlow;
+					visibleEvents.removeAll();
+					
+					for each ( var event:Object in events )
+					{
+						if ( num_events < num_events_max )
+						{
+							//check for regex hit first
+							if ( matchesRegexFilter( event ) )
+							{
+								visibleEvents.addItem( event );
+								num_events++;
+								var lastNodeID:String = "1";
+								
+								if ( event.entity1_index != null )
+								{
+									if ( nodeMap.containsKey( event.entity1_index ) )		//node by this name exists
+									{
+										//get nodeid and add this verb/ent2									
+										var foundnodeID:String = nodeMap.get( event.entity1_index );
+										lastNodeID = foundnodeID;
+										
+										if ( event.entity2_index != null )
+										{
+											if ( nodeMap.containsKey( event.entity2_index ) )		//node for ent2 exists
+											{
+												//connect new node to this node
+												//WARNING: this will be 2nd edge here!!!! figure out what to do for collisions like (Obama traveled paris) and (obama attacked paris)
+												var foundnode2ID:String = nodeMap.get( event.entity2_index );
+												lastNodeID = foundnode2ID;
+												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
+												brightness = ( 255 * intensity ) / maxIntensity;
+												
+												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
+													brightness = -150;
+												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID, foundnodeID, event.edgeValue * flowRatio, 1, color );
+												
+												if ( event.geo_index != null )
+												{
+													if ( nodeMap.containsKey( event.geo_index ) )
+													{
+														var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+														//create a link between these 2
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID, foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+													else
+													{
+														//create geo point
+														nodeID++;
+														nodeMap.put( event.geo_index, nodeID );
+														egraph.createNode( event.geo_index, "1", nodeID );
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID, nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+												}
+											}
+											else 												//node for ent2 does not exist
+											{
+												//create node and connect to node1
+												nodeID++;
+												nodeMap.put( event.entity2_index, nodeID );
+												lastNodeID = nodeID + "";
+												egraph.createNode( event.entity2_index, "0", nodeID );
+												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
+												brightness = ( 255 * intensity ) / maxIntensity;
+												
+												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
+													brightness = -150;
+												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID, nodeID + "", event.edgeValue * flowRatio, 1, color );
+												
+												if ( event.geo_index != null )
+												{
+													if ( nodeMap.containsKey( event.geo_index ) )
+													{
+														var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+														//create a link between these 2
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, nodeID + "", foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+													else
+													{
+														//create geo point
+														nodeID++;
+														nodeMap.put( event.geo_index, nodeID );
+														egraph.createNode( event.geo_index, "1", nodeID );
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+												}
+											}
+										}
+										else
+										{
+											//TESTING: if a node does not have a ent2, will have a location
+											if ( event.geo_index != null )
+											{
+												if ( nodeMap.containsKey( event.geo_index ) )
+												{
+													var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+													//create a link between these 2
+													egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID, foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+												}
+												else
+												{
+													//create geo point
+													nodeID++;
+													nodeMap.put( event.geo_index, nodeID );
+													egraph.createNode( event.geo_index, "1", nodeID );
+													egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID, nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+												}
+											}
+											else
+											{
+												//this should not happen
+												Alert.show( "found a ent1 with no ent 2 and no geo index" );
+											}
+										}
+									}
+									else 												//no existing node yet
+									{
+										nodeID++;
+										//add to hashmap assign new nodeid
+										nodeMap.put( event.entity1_index, nodeID );
+										lastNodeID = nodeID + "";
+										egraph.createNode( event.entity1_index, "0", nodeID );
+										egraph.createEdge( "", "", "1", nodeID + "", 0, .4, 0xCCCCCC );
+										
+										if ( event.entity2_index != null )
+										{
+											if ( nodeMap.containsKey( event.entity2_index ) )		//node for ent2 exists
+											{
+												//connect new node to this node
+												var foundnode2ID2:String = nodeMap.get( event.entity2_index );
+												lastNodeID = foundnode2ID2;
+												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
+												brightness = ( 255 * intensity ) / maxIntensity;
+												
+												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
+													brightness = -150;
+												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID2, nodeID + "", event.edgeValue * flowRatio, 1, color );
+												
+												if ( event.geo_index != null )
+												{
+													if ( nodeMap.containsKey( event.geo_index ) )
+													{
+														var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+														//create a link between these 2
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID2, foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+													else
+													{
+														//create geo point
+														nodeID++;
+														nodeMap.put( event.geo_index, nodeID );
+														egraph.createNode( event.geo_index, "1", nodeID );
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID2, nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+												}
+											}
+											else 												//node for ent2 does not exist
+											{
+												//create node and connect to node1
+												nodeID++;
+												nodeMap.put( event.entity2_index, nodeID );
+												lastNodeID = nodeID + "";
+												egraph.createNode( event.entity2_index, "0", nodeID );
+												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
+												brightness = ( 255 * intensity ) / maxIntensity;
+												
+												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
+													brightness = -150;
+												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, color );
+												
+												if ( event.geo_index != null )
+												{
+													if ( nodeMap.containsKey( event.geo_index ) )
+													{
+														var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+														//create a link between these 2
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, nodeID + "", foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+													else
+													{
+														//create geo point
+														nodeID++;
+														nodeMap.put( event.geo_index, nodeID );
+														egraph.createNode( event.geo_index, "1", nodeID );
+														egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+													}
+												}
+											}
+										}
+										else
+										{
+											//TESTING: if a node does not have a ent2, will have a location
+											if ( event.geo_index != null )
+											{
+												if ( nodeMap.containsKey( event.geo_index ) )
+												{
+													var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+													//create a link between these 2
+													egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, nodeID + "", foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+												}
+												else
+												{
+													//create geo point
+													nodeID++;
+													nodeMap.put( event.geo_index, nodeID );
+													egraph.createNode( event.geo_index, "1", nodeID );
+													egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+												}
+											}
+											else
+											{
+												//this should not happen
+												Alert.show( "found a ent1 with no ent 2 and no geo index" );
+											}
+										}
+									}
+								}
+								else if ( event.entity2_index != null )
+								{
+									//no ent1, just create ent2 node (if doesn't exist) and link to fake node
+									if ( nodeMap.containsKey( event.entity2_index ) )		//node for ent2 exists
+									{
+										//connect new node to this node
+										//nodeID++;
+										var foundnodeID3:String = nodeMap.get( event.entity2_index );
+										lastNodeID = foundnodeID3;
+										
+										//TESTING: if a node does not have a ent2, will have a location
+										if ( event.geo_index != null )
+										{
+											if ( nodeMap.containsKey( event.geo_index ) )
+											{
+												var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+												//create a link between these 2
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID3 + "", foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+											}
+											else
+											{
+												//create geo point
+												nodeID++;
+												nodeMap.put( event.geo_index, nodeID );
+												egraph.createNode( event.geo_index, "1", nodeID );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID3 + "", nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+											}
+										}
+										else
+										{
+											//this should not happen
+											Alert.show( "found a ent2 with no geo index" );
+										}
+									}
+									else 												//node for ent2 does not exist
+									{
+										//create node and connect to node1
+										nodeID++;
+										nodeMap.put( event.entity2_index, nodeID );
+										lastNodeID = nodeID + "";
+										egraph.createNode( event.entity2_index, "0", nodeID );
+										egraph.createEdge( "", "", "1", nodeID + "", 0, .4, 0xCCCCCC );
+										
+										if ( event.geo_index != null )
+										{
+											if ( nodeMap.containsKey( event.geo_index ) )
+											{
+												var foundnodeIDGeo1:String = nodeMap.get( event.geo_index );
+												//create a link between these 2
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, nodeID + "", foundnodeIDGeo1, event.edgeValue * flowRatio, 1, 0x33FF00 );
+											}
+											else
+											{
+												//create geo point
+												nodeID++;
+												nodeMap.put( event.geo_index, nodeID );
+												egraph.createNode( event.geo_index, "1", nodeID );
+												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, 0x33FF00 );
+											}
+										}
+										else
+										{
+											//this should not happen
+											Alert.show( "found a ent12 with no geo index" );
+										}
+									}
+								}
+							}
+						}
+						else
+							break; //hit max num of events, break out
+					}
+				}
+				
+				var xmlData:XML = egraph.getGraph();
+				drawGraph( xmlData );
+			}
+			
+			private function dataOptionsList_changeHandler( event:IndexChangeEvent ):void
+			{
+				if ( _context.getQuery_AllResults() != null )
+				{
+					evtSlider.value = 10;
+					changeGraphSelection();
+				}
+			}
+			private function doneChangingFilter( event:TimerEvent ):void
+			{
+				if ( 0 == regexFilter.text.length )
+				{
+					_regexFilter = null;
+				}
+				else
+				{
+					_regexFilter = new RegExp( regexFilter.text, "i" );
+				}
+				this.changeGraphSelection(); //cause graph to redraw
+			}
+			
+			private function drawGraph( xmlData:XML ):void
+			{
+				graph = new org.un.cava.birdeye.ravis.graphLayout.data.Graph( "XMLAsDocsGraph", false, xmlData );
+				vgraph.graph = graph;
+				layouter = new org.un.cava.birdeye.ravis.graphLayout.layout.ConcentricRadialLayouter( vgraph );
+				layouter.autoFitEnabled = false;
+				layouter.linkLength = 100;
+				vgraph.layouter = layouter;
+				vgraph.edgeRendererFactory = new ClassFactory( actionscript.AlphaArrowEdgeRenderer );
+				//vgraph.edgeRendererFactory = new ClassFactory(org.un.cava.birdeye.ravis.graphLayout.visual.edgeRenderers.FlowEdgeRenderer);
+				
+				var startRoot:IVisualNode = graph.nodeByStringId( "1" ).vnode;
+				vgraph.currentRootVNode = startRoot;
+				vgraph.draw();
+			}
+			
+			private function filterOptions_changeHandler( evt:IndexChangeEvent ):void
+			{
+				filterOptions.selectedIndex = -1;
+				
+				var ents:Set = new HashSet();
+				
+				for each ( var event:Object in visibleEvents )
+				{
+					if ( event.entity1_index != null )
+					{
+						ents.add( event.entity1_index );
+					}
+					
+					if ( event.entity2_index != null )
+					{
+						ents.add( event.entity2_index );
+					}
+					
+					if ( event.geo_index != null )
+					{
+						ents.add( event.geo_index );
+					}
+				}
+				_context.filterByEntities( FilterDataSetEnum.FILTER_FILTERED_DATA, ents, EntityMatchTypeEnum.ANY, IncludeEntitiesEnum.INCLUDE_SELECTED_ENTITIES );
+			}
+			private function matchesRegexFilter( event:Object ):Boolean
+			{
+				if ( null != _regexFilter )
+				{
+					var eventTest:String = "";
+					
+					if ( event.entity1_index != null )
+					{
+						var s1:Array = event.entity1_index.split( "/" );
+						eventTest += s1[ 0 ] + " " + s1[ 1 ] + " ";
+					}
+					
+					if ( event.verb_category != null )
+					{
+						eventTest += event.verb_category + " ";
+					}
+					
+					if ( event.entity2_index != null )
+					{
+						var s3:Array = event.entity2_index.split( "/" );
+						eventTest += s3[ 0 ] + " " + s3[ 1 ] + " ";
+					}
+					
+					if ( event.geo_index != null )
+					{
+						var s4:Array = event.geo_index.split( "/" );
+						eventTest += s4[ 0 ] + " " + s4[ 1 ] + " ";
+					}
+					return _regexFilter.test( eventTest );
+				}
+				return true;
+			}
+			
+			private function onChangeEntityFilter( event:Event ):void
+			{
+				// Start a timer for 300ms time
+				this._filterModifyTimer.stop();
+				this._filterModifyTimer.start();
+			}
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results	
+			private function onClickIgnoreLocalFilter():void
+			{
+				internalFilterUpdate = true;
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if ( !this.ignoreLocalFilter )
+				{
+					if ( hasFilter )
+						this.onReceiveNewFilter();
+					else
+						this.onReceiveNewQuery();
+					ignoreLocalFilter = false;
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					localFilterSettings.selected = false;
+					localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+				}
+				else
+				{
+					this.onReceiveNewQuery();
+					ignoreLocalFilter = true;
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					localFilterSettings.selected = true;
+					localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+				}
+				internalFilterUpdate = false;
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete():void
+			{
+				_filterModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingFilter );
+				
+				if ( loadOptions != null )
+					dataOptionsList.selectedIndex = loadOptions.buttonbarIndex;
+			}
+			
+			private function removeOldGraph():void
+			{
+			
+			}
+			
+			/**
+			 * Takes the currentResultSet and sorts it by
+			 * whatever is selcted in the rank by drop down
+			 * 0 = signif
+			 * 1 = doc count
+			 **/
+			private function sortData( list:ArrayCollection ):void
+			{
+				if ( !dataSorted )
+				{
+					var sortField:SortField = new SortField();
+					
+					if ( edgeRankDropDown.selectedIndex == 0 )
+					{
+						sortField.name = "assoc_sig";
+					}
+					else
+					{
+						sortField.name = "doccount";
+					}
+					sortField.numeric = true;
+					sortField.descending = true;
+					var sort:Sort = new Sort();
+					sort.fields = [ sortField ];
+					list.sort = sort;
+					list.refresh();
+					dataSorted = true;
+				}
+			}
+			
+			private function updateEventsShown( event:Event ):void
+			{
+				percentile.text = "Showing top " + evtSlider.value + " events";
+				//force a redraw, it gets the #of events to use
+				//var fakeEvent:IndexChangeEvent = new IndexChangeEvent( "", false, false, -1, dataOptionsList.selectedIndex );
+				//dataOptionsList_changeHandler( fakeEvent );
+				changeGraphSelection();
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+
+	</fx:Declarations>
+
+	<!-- States -->
+	<components:states>
+		<s:State name="dataviewOptionsHidden"
+			stateGroups="dataSates" />
+		<s:State name="dataviewOptionsVisible"
+			stateGroups="dataSates" />
+		<s:State name="nodata" />
+	</components:states>
+
+	<!-- Transitions -->
+	<components:transitions>
+
+		<s:Transition 
+			autoReverse="true"
+			fromState="dataviewOptionsHidden"
+			toState="dataviewOptionsVisible">
+			<s:Parallel duration="240">
+				<s:Animate target="{ widgetOptionsGroup }">
+					<s:SimpleMotionPath 
+						property="alpha"
+						valueFrom="0.0"
+						valueTo="1.0" />
+				</s:Animate>
+				<s:Move target="{ widgetOptionsGroup }" />
+			</s:Parallel>
+		</s:Transition>
+
+	</components:transitions>
+
+	<!-- Header -->
+	<components:headerContent>
+
+		<s:HGroup gap="-3">
+
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+				toolTip="Ignore Workspace Filtering - Show All Results"
+				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+
+			<!-- Filter Options Drop Down List -->
+			<components:WidgetPromptDropDownList id="filterOptions"
+				selectedIndex="-1"
+				width="82"
+				change="setTimeout( filterOptions_changeHandler, 100, event )"
+				listWidth="134"
+				prompt="Filter">
+				<components:dataProvider>
+					<s:ArrayList source="[Filter visible nodes]" />
+				</components:dataProvider>
+			</components:WidgetPromptDropDownList>
+
+			<!-- View Options Drop Down List -->
+			<components:WidgetDropDownList id="dataOptionsList"
+				width="82"
+				selectedIndex="0"
+				change="setTimeout( dataOptionsList_changeHandler, 100, event )">
+				<components:dataProvider>
+					<s:ArrayList source="[All,Events,Facts]" />
+				</components:dataProvider>
+			</components:WidgetDropDownList>
+
+			<!-- regex filtering box -->
+			<s:HGroup 
+				height="100%"
+				paddingBottom="2"
+				paddingLeft="5"
+				paddingRight="7"
+				paddingTop="2"
+				verticalAlign="middle">
+				<components:WidgetTextInput id="regexFilter"
+					width="100"
+					toolTip="Enter a regex string to filter entities on name or type"
+					change="onChangeEntityFilter(event)"
+					prompt="Show only:" />
+			</s:HGroup>
+
+			<!-- options -->
+			<components:WidgetOptionsToggleButton id="optionsToggleButton"
+				toolTip.dataviewOptionsHidden="Options"
+				change="optionsToggleButton_changeHandler(event)" />
+		</s:HGroup>
+
+
+	</components:headerContent>
+
+	<!-- Graph -->
+	<s:Group 
+		height="100%"
+		width="100%"
+		includeIn="dataSates">
+
+		<s:Group id="vgraphGroup"
+			width="100%"
+			height="100%">
+			<visual:EnhancedVisualGraph id="vgraph"
+				width="100%"
+				height="100%"
+				backgroundColor="#FFFFFF"
+				resize="vgraph.draw(VisualGraph.DF_RESET_LL)"
+				alpha="1"
+				edgeLabelRenderer="actionscript.EdgeLabelTooltipRenderer"
+				itemRenderer="actionscript.AlphaCircleNodeRenderer"
+				visibilityLimitActive="true"
+				visible="true">
+			</visual:EnhancedVisualGraph>
+		</s:Group>
+
+		<!-- Options -->
+		<components:WidgetOptionsGroup id="widgetOptionsGroup"
+			width="100%"
+			height="60"
+			y="-60"
+			y.dataviewOptionsVisible="0"
+			horizontalCenter="0"
+			alpha="0"
+			alpha.dataviewOptionsVisible="1"
+			mouseEnabled="{ optionsToggleButton.selected }">
+			<components:layout>
+				<s:HorizontalLayout 
+					horizontalAlign="center"
+					paddingBottom="12"
+					paddingLeft="5"
+					paddingRight="5"
+					paddingTop="10"
+					verticalAlign="middle" />
+			</components:layout>
+			<s:VGroup id="evtContainer"
+				horizontalAlign="center"
+				verticalAlign="middle"
+				gap="5">
+				<s:Label id="percentile"
+					text="Showing Top 10 events"
+					fontWeight="bold" />
+				<s:HGroup 
+					width="100%"
+					horizontalAlign="center"
+					verticalAlign="middle">
+					<s:Label id="minEvt"
+						text="0"
+						fontSize="9" />
+					<s:HSlider id="evtSlider"
+						snapInterval="1"
+						stepSize="5"
+						minimum="0"
+						maximum="100"
+						value="10"
+						change="updateEventsShown(event)" />
+					<s:Label id="maxEvt"
+						text="100"
+						fontSize="9" />
+				</s:HGroup>
+			</s:VGroup>
+			<mx:Spacer width="5" />
+			<components1:MiniZoom vgraph="{ vgraph }" />
+			<!--<vgraphControls:BirdEyeZoom vgraph="{vgraph}" />-->
+			<mx:Spacer width="5" />
+			<components1:MiniLinkLength vgraph="{ vgraph }" />
+			<mx:Spacer width="5" />
+			<s:VGroup 
+				horizontalAlign="center"
+				verticalAlign="middle"
+				gap="5">
+				<s:Label 
+					text="Rank By"
+					fontWeight="bold" />
+				<s:DropDownList id="edgeRankDropDown"
+					selectedIndex="0"
+					height="25"
+					change="edgeRankDropDown_changeHandler(event)">
+					<s:ArrayCollection>
+						<fx:String>Significance</fx:String>
+						<fx:String>Doc Count</fx:String>
+					</s:ArrayCollection>
+				</s:DropDownList>
+			</s:VGroup>
+			<!--<layouterControls:CommonLayoutControls vgraph="{vgraph}" width="100%" color="black" />-->
+		</components:WidgetOptionsGroup>
+
+	</s:Group>
+
+	<!-- No Data -->
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="middle"
+		includeIn="nodata">
+		<s:Label 
+			text="No data, try running a query"
+			includeIn="nodata" />
+	</s:VGroup>
+
+</components:WidgetModule>

@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:editor="com.ikanow.infinit.e.widget.view.editor.*"
+	xmlns:list="com.ikanow.infinit.e.widget.view.list.*"
+	currentState="{ model.navigator.currentState }"
+	paddingLeft="9"
+	paddingTop="8"
+	preinitialize="WidgetsNavigator.updateViewStates( this )"
+	gap="-20">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.model.presentation.WidgetsModel;
+			import com.ikanow.infinit.e.widget.model.presentation.WidgetsNavigator;
+			import flash.utils.setTimeout;
+			
+			[Bindable]
+			[Inject]
+			public var model:WidgetsModel;
+			
+			[Bindable]
+			public var opened:Boolean;
+			
+			public function setOpened( value:Boolean ):void
+			{
+				opened = value;
+				
+				if ( widgetList && value == false )
+					setTimeout( widgetList.scrollToTop, 400 );
+			}
+			
+			protected function toggleButtonClickHandler():void
+			{
+				opened ? model.navigator.closeDrawer() : model.navigator.openDrawer();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="list" />
+		<s:State name="editor" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Open / Close Button -->
+	<common:InfButton id="toggleButton"
+		styleName="sliderToggleButton"
+		focusEnabled="false"
+		click="toggleButtonClickHandler()"
+		rotation="{ opened ? 0 : 180 }" />
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		paddingBottom="10"
+		paddingLeft="28"
+		paddingRight="10"
+		paddingTop="11">
+
+		<!-- Widget List -->
+		<list:WidgetList id="widgetList"
+			width="100%"
+			height="100%"
+			includeIn="list" />
+
+		<!-- Widget Editor -->
+		<editor:WidgetEditor 
+			width="100%"
+			height="100%"
+			includeIn="editor" />
+
+	</s:VGroup>
+
+</s:VGroup>

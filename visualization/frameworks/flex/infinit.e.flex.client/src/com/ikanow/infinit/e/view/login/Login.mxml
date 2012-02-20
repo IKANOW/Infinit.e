@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	currentState="{ model.navigator.currentState }"
+	hide="hideHandler()"
+	preinitialize="LoginNavigator.updateViewStates( this )"
+	show="showHandler()">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.login.LoginModel;
+			import com.ikanow.infinit.e.model.presentation.login.LoginNavigator;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import mx.events.FlexEvent;
+			import assets.EmbeddedAssets;
+			
+			[Bindable]
+			[Inject]
+			public var model:LoginModel;
+			
+			[PostConstruct]
+			public function getCookie():void
+			{
+				model.getCookie();
+			}
+			
+			protected function forgotPassword_clickHandler():void
+			{
+				model.forgotPassword( userName.text );
+			}
+			
+			protected function hideHandler():void
+			{
+				Mouse.cursor = MouseCursor.AUTO;
+			}
+			
+			protected function input_changeHandler():void
+			{
+				loginButton.enabled = userName.valid && password.valid;
+			}
+			
+			protected function input_enterHandler():void
+			{
+				if ( loginButton.enabled )
+				{
+					login();
+				}
+			}
+			
+			protected function login():void
+			{
+				loginButton.setFocus();
+				Mouse.cursor = MouseCursor.ARROW;
+				model.login( userName.text, password.text );
+			}
+			
+			protected function loginButtonGroup_effectEndHandler():void
+			{
+				loginButton.label = Constants.BLANK;
+				busyIndicator.message = resourceManager.getString( 'infinite', 'loginView.authenticating' );
+			}
+			
+			protected function login_enterStateHandler():void
+			{
+				loginButton.label = resourceManager.getString( 'infinite', 'common.enter' );
+				busyIndicator.message = Constants.BLANK;
+			}
+			
+			protected function showHandler():void
+			{
+				loginButton.enabled = false;
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+
+		<!-- User Name Validator -->
+		<mx:StringValidator id="userNameValidator"
+			minLength="1"
+			property="text"
+			requiredFieldError=""
+			source="{ userName }"
+			tooShortError="" />
+
+		<!-- Password Validator -->
+		<mx:StringValidator id="passwordValidator"
+			minLength="1"
+			property="text"
+			requiredFieldError=""
+			source="{ password }"
+			tooShortError="" />
+
+		<!-- Transition Easer -->
+		<s:Power id="easer"
+			exponent="{ Constants.TRANSITION_EASER_EXPONENT }" />
+
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="cookie" />
+		<s:State name="login"
+			enterState="login_enterStateHandler()" />
+		<s:State name="loadingData" />
+		<s:State name="forgotPassword" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Transitions :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:transitions>
+
+		<!-- Login / Loading Data -->
+		<s:Transition 
+			fromState="{ NavigationConstants.LOGIN_FORM_ID }"
+			toState="{ NavigationConstants.LOGIN_LOADING_DATA_ID }">
+			<s:Parallel duration="250">
+				<s:Animate 
+					easer="{ easer }"
+					target="{ loginButtonGroup }">
+					<s:SimpleMotionPath 
+						property="width"
+						valueFrom="100"
+						valueTo="160" />
+				</s:Animate>
+				<s:Animate 
+					easer="{ easer }"
+					target="{ busyIndicator }">
+					<s:SimpleMotionPath 
+						property="alpha"
+						valueFrom="0.0"
+						valueTo="1.0" />
+				</s:Animate>
+			</s:Parallel>
+		</s:Transition>
+
+	</s:transitions>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:layout>
+		<s:VerticalLayout gap="0" />
+	</s:layout>
+
+	<!-- Header -->
+	<component:GradientContainer id="header"
+		styleName="loginHeaderBackground"
+		width="100%"
+		height="20%"
+		visible="true"
+		visible.cookie="false">
+
+		<!-- Logo -->
+		<s:BitmapImage 
+			bottom="25"
+			left="100"
+			source="{ EmbeddedAssets.LOGO }" />
+
+	</component:GradientContainer>
+
+	<!-- Separator -->
+	<component:HSeparator 
+		width="100%"
+		styleName="loginHeaderSeparator"
+		visible="true"
+		visible.cookie="false" />
+
+	<!-- Background -->
+	<component:StripedBackground 
+		width="100%"
+		height="100%"
+		styleName="stripedBackground"
+		enabled.cookie="false"
+		enabled="true"
+		visible="true"
+		visible.cookie="false">
+
+		<!-- Login Controls -->
+		<s:VGroup 
+			horizontalCenter="0"
+			top="100"
+			gap="14">
+
+			<s:VGroup 
+				enabled="false"
+				enabled.login="true"
+				gap="14">
+
+				<!-- Title -->
+				<s:Label 
+					text="{ resourceManager.getString( 'infinite', 'loginView.login' ) }"
+					styleName="lightGreyHeader" />
+
+				<!-- User Name Input -->
+				<textInput:InfTextInput id="userName"
+					width="280"
+					styleName="infTextInput"
+					change="input_changeHandler()"
+					enter="input_enterHandler()"
+					mouseEnabled.loadingData="false"
+					validator="{ userNameValidator }" />
+
+				<!-- Password Input -->
+				<textInput:InfTextInput id="password"
+					width="280"
+					styleName="infTextInput"
+					text="{ model.password }"
+					change="input_changeHandler()"
+					displayAsPassword="true"
+					enter="input_enterHandler()"
+					mouseEnabled.loadingData="false"
+					validator="{ passwordValidator }" />
+
+				<!-- Forgot Password Button -->
+				<common:InfButton id="forgotPassword"
+					label="{ resourceManager.getString( 'infinite', 'loginView.forgotPassword' ) }"
+					styleName="loginForgotPasswordButton"
+					click="forgotPassword_clickHandler()" />
+
+			</s:VGroup>
+
+			<s:Group id="loginButtonGroup"
+				width="100"
+				width.loadingData="160"
+				height="34"
+				effectEnd="loginButtonGroup_effectEndHandler()">
+
+				<!-- Login Button -->
+				<common:InfButton id="loginButton"
+					width="100%"
+					height="100%"
+					enabled="false"
+					styleName="roundedBlueButton"
+					click="login()"
+					mouseEnabled="false"
+					mouseEnabled.login="true" />
+
+				<!-- Authenticating Feedback Indicator -->
+				<busyIndicator:BusyIndicatorLabel id="busyIndicator"
+					styleName="loginBusyIndicatorLabel"
+					horizontalCenter="-4"
+					verticalCenter="0"
+					alpha="0.0"
+					alpha.loadingData="1.0"
+					showDropShadow="false" />
+
+			</s:Group>
+
+		</s:VGroup>
+
+	</component:StripedBackground>
+
+</s:Group>

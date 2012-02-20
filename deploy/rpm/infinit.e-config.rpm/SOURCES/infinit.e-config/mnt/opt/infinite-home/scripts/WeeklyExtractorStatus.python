@@ -1,0 +1,28 @@
+import time
+import socket
+import splunk
+import splunk.auth   as au
+import splunk.search as se
+import commands
+
+# Import ConfigParser module and read python.cfg file for email addresses
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read('/opt/infinite-home/config/python.cfg')
+sendEmailTo = config.get('config', 'mail.to')
+sendEmailFrom = config.get('config', 'mail.from')
+serveraddr = commands.getoutput("/sbin/ifconfig | grep -o 'addr:[0-9.]*' | grep -v '127.0.0.1'")
+
+source = '/opt/infinite-home/logs/infinit.e.service.log'
+
+fulldata = se.dispatch('search "num_of_docs_extracted" OR "num_of_source_errors" OR "num_of_url_errors" | bin _time span=1d as Day | convert timeformat="%m/%d/%y" ctime(Day) |stats sum(num_of_docs_extracted) as num_of_docs_extracted,  sum(num_of_source_errors) as num_of_source_errors, sum(num_of_url_errors) as num_of_url_errors, min(num_of_sources_harvested) as min_num_of_sources_harvested, max(num_of_sources_harvested) as max_num_of_sources_harvested by Day',source = source, earliest_time ='-7d@d')
+
+while not fulldata.isDone:
+    time.sleep(1)
+
+if fulldata.resultCount > 0:
+	fulldata.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[STATUS] Infinit.e Weekly Extractor Report ['+serveraddr+']" sendresults=true')
+	r = fulldata.results[0]
+	print 'Email Sent to ' + sendEmailTo
+
+fulldata.cancel()

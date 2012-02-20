@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+			[HostComponent("spark.components.SkinnableContainer")]
+		]]>
+	</fx:Metadata>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect id="background"
+		bottom="15"
+		left="15"
+		right="15"
+		top="15"
+		radiusX="9"
+		radiusY="9">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry color="#F7F7F7" />
+					<s:GradientEntry color="#DADADA" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x373C3F"
+				alpha=".5"
+				angle="75"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+			<s:DropShadowFilter 
+				color="0xFFFFFF"
+				alpha=".5"
+				angle="270"
+				blurX="1"
+				blurY="1"
+				distance="1"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- content -->
+	<s:Group id="contentGroup"
+		minWidth="0"
+		minHeight="0"
+		bottom="30"
+		left="30"
+		right="30"
+		top="30">
+		<s:layout>
+			<s:VerticalLayout 
+				horizontalAlign="center"
+				gap="15" />
+		</s:layout>
+	</s:Group>
+
+</s:Skin>

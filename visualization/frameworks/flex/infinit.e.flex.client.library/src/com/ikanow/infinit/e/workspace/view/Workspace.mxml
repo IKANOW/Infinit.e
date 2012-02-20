@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:content="com.ikanow.infinit.e.workspace.view.content.*"
+	xmlns:layout="com.ikanow.infinit.e.workspace.view.layout.*"
+	xmlns:settings="com.ikanow.infinit.e.workspace.view.settings.*"
+	currentState="{ model.navigator.currentState }"
+	dragEnter="model.handleDragEnter( event )"
+	preinitialize="WorkspaceNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.workspace.model.presentation.WorkspaceModel;
+			import com.ikanow.infinit.e.workspace.model.presentation.WorkspaceNavigator;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspaceModel;
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+
+		<s:Fade id="fadeIn"
+			alphaFrom="0"
+			alphaTo="1"
+			duration="400" />
+
+		<s:Fade id="fadeOut"
+			alphaFrom="1"
+			alphaTo="0"
+			duration="200" />
+
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="content" />
+		<s:State name="layout" />
+		<s:State name="settings" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Content -->
+	<content:WorkspaceContent 
+		width="100%"
+		height="100%"
+		visible="false"
+		visible.content="true" />
+
+	<!-- Layouts -->
+	<layout:WorkspaceLayout 
+		width="100%"
+		height="100%"
+		visible="false"
+		visible.layout="true" />
+
+	<!-- Settings -->
+	<settings:WorkspaceSettings 
+		width="100%"
+		height="100%"
+		hideEffect="{ fadeOut }"
+		showEffect="{ fadeIn }"
+		visible="false"
+		visible.settings="true" />
+
+</s:Group>

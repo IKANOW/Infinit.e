@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.history.model.presentation.HistoryModel;
+			import com.ikanow.infinit.e.shared.model.vo.TypedQueryString;
+			import mx.events.ItemClickEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:HistoryModel;
+			
+			protected function historyList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				historyList.enabled = false;
+				
+				model.navigator.closeHistoryView();
+				
+				setTimeout( model.runHistoryQuery, 500, event.item as TypedQueryString );
+				
+				setTimeout( enableList, 500 );
+			}
+			
+			private function closeButton_clickHandler():void
+			{
+				model.navigator.closeHistoryView();
+			}
+			
+			private function enableList():void
+			{
+				historyList.enabled = true;
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:headerContent>
+
+		<s:Group 
+			bottom="5"
+			left="20"
+			right="20"
+			top="10">
+
+			<!-- Title -->
+			<common:InfLabel id="title"
+				text="{ resourceManager.getString( 'infinite', 'history.title' ) }"
+				styleName="lightGrey"
+				left="0"
+				verticalCenter="2" />
+
+			<!-- Close Button -->
+			<common:InfButton 
+				label="{ resourceManager.getString( 'infinite', 'common.close' ) }"
+				styleName="closeButton"
+				right="0"
+				verticalCenter="2"
+				click="closeButton_clickHandler()" />
+
+		</s:Group>
+
+	</component:headerContent>
+
+	<component:content>
+
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			paddingBottom="20"
+			paddingLeft="20"
+			paddingRight="20"
+			paddingTop="6">
+
+			<!-- history list -->
+			<common:InfNonSelectableItemClickList id="historyList"
+				width="100%"
+				height="100%"
+				focusEnabled="false"
+				styleName="historyList"
+				horizontalScrollPolicy="off"
+				dataProvider="{ model.recentQueries }"
+				itemClick="historyList_itemClickHandler(event)"
+				itemRenderer="com.ikanow.infinit.e.history.view.HistoryListItemRender">
+				<common:layout>
+					<s:VerticalLayout 
+						gap="20"
+						requestedMinRowCount="1"
+						useVirtualLayout="false"
+						variableRowHeight="true" />
+				</common:layout>
+			</common:InfNonSelectableItemClickList>
+
+		</s:VGroup>
+
+	</component:content>
+
+</component:DialogPanel>

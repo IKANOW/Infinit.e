@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.web" default="war" basedir=".">
+	<property name="dir.src" value="WEB-INF/src"/>
+	<property name="dir.lib" value="WEB-INF/lib"/>
+	<property name="dir.war" value="war"/>
+	<property name="dir.build" value="build"/>
+	<property name="dir.debug" value="debug"/>
+	<property name="dir.release" value="release"/>
+	<property name="dir.dist" value="dist"/>
+	<property name="infinit.e.widget-uploader.location" value="../infinit.e.widget-uploader/"/>
+	<property name="infinit.e.jar-uploader.location" value="../infinit.e.jar-uploader/"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	<property name="debuglevel" value="source,lines,vars"/>	
+	<property name="infinit.e.flex.location" value="../infinit.e.flex.client"/>		
+	
+	<!-- Locations for stock Infinit.e widgets to copy -->
+	<property name="InfiniteDocBrowserWidget.location" value="../InfiniteDocBrowserWidget/"/>
+	<property name="InfiniteEventGraphWidget.location" value="../InfiniteEventGraphWidget/"/>
+	<property name="InfiniteMapWidget.location" value="../InfiniteMapWidget/"/>
+	<property name="InfiniteSentimentWidget.location" value="../InfiniteSentimentWidget/"/>
+	<property name="InfiniteSignificanceWidget.location" value="../InfiniteSignificanceWidget/"/>
+	<property name="InfiniteTimelineEventWidget.location" value="../InfiniteTimelineEventWidget/"/>
+	<property name="InfiniteTimelineWidget.location" value="../InfiniteTimelineWidget/"/>
+	
+	<!-- Other flex utilities -->
+	<property name="InfiniteSourceMonitor.location" value="../InfiniteSourceMonitor/"/>
+	<property name="infinit.e.EntityProfiler.location" value="../InfiniteEntityProfiler/"/>
+		
+	<target name="clean" description="Tidy up project">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.dist}"/>		
+	</target>
+	
+	<target name="copy" depends="clean" description="Copy and move the flex application into the java web app in order to war up">
+		<mkdir dir="${dir.build}"/>
+		
+	  	<!-- copy over the infinit.e.flex app -->
+	  	<copy todir="${dir.build}/">
+			<fileset dir="${infinit.e.flex.location}/dist"/>
+	  	</copy>
+	  	<copy file="./crossdomain.xml" tofile="${dir.build}/crossdomain.xml"/>
+			
+	  	<!-- Copy the InfiniteDocBrowserWidget -->
+		<mkdir dir="${dir.build}/InfiniteDocBrowserWidget"/>
+	  	<copy todir="${dir.build}/InfiniteDocBrowserWidget/">
+			<fileset dir="${InfiniteDocBrowserWidget.location}/dist"/>
+	  	</copy>
+		
+		<!-- Copy the InfiniteEventGraphWidget -->
+		<mkdir dir="${dir.build}/InfiniteEventGraphWidget"/>
+		<copy todir="${dir.build}/InfiniteEventGraphWidget/">
+			<fileset dir="${InfiniteEventGraphWidget.location}/dist"/>
+		</copy>
+		
+		<!-- Copy the InfiniteMapWidget -->
+		<mkdir dir="${dir.build}/InfiniteMapWidget"/>
+		<copy todir="${dir.build}/InfiniteMapWidget/">
+			<fileset dir="${InfiniteMapWidget.location}/dist"/>
+		</copy>
+
+		<!-- Copy the InfiniteSentimentWidget -->
+		<mkdir dir="${dir.build}/InfiniteSentimentWidget"/>
+		<copy todir="${dir.build}/InfiniteSentimentWidget/">
+			<fileset dir="${InfiniteSentimentWidget.location}/dist"/>
+		</copy>
+
+		<!-- Copy the InfiniteSignificanceWidget -->
+		<mkdir dir="${dir.build}/InfiniteSignificanceWidget"/>
+		<copy todir="${dir.build}/InfiniteSignificanceWidget/">
+			<fileset dir="${InfiniteSignificanceWidget.location}/dist"/>
+		</copy>
+
+		<!-- Copy the InfiniteTimelineEventWidget -->
+		<mkdir dir="${dir.build}/InfiniteTimelineEventWidget"/>
+		<copy todir="${dir.build}/InfiniteTimelineEventWidget/">
+			<fileset dir="${InfiniteTimelineEventWidget.location}/dist"/>
+		</copy>
+
+		<!-- Copy the InfiniteTimelineWidget -->
+		<mkdir dir="${dir.build}/InfiniteTimelineWidget"/>
+		<copy todir="${dir.build}/InfiniteTimelineWidget/">
+			<fileset dir="${InfiniteTimelineWidget.location}/dist"/>
+		</copy>
+		
+		<!-- Copy the InfiniteSourceMonitor -->
+		<copy todir="${dir.build}/">
+			<fileset dir="${InfiniteSourceMonitor.location}/dist"/>
+		</copy>
+		<!-- copy over the infinit.e.EntityProfiler -->
+	  	<copy todir="${dir.build}/">
+			<fileset dir="${infinit.e.EntityProfiler.location}/dist"/>
+	  	</copy>
+		
+		<!-- copy over the infinit.e.widget-uploader -->		
+	  	<copy todir="${dir.build}/${dir.lib}">
+			<fileset dir="${infinit.e.widget-uploader.location}/${dir.lib}"/>
+		</copy>
+	  	<copy file="${infinit.e.widget-uploader.location}/widgetUploader.jsp" tofile="${dir.build}/widgetUploader.jsp"/>
+	
+		<!-- copy over the infinit.e.jar-uploader -->			
+		<copy todir="${dir.build}/${dir.lib}">
+			<fileset dir="${infinit.e.jar-uploader.location}/${dir.lib}"/>
+		</copy>
+		<copy file="${infinit.e.jar-uploader.location}/jarUploader.jsp" tofile="${dir.build}/jarUploader.jsp"/>
+	
+		
+	</target>
+	
+	<!-- =================================
+	target: war
+	create the war file
+	================================= -->
+	
+	<!-- Version number for standalone ZIP only, the WAR gets tagged inside the search engine RPM -->
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>
+	
+	<target name="war" depends="copy" description="Generates ${ant.project.name}.war file in to the '${dir.dist}' directory.">
+		<mkdir dir="${dir.dist}"/>
+		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
+			<fileset dir="${dir.build}">
+				<exclude name="CreatePDFServlet.*"/>
+			</fileset>
+			<classes dir="${dir.build}">
+				<include name="CreatePDFServlet.*"/>
+			</classes>
+		</war>
+		<!-- Also create a zip file just of the flex client -->
+		<zip destfile="${dir.dist}/infinit.e.flex.client-${infinite_version}-${infinite_release}.zip"
+			basedir="${infinit.e.flex.location}/dist"
+		/>
+	</target>
+	
+</project>

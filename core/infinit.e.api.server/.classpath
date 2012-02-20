@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="WEB-INF/src"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.harvest.library"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/activation.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/com.noelios.restlet.ext.servlet_2.5.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/com.noelios.restlet.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/gson-1.6.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/jackson-core-asl-1.8.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/jackson-mapper-asl-1.8.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/jackson-xc-1.8.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/jackson-xml-databind-0.6.0.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/JavaAPIforKml.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/log4j-1.2.16.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/mongo-2.6.5.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/org.restlet.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/stax2-api-3.1.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/woodstox-core-asl-4.1.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/jasypt-1.6.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/mail.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/rome-1.0.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/commons-lang-2.1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/google-collect-1.0-rc1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/servlet-api.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
+	<classpathentry kind="lib" path="/infinit.e.harvest.library/standalone_libs/mysql-connector-java-5.1.15-bin.jar"/>
+	<classpathentry kind="output" path="WEB-INF/classes"/>
+</classpath>

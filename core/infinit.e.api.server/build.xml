@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.api.server" default="war" basedir=".">
+	<property name="dir.src" value="WEB-INF/src"/>
+	<property name="dir.lib" value="WEB-INF/lib"/>
+	<property name="dir.war" value="war"/>
+	<property name="dir.jar" value="jar"/>
+	<property name="dir.build" value="build"/>
+	<property name="dir.build.classes" value="${dir.build}/classes"/>
+	<property name="dir.build.test.classes" value="${dir.build}/test-classes"/>
+	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
+	<property name="dir.build.war" value="${dir.build}/${dir.war}"/>
+	<property name="dir.build.jar" value="${dir.build}/${dir.jar}"/>
+	<property name="dir.dist" value="dist"/>
+	<property name="infinit.e.harvest.library.location" value="../infinit.e.harvest.library"/>
+	<property name="infinit.e.processing.custom.library.location" value="../infinit.e.processing.custom.library"/>
+	<property name="infinit.e.processing.generic.library.location" value="../infinit.e.processing.generic.library"/>
+	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	<property name="debuglevel" value="source,lines,vars"/>	
+	
+	<property name="manifest.name" value="com/ikanow/infinit/e"/>
+	<property name="specification.title" value="infinit.e data model classes"/>
+	<property name="specification.version" value="0.25"/>
+	<property name="specification.vendor" value="${vendor}"/>
+	<property name="implementation.title" value="com.ikanow.infinit.e"/>
+	<property name="implementation.version" value="build${build.number}"/>
+	<property name="implementation.vendor" value="${vendor}"/>
+	
+	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
+	<path id="infinit.e.data_model.classpath">
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	</path>
+	<path id="infinit.e.harvest.library.classpath">
+	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>
+	</path>
+	<path id="infinit.e.processing.custom.library.classpath">
+	     <pathelement location="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar"/>
+	</path>
+	<path id="infinit.e.processing.generic.library.classpath">
+	     <pathelement location="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar"/>
+	</path>
+	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+	<path id="infinit.e.elasticsearch.driver.classpath">
+    	<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
+        	<include name="**/*.jar"/>
+        </fileset>
+    </path>
+	
+    <path id="infinit.e.api.classpath">
+        <pathelement location="${dir.build.classes}"/>
+    	
+    	<fileset dir="${dir.lib}">
+        	<include name="**/*.jar"/>
+        </fileset>
+        <path refid="infinit.e.data_model.classpath"/>
+        <path refid="infinit.e.harvest.library.classpath"/>
+        <path refid="infinit.e.processing.custom.library.classpath"/>
+        <path refid="infinit.e.processing.generic.library.classpath"/>
+    	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+        <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
+	</path>
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.dist}"/>
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+		<copy file="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar" tofile="${dir.lib}/infinit.e.harvest.library.jar"/>
+		<copy file="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar" tofile="${dir.lib}/infinit.e.processing.custom.library.jar"/>
+		<copy file="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar" tofile="${dir.lib}/infinit.e.processing.generic.library.jar"/>
+		<copy file="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar" tofile="${dir.lib}/infinit.e.data_model.jar"/>
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+	
+	<!-- ================================= 
+	  target: compile  
+	  compile the source code using javac            
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}"/>
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+			<classpath refid="infinit.e.api.classpath"/>
+		</javac>
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	
+	<!-- =================================
+			target: test
+	==================================-->	
+	
+	<!-- ================================= 
+			     target: jar              
+		================================= -->
+	<target name="jar" depends="compile" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+		<mkdir dir="${dir.build.jar}"/>
+		<mkdir dir="${dir.dist}"/>
+		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
+		
+
+		<!-- Bundled Jar for harvest with required libraries -->
+		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". ${libs.jar.bundled}"/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}">
+				<include name="**/QueryDecayFactory.class" />
+				<include name="**/QueryDecayScript.class" />
+			</fileset>	
+		</jar>
+		
+		<copy file="${dir.build.jar}/querydecayscript.jar" tofile="${dir.dist}/querydecayscript.jar"/>		
+	</target>
+	
+	<!-- =================================
+	target: war
+	create the war file
+	================================= -->
+	<target name="war" depends="jar" description="Generates ${ant.project.name}.war file in to the '${dir.build.war}' directory.">
+		
+		<delete file="${dir.lib}/infinit.e.harvest.library.jar"/>
+		<delete file="${dir.lib}/infinit.e.processing.custom.library.jar"/>
+		<delete file="${dir.lib}/infinit.e.processing.generic.library.jar"/>
+		<delete file="${dir.lib}/infinit.e.data_model.jar"/>
+		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
+			<classes dir="${dir.build.classes}"/>
+			<lib dir="${dir.lib}" includes="**/*.jar"/>
+			<lib dir="${infinit.e.harvest.library.location}/dist" includes="**/*.jar" />
+			<lib dir="${infinit.e.processing.custom.library.location}/dist" includes="**/*.jar" />
+			<lib dir="${infinit.e.processing.generic.library.location}/dist" includes="**/*.jar" />
+			<lib dir="${infinit.e.data_model.location}/dist" includes="**/*.jar" />
+		</war>
+	</target>
+	
+	
+	
+</project>

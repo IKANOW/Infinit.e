@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.build" default="build">
+	<!-- (Bamboo dir structure) -->
+	<property name="utility" value="../../../utility"/>
+	<property name="core" value="../../../core"/>
+	<property name="gui" value="../../../visualization/frameworks/flex"/>
+	<property name="widgets" value="../../../visualization/widgets/flex"/>
+	<property name="rpm" value="../../rpm"/>
+	
+	<!-- Convert to flat structure -->
+	<move todir=".." failonerror="false" verbose="false">
+		<fileset dir="${utility}" includes="**/*"/>
+		<fileset dir="${core}" includes="**/*"/>
+		<fileset dir="${gui}" includes="**/*"/>
+		<fileset dir="${widgets}" includes="**/*"/>
+		<fileset dir="${rpm}" includes="**/*"/>
+	</move>
+	
+	<!-- All the dir paths -->
+	<property name="infinit.e.data_model.location" value="${basedir}/../infinit.e.data_model"/>
+	<property name="infinit.e.harvest.library.location" value="${basedir}/../infinit.e.harvest.library"/>
+	<property name="infinit.e.processing.generic.library.location" value="${basedir}/../infinit.e.processing.generic.library"/>
+	<property name="infinit.e.processing.custom.library.location" value="${basedir}/../infinit.e.processing.custom.library"/>
+	<property name="infinit.e.api.server.location" value="${basedir}/../infinit.e.api.server"/>
+	<property name="infinit.e.core.server.location" value="${basedir}/../infinit.e.core.server"/>
+	<property name="infinit.e.mongo-indexer.location" value="${basedir}/../infinit.e.mongo-indexer"/>
+	
+	<property name="infinit.e.flex.location" value="${basedir}/../infinit.e.flex.client"/>
+	<property name="InfiniteDocBrowserWidget.location" value="${basedir}/../InfiniteDocBrowserWidget"/>
+	<property name="InfiniteEventGraphWidget.location" value="${basedir}/../InfiniteEventGraphWidget"/>
+	<property name="InfiniteMapWidget.location" value="${basedir}/../InfiniteMapWidget"/>
+	<property name="InfiniteSentimentWidget.location" value="${basedir}/../InfiniteSentimentWidget"/>
+	<property name="InfiniteSignificanceWidget.location" value="${basedir}/../InfiniteSignificanceWidget"/>
+	<property name="InfiniteTimelineEventWidget.location" value="${basedir}/../InfiniteTimelineEventWidget"/>
+	<property name="InfiniteTimelineWidget.location" value="${basedir}/../InfiniteTimelineWidget"/>
+	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
+	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
+	<property name="infinit.e.web.location" value="${basedir}/../infinit.e.web"/>
+	<property name="infinit.e-config.rpm.location" value="${basedir}/../infinit.e-config.rpm"/>
+	<property name="infinit.e-index-engine.rpm.location" value="${basedir}/../infinit.e-index-engine.rpm"/>
+	<property name="infinit.e-interface-engine.rpm.location" value="${basedir}/../infinit.e-interface-engine.rpm"/>
+	<property name="infinit.e-processing-engine.rpm.location" value="${basedir}/../infinit.e-processing-engine.rpm"/>
+	<property name="infinit.e-db-instance.rpm.location" value="${basedir}/../infinit.e-db-instance.rpm"/>
+	
+	<!-- =================================
+		target sub-projects
+	===================================-->
+	<target name="build" description="Run build for all sub projects">
+		<echo message="${ant.project.name} starting"/>
+
+		<ant antfile="${infinit.e.data_model.location}/build.xml">
+			<property name="basedir" value="${infinit.e.data_model.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.harvest.library.location}/build.xml">
+			<property name="basedir" value="${infinit.e.harvest.library.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.processing.generic.library.location}/build.xml">
+			<property name="basedir" value="${infinit.e.processing.generic.library.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.processing.custom.library.location}/build.xml">
+			<property name="basedir" value="${infinit.e.processing.custom.library.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.api.server.location}/build.xml">
+			<property name="basedir" value="${infinit.e.api.server.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.core.server.location}/build.xml">
+			<property name="basedir" value="${infinit.e.core.server.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.mongo-indexer.location}/build.xml">
+			<property name="basedir" value="${infinit.e.mongo-indexer.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.flex.location}/build/build.xml">
+			<property name="basedir" value="${infinit.e.flex.location}"/>
+			<!-- (Also builds the flex.client.library which builds the widget.library) -->
+		</ant>
+		<!-- Widgets (depends on widget.library build) -->
+		<ant antfile="${InfiniteDocBrowserWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteDocBrowserWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteEventGraphWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteEventGraphWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteMapWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteMapWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteSentimentWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteSentimentWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteSignificanceWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteSignificanceWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteTimelineEventWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteTimelineEventWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteTimelineWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteTimelineWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteSourceMonitor.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteSourceMonitor.location}"/>
+		</ant>
+		<ant antfile="${InfiniteEntityProfiler.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteEntityProfiler.location}"/>
+		</ant>
+
+		<ant antfile="${infinit.e.web.location}/build.xml">
+			<property name="basedir" value="${infinit.e.web.location}"/>
+		</ant>
+
+		
+		<!-- RPM builders -->
+				
+		<ant antfile="${infinit.e-config.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-config.rpm.location}"/>
+		</ant>
+		<ant antfile="${infinit.e-index-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-index-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${infinit.e-interface-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-interface-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${infinit.e-processing-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-processing-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${infinit.e-db-instance.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-db-instance.rpm.location}"/>
+		</ant>
+		
+	</target>
+</project>

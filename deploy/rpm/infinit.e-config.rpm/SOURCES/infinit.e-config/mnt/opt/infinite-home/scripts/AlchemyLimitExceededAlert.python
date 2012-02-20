@@ -1,0 +1,37 @@
+import time
+import socket
+import splunk
+import splunk.auth   as au
+import splunk.search as se
+import commands
+
+# Import ConfigParser module and read python.cfg file for email addresses
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read('/opt/infinite-home/config/python.cfg')
+sendEmailTo = config.get('config', 'mail.to')
+sendEmailFrom = config.get('config', 'mail.from')
+serveraddr = commands.getoutput("/sbin/ifconfig | grep -o 'addr:[0-9.]*' | grep -v '127.0.0.1'")
+
+source = '/opt/infinite-home/logs/infinit.e.service.log'
+
+alertFrequency = '-1h'
+
+now = se.dispatch('search "limit exceeded"', source = source, earliest_time = alertFrequency )
+prev = se.dispatch('search "limit exceeded"',source = source, earliest_time ='@d', latest_time = alertFrequency)
+
+while not now.isDone or not prev.isDone:
+    time.sleep(1)
+
+print 'Today excluding the last hour:' + str(prev.resultCount)
+print 'Last Hour:' + str(now.resultCount)
+
+if now.resultCount > 0 and prev.resultCount == 0:
+    now.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[ALERT] AlchemyAPI limit Exceeded ['+serveraddr+']" priority=highest sendresults=true')
+    r = now.results[0]
+    print 'Email Sent to ' + sendEmailTo
+else:
+    print 'No Email Sent'
+	
+now.cancel()
+prev.cancel()

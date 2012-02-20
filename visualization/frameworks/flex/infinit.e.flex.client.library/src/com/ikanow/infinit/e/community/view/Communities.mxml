@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:HeaderContentTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:list="com.ikanow.infinit.e.community.view.list.*"
+	xmlns:request="com.ikanow.infinit.e.community.view.request.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	width="310"
+	height="262"
+	styleName="titleWindowSearch"
+	currentState="{ model.navigator.currentState }"
+	preinitialize="CommunitiesNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.community.model.presentation.CommunitiesModel;
+			import com.ikanow.infinit.e.community.model.presentation.CommunitiesNavigator;
+			import mx.collections.ArrayList;
+			import spark.events.DropDownEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:CommunitiesModel;
+			
+			[Bindable]
+			private var options:ArrayList;
+			
+			protected function filterTextInput_changeHandler():void
+			{
+				communitiesList.model.searchCommunities( filterTextInput.text );
+			}
+			
+			protected function filterTextInput_clearHandler():void
+			{
+				communitiesList.model.clearCommunitiesSearch();
+			}
+			
+			protected function selectNone():void
+			{
+				model.selectNoCommunities();
+			}
+			
+			protected function selectOptions_changeHandler():void
+			{
+				if ( selectOptions.selectedIndex != -1 )
+				{
+					selectOptions.selectedIndex == 0 ? setlectAll() : selectNone();
+				}
+				
+				selectOptions.selectedIndex = -1;
+			}
+			
+			protected function selectOptions_creationCompleteHandler():void
+			{
+				options = new ArrayList();
+				options.addItem( { label: resourceManager.getString( 'infinite', 'common.selectAll' ) } );
+				options.addItem( { label: resourceManager.getString( 'infinite', 'common.selectNone' ) } );
+				this.selectOptions.selectedIndex = -1;
+			}
+			
+			protected function selectOptions_openHandler( event:DropDownEvent ):void
+			{
+				if ( selectOptions.dropDown )
+				{
+					selectOptions.dropDown.removeEventListener( MouseEvent.MOUSE_OVER, selectOptionsDropDown_onMouseOver );
+					selectOptions.dropDown.removeEventListener( MouseEvent.MOUSE_OUT, selectOptionsDropDown_onMouseOut );
+					
+					selectOptions.dropDown.addEventListener( MouseEvent.MOUSE_OVER, selectOptionsDropDown_onMouseOver, false, 0, true );
+					selectOptions.dropDown.addEventListener( MouseEvent.MOUSE_OUT, selectOptionsDropDown_onMouseOut, false, 0, true );
+				}
+			}
+			
+			protected function setlectAll():void
+			{
+				model.selectAllCommunities();
+			}
+			
+			private function selectOptionsDropDown_onMouseOut( event:MouseEvent ):void
+			{
+				selectOptions.closeDropDown( false );
+			}
+			
+			private function selectOptionsDropDown_onMouseOver( event:MouseEvent ):void
+			{
+				selectOptions.openDropDown();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="list" />
+		<s:State name="request" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Header -->
+	<component:headerContent>
+
+		<s:HGroup 
+			left="7"
+			paddingRight="40"
+			right="-4"
+			top="7"
+			gap="4">
+
+			<s:DropDownList id="selectOptions"
+				width="30"
+				height="100%"
+				dataProvider="{ options }"
+				styleName="selectAllIconDropDownList"
+				change="selectOptions_changeHandler()"
+				creationComplete="selectOptions_creationCompleteHandler()"
+				mouseOut="selectOptions.closeDropDown( false )"
+				mouseOver="selectOptions.openDropDown()"
+				open="selectOptions_openHandler(event)"
+				includeIn="list" />
+
+			<!-- Filter Input -->
+			<textInput:FilterTextInput id="filterTextInput"
+				width="100%"
+				height="30"
+				styleName="filterTextInputSmall"
+				text="{ communitiesList.model.searchTerm }"
+				change="filterTextInput_changeHandler()"
+				clear="filterTextInput_clearHandler()"
+				includeIn="list"
+				prompt="{ resourceManager.getString( 'infinite', 'communiesView.searchCommunities' ) }"
+				resultsFound="{ communitiesList.model.communities.length != 0 }" />
+
+		</s:HGroup>
+
+	</component:headerContent>
+
+	<!-- Community List -->
+	<list:CommunityList id="communitiesList"
+		width="100%"
+		height="100%"
+		includeIn="list" />
+
+	<!-- Community Request -->
+	<request:CommunityRequest 
+		width="100%"
+		height="100%"
+		includeIn="request" />
+
+</component:HeaderContentTitleWindow>

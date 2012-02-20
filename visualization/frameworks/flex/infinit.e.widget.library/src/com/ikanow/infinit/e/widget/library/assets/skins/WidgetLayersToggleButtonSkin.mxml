@@ -1,0 +1,158 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	width="40"
+	height="36"
+	creationComplete="creationCompleteHandler(event)"
+	alpha.disabledStates="0.5">
+
+	<!-- host component -->
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("spark.components.ToggleButton")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.assets.WidgetAssets;
+			import flash.utils.setTimeout;
+			import mx.events.FlexEvent;
+			import spark.components.ToggleButton;
+			
+			[Bindable]
+			private var highlightColor:uint = 0xE8E9E9;
+			
+			protected function creationCompleteHandler( event:FlexEvent ):void
+			{
+				hostComponent.addEventListener( MouseEvent.CLICK, clickHandler );
+				hostComponent.addEventListener( MouseEvent.ROLL_OVER, rollOverHandler );
+				hostComponent.addEventListener( MouseEvent.ROLL_OUT, rollOutHandler );
+				hostComponent.addEventListener( MouseEvent.MOUSE_DOWN, mouseDownHandler );
+			}
+			
+			protected function onRollOut():void
+			{
+				highlightColor = ToggleButton( hostComponent ).selected ? 0xCDCDCD : 0xE8E9E9;
+				
+				invalidateDisplayList();
+			}
+			
+			protected function onRollOver():void
+			{
+				highlightColor = ToggleButton( hostComponent ).selected ? 0xE8E9E9 : 0xCDCDCD;
+				
+				invalidateDisplayList();
+			}
+			
+			private function clickHandler( event:MouseEvent ):void
+			{
+				setTimeout( onRollOut, 10 );
+			}
+			
+			private function mouseDownHandler( event:MouseEvent ):void
+			{
+				highlightColor = 0xDEDEDE;
+			}
+			
+			private function rollOutHandler( event:MouseEvent ):void
+			{
+				onRollOut();
+			}
+			
+			private function rollOverHandler( event:MouseEvent ):void
+			{
+				onRollOver();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over"
+			stateGroups="overStates" />
+		<s:State name="down"
+			stateGroups="downStates" />
+		<s:State name="disabled"
+			stateGroups="disabledStates" />
+		<s:State name="upAndSelected"
+			stateGroups="selectedStates, selectedUpStates" />
+		<s:State name="overAndSelected"
+			stateGroups="overStates, selectedStates" />
+		<s:State name="downAndSelected"
+			stateGroups="downStates, selectedStates" />
+		<s:State name="disabledAndSelected"
+			stateGroups="selectedUpStates, disabledStates, selectedStates" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect 
+		width="100%"
+		height="100%"
+		left="1"
+		right="2">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry color="{ highlightColor }" />
+					<s:GradientEntry 
+						color.down="0xF4F4F4"
+						color.downAndSelected="0xF4F4F4"
+						color.over="0xF4F4F4"
+						color.overAndSelected="0xF4F4F4"
+						color.up="0xE8E9E9"
+						color.upAndSelected="0xF4F4F4" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0xFFFFFF"
+				alpha=".5"
+				angle="90"
+				blurX="0"
+				blurY="0"
+				distance="2"
+				includeIn="up"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- left seperator -->
+	<components:WidgetVSeparator 
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+	<!-- right seperator -->
+	<components:WidgetVSeparator 
+		right="1"
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+	<!-- text -->
+	<components:WidgetHeaderLabel id="labelDisplay"
+		enabled="false"
+		width="0"
+		height="0"
+		horizontalCenter="0"
+		verticalCenter="0"
+		maxDisplayedLines="1"
+		mouseEnabled="false"
+		visible="false" />
+
+	<!-- icon -->
+	<s:BitmapImage 
+		horizontalCenter="-1"
+		verticalCenter="1"
+		source="{ WidgetAssets.WIDGET_LAYERS_BUTTON_OFF }"
+		source.downStates="{ WidgetAssets.WIDGET_LAYERS_BUTTON_OFF }"
+		source.overStates="{ WidgetAssets.WIDGET_LAYERS_BUTTON_ON }"
+		source.selectedUpStates="{ WidgetAssets.WIDGET_LAYERS_BUTTON_ON }"
+		source.up="{ WidgetAssets.WIDGET_LAYERS_BUTTON_OFF }" />
+
+</s:SparkButtonSkin>

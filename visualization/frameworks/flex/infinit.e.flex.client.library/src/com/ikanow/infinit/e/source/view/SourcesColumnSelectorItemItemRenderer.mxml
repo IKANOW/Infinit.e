@@ -1,0 +1,97 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="26"
+	click="itemRenderer_clickHandler(event)"
+	rollOver="itemRenderer_rollOverHandler(event)">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelectorItem;
+			import mx.events.ItemClickEvent;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					columnsSelectorItem = value as ColumnSelectorItem;
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			[Bindable]
+			protected var columnsSelectorItem:ColumnSelectorItem;
+			
+			protected function itemRenderer_clickHandler( evt:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function itemRenderer_rollOverHandler( event:MouseEvent ):void
+			{
+				this.toolTip = "";
+				
+				if ( descriptionLabel.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = columnsSelectorItem.description;
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="10"
+		paddingRight="2"
+		paddingTop="1"
+		verticalAlign="middle">
+
+		<!-- Description-->
+		<common:InfLabel id="descriptionLabel"
+			width="100%"
+			text="{ columnsSelectorItem.description }"
+			styleName="black"
+			styleName.normal="white"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="false"
+			showDropShadow.normal="true" />
+
+		<!-- Count-->
+		<common:InfLabel id="sourceCountLabel"
+			text="{ Constants.PARENTHESIS_LEFT + columnsSelectorItem.count + Constants.PARENTHESIS_RIGHT }"
+			styleName="blackTextBold"
+			styleName.normal="blueTextBold"
+			paddingRight="5"
+			paddingRight.normal="4"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="false"
+			showDropShadow.normal="true" />
+
+	</s:HGroup>
+
+</s:ItemRenderer>

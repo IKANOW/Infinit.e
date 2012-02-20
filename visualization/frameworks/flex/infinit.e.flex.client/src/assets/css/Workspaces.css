@@ -1,0 +1,206 @@
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+@namespace settings "com.ikanow.infinit.e.workspace.view.settings.*";
+
+settings|WorkspaceSettings
+{
+	skinClass: ClassReference("assets.skins.workspaces.WorkspaceSettingsSkin");
+}
+
+.workspaceSettingsGroup
+{
+	skinClass: ClassReference("assets.skins.workspaces.SettingsGroupSkin");
+}
+
+.workspaceSettingsGroupLabel
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 14;
+	color: #999999;
+	fontWeight: bold;
+}
+
+.weightSlider
+{
+	skinClass: ClassReference("assets.skins.workspaces.WeightSliderSkin");
+}
+
+.workspaceSettingsTitle
+{
+	fontSize  : 16pt;
+	color     : #565B5F;
+	shadowColor: #EEEEEE;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.workspaceSettingsCancelButton
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	rollOverColor: #000000;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+.workspaceSettingsRestoreButton
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	shadowColor: #373C3F;
+	rollOverColor: #000000;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+	textDecoration : underline;
+	skinClass : ClassReference("assets.skins.TransparentButtonSkin");
+}
+
+.darkText
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 14;
+	color: #555555;
+	fontWeight: bold;
+}
+
+.lightText
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 13;
+	color: #999999;
+	fontWeight: normal;
+}
+
+.workspacesWidgetHeaderLabel
+{
+	fontSize   : 14pt;
+	color      : #777777;	
+	shadowColor: #FFFFFF;
+	fontFamily : infiniteDefaultFont;
+}
+
+.workspacesWidgetHeaderLabelBlack
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #FFFFFF;
+	fontFamily : infiniteDefaultFont;
+}
+
+.workspacesHeaderBackground
+{
+	start-ratio: 0;
+	start-color: #373d44;
+	end-color: #535C67;
+	rotation: 90;
+	shadowColor: #707579;
+	skin-class: ClassReference("assets.skins.workspaces.WorkspacesHeaderSkin");
+}
+
+.workspacesWidgetContainer
+{
+	cornerRadius: 8;
+}
+
+.workspacesWidgetContainerHeader
+{
+	start-ratio: 0;
+	start-color: #373d44;
+	end-color: #535C67;
+	rotation: 90;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.workspacesWidgetContainerBackground
+{
+	start-ratio: 0;
+	start-color: #F5F5F5;
+	end-color: #EBEBEB;
+	borderColor: #CCCCCC;
+	rotation: 90;
+	cornerRadius: 8;
+	skin-class: ClassReference("assets.skins.GradientBorderContainerSkin");
+}
+
+.workspacesWidgetContainerMoveHandle
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerMoveHandleSkin");
+}
+
+.workspacesWidgetContainerOptionsDropDownList
+{
+	color: #ffffff;
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	borderColor: #464A4D;
+	chromeColor: #464A4D;
+	alternatingItemColors: #464A4D, #464A4D;
+	backgroundColor: #464A4D;
+	contentBackgroundColor: #464A4D;
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerOptionsDropDownListSkin");
+}
+
+.workspacesWidgetContainerMinimizeButton
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerMinimizeButtonSkin");
+}
+
+.workspacesWidgetContainerMaximizeButton
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerMaximizeButtonSkin");
+}
+
+.workspacesWidgetContainerOptionButton
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerOptionsButtonSkin");
+}
+
+.workspacesWidgetContainerRemoveButton
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetContainerRemoveButtonSkin");
+}
+
+.widgetListItemRenderer
+{
+	cornerRadius: 9;	
+}
+
+.widgetListFavoriteButtonSkin
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetListFavoriteButtonSkin");
+}
+
+.widgetListAddButtonSkin
+{
+	skin-class: ClassReference("assets.skins.workspaces.WidgetListAddButtonSkin");
+}
+
+.workspacesSelectedWidgetsList
+{
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	contentBackgroundColor: #575C60;
+	borderVisible: false;
+}
+
+.workspacesSelectedWidget
+{
+	start-ratio: 0;
+	start-color: #6E7174;
+	end-color: #6E7174;
+	rotation: 90;
+	cornerRadius: 6;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}
+
+.workspacesSelectedWidgetMaximized
+{
+	start-ratio: 0;
+	start-color: #A3BBC5;
+	end-color: #A3BBC5;
+	rotation: 90;
+	cornerRadius: 6;
+	skin-class: ClassReference("assets.skins.GradientContainerSkin");
+}

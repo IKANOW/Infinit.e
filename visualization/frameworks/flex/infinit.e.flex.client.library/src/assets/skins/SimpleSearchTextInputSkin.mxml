@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	alpha.disabledStates="0.5"
+	blendMode="normal">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("com.ikanow.infinit.e.shared.view.component.textInput.InfTextInput")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			/**
+			 *  @private
+			 */
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				if ( promptDisplay )
+				{
+					promptDisplay.setLayoutBoundsSize( unscaledWidth, unscaledHeight );
+					promptDisplay.setLayoutBoundsPosition( 0, 0 );
+				}
+				
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled"
+			stateGroups="disabledStates" />
+		<s:State name="normalWithPrompt" />
+		<s:State name="disabledWithPrompt"
+			stateGroups="disabledStates" />
+	</s:states>
+
+	<s:Rect 
+		width="100%"
+		height="100%"
+		radiusX="5"
+		radiusY="5">
+		<s:fill>
+			<s:SolidColor color="0xffffff" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				alpha=".5"
+				angle="45"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- text -->
+	<s:Group width="100%">
+		<s:layout>
+			<s:HorizontalLayout paddingRight="20" />
+		</s:layout>
+		<s:RichEditableText id="textDisplay"
+			width="100%"
+			height="100%"
+			styleName="greyTextLarge"
+			paddingBottom="6"
+			paddingLeft="36"
+			paddingRight="10"
+			paddingTop="14"
+			verticalAlign="middle" />
+		<s:Group height="100%">
+			<common:InfButton id="auxButton"
+				styleName="magnifyingGlassButton"
+				scaleX="1.1"
+				scaleY="1.1"
+				horizontalCenter="-1"
+				verticalCenter="4" />
+		</s:Group>
+	</s:Group>
+
+	<!--- Defines the Label that is used for prompt text. The includeInLayout property is false so the prompt text does not affect measurement. -->
+	<s:Label id="promptDisplay"
+		includeInLayout="false"
+		verticalAlign="middle"
+		includeIn="normalWithPrompt,disabledWithPrompt"
+		maxDisplayedLines="1"
+		mouseChildren="false"
+		mouseEnabled="false" />
+
+</s:SparkSkin>

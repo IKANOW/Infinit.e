@@ -1,0 +1,104 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.workspace.view.layout.IWorkspaceVisualElement">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			
+			private var _positionIndex:int;
+			
+			[Bindable]
+			public function get positionIndex():int
+			{
+				return _positionIndex;
+			}
+			
+			public function set positionIndex( value:int ):void
+			{
+				_positionIndex = value;
+			}
+			
+			private var _maximized:Boolean;
+			
+			[Bindable]
+			public function get maximized():Boolean
+			{
+				return _maximized;
+			}
+			
+			public function set maximized( value:Boolean ):void
+			{
+				_maximized = value;
+			}
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value == null )
+					return;
+				
+				var widget:Widget = value as Widget;
+				
+				// set the position index
+				positionIndex = widget.positionIndex;
+				
+				// update the parent layout
+				invalidateParentSizeAndDisplayList();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- tile bg, colored according to isBeingDragged property of Widget -->
+	<s:Group 
+		width="100%"
+		height="100%">
+		<s:Rect 
+			width="100%"
+			height="100%"
+			topLeftRadiusX="8"
+			topLeftRadiusY="8"
+			topRightRadiusX="8"
+			topRightRadiusY="8">
+			<s:fill>
+				<s:SolidColor 
+					color="{ data.isBeingDragged ? 0x99CC66 : 0x999999 }"
+					alpha=".4" />
+			</s:fill>
+			<s:stroke>
+				<s:SolidColorStroke 
+					color="#999999"
+					weight="1" />
+			</s:stroke>
+		</s:Rect>
+	</s:Group>
+
+	<!-- centered label with white bg -->
+	<s:Group 
+		height="25"
+		minWidth="50"
+		horizontalCenter="0"
+		verticalCenter="0">
+		<s:Rect 
+			width="100%"
+			height="100%"
+			radiusX="7"
+			radiusY="7">
+			<s:fill>
+				<s:SolidColor 
+					color="#FFFFFF"
+					alpha=".75" />
+			</s:fill>
+		</s:Rect>
+		<s:Label 
+			text="{ data.title }"
+			horizontalCenter="0"
+			paddingLeft="15"
+			paddingRight="15"
+			verticalCenter="0" />
+	</s:Group>
+
+</s:ItemRenderer>

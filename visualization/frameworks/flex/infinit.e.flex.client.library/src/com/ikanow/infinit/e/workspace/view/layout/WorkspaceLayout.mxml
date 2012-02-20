@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:layout="com.ikanow.infinit.e.workspace.view.layout.*"
+	dragDrop="model.handleDragDrop( event )"
+	dragEnter="model.handleDragEnter( event )"
+	dragExit="model.handleDragExit( event )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.workspace.model.presentation.layout.WorkspaceLayoutModel;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspaceLayoutModel;
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:List 
+		width="100%"
+		height="100%"
+		dataProvider="{ model.layoutTiles }"
+		focusEnabled="false"
+		bottom="-1"
+		left="2"
+		right="0"
+		top="2"
+		borderAlpha="0"
+		contentBackgroundAlpha="0"
+		itemRenderer="com.ikanow.infinit.e.workspace.view.layout.WorkspaceLayoutItemRenderer"
+		useVirtualLayout="false">
+		<s:layout>
+			<layout:CustomTileLayout 
+				gap="10"
+				padding="16" />
+		</s:layout>
+	</s:List>
+
+</s:Group>

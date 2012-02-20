@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	minHeight="41"
+	width="100%"
+	rollOver="rollOverHandler()"
+	mouseChildren="true">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.ui.ISelectable;
+			import flash.utils.setTimeout;
+			
+			[Bindable]
+			protected var displayData:String;
+			
+			override public function prepare( hasBeenRecycled:Boolean ):void
+			{
+				if ( !data )
+					return;
+				
+				displayData = data[ column.dataField ]
+				
+				// change the background if the item is selected
+				if ( data && data is ISelectable && ISelectable( data ).selected )
+					backgroundContainer.alpha = 1;
+				else
+					backgroundContainer.alpha = 0;
+			}
+			
+			protected function rollOverHandler():void
+			{
+				this.toolTip = "";
+				
+				if ( labelDisplay.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = displayData;
+			}
+		]]>
+	</fx:Script>
+
+	<component:GradientContainer id="backgroundContainer"
+		width="100%"
+		height="100%"
+		styleName="dataGridSelection"
+		alpha="0" />
+
+	<s:Label id="labelDisplay"
+		styleName="greyTextLarge"
+		width="100%"
+		text="{ displayData }"
+		paddingLeft="15"
+		paddingRight="8"
+		paddingTop="2"
+		verticalCenter="1"
+		maxDisplayedLines="1" />
+
+</s:GridItemRenderer>

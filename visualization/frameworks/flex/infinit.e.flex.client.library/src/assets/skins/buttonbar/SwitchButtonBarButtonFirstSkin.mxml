@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="21"
+	minHeight="21"
+	alpha.disabledStates="0.5">
+	<fx:Metadata>[HostComponent("spark.components.ButtonBarButton")]</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			private static const exclusions:Array = [ "labelDisplay" ];
+			
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+				
+				// use the hand cursor except when selected
+				switch ( currentState )
+				{
+					case "up":
+					{
+						hostComponent.buttonMode = true;
+						break;
+					}
+					case "over":
+					{
+						hostComponent.buttonMode = true;
+						break;
+					}
+					case "down":
+					{
+						hostComponent.buttonMode = true;
+						break;
+					}
+					case "disabled":
+					{
+						hostComponent.buttonMode = true;
+						break;
+					}
+					case "upAndSelected":
+					{
+						hostComponent.buttonMode = false;
+						break;
+					}
+					case "overAndSelected":
+					{
+						hostComponent.buttonMode = false;
+						break;
+					}
+					case "downAndSelected":
+					{
+						hostComponent.buttonMode = false;
+						break;
+					}
+					case "disabledAndSelected":
+					{
+						hostComponent.buttonMode = false;
+						break;
+					}
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over"
+			stateGroups="overStates" />
+		<s:State name="down"
+			stateGroups="downStates" />
+		<s:State name="disabled"
+			stateGroups="disabledStates" />
+		<s:State name="upAndSelected"
+			stateGroups="selectedStates, selectedUpStates" />
+		<s:State name="overAndSelected"
+			stateGroups="overStates, selectedStates" />
+		<s:State name="downAndSelected"
+			stateGroups="downStates, selectedStates" />
+		<s:State name="disabledAndSelected"
+			stateGroups="selectedUpStates, disabledStates, selectedStates" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect 
+		bottom="3"
+		left="3"
+		right="0"
+		top="3"
+		bottomLeftRadiusX="6"
+		bottomLeftRadiusY="6"
+		excludeFrom="selectedStates"
+		topLeftRadiusX="6"
+		topLeftRadiusY="6">
+		<s:fill>
+			<s:SolidColor 
+				color="0x575C60"
+				color.over="0x697074" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0xFFFFFFF"
+				alpha=".2"
+				angle="135"
+				blurX="1"
+				blurY="1"
+				distance="1"
+				excludeFrom="selectedStates"
+				inner="true" />
+			<s:DropShadowFilter 
+				color="0xFFFFFFF"
+				alpha=".1"
+				angle="270"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				excludeFrom="selectedStates"
+				inner="true" />
+			<s:DropShadowFilter 
+				color="0x000000"
+				angle="0"
+				blurX="2"
+				blurY="2"
+				distance="1"
+				excludeFrom="selectedStates" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- text -->
+	<s:Label id="labelDisplay"
+		styleName="white"
+		bottom="2"
+		horizontalCenter="0"
+		left="10"
+		paddingLeft="12"
+		paddingRight="12"
+		paddingTop.selectedStates="1"
+		right="10"
+		textAlign="center"
+		top="2"
+		verticalAlign="middle"
+		verticalCenter="1"
+		alpha=".7"
+		alpha.over="1"
+		alpha.selectedStates="1"
+		maxDisplayedLines="1">
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x373C3F"
+				angle="270"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				excludeFrom="selectedStates" />
+			<s:GlowFilter 
+				color="0xFFFFFF"
+				blurX="1"
+				blurY="1"
+				includeIn="selectedStates" />
+		</s:filters>
+	</s:Label>
+
+</s:SparkButtonSkin>

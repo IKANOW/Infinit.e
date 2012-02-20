@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<swiz:Swiz xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:config="com.ikanow.infinit.e.config.*"
+	xmlns:service="com.ikanow.infinit.e.shared.service.*">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import mx.controls.Alert;
+			import mx.rpc.events.FaultEvent;
+			
+			private function genericFault( fe:FaultEvent ):void
+			{
+				var message:String = fe.fault.faultDetail;
+				var code:String = fe.fault.faultCode;
+				
+				Alert.show( message, code );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Config ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Event / View Package Config -->
+	<swiz:config>
+		<swiz:SwizConfig id="appConfig"
+			strict="true"
+			defaultFaultHandler="{ genericFault }"
+			eventPackages="	com.ikanow.infinit.e.shared.event,
+							com.ikanow.infinit.e.workspace.event"
+			viewPackages=" 	com.ikanow.infinit.e.community.view,
+							com.ikanow.infinit.e.history.view,
+							com.ikanow.infinit.e.profile.view,
+							com.ikanow.infinit.e.query.view,
+							com.ikanow.infinit.e.shared.view,
+							com.ikanow.infinit.e.source.view,
+							com.ikanow.infinit.e.view,
+							com.ikanow.infinit.e.widget.view,
+							com.ikanow.infinit.e.welcome.view,
+							com.ikanow.infinit.e.workspace.view" />
+	</swiz:config>
+
+	<!-- Bean Providers -->
+	<swiz:beanProviders>
+		<config:ControllerBeans />
+		<config:ManagerBeans />
+		<config:PresentationBeans />
+		<service:Services />
+	</swiz:beanProviders>
+
+	<!-- Swiz Logging -->
+	<!--swiz:loggingTargets>
+		<swiz:SwizTraceTarget />
+	</swiz:loggingTargets-->
+
+</swiz:Swiz>

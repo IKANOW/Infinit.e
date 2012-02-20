@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	width="40"
+	height="36"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>[HostComponent("com.ikanow.infinit.e.widget.library.components.WidgetPlusButton")]</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.assets.WidgetAssets;
+			import spark.components.Group;
+			
+			/* Define the skin elements that should not be colorized.
+			For button, the graphics are colorized but the label is not. */
+			private static const exclusions:Array = [ "labelDisplay" ];
+			
+			/**
+			 * @private
+			 */
+			override public function get colorizeExclusions():Array
+			{
+				return exclusions;
+			}
+			
+			[Bindable]
+			private var highlightColor:uint = 0xE8E9E9;
+			
+			private var cornerRadius:Number = 2;
+			
+			/**
+			 * @private
+			 */
+			override protected function initializationComplete():void
+			{
+				useChromeColor = true;
+				super.initializationComplete();
+			}
+			
+			/**
+			 *  @private
+			 */
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect 
+		width="100%"
+		height="100%"
+		left="1"
+		right="2">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry 
+						color.down="0xE8E9E9"
+						color.over="0xCDCDCD"
+						color.up="0xE8E9E9" />
+					<s:GradientEntry 
+						color.down="0xF4F4F4"
+						color.over="0xF4F4F4"
+						color.up="0xE8E9E9" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0xFFFFFF"
+				alpha=".5"
+				angle="90"
+				blurX="0"
+				blurY="0"
+				distance="2"
+				includeIn="up"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- left seperator -->
+	<components:WidgetVSeparator 
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+	<!-- right seperator -->
+	<components:WidgetVSeparator 
+		right="1"
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+	<!-- text -->
+	<components:WidgetHeaderLabel id="labelDisplay"
+		styleName="workspacesWidgetHeaderLabelBlack"
+		styleName.up="workspacesWidgetHeaderLabel"
+		width="1"
+		horizontalCenter="0"
+		paddingLeft="12"
+		paddingRight="14"
+		paddingTop="1"
+		textAlign="center"
+		verticalAlign="middle"
+		verticalCenter="0"
+		maxDisplayedLines="1"
+		visible="false" />
+
+	<!-- icon -->
+	<s:BitmapImage 
+		horizontalCenter="-1"
+		verticalCenter="0"
+		source="{ WidgetAssets.WIDGET_PLUS_BUTTON_OFF }"
+		source.down="{ WidgetAssets.WIDGET_PLUS_BUTTON_OFF }"
+		source.over="{ WidgetAssets.WIDGET_PLUS_BUTTON_ON }"
+		source.up="{ WidgetAssets.WIDGET_PLUS_BUTTON_OFF }" />
+
+</s:SparkButtonSkin>

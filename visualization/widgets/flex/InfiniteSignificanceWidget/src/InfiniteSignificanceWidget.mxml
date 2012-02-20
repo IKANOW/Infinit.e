@@ -1,0 +1,1242 @@
+<?xml version="1.0" encoding="utf-8"?>
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:actionscript="actionscript.*"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	currentState="nodata"
+	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+
+	<components:states>
+		<s:State name="dataview" />
+		<s:State name="nodata" />
+	</components:states>
+
+	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			import mx.charts.HitData;
+			import mx.charts.chartClasses.Series;
+			import mx.charts.effects.SeriesEffect;
+			import mx.charts.events.ChartItemEvent;
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.UITextField;
+			import mx.events.FlexEvent;
+			import mx.managers.CursorManager;
+			import spark.events.IndexChangeEvent;
+			import flexlib.mdi.containers.MDIWindow;
+			import ilog.charts3d.series.items.ColumnSeries3DItem;
+			import org.alivepdf.pdf.PDF;
+			import skins.InfiniteFilterApplyOrIgnore;
+			import system.data.Collection;
+			import system.data.Iterator;
+			import system.data.Map;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+			
+			private static const SORT_BY_SIGNIFICANCE:int = 0;
+			
+			private static const SORT_BY_QUERY_COVERAGE:int = 1;
+			
+			private static const SORT_BY_AVERAGE_FREQUENCY:int = 2;
+			
+			[Bindable]
+			private var showEffect:SeriesInterpolate = interpolateIn;
+			
+			private var currData:ArrayCollection = new ArrayCollection();
+			
+			private var currData_entities:ArrayCollection = new ArrayCollection();
+			
+			private var filterEntities:HashSet = null;
+			
+			private var _hasData:Boolean = false;
+			
+			[Bindable]
+			private var allEntities:Array = [];
+			
+			private var maxSig:Number = 0;
+			
+			[Bindable]
+			private var topEntitiesCombo:ArrayCollection;
+			
+			private var busyCursorCounter:int = 0;
+			
+			// Determines if filtering results are immediately applied:
+			private var ignoreLocalFilter:Boolean = false;
+			
+			private var _context:IWidgetContext;
+			
+			// Handle the regex changing (just create a timer to avoid it happening too often)
+			
+			//(some horrible hackery)
+			private var _filterModifyTimer:Timer = new Timer( 300, 1 ); // (runs once after 250ms)
+			
+			private var _regexFilter:RegExp = null;
+			
+			[Bindable]
+			private var _regexActivateString:String = "";
+			
+			private var hasFilter:Boolean = false;
+			
+			private var internalFilterUpdate:Boolean = false;
+			
+			/**
+			 * function to change the data to show the next feeds entities
+			 *
+			 * @param event The Event received when the sliders value is changed
+			 */
+			
+			private var entSliderOffset:int = 0;
+			
+			/**
+			 * function to build a pdf version of the widget
+			 *
+			 * @return pdf version of the widget
+			 */
+			public function generatePdf( printPDF:PDF, title:String ):PDF
+			{
+				return null; //screenshot widget (default)
+			}
+			
+			/**
+			 * function to broadcast if the module has data so it doesn't repass data to itself
+			 * when new modules are being loaded with data on first load up
+			 *
+			 * @return If the module has data
+			 */
+			public function hasData():Boolean
+			{
+				//return true if data is already present
+				return _hasData;
+			}
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			{
+				//TODO
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = true;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				this.currData = _context.getQuery_FilteredResults().getTopDocuments();
+				this.currData_entities = _context.getQuery_FilteredResults().getEntities();
+				this.entSliderOffset = 0;
+				this.sigSlider.value = 0;
+				// (spinner already going, fn below unsets)
+				populateGraph();
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				startSpinner(); // (need dataview)
+				
+				if ( null == sigSlider )
+				{ // may not be initialized yet?
+					return;
+				}
+				
+				this.currData = _context.getQuery_AllResults().getTopDocuments();
+				this.currData_entities = _context.getQuery_AllResults().getEntities();
+				
+				this.entSliderOffset = 0;
+				this.sigSlider.value = 0;
+				// (spinner already set, fn below unsets)
+				populateGraph();
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				return null;
+			}
+			
+			/**
+			 * function to receive events from the parent and other modules
+			 *
+			 * @param event The Event received
+			 */
+			public function receiveEvent( event:Event ):void
+			{
+			}
+			
+			/**
+			 * function to start the components spinner when it is receiving data
+			 */
+			public function startSpinner():void
+			{
+				this.currentState = "dataview";
+				this.enabled = false;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			
+			protected function addDocumentsToFilter( entName:String, significance:Number, freq:Number ):void
+			{
+				var docids:Set = new HashSet();
+				var docmap:Map = new HashMap();
+				
+				// All documents matching the entity (needs to have its performance improved)
+				for each ( var feed:Object in this.currData )
+				{
+					for each ( var entities:Object in feed.entities )
+					{
+						if ( entities.index.toString() == entName )
+						{
+							if ( ( ( significance < 0.0 ) || ( significance == entities.significance ) )
+								&& ( ( freq < 0.0 ) || ( freq == entities.frequency ) ) )
+							{
+								docids.add( feed._id.toString() );
+								//add all the feeds entity names to the entNames array to pass along
+								var entSet:Set = new HashSet();
+								
+								for each ( var ent:Object in feed.entities )
+								{
+									entSet.add( ent.index.toString() );
+								}
+								docmap.put( feed._id.toString(), entSet );
+								break;
+							}
+						}
+					}
+				}
+				var desc:String = "Doc Filter: ";
+				
+				if ( ( significance < 0.0 ) && ( freq < 0.0 ) )
+				{
+					desc += "Any Containing " + entName;
+				}
+				else if ( freq < 0.0 )
+				{
+					desc += "Containing Max Sig " + entName;
+				}
+				else
+				{
+					desc += "Containing Max Freq " + entName;
+				}
+				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docids, docmap, "_id", "_id", desc );
+			}
+			
+			/**
+			 * function to handle when the chart legend is clicked on
+			 *
+			 * @param event The MouseEvent received when the chart legend is clicked on
+			 */
+			protected function chart_clickHandler( event:MouseEvent ):void
+			{
+				var entName:String = "";
+				
+				//make sure an entity was clicked
+				if ( event.target is UITextField )
+				{
+					entName = event.target.text;
+					
+					var index:int = entName.lastIndexOf( " (" );
+					// convert to gaz index:
+					entName = entName.substring( 0, index ).toLowerCase() + "/" + entName.substring( index + 2, entName.length - 1 ).toLowerCase();
+					
+					addDocumentsToFilter( entName, -1.0, -1 );
+				}
+			}
+			protected function chart_itemClickHandler( event:mx.charts.events.ChartItemEvent ):void
+			{
+				var data:HitData = event.hitData;
+				var item:ColumnSeries3DItem = ColumnSeries3DItem( event.hitData.chartItem );
+				
+				var entName:String = data.item.entity.index;
+				
+				// Starting from the bottom...
+				if ( item.yValue <= data.item.queryCoverage )
+				{
+					addDocumentsToFilter( entName, -1.0, -1 );
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance )
+				{
+					addDocumentsToFilter( entName, -1.0, -1 );
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance )
+				{
+					addDocumentsToFilter( entName, data.item.significance, -1 );
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance + data.item.augFrequency )
+				{
+					addDocumentsToFilter( entName, -1.0, data.item.frequency );
+				}
+				else
+				{
+					addDocumentsToFilter( entName, -1.0, -1 );
+				}
+			}
+			
+			protected function chart_mouseOver( event:MouseEvent ):void
+			{
+				if ( event.target is UITextField )
+				{
+					var textfield:UITextField = UITextField( event.target );
+					var str:String = event.target.text;
+					
+					if ( str.length > 0 )
+					{
+						if ( ( str.length < 3 ) && ( 0x30 == ( str.charCodeAt( 0 ) & 0xF0 ) ) )
+						{
+							// One of the axis, ignore
+							textfield.toolTip = "Query Significance, Dataset Significance, and Query Coverage (%s) (Max Doc Frequency and Average Frequency have their own separate scale, not shown)";
+						}
+						else
+						{
+							textfield.toolTip = "[Mouse: add docs containing entity to filter]";
+						}
+					}
+				}
+			}
+			protected function entitySliderUpdate( event:Event ):void
+			{
+				if ( sigSlider.value < 0 )
+				{
+					sigSlider.value = 0;
+				}
+				
+				if ( sigSlider.value > sigSlider.maximum )
+				{
+					sigSlider.value = sigSlider.maximum;
+				}
+				this.entSliderOffset = this.sigSlider.value;
+				
+				if ( ( this.entSliderOffset + 10 ) > this.allEntities.length )
+				{
+					this.entSliderOffset = this.allEntities.length - 10;
+					
+					if ( this.entSliderOffset < 0 )
+					{
+						this.entSliderOffset = 0;
+					}
+					sigSlider.value = this.entSliderOffset;
+				}
+				startSpinner(); // (populate graph stops spinner)
+				this.populateGraph();
+			}
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+			
+			protected function sortOptions_changeHandler( event:IndexChangeEvent ):void
+			{
+				this.populateGraph();
+			}
+			
+			/**
+			 * function to render the tool tip to display information about the entity being hovered over
+			 *
+			 * @param data The data for the given entity being hovered over
+			 *
+			 * @return The tool tip data for the entity
+			 */
+			private function dataTipFunction( data:HitData ):String
+			{
+				//create an instance of the Columnseries item
+				var item:ColumnSeries3DItem = ColumnSeries3DItem( data.chartItem );
+				
+				var info:String = "<HTML><FONT COLOR=\"#FFFFFF\">";
+				
+				var filterOption:Boolean = false;
+				
+				info += "Entity: " + data.item.entity.disambiguated_name + "\n";
+				
+				// Starting from the bottom...
+				if ( item.yValue <= data.item.queryCoverage )
+				{
+					var rounded:Number = Math.round( data.item.queryCoverage );
+					
+					if ( rounded > 0 )
+					{ // (this number is 0 a lot...)
+						info += "Query coverage: " + Number( data.item.queryCoverage ).toFixed( 1 ) + "%\n";
+					}
+					else if ( data.item.queryCoverage >= 0.1 )
+					{ // sigh there's probably a nicer way to do this....
+						info += "Query coverage: 0." + Math.round( 100.0 * data.item.queryCoverage ) + "%\n";
+					}
+					else if ( data.item.queryCoverage >= 0.01 )
+					{
+						info += "Query coverage: 0.0" + Math.round( 1000.0 * data.item.queryCoverage ) + "%\n";
+					}
+					else if ( data.item.queryCoverage >= 0.001 )
+					{
+						info += "Query coverage: 0.00" + Math.round( 10000.0 * data.item.queryCoverage ) + "%\n";
+					}
+					else
+					{
+						info += "Query coverage: ~0%\n";
+					}
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance )
+				{
+					info += "Query Significance:" + Number( data.item.datasetSignificance ).toFixed( 1 ) + "%\n";
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance )
+				{
+					info += "Max Doc Significance: " + Number( data.item.significance ).toFixed( 1 ) + "%\n";
+					filterOption = true;
+				}
+				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance + data.item.augFrequency )
+				{
+					info += "Max Doc Frequency: " + data.item.frequency + "\n";
+					filterOption = true;
+				}
+				else
+				{
+					info += "Average Frequency: " + Number( data.item.averageFreq ).toFixed( 1 ) + "\n";
+					info += "(average across documents containing this entity only)\n";
+				}
+				
+				
+				info += "Entity Type: " + data.item.entity.type + "\n";
+				
+				if ( filterOption )
+				{
+					info += "[Mouse: add documents containing max value to filter]";
+				}
+				else
+				{
+					info += "[Mouse: add entity to filter]";
+				}
+				
+				info += "</FONT></HTML?>";
+				return info;
+			}
+			private function decBusyCursorCounter():void
+			{
+				busyCursorCounter--;
+			}
+			private function doneChangingFilter( event:TimerEvent ):void
+			{
+				if ( 0 == regexFilter.text.length )
+				{
+					_regexFilter = null;
+					_regexActivateString = "";
+				}
+				else
+				{
+					_regexFilter = new RegExp( regexFilter.text, "i" );
+					_regexActivateString = "<=";
+				}
+				this.populateGraph();
+			}
+			
+			//(end regex hackery)
+			
+			/**
+			 * function to format combo box labels
+			 *
+			 * @param _label The label to format
+			 *
+			 * @return The formatted Label
+			 */
+			private function formatLabel( _label:Object ):String
+			{
+				var label:String = "";
+				label = _label.entity.disambiguated_name.toString() + " (" + _label.entity.type + ")";
+				return label;
+			}
+			
+			/**
+			 * function to get the top frequency for the entities being displayed
+			 *
+			 * @param _entities The array of entities
+			 *
+			 * @return The top frequency of the top ten entities
+			 */
+			private function getFreq( _entities:Array ):Number
+			{
+				var freq:Number = 0;
+				
+				for ( var i:int = 0; ( i < 10 ) && ( ( i + this.entSliderOffset ) < _entities.length ); i++ )
+				{
+					var _ent:Object = new Object();
+					_ent = _entities[ i + this.entSliderOffset ];
+					
+					if ( Number( _ent.frequency ) > freq )
+					{
+						freq = Number( _ent.frequency );
+					}
+					
+					if ( Number( _ent.averageFreq ) > freq )
+					{
+						freq = Number( _ent.averageFreq );
+					}
+					
+					// Quick error handling for cases where the DB/index are out of sync
+					if ( _ent.frequency < _ent.averageFreq )
+					{ // (avg freq bigger than max freq, I don't think so!)
+						_ent.averageFreq = _ent.frequency;
+					}
+				}
+				return freq;
+			}
+			
+			private function graphFromAggregatedEntities():ArrayCollection
+			{
+				var entities:ArrayCollection = new ArrayCollection();
+				
+				for each ( var entity:Object in this.currData_entities )
+				{
+					var entContainer:Object = new Object;
+					entContainer[ "entity" ] = entity;
+					entContainer[ "queryCoverage" ] = entity.queryCoverage;
+					entContainer[ "datasetSignificance" ] = entity.datasetSignificance;
+					entContainer[ "significance" ] = entity.significance;
+					entContainer[ "frequency" ] = entity.frequency;
+					entContainer[ "averageFreq" ] = 100.0 * entity.averageFreq / entity.queryCoverage; // (QC is a % so /100 to turn into a multiplier...)
+					// (average over documents in which the entity is present)
+					entities.addItem( entContainer );
+				}
+				return entities;
+			}
+			
+			/**
+			 * function to render entities on the x axis
+			 *
+			 * @param axis The current axis
+			 * @param data The data for the current axis
+			 *
+			 * @return The information for the current axis
+			 */
+			private function hAxisDataFunction( axis:Object, data:Object ):Object
+			{
+				if ( data != null )
+				{
+					return data.entity.disambiguated_name.toString() + " (" + data.entity.type.toString() + ")";
+				}
+				else
+					return "";
+			}
+			private function incBusyCursorCounter():void
+			{
+				busyCursorCounter++;
+			}
+			
+			/**
+			 * function to dispatch an event to the parent when the module is down creation
+			 *
+			 * @param event The FlexEvent received when the module is done creation
+			 */
+			private function moduleCreationCompleteHandler( event:FlexEvent ):void
+			{
+				var events:Event = new Event( "Done Loading" );
+				dispatchEvent( events );
+				
+				_filterModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingFilter );
+				
+				this.parent.parent.width = 700;
+				this.parent.parent.height = 500;
+			}
+			
+			private function onChangeEntityFilter( event:Event ):void
+			{
+				// Start a timer for 300ms time
+				this._filterModifyTimer.stop();
+				this._filterModifyTimer.start();
+			}
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results	
+			private function onClickIgnoreLocalFilter():void
+			{
+				internalFilterUpdate = true;
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if ( !this.ignoreLocalFilter )
+				{
+					if ( hasFilter )
+						this.onReceiveNewFilter();
+					else
+						this.onReceiveNewQuery();
+					ignoreLocalFilter = false;
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					localFilterSettings.selected = false;
+					localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+				}
+				else
+				{
+					this.onReceiveNewQuery();
+					ignoreLocalFilter = true;
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					localFilterSettings.selected = true;
+					localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+				}
+				internalFilterUpdate = false;
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete( event:Event ):void
+			{
+				var events:Event = new Event( "Done Loading" );
+				dispatchEvent( events );
+				
+				_filterModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingFilter );
+				
+				this.parent.parent.width = 700;
+				this.parent.parent.height = 500;
+			}
+			
+			private function populateGraph():void
+			{
+				if ( ( this.currData != null && this.currData.length > 0 ) || ( this.currData_entities != null && this.currData_entities.length > 0 ) )
+				{
+					//instantiate a hashset to hold all the entities so that there are no duplicates
+					var entities:HashSet = new HashSet();
+					
+					// Get a single set of entities from all the feeds
+					
+					if ( this.currData_entities != null && this.currData_entities.length > 0 )
+					{ // Use entities if we can...
+						this.allEntities = graphFromAggregatedEntities().toArray();
+						// Just need to work out ranges:
+						this.maxSig = 0;
+						
+						for each ( var entity:Object in this.allEntities )
+						{
+							if ( entity.significance > this.maxSig )
+							{
+								this.maxSig = entity.significance;
+							}
+							
+							if ( entity.datasetSignificance > this.maxSig )
+							{
+								this.maxSig = entity.datasetSignificance;
+							}
+							
+							if ( entity.queryCoverage > this.maxSig )
+							{
+								this.maxSig = entity.queryCoverage;
+							}
+						}
+					}
+					else
+					{ // Use documents if we have to
+						this.allEntities = removeDups( this.currData ).toArray();
+					}
+					
+					if ( sortOptions.selectedIndex == SORT_BY_QUERY_COVERAGE )
+					{
+						this.allEntities.sortOn( "queryCoverage", Array.DESCENDING | Array.NUMERIC );
+					}
+					else if ( sortOptions.selectedIndex == SORT_BY_SIGNIFICANCE )
+					{
+						this.allEntities.sortOn( "datasetSignificance", Array.DESCENDING | Array.NUMERIC );
+					}
+					else if ( sortOptions.selectedIndex == SORT_BY_AVERAGE_FREQUENCY )
+					{
+						this.allEntities.sortOn( "averageFreq", Array.DESCENDING | Array.NUMERIC );
+					}
+					
+					// Display the following fields:
+					// Query coverage (%)
+					// Query Significance (%)
+					// (max) Doc significance (%)
+					// Average frequency
+					// (max) Doc frequency
+					// (also have a separator					
+					
+					//store the top 10 entities into a seperate array
+					var topEntities:ArrayCollection = new ArrayCollection();
+					entityToSend.selectedIndex = -1;
+					topEntitiesCombo = new ArrayCollection();
+					
+					var maxFreq:int = getFreq( allEntities );
+					
+					// (Regex code - step over the specified number of *unfiltered* entities)
+					var j:int = 0;
+					var i:int = this.entSliderOffset;
+					
+					if ( null != _regexFilter )
+					{
+						for ( i = 0; ( i < this.allEntities.length ) && ( j < this.entSliderOffset ); ++i )
+						{
+							var ent2:Object = this.allEntities[ i ];
+							
+							if ( _regexFilter.test( ent2.entity.disambiguated_name + " ( " + ent2.entity.type + " ) " + ent2.entity.dimension ) )
+							{
+								j++;
+							}
+						}
+						j = 0;
+					}
+					
+					for ( ; ( j < 10 ) && ( i < this.allEntities.length ); i++, j++ )
+					{
+						var ent:Object = this.allEntities[ i ];
+						
+						if ( null != _regexFilter )
+						{
+							if ( !_regexFilter.test( ent.entity.disambiguated_name + " ( " + ent.entity.type + " ) " + ent.entity.dimension ) )
+							{
+								j--;
+								continue;
+							}
+						}
+						
+						// Make the freqs be 10% of the significances, so differences are visible but less important than the %s
+						ent[ "augFrequency" ] = ( ( this.maxSig / maxFreq ) * Number( ent.frequency ) * 0.1 );
+						ent[ "augAvgFrequency" ] = ( ( this.maxSig / maxFreq ) * Number( ent.averageFreq ) * 0.1 );
+						
+						// Since the tooltips dubiously use y-value to work out which field is which, need to ensure
+						// that the similar numbers don't get confused
+						if ( ent.augFrequency == ent.augAvgFrequency )
+						{
+							ent.augAvgFrequency += 0.0001;
+								// (need to leave freq alone since it's used for finding the right feed)
+						}
+						
+						if ( ent.significance == ent.datasetSignificance )
+						{
+							ent.datasetSignificance += 0.0001;
+								// (need to leave sig alone since it's used for finding the right feed)
+						}
+						
+						if ( ent.significance == ent.queryCoverage )
+						{
+							ent.queryCoverage += 0.0001;
+								// (need to leave sig alone since it's used for finding the right feed)
+						}
+						
+						topEntities.addItem( ent );
+						topEntitiesCombo.addItem( ent );
+					}
+					entityToSend.dataProvider = this.topEntitiesCombo;
+					entityToSend.validateNow();
+					entityToSend.selectedIndex = 0;
+					
+					setSeriesEffect( interpolateIn );
+					chart.dataProvider = topEntities;
+					
+					_hasData = true;
+				}
+				else
+				{
+					this.currentState = "nodata";
+				}
+				CursorManager.removeBusyCursor();
+				decBusyCursorCounter();
+				this.enabled = true;
+			}
+			
+			/**
+			 * function to remove duplicate entities
+			 *
+			 * @param entities The list of entities to remove duplicates from
+			 *
+			 * @return The hashset of non duplicate entities
+			 */
+			private function removeDups( feeds:ArrayCollection ):ArrayCollection
+			{
+				this.maxSig = 0;
+				
+				var entities:HashMap = new HashMap();
+				
+				//loop through the knowledge arrayCollection to get all the feed objects
+				for each ( var feed:Object in feeds )
+				{
+					//loop through the feed objects to get all the entities and add them to the hashset
+					for each ( var entity:Object in feed.entities )
+					{
+						if ( entity.significance > this.maxSig )
+						{
+							this.maxSig = entity.significance;
+						}
+						
+						if ( entity.datasetSignificance > this.maxSig )
+						{
+							this.maxSig = entity.datasetSignificance;
+						}
+						
+						if ( entity.queryCoverage > this.maxSig )
+						{
+							this.maxSig = entity.queryCoverage;
+						}
+						
+						var savedEnt:Object = entities.get( entity.index );
+						
+						if ( null != savedEnt )
+						{
+							// Get the maximum values:
+							if ( entity.frequency > savedEnt.frequency )
+							{
+								savedEnt.frequency = entity.frequency;
+							}
+							
+							if ( entity.averageFreq > savedEnt.averageFreq )
+							{
+								savedEnt.averageFreq = entity.averageFreq;
+							}
+							
+							if ( entity.significance > savedEnt.significance )
+							{
+								savedEnt.significance = entity.significance;
+							}
+							
+							if ( entity.datasetSignificance > savedEnt.datasetSignificance )
+							{
+								savedEnt.datasetSignificance = entity.datasetSignificance;
+							}
+							
+							if ( entity.queryCoverage > savedEnt.queryCoverage )
+							{
+								savedEnt.queryCoverage = entity.queryCoverage;
+							}
+							// Replace: can't imagine we need to do this, but empirically it seemed to be the case							
+							entities.put( entity.index, savedEnt );
+						}
+						else
+						{
+							if ( null != this.filterEntities )
+							{
+								// (Entity filter has been applied)
+								if ( !this.filterEntities.contains( entity.index ) )
+								{
+									continue; // Don't have this one
+								}
+							}
+							var entContainer:Object = new Object;
+							entContainer[ "entity" ] = entity;
+							entContainer[ "queryCoverage" ] = entity.queryCoverage;
+							entContainer[ "datasetSignificance" ] = entity.datasetSignificance;
+							entContainer[ "significance" ] = entity.significance;
+							entContainer[ "frequency" ] = entity.frequency;
+							entContainer[ "averageFreq" ] = 100.0 * entity.averageFreq / entity.queryCoverage; // (QC is a % so /100 to turn into a multiplier...)
+							// (average over documents in which the entity is present)
+							entities.put( entity.index, entContainer );
+						}
+					} // end loop over ents in feeds
+				} // end loop over feeds
+				
+				return new ArrayCollection( entities.getValues() );
+			}
+			
+			/**
+			 * function to add entities to the query
+			 *
+			 * @param event The MouseEvent received when the add to query button is pressed
+			 */
+			private function send2Query( event:MouseEvent ):void
+			{
+				var query:Object = _context.getCurrentQuery();
+				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
+				var newTerm:Object = new Object();
+				newTerm[ "entity" ] = entityToSend.selectedItem.entity.index;
+				queryTerms.addItem( newTerm );
+				_context.setCurrentQuery( query, null );
+			}
+			
+			/**
+			 * function to load data for each series
+			 *
+			 * @param series The current series
+			 * @param data The data for the current series
+			 * @param field The field for the series
+			 *
+			 * @return The series information
+			 */
+			private function seriesDataFunction( series:Series, data:Object, field:String = null ):Object
+			{
+				return data.frequency.toString();
+			}
+			
+			/**
+			 * function to add an effect to the series when data is changed
+			 *
+			 * @param effect The effect to add to the series
+			 */
+			private function setSeriesEffect( effect:SeriesEffect ):void
+			{
+				frequency.setStyle( 'showDataEffect', effect );
+				avgFrequency.setStyle( 'showDataEffect', effect );
+				significance.setStyle( 'showDataEffect', effect );
+				datasetSignificance.setStyle( 'showDataEffect', effect );
+				queryCoverage.setStyle( 'showDataEffect', effect );
+			}
+			
+			/**
+			 * function to render the values on the y axis
+			 *
+			 * @param o The object at the current location
+			 * @param v The value at the current location
+			 *
+			 * @return The current value at that location
+			 */
+			private function vAxisLabelFunction( o:Object, v:Object ):String
+			{
+				return v.toString();
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<mx:SeriesInterpolate id="interpolateIn"
+			duration="1000" />
+		<actionscript:CartesianChart3DControl chart="{ chart }" />
+		<s:SolidColorStroke id="seriesStroke"
+			color="0x222222"
+			alpha="0.5" />
+	</fx:Declarations>
+
+	<!-- Header -->
+	<components:headerContent>
+
+		<s:HGroup gap="-3">
+
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+				toolTip="Ignore Workspace Filtering - Show All Results"
+				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+
+			<!-- Entities Drop Down List -->
+			<components:WidgetDropDownList id="entityToSend"
+				width="140"
+				selectedIndex="-1"
+				labelFunction="formatLabel"
+				dataProvider="{ topEntitiesCombo }"
+				listWidth="400"
+				prompt="Entities" />
+
+			<!-- Add to Query Button -->
+			<components:WidgetPlusButton id="addToQueryButton"
+				toolTip="Add to Query"
+				click="send2Query(event)" />
+
+			<!-- Sort Options Drop Down List -->
+			<components:WidgetDropDownList id="sortOptions"
+				width="168"
+				selectedIndex="{ SORT_BY_SIGNIFICANCE }"
+				change="setTimeout( sortOptions_changeHandler, 100, event )">
+				<components:dataProvider>
+					<s:ArrayList source="[Rank by Significance,Rank by Coverage,Rank by Frequency]" />
+				</components:dataProvider>
+			</components:WidgetDropDownList>
+
+			<!-- regex filtering box -->
+			<s:HGroup 
+				height="100%"
+				paddingBottom="2"
+				paddingLeft="5"
+				paddingRight="7"
+				paddingTop="2"
+				verticalAlign="middle">
+				<components:WidgetTextInput id="regexFilter"
+					width="100"
+					toolTip="Enter a regex string to filter entities on name, type or dimension"
+					change="onChangeEntityFilter(event)"
+					prompt="Show only:" />
+			</s:HGroup>
+
+		</s:HGroup>
+
+	</components:headerContent>
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="middle"
+		includeIn="nodata">
+		<s:Label 
+			text="No data, try running a query"
+			includeIn="nodata" />
+	</s:VGroup>
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		gap="0"
+		includeIn="dataview">
+
+		<!-- Graph -->
+
+		<mx:ViewStack id="views"
+			width="100%"
+			height="100%"
+			creationPolicy="all"
+			includeIn="dataview">
+			<s:NavigatorContent 
+				width="100%"
+				height="100%">
+				<s:Rect 
+					width="100%"
+					height="100%">
+					<s:fill>
+						<s:LinearGradient rotation="90">
+							<s:entries>
+								<s:GradientEntry color="0x000000" />
+								<s:GradientEntry color="0x323232" />
+							</s:entries>
+						</s:LinearGradient>
+					</s:fill>
+				</s:Rect>
+				<s:HGroup 
+					width="100%"
+					height="100%"
+					paddingTop="10">
+					<ilog:ColumnChart3D id="chart"
+						width="80%"
+						height="100%"
+						x="0"
+						color="0xFFFFFF"
+						top="50"
+						click="chart_clickHandler(event)"
+						itemClick="chart_itemClickHandler(event)"
+						mouseOver="chart_mouseOver(event)"
+						columnWidthRatio="0.9"
+						dataTipCalloutStroke="{ seriesStroke }"
+						dataTipFunction="dataTipFunction"
+						depth="5"
+						elevationAngle="40"
+						rotationAngle="50"
+						showDataTips="true"
+						type="stacked">
+						<ilog:wallsFill>
+							<s:LinearGradient rotation="30">
+								<s:GradientEntry color="0x444444" />
+								<s:GradientEntry 
+									color="0x000000"
+									alpha="0.0" />
+							</s:LinearGradient>
+						</ilog:wallsFill>
+
+						<ilog:wallsStroke>
+							<s:SolidColorStroke 
+								color="0xFFFFFF"
+								alpha="0.4"
+								weight="1" />
+						</ilog:wallsStroke>
+						<ilog:verticalAxisRenderer>
+							<ilog:AxisRenderer3D 
+								labelFunction="vAxisLabelFunction"
+								axisWidth="0"
+								minorTickPlacement="none" />
+						</ilog:verticalAxisRenderer>
+						<ilog:horizontalAxisRenderer>
+							<ilog:AxisRenderer3D 
+								axisWidth="0"
+								minorTickLength="0"
+								minorTickPlacement="inside">
+								<ilog:tickStroke>
+									<s:SolidColorStroke color="0xFF0000" />
+								</ilog:tickStroke>
+								<ilog:fill>
+									<mx:SolidColor color="0x333333" />
+								</ilog:fill>
+							</ilog:AxisRenderer3D>
+						</ilog:horizontalAxisRenderer>
+						<ilog:horizontalAxis>
+							<mx:CategoryAxis id="entityAxis"
+								dataFunction="hAxisDataFunction" />
+						</ilog:horizontalAxis>
+						<ilog:series>
+							<ilog:ColumnSeries3D id="queryCoverage"
+								displayName="Query Coverage (%)"
+								stroke="{ seriesStroke }"
+								yField="queryCoverage" />
+							<ilog:ColumnSeries3D id="datasetSignificance"
+								displayName="Query Significance (%)"
+								stroke="{ seriesStroke }"
+								yField="datasetSignificance" />
+							<ilog:ColumnSeries3D id="significance"
+								displayName="Max Doc Significance (%)"
+								stroke="{ seriesStroke }"
+								yField="significance" />
+							<ilog:ColumnSeries3D id="frequency"
+								displayName="Max Doc Frequency"
+								stroke="{ seriesStroke }"
+								yField="augFrequency" />
+							<ilog:ColumnSeries3D id="avgFrequency"
+								displayName="Weighted Average Frequency"
+								stroke="{ seriesStroke }"
+								yField="augAvgFrequency" />
+						</ilog:series>
+					</ilog:ColumnChart3D>
+					<!--<mx:Spacer height="5"/>-->
+					<s:VGroup 
+						width="20%"
+						height="15%"
+						horizontalAlign="left"
+						paddingLeft="10"
+						paddingRight="10"
+						paddingTop="20"
+						gap="0">
+						<s:Label 
+							text="Legend"
+							color="0xFFFFFF"
+							fontWeight="bold" />
+						<mx:Legend 
+							dataProvider="{ chart }"
+							color="0xFFFFFF"
+							verticalAlign="bottom" />
+					</s:VGroup>
+				</s:HGroup>
+
+			</s:NavigatorContent>
+		</mx:ViewStack>
+
+		<!-- Footer -->
+
+		<components:WidgetFooterGroup 
+			width="100%"
+			contentBackgroundColor="0x2E2E2E">
+
+			<s:VGroup id="sigContainer"
+				width="100%"
+				horizontalAlign="center"
+				paddingBottom="9"
+				paddingLeft="10"
+				paddingRight="10"
+				paddingTop="9"
+				verticalAlign="middle"
+				gap="0">
+				<s:Label id="percentile"
+					width="100%"
+					text="Step through { _regexActivateString }{ allEntities.length } entities (\@{ sigSlider.value }):"
+					color="#FFFFFF"
+					fontWeight="bold"
+					textAlign="center" />
+				<s:HGroup 
+					width="100%"
+					horizontalAlign="center"
+					verticalAlign="middle">
+					<s:Button id="minusSlider"
+						toolTip="Step Back 10"
+						width="20"
+						height="20"
+						click="sigSlider.value -= 10; entitySliderUpdate(event);"
+						skinClass="skins.SliderMinusButtonSkin" />
+					<s:HSlider id="sigSlider"
+						width="100%"
+						stepSize="1"
+						minimum="0"
+						maximum="{ allEntities.length }"
+						liveDragging="false"
+						change="entitySliderUpdate(event)" />
+					<s:Button id="plusSlider"
+						toolTip="Step Forward 10"
+						width="20"
+						height="20"
+						click="sigSlider.value += 10; entitySliderUpdate(event);"
+						skinClass="skins.SliderPlusButtonSkin" />
+				</s:HGroup>
+			</s:VGroup>
+		</components:WidgetFooterGroup>
+
+	</s:VGroup>
+
+</components:WidgetModule>

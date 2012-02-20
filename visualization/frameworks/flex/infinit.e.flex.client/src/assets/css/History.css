@@ -1,0 +1,25 @@
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+@namespace settings "com.ikanow.infinit.e.workspace.view.settings.*";
+
+.historyList
+{
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	contentBackgroundColor: #575C60;
+	borderVisible: false;
+	disabledOverlayAlpha: 1.0;
+}
+
+.historyItem
+{
+	disabledOverlayAlpha: 1.0;
+}
+
+.historyItemHovered
+{
+	disabledOverlayAlpha: 1.0;
+	backgroundAlpha: 1.0;
+	backgroundColor: #C2C291;
+	skinClass : ClassReference("assets.skins.history.HistoryItemHoveredSkin");
+}

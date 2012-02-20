@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	width="{ height }"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>[HostComponent("com.ikanow.infinit.e.shared.view.component.common.InfButton")]</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import assets.EmbeddedAssets;
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<s:Group>
+
+		<s:layout>
+			<s:HorizontalLayout 
+				paddingLeft="10"
+				paddingRight="10"
+				verticalAlign="middle" />
+		</s:layout>
+
+		<!-- image -->
+		<s:BitmapImage source="{ EmbeddedAssets.SEARCH }" />
+
+	</s:Group>
+
+</s:SparkButtonSkin>

@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="30"
+	minHeight="22"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        	[HostComponent("spark.components.Button")]
+        ]]>
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.assets.WidgetAssets;
+		]]>
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- border -->
+	<s:Rect 
+		bottom="0"
+		left="0"
+		right="0"
+		top="0"
+		bottomRightRadiusX="6"
+		bottomRightRadiusY="6"
+		topRightRadiusX="6"
+		topRightRadiusY="6">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry color="0xCCCCCC" />
+			</s:LinearGradient>
+		</s:fill>
+		<s:stroke>
+			<s:SolidColorStroke 
+				color="0xCCCCCC"
+				weight="1" />
+		</s:stroke>
+	</s:Rect>
+
+	<!-- background -->
+	<s:Rect 
+		bottom="1"
+		left="1"
+		right="1"
+		top="1"
+		bottomRightRadiusX="7"
+		bottomRightRadiusY="7"
+		topRightRadiusX="7"
+		topRightRadiusY="7">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:GradientEntry 
+					color="0xE8E9E9"
+					color.down="0xD0D0D0" />
+				<s:GradientEntry 
+					color="0xE8E9E9"
+					color.down="0xE2E3E3" />
+			</s:LinearGradient>
+		</s:fill>
+	</s:Rect>
+
+	<s:Image 
+		horizontalCenter="0"
+		verticalCenter="1"
+		source="{ WidgetAssets.WIDGET_NEXT_BUTTON_ON }"
+		source.down="{ WidgetAssets.WIDGET_NEXT_BUTTON_OFF }"
+		source.over="{ WidgetAssets.WIDGET_NEXT_BUTTON_OFF }" />
+
+	<s:filters>
+		<s:DropShadowFilter 
+			color="0xDDDDDD"
+			color.down="0x999999"
+			color.over="0xCCCCCC"
+			alpha=".5"
+			angle="90"
+			blurX="2"
+			blurY="2"
+			distance="2"
+			inner="true" />
+		<s:DropShadowFilter 
+			color="0xFFFFFF"
+			color.down="0xAAAAAA"
+			color.over="0xDDDDDD"
+			alpha=".5"
+			angle="0"
+			blurX="2"
+			blurY="2"
+			distance="1"
+			inner="true" />
+	</s:filters>
+
+</s:SparkButtonSkin>

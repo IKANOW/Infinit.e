@@ -1,0 +1,162 @@
+<!-- ======================================= -->
+<!-- Shared library build file -->
+<!-- ======================================= -->
+<project name="infinit.e.flex.client.library" basedir="../" default="compile">
+
+	<!--TBD-->
+	<echo message="${basedir}"/>
+	
+	<!-- ======================================= -->
+	<!--  Configuration -->
+	<!-- ======================================= -->
+
+	<!-- Configuration -->
+	<property file="${basedir}/build/build.properties"/>
+
+	<!-- Setup Flex Ant Resources -->
+	<property name="FLEX_HOME" location="${flex.sdk}"/>
+	<taskdef resource="flexTasks.tasks" classpath="${build.libs.loc}/flexTasks-4.5.1.jar"/>
+
+	<!-- ======================================= -->
+	<!--  Clean and Init Targets -->
+	<!-- ======================================= -->
+
+	<target name="clean" description="Removes artifacts from previous builds">
+		<delete dir="${build.output.loc}" />
+		<delete dir="${dist.loc}" />
+	</target>
+
+	<target name="init" description="Initializes project and destination folders">
+		<echo message="Project: ${ant.project.name}"/>
+		<echo message="Flex SDK: ${FLEX_HOME}"/>
+
+		<!-- Create directories -->
+		<mkdir dir="${bin.loc}"/>
+		<mkdir dir="${dist.loc}"/>
+	</target>
+
+	<!-- ======================================= -->
+	<!--  Compile Targets -->
+	<!-- ======================================= -->
+
+	<target name="copy-internal-libs" description="Copies libraries from dependency projects"  depends="init">
+
+		<echo>Building library depenendency...</echo>
+		<ant antfile="${basedir}/../infinit.e.widget.library/build/build.xml" inheritall="false">
+			<property name="basedir" value="${basedir}/../infinit.e.widget.library"/>
+			<target name="clean"/>
+			<target name="compile"/>
+			<target name="dist"/>
+		</ant>
+
+		<echo>Copying library dependencies...</echo>
+		<copy todir="${libs.loc}">
+			<fileset dir="${basedir}/../infinit.e.widget.library/dist">
+				<include name="*.swc"/>
+			</fileset>
+		</copy>
+
+	</target>
+
+	<target name="compile" depends="copy-internal-libs">
+
+		<echo>Compiling Flex library...</echo>
+
+		<!-- set up list of classes to include in library -->
+		<fileset id="src.include.fileset" dir="${src.loc}">
+			<include name="**/*.as"/>
+			<include name="**/*.mxml"/>
+		</fileset>
+		<property name="src.include.fileset" refid="src.include.fileset"/>
+		
+		<!-- Convert the test files into a compiler friendly format. -->
+		<pathconvert property="src.include.classes" pathsep=" " refid="src.include.fileset">
+			<compositemapper>
+				<chainedmapper>
+					<mapper type="regexp" from="^.*/infinit.e.flex.client.library/src/(.*).as$" to="\1"/>
+					<mapper type="package" from="*" to="*"/>
+				</chainedmapper>
+				<chainedmapper>
+					<mapper type="regexp" from="^.*/infinit.e.flex.client.library/src/(.*).mxml$" to="\1"/>
+					<mapper type="package" from="*" to="*"/>
+				</chainedmapper>
+			</compositemapper>
+		</pathconvert>
+
+		<echo>Classes to be included in SWC:</echo>
+		<echo>${src.include.classes}</echo>
+
+		<!-- run compilation task -->
+		<compc output="${bin.loc}/${dist.name}.swc" include-classes="${src.include.classes}">
+
+			<compiler.source-path path-element="${src.loc}"/>
+			<compiler.source-path path-element="${basedir}/locales/{locale}"/>
+			<compiler.debug>false</compiler.debug>
+			<compiler.optimize>true</compiler.optimize>
+			<compiler.define name="CONFIG::debug" value="${config.debug}" />
+
+			<!-- Configure the flex framework libraries as external link dependencies -->
+			<external-library-path dir="${FLEX_HOME}/frameworks" append="true">
+				<include name="libs"/>
+				<include name="locale/{locale}"/>
+			</external-library-path>
+
+			<!-- The app libraries in the libs folder -->
+			<library-path dir="${libs.loc}" append="true">
+				<include name="*.swc"/>
+			</library-path>
+			
+			<!-- Sets java.awt.headless=true so font compilation works in headless environments -->
+			<compiler.headless-server>true</compiler.headless-server>
+		</compc>
+
+		<echo message="${dist.name}.swc has been created in ${bin.loc}"/>
+
+	</target>
+
+	<!-- ======================================= -->
+	<!--  Documentation Targets -->
+	<!-- ======================================= -->
+
+	<target name="asdoc" description="Generate ASDoc documentation">
+
+		<echo>Cleaning API docs...</echo>
+			
+		<delete dir="${docs.loc}"/>
+		<mkdir dir="${docs.loc}"/>
+		
+		<echo>Building API docs...</echo>
+		
+		<asdoc output="${docs.loc}" main-title="${application.name}" window-title="${application.name} API Docs" left-frameset-width="400" fork="true">
+
+			<compiler.source-path path-element="${src.loc}"/>
+
+			<doc-sources path-element="${src.loc}/${package.root}"/>
+
+			<!-- Configure the flex framework libraries as external link dependencies -->
+			<external-library-path dir="${FLEX_HOME}/frameworks" append="true">
+				<include name="libs"/>
+				<include name="locale/{locale}"/>
+			</external-library-path>
+
+			<!-- The app libraries in the libs folder -->
+			<library-path dir="${libs.loc}" append="true">
+				<include name="*.swc"/>
+			</library-path>
+
+			<compiler.headless-server>true</compiler.headless-server>
+
+		</asdoc>
+
+		<echo message="Documentation has been created in ${docs.loc}"/>
+	</target>
+
+	<!-- ======================================= -->
+	<!--  Distribution Targets -->
+	<!-- ======================================= -->
+
+	<target name="dist" description="Compiles SWF and copies all needed artifacts into dist directory">
+		<copy file="${bin.loc}/${dist.name}.swc" todir="${dist.loc}" overwrite="true"/>
+	</target>
+
+</project>

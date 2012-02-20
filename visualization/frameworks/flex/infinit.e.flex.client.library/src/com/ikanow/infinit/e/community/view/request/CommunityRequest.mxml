@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	currentState="{ model.navigator.currentState }"
+	horizontalAlign="center"
+	paddingBottom="20"
+	paddingLeft="30"
+	paddingRight="30"
+	preinitialize="CommunityRequestNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.community.model.presentation.request.CommunityRequestModel;
+			import com.ikanow.infinit.e.community.model.presentation.request.CommunityRequestNavigator;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import mx.events.FlexEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:CommunityRequestModel;
+			
+			protected function cancelOkButton_clickHandler( event:MouseEvent ):void
+			{
+				model.navigator.showCommunityListView();
+			}
+			
+			protected function requestButton_clickHandler( event:MouseEvent ):void
+			{
+				if ( currentState == CommunityRequestNavigator.REQUEST_JOIN_PROMPT_ID )
+				{
+					model.joinCommunity();
+					
+						// for testing
+						//model.leaveCommunity();
+				}
+				else
+				{
+					model.navigator.showCommunityListView();
+				}
+			}
+			
+			protected function requesting_enterStateHandler( event:FlexEvent ):void
+			{
+				busyIndicator.message = resourceManager.getString( 'infinite', 'communityRequestView.requestingAccess' );
+			}
+			
+			protected function requesting_exitStateHandler( event:FlexEvent ):void
+			{
+				busyIndicator.message = "";
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="prompt" />
+		<s:State name="requesting"
+			enterState="requesting_enterStateHandler(event)"
+			exitState="requesting_exitStateHandler(event)" />
+		<s:State name="approved" />
+		<s:State name="pending" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		gap="20">
+
+		<!-- Request Message -->
+		<common:InfLabel 
+			width="100%"
+			text.prompt="{ resourceManager.getString( 'infinite', 'communityRequestView.promptMessage', [ model.selectedCommunity.name ] ) }"
+			text.requesting="{ resourceManager.getString( 'infinite', 'communityRequestView.requestingMessage', [ model.selectedCommunity.name ] ) }"
+			text.approved="{ resourceManager.getString( 'infinite', 'communityRequestView.approvedMessage', [ model.selectedCommunity.name ] ) }"
+			text.pending="{ resourceManager.getString( 'infinite', 'communityRequestView.pendingMessage', [ model.selectedCommunity.name ] ) }"
+			styleName="whiteLarge"
+			horizontalCenter="0"
+			textAlign="center" />
+
+		<!-- Notify Message -->
+		<common:InfLabel 
+			width="100%"
+			text="{ resourceManager.getString( 'infinite', 'communityRequestView.notifyMessage' ) }"
+			styleName="whiteLarge"
+			horizontalCenter="0"
+			textAlign="center"
+			includeIn="prompt" />
+
+	</s:VGroup>
+
+	<s:VGroup 
+		width="100%"
+		horizontalAlign="center"
+		gap="10">
+
+		<s:Group id="actionsButtonGroup"
+			width="180"
+			height="34">
+
+			<!-- Request Button -->
+			<common:InfButton id="requestButton"
+				width="100%"
+				height="100%"
+				styleName="roundedBlueButton"
+				label.prompt="{ resourceManager.getString( 'infinite', 'communityRequestView.requestButtonLabel' ) }"
+				label.approved="{ resourceManager.getString( 'infinite', 'common.ok' ) }"
+				label.pending="{ resourceManager.getString( 'infinite', 'common.ok' ) }"
+				label.requesting=""
+				enabled.requesting="false"
+				click="requestButton_clickHandler(event)" />
+
+			<!-- Requesting Access Feedback Indicator -->
+			<busyIndicator:BusyIndicatorLabel id="busyIndicator"
+				styleName="loginBusyIndicatorLabel"
+				horizontalCenter="-4"
+				verticalCenter="0"
+				message=""
+				showDropShadow="false" />
+
+		</s:Group>
+
+		<!-- Cancel / Ok Button -->
+		<common:InfButton id="cancelOkButton"
+			styleName="transparentLightGreyButton"
+			label="{ resourceManager.getString( 'infinite', 'common.cancel' ) }"
+			enabled="false"
+			enabled.prompt="true"
+			click="cancelOkButton_clickHandler(event)"
+			visible="false"
+			visible.prompt="true" />
+
+	</s:VGroup>
+
+</s:VGroup>

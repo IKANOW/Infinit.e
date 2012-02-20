@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	horizontalAlign="center">
+	<s:Label id="percentile"
+		text="Link Length"
+		fontWeight="bold" />
+	<s:HGroup 
+		width="100%"
+		horizontalAlign="center"
+		verticalAlign="middle">
+		<s:Label id="minLength"
+			text="0"
+			fontSize="9" />
+		<s:HSlider id="lslider"
+			stepSize="25"
+			minimum="0"
+			maximum="600"
+			value="100"
+			liveDragging="true"
+			change="updateLinkLength()" />
+		<s:Label id="maxLength"
+			text="600"
+			fontSize="9" />
+	</s:HGroup>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import mx.utils.ObjectUtil;
+			import org.un.cava.birdeye.ravis.assets.icons.EmbeddedIcons;
+			import org.un.cava.birdeye.ravis.graphLayout.layout.ILayoutAlgorithm;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.IVisualGraph;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.VisualGraph;
+			import org.un.cava.birdeye.ravis.utils.LogUtil;
+			import org.un.cava.birdeye.ravis.utils.events.VGraphEvent;
+			
+			private static const _LOG:String = "components.ui.controls.layouterControls.LinkLength";
+			
+			/* critical */
+			private var _vgraph:VisualGraph;
+			
+			/**
+			 * @private
+			 * */
+			public function get vgraph():VisualGraph
+			{
+				return _vgraph;
+			}
+			
+			/**
+			 * Provides access to the registered vgraph object.
+			 * */
+			[Bindable]
+			public function set vgraph( v:VisualGraph ):void
+			{
+				_vgraph = v;
+				registerListeners();
+			}
+			
+			/**
+			 * When enabling or disabling this component, we also
+			 * perform some specific tasks.
+			 * Attention do completely disable interaction
+			 * there is also the mouseEnabled property.
+			 *
+			 * @inheritDoc
+			 * */
+			override public function set enabled( e:Boolean ):void
+			{
+				if ( lslider != null )
+				{
+					if ( e == true )
+					{
+						lslider.alpha = 1;
+					}
+					else
+					{
+						lslider.alpha = 0.3;
+					}
+				}
+				/* call superclass (VBox) */
+				super.enabled = e;
+			}
+			
+			/**
+			 * Event handler to be triggered in case the
+			 * layouter in VGraph has changed.
+			 * Only used to apply the current value to the new layouter.
+			 * */
+			public function layouterChanged( e:VGraphEvent = null ):void
+			{
+				
+				/* check if we have a layouter at all */
+				if ( _vgraph == null || _vgraph.layouter == null )
+				{
+					LogUtil.warn( _LOG, "Cannot apply LinkLength to missing vgraph or null layouter" );
+					return;
+				}
+				
+				/* this is a default control component, and valid
+				* for all layouters, thus we only need to apply
+				* the value to the new layouter.
+				* We don't call updateLinkLength(), since this
+				* triggers a draw(), which we do not want here
+				*/
+				_vgraph.layouter.linkLength = lslider.value;
+				_vgraph.layouter.layoutChanged = true;
+			}
+			
+			/**
+			 * This refreshes the current slider setting to
+			 * the value from the current layouter.
+			 * */
+			public function refreshSlider( e:VGraphEvent = null ):void
+			{
+				
+				/* check if we have a layouter at all */
+				if ( _vgraph == null || _vgraph.layouter == null )
+				{
+					LogUtil.warn( _LOG, "Cannot refresh LinkLength from missing vgraph or null layouter" );
+					return;
+				}
+				
+				/* refresh the value */
+				lslider.value = _vgraph.layouter.linkLength;
+			}
+			
+			
+			/**
+			 * Update the linklength, this indicator always
+			 * goes from 0 to 100, depending on the layouter
+			 * this is translated to something meaningful.
+			 * */
+			public function updateLinkLength():void
+			{
+				
+				/* check if we have a layouter at all */
+				if ( _vgraph == null || _vgraph.layouter == null )
+				{
+					LogUtil.warn( _LOG, "Cannot update LinkLength on missing vgraph or null layouter" );
+					return;
+				}
+				
+				/* update the value */
+				_vgraph.layouter.linkLength = lslider.value;
+				_vgraph.layouter.layoutChanged = true;
+				
+				/* trigger redraw */
+				_vgraph.draw();
+			}
+			
+			/**
+			 * Adds the listeners to update on changes in the VGraph
+			 * */
+			private function registerListeners():void
+			{
+				_vgraph.addEventListener( VGraphEvent.VGRAPH_CHANGED, refreshSlider );
+				_vgraph.addEventListener( VGraphEvent.LAYOUTER_CHANGED, layouterChanged );
+			}
+		]]>
+	</fx:Script>
+</s:VGroup>

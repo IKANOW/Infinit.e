@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:header="com.ikanow.infinit.e.view.dashboard.header.*"
+	xmlns:workspaces="com.ikanow.infinit.e.view.dashboard.workspaces.*">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.dashboard.DashboardModel;
+			
+			[Bindable]
+			[Inject]
+			public var model:DashboardModel;
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Workspaces -->
+	<workspaces:Workspaces id="workspacesView"
+		width="100%"
+		bottom="0"
+		top="75" />
+
+	<!-- Header -->
+	<header:DashboardHeader id="headerView"
+		width="100%"
+		height="74" />
+
+</s:Group>

@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="26"
+	click="itemRenderer_clickHandler(event)"
+	rollOut="itemRenderer_rollOutHandler(event)"
+	rollOver="itemRenderer_rollOverHandler(event)">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
+			import mx.events.ItemClickEvent;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					columnSelector = value as ColumnSelector;
+					setLabelStyle();
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			protected var rendererHovered:Boolean;
+			
+			[Bindable]
+			protected var showLabelDropShadow:Boolean = true;
+			
+			[Bindable]
+			protected var showJoinButton:Boolean;
+			
+			[Bindable]
+			protected var columnSelector:ColumnSelector;
+			
+			protected function itemRenderer_clickHandler( evt:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function itemRenderer_rollOutHandler( event:MouseEvent ):void
+			{
+				rendererHovered = false;
+				setLabelStyle();
+			}
+			
+			protected function itemRenderer_rollOverHandler( event:MouseEvent ):void
+			{
+				rendererHovered = true;
+				setLabelStyle();
+				
+				this.toolTip = "";
+				
+				if ( columnDescriptionLabel.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setLabelStyle():void
+			{
+				if ( rendererHovered )
+				{
+					columnDescriptionLabel.setStyle( "styleName", "black" );
+					showLabelDropShadow = false;
+				}
+				else
+				{
+					columnDescriptionLabel.setStyle( "styleName", "white" );
+					showLabelDropShadow = true;
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = columnSelector.description;
+			}
+		]]>
+	</fx:Script>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="6"
+		paddingRight="14"
+		paddingTop="1"
+		verticalAlign="middle">
+
+		<!-- Column Select Check Box-->
+		<common:InfCheckBox 
+			styleName="checkMarkDark"
+			selected="{ columnSelector.selected }" />
+
+		<!-- Column Description-->
+		<common:InfLabel id="columnDescriptionLabel"
+			width="100%"
+			text="{ columnSelector.description }"
+			paddingRight="7"
+			paddingTop="1"
+			maxDisplayedLines="1"
+			showDropShadow="{ showLabelDropShadow }" />
+
+	</s:HGroup>
+
+</s:ItemRenderer>

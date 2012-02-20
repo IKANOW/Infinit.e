@@ -1,0 +1,140 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="26"
+	click="itemRenderer_clickHandler(event)"
+	rollOut="itemRenderer_rollOutHandler(event)"
+	rollOver="itemRenderer_rollOverHandler(event)">
+
+	<fx:Metadata>
+		[Event( name = "joinCommunity", type = "mx.events.ItemClickEvent" )]
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.Community;
+			import mx.events.ItemClickEvent;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					community = value as Community;
+					setLabelStyle();
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			protected var rendererHovered:Boolean;
+			
+			[Bindable]
+			protected var showLabelDropShadow:Boolean = true;
+			
+			[Bindable]
+			protected var showJoinButton:Boolean;
+			
+			[Bindable]
+			protected var community:Community;
+			
+			protected function itemRenderer_clickHandler( evt:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function itemRenderer_rollOutHandler( event:MouseEvent ):void
+			{
+				rendererHovered = false;
+				setLabelStyle();
+			}
+			
+			protected function itemRenderer_rollOverHandler( event:MouseEvent ):void
+			{
+				rendererHovered = true;
+				setLabelStyle();
+				
+				this.toolTip = "";
+				
+				if ( nameLabel.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function joinButton_clickHandler( event:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( "joinCommunity", true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function setLabelStyle():void
+			{
+				if ( rendererHovered )
+				{
+					community.isUserMember ? nameLabel.setStyle( "styleName", "black" ) : nameLabel.setStyle( "styleName", "blackItalic" );
+					showLabelDropShadow = false;
+					showJoinButton = community.isUserMember ? false : true;
+				}
+				else
+				{
+					community.isUserMember ? nameLabel.setStyle( "styleName", "white" ) : nameLabel.setStyle( "styleName", "lightGreyItalic" );
+					showLabelDropShadow = true;
+					showJoinButton = false;
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = community.name;
+			}
+		]]>
+	</fx:Script>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="6"
+		paddingRight="14"
+		paddingTop="1"
+		verticalAlign="middle">
+
+		<!-- Member Comuunity Select Check Box-->
+		<common:InfCheckBox 
+			styleName="checkMarkDark"
+			selected="{ community.selected }"
+			mouseEnabled="{ community.isUserMember }"
+			visible="{ community.isUserMember }" />
+
+		<!-- Community Name-->
+		<common:InfLabel id="nameLabel"
+			width="100%"
+			text="{ community.name }"
+			paddingRight="7"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="{ showLabelDropShadow }" />
+
+	</s:HGroup>
+
+	<!-- Join Community Button -->
+	<s:Group right="14">
+		<common:InfButton id="joinButton"
+			styleName="joinCommunityButton"
+			includeInLayout="{ showJoinButton }"
+			top="5"
+			click="joinButton_clickHandler(event)"
+			visible="{ showJoinButton }" />
+	</s:Group>
+
+</s:ItemRenderer>

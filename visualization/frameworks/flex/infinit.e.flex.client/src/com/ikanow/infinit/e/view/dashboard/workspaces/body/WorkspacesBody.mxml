@@ -1,0 +1,148 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:GradientContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:layout="com.ikanow.infinit.e.workspaces.view.workspace.layout.*"
+	xmlns:widget="com.ikanow.infinit.e.widget.view.*"
+	xmlns:workspace="com.ikanow.infinit.e.workspace.view.*"
+	width="100%"
+	height="100%"
+	styleName="lightBackground"
+	currentState="{ model.navigator.currentState }"
+	preinitialize="WorkspacesBodyNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.dashboard.workspaces.body.WorkspacesBodyModel;
+			import com.ikanow.infinit.e.model.presentation.dashboard.workspaces.body.WorkspacesBodyNavigator;
+			import com.ikanow.infinit.e.shared.event.WidgetEvent;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import mx.events.FlexEvent;
+			
+			protected static const TRANSITION_DURATION:int = Constants.DRAWER_TRANSITION_DURATION;
+			
+			protected static const DRAWER_BUTTON_WIDTH:Number = Constants.DRAWER_BUTTON_WIDTH;
+			
+			protected static const DRAWER_WIDTH:Number = Constants.DRAWER_WIDTH;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspacesBodyModel;
+			
+			protected function drawerClosed_enterStateHandler( event:FlexEvent ):void
+			{
+				widgets.setOpened( false );
+				
+				setTimeout( sortWidgets, 400 );
+			}
+			
+			/**
+			 * Sort the widgets in the widget drawer
+			 */
+			protected function sortWidgets():void
+			{
+				dispatchEvent( new WidgetEvent( WidgetEvent.SORT_WIDGETS ) );
+			}
+			
+			protected function toggleButtonClickHandler():void
+			{
+				currentState == NavigationConstants.WORKSPACES_BODY_DRAWER_OPEN_ID ? model.navigator.closeDrawer() : model.navigator.openDrawer();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+		<s:Power id="easer"
+			exponent="2" />
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="drawerClosed"
+			enterState="drawerClosed_enterStateHandler(event)" />
+		<s:State name="drawerOpen"
+			enterState="widgets.setOpened( true )" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Transitions :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:transitions>
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_BODY_DRAWER_CLOSED_ID }"
+			toState="{ NavigationConstants.WORKSPACES_BODY_DRAWER_OPEN_ID }">
+			<s:Parallel duration="{ TRANSITION_DURATION }">
+				<s:Move id="resize"
+					easer="{ easer }"
+					target="{ drawer }" />
+			</s:Parallel>
+		</s:Transition>
+	</component:transitions>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Background -->
+	<component:CrossHatchBackground 
+		width="100%"
+		height="100%" />
+
+	<!-- Body -->
+	<s:Group 
+		width="100%"
+		height="100%"
+		clipAndEnableScrolling="true">
+
+		<!-- Workspace -->
+		<workspace:Workspace id="workspace"
+			height="100%"
+			width="{ this.width - DRAWER_BUTTON_WIDTH }" />
+
+		<!-- Widget Drawer -->
+		<s:Group id="drawer"
+			x.drawerClosed="{ this.width - DRAWER_BUTTON_WIDTH }"
+			x.drawerOpen="{ this.width - DRAWER_WIDTH }"
+			width="{ DRAWER_WIDTH }"
+			height="100%"
+			cacheAsBitmap="true">
+
+			<!-- Background -->
+			<component:CrossHatchBackground 
+				width="100%"
+				height="100%" />
+
+			<!-- Widgets -->
+			<widget:Widgets id="widgets"
+				height="100%"
+				width="100%" />
+
+			<!-- Widget Drawer Title Button -->
+			<common:InfButton id="drawerTitleButton"
+				label="{ resourceManager.getString( 'infinite', 'workspacesBody.visiualizationsDrawerLabel' ) }"
+				styleName="widgetsTitleButton"
+				left="5"
+				top="35"
+				click="toggleButtonClickHandler()"
+				rotation="90" />
+
+			<!-- Separator -->
+			<component:VSeparator id="separator"
+				height="100%"
+				styleName="lightSeparator" />
+
+		</s:Group>
+
+	</s:Group>
+
+</component:GradientContainer>

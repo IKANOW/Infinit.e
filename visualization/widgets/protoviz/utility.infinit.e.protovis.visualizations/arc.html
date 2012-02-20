@@ -1,0 +1,62 @@
+<html>
+  <head>
+    <title>Infinit.e Arc</title>
+    <script type="text/javascript" src="protovis-r3.2.js"></script>
+    <script type="text/javascript" src="jquery-1.6.1.js"></script>
+    <script type="text/javascript" src="map.js"></script>
+    <script type="text/javascript" src="arc.js"></script>
+    <style type="text/css">
+
+    #fig {
+      width: 880px;
+      height: 400px;
+    }
+
+    </style>
+  </head>
+  <body>
+
+          <script type="text/javascript+protovis">
+            $.ajax( {
+            type:'Get',
+            url:'query.json',
+            dataType: 'json',
+            success:function(response) {
+        
+              var deesnodes = getNodes(response);
+              //var deesnodes = jQuery.parseJSON( '[{"nodeName":"news", "group":1}, {"nodeName":"imagery", "group":1}]'  );
+              console.log(deesnodes);
+              
+              var deeslinks = getLinks(response);
+              //var deeslinks = jQuery.parseJSON( '[{"source":0, "target":15, "value":10 }]');
+              console.log(deeslinks);   
+            
+              var vis = new pv.Panel()
+                 .width(880)
+                 .height(310)
+                 .bottom(140);
+             
+             var arc = vis.add(pv.Layout.Arc)
+                 .nodes(deesnodes)
+                 .links(deeslinks)
+                 .sort(function(a, b) a.group == b.group
+                     ? b.linkDegree - a.linkDegree
+                     : b.group - a.group);
+                
+             arc.link.add(pv.Line);
+             
+             arc.node.add(pv.Dot)
+                 .size(function(d) d.linkDegree + 4)
+                 .fillStyle(pv.Colors.category19().by(function(d) d.group))
+                 .strokeStyle(function() this.fillStyle().darker());
+             
+             arc.label.add(pv.Label)
+             
+             vis.render();
+            }
+          })
+       </script>
+
+</body>
+</html>
+

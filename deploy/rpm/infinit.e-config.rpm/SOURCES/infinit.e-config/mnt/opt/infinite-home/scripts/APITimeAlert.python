@@ -1,0 +1,44 @@
+import time
+import socket
+import splunk
+import splunk.auth   as au
+import splunk.search as se
+
+# Import ConfigParser module and read python.cfg file for email addresses
+import ConfigParser
+config = ConfigParser.ConfigParser()
+config.read('/opt/infinite-home/config/python.cfg')
+sendEmailTo = config.get('config', 'mail.to')
+sendEmailFrom = config.get('config', 'mail.from')
+
+source = '/opt/infinite-home/logs/infinit.e.api.log'
+capTime = 5 #seconds
+
+today = se.dispatch('search "knowledge/query" | stats avg(time) as average_time(ms), avg(mongoTime) as average_mongo(ms), avg(luceneTime) as average_lucene(ms), avg(setupTime) as average_setup(ms), avg(procTime) as average_proc(ms)', source = source, earliest_time = '-1d' )
+
+while not today.isDone:
+    time.sleep(1)
+
+if today.resultCount > 0:	
+	today_time = float(str(today.results[0]['average_time(ms)']))/1000
+
+	print 'Today: ' + str(today_time) + 's'
+
+	if today_time > capTime:
+		today.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[ALERT] Infinit.e API Search Time Exceeding '+str(capTime)+' Seconds ('+str(today_time)+'s)" priority=highest sendresults=true')
+		r = today.results[0]
+		print 'Cap Email Sent to ' + sendEmailTo
+	else:
+		lastWeek = se.dispatch('search "knowledge/search" | stats avg(time) as average_time(ms), avg(mongoTime) as average_mongo(ms), avg(luceneTime) as average_lucene(ms), avg(setupTime) as average_setup(ms), avg(procTime) as average_proc(ms)',source = source, earliest_time ='-7d')
+		while not lastWeek.isDone:
+			time.sleep(1)
+		
+		week_time = float(str(lastWeek.results[0]['average_time(ms)']))/1000
+		print 'Past 7 Days: ' + str(week_time) + 's'
+		
+		if today_time > week_time + 1:
+			lastWeek.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[ALERT] Infinit.e API Search Time ('+str(today_time)+'s) Above Average ('+str(week_time)+'s)" priority=highest sendresults=false')
+			r = lastWeek.results[0]
+			print 'Above Average Email Sent to ' + sendEmailTo
+		lastWeek.cancel()
+today.cancel()

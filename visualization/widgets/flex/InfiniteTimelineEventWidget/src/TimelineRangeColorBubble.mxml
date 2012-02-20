@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="utf-8"?>
+<actionscript:TimelineExpandCollapseRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+											 xmlns:s="library://ns.adobe.com/flex/spark" 
+											 xmlns:mx="library://ns.adobe.com/flex/mx"  
+											 contentBackgroundColor="{getEventColor(data.event_type)}" 
+											 currentState="baseState" 
+											 height.baseState="30" width.baseState="100"
+											 height.expanded="{this.owner.height - 80}" width.expanded="{this.owner.width - 80}" 
+											 x.expanded="40" y.expanded="40" 
+											 depth.expanded="2" click.baseState="highlightSkin(event)" 
+											 includeInLayout.expanded="false" highlighted="false" creationComplete="init()" 
+											 xmlns:actionscript="actionscript.*">
+	<actionscript:states>
+		<s:State name="baseState"/>
+		<s:State name="expanded"/>
+	</actionscript:states>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>
+		<![CDATA[		
+			import com.ibm.ilog.elixir.timeline.components.supportClasses.TimelineBandBase;
+			import com.ikanow.infinit.e.widget.library.utility.ColorConfig;
+			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+			
+			import mx.controls.Alert;
+			import mx.controls.LinkButton;
+			import mx.controls.Spacer;
+			import mx.core.UIComponent;
+			import mx.events.ResizeEvent;
+			import mx.graphics.SolidColorStroke;
+			
+			import spark.primitives.Line;
+			
+			private var oldWidth:Number = 100;
+			private var MINWIDTH:Number = 50;
+			
+			/**
+			 * function to set default values on creation
+			 * 
+			 */
+			private function init():void
+			{
+				//add item renderers to parent so it can highlight them
+				//if necessary
+				try
+				{
+					var timelinemod:InfiniteTimelineEventWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineEventWidget;
+					timelinemod.addNode(this);
+					updateWidth();
+				}
+				catch (error:Error)
+				{
+					//the parent.parent etc fails because TimelineEventInfinite (about the 6th parent) is not initialized yet
+					//this gets called again i think so it doesnt seem to effect anything? we will see
+				}
+			}
+			
+			/**
+			 * function to get the media color based on its media type
+			 * 
+			 * @param mediaType The media type of the current feed
+			 * 
+			 * @return The color for the media type
+			 */
+			private function getMediaColor(mediaType:String):uint
+			{
+				if ( mediaType != null )
+				{
+					if ( mediaType.toLowerCase() == "news" )
+						return ColorConfig.MEDIATYPE_NEWS;
+					else if ( mediaType.toLowerCase() == "social" )
+						return ColorConfig.MEDIATYPE_SOCIAL;
+					else if ( mediaType.toLowerCase() == "video" )
+						return ColorConfig.MEDIATYPE_VIDEO;
+					else if ( mediaType.toLowerCase() == "discussion" )
+						return ColorConfig.MEDIATYPE_DISCUSSION;
+					else if ( mediaType.toLowerCase() == "blog" )
+						return ColorConfig.MEDIATYPE_BLOG;
+					else if ( mediaType.toLowerCase() == "intel" )
+						return ColorConfig.MEDIATYPE_INTEL;
+					else if ( mediaType.toLowerCase() == "record" )
+						return ColorConfig.MEDIATYPE_RECORD;
+					else if ( mediaType.toLowerCase() == "imagery" )
+						return ColorConfig.MEDIATYPE_IMAGERY;					
+				}
+				return ColorConfig.MEDIATYPE_NONE;
+			}
+			
+			private function getEventColor(eventType:String):uint
+			{
+				if ( eventType != null )
+				{
+					var evt:String = eventType.toLowerCase();
+					if ( evt == "event" )
+						return ColorConfig.EVENTTYPE_EVENT;
+					else if ( evt == "fact" )
+						return ColorConfig.EVENTTYPE_FACT;
+					else if ( evt == "summary" )
+						return ColorConfig.EVENTTYPE_SUMMARY;
+				}
+				return ColorConfig.EVENTTYPE_NONE;
+			}
+			
+			/**
+			 * function to navigate to the url of the feed
+			 * 
+			 * @param _url The url of the feed
+			 */
+			private function navigateToUrl(_url:String):void
+			{
+				var url:URLRequest = new URLRequest(_url);
+				navigateToURL(url,"_blank");
+			}
+			
+			/**
+			 * function to format the date for the feed
+			 * 
+			 * @param date The date of the feed
+			 */
+			private function formatDate(date:String):void
+			{
+				//var _date:Date = new Date(Number(date));
+				
+				//timeDate.text = _date.toString();
+			}
+			
+			/**
+			 * function to format the text for the timeline labels
+			 * 
+			 * @param title The title of the current feed
+			 * 
+			 * @return The formatted title
+			 */
+			private function formatText(entity1:String, entity2:String, verb_category:String, verb:String, assoc_sig:Number, mindWidth:Boolean, includeSig:Boolean=true):String
+			{
+				validateSize(false);
+				var stringSig:String = "";
+				if ( includeSig )
+					stringSig += " (Significance: " + assoc_sig.toFixed(2) + ")";
+				var MAXLENGTH:int = int.MAX_VALUE;
+				if ( mindWidth )
+					MAXLENGTH = (this.width/3);// - stringDoccount.length;
+					
+				
+				var text:String = "";
+				if ( entity1 != null ) 
+				{
+					for each ( var ent1:String in entity1.split(" ",2) )
+						text += ent1 + " ";
+				}
+					
+				if (verb != null)
+				{
+					text += verb + " ("+verb_category+") ";
+				}
+				else //(verb_category != null )
+					text += verb_category + " ";
+				
+				if ( entity2 != null ) 
+				{
+					for each ( var ent2:String in entity2.split(" ",2) )
+					text += ent2 + " ";
+				}
+						
+				text += stringSig;
+				/*if ( text.length > MAXLENGTH )
+				{
+					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH-3)) + "...";
+				}
+				else
+				{
+					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH));
+				}*/
+				MINWIDTH = text.length*6;
+				//updateWidth();
+				//updateWidth(text.length*2);
+				return text;
+			}
+			
+			private function expandText(entity1:String, entity2:String, verb_category:String, verb:String, doccount:int, mindWidth:Boolean, includeDocCount:Boolean=true):String
+			{
+				validateSize(false);
+				var stringDoccount:String = "";
+				if ( includeDocCount )
+					stringDoccount += " (Doc count: " + doccount + ")";
+				var MAXLENGTH:int = int.MAX_VALUE;
+				if ( mindWidth )
+					MAXLENGTH = (this.width/3);// - stringDoccount.length;
+				
+				
+				var text:String = "";
+				if ( entity1 != null ) 
+					text += entity1 + " ";
+				if (verb != null)
+				{
+					text += verb + " ("+verb_category+") ";
+				}
+				else //(verb_category != null )
+					text += verb_category + " ";
+				if ( entity2 != null )
+					text += entity2 + " ";
+				
+				text += stringDoccount;
+				if ( text.length > MAXLENGTH )
+				{
+					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH-3)) + "...";
+				}
+				else
+				{
+					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH));
+				}
+				
+				return text;
+			}
+			
+			/**
+			 * function to switch the states of the item renderer
+			 * to show more data for the feed
+			 * 
+			 * @param event The MouseEvent received when an expand or collapse is requested
+			 */
+			private function switchStates(event:MouseEvent):void
+			{				
+				expanded = !expanded; 
+				event.stopImmediatePropagation();
+				if ( expanded)
+					setupLinks();
+			}
+			
+			/**
+			 * function to highlight the skin
+			 * 
+			 * @param event The MouseEvent received when the skin is clicked
+			 */
+			private function highlightSkin(event:MouseEvent):void
+			{
+				if(!highlighted)
+				{
+					bContainer.setStyle("borderColor", "0x000000");
+				}
+				else if(highlighted)
+				{
+					bContainer.setStyle("borderColor", "0xFFFFFF");
+				}
+				highlighted = !highlighted;				
+				data["highlighted"] = highlighted;
+			}							
+			
+			private function formatHtmlText(unformatted:String):String 
+			{
+				return HtmlConvert.convertEntities(unformatted);
+			}
+			
+			public function hightlightNode(highlight_now:Boolean):void
+			{
+				
+				highlighted = !highlight_now;
+				highlightSkin(null);
+			}
+			
+			public function setOldWidth(oldwidth:Number):void
+			{
+				if ( oldwidth == -1 )
+				{
+					this.width = oldWidth;
+				}
+				else
+				{
+					this.oldWidth = oldwidth;
+				}
+			}
+			
+			public function updateWidth(setWidth:int=-1):void
+			{
+				if ( setWidth > 0 )
+				{
+					//MINWIDTH = setWidth;
+				}
+				var timelinemod:InfiniteTimelineEventWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineEventWidget;
+				var timespan:Number = timelinemod.timeline.endTime.time - timelinemod.timeline.startTime.time;
+				var timespanDays:Number = timespan / 86400000; //1000ms * 60s * 60m * 24h 
+				var timelinepixelwidth:Number = timelinemod.timeline.width;
+				var widthPerDay:Number = timelinepixelwidth/timespanDays;
+				var startDateLong:Number = data.startDate.time;
+				var endDateLong:Number = 0;
+				if ( data.endDate != null )
+					endDateLong = data.endDate.time;
+				else
+					endDateLong = startDateLong;
+				var eventTimeSpan:Number = endDateLong - startDateLong;
+				var eventTimeSpanInDays:Number = eventTimeSpan / 86400000; //1000ms * 60s * 60m * 24h 
+				this.width = widthPerDay * eventTimeSpanInDays;	
+				if ( width < MINWIDTH )
+					this.width = MINWIDTH;				
+			}
+			
+			private function setupLinks():void
+			{
+				if ( this.data.entity1_index != null )
+				{
+					ent1link.label = this.data.entity1_index;
+					ent1link.visible = true;
+				}
+				if ( this.data.entity2_index != null )
+				{
+					ent2link.label = this.data.entity2_index;
+					ent2link.visible = true;
+				}
+			}
+			
+			private function linkClick(event:MouseEvent):void
+			{				
+				var currentURL:String = ExternalInterface.call("window.location.href.toString");
+				currentURL = currentURL.replace(/[^\/]*.htm.*/gi,"");
+				currentURL = currentURL.replace(/?.*$/,"");
+				var url:URLRequest = new URLRequest(currentURL +  "InfiniteEntityProfiler.html?entity=" + event.target.label);
+				navigateToURL(url,'_blank');
+			}
+					
+		]]>
+	</fx:Script>
+	
+	<s:BorderContainer width="100%" height="30" id="bContainer" cornerRadius="8" borderColor="0xFFFFFF" 
+					   borderStyle="solid" borderWeight="3" contentBackgroundColor="{getEventColor(data.event_type)}" includeIn="baseState" >
+		<s:backgroundFill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry color="0xFFFFFF"/>
+					<s:GradientEntry color="{getEventColor(data.event_type)}"/>
+				</s:entries>
+			</s:LinearGradient>
+		</s:backgroundFill>		
+			<s:HGroup  id="topgroup" width="100%" height="100%" horizontalAlign="center" verticalAlign="middle" includeIn="baseState" contentBackgroundColor="{getEventColor(data.event_type)}" paddingLeft="2">				
+				<s:Label  id="article" width="100%" height="12" textAlign="center" text="{formatText(data.entity1, data.entity2, data.verb_category, data.verb, data.assoc_sig, false)}" fontWeight="normal" fontSize="10" lineBreak="explicit" includeIn="baseState"/>
+				<s:Button id="expandWindow" width="15" click="setOldWidth(this.width); switchStates(event);" includeIn="baseState" skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin"/>				
+			</s:HGroup>	
+	</s:BorderContainer>
+	<s:BorderContainer id="bContainerExpanded" cornerRadius="8" borderStyle="solid" borderWeight="3" contentBackgroundColor="0xFFFFFF" includeIn="expanded"
+					   width="100%" height="100%" backgroundColor="0xFFFFFF" borderColor="{getEventColor(data.event_type)}" >		
+		<s:VGroup width="100%" height="{bContainerExpanded.height}" horizontalAlign="left" verticalAlign="top" 
+				  includeIn="expanded" contentBackgroundColor="0xFFFFFF"
+				  paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5">
+			<s:Label text="{'Start Date: ' + data.startDate}" />
+			<s:Label text="{'End Date: ' + data.endDate}" />
+			<s:Label text="{'Significance: ' + data.assoc_sig.toFixed(2)}" />
+			<s:Label text="{'Doc Count: ' + data.doccount}" />
+			<s:Label text="{'Event: ' + expandText(data.entity1, data.entity2, data.verb_category, data.verb, data.doccount, false, false)}" width="100%" lineBreak="toFit" />
+			<s:Label text="Entity links:" />
+			<s:VGroup id="linkgroup">
+				<mx:LinkButton id="ent1link" visible="false" click="linkClick(event)" />
+				<mx:LinkButton id="ent2link" visible="false" click="linkClick(event)" />
+			</s:VGroup>
+		</s:VGroup>	
+		<s:Button id="expandWindowExpanded" width="15" height="15" top="5" right="12" click="switchStates(event); setOldWidth(-1);" includeIn="expanded" 
+				  skinClass.expanded="skins.TimelineMinimizeButtonSkin"/>
+	</s:BorderContainer>
+</actionscript:TimelineExpandCollapseRenderer>

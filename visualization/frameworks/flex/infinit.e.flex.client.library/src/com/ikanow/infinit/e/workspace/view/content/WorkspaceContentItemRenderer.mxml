@@ -1,0 +1,330 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	width="100%"
+	styleName="workspacesWidgetContainer"
+	implements="com.ikanow.infinit.e.workspace.view.layout.IWorkspaceVisualElement"
+	creationComplete="resizeHandler()"
+	resize="resizeHandler()"
+	autoDrawBackground="false"
+	clipAndEnableScrolling="true">
+
+	<fx:Metadata>
+		[Event( name = "maximizeWidget", type = "mx.events.ItemClickEvent" )]
+		[Event( name = "minimizeWidgets", type = "mx.events.ItemClickEvent" )]
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.event.WorkspaceEvent;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.PDFConstants;
+			import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
+			import com.ikanow.infinit.e.shared.model.vo.User;
+			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			import com.ikanow.infinit.e.shared.model.vo.ui.ExportFormat;
+			import com.ikanow.infinit.e.shared.util.PDFGenerator;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import mx.collections.ArrayCollection;
+			import mx.collections.ListCollectionView;
+			import mx.events.ItemClickEvent;
+			import mx.events.ModuleEvent;
+			import mx.resources.ResourceManager;
+			import spark.components.List;
+			
+			[Bindable]
+			[Inject( "workspaceManager.selectedWidgetsSorted", bind = "true" )]
+			/**
+			 *
+			 * @default
+			 */
+			public var selectedWidgetsSorted:ListCollectionView;
+			
+			[Bindable]
+			[Inject( "workspaceManager.maximizedWidget", bind = "true" )]
+			/**
+			 *
+			 * @default
+			 */
+			public var maximizedWidget:Widget;
+			
+			[Bindable]
+			public var moduleExportFormats:ArrayCollection;
+			
+			[Bindable]
+			public var exportFormats:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			public var title:String = Constants.BLANK;
+			
+			[Bindable]
+			public var allowDrag:Boolean;
+			
+			[Bindable]
+			public var showNavigationButtons:Boolean;
+			
+			private var _positionIndex:int;
+			
+			[Bindable]
+			public function get positionIndex():int
+			{
+				return _positionIndex;
+			}
+			
+			public function set positionIndex( value:int ):void
+			{
+				_positionIndex = value;
+			}
+			
+			private var _maximized:Boolean;
+			
+			[Bindable]
+			public function get maximized():Boolean
+			{
+				return _maximized;
+			}
+			
+			public function set maximized( value:Boolean ):void
+			{
+				_maximized = value;
+			}
+			
+			[Inject( "userManager.currentUser", bind = "true" )]
+			/**
+			 * The current user
+			 */
+			public var currentUser:User;
+			
+			override public function set data( value:Object ):void
+			{
+				// clear the export formats
+				moduleExportFormats = null;
+				exportFormats = new ArrayCollection();
+				
+				super.data = value;
+				
+				if ( value == null )
+					return;
+				
+				var widget:Widget = value as Widget;
+				
+				// set the Title
+				title = widget.title;
+				
+				// set the position index
+				positionIndex = widget.positionIndex;
+				
+				// set the maximized boolean
+				maximized = widget.maximized;
+				
+				// set the allowDrag boolean
+				allowDrag = ( !widget.maximized && widget.parentCollectionCount > 1 );
+				
+				// set the showNavigationButtons boolean
+				showNavigationButtons = ( maximized && widget.parentCollectionCount > 1 );
+				
+				// update the parent layout
+				invalidateParentSizeAndDisplayList();
+				
+				// load the module
+				if ( moduleContainer.child == null )
+				{
+					moduleContainer.load( widget.url );
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			/**
+			 * Select a new widget to display maximized
+			 * @param widget
+			 */
+			public function dispatchMaximizeWidgetEvent( widget:Widget ):void
+			{
+				dispatchEvent( new WorkspaceEvent( WorkspaceEvent.MAXIMIZE_WIDGET, widget ) );
+			}
+			
+			/**
+			 * Maximize the next widget
+			 * @param widget
+			 */
+			public function maximizeNextWidget():void
+			{
+				if ( maximized && selectedWidgetsSorted && maximizedWidget )
+				{
+					var index:int = selectedWidgetsSorted.getItemIndex( maximizedWidget );
+					
+					if ( index == selectedWidgetsSorted.length - 1 )
+						dispatchMaximizeWidgetEvent( selectedWidgetsSorted.getItemAt( 0 ) as Widget );
+					else
+						dispatchMaximizeWidgetEvent( selectedWidgetsSorted.getItemAt( index + 1 ) as Widget );
+				}
+			}
+			
+			/**
+			 * Maximize the previous widget
+			 * @param widget
+			 */
+			public function maximizePreviousWidget():void
+			{
+				if ( maximized && selectedWidgetsSorted && maximizedWidget )
+				{
+					var index:int = selectedWidgetsSorted.getItemIndex( maximizedWidget );
+					
+					if ( index == 0 )
+						dispatchMaximizeWidgetEvent( selectedWidgetsSorted.getItemAt( selectedWidgetsSorted.length - 1 ) as Widget );
+					else
+						dispatchMaximizeWidgetEvent( selectedWidgetsSorted.getItemAt( index - 1 ) as Widget );
+				}
+			}
+			
+			protected function customExport( format:String ):void
+			{
+				if ( format.toLowerCase() == PDFConstants.PDF )
+				{
+					var printPDF:PDFGenerator = new PDFGenerator();
+					printPDF.widgetToPdf( moduleContainer.child, title );
+					printPDF.saveToPdf();
+				}
+				else
+				{
+					var current_time:Date = new Date();
+					var suggestedFilename:String = currentUser.displayName + current_time.getMonth() + current_time.getDay() + current_time.getFullYear();
+					var bytes:ByteArray = IWidget( moduleContainer.child ).onGenerateExportData( suggestedFilename, format );
+					var fileRef:FileReference = new FileReference();
+					fileRef.save( bytes, suggestedFilename + Constants.PERIOD + format );
+				}
+			}
+			
+			protected function maximizeWidget():void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( "maximizeWidget", true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function minimizeWidget():void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( "minimizeWidgets", true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function moduleContainer_headerMouseOutHandler():void
+			{
+				List( owner ).dragEnabled = false;
+			}
+			
+			protected function moduleContainer_headerMouseOverHandler():void
+			{
+				List( owner ).dragEnabled = true;
+			}
+			
+			protected function moduleContainer_headerMouseUpHandler():void
+			{
+				List( owner ).dragEnabled = false;
+			}
+			
+			protected function moduleContainer_readyHandler( event:ModuleEvent ):void
+			{
+				moduleExportFormats = IWidget( moduleContainer.child ).supportedExportFormats();
+				exportFormats = new ArrayCollection();
+				
+				for each ( var format:String in moduleExportFormats )
+				{
+					var exportFormat:ExportFormat = new ExportFormat( resourceManager.getString( 'infinite', 'workspaceContentItemRenderer.exportTo' ) + format.toUpperCase(), format );
+					exportFormats.addItem( exportFormat );
+				}
+			}
+			
+			protected function removeWidget():void
+			{
+				dispatchEvent( new WorkspaceEvent( WorkspaceEvent.REMOVE_WIDGET, data as Widget ) );
+			}
+			
+			protected function resizeHandler():void
+			{
+				moduleGroup.setActualSize( this.width, this.height );
+				moduleContainer.setActualSize( this.width, this.height );
+				moduleContainer.resizeModule( this.width, this.height );
+			}
+			
+			protected function selectOptions_changeHandler():void
+			{
+			/* var exportFormat:ExportFormat = selectOptions.selectedItem as ExportFormat;
+			customExport( exportFormat.format );
+			
+			selectOptions.selectedIndex = -1; */
+			}
+			
+			protected function selectOptions_creationCompleteHandler():void
+			{
+			/* this.selectOptions.selectedIndex = -1; */
+			}
+		]]>
+	</fx:Script>
+
+	<!-- module group -->
+	<s:Group id="moduleGroup"
+		width="100%"
+		height="100%"
+		resize="resizeHandler()">
+
+		<!-- background -->
+		<component:GradientContainer 
+			styleName="workspacesWidgetContainerBackground"
+			width="100%"
+			height="100%" />
+
+		<!-- module -->
+		<component:ModuleContainer id="moduleContainer"
+			bottom="0"
+			left="0"
+			right="0"
+			top="0"
+			allowDrag="{ allowDrag }"
+			close="removeWidget()"
+			closeButtonVisible="true"
+			exportButtonVisible="true"
+			headerMouseOut="moduleContainer_headerMouseOutHandler()"
+			headerMouseOver="moduleContainer_headerMouseOverHandler()"
+			headerMouseUp="moduleContainer_headerMouseUpHandler()"
+			maximize="maximizeWidget()"
+			maximized="{ maximized }"
+			minimize="minimizeWidget()"
+			navigationButtonsVisible="true"
+			next="maximizeNextWidget()"
+			previous="maximizePreviousWidget()"
+			ready="moduleContainer_readyHandler(event)"
+			resizeButtonVisible="true"
+			title="{ title }" />
+
+		<s:Rect id="contentBorder"
+			bottom="-1"
+			left="0"
+			right="0"
+			top="0"
+			topLeftRadiusX="8"
+			topLeftRadiusY="8"
+			topRightRadiusX="8"
+			topRightRadiusY="8">
+			<s:fill>
+				<s:SolidColor 
+					color="#FFFFFF"
+					alpha="0" />
+			</s:fill>
+			<s:stroke>
+				<s:SolidColorStroke 
+					color="0xBDBDBD"
+					weight="1" />
+			</s:stroke>
+		</s:Rect>
+
+	</s:Group>
+
+</s:ItemRenderer>

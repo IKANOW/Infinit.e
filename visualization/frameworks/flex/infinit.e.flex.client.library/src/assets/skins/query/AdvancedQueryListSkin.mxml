@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("spark.components.SkinnableDataContainer")]
+    ]]>
+	</fx:Metadata>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<fx:Declarations>
+		<!---
+		Defines the appearance of the the List's drop indicator.
+		To customize the drop indicator appearance, create a custom ListSkin class.
+		The List's layout takes care to size and position the dropIndicator.
+		The size of the <code>dropIndicator</code> is typically set to the size of the gaps between the items.
+		The minimum and maximum settings are typically respected only in the direction
+		along the major axis (the gap axis).  For example a VerticalLayout ignores the
+		<code>minWidth</code> and <code>maxWidth</code> settings,
+		but respect <code>minHeight</code> and <code>maxHeight</code>.
+
+		@copy spark.components.List#dropIndicator
+		-->
+		<fx:Component id="dropIndicator">
+			<s:Group 
+				minWidth="3"
+				minHeight="3"
+				maxWidth="3"
+				maxHeight="3">
+				<s:Rect 
+					bottom="0"
+					left="0"
+					right="0"
+					top="0">
+					<s:fill>
+						<!--- Defines the color of the background. -->
+						<s:SolidColor color="0xBBBBBB" />
+					</s:fill>
+					<s:stroke>
+						<s:SolidColorStroke 
+							color="0xFF0000"
+							weight="1" />
+					</s:stroke>
+				</s:Rect>
+			</s:Group>
+		</fx:Component>
+	</fx:Declarations>
+
+	<!--
+	  Note: setting the minimum size to 0 here so that changes to the host component's
+	  size will not be thwarted by this skin part's minimum size.   This is a compromise,
+	  more about it here: http://bugs.adobe.com/jira/browse/SDK-21143
+	-->
+	<!--- @copy spark.components.SkinnableDataContainer#dataGroup -->
+	<s:DataGroup id="dataGroup"
+		minWidth="0"
+		minHeight="0"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0">
+		<s:layout>
+			<s:VerticalLayout horizontalAlign="contentJustify" />
+		</s:layout>
+	</s:DataGroup>
+
+</s:Skin>

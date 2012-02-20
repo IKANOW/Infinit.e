@@ -1,0 +1,373 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	paddingLeft="6"
+	paddingRight="6"
+	gap="3">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Events ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[Event( name = "updateQueryTerm", type = "flash.events.Event" )]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
+			import com.ikanow.infinit.e.query.view.Query;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+			import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
+			import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
+			import com.ikanow.infinit.e.shared.model.vo.QueryTermEvent;
+			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			import com.ikanow.infinit.e.shared.util.ServiceUtil;
+			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			import spark.events.TextOperationEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryTermEditorModel;
+			
+			[Bindable]
+			public var queryTermEvent:QueryTermEvent;
+			
+			protected var currentTextInput:InfTextInput;
+			
+			protected var lastTextInput:InfTextInput;
+			
+			protected var topOfSuggestionsList:Boolean;
+			
+			/**
+			 * sets the editor query term from the editor query term
+			 */
+			[Inject( "queryTermEditorModel.editorQueryTerm", bind = "true" )]
+			public function setEditorQueryTerm( value:QueryTerm ):void
+			{
+				var queryTermEventNew:QueryTermEvent = new QueryTermEvent();
+				queryTermEventNew.entity1 = new QueryTerm();
+				queryTermEventNew.entity2 = new QueryTerm();
+				
+				if ( value )
+				{
+					if ( value.event && value.event.entity1 )
+						queryTermEventNew.entity1 = value.event.entity1.clone();
+					
+					if ( value.event && value.event.verb )
+						queryTermEventNew.verb = value.event.verb;
+					
+					if ( value.event && value.event.entity2 )
+						queryTermEventNew.entity2 = value.event.entity2.clone();
+				}
+				
+				queryTermEvent = queryTermEventNew;
+			}
+			
+			/**
+			 * Update the query term
+			 */
+			public function updateQueryTerm():void
+			{
+				model.hideSuggestionsList();
+				
+				dispatchEvent( new Event( "updateQueryTerm", true ) );
+				
+				model.updateEventQueryType( queryTermEvent );
+			}
+			
+			protected function getSuggestionKeywordString():String
+			{
+				var keyWordString:String = Constants.BLANK;
+				
+				switch ( currentTextInput )
+				{
+					case entity1:
+						keyWordString += ( entity1.text == Constants.BLANK ) ? Constants.WILDCARD_FORWARD_SLASH : QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity1.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( verb.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity2.text ) ) + Constants.FORWARD_SLASH;
+						break;
+					case verb:
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity1.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += ( verb.text == Constants.BLANK ) ? Constants.WILDCARD_FORWARD_SLASH : QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( verb.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity2.text ) ) + Constants.FORWARD_SLASH;
+						break;
+					case entity2:
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity1.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( verb.text ) ) + Constants.FORWARD_SLASH;
+						keyWordString += ( entity2.text == Constants.BLANK ) ? Constants.WILDCARD_FORWARD_SLASH : QueryUtil.getValueOrNullString( ServiceUtil.getURLEncodedString( entity2.text ) ) + Constants.FORWARD_SLASH;
+						break;
+				}
+				
+				keyWordString += getSuggestionSearchType();
+				
+				return keyWordString;
+			}
+			
+			protected function getSuggestionSearchType():String
+			{
+				switch ( currentTextInput )
+				{
+					case entity1:
+						return QueryConstants.EVENT_ENTITY_1;
+					case verb:
+						return QueryConstants.EVENT_VERB;
+					case entity2:
+						return QueryConstants.EVENT_ENTITY_2;
+				}
+				
+				return QueryConstants.EVENT_ENTITY_1;
+			}
+			
+			protected function setTopOfSuggestionListFlag():void
+			{
+				topOfSuggestionsList = suggestions.selectedIndex == 0;
+			}
+			
+			protected function suggestions_changeHandler():void
+			{
+				model.setSelectedSuggestion( suggestions.selectedItem as QuerySuggestion );
+				updateQueryTermFromSelectedSuggestion();
+				setTopOfSuggestionListFlag();
+			}
+			
+			protected function suggestions_focusInHandler():void
+			{
+				if ( suggestions.selectedIndex == -1 )
+				{
+					model.setSuggestionsSelectedIndex( 0 );
+					setTopOfSuggestionListFlag();
+				}
+			}
+			
+			protected function suggestions_focusOutHandler():void
+			{
+				if ( model )
+					model.hideSuggestionsList();
+			}
+			
+			protected function suggestions_itemClickHandler( event:ItemClickEvent ):void
+			{
+				suggestions_changeHandler();
+				model.hideSuggestionsList();
+				setTimeout( currentTextInput.setFocus, 100 );
+			}
+			
+			protected function suggestions_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( ( event.keyCode == Keyboard.UP ) || ( event.keyCode == Keyboard.DOWN ) )
+				{
+					// if we're at the top and try to go up, return to simpleSearch		
+					if ( topOfSuggestionsList && event.keyCode == Keyboard.UP )
+						currentTextInput.setFocus(); // ( second time through we're headed back to the simpleSearch )
+					else
+						setTopOfSuggestionListFlag();
+				}
+				else // Any other key
+				{
+					model.hideSuggestionsList();
+					currentTextInput.setFocus();
+				}
+			}
+			
+			protected function textInput_changeHandler( event:TextOperationEvent ):void
+			{
+				updateQueryTermFromInput();
+				model.getQueryEventSuggestions( getSuggestionKeywordString(), currentTextInput.text == Constants.BLANK ? Constants.WILDCARD : currentTextInput.text );
+			}
+			
+			protected function textInput_focusInHandler( event:FocusEvent ):void
+			{
+				currentTextInput = event.currentTarget as InfTextInput;
+				
+				if ( currentTextInput.text.length > 0 )
+				{
+					currentTextInput.selectRange( currentTextInput.text.length, currentTextInput.text.length );
+				}
+				
+				if ( currentTextInput != lastTextInput )
+				{
+					model.clearSuggestionsList();
+					lastTextInput = currentTextInput;
+				}
+			}
+			
+			protected function textInput_keyDownHandler( event:KeyboardEvent ):void
+			{
+				if ( event.keyCode == Keyboard.DOWN )
+				{
+					if ( !suggestions.visible )
+					{
+						if ( !model.suggestions || model.suggestions.length == 0 )
+						{
+							model.getQueryEventSuggestions( getSuggestionKeywordString(), currentTextInput.text == Constants.BLANK ? Constants.WILDCARD : currentTextInput.text );
+						}
+						
+						// set the selected index and scroll to item
+						if ( model.suggestions && suggestions.selectedIndex == -1 )
+						{
+							model.setSuggestionsSelectedIndex( 0 );
+							suggestions.ensureIndexIsVisible( 0 );
+							suggestions_changeHandler();
+						}
+						
+						model.showSuggestionsList();
+					}
+					
+					suggestions.setFocus();
+					setTopOfSuggestionListFlag();
+				}
+				else if ( event.keyCode == Keyboard.UP )
+				{
+					if ( !suggestions.visible )
+					{
+						model.getQueryEventSuggestions( getSuggestionKeywordString(), currentTextInput.text == Constants.BLANK ? Constants.WILDCARD : currentTextInput.text );
+						model.showSuggestionsList();
+					}
+					
+					// set focus to the suggestions list
+					suggestions.setFocus();
+					
+					// set the selected index and scroll to item
+					if ( model.suggestions && suggestions.selectedIndex < 1 )
+					{
+						model.setSuggestionsSelectedIndex( model.suggestions.length - 1 );
+						suggestions.ensureIndexIsVisible( model.suggestions.length - 1 );
+						suggestions_changeHandler();
+					}
+					
+					setTopOfSuggestionListFlag();
+					
+				}
+				else if ( event.keyCode == Keyboard.TAB )
+				{
+					model.hideSuggestionsList();
+				}
+				else if ( event.keyCode == Keyboard.ESCAPE )
+				{
+					model.hideSuggestionsList();
+				}
+			}
+			
+			protected function updateQueryTermFromInput():void
+			{
+				var queryTermNew:QueryTerm = new QueryTerm();
+				
+				switch ( currentTextInput )
+				{
+					case entity1:
+						queryTermNew.etext = currentTextInput.text;
+						queryTermEvent.entity1 = queryTermNew;
+						break;
+					case verb:
+						queryTermEvent.verb = currentTextInput.text;
+						break;
+					case entity2:
+						queryTermNew.etext = currentTextInput.text;
+						queryTermEvent.entity2 = queryTermNew;
+						break;
+				}
+			}
+			
+			protected function updateQueryTermFromSelectedSuggestion():void
+			{
+				var queryTermNew:QueryTerm = new QueryTerm();
+				
+				switch ( currentTextInput )
+				{
+					case entity1:
+						queryTermNew = QueryUtil.getQueryTermFromSuggestion( model.selectedSuggestion );
+						queryTermEvent.entity1 = queryTermNew;
+						break;
+					case verb:
+						queryTermEvent.verb = model.selectedSuggestion.value;
+						break;
+					case entity2:
+						queryTermNew = QueryUtil.getQueryTermFromSuggestion( model.selectedSuggestion );
+						queryTermEvent.entity2 = queryTermNew;
+						break;
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:HGroup 
+		width="100%"
+		verticalAlign="middle">
+
+		<!-- Entity1 -->
+		<textInput:InfTextInput id="entity1"
+			width="100%"
+			height="40"
+			styleName="infTextInput"
+			text="{ queryTermEvent.entity1.eventEntityLabel }"
+			change="textInput_changeHandler(event)"
+			focusIn="textInput_focusInHandler(event)"
+			keyDown="textInput_keyDownHandler(event)"
+			enter="updateQueryTerm()"
+			prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.event.term1' ) }" />
+
+		<!-- Verb -->
+		<textInput:InfTextInput id="verb"
+			width="100%"
+			height="40"
+			styleName="infTextInput"
+			text="{ queryTermEvent.verb }"
+			change="textInput_changeHandler(event)"
+			focusIn="textInput_focusInHandler(event)"
+			keyDown="textInput_keyDownHandler(event)"
+			enter="updateQueryTerm()"
+			prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.event.verb' ) }" />
+
+		<!-- Entity2 -->
+		<textInput:InfTextInput id="entity2"
+			width="100%"
+			height="40"
+			styleName="infTextInput"
+			text="{ queryTermEvent.entity2.eventEntityLabel }"
+			change="textInput_changeHandler(event)"
+			focusIn="textInput_focusInHandler(event)"
+			keyDown="textInput_keyDownHandler(event)"
+			enter="updateQueryTerm()"
+			prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.event.term2' ) }" />
+
+	</s:HGroup>
+
+	<!-- Suggestions -->
+	<common:InfItemClickList id="suggestions"
+		width="608"
+		maxHeight="300"
+		styleName="queryEditorSuggestionList"
+		labelField="displayValueHTML"
+		horizontalScrollPolicy="off"
+		focusEnabled="{ model.showSuggestions }"
+		dataProvider="{ model.suggestions }"
+		includeInLayout="{ model.showSuggestions }"
+		selectedIndex="{ model.suggestionsSelectedIndex }"
+		change="suggestions_changeHandler()"
+		focusIn="suggestions_focusInHandler()"
+		focusOut="suggestions_focusOutHandler()"
+		itemClick="suggestions_itemClickHandler(event)"
+		keyDown="suggestions_keyDownHandler(event)"
+		itemRenderer="com.ikanow.infinit.e.shared.view.renderer.QueryEventSuggestionItemRenderer"
+		visible="{ model.showSuggestions }">
+		<common:layout>
+			<s:VerticalLayout 
+				paddingBottom="6"
+				paddingTop="8"
+				requestedMinRowCount="1"
+				useVirtualLayout="false" />
+		</common:layout>
+	</common:InfItemClickList>
+
+</s:VGroup>

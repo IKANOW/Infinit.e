@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				autoDrawBackground="true" rollOverColor="{data.statusColor}"
+				>
+	<fx:Script>
+		<![CDATA[
+			import mx.core.IVisualElement;
+			import mx.events.FlexEvent;
+
+			protected function circle_renderHandler(event:Event):void
+			{
+				var sprite:Sprite = new Sprite();
+				sprite.graphics.beginFill(0x000000);
+				sprite.graphics.drawCircle(15,15,10);
+				sprite.graphics.beginFill(data.statusColor);
+				sprite.graphics.drawCircle(15,15,9);					
+				circle.addChild(sprite);
+			}
+
+		]]>
+	</fx:Script>
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+	</s:states>
+	
+	<s:HGroup width="100%" height="100%" paddingTop="1" paddingBottom="1" verticalAlign="middle">
+		<mx:Image width="30" height="30" source="{data.statusImage}" />
+		<s:Rect width="30" height="30">
+			<s:stroke>
+				<s:SolidColorStroke color="#000000" weight="2" />
+			</s:stroke>
+			<s:fill>
+				<s:SolidColor color="{data.statusColor}" />
+			</s:fill>
+		</s:Rect>
+		<s:SpriteVisualElement id="circle" width="30" height="30" render="circle_renderHandler(event)" />
+		<s:Label text="{data._id}" width="175" />
+		<s:Label text="{(data.title as String).substr(0,30)}" toolTip="{data.title}" width="200" />
+		<s:Label text="{data.harvest.harvest_status}" width="75" />
+		<s:Label text="{data.harvest.harvested}" width="175" />
+		<s:Label text="{data.harvest.harvest_message}" />
+	</s:HGroup>
+	
+	
+</s:ItemRenderer>

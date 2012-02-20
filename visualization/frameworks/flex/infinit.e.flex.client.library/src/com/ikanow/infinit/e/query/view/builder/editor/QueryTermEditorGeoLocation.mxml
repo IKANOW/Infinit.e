@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	paddingLeft="6"
+	paddingRight="6"
+	verticalAlign="middle">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Events ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[Event( name = "updateQueryTerm", type = "flash.events.Event" )]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryTermEditorModel;
+			
+			/**
+			 * Update the query term
+			 */
+			public function updateQueryTerm():void
+			{
+				model.hideSuggestionsList();
+				
+				dispatchEvent( new Event( "updateQueryTerm", true ) );
+				
+				model.updateGeoQueryType( geoLat.text, geoLon.text, geoRadius.text );
+			}
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<!-- validators -->
+		<!--<s:NumberValidator id="latValidator"
+			maxValue="90"
+			minValue="-90"
+			property="text"
+			required="false"
+			source="{ geoLat }" />
+		<s:NumberValidator id="lonValidator"
+			maxValue="180"
+			minValue="-180"
+			property="text"
+			required="false"
+			source="{ geoLon }" />-->
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Latitude -->
+	<textInput:InfTextInput id="geoLat"
+		width="100%"
+		height="40"
+		styleName="infTextInput"
+		text="{ model.editorQueryTerm.geo.centerLatLong.lat == 0 ? '' : model.editorQueryTerm.geo.centerLatLong.lat.toString() }"
+		enter="updateQueryTerm()"
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lat' ) }" />
+
+	<!-- Longitude -->
+	<textInput:InfTextInput id="geoLon"
+		width="100%"
+		height="40"
+		styleName="infTextInput"
+		text="{ model.editorQueryTerm.geo.centerLatLong.lng == 0 ? '' : model.editorQueryTerm.geo.centerLatLong.lng.toString() }"
+		enter="updateQueryTerm()"
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lon' ) }" />
+
+	<!-- Radius (Distance) -->
+	<textInput:InfTextInput id="geoRadius"
+		width="100%"
+		styleName="infTextInput"
+		height="40"
+		text="{ model.editorQueryTerm.geo.dist == 0 ? '' : model.editorQueryTerm.geo.dist.toString() }"
+		enter="updateQueryTerm()"
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.radius' ) }" />
+
+</s:HGroup>

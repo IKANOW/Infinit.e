@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:GradientContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:dashboard1="com.ikanow.infinit.e.view.dashboard.*"
+	xmlns:login1="com.ikanow.infinit.e.view.login.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:dashboard="com.ikanow.infinit.e.dashboard.view.*"
+	xmlns:login="com.ikanow.infinit.e.login.view.*"
+	styleName="background"
+	currentState="{ model.navigator.currentState }"
+	mouseMove="mouseMoveHandler(event)"
+	preinitialize="MainNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.MainModel;
+			import com.ikanow.infinit.e.model.presentation.MainNavigator;
+			
+			[Bindable]
+			[Inject]
+			public var model:MainModel;
+			
+			protected function mouseMoveHandler( event:MouseEvent ):void
+			{
+				model.mouseMoveHandler( event.stageX, event.stageY );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+
+		<s:Fade id="fadeIn"
+			alphaFrom="0"
+			alphaTo="1"
+			duration="400" />
+
+		<s:Fade id="fadeOut"
+			alphaFrom="1"
+			alphaTo="0"
+			duration="0" />
+
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="login" />
+		<s:State name="dashboard" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Login -->
+	<login1:Login id="loginView"
+		width="100%"
+		height="100%"
+		enabled.login="true"
+		enabled="false"
+		hideEffect="{ fadeOut }"
+		showEffect="{ fadeIn }"
+		visible="false"
+		visible.login="true" />
+
+	<!-- Dashboard -->
+	<dashboard1:Dashboard id="dashboardView"
+		width="100%"
+		height="100%"
+		enabled.dashboard="true"
+		enabled="false"
+		hideEffect="{ fadeOut }"
+		showEffect="{ fadeIn }"
+		visible="false"
+		visible.dashboard="true" />
+
+</component:GradientContainer>

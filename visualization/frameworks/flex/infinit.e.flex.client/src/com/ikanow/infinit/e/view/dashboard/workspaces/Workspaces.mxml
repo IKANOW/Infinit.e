@@ -1,0 +1,437 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:body="com.ikanow.infinit.e.view.dashboard.workspaces.body.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:header="com.ikanow.infinit.e.view.dashboard.workspaces.header.*"
+	xmlns:history="com.ikanow.infinit.e.history.view.*"
+	xmlns:query="com.ikanow.infinit.e.query.view.*"
+	xmlns:sources="com.ikanow.infinit.e.source.view.*"
+	xmlns:view="com.ikanow.infinit.e.workspaces.view.*"
+	xmlns:welcome="com.ikanow.infinit.e.welcome.view.*"
+	currentState="{ model.navigator.currentState }"
+	addedToStage="addedToStageHandler(event)"
+	preinitialize="WorkspacesNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.model.presentation.dashboard.workspaces.WorkspacesModel;
+			import com.ikanow.infinit.e.model.presentation.dashboard.workspaces.WorkspacesNavigator;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import com.ikanow.infinit.e.shared.view.component.common.InfItemClickList;
+			import mx.events.FlexEvent;
+			import spark.components.RichEditableText;
+			
+			protected static const TRANSITION_DURATION:int = Constants.TRANSITION_DURATION;
+			
+			protected static const MODAL_ALPHA:Number = Constants.MODAL_ALPHA;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspacesModel;
+			
+			protected function addedToStageHandler( event:Event ):void
+			{
+				stage.addEventListener( KeyboardEvent.KEY_DOWN, hideDialogs );
+			}
+			
+			protected function hideDialogs( event:KeyboardEvent ):void
+			{
+				// close the dialogs unless esc was hit from input
+				if ( event.keyCode == Keyboard.ESCAPE && !( event.target is RichEditableText ) && !( event.target is InfItemClickList ) )
+				{
+					model.navigator.showBodyView();
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="body"
+			stateGroups="workspacesEnabledStates" />
+		<s:State name="welcome"
+			stateGroups="workspacesDisabledStates" />
+		<s:State name="query"
+			stateGroups="workspacesDisabledStates" />
+		<s:State name="sources"
+			stateGroups="workspacesDisabledStates" />
+		<s:State name="history"
+			stateGroups="workspacesDisabledStates" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+		<s:Power id="easer"
+			exponent="{ Constants.TRANSITION_EASER_EXPONENT }" />
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Transitions :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:transitions>
+
+		<!-- Advanced Query / Workspaces -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_BODY_ID }"
+			toState="{ NavigationConstants.WORKSPACES_QUERY_ID }">
+			<s:Parallel duration="{ TRANSITION_DURATION }">
+				<s:Animate 
+					easer="{ easer }"
+					target="{ modalBackground }">
+					<s:SimpleMotionPath 
+						property="backgroundAlpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Animate 
+					easer="{ easer }"
+					target="{ query }">
+					<s:SimpleMotionPath 
+						property="alpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Move 
+					easer="{ easer }"
+					target="{ query }" />
+			</s:Parallel>
+		</s:Transition>
+
+		<!-- Sources / Workspaces -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_BODY_ID }"
+			toState="{ NavigationConstants.WORKSPACES_SOURCES_ID }">
+			<s:Parallel duration="{ TRANSITION_DURATION }">
+				<s:Animate 
+					easer="{ easer }"
+					target="{ modalBackground }">
+					<s:SimpleMotionPath 
+						property="backgroundAlpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Animate 
+					easer="{ easer }"
+					target="{ sources }">
+					<s:SimpleMotionPath 
+						property="alpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Move 
+					easer="{ easer }"
+					target="{ sources }" />
+			</s:Parallel>
+		</s:Transition>
+
+		<!-- History / Workspaces -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_BODY_ID }"
+			toState="{ NavigationConstants.WORKSPACES_HISTORY_ID }">
+			<s:Parallel duration="{ TRANSITION_DURATION }">
+				<s:Animate 
+					easer="{ easer }"
+					target="{ modalBackground }">
+					<s:SimpleMotionPath 
+						property="backgroundAlpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Animate 
+					easer="{ easer }"
+					target="{ history }">
+					<s:SimpleMotionPath 
+						property="alpha"
+						valueFrom="0.0"
+						valueTo="{ MODAL_ALPHA }" />
+				</s:Animate>
+				<s:Move 
+					easer="{ easer }"
+					target="{ history }" />
+			</s:Parallel>
+		</s:Transition>
+
+		<!-- Advanced Query / Sources -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_QUERY_ID }"
+			toState="{ NavigationConstants.WORKSPACES_SOURCES_ID }">
+			<s:Parallel>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ query }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ sources }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Move 
+						easer="{ easer }"
+						target="{ query }" />
+					<s:Move 
+						easer="{ easer }"
+						target="{ sources }" />
+				</s:Sequence>
+			</s:Parallel>
+		</s:Transition>
+
+		<!-- Advanced Query / History -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_QUERY_ID }"
+			toState="{ NavigationConstants.WORKSPACES_HISTORY_ID }">
+			<s:Parallel>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ query }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ history }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Move 
+						easer="{ easer }"
+						target="{ query }" />
+					<s:Move 
+						easer="{ easer }"
+						target="{ history }" />
+				</s:Sequence>
+			</s:Parallel>
+		</s:Transition>
+
+		<!-- Sources / History -->
+		<s:Transition 
+			autoReverse="true"
+			fromState="{ NavigationConstants.WORKSPACES_SOURCES_ID }"
+			toState="{ NavigationConstants.WORKSPACES_HISTORY_ID }">
+			<s:Parallel>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ modalBackground }">
+						<s:SimpleMotionPath 
+							property="backgroundAlpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Animate 
+						easer="{ easer }"
+						target="{ sources }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="{ MODAL_ALPHA }"
+							valueTo="0.0" />
+					</s:Animate>
+					<s:Animate 
+						easer="{ easer }"
+						target="{ history }">
+						<s:SimpleMotionPath 
+							property="alpha"
+							valueFrom="0.0"
+							valueTo="{ MODAL_ALPHA }" />
+					</s:Animate>
+				</s:Sequence>
+				<s:Sequence duration="{ TRANSITION_DURATION }">
+					<s:Move 
+						easer="{ easer }"
+						target="{ sources }" />
+					<s:Move 
+						easer="{ easer }"
+						target="{ history }" />
+				</s:Sequence>
+			</s:Parallel>
+		</s:Transition>
+
+	</s:transitions>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Workspaces -->
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		styleName="noModalBackground"
+		enabled.workspacesDisabledStates="false"
+		enabled.workspacesEnabledStates="true"
+		gap="0">
+
+		<!-- Header -->
+		<header:WorkspacesHeader 
+			width="100%"
+			height="27" />
+
+		<!-- Workspace -->
+		<body:WorkspacesBody id="workspacesBody"
+			width="100%"
+			height="100%" />
+
+	</s:VGroup>
+
+	<!-- Modal Background -->
+	<s:SkinnableContainer id="modalBackground"
+		width="100%"
+		styleName="modalBackground"
+		enabled="false"
+		backgroundAlpha="{ MODAL_ALPHA }"
+		backgroundAlpha.body="0.0"
+		bottom="0"
+		top="0"
+		mouseEnabled="false" />
+
+	<!-- Dialogs Mask -->
+	<s:Group id="dialogsMask"
+		bottom="0"
+		left="0"
+		right="0"
+		top="-2">
+		<s:Rect 
+			bottom="0"
+			left="0"
+			right="0"
+			top="0">
+			<s:fill>
+				<s:SolidColor />
+			</s:fill>
+		</s:Rect>
+	</s:Group>
+
+	<!-- Dialogs -->
+	<s:Group 
+		width="100%"
+		height="100%"
+		top="-2"
+		mask="{ dialogsMask }">
+
+		<!-- Advanced Query -->
+		<query:Query id="query"
+			width="80%"
+			height="80%"
+			y="{ -query.height }"
+			y.query="-1"
+			enabled.query="true"
+			enabled.workspacesEnabledStates="false"
+			horizontalCenter="0"
+			alpha="0.0"
+			alpha.query="{ MODAL_ALPHA }"
+			cacheAsBitmap="true" />
+
+		<!-- Sources -->
+		<sources:Sources id="sources"
+			width="80%"
+			height="80%"
+			y="{ -sources.height }"
+			y.sources="-1"
+			enabled.sources="true"
+			enabled.workspacesEnabledStates="false"
+			horizontalCenter="0"
+			alpha="0.0"
+			alpha.sources="{ MODAL_ALPHA }"
+			cacheAsBitmap="true" />
+
+		<!-- History -->
+		<history:History id="history"
+			width="80%"
+			height="80%"
+			y="{ -history.height }"
+			y.history="-1"
+			enabled.history="true"
+			enabled.workspacesEnabledStates="false"
+			horizontalCenter="0"
+			alpha="0.0"
+			alpha.history="{ MODAL_ALPHA }"
+			cacheAsBitmap="true" />
+
+	</s:Group>
+
+	<!-- Welcome -->
+	<welcome:Welcome id="welcome"
+		width="100%"
+		enabled.welcome="true"
+		enabled="false"
+		bottom="0"
+		top="-1"
+		visible="false"
+		visible.welcome="true" />
+
+</s:Group>

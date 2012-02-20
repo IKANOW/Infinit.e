@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="21"
+	minHeight="21">
+
+	<fx:Metadata>
+		<![CDATA[ 
+		/** 
+		* @copy spark.skins.spark.ApplicationSkin#hostComponent
+		*/
+		[HostComponent("spark.components.Button")]
+		]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		/* Define the skin elements that should not be colorized.
+		For dropDownList buttons, the graphics are colorized but the arrow is not. */
+		private static const exclusions:Array = [ "arrow" ];
+		
+		/**
+		 * @private
+		 */
+		override public function get colorizeExclusions():Array
+		{
+			return exclusions;
+		}
+		
+		
+		private var cornerRadius:Number = 6;
+		
+		/**
+		 * @private
+		 */
+		override protected function initializationComplete():void
+		{
+			useChromeColor = true;
+			super.initializationComplete();
+		}
+		
+		/**
+		 *  @private
+		 */
+		override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+		{
+			var cr:Number = getStyle( "cornerRadius" );
+			
+			if ( cornerRadius != cr )
+			{
+				cornerRadius = cr;
+				background.radiusX = cornerRadius;
+				border.radiusX = cornerRadius;
+			}
+			
+			super.updateDisplayList( unscaledWidth, unscaledHeight );
+		};
+	</fx:Script>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect id="background"
+		width="100%"
+		height="100%"
+		radiusX="4"
+		radiusY="4">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry 
+						color="0xF3F3F3"
+						ratio=".4" />
+					<s:GradientEntry 
+						color.down="0xA2A4A5"
+						color.over="0xB2B4B5"
+						color.up="0xD2D4D5" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				alpha=".5"
+				angle="45"
+				blurX="2"
+				blurY="2"
+				distance="2" />
+			<s:DropShadowFilter 
+				alpha=".2"
+				angle="225"
+				blurX="1"
+				blurY="1"
+				distance="1" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- layer 7: border - put on top of the fill so it doesn't disappear when scale is less than 1 -->
+	<!--- @private -->
+	<s:Rect id="border"
+		width="69"
+		height="20"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0"
+		alpha="0"
+		radiusX="4"
+		radiusY="4">
+		<s:stroke>
+			<s:LinearGradientStroke 
+				rotation="90"
+				weight="1">
+				<s:GradientEntry 
+					color="0x000000"
+					alpha="0.5625"
+					alpha.down="0.6375" />
+				<s:GradientEntry 
+					color="0x000000"
+					alpha="0.75"
+					alpha.down="0.85" />
+			</s:LinearGradientStroke>
+		</s:stroke>
+	</s:Rect>
+
+	<!-- arrow -->
+	<s:VGroup id="arrowGroup"
+		width="12"
+		right="10"
+		verticalCenter="0">
+		<s:Path id="arrow"
+			height="7"
+			width="10"
+			data="M 8.75 15.10 L 0.05 0.03 17.45 0.03 Z "
+			left="4">
+			<s:fill>
+				<s:SolidColor 
+					color.down="0x131313"
+					color.over="0x333333"
+					color.up="0x636363" />
+			</s:fill>
+		</s:Path>
+	</s:VGroup>
+
+</s:SparkSkin>

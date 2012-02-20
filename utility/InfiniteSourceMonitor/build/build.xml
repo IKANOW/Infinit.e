@@ -1,0 +1,84 @@
+<!-- ======================================= -->
+<!-- Flex application build file -->
+<!-- ======================================= -->
+<project name="InfiniteSourceMonitor" basedir="../" default="create-release">
+
+	<!-- ======================================= -->
+	<!--  Configuration -->
+	<!-- ======================================= -->
+
+	<!-- Configuration -->
+	<property file="${basedir}/build/build.properties" />
+
+	<!-- Setup Flex Ant Resources -->
+	<property name="FLEX_HOME" location="${flex.sdk}" />
+	<taskdef resource="flexTasks.tasks" classpath="${build.libs.loc}/flexTasks-4.5.1.jar" />
+	
+	<!-- ======================================= -->
+	<!--  Clean and Init Targets -->
+	<!-- ======================================= -->
+
+	<echo message="Base Dir: ${basedir}" />
+	
+	<target name="clean" description="Removes artifacts from previous builds">
+		<delete dir="${build.output.loc}" />
+		<delete dir="${dist.loc}" />
+	</target>
+
+	<target name="init" description="Initializes project and destination folders">
+		<echo message="Project: ${ant.project.name}" />
+		<echo message="Flex SDK: ${FLEX_HOME}" />
+
+		<!-- Create directories -->
+		<mkdir dir="${bin.loc}" />
+		<mkdir dir="${dist.loc}" />
+	</target>
+
+	<!-- ======================================= -->
+	<!--  Compile Targets -->
+	<!-- ======================================= -->
+	
+	<target name="compile" depends="clean, init">
+
+		<echo>Compiling Flex application...</echo>
+
+		<!-- Compile main application as a SWF -->
+		<mxmlc file="${src.loc}/${src.application.name}" output="${bin.loc}/${dist.swf.name}.swf">
+
+			<compiler.source-path path-element="${src.loc}" />
+			
+			<!-- Custom metadata -->
+			<keep-as3-metadata name="Dispatcher"/>
+			<keep-as3-metadata name="EventHandler"/>
+			<keep-as3-metadata name="Inject"/>
+			<keep-as3-metadata name="LocalEventHandler"/>
+			<keep-as3-metadata name="ArrayCollectionElementType"/>
+			
+			<!-- The app libraries in the libs folder -->
+			<library-path dir="${libs.loc}" append="true">
+				<include name="*.swc" />
+			</library-path>
+
+			<!-- Sets java.awt.headless=true so font compilation works in headless environments -->
+			<compiler.headless-server>true</compiler.headless-server>
+		</mxmlc>
+
+	</target>
+
+	<!-- ======================================= -->
+	<!--  Distribution Targets -->
+	<!-- ======================================= -->
+	
+	<target name="create-release" description="Compiles SWF and copies all needed artifacts into dist directory" depends="compile">
+		<echo>Copy application to ${dist.loc}</echo>
+		<copy todir="${dist.loc}">
+			<fileset dir="${bin.loc}">
+				<include name="${ant.project.name}.swf"/>
+			</fileset>
+			<fileset dir="${html.loc}">
+				<include name="${ant.project.name}.html"/>
+			</fileset>
+		</copy>
+	</target>
+
+</project>

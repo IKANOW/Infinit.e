@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:list="com.ikanow.infinit.e.community.view.list.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	width="100%"
+	paddingBottom="7"
+	paddingLeft="7"
+	paddingRight="4"
+	paddingTop="7">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.community.model.presentation.list.CommunityListModel;
+			import com.ikanow.infinit.e.shared.model.vo.Community;
+			import mx.events.ItemClickEvent;
+			import spark.events.IndexChangeEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:CommunityListModel;
+			
+			protected function communitiesList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				var community:Community = event.item as Community;
+				
+				if ( community.isUserMember )
+				{
+					model.selectCommunity( community );
+				}
+				
+				communitiesList.selectedItem = null;
+			}
+			
+			protected function communitiesList_joinCommunityHandler( event:ItemClickEvent ):void
+			{
+				var community:Community = event.item as Community;
+				model.selectCommunityToJoin( community );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- communities -->
+	<list:CommunityListComponent id="communitiesList"
+		dataProvider="{ model.communities }"
+		styleName="titleWindowList"
+		labelField="name"
+		height="100%"
+		horizontalScrollPolicy="off"
+		width="100%"
+		itemClick="communitiesList_itemClickHandler(event)"
+		itemRenderer="com.ikanow.infinit.e.community.view.list.CommunityListItemRenderer"
+		joinCommunity="communitiesList_joinCommunityHandler(event)" />
+
+</s:VGroup>

@@ -1,0 +1,137 @@
+<?xml version="1.0" encoding="utf-8"?>
+<swiz:BeanProvider xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:queryTermEditor="com.ikanow.infinit.e.query.model.presentation.builder.editor.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:community="com.ikanow.infinit.e.community.model.presentation.*"
+	xmlns:communityList="com.ikanow.infinit.e.community.model.presentation.list.*"
+	xmlns:communityRequest="com.ikanow.infinit.e.community.model.presentation.request.*"
+	xmlns:dashboard="com.ikanow.infinit.e.model.presentation.dashboard.*"
+	xmlns:dashboardHeader="com.ikanow.infinit.e.model.presentation.dashboard.header.*"
+	xmlns:history="com.ikanow.infinit.e.history.model.presentation.*"
+	xmlns:layout="com.ikanow.infinit.e.workspace.model.presentation.layout.*"
+	xmlns:login="com.ikanow.infinit.e.model.presentation.login.*"
+	xmlns:main="com.ikanow.infinit.e.model.presentation.*"
+	xmlns:profile="com.ikanow.infinit.e.profile.model.presentation.*"
+	xmlns:query="com.ikanow.infinit.e.query.model.presentation.*"
+	xmlns:queryBuilder="com.ikanow.infinit.e.query.model.presentation.builder.*"
+	xmlns:querySettings="com.ikanow.infinit.e.query.model.presentation.settings.*"
+	xmlns:source="com.ikanow.infinit.e.source.model.presentation.*"
+	xmlns:welcome="com.ikanow.infinit.e.welcome.model.presentation.*"
+	xmlns:widget="com.ikanow.infinit.e.widget.model.presentation.*"
+	xmlns:widgetEditor="com.ikanow.infinit.e.widget.model.presentation.editor.*"
+	xmlns:widgetList="com.ikanow.infinit.e.widget.model.presentation.list.*"
+	xmlns:workspace="com.ikanow.infinit.e.workspace.model.presentation.*"
+	xmlns:workspacesBody="com.ikanow.infinit.e.model.presentation.dashboard.workspaces.body.*"
+	xmlns:workspaceContent="com.ikanow.infinit.e.workspace.model.presentation.content.*"
+	xmlns:workspaceLayouts="com.ikanow.infinit.e.workspace.model.presentation.layouts.*"
+	xmlns:workspaceSettings="com.ikanow.infinit.e.workspace.model.presentation.settings.*"
+	xmlns:workspaces="com.ikanow.infinit.e.model.presentation.dashboard.workspaces.*"
+	xmlns:workspacesHeader="com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header.*">
+
+	<fx:Declarations>
+
+		<!-- Communities -->
+		<community:CommunitiesModel />
+		<community:CommunitiesNavigator />
+
+		<!-- Community List -->
+		<communityList:CommunityListModel />
+		<communityList:CommunityListNavigator />
+
+		<!-- Community Request -->
+		<communityRequest:CommunityRequestModel />
+		<communityRequest:CommunityRequestNavigator />
+
+		<!-- Dashboard -->
+		<dashboard:DashboardModel />
+		<dashboard:DashboardNavigator />
+
+		<!-- Header -->
+		<dashboardHeader:DashboardHeaderModel />
+		<dashboardHeader:DashboardHeaderNavigator />
+
+		<!-- History -->
+		<history:HistoryModel />
+		<history:HistoryNavigator />
+
+		<!-- Login -->
+		<login:LoginModel />
+		<login:LoginNavigator />
+
+		<!-- Main -->
+		<main:MainModel />
+		<main:MainNavigator />
+
+		<!-- Profile -->
+		<profile:ProfileModel />
+		<profile:ProfileNavigator />
+
+		<!-- Query -->
+		<query:QueryModel />
+		<query:QueryNavigator />
+
+		<!-- Query Builder -->
+		<queryBuilder:QueryBuilderModel />
+		<queryBuilder:QueryBuilderNavigator />
+
+		<!-- Query Settings -->
+		<querySettings:QuerySettingsModel />
+		<querySettings:QuerySettingsNavigator />
+
+		<!-- Query Term Editor -->
+		<queryTermEditor:QueryTermEditorModel id="queryTermEditorModel" />
+		<queryTermEditor:QueryTermEditorNavigator />
+
+		<!-- Sources -->
+		<source:SourcesModel />
+		<source:SourcesNavigator />
+
+		<!-- Welcome -->
+		<welcome:WelcomeModel />
+		<welcome:WelcomeNavigator />
+
+		<!-- Workspaces -->
+		<workspaces:WorkspacesModel />
+		<workspaces:WorkspacesNavigator />
+
+		<!-- Workspaces Header -->
+		<workspacesHeader:WorkspacesHeaderModel />
+		<workspacesHeader:WorkspacesHeaderNavigator />
+
+		<!-- Workspace Body -->
+		<workspacesBody:WorkspacesBodyModel />
+		<workspacesBody:WorkspacesBodyNavigator />
+
+		<!-- Workspace -->
+		<workspace:WorkspaceModel />
+		<workspace:WorkspaceNavigator />
+
+		<!-- Workspace Content -->
+		<workspaceContent:WorkspaceContentModel />
+		<workspaceContent:WorkspaceContentNavigator />
+
+		<!-- Workspace Layouts -->
+		<layout:WorkspaceLayoutModel />
+		<layout:WorkspaceLayoutNavigator />
+
+		<!-- Workspace Settings -->
+		<workspaceSettings:WorkspaceSettingsModel />
+		<workspaceSettings:WorkspaceSettingsNavigator />
+
+		<!-- Widget -->
+		<widget:WidgetsModel />
+		<widget:WidgetsNavigator />
+
+		<!-- Widget List -->
+		<widgetList:WidgetListModel />
+		<widgetList:WidgetListNavigator />
+
+		<!-- Widget Editor -->
+		<widgetEditor:WidgetEditorModel />
+		<widgetEditor:WidgetEditorNavigator />
+
+	</fx:Declarations>
+
+</swiz:BeanProvider>

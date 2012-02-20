@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:content="com.ikanow.infinit.e.workspace.view.content.*"
+	xmlns:layout="com.ikanow.infinit.e.workspace.view.layout.*"
+	currentState="{ model.navigator.currentState }"
+	preinitialize="WorkspaceContentNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			import com.ikanow.infinit.e.workspace.model.presentation.content.WorkspaceContentModel;
+			import com.ikanow.infinit.e.workspace.model.presentation.content.WorkspaceContentNavigator;
+			import mx.events.ItemClickEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspaceContentModel;
+			
+			protected function list_maximizeWidgetHandler( event:ItemClickEvent ):void
+			{
+				model.maximizeWidget( event.item as Widget );
+			}
+			
+			protected function list_minimizeWidgetsHandler( event:ItemClickEvent ):void
+			{
+				model.minimizeWidgets();
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="tiles" />
+		<s:State name="maximized" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<content:WorkspaceContentList id="list"
+		width="100%"
+		height="100%"
+		dataProvider="{ model.selectedWidgets }"
+		focusEnabled="false"
+		bottom="0"
+		right="0"
+		top="2"
+		borderAlpha="0"
+		contentBackgroundAlpha="0"
+		itemRenderer="com.ikanow.infinit.e.workspace.view.content.WorkspaceContentItemRenderer"
+		maximizeWidget="list_maximizeWidgetHandler(event)"
+		minimizeWidgets="list_minimizeWidgetsHandler(event)"
+		useVirtualLayout="false">
+		<content:layout.tiles>
+			<layout:CustomTileLayout 
+				gap="8"
+				padding="16" />
+		</content:layout.tiles>
+		<content:layout.maximized>
+			<layout:MaximizedTileLayout padding="16" />
+		</content:layout.maximized>
+	</content:WorkspaceContentList>
+
+</s:Group>

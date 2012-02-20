@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<swiz:BeanProvider xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:community="com.ikanow.infinit.e.community.service.*"
+	xmlns:query="com.ikanow.infinit.e.query.service.*"
+	xmlns:service="com.ikanow.infinit.e.source.service.*"
+	xmlns:setup="com.ikanow.infinit.e.shared.service.setup.*"
+	xmlns:session="com.ikanow.infinit.e.shared.service.session.*"
+	xmlns:source="com.ikanow.infinit.e.shared.service.delegate.source.*"
+	xmlns:user="com.ikanow.infinit.e.shared.service.user.*">
+
+	<fx:Declarations>
+
+		<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+		<!-- Services ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+		<!-- Session -->
+		<mx:HTTPService id="sessionService" />
+
+		<!-- User -->
+		<mx:HTTPService id="userService" />
+
+		<!-- Setup -->
+		<mx:HTTPService id="setupService" />
+
+		<!-- Setup Update -->
+		<mx:HTTPService id="setupUpdateService" />
+
+		<!-- Community -->
+		<mx:HTTPService id="communityService" />
+
+		<!-- Source -->
+		<mx:HTTPService id="sourceService" />
+
+		<!-- Query Suggest -->
+		<mx:HTTPService id="querySuggestService" />
+
+		<!-- Query -->
+		<mx:HTTPService id="queryService" />
+
+		<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+		<!-- Delegates :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+		<!-- Session -->
+		<session:SessionServiceDelegate />
+
+		<!-- User -->
+		<user:UserServiceDelegate />
+
+		<!-- Setup -->
+		<setup:SetupServiceDelegate />
+
+		<!-- Community -->
+		<community:CommunityServiceDelegate />
+
+		<!-- Source -->
+		<service:SourceServiceDelegate />
+
+		<!-- Query -->
+		<query:QueryServiceDelegate />
+
+	</fx:Declarations>
+
+</swiz:BeanProvider>

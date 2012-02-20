@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.model.presentation.editor.WidgetEditorModel;
+			
+			[Bindable]
+			[Inject]
+			public var model:WidgetEditorModel;
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:Label 
+		text="Widget Editor"
+		color="#ffffff"
+		fontSize="16"
+		horizontalCenter="0"
+		verticalCenter="0" />
+
+</s:Group>

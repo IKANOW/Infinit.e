@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	paddingLeft="5"
+	paddingRight="6"
+	verticalAlign="middle"
+	gap="9">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Events ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[Event( name = "updateQueryTerm", type = "flash.events.Event" )]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.util.FormatterUtil;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryTermEditorModel;
+			
+			/**
+			 * Update the query term
+			 */
+			public function updateQueryTerm():void
+			{
+				model.hideSuggestionsList();
+				
+				dispatchEvent( new Event( "updateQueryTerm", true ) );
+				
+				model.updateTemporalQueryType( temporalStartDate.text, temporalEndDate.text );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Spacer -->
+	<s:Spacer width="100%" />
+
+	<!-- Start Date -->
+	<common:InfDateField id="temporalStartDate"
+		selectedDate="{ FormatterUtil.getDateFromString( model.editorQueryTerm.time.startDateString ) }"
+		width="132"
+		height="40"
+		textAlign="center"
+		editable="false"
+		formatString="{ Constants.DEFAULT_DATE_TIME_FORMAT }" />
+
+	<!-- To -->
+	<common:InfLabel 
+		styleName="white"
+		text="{ resourceManager.getString( 'infinite', 'common.to' ).toLowerCase() }"
+		paddingTop="1" />
+
+	<!-- End Date -->
+	<common:InfDateField id="temporalEndDate"
+		selectedDate="{ FormatterUtil.getDateFromString( model.editorQueryTerm.time.endDateString ) }"
+		width="132"
+		height="40"
+		textAlign="center"
+		editable="false"
+		formatString="{ Constants.DEFAULT_DATE_TIME_FORMAT }" />
+
+	<!-- Spacer -->
+	<s:Spacer width="100%" />
+
+</s:HGroup>

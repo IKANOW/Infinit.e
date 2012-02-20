@@ -1,0 +1,105 @@
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+
+.querySearchTermTextInput
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "assets.skins.query.QuerySearchTermTextInputSkin" );
+}
+
+.querySuggestionList
+{
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	contentBackgroundColor: #5E6367;
+	borderVisible: false;
+}
+
+.queryEditorSuggestionList
+{
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	contentBackgroundColor: #3D4246;
+	borderVisible: false;
+}
+
+.advancedQueryList
+{
+	skinClass: ClassReference("assets.skins.query.AdvancedQueryListSkin");
+}
+
+.advancedQueryTermList
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 14;
+	color: #000000;
+	borderColor: #FF0000;
+	borderAlpha: 0;
+	fontWeight: bold;
+	level1Color: #81968B;
+	level2Color: #DDDDDD;
+	level3Color: #81869C;
+	level4Color: #CCCCCC;
+	level5Color: #A3BBC5;
+	skinClass: ClassReference("assets.skins.query.AdvancedQueryTermListSkin");
+}
+
+.queryOperatorDropDownList
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 12;
+	fontWeight: bold;
+	textAlign: center;
+	color: #FFFFFF;
+	selectionColor: #878D8F;
+	rollOverColor: #575C60;
+	textSelectedColor: #FFFFFF;
+	textRollOverColor: #FFFFFF;
+	contentBackgroundColor: #383F45;
+	borderColor: #383F45;;
+	skinClass : ClassReference("assets.skins.query.QueryOperatorDropDownListSkin");
+}
+
+.queryOperatorButton
+{
+	color: #777777;
+	rollOverColor: #AAAAAA;
+	fontSize: 14pt;
+	skinClass : ClassReference("assets.skins.query.QueryOperatorButtonSkin");
+}
+
+.addQueryTermButton
+{
+	skinClass : ClassReference("assets.skins.query.AddQueryTermButtonSkin");
+}
+
+.querySummary
+{
+	backgroundAlpha: 1.0;
+	backgroundColor: #A3BBC5;
+	skinClass : ClassReference("assets.skins.query.QuerySummarySkin");
+}
+
+.querySummaryClearButton
+{
+	skinClass : ClassReference("assets.skins.query.QuerySummaryClearButtonSkin");	
+}
+
+.queryTermEditor
+{
+	start-ratio: 0;
+	start-color: #3D4246;
+	end-color: #3D4246;
+	rotation: 90;
+	skin-class: ClassReference("assets.skins.GradientContainerShadowSkin");
+}
+
+.queryTermTypeButtonBar
+{
+	skinClass : ClassReference( "assets.skins.query.QueryTermTypeButtonBarSkin" );
+	iconPlacement: top;
+}

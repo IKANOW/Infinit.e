@@ -1,0 +1,204 @@
+package com.ikanow.infinit.e.data_model.store.config.source;
+
+import com.ikanow.infinit.e.data_model.InfiniteEnums.DatabaseType;
+
+/**
+ * Primary object used to specify the properties for connecting to a database
+ * @author cmorgan
+ */
+public class SourceDatabaseConfigPojo 
+{	
+	private DatabaseType databaseType = null;	// Type of the database, DB2, Oracle, MySQL, MS SQL Server, or Sybase
+	private String hostname = null; 			// Name of the server where the database resides, fully qualified domain name
+	private String port = null; 				// Port number on which the database resides and for JDBC to use
+	private String databaseName = null; 		// The name given to the database
+	private String query = null; 				// SQL query to be performed to fully load the data
+	private String deltaQuery = null; 			// SQL query used to update the records based on time element changes
+	private String deleteQuery = null; 			// SQL query used to update the index with recently deleted records from database environment
+	private String primaryKey = null; 			// Primary key field, used for mapping db element to system
+	private String primaryKeyValue = null; 		// Primary key value, only used when placing in the feed record
+	private String title = null; 				// Record title field, used for field display purposes
+	private String snippet = null; 				// Record snippet field, used for field display purposes
+	private String publishedDate = null;		// Field to map to feed's publishedDate field
+	private Boolean preserveCase = null;		// If true, uses the column case in the metadata, else converts to lower case
+	
+	/**
+	 * Get the type of the database
+	 * @return
+	 */
+	public DatabaseType getDatabaseType() {
+		return databaseType;
+	}
+	/**
+	 * Set the database type
+	 * @param databaseType
+	 */
+	public void setDatabaseType(DatabaseType databaseType) {
+		this.databaseType = databaseType;
+	}
+	/**
+	 * Get the hostname of the database
+	 * @return
+	 */
+	public String getHostname() {
+		return hostname;
+	}
+	/**
+	 * Set the hostname for the database
+	 * @param hostname
+	 */
+	public void setHostname(String hostname) {
+		this.hostname = hostname;
+	}
+	/**
+	 * Get the database port of operation
+	 * @return
+	 */
+	public String getPort() {
+		return port;
+	}
+	/**
+	 * Set the database port of operation
+	 * @param port
+	 */
+	public void setPort(String port) {
+		this.port = port;
+	}
+	/**
+	 * Get the database name
+	 * @return
+	 */
+	public String getDatabaseName() {
+		return databaseName;
+	}
+	/**
+	 * Set the database name
+	 * @param databaseName
+	 */
+	public void setDatabaseName(String databaseName) {
+		this.databaseName = databaseName;
+	}
+	/**
+	 * Get the query to use to populate the index.  This query is used for all full sync operations
+	 * @return
+	 */
+	public String getQuery() {
+		return query;
+	}
+	/**
+	 * Set the query to use to populate the index.  This query is used for all full sync operations
+	 * @param query
+	 */
+	public void setQuery(String query) {
+		this.query = query;
+	}
+	/**
+	 * Get the delta query used only for update operations and must query the same fields as the query 
+	 * variable.  If the same fields are not specified data could be overwritten or removed.
+	 * @return
+	 */
+	public String getDeltaQuery() {
+		return deltaQuery;
+	}
+	/**
+	 * Set the delta query, used only for update operations and must query the same fields as the 
+	 * query variable.  If the same fields are not specified data could be overwritten or removed.
+	 * @param deltaQuery
+	 */
+	public void setDeltaQuery(String deltaQuery) {
+		this.deltaQuery = deltaQuery;
+	}
+	/**
+	 * Get the delete query, used only for delete operations and must be a log type table
+	 * also requires the use of the last_modified operator which is specified by the harvesting 
+	 * or syncing processing 
+	 * @return
+	 */
+	public String getDeleteQuery() {
+		return deleteQuery;
+	}
+	/**
+	* Set the delete query, used only for delete operations and must be a log type table
+	* also requires the use of the last_modified operator which is specified by the harvesting 
+	* or syncing processing
+	* 
+	* @param deleteQuery
+	*/
+	public void setDeleteQuery(String deleteQuery) {
+		this.deleteQuery = deleteQuery;
+	}
+	/**
+	 * Get the primary key field
+	 * @return
+	 */
+	public String getPrimaryKey() {
+		return primaryKey;
+	}
+	/**
+	 * Set the primary key field
+	 * @param primaryKey
+	 */
+	public void setPrimaryKey(String primaryKey) {
+		this.primaryKey = primaryKey;
+	}
+	/**
+	 * Get the primary key value
+	 * @return
+	 */
+	public String getPrimaryKeyValue() {
+		return primaryKeyValue;
+	}
+	/**
+	 * Set the primary key value
+	 * @param primaryKeyValue
+	 */
+	public void setPrimaryKeyValue(String primaryKeyValue) {
+		this.primaryKeyValue = primaryKeyValue;
+	}
+	/**
+	 * Get the title field or title data
+	 * @return
+	 */
+	public String getTitle() {
+		return title;
+	}
+	/**
+	 * Set the title field or title data
+	 * @param title
+	 */
+	public void setTitle(String title) {
+		this.title = title;
+	}
+	/**
+	 * Get the snippet field or snippet data
+	 * @return
+	 */
+	public String getSnippet() {
+		return snippet;
+	}
+	/**
+	 * Set the snippet field or snippet data
+	 * @param snippet
+	 */
+	public void setSnippet(String snippet) {
+		this.snippet = snippet;
+	}
+	/**
+	 * @param publishedDate the publishedDate to set
+	 */
+	public void setPublishedDate(String publishedDate) {
+		this.publishedDate = publishedDate;
+	}
+	/**
+	 * @return the publishedDate
+	 */
+	public String getPublishedDate() {
+		return publishedDate;
+	}
+	public void setPreserveCase(boolean preserveCase) {
+		this.preserveCase = preserveCase;
+	}
+	public boolean getPreserveCase() {
+		return (preserveCase == null)?false:preserveCase;
+	}
+}

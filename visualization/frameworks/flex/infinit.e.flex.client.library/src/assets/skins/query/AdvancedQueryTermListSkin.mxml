@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minHeight="30"
+	blendMode="normal">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("com.ikanow.infinit.e.query.view.builder.QueryTermSkinnableDataContainer")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			import mx.core.FlexVersion;
+			
+			/* Define the skin elements that should not be colorized.
+			   For list, the skin itself is colorized but the individual parts are not. */
+			private static const exclusions:Array = [ "scroller", "background", "border" ];
+			
+			/* exclusions before Flex 4.5 for backwards-compatibility purposes */
+			private static const exclusions_4_0:Array = [ "scroller", "background" ];
+			
+			/* Define the content fill items that should be colored by the "contentBackgroundColor" style. */
+			private static const contentFill:Array = [];
+			
+			/**
+			 * @private
+			 */
+			override public function get colorizeExclusions():Array
+			{
+				// Since border is styleable via borderColor, no need to allow chromeColor to affect
+				// the border.  This is wrapped in a compatibility flag since this change was added  
+				// in Flex 4.5
+				if ( FlexVersion.compatibilityVersion < FlexVersion.VERSION_4_5 )
+				{
+					return exclusions_4_0;
+				}
+				
+				return exclusions;
+			}
+			
+			/**
+			 * @private
+			 */
+			override public function get contentItems():Array
+			{
+				return contentFill
+			}
+			
+			[Bindable]
+			protected var levelRadius:int;
+			
+			/**
+			 * @private
+			 */
+			override protected function initializationComplete():void
+			{
+				useChromeColor = true;
+				super.initializationComplete();
+			}
+			
+			/**
+			 * @private
+			 */
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				if ( getStyle( "borderVisible" ) == true )
+				{
+					border.visible = true;
+					background.left = background.top = background.right = background.bottom = 1;
+				}
+				else
+				{
+					border.visible = false;
+					background.left = background.top = background.right = background.bottom = 0;
+				}
+				
+				borderStroke.color = getStyle( "borderColor" );
+				borderStroke.alpha = getStyle( "borderAlpha" );
+				
+				if ( hostComponent )
+				{
+					var level:int = hostComponent.queryLevel > 5 ? hostComponent.queryLevel - 5 : hostComponent.queryLevel;
+					
+					switch ( level )
+					{
+						case 1:
+							bgFill.color = hostComponent.getStyle( "level1Color" );
+							levelRadius = 18;
+							break;
+						case 2:
+							bgFill.color = hostComponent.getStyle( "level2Color" );
+							levelRadius = 14;
+							break;
+						case 3:
+							bgFill.color = hostComponent.getStyle( "level3Color" );
+							levelRadius = 10;
+							break;
+						case 4:
+							bgFill.color = hostComponent.getStyle( "level4Color" );
+							levelRadius = 8;
+							break;
+						case 5:
+							bgFill.color = hostComponent.getStyle( "level5Color" );
+							levelRadius = 6;
+							break;
+						default:
+							bgFill.color = hostComponent.getStyle( "level1Color" );
+							levelRadius = 14;
+							break;
+					}
+				}
+				
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			};
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<fx:Declarations>
+		<!---
+			  Defines the appearance of the the List's drop indicator.
+			  To customize the drop indicator appearance, create a custom ListSkin class.
+			  The List's layout takes care to size and position the dropIndicator.
+			  The size of the <code>dropIndicator</code> is typically set to the size of the gaps between the items.
+			  The minimum and maximum settings are typically respected only in the direction
+			  along the major axis (the gap axis).  For example a VerticalLayout ignores the
+			  <code>minWidth</code> and <code>maxWidth</code> settings,
+			  but respect <code>minHeight</code> and <code>maxHeight</code>.
+
+			  @copy spark.components.List#dropIndicator
+		-->
+		<fx:Component id="dropIndicator">
+			<s:Group 
+				minWidth="3"
+				minHeight="3"
+				maxWidth="3"
+				maxHeight="3">
+				<s:Rect 
+					bottom="0"
+					left="0"
+					right="0"
+					top="0">
+					<s:fill>
+						<!--- Defines the color of the background. -->
+						<s:SolidColor color="0xBBBBBB" />
+					</s:fill>
+					<s:stroke>
+						<s:SolidColorStroke 
+							color="0xFF0000"
+							weight="1" />
+					</s:stroke>
+				</s:Rect>
+			</s:Group>
+		</fx:Component>
+	</fx:Declarations>
+
+	<!-- border -->
+	<!--- @private -->
+	<s:Rect id="border"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0"
+		radiusX="{ levelRadius }"
+		radiusY="{ levelRadius }">
+		<s:stroke>
+			<!--- @private -->
+			<s:SolidColorStroke id="borderStroke"
+				weight="1" />
+		</s:stroke>
+		<s:filters>
+			<s:GlowFilter 
+				color="{ borderStroke.color }"
+				blurX="2"
+				blurY="2"
+				strength="2" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- fill -->
+	<!--- Defines the background appearance of the list-based component. -->
+	<s:Rect id="background"
+		bottom="1"
+		left="1"
+		right="1"
+		top="1"
+		radiusX="{ levelRadius }"
+		radiusY="{ levelRadius }">
+		<s:fill>
+			<!--- Defines the color of the background. The default color is 0xFFFFFF. -->
+			<s:SolidColor id="bgFill"
+				color="0x00FFFF" />
+		</s:fill>
+	</s:Rect>
+
+	<s:DataGroup id="dataGroup"
+		width="100%"
+		height="100%"
+		itemRenderer="spark.skins.spark.DefaultItemRenderer">
+		<s:layout>
+			<s:HorizontalLayout 
+				paddingBottom="4"
+				paddingLeft="4"
+				paddingRight="4"
+				paddingTop="4"
+				verticalAlign="middle"
+				useVirtualLayout="false"
+				variableColumnWidth="true" />
+		</s:layout>
+	</s:DataGroup>
+</s:SparkSkin>

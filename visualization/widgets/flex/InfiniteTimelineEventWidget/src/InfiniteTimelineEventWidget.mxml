@@ -1,0 +1,974 @@
+<?xml version="1.0" encoding="utf-8"?>
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	currentState="nodata"
+	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+
+	<components:states>
+		<s:State name="dataview" />
+		<s:State name="nodata" />
+	</components:states>
+
+	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		/* If you need to override a style in our stylesheet, or add another
+		style that we did not support you can do so here, an example has been commented out
+		Please see documentation about over-riding MX component styles to display fonts*/
+		/*
+		mx|Text
+		{
+		font-family: infiniteNonCFFFont;
+		}
+		*/
+	</fx:Style>
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace ibm "http://www.ibm.com/xmlns/prod/ilog/elixir/2010";
+		@namespace Knowledge "Knowledge.*";
+		
+		ibm|TimeAxis		
+		{
+			major-ticks-visible: true;
+			minor-ticks-visible: true;	
+			minor-labels-visible: true;
+		}
+		
+		ibm|TimelineGrid
+		{
+			major-lines-visible: true;
+			minor-lines-visible: true;			
+		}
+	</fx:Style>
+	<fx:Script>
+		<![CDATA[
+			import com.ibm.ilog.elixir.timeline.components.supportClasses.TimelineBandBase;
+			import com.ibm.ilog.elixir.timeline.events.TimelineRangeEvent;
+			import com.ibm.ilog.elixir.timeline.skins.spark.DefaultTimeEventRenderer;
+			import com.ibm.ilog.elixir.timeline.supportClasses.TickItem;
+			import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
+			import com.ikanow.infinit.e.widget.library.data.SelectedItem;
+			import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
+			import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
+			import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
+			import com.ikanow.infinit.e.widget.library.utility.DateConverter;
+			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			import flash.utils.describeType;
+			import flash.utils.setTimeout;
+			import mx.charts.HitData;
+			import mx.charts.LineChart;
+			import mx.charts.series.items.ColumnSeriesItem;
+			import mx.collections.ArrayCollection;
+			import mx.collections.XMLListCollection;
+			import mx.controls.Alert;
+			import mx.controls.DateField;
+			import mx.effects.AddItemAction;
+			import mx.effects.Resize;
+			import mx.events.FlexEvent;
+			import mx.events.MenuEvent;
+			import mx.events.ResizeEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.CursorManager;
+			import spark.events.IndexChangeEvent;
+			import actionscript.TimelineExpandCollapseRenderer;
+			import flexlib.charts.HorizontalAxisDataSelector;
+			import flexlib.mdi.containers.MDIWindow;
+			import hr.binaria.asx3m.Asx3mer;
+			import org.alivepdf.pdf.PDF;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+			
+			[Bindable]
+			public static var lastExpanded:TimelineExpandCollapseRenderer = null;
+			
+			public var timeline:TimelineEventInfinite = new TimelineEventInfinite();
+			
+			[Bindable]
+			private var queryData:ArrayCollection = new ArrayCollection();
+			
+			private var currData:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var minDate:Date = new Date();
+			
+			[Bindable]
+			private var maxDate:Date = new Date();
+			
+			[Bindable]
+			private var overViewMinDate:Date = new Date();
+			
+			[Bindable]
+			private var overViewMaxDate:Date = new Date();
+			
+			private var _hasData:Boolean = false;
+			
+			private var months:Array = new Array( 12 );
+			
+			private var nodes:ArrayCollection = new ArrayCollection();
+			
+			private var busyCursorCounter:int = 0;
+			
+			// Determines if filtering results are immediately applied:
+			private var ignoreLocalFilter:Boolean = false;
+			
+			private var internalFilterUpdate:Boolean = false;
+			
+			// 
+			private var linechart:LineChart = new LineChart();
+			
+			//
+			private var tempint:int = 0;
+			
+			private var _context:IWidgetContext;
+			
+			private var regexTimer:Timer = new Timer( 300, 1 );
+			
+			private var regexFilter:RegExp = null;
+			
+			private var fullData:ArrayCollection = new ArrayCollection();
+			
+			private var eventToShow:String = "all";
+			
+			private var hasFilter:Boolean = false;
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			// (some localized code because the timeline is v v slow to resize)
+			private var tmpHeight:Number = 0;
+			
+			private var tmpWidth:Number = 0;
+			
+			private var resizeTimer:Timer = null;
+			
+			/**
+			 * Function for an item renderer on timeline to add
+			 * itself to the renderer list. This is our backwards
+			 * way of storing the item renderers so we are able to
+			 * highlight the nodes from the outside.  There is probably
+			 * a better way to do this that does not involve us saving
+			 * the item renderes of all the nodes
+			 *
+			 * @param node The item renderer to be added to the list.
+			 **/
+			public function addNode( node:TimelineRangeColorBubble ):void
+			{
+				nodes.addItem( node );
+			}
+			
+			
+			/**
+			 * addTimeToQuery_fromPresentation
+			 * @param start date, end date
+			 * @return void
+			 */
+			public function addTimeToQuery_fromPresentation( start:Date, end:Date ):void
+			{
+				try
+				{
+					// Get the query context so that we can update the query
+					var query:Object = this._context.getCurrentQuery();
+					var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
+					
+					// Set the start and end date for the query
+					var newTerm:Object = new Object();
+					var newTimeTerm:Object = new Object();
+					newTimeTerm[ "min" ] = getDateString( start );
+					newTimeTerm[ "max" ] = getDateString( end );
+					newTerm[ "time" ] = newTimeTerm;
+					queryTerms.addItem( newTerm );
+					
+					// Clear the time decay setting by setting it to null
+					query[ "score" ][ "timeProx" ] = null;
+					
+					// Update the query in the dimension explorer
+					this._context.setCurrentQuery( query, null );
+				}
+				catch ( e:Error )
+				{
+					Alert.show( "Exception: " + e.message + " " + e.getStackTrace() );
+				}
+			}
+			
+			/**
+			 * function to build a pdf version of the widget
+			 *
+			 * @return pdf version of the widget
+			 */
+			public function generatePdf( printPDF:PDF, title:String ):PDF
+			{
+				return null; //Screenshot (default)
+			}
+			
+			/**
+			 * function to broadcast if the module has data so it doesn't repass data to itself
+			 * when new modules are being loaded with data on first load up
+			 *
+			 * @return If the module has data
+			 */
+			public function hasData():Boolean
+			{
+				//return true if data is already present
+				return _hasData;
+			}
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			{
+				//TODO
+			}
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				if ( null == resizeTimer )
+				{
+					resizeTimer = new Timer( 100, 1 );
+					resizeTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneResizing );
+				}
+				resizeTimer.stop();
+				resizeTimer.start();
+				this.tmpHeight = newHeight;
+				this.tmpWidth = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				startSpinner(); // (need dataview)
+				
+				fullData = _context.getQuery_FilteredResults().getEventsTimeline();
+				removeOldTimeline();
+				populateEventTimeline();
+				createNewTimeline();
+				
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = true;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{
+				startSpinner(); // (need dataview)
+				
+				if ( null == timelinegroup ) // Not yet ready
+				{
+					return;
+				}
+				
+				fullData = _context.getQuery_AllResults().getEventsTimeline();
+				
+				if ( fullData.length == 0 )
+					fullData = _context.getQuery_TopResults().getEventsTimeline();
+				
+				removeOldTimeline();
+				populateEventTimeline();
+				createNewTimeline();
+				
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				return null;
+			}
+			
+			/**
+			 * function to receive events from the parent and other modules
+			 *
+			 * @param event The Event received
+			 */
+			public function receiveEvent( event:Event ):void
+			{
+			
+			}
+			
+			
+			/**
+			 * function to start the components spinner when it is receiving data
+			 */
+			public function startSpinner():void
+			{
+				this.currentState = "dataview";
+				this.enabled = false;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			
+			/**
+			 * Removes all busy cursors this module was responsible for upon closing
+			 *
+			 * @param event Closing event (not used)
+			 *
+			 */
+			protected function module1_removedFromStageHandler( event:Event ):void
+			{
+				while ( busyCursorCounter > 0 )
+				{
+					CursorManager.removeBusyCursor();
+					busyCursorCounter--;
+				}
+			}
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+			
+			protected function timeline_creationComplete( event:Event ):void
+			{
+				for each ( var node:TimelineRangeColorBubble in nodes )
+				{
+					node.updateWidth();
+				}
+			}
+			
+			protected function timeline_resizeHandler( event:Event ):void
+			{
+				for each ( var node:TimelineRangeColorBubble in nodes )
+				{
+					node.updateWidth();
+				}
+			}
+			
+			protected function timeline_vis_range_changeHandler( event:TimelineRangeEvent ):void
+			{
+				for each ( var node:TimelineRangeColorBubble in nodes )
+				{
+					node.updateWidth();
+				}
+			}
+			
+			
+			/**
+			 * calculateTimeDecay
+			 * @param numberOfDays:Number
+			 * @return String
+			 */
+			private function calculateTimeDecay( numberOfDays:Number ):String
+			{
+				var decay:String = "1m";
+				numberOfDays = Math.round( numberOfDays / 2 );
+				
+				if ( numberOfDays < 7 )
+				{
+					decay = numberOfDays.toString() + "d";
+				}
+				else if ( numberOfDays > 6 && numberOfDays < 31 )
+				{
+					decay = Math.round( numberOfDays / 7 ).toString() + "w";
+				}
+				else if ( numberOfDays > 30 && numberOfDays < 365 )
+				{
+					decay = Math.round( numberOfDays / 30 ).toString() + "m";
+				}
+				else
+				{
+					decay = "1y";
+				}
+				return decay;
+			}
+			
+			
+			private function createNewTimeline():void
+			{
+				//currData = new ArrayCollection();
+				//timelinegroup.removeAllElements();
+				timeline = new TimelineEventInfinite();
+				timeline.minTime = overViewMinDate;
+				timeline.maxTime = overViewMaxDate;
+				timeline.overviewStartTime = overViewMinDate;
+				timeline.overviewEndTime = overViewMaxDate;
+				timeline.startTime = minDate;
+				timeline.endTime = maxDate;
+				timeline.tickLabelFunction = tickFunction;
+				
+				if ( ( null != currData ) && ( currData.length > 0 ) )
+				{
+					timeline.dataProvider = currData;
+				}
+				//timeline.dataProvider = currData;
+				timeline.labelFunction = formatText;
+				timeline.addEventListener( ResizeEvent.RESIZE, timeline_resizeHandler );
+				timeline.addEventListener( TimelineRangeEvent.VISIBLE_RANGE_CHANGED, timeline_vis_range_changeHandler );
+				timeline.addEventListener( FlexEvent.CREATION_COMPLETE, timeline_creationComplete );
+				timelinegroup.addElement( timeline );
+			}
+			
+			/**
+			 * function to send all documents that are highlighted
+			 *
+			 * @param event The MouseEvent received when send all documents is clicked
+			 */
+			private function dataOptionsList_changeHandler( event:IndexChangeEvent ):void
+			{
+				if ( dataOptionsList.selectedIndex == 0 ) //show all
+				{
+					eventToShow = "all";
+				}
+				else if ( dataOptionsList.selectedIndex == 1 ) //show events
+				{
+					eventToShow = "event";
+				}
+				else if ( dataOptionsList.selectedIndex == 2 ) //show facts
+				{
+					eventToShow = "fact";
+				}
+				else //show summaries
+				{
+					eventToShow = "summary";
+				}
+				removeOldTimeline();
+				populateEventTimeline();
+				createNewTimeline();
+			}
+			
+			private function doneChangingRegex( event:TimerEvent ):void
+			{
+				regexTimer.stop();
+				
+				if ( 0 == regexFilterTextInput.text.length )
+				{
+					regexFilter = null;
+				}
+				else
+				{
+					regexFilter = new RegExp( regexFilterTextInput.text, "i" );
+				}
+				removeOldTimeline();
+				populateEventTimeline();
+				createNewTimeline();
+			}
+			private function doneResizing( event:Event ):void
+			{
+				this.height = tmpHeight;
+				this.width = tmpWidth;
+			}
+			
+			private function formatText( item:Object ):String
+			{
+				var text:String = "";
+				
+				if ( item.entity1 != null )
+					text += item.entity1 + " ";
+				
+				if ( item.verb_category != null )
+					text += item.verb_category + " ";
+				
+				if ( item.entity2 != null )
+					text += item.entity2 + " ";
+				
+				var stringDoccount:String = item.assoc_sig.toFixed( 2 ) + "";// item.doccount + "";
+				//var MAXLENGTH:int = 55 - stringDoccount.length;
+				var MAXLENGTH:int = int.MAX_VALUE;
+				
+				if ( text.length > MAXLENGTH )
+				{
+					text = HtmlConvert.convertEntities_txt( text.substring( 0, MAXLENGTH - 3 ) ) + "...";
+				}
+				else
+				{
+					text = HtmlConvert.convertEntities_txt( text.substring( 0, MAXLENGTH ) );
+				}
+				
+				return text + " (Significance: " + stringDoccount + ")";
+			}
+			
+			
+			/**
+			 * getDateString
+			 * @param Date
+			 * @return String mm/dd/yyyy
+			 */
+			private function getDateString( val:Date ):String
+			{
+				var retVal:String;
+				
+				try
+				{
+					var month:Number = val.month + 1;
+					retVal = ( month < 10 ) ? "0" + month.toString() : month.toString();
+					retVal += ( val.date < 10 ) ? "/0" + val.date.toString() : "/" + val.date.toString();
+					retVal += "/" + val.fullYear.toString();
+				}
+				catch ( e:Error )
+				{
+					return "";
+				}
+				return retVal;
+			}
+			
+			private function getRegexString( event:Object ):String
+			{
+				var regexString:String = "";
+				
+				if ( event.entity1 != null )
+					regexString += event.entity1 + " ";
+				
+				if ( event.verb != null )
+					regexString += event.verb + " ";
+				
+				if ( event.verb != null )
+					regexString += event.verb_category + " ";
+				
+				if ( event.entity2 != null )
+					regexString += event.entity2 + " ";
+				return regexString;
+			}
+			
+			/**
+			 * Function to go through and select/deselect all nodes,
+			 * reaches into item renderes on timeline and forces them
+			 * to highlight/redraw
+			 *
+			 * @param select If true highlights all nodes, if false, deselects all nodes
+			 **/
+			private function highlightAllNodes( select:Boolean ):void
+			{
+				for each ( var node:TimelineRangeColorBubble in nodes )
+				{
+					node.hightlightNode( select );
+				}
+			}
+			
+			private function onChangeRegex( event:Event ):void
+			{
+				// Start a timer for 300ms time
+				this.regexTimer.stop();
+				this.regexTimer.start();
+			}
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results		
+			private function onClickIgnoreLocalFilter():void
+			{
+				internalFilterUpdate = true;
+				
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if ( !this.ignoreLocalFilter )
+				{
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					
+					if ( hasFilter )
+						this.onReceiveNewFilter();
+					else
+						this.onReceiveNewQuery();
+				}
+				else
+				{
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					this.onReceiveNewQuery();
+				}
+				
+				internalFilterUpdate = false;
+			}
+			
+			
+			/**
+			 * onSelectedTimeFilterDecay
+			 * @param Event
+			 * @return void
+			 */
+			private function onSelectedTimeFilterDecay( event:Event ):void
+			{
+				try
+				{
+					// Get the query context so that we can update the query
+					var query:Object = this._context.getCurrentQuery();
+					var queryScoring:Object = query[ "score" ];
+					
+					if ( queryScoring == null )
+					{
+						queryScoring = new Object();
+					}
+					else
+					{
+						// Clear the time decay setting by setting it to null
+						query[ "score" ][ "timeProx" ] = null;
+					}
+					
+					// Calculate the midpoint between the end and start times on the visible timeline
+					var d:Number = ( timeline.endTime.time - timeline.startTime.time ) / 2 + timeline.startTime.time;
+					var midPointDate:Date = new Date( d );
+					
+					// The number of visible days used to determine the decay 
+					var noOfDays:Number = ( timeline.endTime.time - timeline.startTime.time ) / 86400000;
+					var decay:String = calculateTimeDecay( noOfDays );
+					
+					//
+					var newTimeDecay:Object = new Object();
+					newTimeDecay[ "time" ] = getDateString( midPointDate );
+					newTimeDecay[ "decay" ] = decay;
+					queryScoring[ "timeProx" ] = newTimeDecay;
+					
+					// 
+					this._context.setCurrentQuery( query, "score" );
+				}
+				catch ( e:Error )
+				{
+					Alert.show( "Exception: " + e.message + " " + e.getStackTrace() );
+				}
+			}
+			
+			
+			/**
+			 * onSelectedTimeFilterQuery
+			 * @param Event
+			 * @return void
+			 */
+			private function onSelectedTimeFilterQuery( event:Event ):void
+			{
+				if ( ( timeline.startTime != null ) && ( timeline.endTime != null ) )
+				{
+					addTimeToQuery_fromPresentation( timeline.startTime, timeline.endTime );
+				}
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete( event:Event ):void
+			{
+				this.parent.parent.width = 800;
+				this.parent.parent.height = 450;
+				
+				months[ 0 ] = "January";
+				months[ 1 ] = "February";
+				months[ 2 ] = "March";
+				months[ 3 ] = "April";
+				months[ 4 ] = "May";
+				months[ 5 ] = "June";
+				months[ 6 ] = "July";
+				months[ 7 ] = "August";
+				months[ 8 ] = "September";
+				months[ 9 ] = "October";
+				months[ 10 ] = "November";
+				months[ 11 ] = "December";
+				
+				regexTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingRegex );
+				
+				var events:Event = new Event( "Done Loading" );
+				dispatchEvent( events );
+			}
+			
+			private function populateEventTimeline():void
+			{
+				var count:int = 0;
+				currData = new ArrayCollection();
+				
+				if ( fullData != null && fullData.length > 0 )
+				{
+					for each ( var timeEvent:Object in fullData )
+					{
+						if ( timeEvent.assoc_type.toLowerCase() == eventToShow || eventToShow == "all" )
+						{
+							//check if matches regex, add up to 100
+							if ( ( regexFilter == null || regexFilter.test( getRegexString( timeEvent ) ) ) && count < 100 )
+							{
+								currData.addItem( timeEvent );
+								
+								if ( count == 0 )
+								{
+									minDate = DateConverter.parseDate( timeEvent.time_start );
+									maxDate = DateConverter.parseDate( timeEvent.time_start );
+								}
+								timeEvent.highlighted = false;
+								timeEvent.startDate = DateConverter.parseDate( timeEvent.time_start );
+								
+								if ( timeEvent.time_end != null )
+								{
+									timeEvent.endDate = DateConverter.parseDate( timeEvent.time_end );
+									var timeSpanLong:Number = timeEvent.endDate.time - timeEvent.startDate.time;
+									timeEvent[ "eventDate" ] = new Date( 1970, 0, 0, 0, 0, 0, timeEvent.startDate.time + ( timeSpanLong / 2 ) );
+								}
+								else
+								{
+									//this is what it should be
+									timeEvent.endDate = timeEvent.startDate;
+									timeEvent[ "eventDate" ] = timeEvent.startDate;
+										//for testing im setting to a range of 3 days
+									/*var tempDate:Date = DateConverter.parseDate(timeEvent.time_start);
+									tempDate.date = tempDate.date + 3;
+									timeEvent.endDate = tempDate;*/
+								}
+								
+								if ( timeEvent.startDate < minDate )
+									minDate = timeEvent.startDate;
+								
+								if ( timeEvent.startDate > maxDate )
+									maxDate = timeEvent.startDate;
+								
+								if ( timeEvent.endDate != null && timeEvent.endDate > maxDate )
+									maxDate = timeEvent.endDate;
+								count++;
+							}
+						}
+					}
+					
+					//add a cushion for the min and max dates		
+					overViewMinDate = new Date( minDate.fullYear, minDate.month - 2, minDate.date );
+					overViewMaxDate = new Date( maxDate.fullYear, maxDate.month + 2, maxDate.date );
+					minDate = new Date( minDate.fullYear, minDate.month, minDate.date - 10 );
+					// Start with the range 10d either side of the start...
+					maxDate = new Date( minDate.fullYear, minDate.month, minDate.date + 10 );
+					
+					//set the data provider of the timeline
+					nodes.removeAll();
+					//if ( currData.length > 0 )
+					//	timeline.dataProvider = currData;
+					_hasData = true;
+				}
+				else
+				{
+					this.currentState = "nodata";
+				}
+				
+				var countsTooltip:String = count + " events displayed out of ";
+				
+				numCurrEventsLabel.text = count + "";
+				
+				if ( fullData == null )
+				{
+					numTotalEventsLabel.text = "0";
+					countsTooltip += "0";
+				}
+				else
+				{
+					numTotalEventsLabel.text = fullData.length + "";
+					countsTooltip += fullData.length + "";
+				}
+				
+				countsGroup.toolTip = countsTooltip;
+				
+				CursorManager.removeBusyCursor();
+				busyCursorCounter--;
+				this.enabled = true;
+			}
+			/////////////////////!!!!!!!!!!!!!!!ADDDDDDDDDDDDDDDDDDDDDDDDDDD!!!!!!!!!!!!!!!???????????????????????????////////////////
+			private function removeOldTimeline():void
+			{
+				timelinegroup.removeAllElements();
+				//timeline.dataProvider = null;				
+			}
+			
+			/**
+			 * Creates a label for the tick marks on timeline.
+			 * Minor ticks get a day/month/year label i.e. 5/27/1987
+			 * Major ticks get a month name label i.e. January
+			 *
+			 * @param tickItem The tick mark that needs a label
+			 * @return Returns the label to be displayed on minor and major ticks
+			 */
+			private function tickFunction( tickItem:TickItem ):String
+			{
+				var itemDate:Date = tickItem.value as Date;
+				
+				if ( tickItem.isMinor )
+				{
+					return ( itemDate.month + 1 ) + "/" + itemDate.date + "/" + itemDate.fullYear;
+				}
+				else
+				{
+					return months[ itemDate.month ];
+				}
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+
+	<!-- Header -->
+	<components:headerContent>
+
+		<s:HGroup gap="-3">
+
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+				toolTip="Ignore Workspace Filtering - Show All Results"
+				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+
+			<!-- View Options Drop Down List -->
+			<components:WidgetDropDownList id="dataOptionsList"
+				width="110"
+				selectedIndex="0"
+				change="setTimeout( dataOptionsList_changeHandler, 100, event )">
+				<components:dataProvider>
+					<s:ArrayList source="[All,Events,Facts,Summaries]" />
+				</components:dataProvider>
+			</components:WidgetDropDownList>
+
+			<!-- Add to Query Button -->
+			<components:WidgetPlusButton id="addToQueryButton"
+				toolTip="Add visible time range to query"
+				click="onSelectedTimeFilterQuery(event)" />
+
+			<!-- Set Time Decay Button -->
+			<components:WidgetDecayButton id="setTimeDecayButton"
+				toolTip="Set Time Decay Date to central date in the visible time range"
+				click="onSelectedTimeFilterDecay(event)" />
+
+			<!-- regex filtering box -->
+			<s:HGroup 
+				height="100%"
+				paddingBottom="2"
+				paddingLeft="5"
+				paddingRight="7"
+				paddingTop="2"
+				verticalAlign="middle">
+				<components:WidgetTextInput id="regexFilterTextInput"
+					width="100"
+					toolTip="Enter a regex string to filter events on subject, verb, verb category or object"
+					change="onChangeRegex(event)"
+					enter="doneChangingRegex(null)"
+					prompt="Show only:" />
+			</s:HGroup>
+
+		</s:HGroup>
+
+	</components:headerContent>
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="middle"
+		includeIn="nodata">
+		<s:Label 
+			text="No data, try running a query"
+			includeIn="nodata" />
+	</s:VGroup>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		includeIn="dataview">
+		<s:Group id="timelineMainGroup"
+			width="100%"
+			height="100%"
+			x="0"
+			y="0"
+			clipAndEnableScrolling="true"
+			includeIn="dataview">
+			<!-- Timeline Group -->
+			<s:VGroup id="timelinegroup"
+				width="100%"
+				height="100%"
+				x="0"
+				y="0"
+				depth="0"
+				includeIn="dataview">
+			</s:VGroup>
+			<s:HGroup id="countsGroup"
+				x="2"
+				y="2"
+				gap="2">
+				<s:Label id="numCurrEventsLabel"
+					text="0"
+					color="0xFFFFFF"
+					mouseEnabled="false" />
+				<s:Label 
+					text="events displayed out of "
+					color="0xFFFFFF"
+					mouseEnabled="false" />
+				<s:Label id="numTotalEventsLabel"
+					text="0"
+					color="0xFFFFFF"
+					mouseEnabled="false" />
+			</s:HGroup>
+		</s:Group>
+	</s:HGroup>
+
+</components:WidgetModule>

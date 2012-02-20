@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SkinnableContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	minHeight="30"
+	styleName="querySummary"
+	click="clickHandler(event)"
+	rollOut="rollOutHandler()"
+	rollOver="rollOverHandler()"
+	buttonMode="true">
+
+	<fx:Metadata>
+		[Event(name="remove", type="flash.events.Event")]
+		[Event(name="showQuery", type="flash.events.Event")]
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			[Bindable]
+			public var querySummary:String;
+			
+			protected function clickHandler( event:MouseEvent ):void
+			{
+				if ( !( event.target is InfButton ) )
+				{
+					dispatchEvent( new Event( "showQuery" ) );
+				}
+			}
+			
+			protected function removeButton_clickHandler( event:MouseEvent ):void
+			{
+				dispatchEvent( new Event( "remove" ) );
+			}
+			
+			protected function rollOutHandler():void
+			{
+				this.setStyle( 'backgroundAlpha', 1.0 );
+			}
+			
+			protected function rollOverHandler():void
+			{
+				this.setStyle( 'backgroundAlpha', 0.9 );
+				this.toolTip = "";
+				
+				if ( labelDisplay.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = querySummary;
+			}
+		]]>
+	</fx:Script>
+
+	<s:layout>
+		<s:HorizontalLayout 
+			paddingLeft="14"
+			paddingRight="20"
+			verticalAlign="middle"
+			gap="-5" />
+	</s:layout>
+
+	<!-- Query Summary String -->
+	<s:Label id="labelDisplay"
+		styleName="blackBold"
+		text="{ querySummary }"
+		maxWidth="{ this.maxWidth - removeButton.width - 25 }"
+		paddingTop="1"
+		maxDisplayedLines="1"
+		mouseEnabled="false" />
+
+	<!-- Remove Button -->
+	<common:InfButton id="removeButton"
+		styleName="querySummaryClearButton"
+		click="removeButton_clickHandler(event)" />
+
+</s:SkinnableContainer>

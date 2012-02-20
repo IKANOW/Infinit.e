@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:builder="com.ikanow.infinit.e.query.view.builder.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:settings="com.ikanow.infinit.e.query.view.settings.*"
+	currentState="{ model.navigator.currentState }"
+	preinitialize="QueryNavigator.updateViewStates( this )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.QueryModel;
+			import com.ikanow.infinit.e.query.model.presentation.QueryNavigator;
+			import flash.utils.setTimeout;
+			import spark.events.IndexChangeEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryModel;
+			
+			protected function navButtons_changeHandler( event:IndexChangeEvent ):void
+			{
+				model.navigator.navigate( navButtons.selectedItem );
+			}
+			
+			protected function searchButton_clickHandler( event:MouseEvent ):void
+			{
+				model.navigator.closeQueryView();
+				
+				setTimeout( model.runAdvancedQuery, 500 );
+			}
+			
+			private function canceEditAdvancedQuery():void
+			{
+				queryBuilder.model.cancelEditAdvancedQuery();
+				
+				callLater( queryBuilder.advancedQueryBuilder.invalidateDisplayList );
+			}
+			
+			private function cancelButton_clickHandler():void
+			{
+				model.navigator.closeQueryView();
+				
+				setTimeout( canceEditAdvancedQuery, 500 );
+			}
+			
+			private function closeButton_clickHandler():void
+			{
+				model.navigator.closeQueryView();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="builder" />
+		<s:State name="settings" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:headerContent>
+
+		<s:Group 
+			bottom="5"
+			left="20"
+			right="20"
+			top="6">
+
+			<!-- Title -->
+			<common:InfLabel id="title"
+				text="{ resourceManager.getString( 'infinite', 'query.title' ) }"
+				styleName="lightGrey"
+				left="0"
+				verticalCenter="2" />
+
+			<s:HGroup id="buttonsGroup"
+				horizontalCenter="0"
+				verticalCenter="2">
+
+				<!-- Query Builder / Settings Buttons -->
+				<common:InfButtonBar id="navButtons"
+					dataProvider="{ model.navigator.states }"
+					height="39"
+					selectedIndex="{ model.navigator.currentStateIndex }"
+					styleName="switchButtonBar"
+					verticalCenter="0"
+					change="navButtons_changeHandler(event)"
+					requireSelection="true" />
+
+			</s:HGroup>
+
+			<!-- Action Buttons -->
+			<s:HGroup 
+				paddingRight="10"
+				right="0"
+				verticalAlign="middle"
+				verticalCenter="2"
+				gap="10">
+
+				<!-- Search Button -->
+				<common:InfButton id="searchButton"
+					width="90"
+					styleName="roundedBlueButton"
+					label="{ resourceManager.getString( 'infinite', 'common.search' ) }"
+					click="searchButton_clickHandler(event)" />
+
+				<!-- Cancel Button -->
+				<common:InfButton id="cancelButton"
+					label="{ resourceManager.getString( 'infinite', 'common.cancel' ) }"
+					styleName="cancelButton"
+					click="cancelButton_clickHandler()" />
+
+			</s:HGroup>
+
+			<!-- Close Button -->
+			<common:InfButton id="closeButton"
+				styleName="closeButton"
+				right="-18"
+				top="0"
+				click="closeButton_clickHandler()" />
+
+		</s:Group>
+
+	</component:headerContent>
+
+	<component:content>
+
+		<!-- Query Builder -->
+		<builder:QueryBuilder id="queryBuilder"
+			width="100%"
+			height="100%"
+			includeInLayout.builder="true"
+			includeInLayout.settings="false"
+			visible.builder="true"
+			visible.settings="false" />
+
+		<!-- Query Settings -->
+		<settings:QuerySettings id="querySettings"
+			width="100%"
+			height="100%"
+			includeInLayout.builder="false"
+			includeInLayout.settings="true"
+			visible.builder="false"
+			visible.settings="true" />
+
+	</component:content>
+
+</component:DialogPanel>

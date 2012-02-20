@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	styleName="profilePoup"
+	width="270"
+	height="118">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.profile.model.presentation.ProfileModel;
+			import mx.events.CloseEvent;
+			import assets.EmbeddedAssets;
+			
+			[Bindable]
+			[Inject]
+			public var model:ProfileModel;
+			
+			private function closeButton_clickHandler():void
+			{
+				dispatchEvent( new Event( CloseEvent.CLOSE ) );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:headerContent>
+
+		<s:Group 
+			bottom="0"
+			left="12"
+			right="20"
+			top="6">
+
+			<!-- Title -->
+			<common:InfLabel id="title"
+				text="{ resourceManager.getString( 'infinite', 'profile.title' ) }"
+				styleName="lightGrey"
+				left="0"
+				verticalCenter="2" />
+
+			<!-- Close Button -->
+			<common:InfButton id="closeButton"
+				styleName="closeButton"
+				right="-18"
+				top="0"
+				click="closeButton_clickHandler()" />
+
+		</s:Group>
+
+	</component:headerContent>
+
+	<component:content>
+
+		<s:VGroup 
+			width="100%"
+			paddingLeft="12"
+			paddingRight="12"
+			paddingTop="6"
+			gap="6">
+
+			<!-- name -->
+			<common:InfLabel id="displauName"
+				text="{ model.currentUser.displayName }"
+				styleName="whiteLarge" />
+
+			<!-- phone -->
+			<s:HGroup 
+				width="100%"
+				gap="8">
+
+				<s:Image source="{ EmbeddedAssets.PHONE_SMALL }" />
+
+				<common:InfRichEditableText id="phoneNumber"
+					selectable="true"
+					text="{ model.currentUser.phone }"
+					styleName="lightGrey"
+					editable="false" />
+
+			</s:HGroup>
+
+			<!-- email -->
+			<s:HGroup 
+				width="100%"
+				gap="8">
+
+				<s:Image source="{ EmbeddedAssets.EMAIL_SMALL }" />
+
+				<common:InfRichEditableText id="email"
+					selectable="true"
+					text="{ model.currentUser.email }"
+					styleName="lightGrey"
+					editable="false" />
+
+			</s:HGroup>
+
+		</s:VGroup>
+
+	</component:content>
+
+</component:DialogPanel>

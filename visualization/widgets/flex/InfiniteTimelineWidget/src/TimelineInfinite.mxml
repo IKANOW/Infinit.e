@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ibm:HTimeline xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:ibm="http://www.ibm.com/xmlns/prod/ilog/elixir/2010"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	height="100%"
+	width="100%"
+	backgroundColor="0x2E2E2E"
+	dateField="published"
+	itemRenderer="TimelineColorBubble"
+	majorTickTimeStep="1"
+	majorTickTimeUnit="month"
+	minorTickTimeStep="5"
+	minorTickTimeUnit="day"
+	priorityField="score"
+	useVirtualLayout="false">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+</ibm:HTimeline>
+

@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	styleName="historyItem"
+	mouseDown="itemrenderer_clickHandler(event)"
+	autoDrawBackground="false"
+	buttonMode.hovered="true"
+	useHandCursor.hovered="true">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.types.QueryStringTypes;
+			import com.ikanow.infinit.e.shared.model.vo.TypedQueryString;
+			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			import flashx.textLayout.conversion.TextConverter;
+			import flashx.textLayout.elements.TextFlow;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.ResizeEvent;
+			import assets.EmbeddedAssets;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					typedQueryString = value as TypedQueryString;
+					
+					queryStringSummaryHTMLText = QueryUtil.getQueryStringSummaryHTML( typedQueryString.queryString.qt, typedQueryString.queryString.logic, "#bbbec1", "#ffffff" );
+					textFlow = TextConverter.importToFlow( queryStringSummaryHTMLText, TextConverter.TEXT_FIELD_HTML_FORMAT );
+					queryString.textFlow = textFlow;
+					
+					queryStringSummaryHTMLTextHovered = QueryUtil.getQueryStringSummaryHTML( typedQueryString.queryString.qt, typedQueryString.queryString.logic, "#666666", "#000000" );
+					textFlowHovered = TextConverter.importToFlow( queryStringSummaryHTMLTextHovered, TextConverter.TEXT_FIELD_HTML_FORMAT );
+				}
+				
+				resizeTextArea();
+				
+				invalidateDisplayList();
+			}
+			
+			[Bindable]
+			protected var typedQueryString:TypedQueryString;
+			
+			protected var queryStringSummaryHTMLText:String = "";
+			
+			protected var queryStringSummaryHTMLTextHovered:String = "";
+			
+			[Bindable]
+			protected var textFlow:TextFlow;
+			
+			[Bindable]
+			protected var textFlowHovered:TextFlow;
+			
+			protected function container_resizeHandler( event:ResizeEvent ):void
+			{
+				callLater( resizeTextArea );
+			}
+			
+			protected function itemrenderer_clickHandler( event:MouseEvent ):void
+			{
+				this.enabled = false;
+				
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+				
+				setTimeout( enableThis, 500 );
+			}
+			
+			protected function resizeTextArea():void
+			{
+				queryString.invalidateProperties();
+				queryString.invalidateSize();
+				queryString.invalidateDisplayList();
+			}
+			
+			private function enableThis():void
+			{
+				this.enabled = true;
+			}
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<s:DateTimeFormatter id="dtf"
+			dateTimePattern="{ Constants.DEFAULT_TIME_FORMAT }" />
+	</fx:Declarations>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<s:HGroup id="container"
+		width="100%"
+		resize="container_resizeHandler(event)"
+		gap="6">
+
+		<!-- time -->
+		<s:Label id="time"
+			text="{ dtf.format( typedQueryString.queryDate ) }"
+			styleName="lightGrey"
+			fontSize="12"
+			paddingRight="2"
+			paddingTop="9" />
+
+		<s:SkinnableContainer 
+			width="100%"
+			styleName.hovered="historyItemHovered"
+			toolTip.hovered="{ resourceManager.getString( 'infinite', 'historyListItemRenderer.runThisQuery' ) }">
+
+			<s:layout>
+				<s:HorizontalLayout 
+					paddingBottom="3"
+					paddingLeft="4"
+					paddingRight="4"
+					paddingTop="3"
+					gap="16" />
+			</s:layout>
+
+			<!-- type icon -->
+			<s:Image id="typeIcon"
+				source="{ typedQueryString.type == QueryStringTypes.SETTINGS ? EmbeddedAssets.QUERY_HISTORY_SETTINGS : EmbeddedAssets.QUERY_HISTORY_SEARCH }"
+				source.hovered="{ EmbeddedAssets.RUN_QUERY }" />
+
+			<!-- query string -->
+			<common:InfRichText id="queryString"
+				width="100%"
+				styleName="lightGrey"
+				focusEnabled="false"
+				fontWeight="bold"
+				paddingBottom="2"
+				paddingTop="4"
+				lineBreak="toFit"
+				maxDisplayedLines="5"
+				showDropShadow="true"
+				showDropShadow.hovered="false"
+				textFlow="{ textFlow }"
+				textFlow.hovered="{ textFlowHovered }" />
+
+		</s:SkinnableContainer>
+
+	</s:HGroup>
+
+</s:ItemRenderer>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SkinnableContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	implements="com.ikanow.infinit.e.shared.view.component.dialog.IDialog"
+	styleName="dialog"
+	minWidth="280"
+	height="60">
+
+	<fx:Script>
+		<![CDATA[
+			import assets.EmbeddedAssets;
+			
+			[Bindable]
+			protected var message:String;
+			
+			public function setDialogMessage( value:DialogMessage ):void
+			{
+				message = value.message;
+			}
+		]]>
+	</fx:Script>
+
+	<s:layout>
+		<s:HorizontalLayout 
+			horizontalAlign="center"
+			paddingLeft="14"
+			paddingRight="20"
+			verticalAlign="middle"
+			gap="10" />
+	</s:layout>
+
+	<component:BusyIndicator id="busyIndicator" />
+
+	<s:Label 
+		text="{ message }"
+		width="100%"
+		paddingTop="1"
+		maxDisplayedLines="1" />
+
+	<s:filters>
+		<s:DropShadowFilter 
+			alpha=".7"
+			angle="45"
+			blurX="8"
+			blurY="8" />
+	</s:filters>
+
+</s:SkinnableContainer>

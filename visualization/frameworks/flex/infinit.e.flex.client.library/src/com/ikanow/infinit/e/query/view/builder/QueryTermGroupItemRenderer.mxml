@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:builder="com.ikanow.infinit.e.query.view.builder.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	autoDrawBackground="false">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.event.QueryEvent;
+			import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+			import com.ikanow.infinit.e.shared.model.constant.types.QueryOperatorTypes;
+			import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
+			import com.ikanow.infinit.e.shared.model.vo.ui.QueryTermGroup;
+			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			import mx.collections.ArrayCollection;
+			import mx.core.DragSource;
+			import mx.events.DragEvent;
+			import mx.events.FlexEvent;
+			import mx.graphics.ImageSnapshot;
+			import mx.managers.DragManager;
+			import spark.components.Image;
+			import spark.events.IndexChangeEvent;
+			import spark.layouts.supportClasses.DropLocation;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					queryTermGroup = value as QueryTermGroup;
+					queryTermCollection = queryTermGroup.children;
+					logicOperator = queryTermGroup.logicOperator;
+					list.queryLevel = queryTermGroup.level;
+					list.queryTerm = queryTermGroup;
+					
+					invalidateDisplayList();
+				}
+			}
+			
+			[Bindable]
+			protected var logicOperator:String;
+			
+			[Bindable]
+			protected var showDeleteButton:Boolean;
+			
+			[Bindable]
+			protected var queryTermGroup:QueryTermGroup;
+			
+			[Bindable]
+			protected var queryTermCollection:ArrayCollection = new ArrayCollection();
+			
+			protected function deleteButton_clickHandler( event:MouseEvent ):void
+			{
+				var queryEvent:QueryEvent = new QueryEvent( QueryEvent.DELETE_QUERY_TERM, true, true );
+				queryEvent.queryTermObject = queryTermGroup;
+				dispatchEvent( queryEvent );
+			}
+			
+			protected function logicOperatorSelector_changeHandler( event:IndexChangeEvent ):void
+			{
+				queryTermGroup.logicOperator = logicOperatorSelector.selectedItem as String;
+				
+				dispatchEvent( new Event( "queryOperatorChange", true, true ) );
+			}
+			
+			protected function mouseMoveHandler( event:MouseEvent ):void
+			{
+				var dragInitiator:QueryTermSkinnableDataContainer = QueryTermSkinnableDataContainer( event.currentTarget );
+				var ds:DragSource = new DragSource();
+				var bitmapData:BitmapData = ImageSnapshot.captureBitmapData( dragInitiator );
+				var image:Image = new Image();
+				
+				image.source = bitmapData;
+				ds.addData( dragInitiator, QueryConstants.DRAG_DATA );
+				
+				DragManager.doDrag( dragInitiator, ds, event, image );
+				
+				event.stopImmediatePropagation();
+			}
+			
+			protected function mouseOutHandler( event:MouseEvent ):void
+			{
+				list.setStyle( "borderAlpha", 0 );
+				showDeleteButton = false;
+			}
+			
+			protected function mouseOverHandler( event:MouseEvent ):void
+			{
+				list.setStyle( "borderAlpha", 1 );
+				showDeleteButton = true;
+				event.stopImmediatePropagation();
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+		<s:State name="normalAndShowsCaret" />
+		<s:State name="hoveredAndShowsCaret" />
+		<s:State name="selectedAndShowsCaret" />
+		<s:State name="dragging" />
+	</s:states>
+
+	<s:HGroup id="displayGroup"
+		height="100%"
+		paddingLeft="2"
+		verticalAlign="middle"
+		gap="8">
+
+		<!-- Logic Operator -->
+		<s:DropDownList id="logicOperatorSelector"
+			width="38"
+			focusEnabled="false"
+			includeInLayout="{ itemIndex != 0 }"
+			styleName="queryOperatorDropDownList"
+			dataProvider="{ QueryOperatorTypes.types }"
+			change="logicOperatorSelector_changeHandler(event)"
+			selectedItem="{ logicOperator }"
+			visible="{ itemIndex != 0 }" />
+
+		<!-- Query Term Group Children List -->
+		<builder:QueryTermSkinnableDataContainer id="list"
+			dataProvider="{ queryTermCollection }"
+			styleName="advancedQueryTermList"
+			mouseMove="mouseMoveHandler(event)"
+			mouseOut="mouseOutHandler(event)"
+			mouseOver="mouseOverHandler(event)"
+			dropEnabled="true"
+			itemRendererFunction="QueryUtil.advancedQueryList_itemRendererFunction">
+			<builder:layout>
+				<s:HorizontalLayout 
+					paddingBottom="4"
+					paddingLeft="2"
+					paddingRight="6"
+					paddingTop="4"
+					verticalAlign="middle"
+					useVirtualLayout="false"
+					variableColumnWidth="true" />
+			</builder:layout>
+			<builder:filters>
+				<s:DropShadowFilter id="df"
+					color="0x000000"
+					alpha="1"
+					angle="45"
+					blurX="2"
+					blurY="2"
+					distance="2" />
+			</builder:filters>
+		</builder:QueryTermSkinnableDataContainer>
+
+	</s:HGroup>
+
+	<!-- Delete Button -->
+	<common:InfButton id="deleteButton"
+		styleName="deleteBlackButton"
+		y="{ list.y - 1 }"
+		x="{ list.x + list.width - 21 }"
+		includeInLayout="{ showDeleteButton }"
+		click="deleteButton_clickHandler(event)"
+		mouseOut="mouseOutHandler(event)"
+		mouseOver="mouseOverHandler(event)"
+		visible="{ showDeleteButton }" />
+
+</s:ItemRenderer>

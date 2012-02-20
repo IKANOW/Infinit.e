@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	width="{ this.getStyle( 'strokeWeight' ) * 2 }"
+	height="100%"
+	gap="0">
+
+	<fx:Script>
+		<![CDATA[
+			[Bindable]
+			public var showShadow:Boolean = true;
+		]]>
+	</fx:Script>
+
+	<fx:Metadata>
+		[Style( name = "strokeWeight", type = "Number", format = "int", inherit = "yes", theme = "spark" )]
+		[Style( name = "lineColor", type = "uint", format = "Color", inherit = "yes", theme = "spark" )]
+		[Style( name = "shadowColor", type = "uint", format = "Color", inherit = "yes", theme = "spark" )]
+	</fx:Metadata>
+
+	<s:Rect 
+		width="{ this.getStyle( 'strokeWeight' ) }"
+		height="100%">
+		<s:fill>
+			<s:SolidColor color="{ this.getStyle( 'lineColor' ) }" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="{ this.getStyle( 'shadowColor' ) }"
+				alpha="{ showShadow ? 1 : 0 }"
+				angle="0"
+				blurX="1"
+				blurY="1"
+				distance="1" />
+		</s:filters>
+	</s:Rect>
+
+</s:HGroup>

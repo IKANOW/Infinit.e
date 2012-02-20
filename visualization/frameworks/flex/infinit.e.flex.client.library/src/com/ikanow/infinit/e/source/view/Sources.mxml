@@ -1,0 +1,374 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	xmlns:view="com.ikanow.infinit.e.source.view.*"
+	currentState="{ model.navigator.currentState }"
+	creationComplete="initSearchTimer()"
+	preinitialize="SourcesNavigator.updateViewStates( this )"
+	resize="resizeHandler(event)">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.community.view.Communities;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.vo.Source;
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelectorItem;
+			import com.ikanow.infinit.e.shared.util.SourceUtil;
+			import com.ikanow.infinit.e.shared.util.StateUtil;
+			import com.ikanow.infinit.e.source.model.constant.SourceConstants;
+			import com.ikanow.infinit.e.source.model.presentation.SourcesModel;
+			import com.ikanow.infinit.e.source.model.presentation.SourcesNavigator;
+			import flash.utils.setTimeout;
+			import mx.core.FlexGlobals;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.events.FlexMouseEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.ResizeEvent;
+			import mx.managers.PopUpManager;
+			import mx.managers.PopUpManagerChildList;
+			import spark.events.GridSelectionEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:SourcesModel;
+			
+			protected var searchTimer:Timer;
+			
+			protected var communitiesPopup:Communities;
+			
+			public function closeCommunitiesPopup( event:Event = null ):void
+			{
+				if ( communitiesPopup )
+				{
+					communitiesPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler );
+					communitiesPopup.removeEventListener( CloseEvent.CLOSE, closeCommunitiesPopup );
+					PopUpManager.removePopUp( communitiesPopup );
+					communitiesPopup = null;
+					communitiesButton.selected = false;
+				}
+			}
+			
+			protected function active_enterStateHandler( event:FlexEvent ):void
+			{
+				buttonsGroup.setFocus();
+			}
+			
+			protected function closeButton_clickHandler():void
+			{
+				model.navigator.closeSourcesView();
+			}
+			
+			protected function communitiesButton_clickHandler( event:MouseEvent ):void
+			{
+				if ( communitiesPopup )
+				{
+					closeCommunitiesPopup();
+				}
+				else
+				{
+					model.navigator.showCommunityListView();
+					
+					communitiesPopup = PopUpManager.createPopUp( DisplayObject( FlexGlobals.topLevelApplication ), Communities, false, PopUpManagerChildList.APPLICATION ) as Communities;
+					communitiesPopup.addEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler, false, 0, true );
+					communitiesPopup.addEventListener( CloseEvent.CLOSE, closeCommunitiesPopup, false, 0, true );
+					
+					positionCommunitiesPopup();
+				}
+			}
+			
+			protected function communitiesPopup_clickOutsideHandler( event:Event ):void
+			{
+				if ( event is MouseEvent && communitiesPopup )
+				{
+					var mouseEvent:MouseEvent = MouseEvent( event );
+					
+					if ( mouseEvent.target != communitiesPopup || mouseEvent.relatedObject == communitiesButton )
+					{
+						return;
+					}
+					
+					if ( !communitiesPopup.hitTestPoint( mouseEvent.stageX, mouseEvent.stageY, true ) )
+					{
+						closeCommunitiesPopup();
+					}
+				}
+			}
+			
+			protected function filterTextInput_changeHandler():void
+			{
+				startSearch();
+			}
+			
+			protected function filterTextInput_clearHandler():void
+			{
+				model.clearSourcesSearch();
+				searchTimer.reset();
+			}
+			
+			protected function filterTextInput_focusInHandler():void
+			{
+				if ( filterTextInput.text.length > 0 )
+					filterTextInput.selectRange( filterTextInput.text.length, filterTextInput.text.length );
+			}
+			
+			protected function initSearchTimer():void
+			{
+				searchTimer = new Timer( 100, 2 );
+				searchTimer.addEventListener( TimerEvent.TIMER_COMPLETE, search, false, 0, true );
+				
+				setTimeout( setColumns, 1000 );
+			}
+			
+			protected function positionCommunitiesPopup():void
+			{
+				if ( communitiesPopup )
+				{
+					var p:Point = buttonsGroup.contentToGlobal( new Point( communitiesGroup.x, communitiesGroup.y ) );
+					communitiesPopup.x = p.x - ( communitiesPopup.width / 2 ) + ( communitiesGroup.width / 2 );
+					communitiesPopup.y = p.y + communitiesGroup.height + 2;
+				}
+			}
+			
+			protected function resizeHandler( event:ResizeEvent ):void
+			{
+				positionCommunitiesPopup();
+			}
+			
+			protected function search( event:TimerEvent ):void
+			{
+				model.searchSources( filterTextInput.text );
+			}
+			
+			protected function searchButton_clickHandler( event:MouseEvent ):void
+			{
+				model.navigator.closeSourcesView();
+				
+				setTimeout( model.runAdvancedQuery, 500 );
+			}
+			
+			protected function selectableColumnsList_addItemToFilterHandler( event:ItemClickEvent ):void
+			{
+				if ( event.item )
+				{
+					model.searchForColumnSelectorItem( event.item as ColumnSelectorItem );
+					filterTextInput_focusInHandler();
+				}
+			}
+			
+			protected function selectableColumnsList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				if ( event.item )
+					model.toggleColumnSelected( event.item as ColumnSelector );
+				
+				selectableColumnsList.selectedItem = null;
+			}
+			
+			protected function setColumns():void
+			{
+				if ( model && model.columns == null )
+					model.setColumns( ArrayList( sources.columns ).source );
+			}
+			
+			protected function sourceCollections_changeHandler():void
+			{
+				model.navigator.navigate( sourceCollections.selectedItem );
+			}
+			
+			protected function sources_selectionChangeHandler( event:GridSelectionEvent ):void
+			{
+				model.toggleSourceSelected( event.selectionChange.rowIndex );
+				sources.selectedIndex = -1;
+			}
+			
+			protected function startSearch():void
+			{
+				searchTimer.reset();
+				searchTimer.start();
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="available" />
+		<s:State name="active"
+			enterState="active_enterStateHandler(event)" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:headerContent>
+
+		<s:HGroup id="buttonsGroup"
+			bottom="5"
+			left="20"
+			right="24"
+			top="8"
+			verticalAlign="middle"
+			gap="4">
+
+			<!-- Title -->
+			<common:InfLabel id="title"
+				text="{ resourceManager.getString( 'infinite', 'sources.title' ) }"
+				styleName="lightGrey"
+				left="0"
+				verticalCenter="2" />
+
+			<s:Spacer width="100%" />
+
+			<!-- Current / Available Sources Buttons -->
+			<common:InfButtonBar id="sourceCollections"
+				dataProvider="{ model.navigator.states }"
+				height="39"
+				selectedIndex="{ model.navigator.currentStateIndex }"
+				styleName="sourcesButtonBar"
+				change="sourceCollections_changeHandler()"
+				requireSelection="true" />
+
+			<s:Spacer width="100%" />
+
+			<!-- Communities Button -->
+			<s:Group id="communitiesGroup">
+				<common:InfToggleButton id="communitiesButton"
+					label="{ resourceManager.getString( 'infinite', 'sources.community' ) }"
+					styleName="communityButton"
+					top="2"
+					click="communitiesButton_clickHandler(event)" />
+			</s:Group>
+
+			<s:Spacer width="100%" />
+
+			<!-- Search Button -->
+			<common:InfButton id="searchButton"
+				width="90"
+				styleName="roundedBlueButton"
+				label="{ resourceManager.getString( 'infinite', 'common.search' ) }"
+				right="6"
+				verticalCenter="1"
+				click="searchButton_clickHandler(event)" />
+
+		</s:HGroup>
+
+		<!-- Close Button -->
+		<common:InfButton id="closeButton"
+			styleName="closeButton"
+			right="0"
+			top="4"
+			click="closeButton_clickHandler()" />
+
+	</component:headerContent>
+
+	<component:content>
+
+		<s:VGroup 
+			width="100%"
+			height="100%">
+
+			<s:HGroup id="headerGroup"
+				width="100%"
+				paddingBottom="8"
+				paddingLeft="16"
+				paddingRight="20"
+				paddingTop="8"
+				verticalAlign="middle">
+
+				<!-- Filter Input -->
+				<textInput:FilterTextInput id="filterTextInput"
+					width="220"
+					height="40"
+					text="{ model.searchTerm }"
+					styleName="filterTextInput"
+					change="filterTextInput_changeHandler()"
+					clear="filterTextInput_clearHandler()"
+					focusIn="filterTextInput_focusInHandler()"
+					prompt="{ resourceManager.getString( 'infinite', 'sourcesView.filterSources' ) }"
+					resultsFound="{ model.sources.length != 0 }"
+					showFilterButton="false" />
+
+				<!-- selectable columns -->
+				<view:SourcesColumnSelectorList id="selectableColumnsList"
+					dataProvider="{ model.selectableColumns }"
+					styleName="columnSelectorList"
+					labelField="name"
+					height="100%"
+					focusEnabled="false"
+					horizontalScrollPolicy="off"
+					width="100%"
+					itemClick="selectableColumnsList_itemClickHandler(event)"
+					addItemToFilter="setTimeout( selectableColumnsList_addItemToFilterHandler, 100, event )"
+					contentBackgroundAlpha="0"
+					itemRenderer="com.ikanow.infinit.e.source.view.SourcesColumnSelectorItemRenderer">
+					<view:layout>
+						<s:HorizontalLayout 
+							paddingLeft="8"
+							paddingTop="6"
+							gap="10" />
+					</view:layout>
+				</view:SourcesColumnSelectorList>
+
+			</s:HGroup>
+
+			<!-- Sources Data Grid -->
+			<common:InfSelectableDataGrid id="sources"
+				width="100%"
+				height="100%"
+				horizontalScrollPolicy="off"
+				dataProvider="{ model.sources }"
+				selectAll="model.selectAllSources()"
+				selectNone="model.selectNoneSources()"
+				selectionChange="sources_selectionChangeHandler(event)">
+				<common:columns>
+					<s:ArrayList>
+						<s:GridColumn 
+							width="36"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridSelectAllHeaderRenderer"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridCheckBoxNoSelectItemRenderer"
+							resizable="false"
+							sortable="false" />
+						<s:GridColumn 
+							minWidth="220"
+							dataField="{ SourceConstants.FIELD_TITLE }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText="{ resourceManager.getString( 'infinite', 'sources.sourceNameWithCount', [ model.filteredCountString ] ) }"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareTitle }" />
+						<s:GridColumn 
+							width="220"
+							dataField="{ SourceConstants.FIELD_TAGS_STRING }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText="{ resourceManager.getString( 'infinite', 'sources.tags' ) }"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareTags }" />
+						<s:GridColumn 
+							width="100"
+							dataField="{ SourceConstants.FIELD_MEDIA_TYPE }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText="{ resourceManager.getString( 'infinite', 'sources.type' ) }"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareMediaType }" />
+						<s:GridColumn 
+							dataField="{ SourceConstants.FIELD_COMMUNITY }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText="{ resourceManager.getString( 'infinite', 'sources.community' ) }"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareCommunity }" />
+					</s:ArrayList>
+				</common:columns>
+			</common:InfSelectableDataGrid>
+
+		</s:VGroup>
+
+	</component:content>
+
+</component:DialogPanel>

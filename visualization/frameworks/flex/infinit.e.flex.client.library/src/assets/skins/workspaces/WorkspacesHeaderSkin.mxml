@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark">
+
+	<fx:Metadata>
+		[HostComponent("com.ikanow.infinit.e.shared.view.component.GradientContainer")]
+	</fx:Metadata>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+		<s:State name="disabledAndInactive" />
+		<s:State name="normalAndInactive" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect id="background"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0">
+		<s:fill>
+			<s:LinearGradient rotation="{ hostComponent.getStyle( 'rotation' ) }">
+				<s:entries>
+					<s:GradientEntry 
+						color="{ hostComponent.getStyle( 'startColor' ) }"
+						ratio="{ hostComponent.getStyle( 'startRatio' ) }" />
+					<s:GradientEntry color="{ hostComponent.getStyle( 'endColor' ) }" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x000000"
+				alpha=".6"
+				angle="270"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- content -->
+	<s:Group id="contentGroup"
+		bottom="0"
+		left="0"
+		right="0"
+		top="0" />
+
+</s:SparkSkin>

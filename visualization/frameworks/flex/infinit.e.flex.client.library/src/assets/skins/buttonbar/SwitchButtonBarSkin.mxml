@@ -1,0 +1,73 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Skin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("spark.components.ButtonBar")]
+    ]]>
+	</fx:Metadata>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+		<fx:Script>
+			<![CDATA[
+				import assets.EmbeddedAssets;
+			]]>
+		</fx:Script>
+	</s:states>
+
+	<fx:Declarations>
+
+		<fx:Component id="firstButton">
+			<s:ButtonBarButton skinClass="assets.skins.buttonbar.SwitchButtonBarButtonFirstSkin" />
+		</fx:Component>
+
+		<fx:Component id="middleButton">
+			<s:ButtonBarButton skinClass="spark.skins.spark.ButtonBarMiddleButtonSkin" />
+		</fx:Component>
+
+		<fx:Component id="lastButton">
+			<s:ButtonBarButton skinClass="assets.skins.buttonbar.SwitchButtonBarButtonLastSkin" />
+		</fx:Component>
+
+	</fx:Declarations>
+
+	<s:Rect 
+		width="100%"
+		height="100%"
+		radiusX="8"
+		radiusY="8">
+		<s:fill>
+			<s:BitmapFill 
+				fillMode="repeat"
+				source="{ EmbeddedAssets.DK_GREY_STRIPE }" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				alpha=".9"
+				angle="45"
+				blurX="8"
+				blurY="8"
+				distance="3"
+				inner="true" />
+			<s:DropShadowFilter 
+				angle="240"
+				blurX="3"
+				blurY="3"
+				distance="1"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<s:DataGroup id="dataGroup"
+		width="100%"
+		height="100%">
+		<s:layout>
+			<s:ButtonBarHorizontalLayout gap="-1" />
+		</s:layout>
+	</s:DataGroup>
+
+</s:Skin>

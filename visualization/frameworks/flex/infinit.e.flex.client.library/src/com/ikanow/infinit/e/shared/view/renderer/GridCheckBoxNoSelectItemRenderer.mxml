@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	buttonMode="true"
+	clipAndEnableScrolling="true"
+	useHandCursor="true">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.ui.ISelectable;
+			
+			override public function prepare( hasBeenRecycled:Boolean ):void
+			{
+				if ( !data )
+					return;
+				
+				// change the background if the item is selected
+				if ( data && data is ISelectable && ISelectable( data ).selected )
+					backgroundContainer.alpha = 1;
+				else
+					backgroundContainer.alpha = 0;
+			}
+		]]>
+	</fx:Script>
+
+	<component:GradientContainer id="backgroundContainer"
+		width="100%"
+		height="100%"
+		styleName="dataGridSelection"
+		alpha="0" />
+
+	<common:InfCheckBox 
+		selected="{ data.selected }"
+		horizontalCenter="4"
+		verticalCenter="0"
+		mouseEnabled="false" />
+
+</s:GridItemRenderer>

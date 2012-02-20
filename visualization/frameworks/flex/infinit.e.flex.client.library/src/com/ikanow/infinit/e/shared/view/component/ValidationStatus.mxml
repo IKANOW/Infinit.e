@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+	Checkbox indicator to exist within text inputs to denote validity of input data
+-->
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx">
+
+	<fx:Script>
+		<![CDATA[
+			import assets.EmbeddedAssets;
+			
+			private var _valid:Boolean;
+			
+			public function get valid():Boolean
+			{
+				return _valid;
+			}
+			public function set valid( value:Boolean ):void
+			{
+				_valid = value;
+				
+				currentState = _valid ? "valid" : "invalid";
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="valid" />
+		<s:State name="invalid" />
+	</s:states>
+
+	<s:layout>
+		<s:HorizontalLayout paddingRight="10" />
+	</s:layout>
+
+	<s:BitmapImage 
+		source.invalid="{ EmbeddedAssets.INPUT_VALID }"
+		source.valid="{ EmbeddedAssets.INPUT_INVALID }" />
+
+</s:Group>

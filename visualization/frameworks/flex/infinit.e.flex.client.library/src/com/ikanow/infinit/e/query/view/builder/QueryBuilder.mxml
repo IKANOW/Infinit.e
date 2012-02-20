@@ -1,0 +1,113 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:builder="com.ikanow.infinit.e.query.view.builder.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:editor="com.ikanow.infinit.e.query.view.builder.editor.*"
+	xmlns:layout="com.ikanow.infinit.e.shared.view.layout.*"
+	width="100%"
+	height="100%"
+	creationComplete="setTimeout( creationCompleteHandler, 300 )">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.QueryBuilderModel;
+			import com.ikanow.infinit.e.shared.event.QueryEvent;
+			import com.ikanow.infinit.e.shared.model.vo.ui.QueryTermGroup;
+			import com.ikanow.infinit.e.shared.util.CollectionUtil;
+			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			import flash.utils.setTimeout;
+			import mx.events.FlexEvent;
+			import mx.events.FlexMouseEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryBuilderModel;
+			
+			protected function addQueryTermButton_clickHandler( event:MouseEvent ):void
+			{
+				model.addQueryTerm();
+				
+				callLater( advancedQueryBuilder.invalidateDisplayList );
+			}
+			
+			protected function advancedQueryBuilder_deleteQueryTermHandler( event:QueryEvent ):void
+			{
+				model.deleteQueryTerm( event.queryTermObject );
+				
+				callLater( advancedQueryBuilder.invalidateDisplayList );
+			}
+			
+			protected function advancedQueryBuilder_editQueryTermHandler( event:QueryEvent ):void
+			{
+				model.editQueryTerm( event.queryTerm );
+			}
+			
+			protected function creationCompleteHandler():void
+			{
+				// initialize the query term editor so that the navigator binds
+				queryTermEditor.alpha = 0;
+				model.navigator.showQueryTermEditor();
+				model.navigator.hideQueryTermEditor();
+				queryTermEditor.alpha = 1;
+			}
+			
+			protected function queryTermEditor_mouseDownOutsideHandler( event:FlexMouseEvent ):void
+			{
+				model.cancelEditQueryTerm();
+			}
+			
+			protected function queryTerms_queryTermDragDropHandler( event:QueryEvent ):void
+			{
+				model.dragDropHandler( event.dragEvent );
+				
+				callLater( advancedQueryBuilder.invalidateDisplayList );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Advanced Query Builder -->
+	<builder:QueryTermSkinnableDataContainer id="advancedQueryBuilder"
+		dataProvider="{ model.queryTermGroups }"
+		styleName="advancedQueryList"
+		left="10"
+		right="10"
+		updateComplete="advancedQueryBuilder.invalidateDisplayList()"
+		deleteQueryTerm="advancedQueryBuilder_deleteQueryTermHandler(event)"
+		dropEnabled="true"
+		editQueryTerm="advancedQueryBuilder_editQueryTermHandler(event)"
+		itemRendererFunction="QueryUtil.advancedQueryList_itemRendererFunction"
+		queryOperatorChange="{ model.updateQueryTerms( model.queryTermGroups ) }"
+		queryTermDragDrop="queryTerms_queryTermDragDropHandler(event)">
+		<builder:layout>
+			<layout:FlowLayout useVirtualLayout="false" />
+		</builder:layout>
+	</builder:QueryTermSkinnableDataContainer>
+
+	<!-- Add New Query Term Button -->
+	<common:InfButton id="addQueryTermButton"
+		styleName="addQueryTermButton"
+		x="{ advancedQueryBuilder.addButtonX }"
+		y="{ advancedQueryBuilder.addButtonY }"
+		enabled="{ !model.showQueryTermEditor }"
+		click="addQueryTermButton_clickHandler(event)" />
+
+	<!-- Query Term Editor -->
+	<s:PopUpAnchor id="queryTermEditorPopup"
+		styleName="queryTermEditor"
+		horizontalCenter="-310"
+		top="68"
+		displayPopUp="{ model.showQueryTermEditor }">
+		<editor:QueryTermEditor id="queryTermEditor"
+			mouseDownOutside="queryTermEditor_mouseDownOutsideHandler(event)"
+			close="model.navigator.hideQueryTermEditor()"
+			updateQueryTerm="model.navigator.hideQueryTermEditor()" />
+	</s:PopUpAnchor>
+
+</s:Group>

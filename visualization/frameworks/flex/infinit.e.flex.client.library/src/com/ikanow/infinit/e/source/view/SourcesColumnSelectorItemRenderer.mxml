@@ -1,0 +1,161 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	width="100%"
+	height="30"
+	click="itemRenderer_clickHandler(event)"
+	clipAndEnableScrolling="false">
+
+	<fx:Metadata>
+		[Event( name = "addItemToFilter", type = "mx.events.ItemClickEvent" )]
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
+			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelectorItem;
+			import mx.events.FlexMouseEvent;
+			import mx.events.ItemClickEvent;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					columnSelector = value as ColumnSelector;
+					displayPopup = false;
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			[Bindable]
+			protected var displayPopup:Boolean;
+			
+			[Bindable]
+			protected var columnSelector:ColumnSelector;
+			
+			protected function countButton_clickHandler( event:MouseEvent ):void
+			{
+				displayPopup = !displayPopup;
+			}
+			
+			protected function itemRenderer_clickHandler( event:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = event.target != countButton ? data : null;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function list_itemClickHandler( event:ItemClickEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( "addItemToFilter", true );
+				e.item = event.item;
+				e.index = event.index;
+				dispatchEvent( e );
+				
+				event.stopImmediatePropagation();
+				
+				displayPopup = false;
+				
+				columnsSelectorItemsList.selectedItem = null;
+			}
+			
+			protected function mouseDownOutsideHandler( event:FlexMouseEvent ):void
+			{
+				if ( event.relatedObject != countButton )
+					displayPopup = false;
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<component:GradientContainer 
+		width="100%"
+		height="100%"
+		styleName="{ columnSelector.selected ? 'columnSelectorSelected' : 'columnSelector' }"
+		alpha.hovered="1.0"
+		alpha.normal="0.8"
+		alpha.selected="1.0"
+		buttonMode="true"
+		useHandCursor="true">
+		<component:layout>
+			<s:HorizontalLayout 
+				paddingLeft="8"
+				paddingRight="4"
+				verticalAlign="middle"
+				gap="8" />
+		</component:layout>
+
+		<!-- Column Description-->
+		<common:InfLabel id="columnDescriptionLabel"
+			width="100%"
+			text="{ columnSelector.description }"
+			styleName="{ columnSelector.selected ? 'black' : 'veryLightGrey' }"
+			paddingTop="1"
+			maxDisplayedLines="1"
+			mouseEnabled="false"
+			showDropShadow="{ !columnSelector.selected }" />
+
+		<!-- Count Button-->
+		<common:InfButton id="countButton"
+			styleName="columnSelectorCountButton"
+			label="{ columnSelector.dataProvider.length }"
+			click="countButton_clickHandler(event)" />
+
+	</component:GradientContainer>
+
+	<!-- Column Selector Items List Popup -->
+	<s:PopUpAnchor id="listPopup"
+		y="{ this.height + 2 }"
+		x="{ ( this.width / 2 ) - 100 }"
+		styleName="titleWindowSearch"
+		displayPopUp="{ displayPopup }">
+
+		<component:HeaderContentTitleWindow 
+			mouseDownOutside="mouseDownOutsideHandler(event)"
+			close="displayPopup = false">
+
+			<!-- Header -->
+			<component:headerContent>
+				<s:Group 
+					left="10"
+					top="10">
+
+					<!-- Title -->
+					<common:InfLabel id="title"
+						text="{ columnSelector.description }"
+						styleName="lightGrey"
+						left="0"
+						verticalCenter="2" />
+
+				</s:Group>
+			</component:headerContent>
+
+			<!-- List -->
+			<common:InfItemClickList id="columnsSelectorItemsList"
+				dataProvider="{ columnSelector.dataProvider }"
+				labelField="description"
+				focusEnabled="false"
+				horizontalScrollPolicy="off"
+				styleName="titleWindowList"
+				width="200"
+				maxHeight="300"
+				itemClick="list_itemClickHandler(event)"
+				itemRenderer="com.ikanow.infinit.e.source.view.SourcesColumnSelectorItemItemRenderer" />
+
+		</component:HeaderContentTitleWindow>
+
+	</s:PopUpAnchor>
+
+</s:ItemRenderer>

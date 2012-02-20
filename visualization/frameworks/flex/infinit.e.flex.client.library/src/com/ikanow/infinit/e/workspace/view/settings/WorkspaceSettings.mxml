@@ -1,0 +1,520 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SkinnableContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:vo="com.ikanow.infinit.e.shared.model.vo.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	addedToStage="onChange()">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.util.FormatterUtil;
+			import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
+			
+			[Bindable]
+			[Inject]
+			public var model:WorkspaceSettingsModel;
+			
+			[PostConstruct]
+			public function init():void
+			{
+				// slightly non-standard, but we give the PM a ref to our change tracking model objects
+				// to use in comparisons, saving and resetting
+				model.documentOptionsFormValues = documentOptions;
+				model.aggregationOptionsFormValues = aggregationOptions;
+				model.scoreOptionsFormValues = scoreOptions;
+				
+				addEventListener( Event.CHANGE, onChange, true );
+			}
+			
+			protected function restoreButton_clickHandler( event:MouseEvent ):void
+			{
+				rankByOptions.selectedIndex = 0;
+				model.restoreDefaults()
+			}
+			
+			protected function saveButton_clickHandler( event:MouseEvent ):void
+			{
+				model.save();
+			}
+			
+			private function onChange( event:Event = null ):void
+			{
+				// if the time prox date was cleared, set it back to the model date
+				if ( timeProxDate.text == Constants.BLANK )
+					timeProxDate.selectedDate = FormatterUtil.getDateFromNowString( model.scoreOptions.timeProx.time );
+				
+				// since we're listening in capture phase we have to delay the check to ensure changes have been committed
+				callLater( model.checkForChanges );
+			}
+			
+			private function sliderDataTipFunc( val:String ):String
+			{
+				var num1:int = parseInt( val );
+				var num2:int = weightSlider.maximum - num1;
+				var halfMax:int = weightSlider.maximum / 2;
+				var output:String = val;
+				
+				if ( num1 == 0 )
+				{
+					output = sliderLabel.text = resourceManager.getString( 'infinite', 'workspaceSettings.significanceOnly' );
+				}
+				else if ( num2 == 0 )
+				{
+					output = sliderLabel.text = resourceManager.getString( 'infinite', 'workspaceSettings.relevanceOnly' );
+				}
+				else if ( num1 >= halfMax )
+				{
+					output = "1:" + String( ( num1 / num2 ).toPrecision( weightSlider.dataTipPrecision ) );
+					sliderLabel.text = output + " - " + resourceManager.getString( 'infinite', 'workspaceSettings.significanceRelevance' );
+				}
+				else if ( num1 < halfMax )
+				{
+					output = String( ( num2 / num1 ).toPrecision( weightSlider.dataTipPrecision ) ) + ":1";
+					sliderLabel.text = output + " - " + resourceManager.getString( 'infinite', 'workspaceSettings.significanceRelevance' );
+				}
+				
+				return output;
+			}
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<vo:QueryOutputDocumentOptions id="documentOptions"
+			enable="{ returnDocs.selected }"
+			ents="{ includeEntities.selected }"
+			events="{ includeEvents.selected }"
+			eventsTimeline="{ returnStandaloneEvents.selected }"
+			facts="{ includeFacts.selected }"
+			geo="{ includeGeotags.selected }"
+			metadata="{ includeMetadata.selected }"
+			numReturn="{ int( numDocsToReturn.text ) }"
+			skip="{ int( numDocsToSkip.text ) }"
+			summaries="{ includeSummaries.selected }" />
+
+		<vo:QueryOutputAggregationOptions id="aggregationOptions"
+			aggregateEntities="{ aggregateEntities.selected }"
+			aggregateEvents="{ aggregateEvents.selected }"
+			aggregateFacts="{ aggregateFacts.selected }"
+			aggregateGeotags="{ aggregateGeotags.selected }"
+			aggregateSourceMetadata="{ aggregateSourceMetadata.selected }"
+			aggregateSources="{ aggregateSources.selected }"
+			aggregateTimes="{ aggregateTimes.selected }"
+			entsNumReturn="{ parseInt( numEntitiesToReturn.text ) }"
+			eventsNumReturn="{ parseInt( numEventsToReturn.text ) }"
+			factsNumReturn="{ parseInt( numFactsToReturn.text ) }"
+			geoNumReturn="{ parseInt( numGeotagsToReturn.text ) }"
+			timesInterval="{ timesInterval.text }" />
+
+		<vo:QueryScoreOptions id="scoreOptions"
+			numAnalyze="{ parseInt( numDocsToAnalyze.text ) }"
+			relWeight="{ weightSlider.value }">
+			<vo:timeProx>
+				<vo:TimeProximity 
+					decay="{ timeProxDecay.text }"
+					time="{ timeProxDate.text }" />
+			</vo:timeProx>
+			<vo:geoProx>
+				<vo:GeoProximity 
+					decay="{ geoProxDecay.text }"
+					lat="{ geoProxLat.text }"
+					lon="{ geoProxLon.text }" />
+			</vo:geoProx>
+		</vo:QueryScoreOptions>
+
+		<!-- validators -->
+		<!--<s:NumberValidator id="latValidator"
+			maxValue="90"
+			minValue="-90"
+			property="text"
+			required="false"
+			source="{ geoProxLat }" />
+		<s:NumberValidator id="lonValidator"
+			maxValue="180"
+			minValue="-180"
+			property="text"
+			required="false"
+			source="{ geoProxLon }" />-->
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:Group 
+		width="100%"
+		height="50">
+
+		<common:InfLabel 
+			text="{ resourceManager.getString( 'infinite', 'workspaceSettings.title' ) }"
+			styleName="workspaceSettingsTitle"
+			paddingLeft="4"
+			paddingTop="6"
+			verticalCenter="0" />
+
+		<s:HGroup 
+			right="15"
+			verticalAlign="middle"
+			verticalCenter="0"
+			gap="10">
+			<common:InfButton id="restoreButton"
+				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButton' ) }"
+				toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButtonToolTip' ) }"
+				styleName="workspaceSettingsRestoreButton"
+				click="restoreButton_clickHandler(event)" />
+			<s:Spacer width="40" />
+			<common:InfButton id="saveButton"
+				width="100"
+				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.saveButton' ) }"
+				styleName="roundedBlueButton"
+				click="saveButton_clickHandler(event)" />
+			<common:InfButton 
+				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.cancelButton' ) }"
+				styleName="workspaceSettingsCancelButton"
+				click="model.cancel()" />
+		</s:HGroup>
+
+	</s:Group>
+
+	<s:Scroller 
+		width="100%"
+		height="100%">
+		<s:VGroup 
+			width="100%"
+			height="100%">
+
+			<s:SkinnableContainer 
+				width="100%"
+				styleName="workspaceSettingsGroup">
+				<s:layout>
+					<s:VerticalLayout gap="25" />
+				</s:layout>
+
+				<s:HGroup 
+					verticalAlign="middle"
+					gap="25">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.rankBy' ) }"
+						styleName="workspaceSettingsGroupLabel" />
+					<common:InfDropDownList id="rankByOptions"
+						width="206"
+						dataProvider="{ model.rankByOptions }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.rankByToolTip' ) }"
+						selectedIndex="0"
+						addedToStage="{ rankByOptions.selectedIndex = 0 }" />
+				</s:HGroup>
+				<s:HGroup verticalAlign="middle">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocs' ) }"
+						styleName="workspaceSettingsGroupLabel" />
+					<textInput:InfTextInput id="numDocsToAnalyze"
+						text="{ model.scoreOptions.numAnalyze.toString() }"
+						width="65"
+						styleName="infTextInput"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToolTip' ) }" />
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					paddingBottom="20"
+					paddingTop="20"
+					verticalAlign="middle"
+					gap="25">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.scoringWeights' ) }"
+						styleName="workspaceSettingsGroupLabel"
+						paddingTop="3" />
+					<s:Group width="70%">
+						<common:InfLabel 
+							styleName="darkText"
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.significance' ) }"
+							top="-17" />
+						<common:InfLabel 
+							styleName="darkText"
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.relevance' ) }"
+							right="0"
+							top="-17" />
+						<s:HSlider id="weightSlider"
+							styleName="weightSlider"
+							width="100%"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.weightSliderToolTip' ) }"
+							minimum="0"
+							maximum="100"
+							liveDragging="true"
+							value="{ model.scoreOptions.relWeight }"
+							dataTipFormatFunction="{ sliderDataTipFunc }"
+							snapInterval="1"
+							dataTipPrecision="2"
+							creationComplete="sliderDataTipFunc( weightSlider.value.toString() )" />
+						<common:InfLabel id="sliderLabel"
+							styleName="lightText"
+							bottom="-19"
+							horizontalCenter="0" />
+					</s:Group>
+				</s:HGroup>
+				<s:HGroup verticalAlign="middle">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.weightBy' ) }"
+						styleName="workspaceSettingsGroupLabel"
+						paddingTop="2" />
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.timeDecayDate' ) }"
+						paddingLeft="40"
+						paddingTop="3" />
+					<common:InfDateField id="timeProxDate"
+						height="40"
+						selectedDate="{ FormatterUtil.getDateFromNowString( model.scoreOptions.timeProx.time ) }"
+						width="130"
+						textAlign="center"
+						editable="false"
+						formatString="{ Constants.DEFAULT_DATE_TIME_FORMAT }" />
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.halfLife' ) }"
+						paddingLeft="25"
+						paddingTop="3" />
+					<textInput:InfTextInput id="timeProxDecay"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.halfLifeToolTip' ) }"
+						text="{ model.scoreOptions.timeProx.decay }"
+						width="60"
+						styleName="infTextInput" />
+				</s:HGroup>
+				<s:HGroup verticalAlign="middle">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.geoDecay' ) }"
+						styleName="workspaceSettingsGroupLabel"
+						paddingTop="2" />
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.latitude' ) }"
+						paddingLeft="40"
+						paddingTop="3" />
+					<textInput:InfTextInput id="geoProxLat"
+						text="{ model.scoreOptions.geoProx.lat }"
+						width="60"
+						styleName="infTextInput"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.latitudeToolTip' ) }" />
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.longitude' ) }"
+						paddingLeft="25"
+						paddingTop="3" />
+					<textInput:InfTextInput id="geoProxLon"
+						text="{ model.scoreOptions.geoProx.lon }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.longitudeToolTip' ) }"
+						width="60"
+						styleName="infTextInput" />
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.geoProxDecay' ) }"
+						paddingLeft="25"
+						paddingTop="3" />
+					<textInput:InfTextInput id="geoProxDecay"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.geoProxDecayToolTip' ) }"
+						text="{ model.scoreOptions.geoProx.decay }"
+						width="60"
+						styleName="infTextInput" />
+				</s:HGroup>
+			</s:SkinnableContainer>
+
+			<!-- DOCUMENT AND AGGREGATION OPTIONS -->
+			<s:SkinnableContainer 
+				width="100%"
+				styleName="workspaceSettingsGroup">
+				<s:layout>
+					<s:HorizontalLayout gap="25" />
+				</s:layout>
+
+				<!-- DOCUMENT OPTIONS -->
+				<s:VGroup 
+					width="33%"
+					gap="20">
+					<!-- Return documents, Return Standalone Events -->
+					<common:InfCheckBox id="returnDocs"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.returnDocs' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.returnDocsToolTip' ) }"
+						selected="{ model.documentOptions.enable }" />
+
+					<common:InfCheckBox id="returnStandaloneEvents"
+						selected="{ model.documentOptions.eventsTimeline }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.returnStandaloneEventsToolTip' ) }"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.returnStandaloneEvents' ) }" />
+
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numDocsToReturn"
+							text="{ model.documentOptions.numReturn.toString() }"
+							width="60"
+							styleName="infTextInput"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToReturnToolTip' ) }"
+							restrict="0-9" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxDocs' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numDocsToSkip"
+							text="{ model.documentOptions.skip.toString() }"
+							width="60"
+							styleName="infTextInput"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToSkipToolTip' ) }"
+							restrict="0-9" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToSkip' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<!-- Include entities, Include summaries -->
+					<s:HGroup verticalAlign="middle">
+						<common:InfCheckBox id="includeEntities"
+							width="150"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEntitiesToolTip' ) }"
+							selected="{ model.documentOptions.ents }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEntities' ) }" />
+						<common:InfCheckBox id="includeSummaries"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeSummariesToolTip' ) }"
+							selected="{ model.documentOptions.summaries }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeSummaries' ) }" />
+					</s:HGroup>
+
+					<!-- Include events, Include geotags -->
+					<s:HGroup verticalAlign="middle">
+						<common:InfCheckBox id="includeEvents"
+							width="150"
+							selected="{ model.documentOptions.events }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEventsToolTip' ) }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEvents' ) }" />
+						<common:InfCheckBox id="includeGeotags"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeGeotagsToolTip' ) }"
+							selected="{ model.documentOptions.geo }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeGeotags' ) }" />
+					</s:HGroup>
+
+					<!-- Include facts, Include metadata -->
+					<s:HGroup verticalAlign="middle">
+						<common:InfCheckBox id="includeFacts"
+							width="150"
+							selected="{ model.documentOptions.facts }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeFactsToolTip' ) }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeFacts' ) }" />
+						<common:InfCheckBox id="includeMetadata"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeMetadataToolTip' ) }"
+							selected="{ model.documentOptions.metadata }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeMetadata' ) }" />
+					</s:HGroup>
+				</s:VGroup>
+
+				<!-- AGGREGATION OPTIONS (column 1) -->
+				<s:VGroup 
+					width="33%"
+					gap="20">
+					<!-- geotags -->
+					<common:InfCheckBox id="aggregateGeotags"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateGeotags' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateGeotagsToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateGeotags }" />
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numGeotagsToReturn"
+							width="60"
+							styleName="infTextInput"
+							text="{ model.aggregationOptions.geoNumReturn }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxGeotagsToolTip' ) }" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxGeotags' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<!-- times -->
+					<common:InfCheckBox id="aggregateTimes"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateTimes' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateTimesToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateTimes }" />
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="timesInterval"
+							width="60"
+							styleName="infTextInput"
+							text="{ model.aggregationOptions.timesInterval }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregationIntervalToolTip' ) }"
+							restrict="0-9mwyd" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregationInterval' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<!-- entities -->
+					<common:InfCheckBox id="aggregateEntities"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateEntities' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateEntitiesToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateEntities }" />
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numEntitiesToReturn"
+							width="60"
+							styleName="infTextInput"
+							text="{ model.aggregationOptions.entsNumReturn }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEntitiesToolTip' ) }" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEntities' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+				</s:VGroup>
+
+				<!-- AGGREGATION OPTIONS (column 2) -->
+				<s:VGroup 
+					width="33%"
+					gap="20">
+					<!-- events -->
+					<common:InfCheckBox id="aggregateEvents"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateEvents' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateEventsToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateEvents }" />
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numEventsToReturn"
+							width="60"
+							styleName="infTextInput"
+							text="{ model.aggregationOptions.eventsNumReturn }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEventsToolTip' ) }" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEvents' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<!-- facts -->
+					<common:InfCheckBox id="aggregateFacts"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateFacts' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateFactsToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateFacts }" />
+					<s:HGroup verticalAlign="middle">
+						<textInput:InfTextInput id="numFactsToReturn"
+							width="60"
+							styleName="infTextInput"
+							text="{ model.aggregationOptions.factsNumReturn }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxFactsToolTip' ) }" />
+						<common:InfLabel 
+							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxFacts' ) }"
+							styleName="workspaceSettingsGroupLabel" />
+					</s:HGroup>
+
+					<!-- sources and source metadata -->
+					<common:InfCheckBox id="aggregateSources"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateSources' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateSourcesToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateSources }" />
+					<common:InfCheckBox id="aggregateSourceMetadata"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateSourceMetadata' ) }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregateSourceMetadataToolTip' ) }"
+						selected="{ model.aggregationOptions.aggregateSourceMetadata }" />
+				</s:VGroup>
+			</s:SkinnableContainer>
+		</s:VGroup>
+	</s:Scroller>
+
+</s:SkinnableContainer>

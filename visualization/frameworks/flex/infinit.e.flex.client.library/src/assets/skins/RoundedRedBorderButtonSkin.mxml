@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="21"
+	minHeight="21"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>[HostComponent("com.ikanow.infinit.e.shared.view.component.common.InfButton")]</fx:Metadata>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- border -->
+	<s:Rect 
+		width="100%"
+		height="100%"
+		radiusX="16"
+		radiusY="16">
+		<s:fill>
+			<s:SolidColor color="0x6b0001" />
+		</s:fill>
+	</s:Rect>
+
+	<!-- background -->
+	<s:Rect 
+		bottom="2"
+		left="2"
+		right="2"
+		top="2"
+		radiusX="14"
+		radiusY="14">
+		<s:fill>
+			<s:SolidColor 
+				color="0xDDDDDD"
+				color.over="0xEEEEEE" />
+		</s:fill>
+	</s:Rect>
+
+	<!-- text -->
+	<s:Label id="labelDisplay"
+		bottom="10"
+		horizontalCenter="0"
+		left="10"
+		right="10"
+		textAlign="center"
+		top="11"
+		verticalAlign="middle"
+		verticalCenter="0"
+		alpha.over=".9"
+		maxDisplayedLines="1" />
+
+</s:SparkButtonSkin>

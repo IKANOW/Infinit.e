@@ -1,0 +1,19 @@
+# Cluster Settings
+cluster:
+  name: CLUSTER_NAME
+discovery:
+  type: DISCOVERY_MODE
+  #zen only:
+  zen.ping.multicast.enabled: false
+  zen.ping.unicast.hosts: ELASTIC_NODES
+  #ec2 only:
+  ec2.tag.cluster-name: CLUSTER_NAME
+  ec2.tag.index-node: 1 
+#ec2 only:
+cloud:	
+  aws.access_key: AWS_KEY
+  aws.secret_key: SECRET_KEY
+boostrap:
+  mlockall: BOOTSTRAP_MLOCKALL
+script.native.decayscript.type:
+  com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory

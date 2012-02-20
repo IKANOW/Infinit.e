@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	toolTip="{ queryTermToolTip }"
+	autoDrawBackground="false"
+	mouseEnabled="false">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.types.QueryTermTypes;
+			import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value == null )
+					return;
+				
+				queryTerm = value as QueryTerm;
+				
+				setToolTip();
+			}
+			
+			[Bindable]
+			protected var queryTerm:QueryTerm;
+			
+			[Bindable]
+			protected var queryTermToolTip:String;
+			
+			protected function setToolTip():void
+			{
+				if ( queryTerm )
+				{
+					if ( queryTerm.type == QueryTermTypes.GEO_LOCATION )
+					{
+						queryTermToolTip = Constants.BLANK;
+						
+						// latitude
+						if ( queryTerm.geo.latLongArray[ 0 ] )
+						{
+							queryTermToolTip += resourceManager.getString( 'infinite', 'queryTermItemRenderer.geo.latitude' ) + Constants.COLON + Constants.SPACE + queryTerm.geo.latLongArray[ 0 ];
+							queryTermToolTip += Constants.LINE_BREAK;
+						}
+						
+						// longitude
+						if ( queryTerm.geo.latLongArray[ 0 ] )
+						{
+							queryTermToolTip += resourceManager.getString( 'infinite', 'queryTermItemRenderer.geo.longitude' ) + Constants.COLON + Constants.SPACE + queryTerm.geo.latLongArray[ 1 ];
+							queryTermToolTip += Constants.LINE_BREAK;
+						}
+						
+						// radius
+						if ( queryTerm.geo.dist )
+						{
+							queryTermToolTip += resourceManager.getString( 'infinite', 'queryTermItemRenderer.geo.radius' ) + Constants.COLON + Constants.SPACE + queryTerm.geo.dist;
+						}
+					}
+					else if ( queryTerm.type == QueryTermTypes.EVENT )
+					{
+						queryTermToolTip = Constants.BLANK;
+						
+						// term 1
+						if ( queryTerm.event.entity1 )
+						{
+							queryTermToolTip = resourceManager.getString( 'infinite', 'queryTermItemRenderer.event.term1' ) + Constants.COLON + Constants.SPACE + queryTerm.event.entity1.displayLabel;
+							queryTermToolTip += Constants.LINE_BREAK;
+						}
+						
+						// verb
+						if ( queryTerm.event.verb )
+						{
+							queryTermToolTip += resourceManager.getString( 'infinite', 'queryTermItemRenderer.event.verb' ) + Constants.COLON + Constants.SPACE + queryTerm.event.verb;
+							queryTermToolTip += Constants.LINE_BREAK;
+						}
+						
+						// term 2
+						if ( queryTerm.event.entity2 )
+						{
+							queryTermToolTip += resourceManager.getString( 'infinite', 'queryTermItemRenderer.event.term2' ) + Constants.COLON + Constants.SPACE + queryTerm.event.entity2.displayLabel;
+						}
+					}
+					else
+					{
+						queryTermToolTip = Constants.BLANK;
+					}
+				}
+				
+				invalidateDisplayList();
+			}
+		]]>
+	</fx:Script>
+
+	<s:Label 
+		text="{ queryTerm.displayLabel }"
+		styleName="blackBold"
+		paddingLeft="6"
+		paddingRight="4"
+		paddingTop="2" />
+
+</s:ItemRenderer>

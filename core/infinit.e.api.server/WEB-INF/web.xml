@@ -1,0 +1,42 @@
+<!DOCTYPE web-app PUBLIC
+  '-//Sun Microsystems, Inc.//DTD Web Application 2.3//EN'
+  'http://java.sun.com/dtd/web-app_2_3.dtd'>
+<web-app>
+  <display-name>Infinite Rest Servlets</display-name> 
+   
+   <!-- Application class name -->  
+   <context-param>  
+      <param-name>org.restlet.application</param-name>  
+      <param-value>  
+      	 com.ikanow.infinit.e.api.server.EmbeddedRestletApp  
+      </param-value>   
+   </context-param>   
+   <context-param>
+   		<param-name>configpath</param-name>
+   		<param-value>/opt/infinite-home/config</param-value>
+   </context-param>
+   
+   <!-- Restlet adapter -->  
+   <servlet>  
+      <servlet-name>InfiniteServlet</servlet-name>  
+      <servlet-class>  
+         com.noelios.restlet.ext.servlet.ServerServlet  
+      </servlet-class>  
+   </servlet>   
+  
+   <!-- Catch rest api requests -->  
+   <servlet-mapping>  
+      <servlet-name>InfiniteServlet</servlet-name>  
+      <url-pattern>/*</url-pattern>  
+   </servlet-mapping>
+
+	<!-- Ensure response headers instruct browsers (ie IE!) not to cache -->
+	<filter>
+	    <filter-name>SetCacheControl</filter-name>
+	    <filter-class>com.ikanow.infinit.e.api.server.CacheControlFilter</filter-class>
+	</filter>                       
+	<filter-mapping>
+	    <filter-name>SetCacheControl</filter-name>
+		<servlet-name>InfiniteServlet</servlet-name>
+	</filter-mapping>
+</web-app>

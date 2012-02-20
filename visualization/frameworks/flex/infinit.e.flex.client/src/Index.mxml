@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:config="com.ikanow.infinit.e.config.*"
+	xmlns:view="com.ikanow.infinit.e.view.*"
+	width="100%"
+	height="100%"
+	backgroundColor="#363E41"
+	initialize="initializeHandler()">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Resources :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[ResourceBundle("infinite")]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Styles ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Style source="assets/css/infiniteStyles.css" />
+	<fx:Style source="assets/css/Common.css" />
+	<fx:Style source="assets/css/Query.css" />
+	<fx:Style source="assets/css/History.css" />
+	<fx:Style source="assets/css/Workspaces.css" />
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Declarations:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Declarations>
+		<config:Config />
+	</fx:Declarations>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script:::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.util.BrowserUtil;
+			
+			protected function initializeHandler():void
+			{
+				// listen for uncaught errors
+				systemManager.loaderInfo.uncaughtErrorEvents.addEventListener( UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler );
+				
+				// set the browser window title
+				BrowserUtil.setBrowserWindowTitle( resourceManager.getString( 'infinite', 'application.title' ) );
+			}
+			
+			protected function uncaughtErrorHandler( e:UncaughtErrorEvent ):void
+			{
+				e.preventDefault();
+				
+				var s:String;
+				
+				if ( e.error is Error )
+				{
+					var error:Error = e.error as Error;
+					s = "Uncaught Error: " + error.errorID + ", " + error.name + ", " + error.message;
+				}
+				else
+				{
+					var errorEvent:ErrorEvent = e.error as ErrorEvent;
+					s = "Uncaught ErrorEvent: " + errorEvent.errorID;
+				}
+				
+				trace( s );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- Main View -->
+	<view:Main id="mainView"
+		width="100%"
+		height="100%" />
+
+</s:Application>
+

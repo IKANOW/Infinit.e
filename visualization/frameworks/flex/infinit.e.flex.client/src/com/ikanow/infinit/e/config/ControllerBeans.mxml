@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<swiz:BeanProvider xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:swiz="http://swiz.swizframework.org"
+	xmlns:community="com.ikanow.infinit.e.community.control.*"
+	xmlns:control="com.ikanow.infinit.e.shared.control.*"
+	xmlns:query="com.ikanow.infinit.e.query.control.*"
+	xmlns:source="com.ikanow.infinit.e.source.control.*"
+	xmlns:workspace="com.ikanow.infinit.e.workspace.control.*">
+
+	<fx:Declarations>
+
+		<!-- Service Helper -->
+		<swiz:ServiceHelper />
+
+		<!-- Navigation -->
+		<control:NavigationController />
+
+		<!-- Session -->
+		<control:SessionController />
+
+		<!-- User -->
+		<control:UserController />
+
+		<!-- Setup -->
+		<control:SetupController />
+
+		<!-- Community -->
+		<community:CommunityController />
+
+		<!-- Source -->
+		<source:SourceController />
+
+		<!-- Query -->
+		<query:QueryController />
+
+		<control:WidgetModuleController />
+
+		<!-- Workspace -->
+		<workspace:WorkspaceController />
+
+	</fx:Declarations>
+
+</swiz:BeanProvider>

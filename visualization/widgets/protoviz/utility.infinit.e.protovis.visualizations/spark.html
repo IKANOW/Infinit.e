@@ -1,0 +1,235 @@
+<html>
+  <head>
+    <title>Infinit.e Spark</title>
+    <script type="text/javascript" src="protovis-r3.2.js"></script>
+    <script type="text/javascript" src="jquery-1.6.1.js"></script>
+    <script type="text/javascript" src="spark.js"></script>
+  </head>
+  <body>
+
+<script type="text/javascript+protovis">
+    
+        $.ajax( {
+            type:'Get',
+            url:'query.json',
+            dataType: 'json',
+            success:function(response) {
+        
+            var bars = [0.2, 0.3, 0.6, 0.1, 0.9, 0.8, 0.23, 0.77, 0.63, 0.43, 0.59, 0.11];
+
+            /** An array of sunspot observations. */
+            var sunspots = [
+              40, 115, 100, 80, 60, 40, 23, 10, 10, 25, 75, 145,
+              130, 130, 80, 65, 20, 10, 5, 10, 60, 190, 180, 175,
+              120, 50, 35, 20, 10, 15, 30, 60, 105, 105, 105, 80, 65
+            ];
+            
+            var sunspots2 = [
+              2, 40, 150, 20, 60, 40, 23, 10, 10, 25, 75, 145,
+              130, 130, 80, 65, 20, 10, 5, 10, 60, 190, 180, 175,
+              120, 50, 35, 20, 10, 15, 30, 60, 105, 105, 105, 80, 65
+            ];
+            
+            var documents = initializeDocuments(response);
+            var entities = initializeEntities(response);
+            
+            write(documents, entities);
+            
+            function write(documents, entities) {
+                var value;
+                for (var e=0, el=documents.length; e < el; e) {
+                    value = bold(documents[e].title, entities);
+                    split(value, entities);
+                    document.write("<br/>");
+                    document.write('<a href="' + documents[e].url + '">' + documents[e].url + '</a>');
+                    document.write("<br/>");
+                    
+                    
+                    if (documents[e].description != null) {
+                        var desc;
+                        if (documents[e].description.length > 150) {
+                            desc = documents[e].description.substring(0, 500) + ".....";
+                        } else {
+                            desc = documents[e].description;
+                        }
+                        
+                        value = bold(desc, entities);
+                        split(value, entities);
+                        document.write("<br/><br/>");
+                    } else {
+                        document.write("<br/>");
+                    }
+                    
+                    
+                    
+                    e++;
+                }
+            }
+            
+            function bold(value, entities) {
+                for (var e=0, el=entities.length; e < el; e) {
+                    value = value.replace(entities[e].value, "<b><i>[[" +  entities[e].value + "]]</i></b> ||||");
+                    e++;
+                }
+                return value;
+            }
+            
+            function split(value, entities) {
+                var splitIt = value.split("||||");
+                for(var i=0, l=splitIt.length; i < l;   i) {
+                    if (i <= l - 2) {
+                        document.write(splitIt[i].replace("[[","").replace("]]",""));
+                        spark(splitIt[i], entities);
+                    }
+                    else {
+                        document.write(splitIt[i].replace("[[","").replace("]]",""));
+                    }
+                    i++;
+                }
+                
+            }
+            
+            function spark(value, entities) {
+                // ADD LOGIC TO AGGREGATE THE DATA
+                //if (i % 2) {
+                
+                    entity = value.split("[[")[1].split("]]")[0];
+                    //console.log(entity);
+                    //sparkbar(sparkData(entity));
+                    sparkline(sparkData(entity), 1);
+                    //sparkline(sunspots, 10);
+                //} else {
+                //    sparkline(sunspots2, 2);
+                //}
+            }
+            
+            function sparkData(entity) {
+                var data = [];
+                var count = 0;
+                for(var i=0, l=response.data.length; i < l;   i) {
+                    
+                    for(var e=0, el=response.data[i].entities.length; e < el;   e) {
+                        //console.log(entity + " != " + response.data[i].entities[e].actual_name);
+                        if (entity == response.data[i].entities[e].actual_name) {
+                            
+                            console.log(entity + " == " + response.data[i].entities[e].actual_name);
+                            //data = genup(parseFloat(response.data[i].entities[e].relevance * 10), data);
+                            //data = genup(parseFloat(response.data[i].entities[e].frequency), data);
+                            //data = genup(parseFloat(response.data[i].entities[e].averageFreq), data);
+                            //data = genup(parseFloat(response.data[i].entities[e].totalfrequency), data);
+                            data = genup(parseFloat(response.data[i].entities[e].queryCoverage), data);
+                            data = genup(parseFloat(response.data[i].entities[e].significance), data);
+                            data = genup(parseFloat(response.data[i].entities[e].datasetSignificance), data);
+                            return data; 
+                        }  
+                     
+                        e++;
+                    }
+                   i++; 
+                }
+                
+                return null;
+            }
+            
+            function genup(value, data) {
+                
+                for(var e=0, el=12; e < el;   e) {
+                    data.push(parseFloat(value));
+                    e++;
+                }
+                return data;
+            }
+            
+            /** A simple sparkline with optional dots. */
+            function sparkline(data, dots) {
+              var n = data.length,
+                  w = n,
+                  h = 10,
+                  min = pv.min.index(data),
+                  max = pv.max.index(data);
+            
+              var vis = new pv.Panel()
+                  .width(w)
+                  .height(h)
+                  .margin(2);
+            
+              vis.add(pv.Line)
+                  .data(data)
+                  .left(pv.Scale.linear(0, n - 1).range(0, w).by(pv.index))
+                  .bottom(pv.Scale.linear(data).range(0, h))
+                  .strokeStyle("#000")
+                  .lineWidth(1)
+                .add(pv.Dot)
+                  .visible(function() (dots && this.index == 0) || this.index == n - 1)
+                  .strokeStyle(null)
+                  .fillStyle("brown")
+                  .radius(2)
+                .add(pv.Dot)
+                  .visible(function() dots && (this.index == min || this.index == max))
+                  .fillStyle("steelblue");
+            
+              vis.render();
+            }
+            
+            /** An uptick/downtick sparkline for binary data. */
+            function sparktick(data) {
+              var w = data.length * 2,
+                  h = 11;
+            
+              var vis = new pv.Panel()
+                  .width(w)
+                  .height(h);
+            
+              vis.add(pv.Rule)
+                  .bottom(h / 2)
+                  .strokeStyle("#870")
+                .add(pv.Rule)
+                  .data(data)
+                  .left(function() 2 * this.index)
+                  .bottom(function(d) d ? h / 2 : 0)
+                  .height(h / 2);
+            
+              vis.render();
+            }
+            
+            /** A sparkline bar chart. */
+            function sparkbar(data) {
+              var w = 60,
+                  h = 12;
+            
+              var vis = new pv.Panel()
+                  .width(w)
+                  .height(h);
+            
+              vis.add(pv.Bar)
+                  .data(data)
+                  .width(4)
+                  .left(function() 5 * this.index)
+                  .height(function(d) Math.round(h * d))
+                  .bottom(0);
+            
+              vis.render();
+            }
+            
+            /** A small colored dot. */
+            function dot(color) {
+              new pv.Panel()
+                  .width(6)
+                  .height(9)
+                .anchor("center").add(pv.Dot)
+                  .strokeStyle(null)
+                  .fillStyle(color)
+                  .radius(2)
+                .root.render();
+            }
+
+        
+            
+            }
+            
+        })
+    
+</script>
+</body>
+</html>
+

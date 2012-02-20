@@ -1,0 +1,171 @@
+<?xml version="1.0" encoding="utf-8"?>
+<component:GradientContainer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	xmlns:editor="com.ikanow.infinit.e.query.view.builder.editor.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	width="620"
+	currentState="{ model.navigator.currentState }"
+	addedToStage="model.hideSuggestionsList()"
+	preinitialize="QueryTermEditorNavigator.updateViewStates( this, QueryTermEditorNavigator.ENTITY_ID )"
+	removedFromStage="model.hideSuggestionsList()">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Events ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Metadata>
+		[Event( name = "updateQueryTerm", type = "flash.events.Event" )]
+		[Event( name = "close", type = "flash.events.Event" )]
+	</fx:Metadata>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
+			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorNavigator;
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			import com.ikanow.infinit.e.shared.model.constant.types.EditModeTypes;
+			import com.ikanow.infinit.e.shared.util.FormatterUtil;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryTermEditorModel;
+			
+			protected function closeButton_clickHandler( event:MouseEvent ):void
+			{
+				dispatchEvent( new Event( "close", true ) );
+			}
+			
+			protected function expandAliasCheckBox_changeHandler( event:Event ):void
+			{
+				model.toggleSelectedQueryTermExpandAlias();
+			}
+			
+			protected function updateButton_clickHandler( event:MouseEvent ):void
+			{
+				switch ( currentState )
+				{
+					case NavigationConstants.QUERY_TERM_EDITOR_ENTITY_ID:
+						entityEditor.updateQueryTerm();
+						break;
+					case NavigationConstants.QUERY_TERM_EDITOR_EVENT_ID:
+						eventEditor.updateQueryTerm();
+						break;
+					case NavigationConstants.QUERY_TERM_EDITOR_GEO_LOCATION_ID:
+						geoLocationEditor.updateQueryTerm();
+						break;
+					case NavigationConstants.QUERY_TERM_EDITOR_TEMPORAL_ID:
+						temporalEditor.updateQueryTerm();
+						break;
+				}
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:states>
+		<s:State name="entity" />
+		<s:State name="event" />
+		<s:State name="geolocation" />
+		<s:State name="temporal" />
+	</component:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<component:layout>
+		<s:VerticalLayout 
+			paddingBottom="6"
+			paddingTop="6" />
+	</component:layout>
+
+	<!-- Header -->
+	<s:HGroup 
+		width="100%"
+		paddingLeft="3"
+		paddingTop="2"
+		verticalAlign="middle"
+		gap="10">
+
+		<!-- Title -->
+		<common:InfLabel 
+			styleName="lightGrey"
+			text="{ model.editorQueryTerm.editMode == EditModeTypes.ADD ? resourceManager.getString( 'infinite', 'queryTermEditor.addQueryTerm' ) : resourceManager.getString( 'infinite', 'queryTermEditor.editQueryTerm' ) }"
+			paddingLeft="12"
+			paddingRight="8"
+			paddingTop="2" />
+
+		<!-- Query Term Type Buttons -->
+		<s:Group>
+			<common:InfButtonBar id="queryTermTypes"
+				styleName="queryTermTypeButtonBar"
+				dataProvider="{ model.navigator.states }"
+				selectedIndex="{ model.navigator.currentStateIndex }"
+				top="-2"
+				change="model.navigator.navigate( queryTermTypes.selectedItem )" />
+		</s:Group>
+
+		<!-- Spacer -->
+		<s:Spacer width="100%" />
+
+		<!-- Expand Alias -->
+		<common:InfCheckBox id="expandAliasCheckBox"
+			styleName="checkMarkDark"
+			selected="{ model.selectedQueryTerm.entityOpt.expandAlias }"
+			label="{ resourceManager.getString( 'infinite', 'querySettingsQueryTermItemRenderer.expandAlias' ) }"
+			change="expandAliasCheckBox_changeHandler(event)" />
+
+		<!-- Spacer -->
+		<s:Spacer width="10" />
+
+		<!-- Update Button -->
+		<common:InfButton id="updateButton"
+			height="28"
+			width="90"
+			label="{ model.editorQueryTerm.editMode == EditModeTypes.ADD ? resourceManager.getString( 'infinite', 'common.add' ) : resourceManager.getString( 'infinite', 'common.update' ) }"
+			styleName="roundedBlueButtonSmall"
+			click="updateButton_clickHandler(event)" />
+
+		<!-- Close Button -->
+		<s:Group height="100%">
+			<common:InfButton id="closeButton"
+				styleName="closeButton"
+				top="-5"
+				click="closeButton_clickHandler(event)" />
+		</s:Group>
+
+	</s:HGroup>
+
+	<!-- Separator -->
+	<component:HSeparator 
+		styleName="panelSeparator"
+		width="100%"
+		alpha="0.5" />
+
+	<!-- Search Term (Entity) -->
+	<editor:QueryTermEditorEntity id="entityEditor"
+		width="100%"
+		includeIn="entity" />
+
+	<!-- Event -->
+	<editor:QueryTermEditorEvent id="eventEditor"
+		width="100%"
+		includeIn="event" />
+
+	<!-- Geo Location -->
+	<editor:QueryTermEditorGeoLocation id="geoLocationEditor"
+		width="100%"
+		includeIn="geolocation" />
+
+	<!-- Temporal -->
+	<editor:QueryTermEditorTemporal id="temporalEditor"
+		width="100%"
+		includeIn="temporal" />
+
+</component:GradientContainer>

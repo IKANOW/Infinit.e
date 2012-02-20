@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.core.server" default="dist" basedir=".">
+	<property name="vendor" value="IKANOW LLC."/>
+	<property name="dir.src" value="src"/>
+	<property name="dir.src.test" value="test" />
+	<property name="dir.build" value="build"/>
+	<property name="dir.lib" value="lib"/>
+	<property name="dir.jar" value="jar"/>
+	<property name="dir.config.repository" value="../infinit.e-config.rpm/SOURCES/infinit.e-config/mnt/opt/infinite-home/config"/>
+	<property name="dir.config" value="config"/>
+	<property name="dir.logs" value="logs"/>
+	<property name="dir.scripts" value="scripts"/>
+	<property name="dir.etc.init.d" value="etc/init.d"/>
+	<property name="dir.etc.cron.d" value="etc/cron.d"/>
+	<property name="dir.bin" value="bin"/>
+	<property name="dir.build.classes" value="${dir.build}/classes"/>
+	<property name="dir.build.test.classes" value="${dir.build}/test-classes"/>
+	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
+	<property name="dir.build.jar" value="${dir.build}/${dir.jar}"/>
+	<property name="dir.dist" value="dist"/>
+	<property name="dir.dist.etc" value="${dir.dist}/etc"/>
+	<property name="dir.dist.etc.init.d" value="${dir.dist}/${dir.etc.init.d}"/>
+	<property name="dir.dist.etc.cron.d" value="${dir.dist}/${dir.etc.cron.d}"/>
+	<property name="dir.dist.opt" value="${dir.dist}/opt/infinite-home"/>
+	<property name="dir.dist.opt.bin" value="${dir.dist.opt}/${dir.bin}"/>
+	<property name="dir.dist.opt.lib" value="${dir.dist.opt}/${dir.lib}"/>
+	<property name="infinit.e.harvest.library.location" value="../infinit.e.harvest.library"/>
+	<property name="infinit.e.processing.custom.library.location" value="../infinit.e.processing.custom.library"/>
+	<property name="infinit.e.processing.generic.library.location" value="../infinit.e.processing.generic.library"/>
+	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
+	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	<property name="debuglevel" value="source,lines,vars"/>	
+	<property name="test.pattern" value="**/**Test.java" />	
+	<property name="manifest.name" value="com/ikanow/infinit/e"/>
+	<property name="specification.title" value="infinit.e core server classes"/>
+	<property name="specification.version" value="0.25"/>
+	<property name="specification.vendor" value="${vendor}"/>
+	<property name="implementation.title" value="com.ikanow.infinit.e"/>
+	<property name="implementation.version" value="build${build.number}"/>
+	<property name="implementation.vendor" value="${vendor}"/>
+	
+	<path id="infinit.e.data_model.classpath">
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	</path>
+	<path id="infinit.e.harvest.library.classpath">
+	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>
+	</path>
+	<path id="infinit.e.processing.custom.library.classpath">
+	     <pathelement location="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar"/>
+	</path>
+	<path id="infinit.e.processing.generic.library.classpath">
+	     <pathelement location="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar"/>
+	</path>
+	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+	<path id="infinit.e.elasticsearch.driver.classpath">
+    	<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
+        	<include name="**/*.jar"/>
+        </fileset>
+    </path>	
+    <path id="infinit.e.core.server.classpath">
+    	<pathelement location="${dir.build.classes}"/>
+    	    	
+    	<fileset dir="${dir.lib}">
+        	<include name="**/*.jar"/>
+        </fileset>
+        <path refid="infinit.e.data_model.classpath"/>
+        <path refid="infinit.e.harvest.library.classpath"/>
+        <path refid="infinit.e.processing.custom.library.classpath"/>
+        <path refid="infinit.e.processing.generic.library.classpath"/>
+    	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+        <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
+	</path>
+
+	<path id="build-classpath">
+	   <fileset dir="${dir.lib}">
+	      <include name="**/*.jar"/>
+	   </fileset>
+	</path>	
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.dist}"/>
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+	
+	<!-- ================================= 
+		     target: compile              
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}"/>
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+			<classpath refid="infinit.e.core.server.classpath"/>
+		</javac>
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	<!--
+	</target>
+	-->
+	<!-- =================================
+			target: test
+		==================================-->
+	<!--
+	-->	
+	<!-- ================================= 
+		     target: jar              
+	================================= -->
+	<target name="jar" depends="compile" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+		<mkdir dir="${dir.build.jar}"/>
+		
+		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
+		  <pathconvert property="libs.jar.bundled" pathsep=" ">
+		    <mapper>
+		      <chainedmapper>
+		        <!-- remove absolute path -->
+		        <flattenmapper />
+		        <!-- add lib/ prefix -->
+		      	<globmapper from="*" to="*" />
+		      </chainedmapper>
+		    </mapper>
+		    <path>
+		    	<!-- Just need those libraries not included in library for OSS reasons -->
+				  <fileset dir="${infinit.e.harvest.library.location}/lib" includes="RangeMap.jar jsr*.jar jtds*.jar jcifs*.jar tika*.jar"/>
+		    </path>
+		 </pathconvert>
+			
+		  <pathconvert property="libs.elasticsearch" pathsep=" ">
+		    <mapper>
+		      <chainedmapper>
+		        <!-- remove absolute path -->
+		        <flattenmapper />
+		        <!-- add lib/ prefix -->
+		      	<globmapper from="*" to="es-libs/*" />		      	
+		      </chainedmapper>
+		    </mapper>
+		    <path>
+		      <fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
+		        <include name="**/*.jar" />
+		      </fileset>
+		    </path>
+		 </pathconvert>
+		
+		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+		        <attribute name="Main-Class" value="com.ikanow.infinit.e.core.CoreMain" />
+				<attribute name="Class-Path" value="infinit.e.data_model.jar infinit.e.harvest.library.jar infinit.e.processing.custom.library.jar infinit.e.processing.generic.library.jar ${libs.jar.bundled} ${libs.elasticsearch}"/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}"/>
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
+		</jar>		
+	</target>
+	
+	<!-- ================================= 
+		     target: dist              
+	================================= -->
+	<target name="dist" depends="jar" description="Create binary distribution">
+		  <!-- remove dist directory if it exists -->
+		  <delete dir="${dir.dist}"/>
+		  <!-- contains the application -->
+		  <mkdir dir="${dir.dist}" />
+		  <!-- contains the library distribution -->
+		  <mkdir dir="${dir.dist.opt.lib}" />
+
+		  <!-- copy the bundled jars into the bundled directory -->
+		  <copy file="${dir.build.jar}/${ant.project.name}.jar" tofile="${dir.dist.opt.lib}/${ant.project.name}.jar"/>
+	</target>
+</project>
