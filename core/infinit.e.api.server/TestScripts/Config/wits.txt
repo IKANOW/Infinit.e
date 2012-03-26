@@ -1,0 +1,270 @@
+{
+	created: "May 20, 2011 5:14:13 PM",
+	modified: "Jun 10, 2011 9:51:13 PM",
+	url: "smb://50.17.85.27:139/wits/allfiles/",
+	title: "NCTC WITS Data",
+	isPublic: true,
+	ownerId: "4e3706c48d26852237078005",
+	mediaType: "Report",
+	description: "Worldwide Incident Tracking System (WITS) from National
+	Counter Terrorism Center (NCTC)",
+	tags: ["incidents","nctc","terrorism","wits","events","worldwide"],
+	communityIds: ["4c927585d591d31d7b37097a"],
+	file: {
+		username: "modus",
+		password: "modus!",
+		domain: "WORKGROUP",
+		XmlRootLevelValues: ["Incident"],
+		XmlIgnoreValues: ["DefiningCharacteristicList","TargetedCharacteristicList","WeaponTypeList","PerpetratorList","VictimList","EventTypeList","CityStateProvinceList","FacilityList"],
+		XmlSourceName: "https://wits.nctc.gov/FederalDiscoverWITS/index.do?N=0&Ntk=ICN&Ntx=mode%20match&Ntt=",
+		XmlPrimaryKey: "icn"
+	},
+	isApproved: true,
+	harvestBadSource: false,
+	extractType: "File",
+	useExtractor: "none",
+	structuredAnalysis: {
+		title: "$metadata.subject",
+		description: "$metadata.summary",
+		publishedDate: "$metadata.incidentdate",
+		scriptEngine: "JavaScript",
+		script: "
+			function getLocationEntity() { 
+				var s = (_iterator.citystateprovince.city != null) ? _iterator.citystateprovince.city : ''; 
+				s += (s.length > 0) ? ',' : '';
+				s += (_iterator.citystateprovince.stateprovince != null) ? _iterator.citystateprovince.stateprovince : ''; 
+				s+= (s.length > 0) ? ',' : ''; 
+				s+= (_iterator.country != null) ? _iterator.country : '';
+				return s;
+			} 
+			function getVictim() { 
+				var indicator = (_iterator.indicator != 'Unknown') ? _iterator.indicator : ''; 
+				var victimType = (_iterator.victimtype != 'Unknown') ? _iterator.victimtype : ''; 
+				var child = (_iterator.child == 'Yes') ? 'Child' : 'Adult'; 
+				var combatant = (_iterator.combatant == 'Yes') ? 'Combatant' : ''; 
+				var targeted = (_iterator.targetedcharacteristic != 'None' && _iterator.targetedcharacteristic != 'Unknown') ? _iterator.targetedcharacteristic : ''; 
+				var defining = (_iterator.definingcharacteristic != 'None' &&_iterator.definingcharacteristic != 'Unknown') ? _iterator.definingcharacteristic : ''; 
+				var s = indicator; 
+				if (victimType.length > 0) { 
+					if (s.length > 0) { s += ', '; } 
+					s += victimType; 
+				} 
+				if (s.length > 0) { 
+					s += ', '; 
+				} 
+				s += child; 
+				if (combatant.length > 0) { 
+					if (s.length > 0) { s += ', '; } 
+					s += combatant; 
+				} 
+				if (targeted.length > 0) { 
+					if (s.length > 0) { s += ', '; } 
+					s += targeted; 
+				} 
+				if (defining.length > 0) { 
+					if (s.length > 0) { s += ', '; } 
+					s += defining; 
+				} 
+				if (s.length > 0) { 
+					s += ' from '; 
+				} 
+				s += _iterator.nationality; 
+				return s; 
+			} 
+			function getVictimCount() { 
+				var count = parseInt(_iterator.deadcount, 10) + parseInt(_iterator.woundedcount, 10); 
+				return count; 
+			} 
+			function getEventType() { 
+				var s = _value; 
+				if (_doc.metadata.assassination[0] == 'Yes') s += ', Assassination'; 
+				if (_doc.metadata.suicide[0] == 'Yes') s += ', Suicide'; 
+				if (_doc.metadata.ied[0] == 'Yes') s += ', IED';
+				return s; 
+			} 
+			function getEventTypeFull() { 
+				var s = _doc.metadata.eventtype[0]; 
+				if (_doc.metadata.assassination[0] == 'Yes') s += ', Assassination'; 
+				if (_doc.metadata.suicide[0] == 'Yes') s += ', Suicide'; 
+				if (_doc.metadata.ied[0] == 'Yes') s += ', IED';
+				return s;
+			} 
+			function isOrganizationSpecified() {  
+				if (_doc.metadata.organization != null && _doc.metadata.organization[0].toString().toLowerCase() == 'no group')
+					{ return false; } 
+				else 
+					{ return true; } 
+			}
+			function getOrganizationName() { 
+				if (_doc.metadata.organization != null && _doc.metadata.organization[0].toString().toLowerCase() != 'no group')
+					{ return _doc.metadata.organization[0]; } 
+			}
+		",
+		docGeo: {
+			city: "$SCRIPT( return _doc.metadata.location[0].citystateprovince.city; )",
+			stateProvince: "$SCRIPT( return _doc.metadata.location[0].citystateprovince.stateprovince; )",
+			country: "$SCRIPT( return _doc.metadata.location[0].country; )"
+		},
+		entities: [
+			{
+				disambiguated_name: "$metadata.organization",
+				dimension: "Who",
+				type: "Organization",
+				useDocGeo: false,
+				creationCriteriaScript: "$FUNC( isOrganizationSpecified(); )"
+			},
+			{
+				iterateOver: "location",
+				disambiguated_name: "$FUNC( getLocationEntity(); )",
+				dimension: "Where",
+				type: "Location",
+				useDocGeo: true
+			},
+			{
+				iterateOver: "victim",
+				useDocGeo: false,
+				entities: [
+				{
+					disambiguated_name: "$FUNC( getVictim(); )",
+					dimension: "Who",
+					type: "VictimType",
+					frequency: "$FUNC( getVictimCount(); )",
+					useDocGeo: false
+				},
+				{
+					disambiguated_name: "$FUNC( getVictim(); )",
+					dimension: "Who",
+					type: "HostageType",
+					frequency: "$hostagecount",
+					useDocGeo: false
+				}
+				]
+			},
+			{
+				iterateOver: "perpetrator",
+				disambiguated_name: "$characteristic from $nationality",
+				dimension: "Who",
+				type: "PersonPerpetrator",
+				useDocGeo: false
+			},
+			{
+				iterateOver: "weapontype",
+				disambiguated_name: "",
+				dimension: "What",
+				type: "WeaponType",
+				frequency: "1",
+				useDocGeo: false
+			},
+			{
+				iterateOver: "eventtype",
+				disambiguated_name: "$FUNC( getEventType(); )",
+				dimension: "What",
+				type: "EventType",
+				frequency: "1",
+				useDocGeo: false
+			},
+			{
+				iterateOver: "facility",
+				disambiguated_name: "$SCRIPT( var s = (_iterator.indicator == 'Targeted') ? 'Targeted,': ''; s+= _iterator.facilitytype; return s;)",
+				dimension: "What",
+				type: "FacilityType",
+				frequency: "$quantity",
+				useDocGeo: false
+			}
+		],
+		associations: [
+			{
+				entity1: "$SCRIPT( return _doc.metadata.perpetrator[0].characteristic + ' from ' + _doc.metadata.perpetrator[0].nationality; )",
+				entity2: "$FUNC( getOrganizationName(); )",
+				verb: "member of",
+				verb_category: "generic relations",
+				creationCriteriaScript: "$FUNC( isOrganizationSpecified(); )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "Organization",
+				entity2: "FacilityType",
+				verb: "attacked",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$FUNC( isOrganizationSpecified(); )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "Organization",
+				entity2: "VictimType",
+				verb: "attacked",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$FUNC( isOrganizationSpecified(); )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "Organization",
+				entity2: "HostageType",
+				verb: "took hostage",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$FUNC( isOrganizationSpecified(); )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "PersonPerpetrator",
+				entity2: "FacilityType",
+				verb: "attacked",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$SCRIPT( if (isOrganizationSpecified() == false) return true; )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "PersonPerpetrator",
+				entity2: "VictimType",
+				verb: "attacked",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$SCRIPT( if (isOrganizationSpecified() == false) return true; )"
+			},
+			{
+				iterateOver: "entity1/entity2/geo_index",
+				entity1: "PersonPerpetrator",
+				entity2: "HostageType",
+				verb: "took hostage",
+				verb_category: "assault/attack",
+				time_start: "$SCRIPT( return _doc.metadata.incidentdate[0]; )",
+				geo_index: "Location",
+				creationCriteriaScript: "$SCRIPT( if (isOrganizationSpecified() == false) return true; )"
+			}
+		]
+	},
+	unstructuredAnalysis: {
+		meta: [
+		{
+			fieldName: "organization",
+			context: "All",
+			script: "believed the (.*?)(?: \\([^)]*\\))? (was|were) responsible",
+			scriptlang: "regex",
+			groupNum: 1
+		},
+		{
+			fieldName: "organization",
+			context: "All",
+			script: "believed (.*?)(?: \\([^)]*\\))? (was|were) responsible",
+			scriptlang: "regex",
+			groupNum: 1
+		},
+		{
+			fieldName: "organization",
+			context: "All",
+			script: ".  ([^.]*?)(?: \\([^)]*\\))? claimed responsibility\\.$",
+			scriptlang: "regex",
+			groupNum: 1
+		}
+		]
+	}
+}

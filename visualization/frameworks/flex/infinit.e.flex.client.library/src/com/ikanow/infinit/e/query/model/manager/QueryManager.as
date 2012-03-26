@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ *
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.query.model.manager
 {
 	import com.adobe.utils.StringUtil;
@@ -32,7 +47,9 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -269,6 +286,10 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			lastSuggestionKeywordString = keywordString;
 		}
+		public function loadAdvancedQuery( queryString:QueryStringRequest ):void
+		{
+			runQuery( queryString, true );
+		}
 		
 		/**
 		 * Reset
@@ -398,6 +419,126 @@ package com.ikanow.infinit.e.query.model.manager
 			// run the query
 			runQuery( queryString, false );
 		}
+		
+		public function saveAdvancedQuery():TypedQueryString
+		{
+			/*var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
+			
+			// set to wildcard if no query terms
+			if ( queryTerms.length == 0 )
+			{
+				var queryTerm:QueryTerm = new QueryTerm();
+				queryTerm.etext = Constants.WILDCARD;
+				queryLogic = QueryConstants.DEFAULT_QUERY_LOGIC;
+				queryTerms.addItem( queryTerm );
+			}
+			
+			// add the query terms
+			queryString.qt = queryTerms.source;
+			
+			// add the query logic 
+			queryString.logic = queryLogic;
+			
+			// set the community ids
+			var communtityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			queryString.communityIds = communtityIds.split( Constants.STRING_ARRAY_DELIMITER );
+			
+			if ( setup && setup.queryString && setup.queryString.qtOptions )
+				queryString.qtOptions = setup.queryString.qtOptions;
+			else
+				queryString.qtOptions = null;
+			
+			var sourcesAll:ArrayCollection = new ArrayCollection( sources.source );
+			var sourcesCurrent:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, true );
+			var sourcesAvailable:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, false );
+			
+			// update the sources input if the user has not selected all of the sources
+			if ( sourcesCurrent.length > 0 && sourcesAvailable.length > 0 )
+			{
+				// use the collection that has the least amount of sources and mark srcInclude as true or false depending
+				var useCurrentSources:Boolean = sourcesCurrent.length < sourcesAvailable.length;
+				var sourcesCollection:ArrayCollection = useCurrentSources ? sourcesCurrent : sourcesAvailable;
+				
+				queryString.input = new Object();
+				queryString.input[ QueryConstants.SRC_INCLUDE ] = useCurrentSources;
+				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
+			}
+			
+			var tempLastQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
+			var typedQueryString:TypedQueryString = QueryUtil.getTypedQueryString( tempLastQueryString, QueryStringTypes.QUERY );
+			
+			return typedQueryString;*/
+			
+			
+			//RUN QUERY PART TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
+			// create a new query string
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
+			
+			// set to wildcard if no query terms
+			if ( queryTerms.length == 0 )
+			{
+				var queryTerm:QueryTerm = new QueryTerm();
+				queryTerm.etext = Constants.WILDCARD;
+				queryLogic = QueryConstants.DEFAULT_QUERY_LOGIC;
+				queryTerms.addItem( queryTerm );
+			}
+			
+			// add the query terms
+			queryString.qt = queryTerms.source;
+			
+			// add the query logic 
+			queryString.logic = queryLogic;
+			
+			// set the community ids
+			var communtityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			queryString.communityIds = communtityIds.split( Constants.STRING_ARRAY_DELIMITER );
+			
+			// set the query term options
+			if ( setup && setup.queryString && setup.queryString.qtOptions )
+				queryString.qtOptions = setup.queryString.qtOptions;
+			else
+				queryString.qtOptions = null;
+			
+			var sourcesAll:ArrayCollection = new ArrayCollection( sources.source );
+			var sourcesCurrent:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, true );
+			var sourcesAvailable:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, false );
+			
+			// update the sources input if the user has not selected all of the sources
+			if ( sourcesCurrent.length > 0 && sourcesAvailable.length > 0 )
+			{
+				// use the collection that has the least amount of sources and mark srcInclude as true or false depending
+				var useCurrentSources:Boolean = sourcesCurrent.length < sourcesAvailable.length;
+				var sourcesCollection:ArrayCollection = useCurrentSources ? sourcesCurrent : sourcesAvailable;
+				
+				queryString.input = new Object();
+				queryString.input[ QueryConstants.SRC_INCLUDE ] = useCurrentSources;
+				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
+			}
+			
+			// run the query
+			/*var queryEvent:QueryEvent = new QueryEvent( QueryEvent.QUERY );
+			queryEvent.queryString = QueryUtil.getQueryStringObject( queryString );
+			queryEvent.communityids = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			queryEvent.dialogControl = DialogControl.create( true, ResourceManager.getInstance().getString( 'infinite', 'queryService.searching' ) );
+			dispatcher.dispatchEvent( queryEvent );
+			
+			// clear the query statistics
+			setQueryStatistics( new ServiceStatistics() );
+			
+			// set the current query string
+			currentQueryStringRequest = queryString.clone();
+			
+			// set the last query string request
+			lastQueryStringRequest = queryString.clone();*/
+			
+			// set the last query string
+			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;			
+			
+			// add the last query string to the recent queries collection
+			return QueryUtil.getTypedQueryString( tempQueryString, QueryStringTypes.QUERY);
+		}
+		
+		
 		
 		/**
 		 * Update the advanced query options and run a query to save

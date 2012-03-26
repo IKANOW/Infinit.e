@@ -134,11 +134,11 @@ Infinit.e system configuration
 ###########################################################################
 # Get node discovery mode from infinite.service.properties-elastic.node.discovery
 ###########################################################################
-	SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
-	DISCOVERY_MODE=`grep "^elastic.node.discovery=" $SERVICE_PROPERTY_FILE | sed s/'elastic.node.discovery='// | sed s/' '//g`
-	echo "ES DISCOVERY_MODE = $DISCOVERY_MODE"
+	PROPERTY_FILE='/opt/infinite-install/config/infinite.configuration.properties'
+	USE_AWS=`grep "^use.aws=" $PROPERTY_FILE | sed s/'use.aws='// | sed s/' '//g`
+	echo "ES USE_AWS = $USE_AWS"
 	# Only run if this is an EC2 backed install
-	if [ "$DISCOVERY_MODE" = "aws" ]; then	
+	if [ "$USE_AWS" = "1" ]; then	
 		echo "Set EC2 Cluster Name and Cluster Name in properties file"
 		sh /opt/infinite-home/scripts/set_cluster.sh
 	fi
@@ -161,7 +161,6 @@ Infinit.e system configuration
 %config /mnt/opt/infinite-home/config/log4j.api.properties
 %config /mnt/opt/infinite-home/config/log4j.service.properties
 %config /mnt/opt/infinite-home/config/event_schema.xml
-%config /mnt/opt/infinite-home/config/modusEntityTypeTranslations.txt
 %config /mnt/opt/infinite-home/licenses/NOTICE.txt
 %config /mnt/opt/infinite-home/licenses/ThirdPartyNotices_Appliance.pdf
 

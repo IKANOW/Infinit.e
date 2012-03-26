@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge;
 
 import java.io.IOException;
@@ -372,7 +387,6 @@ public class SearchHandler
 	
 	public ResponsePojo getAliasSuggestions(String userIdStr, String term, String field, String communityIdStrList) 
 	{
-		communityIdStrList = "4d38b72c054548f038a0414a,4c927585d591d31d7b37097a,4da6080df891e8e224809c41,4db5c05fb246d25364aceca0,4dd53fb4e40d93afb096c484,4c927585d591d31d7c37097b,4e53e755ebcd573d6af5f091,4e1f545315c1b0b2c4d4f4a3,4e6e1deaacd7852244b92fbf,4f0cee456e7d845d394b6da0";
 		long nSysTime = System.currentTimeMillis();		
 		ResponsePojo rp = new ResponsePojo();
 

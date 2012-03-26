@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 /**
  * 
  */
@@ -38,6 +53,7 @@ import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarves
 import com.ikanow.infinit.e.harvest.enrichment.legacy.EntityExtractorEnum;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.IEntityExtractor;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI;
+import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI_Metadata;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.opencalais.ExtractorOpenCalais;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager_Integrated;
@@ -139,7 +155,10 @@ public class HarvestController implements HarvestContext
 				}
 				catch (Exception e) {
 					logger.error(s + " not supported: " + e.getMessage());
-				}					
+				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}				
 			}
 			else if (s.equalsIgnoreCase("file")) {
 				try {
@@ -148,6 +167,9 @@ public class HarvestController implements HarvestContext
 				catch (Exception e) {
 					logger.error(s + " not supported: " + e.getMessage());
 				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}				
 			} 
 			else if (s.equalsIgnoreCase("feed")) {
 				try {
@@ -156,6 +178,9 @@ public class HarvestController implements HarvestContext
 				catch (Exception e) {
 					logger.error(s + " not supported: " + e.getMessage());
 				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}				
 			} 
 		}
 		
@@ -185,6 +210,9 @@ public class HarvestController implements HarvestContext
 						catch (Exception e) {
 							logger.error("ITextExtractor: Couldn't load " + customText +": " + e.getMessage(), e);
 						}
+						catch(NoClassDefFoundError e) {
+							logger.error("ITextExtractor: Couldn't load " + customText +": " + e.getMessage(), e);
+						}				
 					}				
 					else { // Already loaded, put in again
 						try {
@@ -195,6 +223,9 @@ public class HarvestController implements HarvestContext
 						catch (Exception e) {
 							logger.error("ITextExtractor: Couldn't use already loaded " + customText +": " + e.getMessage(), e);
 						}
+						catch(NoClassDefFoundError e) {
+							logger.error("ITextExtractor: Couldn't use already loaded " + customText +": " + e.getMessage(), e);
+						}				
 					}
 				}
 			}//TESTED
@@ -214,6 +245,9 @@ public class HarvestController implements HarvestContext
 						catch (Exception e) {
 							logger.error("IEntityExtractor: Couldn't load " + customEntity +": " + e.getMessage(), e);
 						}
+						catch(NoClassDefFoundError e) {
+							logger.error("IEntityExtractor: Couldn't load " + customEntity +": " + e.getMessage(), e);
+						}				
 					}
 					else { // If this object exists and if it's a text extractor, then see if it's also an entity extractor
 						try {
@@ -224,6 +258,9 @@ public class HarvestController implements HarvestContext
 						catch (Exception e) { 
 							logger.error("IEntityExtractor: Couldn't use already loaded " + customEntity +": " + e.getMessage(), e);						
 						}
+						catch(NoClassDefFoundError e) {
+							logger.error("IEntityExtractor: Couldn't use already loaded " + customEntity +": " + e.getMessage(), e);						
+						}				
 					}
 				}
 			}//TESTED
@@ -239,7 +276,10 @@ public class HarvestController implements HarvestContext
 		try {
 			ExtractorAlchemyAPI both = new ExtractorAlchemyAPI();
 			entity_extractor_mappings.put("alchemyapi", both);
-			text_extractor_mappings.put("alchemyapi", both);		
+			text_extractor_mappings.put("alchemyapi", both);	
+			ExtractorAlchemyAPI_Metadata both_metadata = new ExtractorAlchemyAPI_Metadata();
+			entity_extractor_mappings.put("alchemyapi-metadata", both_metadata);
+			text_extractor_mappings.put("alchemyapi-metadata", both_metadata);				
 		}
 		catch (Exception e) {
 			logger.warn("Can't use AlchemyAPI as entity/text extractor: " + e.getMessage());			
@@ -255,22 +295,17 @@ public class HarvestController implements HarvestContext
 			default_entity_extractor = entity_extractor_mappings.get(pm.getDefaultEntityExtractor().toLowerCase());
 		}
 		else {
-			try {
-				default_entity_extractor = new ExtractorOpenCalais();
-			}
-			catch (Exception e) {
-				logger.warn("Can't use OpenCalais as default entity extractor: " + e.getMessage());
-			}
+			default_entity_extractor = null;
 		}
 		if (null != pm.getDefaultTextExtractor()) {
 			default_text_extractor = text_extractor_mappings.get(pm.getDefaultTextExtractor().toLowerCase());
 		}
 		else {
 			try {
-				default_text_extractor = new ExtractorAlchemyAPI();			
+				default_text_extractor = new TextExtractorBoilerpipe();			
 			}
 			catch (Exception e) {
-				logger.warn("Can't use AlchemyAPI as default text extractor: " + e.getMessage());
+				logger.warn("Can't use BoilerPlate as default text extractor: " + e.getMessage());
 			}
 		}
 		nBetweenFeedDocs_ms = props.getWebCrawlWaitTime();
@@ -491,16 +526,19 @@ public class HarvestController implements HarvestContext
 		}
 		
 		// Perform text and entity extraction
-		if ((null == source.useExtractor()) || (!source.useExtractor().equalsIgnoreCase("none")))
+		if (source.getStructuredAnalysisConfig() == null) // (Else is performed during SAH above)
 		{
-			// Text/Entity Extraction (can spawn off some threads)
-			try {
-				extractTextAndEntities(toAdd, source);
+			if (isEntityExtractionRequired(source))
+			{
+				// Text/Entity Extraction
+				try {
+					extractTextAndEntities(toAdd, source);
+				}
+				catch (Exception e) {
+					handleExtractError(e, source); //handle extractor error if need be				
+				}
 			}
-			catch (Exception e) {
-				handleExtractError(e, source); //handle extractor error if need be				
-			}
-		}
+		} // (end if no SAH)
 		
 		//Attempt to map entity types to set of ontology types
 		//eventually the plan is to allow extractors to set the ontology_type of
@@ -530,6 +568,12 @@ public class HarvestController implements HarvestContext
 		num_sources_harvested.incrementAndGet();
 	}
 		
+	// Quick utility to return if entity extraction has been specified by the user
+	
+	public boolean isEntityExtractionRequired(SourcePojo source) {
+		return (((null == source.useExtractor()) && (null != default_entity_extractor)) || (!source.useExtractor().equalsIgnoreCase("none")));		
+	}
+	
 	/**
 	 * Takes a list of toAdd and extracts each ones full text and entities/events/sentiment (metadata)
 	 * 
@@ -537,7 +581,7 @@ public class HarvestController implements HarvestContext
 	 * @return Any errors that occured while extracting, null if no error
 	 * @throws ExtractorSourceLevelTransientException 
 	 */
-	private void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source)
+	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source)
 		throws ExtractorDocumentLevelException, ExtractorSourceLevelException, 
 				ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException
 	{
@@ -743,7 +787,7 @@ public class HarvestController implements HarvestContext
 	 * @param error The error that was returned from extractor
 	 * @param source The source that the extractor was working on
 	 */
-	private void handleExtractError(Exception error, SourcePojo source)
+	public void handleExtractError(Exception error, SourcePojo source)
 	{
 		if ( null != error)
 		{

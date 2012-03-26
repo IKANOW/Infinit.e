@@ -32,9 +32,9 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 00 00 * * * root /opt/infinite-home/bin/reset_bad_harvest.sh
 
 # Saturday night: big resync! (takes about 30 minutes, only 1 harvester runs it but all stop)
-03 03	 * * 7	 root	service infinite-px-engine stop
-00 04    * * 7   root   /opt/infinite-home/bin/sync_features.sh
-00 06	 * * 7	 root	service infinite-px-engine start
+03 01	 * * 7	 root	service infinite-px-engine stop
+00 02    * * 7   root   /opt/infinite-home/bin/sync_features.sh
+00 05	 * * 7	 root	service infinite-px-engine start
 
 # Sunday afternoon: weekly sources report
 00 14	 * * 0	 root	 /opt/infinite-home/bin/weekly_sources_report.sh

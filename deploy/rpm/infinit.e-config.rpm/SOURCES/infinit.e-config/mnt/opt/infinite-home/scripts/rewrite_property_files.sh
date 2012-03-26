@@ -176,8 +176,8 @@ chown tomcat.tomcat $PYTHON_CONFIG_FILE
 # If use.aws=1 then we need to create .awssecret and .s3cfg files
 	if [ $USE_AWS = "1" ]; then
 		# Create/overwrite .awssecret file
-		AWSSECRET_FILE_TEXT="$AWS_ACCESS
-$AWS_SECRET"
+		AWSSECRET_FILE_TEXT="$AWS_ACCESS_KEY
+$AWS_SECRET_KEY"
 		echo "$AWSSECRET_FILE_TEXT" > $AWSSECRET_FILE	
 		chown tomcat.tomcat $AWSSECRET_FILE
 		

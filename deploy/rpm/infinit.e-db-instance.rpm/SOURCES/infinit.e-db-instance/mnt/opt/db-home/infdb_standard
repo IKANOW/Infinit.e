@@ -70,6 +70,12 @@ db.shutdownServer()
 exit
 EOF
 		;;
+		kill_db_force)
+			mongo <<EOF admin --port $2
+db.shutdownServer({force:true})
+exit
+EOF
+		;;
 		
 		is_config)
 			if [ $(echo $CONFIG_SERVERS | grep $my_ip | wc -l) -ge 1 ]; then
@@ -88,11 +94,8 @@ EOF
 		;;
 		
 		is_mongos)
-			if [ $(echo $mongos_ips | grep $my_ip | wc -l) -ge 1 ]; then
-				echo true
-			else
-				echo false
-			fi
+			# For non-EC2 deployments, just always start a mongos
+			echo true
 		;;
 		
 		all_configs_running)
@@ -100,7 +103,7 @@ EOF
 			IFS=","
 			total=0
 			started=0
-			for ip in $config_ips
+			for ip in $CONFIG_SERVERS
 			do
 				if [ $(mongo $ip:27016 --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
 				started=$(($started+1))

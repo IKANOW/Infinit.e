@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.authentication;
 
 import java.io.IOException;
@@ -146,11 +161,8 @@ public class LoginInterface extends Resource
 		 }
 		 else if (urlStr.contains("auth/deactivate"))
 		 {
-			 user = parameters.getUsername();				 
-			 pass = parameters.getPassword();
-			 AuthenticationPojo authuser = PasswordEncryption.validateUser(user,pass);
-			 if ( authuser != null )
-				 action = "deactivate";
+			 user = parameters.getUsername();	
+			 action = "deactivate";
 			 
 			 mustComeFromAuthority = true;
 		 }
@@ -239,24 +251,27 @@ public class LoginInterface extends Resource
 				 rp.setResponse(new ResponseObject("Logout", false, "Not logged in."));
 			 }
 		 }
-		 else if (this.mustComeFromAuthority) {
-			 
+		 else if (this.mustComeFromAuthority) 
+		 {			 
 			 boolean bCanProceed = RESTTools.mustComeFromAuthority(new PropertiesManager(), ipAddress, cookie, admuser, admpass);
 			 
-			 if (bCanProceed) {
-			 
+			 if (bCanProceed) 
+			 {			 
 				 if (action.equals("forgot"))
 				 {	 
 					 rp = new LoginHandler().resetPassword(user, true);
 				 }
 				 else if (action.equals("deactivate"))
 				 {
-					 rp = new LoginHandler().deactivateAccount(user,pass);
+					 rp = new LoginHandler().deactivateAccount(user);
 				 }
 			 }
-			 else if (action.equals("forgot")) { // This has come from the user, part of 2 stage process
-				 
-				 if (null == pass) { // No password specified
+			 else if (action.equals("forgot")) 
+			 { 
+				// This has come from the user, part of 2 stage process
+				// No password specified
+				 if (null == pass) 
+				 { 
 					 rp = new LoginHandler().resetPassword(user, false);
 				 }
 				 else { // Validate password, allow reset if valid

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 /**
  * 
  */
@@ -10,6 +25,7 @@ import java.security.NoSuchAlgorithmException;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.Hex;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.mongodb.BasicDBObject;
@@ -80,11 +96,22 @@ public class PasswordEncryption {
 			{			
 				//	check if pwords match
 				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);
-				if ( ap.getPassword().equals(userPword))
-					return ap;
-				else if (!bPasswdEncrypted) {
-					if ( ap.getPassword().equals(encrypt(userPword)))
-						return ap;					
+				//only active accts can login (not pending or disabled)
+				if ( (ap.getAccountStatus() == null) || ( ap.getAccountStatus() == AccountStatus.ACTIVE ) )
+				{
+					//(legacy users have accountStatus==null)
+					
+					if ( ap.getPassword().equals(userPword))
+					{
+						return ap;
+					}
+					else if (!bPasswdEncrypted) 
+					{
+						if ( ap.getPassword().equals(encrypt(userPword)))
+						{
+							return ap;
+						}
+					}
 				}
 			}
 		}

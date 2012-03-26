@@ -11,6 +11,6 @@ fi
 
 if [ ! -z "$MONGODB" ]; then
         if [ -x /usr/bin/mongo ]; then
-            /usr/bin/mongo --quiet $MONGODB:$MONGODP/config $SCRIPTDIR/reset_bad_harvest.js
+            /usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest $SCRIPTDIR/reset_bad_harvest.js
         fi
 fi

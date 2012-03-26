@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.util.ArrayList;
@@ -124,9 +139,10 @@ public class GeoReference
 		// Use WordUtils.capitalize to set first char of region and country words to Upper Case
 		String region = (geoInfo.getRegion() != null) ? WordUtils.capitalize(geoInfo.getRegion()) : null;
 		String country = (geoInfo.getCountry() != null) ? WordUtils.capitalize(geoInfo.getCountry()) : null;
+		String countryCode = geoInfo.getCountry_code();
 
 		// If the only field sent was the search_field
-		if ((searchField != null) && (city == null) && (region == null) && (country == null))
+		if ((searchField != null) && (city == null) && (region == null) && (country == null) && (countryCode == null))
 		{
 			query.put("search_field", searchField);
 		}
@@ -147,6 +163,7 @@ public class GeoReference
 				if (city != null) query.put("city", city);
 				if (region != null) query.put("region", region);
 				if (country != null) query.put("country", country);
+				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 
 			case 2:
@@ -165,7 +182,8 @@ public class GeoReference
 					query.put("search_field", country.toLowerCase());
 				}
 
-				query.put("country", country);
+				if (country != null) query.put("country", country);
+				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 
 			case 3:
@@ -175,11 +193,13 @@ public class GeoReference
 				if (searchField != null) query.put("search_field", searchField);
 				if (region != null) query.put("region", region);
 				if (country != null) query.put("country", country);
+				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 				
 			default:
 				if (country != null) query.put("search_field", country.toLowerCase());
 				if (country != null) query.put("country", country);
+				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 			}
 		}

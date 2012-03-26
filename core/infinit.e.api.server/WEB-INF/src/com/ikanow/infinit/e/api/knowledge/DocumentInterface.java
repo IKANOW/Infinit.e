@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge;
 
 /**
@@ -14,6 +29,8 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.StringRepresentation;
 import org.restlet.resource.Variant;
 
+import com.ikanow.infinit.e.api.knowledge.DocumentHandler.DocumentFileInterface;
+import com.ikanow.infinit.e.api.social.sharing.ByteArrayOutputRepresentation;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -35,6 +52,7 @@ public class DocumentInterface extends Resource
 	private String cookie = null;
 	private boolean needCookie = true;
 	boolean bReturnFullText = false;
+	boolean returnRawData = false;
 	
 	private DocumentHandler docHandler = new DocumentHandler();
 	
@@ -49,17 +67,21 @@ public class DocumentInterface extends Resource
 		 {	
 			 docid = RESTTools.decodeRESTParam("feedid", attributes);
 			 Map<String, String> queryOptions = this.getQuery().getValuesMap();
-			 String returnFullText = queryOptions.get("returnFullText");
-			 if ((null != returnFullText) && ((returnFullText.equalsIgnoreCase("true")) || (returnFullText.equals("1")))) {
+			 String returnFullText = queryOptions.get("returnFullText");			 
+			 if ((null != returnFullText) && ((returnFullText.equalsIgnoreCase("true")) || (returnFullText.equals("1")))) 
+			 {
 				 bReturnFullText = true;
+			 }
+			 String returnRawData = queryOptions.get("returnRawData");
+			 if ((null != returnRawData) && ((returnRawData.equalsIgnoreCase("true")) || (returnRawData.equals("1")))) 
+			 {
+				 this.returnRawData = true;
 			 }
 			 action = "doc";
 		 }
 		 // All modifications of this resource
 		 this.setModifiable(true);
 		 
-		 //this.user = findUser(userid);
-		 //getVariants().add(new Variant(MediaType.TEXT_PLAIN));
 		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
@@ -87,7 +109,25 @@ public class DocumentInterface extends Resource
 			 {
 				 if ( action.equals("doc"))
 				 {
-					 rp = this.docHandler.getInfo(cookieLookup, docid, bReturnFullText);
+					 rp = this.docHandler.getInfo(cookieLookup, docid, bReturnFullText, returnRawData);
+					 //return full text takes precedence over raw data
+					 if ( !bReturnFullText && returnRawData && rp.getResponse().isSuccess() )
+					 {		
+						 try
+						 {
+							 //return the bytes like we do in shares
+							 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();
+							 
+							 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
+							 rep.setOutputBytes(dfp.bytes);
+							 rep.setSize(dfp.bytes.length);
+							 return rep;
+						 }
+						 catch (Exception ex )
+						 {
+							 rp = new ResponsePojo(new ResponseObject("Doc Info", false, "error converting bytes to output"));
+						 }	
+					 }
 				 }
 			 }
 		 }

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.core.execute_harvest;
 
 import java.io.IOException;
@@ -159,10 +174,21 @@ public class HarvestThenProcessController {
 	        	while (!sourceBatch.isEmpty()) {
 	        		SourcePojo source = sourceBatch.pop();
 					SourceHarvesterRunnable sourceRunner = new SourceHarvesterRunnable(source);
-					try {
-						bex.submitTask(sourceRunner, true);
-					} 
-					catch (InterruptedException e) { }
+					
+					boolean bSubmittedTask = false;
+					for (int i = 0; (i < 5) && !bSubmittedTask; ++i) {
+						try {
+							bex.submitTask(sourceRunner, true);
+							bSubmittedTask = true;
+						} 
+						catch (Exception e) { 
+							try {
+					    		_logger.info("(Thread failure for " + _sSourceType + ", can probably recover)");	        	
+								Thread.sleep(1000); // wait a second
+								
+							} catch (InterruptedException e1) { } 
+						}
+					}
 					
 					if (_bStopHarvest) { // Just need to update the status of all remaining source
 			    		_logger.info("(Shutdown, cleaning up " + sourceBatch.size() + " queued sources for " + _sSourceType + ")");	        	

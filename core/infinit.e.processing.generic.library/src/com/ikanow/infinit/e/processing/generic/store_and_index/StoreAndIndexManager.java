@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.processing.generic.store_and_index;
 
 
@@ -103,7 +118,19 @@ public class StoreAndIndexManager {
 	private void addToDatastore(DBCollection col, List<DocumentPojo> docs) {
 		// Store the knowledge in the feeds collection in the harvester db			
 		for ( DocumentPojo f : docs) {
+			
+			// Check geo-size: need to add to a different index if so, for memory usage reasons
+			if (DocumentPojoIndexMap.hasManyGeos(f)) {
+				f.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
+				// (note this check isn't stateless, it actually populates "locs" at the same time)
+				// therefore...
+			}
+			Set<String> locs = f.getLocs();
+			f.setLocs(null);
+			
 			addToDatastore(col, f);
+			
+			f.setLocs(locs);
 		}
 	}//TESTED
 
@@ -290,6 +317,9 @@ public class StoreAndIndexManager {
 		// Update Mongodb with the data
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, doc.getUrl());
+		if (null != doc.getSourceKey()) {
+			query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
+		}
 
 		// (Remove its content also:)
 		if (bDeleteContent) {
@@ -338,12 +368,6 @@ public class StoreAndIndexManager {
 		{			
 			String sThisDocIndex = doc.getIndex();
 			
-			// Check geo-size: need to add to a different index if so, for memory usage reasons
-			if (DocumentPojoIndexMap.hasManyGeos(doc)) {
-				// (note this check isn't stateless, it actually populates "locs" at the same time)
-				sThisDocIndex = DocumentPojoIndexMap.manyGeoDocumentIndex_;
-				doc.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
-			}
 			if ((null == sSavedIndex) || (null == sThisDocIndex) || !sSavedIndex.equals(sThisDocIndex)) { // Change index
 				
 				if (null != indexManager) { // ie not first time through, bulk add what docs we have

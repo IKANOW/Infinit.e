@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.authentication;
 
 import java.net.URLEncoder;
@@ -48,7 +63,8 @@ public class LoginHandler
 				return rp; 
 			}//TESTED
 			
-			if (bLoggedIn) {				
+			if (bLoggedIn) 
+			{				
 				//change pword
 				String newpassword = createNewRandomPassword();
 				//Take new password and encrypt it
@@ -69,7 +85,8 @@ public class LoginHandler
 				// (Remove new password from end of this message once mailing works, Currently attached just so can use)
 				rp.setResponse(new ResponseObject("Reset Password",true,"Password reset successfully, new password has been emailed to user."));
 			}//TESTED
-			else { // Two stage process ... first "forgotten password" just sends email containing link to click on
+			else 
+			{ // Two stage process ... first "forgotten password" just sends email containing link to click on
 				
 				// Update auth to ensure this isn't abused
 				ap.setModified(now);
@@ -122,10 +139,9 @@ public class LoginHandler
 	/**
 	 * deactivateAccount
 	 * @param username
-	 * @param password
 	 * @return
 	 */
-	public ResponsePojo deactivateAccount(String username, String password)
+	public ResponsePojo deactivateAccount(String username)
 	{
 		ResponsePojo rp = new  ResponsePojo();
 		try
@@ -136,7 +152,8 @@ public class LoginHandler
 			//change status to deactivate
 			ap.setAccountStatus(InfiniteEnums.AccountStatus.DISABLED);
 			DbManager.getSocial().getAuthentication().update(dbo, ap.toDb());
-			
+			//remove any cookie this user has
+			removeCookies(ap.getProfileId().toString());			
 			rp.setResponse(new ResponseObject("Deactivate Account",true,"Account deactivated successfully"));
 		}
 		catch (Exception e)

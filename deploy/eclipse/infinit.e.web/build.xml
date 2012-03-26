@@ -8,7 +8,7 @@
 	<property name="dir.release" value="release"/>
 	<property name="dir.dist" value="dist"/>
 	<property name="infinit.e.widget-uploader.location" value="../infinit.e.widget-uploader/"/>
-	<property name="infinit.e.jar-uploader.location" value="../infinit.e.jar-uploader/"/>
+	<property name="infinit.e.file-uploader.location" value="../infinit.e.file-uploader/"/>
 	<property name="target" value="1.6"/>
 	<property name="source" value="1.6"/>
 	<property name="debuglevel" value="source,lines,vars"/>	
@@ -17,7 +17,7 @@
 	<!-- Locations for stock Infinit.e widgets to copy -->
 	<property name="InfiniteDocBrowserWidget.location" value="../InfiniteDocBrowserWidget/"/>
 	<property name="InfiniteEventGraphWidget.location" value="../InfiniteEventGraphWidget/"/>
-	<property name="InfiniteMapWidget.location" value="../InfiniteMapWidget/"/>
+	<property name="InfiniteMapQuestWidget.location" value="../InfiniteMapQuestWidget/"/>
 	<property name="InfiniteSentimentWidget.location" value="../InfiniteSentimentWidget/"/>
 	<property name="InfiniteSignificanceWidget.location" value="../InfiniteSignificanceWidget/"/>
 	<property name="InfiniteTimelineEventWidget.location" value="../InfiniteTimelineEventWidget/"/>
@@ -53,10 +53,10 @@
 			<fileset dir="${InfiniteEventGraphWidget.location}/dist"/>
 		</copy>
 		
-		<!-- Copy the InfiniteMapWidget -->
+		<!-- Copy the InfiniteMapQuestWidget (note use InfiniteMapWidget for bw compatibility) -->
 		<mkdir dir="${dir.build}/InfiniteMapWidget"/>
 		<copy todir="${dir.build}/InfiniteMapWidget/">
-			<fileset dir="${InfiniteMapWidget.location}/dist"/>
+			<fileset dir="${InfiniteMapQuestWidget.location}/dist"/>
 		</copy>
 
 		<!-- Copy the InfiniteSentimentWidget -->
@@ -98,11 +98,11 @@
 		</copy>
 	  	<copy file="${infinit.e.widget-uploader.location}/widgetUploader.jsp" tofile="${dir.build}/widgetUploader.jsp"/>
 	
-		<!-- copy over the infinit.e.jar-uploader -->			
+		<!-- copy over the infinit.e.file-uploader -->			
 		<copy todir="${dir.build}/${dir.lib}">
-			<fileset dir="${infinit.e.jar-uploader.location}/${dir.lib}"/>
+			<fileset dir="${infinit.e.file-uploader.location}/${dir.lib}"/>
 		</copy>
-		<copy file="${infinit.e.jar-uploader.location}/jarUploader.jsp" tofile="${dir.build}/jarUploader.jsp"/>
+		<copy file="${infinit.e.file-uploader.location}/fileUploader.jsp" tofile="${dir.build}/fileUploader.jsp"/>
 	
 		
 	</target>
@@ -121,6 +121,11 @@
 	
 	<target name="war" depends="copy" description="Generates ${ant.project.name}.war file in to the '${dir.dist}' directory.">
 		<mkdir dir="${dir.dist}"/>
+		<!-- Create a zip file of everything -->
+		<zip destfile="${dir.dist}/infinit.e.flex.client-${infinite_version}-${infinite_release}.zip"
+			basedir="${dir.build}"
+		/>
+		<!-- Create the WAR -->
 		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
 			<fileset dir="${dir.build}">
 				<exclude name="CreatePDFServlet.*"/>
@@ -129,10 +134,6 @@
 				<include name="CreatePDFServlet.*"/>
 			</classes>
 		</war>
-		<!-- Also create a zip file just of the flex client -->
-		<zip destfile="${dir.dist}/infinit.e.flex.client-${infinite_version}-${infinite_release}.zip"
-			basedir="${infinit.e.flex.location}/dist"
-		/>
 	</target>
 	
 </project>

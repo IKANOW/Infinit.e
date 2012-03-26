@@ -3,7 +3,6 @@
   <includeClasses>
     <classEntry path="com.ikanow.infinit.e.widget.library.utility.DateConverter"/>
     <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetModule"/>
-    <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetDropDownListItemRenderer"/>
     <classEntry path="com.ikanow.infinit.e.widget.library.assets.skins.WidgetOptionsGroupSkin"/>
     <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetOptionsGroup"/>
   </includeClasses>

@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
 <component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:builder="com.ikanow.infinit.e.query.view.builder.*"
@@ -22,9 +37,21 @@
 			[Inject]
 			public var model:QueryModel;
 			
+			protected function loadButton_clickHandler( event:MouseEvent ):void
+			{
+				model.loadAdvancedQuery();
+				model.navigator.closeQueryView();
+			}
+			
 			protected function navButtons_changeHandler( event:IndexChangeEvent ):void
 			{
 				model.navigator.navigate( navButtons.selectedItem );
+			}
+			
+			protected function saveButton_clickHandler( event:MouseEvent ):void
+			{
+				model.saveAdvancedQuery();
+				model.navigator.closeQueryView();
 			}
 			
 			protected function searchButton_clickHandler( event:MouseEvent ):void
@@ -104,6 +131,18 @@
 				verticalAlign="middle"
 				verticalCenter="2"
 				gap="10">
+
+				<common:InfButton id="loadButton"
+					width="90"
+					styleName="roundedBlueButton"
+					label="{ resourceManager.getString( 'infinite', 'common.load' ) }"
+					click="loadButton_clickHandler(event)" />
+
+				<common:InfButton id="saveButton"
+					width="90"
+					styleName="roundedBlueButton"
+					label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
+					click="saveButton_clickHandler(event)" />
 
 				<!-- Search Button -->
 				<common:InfButton id="searchButton"

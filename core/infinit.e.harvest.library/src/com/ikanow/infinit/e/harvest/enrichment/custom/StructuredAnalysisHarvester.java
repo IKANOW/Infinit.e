@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.util.ArrayList;
@@ -33,6 +48,7 @@ import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.geo.GeoFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.ikanow.infinit.e.harvest.HarvestContext;
+import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.AssociationUtils;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
@@ -50,7 +66,7 @@ public class StructuredAnalysisHarvester
 	private JSONObject document = null;
 	private JSONObject iterator = null;
 	private String iteratorIndex = null;
-	private static Pattern pattern = Pattern.compile("\\$([a-zA-Z._0-9]+)|\\$\\{([a-zA-Z._0-9]+)\\}");
+	private static Pattern pattern = Pattern.compile("\\$([a-zA-Z._0-9]+)|\\$\\{([^}]+)\\}");
 	private static HashMap<String, GeoPojo> geoMap = new HashMap<String, GeoPojo>();
 	
 	private HarvestContext _context;
@@ -97,10 +113,9 @@ public class StructuredAnalysisHarvester
 			}
 		}
 	}
-	@SuppressWarnings({ "deprecation" })
-	public List<DocumentPojo> executeHarvest(HarvestContext context, SourcePojo source, List<DocumentPojo> docs)
+	public List<DocumentPojo> executeHarvest(HarvestController contextController, SourcePojo source, List<DocumentPojo> docs)
 	{
-		_context = context;
+		_context = contextController;
 		
 		// Skip if the StructuredAnalysis object of the source is null 
 		if (source.getStructuredAnalysisConfig() != null)
@@ -166,6 +181,8 @@ public class StructuredAnalysisHarvester
 				        inv = (Invocable) engine;
 					}
 					
+			// 1. Document level fields
+					
 					// Extract Title if applicable
 					try {
 						if (s.getTitle() != null)
@@ -208,11 +225,86 @@ public class StructuredAnalysisHarvester
 						logger.error("description: " + e.getMessage(), e);
 					}
 					
+					// Published date and URL are done after the UAH 
+					// (since the UAH can't access them, and they might be populated via the UAH)
+					
+			// 2. UAH/extraction properties
+					
+					// Add fields to metadata that can be used to create entities and associations
+					// (Either with the UAH, or with the entity extractor)
+					try {
+						boolean bMetadataChanged = false;
+						if (null != this.unstructuredHandler) {
+							bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, it.hasNext());
+						}	
+						if (contextController.isEntityExtractionRequired(source))
+						{
+							bMetadataChanged = true;
+							
+							// Text/Entity Extraction 
+							List<DocumentPojo> toAdd = new ArrayList<DocumentPojo>(1);
+							toAdd.add(f);
+							try {
+								contextController.extractTextAndEntities(toAdd, source);
+							}
+							catch (Exception e) {
+								contextController.handleExtractError(e, source); //handle extractor error if need be				
+							}
+						}
+						if (bMetadataChanged) {
+							// Ugly, but need to re-create doc json because metadata has changed
+							String sTmpFullText = f.getFullText();
+							f.setFullText(null); // (no need to serialize this, can save some cycles)
+							document = null;
+							intializeDocIfNeeded(f, g);							
+					        f.setFullText(sTmpFullText); //(restore)
+						}
+					}
+					catch (Exception e) {
+						this._context.getHarvestStatus().logMessage("SAH->UAH: " + e.getMessage(), true);						
+						logger.error("SAH->UAH: " + e.getMessage(), e);
+					}
+						
+					// Now create document since there's no risk of having to re-serialize
+					intializeDocIfNeeded(f, g);
+					
+			// 3. final doc-level metadata fields:
+					
+					// Extract Published Date if applicable
+					if (s.getPublishedDate() != null)
+					{
+						if (JavaScriptUtils.containsScript(s.getPublishedDate()))
+						{
+							try 
+							{
+								f.setPublishedDate(new Date(
+										DateUtility.parseDate((String)getValueFromScript(s.getPublishedDate(), null, null))));
+							}
+							catch (Exception e) 
+							{
+								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
+								logger.error("publishedDate: " + e.getMessage(), e);
+							}
+						}
+						else
+						{
+							try 
+							{ 
+								f.setPublishedDate(new Date(
+										DateUtility.parseDate((String)getFormattedTextFromField(s.getPublishedDate()))));
+							} 
+							catch (Exception e) 
+							{
+								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
+								logger.error("publishedDate: " + e.getMessage(), e);
+							}
+						}
+					}
+					
 					// Extract URL if applicable
 					try {
 						if (s.getUrl() != null)
 						{
-							intializeDocIfNeeded(f, g);
 							if (JavaScriptUtils.containsScript(s.getUrl()))
 							{
 								f.setUrl((String)getValueFromScript(s.getUrl(), null, null));
@@ -229,58 +321,10 @@ public class StructuredAnalysisHarvester
 						logger.error("URL: " + e.getMessage(), e);
 					}
 					
-					// Extract Published Date if applicable
-					if (s.getPublishedDate() != null)
-					{
-						intializeDocIfNeeded(f, g);
-						if (JavaScriptUtils.containsScript(s.getPublishedDate()))
-						{
-							try 
-							{
-								f.setPublishedDate((Date)getValueFromScript(s.getPublishedDate(), null, null));
-							}
-							catch (Exception e) 
-							{
-								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
-								logger.error("publishedDate: " + e.getMessage(), e);
-							}
-						}
-						else
-						{
-							try 
-							{ 
-								f.setPublishedDate(new Date(getFormattedTextFromField(s.getPublishedDate()))); 
-							} 
-							catch (Exception e) 
-							{
-								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
-								logger.error("publishedDate: " + e.getMessage(), e);
-							}
-						}
-					}
-					
-					// Add fields to metadata that can be used to create entities and associations
-					try {
-						if (null != this.unstructuredHandler) {
-							if (this.unstructuredHandler.executeHarvest(_context, source, f, it.hasNext())) {
-								// Ugly, but need to re-create doc json because metadata has changed
-								String sTmpFullText = f.getFullText();
-								f.setFullText(null); // (no need to serialize this, can save some cycles)
-								document = null;
-								intializeDocIfNeeded(f, g);							
-						        f.setFullText(sTmpFullText); //(restore)
-							}
-						}	
-					}
-					catch (Exception e) {
-						this._context.getHarvestStatus().logMessage("SAH->UAH: " + e.getMessage(), true);						
-						logger.error("SAH->UAH: " + e.getMessage(), e);
-					}
-						
-					// Now create document since there's no risk of having to re-serialize
-					intializeDocIfNeeded(f, g);
+			// 4. Entity level fields		
 					
 					// Extract Document GEO if applicable
+					
 					if (s.getDocumentGeo() != null)
 					{
 						try
@@ -399,7 +443,7 @@ public class StructuredAnalysisHarvester
 					{
 						// Iterate over array elements and extract entities
 						for (int i = 0; i < entityRecords.length(); ++i) 
-						{
+						{							
 							String field = entityRecords.getString(i);
 							EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
 							if (entity != null) entities.add(entity);	
@@ -866,6 +910,8 @@ public class StructuredAnalysisHarvester
 							newAssoc.setCreationCriteriaScript(esp.getCreationCriteriaScript());
 							newAssoc.setVerb(esp.getVerb());
 							newAssoc.setVerb_category(esp.getVerb_category());
+							newAssoc.setAssoc_type(esp.getAssoc_type());
+							newAssoc.setGeotag(esp.getGeotag());
 
 							// Create an association from the AssociationSpecPojo and document
 							AssociationPojo association = getAssociation(newAssoc, null, null, f);
@@ -1353,6 +1399,7 @@ public class StructuredAnalysisHarvester
 						if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity1()))
 						{
 							e.setEntity1_index(entity.getIndex());
+							break;
 						}
 					}
 				}
@@ -1400,6 +1447,7 @@ public class StructuredAnalysisHarvester
 						if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity2()))
 						{
 							e.setEntity2_index(entity.getIndex());
+							break;
 						}
 					}
 				}
@@ -1543,7 +1591,7 @@ public class StructuredAnalysisHarvester
 			if (bDontResolveToIndices) {
 				e.setAssociation_type("Summary");				
 			}
-			else {
+			else {				
 				e.setAssociation_type(AssociationUtils.getAssocType(e));
 				if (null != esp.getAssoc_type()) {
 					if (!e.getAssociation_type().equals("Summary")) {

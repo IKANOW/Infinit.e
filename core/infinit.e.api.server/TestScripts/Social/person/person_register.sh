@@ -20,10 +20,10 @@ echo ''
 curl -s -b cookie.txt -XPOST "$1/social/person/register" -d'
 {
 	"user": {
-		"WPUserID":"nputzier@ikanow.com",
-		"firstname": "Nathan",
-		"lastname": "Putzier",
-		"email":[ "nputzier@ikanow.com" ]
+		"WPUserID":"ipt-user@dodiis.mill",
+		"firstname": "IPT",
+		"lastname": "CRATE",
+		"email":[ "ipt-user@dodiis.mill" ]
 	},
 	"auth": {
 		"password":"rxDiN6OGsmz4twX3ewFaPzPUqq5AOj6TFKsivGHYriQ="

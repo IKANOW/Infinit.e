@@ -25,7 +25,7 @@ Infinit.e Mongo DB installation and update
 	###########################################################################
 	# THIS IS AN UPGRADE
 		# (Stop mongodb)
-		service mongo_infinite stop
+		service mongo_infinite soft_stop
 	fi
 	
 %install
@@ -69,7 +69,7 @@ Infinit.e Mongo DB installation and update
 # INSTALL ONLY
 	if [ $1 -eq 1 ]; then
 		# (Stop mongodb if it was started by the above install)
-		service mongo_infinite stop
+		service mongo_infinite soft_stop
 		
 		rm -rf /data
 		ln -sf /opt/db-home/data/ /data
@@ -87,8 +87,9 @@ Infinit.e Mongo DB installation and update
 			GEO_LOC=`grep "^db.geo_archive=" $CONFIG_PROPS | sed s/'db.geo_archive='// | sed s/' '//g`
 			GEO_FILE_LOC=/opt/infinite-install/data/feature/geo.bson.tar.gz
 				#(also hardwired below)
+			mkdir -p /opt/infinite-install/data/feature
 			
-			echo "$GEO_LOC" | grep -q -P "^https://" && curl "$GEO_LOC" -o $GEO_FILE_LOC 
+			echo "$GEO_LOC" | grep -q -P "^https?://" && curl -L "$GEO_LOC" -o $GEO_FILE_LOC 
 			echo "$GEO_LOC" | grep -q -P "^s3://" && s3cmd get $GEO_LOC $GEO_FILE_LOC
 			echo "$GEO_LOC" | grep -q -P "^/" && if [ "$GEO_LOC" != "$GEO_FILE_LOC" ]; then cp $GEO_LOC $GEO_FILE_LOC; fi
 			 
@@ -112,14 +113,16 @@ Infinit.e Mongo DB installation and update
 
 ###########################################################################
 # UNINSTALL *AND* UPGRADE
-	# (Stop mongo processes)	
-	service mongo_infinite stop
 		
 	if [ $1 -eq 0 ]; then
 
-###########################################################################
-# THIS IS AN *UN"INSTALL NOT AN UPGRADE
 		###########################################################################
+		# THIS IS AN *UN*INSTALL NOT AN UPGRADE
+		###########################################################################
+		
+		# (Hard Stop mongo processes)	
+		service mongo_infinite stop
+	
 		# Handle relocation:
 		if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 			if [ -h /opt/db-home ]; then
@@ -133,7 +136,14 @@ Infinit.e Mongo DB installation and update
 		
 		###########################################################################
 		# Remove configuration
-		rm -f /etc/mongod.conf 
+		rm -f /etc/mongod.conf
+	else
+		###########################################################################
+		# THIS IS AN UPGRADE NOT AN *UN*INSTALL
+		###########################################################################
+		 
+		# (Soft Stop mongo processes)	
+		service mongo_infinite soft_stop
 	fi
 
 %postun

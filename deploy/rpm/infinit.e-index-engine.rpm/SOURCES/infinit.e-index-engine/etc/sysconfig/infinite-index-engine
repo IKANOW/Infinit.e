@@ -18,7 +18,7 @@
 
 # For large memory systems, increase the memory available to the system
 export JAVA_OPTS="-Xms2048m -Xmx2048m -Xmn512m" && [[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && \
-	JAVA_OPTS="-Xms9656m -Xmx9656m -Xmn2048m"
+	JAVA_OPTS="-Xms8656m -Xmx8656m -Xmn2048m"
 #(^^^ >10GB system)
 
 

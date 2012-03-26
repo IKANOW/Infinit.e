@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.config.source;
 
 
@@ -20,6 +35,7 @@ import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SendMail;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
+import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
@@ -128,6 +144,7 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();
 		try 
 		{
+			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, userIdStr);
 			
 			//create source object
@@ -202,6 +219,7 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();
 	
 		try {
+			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, ownerIdStr);
 			
 			///////////////////////////////////////////////////////////////////////
@@ -282,10 +300,19 @@ public class SourceHandler
 				///////////////////////////////////////////////////////////////////////
 				// If the user is not the owner or moderator we need to send the owner
 				// and email asking them to approve or reject the source
-				if (!isOwnerOrModerator && !isSysAdmin)
-				{
-					emailSourceApprovalRequest(source);
+				try {
+					if (!isOwnerOrModerator && !isSysAdmin)
+					{
+						emailSourceApprovalRequest(source);
+					}
 				}
+				catch (Exception e) { // Unable to ask for permission, remove sources and error out
+					logger.error("Exception Message: " + e.getMessage(), e);
+					DbManager.getIngest().getSource().remove(new BasicDBObject(SourcePojo._id_, source.getId()));
+					rp.setData((String)null, (BasePojoApiMap<String>)null); // (unset)
+					rp.setResponse(new ResponseObject("Source", false, "Unable to email authority for permission, maybe email infrastructure isn't added? Error: " + e.getMessage()));
+				}
+				
 			}//TESTED (behavior when an identical source is added)
 	
 			///////////////////////////////////////////////////////////////////////
@@ -371,7 +398,7 @@ public class SourceHandler
 		}
 		catch (Exception e) {
 			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Source", false, "Unable to update source: " + e.getMessage()));			
+			rp.setResponse(new ResponseObject("Source", false, "Unable to add/update source: " + e.getMessage()));			
 		}
 		return rp;
 	}
@@ -384,6 +411,7 @@ public class SourceHandler
 	public ResponsePojo deleteSource(String sourceIdStr, String communityIdStr, String personIdStr, boolean bDocsOnly) {
 		ResponsePojo rp = new ResponsePojo();	
 		try {
+			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
 			ObjectId communityId = new ObjectId(communityIdStr);
 			// (Can't use pojos for queries because sources currently have default fields)
@@ -448,6 +476,7 @@ public class SourceHandler
 
 		//////////////////////////////////////////////////////////////////////////////////////
 		// Note: user must be an admin, owner or moderator of one or more groups to approve a source
+		communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
 
 		if (isApproved)
@@ -500,6 +529,7 @@ public class SourceHandler
 
 		//////////////////////////////////////////////////////////////////////////////////////
 		// Note: user must be owner or moderator of one or more groups to deny a source
+		communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
 
 		if (isApproved)
@@ -648,13 +678,23 @@ public class SourceHandler
 		return rp;
 	}
 
-	public ResponsePojo testSource(String sourceJson, int nNumDocsToReturn, boolean bReturnFullText) 
+	public ResponsePojo testSource(String sourceJson, int nNumDocsToReturn, boolean bReturnFullText, String userIdStr) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
 			SourcePojo source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null, true));
 				// (true => auto calculate source key == default)
+
+			// This is the only field that you don't normally need to specify in save but will cause 
+			// problems if it's not populated in test.
+			if (null == source.getCommunityIds()) {
+				source.setCommunityIds(new TreeSet<ObjectId>());
+			}
+			if (source.getCommunityIds().isEmpty()) {
+				source.addToCommunityIds(new ObjectId(userIdStr)); // (ie user's personal community, always has same _id - not that it matters)
+			}
+			
 			HarvestController harvester = new HarvestController();
 			harvester.setStandaloneMode(nNumDocsToReturn);
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
@@ -723,7 +763,9 @@ public class SourceHandler
 	private boolean isOwnerModeratorOrSysAdmin(String communityIdStr, String ownerIdStr)
 	{
 		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);
-		isSysAdmin = RESTTools.adminLookup(ownerIdStr);
+		if (!isOwnerOrModerator) {
+			isSysAdmin = RESTTools.adminLookup(ownerIdStr);
+		}
 		boolean isApproved = (isOwnerOrModerator || isSysAdmin) ? true : false;
 		return isApproved;
 	}	
@@ -804,6 +846,9 @@ public class SourceHandler
 					if (sendTo.length() > 0) sendTo.append(";");
 					sendTo.append(member.getEmail());
 				}
+			}
+			if (0 == sendTo.length()) { 
+				throw new RuntimeException("community " + c.getName() + " / " + c.getId() + " has no owner/moderator");
 			}
 			
 			// Send
@@ -965,6 +1010,20 @@ public class SourceHandler
 		return source;
 	}
 	
+	// Utility: make life easier in terms of adding/update/inviting/leaving from the command line
+	
+	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
+		if (communityIdStr.startsWith("*")) {
+			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			if (1 == communityIdStrs.length) {
+				communityIdStr = communityIdStrs[0]; 
+			}
+			else {
+				throw new RuntimeException("Invalid community pattern");
+			}
+		}	
+		return communityIdStr;
+	}	
 	
 }
 

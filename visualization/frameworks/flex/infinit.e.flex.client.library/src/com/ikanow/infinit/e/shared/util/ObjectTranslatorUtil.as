@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.shared.util
 {
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
@@ -16,7 +31,9 @@ package com.ikanow.infinit.e.shared.util
 	import com.ikanow.infinit.e.shared.model.vo.Type;
 	import com.ikanow.infinit.e.shared.model.vo.UserAttribute;
 	import com.ikanow.infinit.e.shared.model.vo.WidgetSummary;
+	
 	import flash.utils.*;
+	
 	import mx.charts.LineChart;
 	import mx.collections.ArrayCollection;
 	import mx.controls.AdvancedDataGrid;
@@ -247,7 +264,7 @@ package com.ikanow.infinit.e.shared.util
 		 * @param upperCaseFromVar
 		 * @return Object
 		 */
-		public static function translateObject( translateFrom:Object, translateTo:Object, classInfo:XML = null, upperCaseFromVar:Boolean = false ):Object
+		public static function translateObject( translateFrom:Object, translateTo:Object, classInfo:XML = null, upperCaseFromVar:Boolean = false, override:Boolean = false ):Object
 		{
 			var itemType:String;
 			var itemName:String;
@@ -384,7 +401,7 @@ package com.ikanow.infinit.e.shared.util
 								// send it to the this function again to decode it...
 								
 								// hack because this property contains a JSON string
-								if ( fromName == QueryConstants.QUERY_STRING )
+								if ( fromName == QueryConstants.QUERY_STRING && !override )
 								{
 									translateFrom[ fromName ] = JSONUtil.decode( translateFrom[ fromName ] );
 								}

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.document.file;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -19,6 +34,7 @@ public class XmlToMetadataParser {
 	public List<String> ignoreFields;
 	public String XmlSourceName;
 	public String PKElement;
+	public String AttributePrefix;
 
 	public XmlToMetadataParser()
 	{
@@ -30,7 +46,8 @@ public class XmlToMetadataParser {
 	 * @param levelOneFields the levelOneField to set
 	 * @param ignoreFields the ignoreFields to set
 	 */
-	public XmlToMetadataParser(List<String> levelOneFields, List<String> ignoreFields, String XmlSourceName, String XmlPrimaryKey, Boolean XmlPreserveCase)
+	public XmlToMetadataParser(List<String> levelOneFields, List<String> ignoreFields, 
+								String XmlSourceName, String XmlPrimaryKey, String XmlAttributePrefix, Boolean XmlPreserveCase)
 	{
 		this();
 		if (null != XmlPreserveCase) {
@@ -40,6 +57,7 @@ public class XmlToMetadataParser {
 		this.PKElement = XmlPrimaryKey;
 		setLevelOneField(levelOneFields);
 		setIgnoreField(ignoreFields);
+		AttributePrefix = XmlAttributePrefix;
 	}
 
 	/**
@@ -131,101 +149,125 @@ public class XmlToMetadataParser {
 			switch (eventCode)
 			{
 			case(XMLStreamReader.START_ELEMENT):
+			{
 				String tagName = reader.getLocalName();
-			if (null == levelOneFields || levelOneFields.size() == 0) {
-				levelOneFields = new ArrayList<String>();
-				levelOneFields.add(tagName);
-				doc = new DocumentPojo();
-				sb.delete(0, sb.length());
-				justIgnored = false;
-			}
-			else if (levelOneFields.contains(tagName)){
-				sb.delete(0, sb.length());
-				doc = new DocumentPojo();
-				justIgnored = false;
-			}
-			else if (ignoreFields.contains(tagName))
-			{
-				justIgnored = true;
-			}
-			else{
-				if (this.bPreserveCase) {
-					sb.append("<").append(tagName).append(">");					
-				}
-				else {
-					sb.append("<").append(tagName.toLowerCase()).append(">");
-				}
-				justIgnored = false;
-			}
-
-
-			hitIdentifier = tagName.equalsIgnoreCase(PKElement);
-
-
-			break;
-			case (XMLStreamReader.CHARACTERS):
-				if(reader.getText().trim().length()>0 && justIgnored == false)
-					sb.append("<![CDATA[").append(reader.getText().trim()).append("]]>");
-			if(hitIdentifier)
-			{
-				String tValue = reader.getText().trim();
-				if (null != XmlSourceName){
-					if (tValue.length()> 0){
-						doc.setUrl(XmlSourceName + tValue);
-					}
-				}
-			}
-
-			break;
-			case (XMLStreamReader.END_ELEMENT):
-				hitIdentifier = !reader.getLocalName().equalsIgnoreCase(PKElement);
-			if (!ignoreFields.contains(reader.getLocalName())){
-				if (levelOneFields.contains(reader.getLocalName())) {
-					JSONObject json;
-					try {
-						json = XML.toJSONObject(sb.toString());
-						for (String names: json.getNames(json))
-						{
-							JSONObject rec = null;
-							JSONArray jarray = null;
-
-							try {
-								jarray = json.getJSONArray(names);
-								doc.addToMetadata(names, handleJsonArray(jarray));
-							} catch (JSONException e) {
-								try {
-									rec = json.getJSONObject(names);
-									doc.addToMetadata(names, convertJsonObjectToLinkedHashMap(rec));
-								} catch (JSONException e2) {
-									try {
-										Object[] val = {json.getString(names)};
-										doc.addToMetadata(names,val);
-									} catch (JSONException e1) {
-										e1.printStackTrace();
-									}
-								}
-							}
-						}
-
-					} catch (JSONException e) {
-						e.printStackTrace();
-					}
+			
+				if (null == levelOneFields || levelOneFields.size() == 0) {
+					levelOneFields = new ArrayList<String>();
+					levelOneFields.add(tagName);
+					doc = new DocumentPojo();
 					sb.delete(0, sb.length());
-					docList.add(doc);
+					justIgnored = false;
+				}
+				else if (levelOneFields.contains(tagName)){
+					sb.delete(0, sb.length());
+					doc = new DocumentPojo();
+					justIgnored = false;
+				}
+				else if (ignoreFields.contains(tagName))
+				{
+					justIgnored = true;
 				}
 				else{
 					if (this.bPreserveCase) {
-						sb.append("</").append(reader.getLocalName()).append(">");						
+						sb.append("<").append(tagName).append(">");					
 					}
 					else {
-						sb.append("</").append(reader.getLocalName().toLowerCase()).append(">");
+						sb.append("<").append(tagName.toLowerCase()).append(">");
 					}
-
+					justIgnored = false;
+				}
+				hitIdentifier = tagName.equalsIgnoreCase(PKElement);
+				
+				if (!justIgnored && (null != this.AttributePrefix)) { // otherwise ignore attributes anyway
+					int nAttributes = reader.getAttributeCount();
+					StringBuffer sb2 = new StringBuffer();
+					for (int i = 0; i < nAttributes; ++i) {
+						sb2.setLength(0);
+						sb.append('<');
+						
+						sb2.append(this.AttributePrefix);
+						if (this.bPreserveCase) {
+							sb2.append(reader.getAttributeLocalName(i).toLowerCase());
+						}
+						else {
+							sb2.append(reader.getAttributeLocalName(i));
+						}
+						sb2.append('>');
+						
+						sb.append(sb2);
+						sb.append("<![CDATA[").append(reader.getAttributeValue(i).trim()).append("]]>");
+						sb.append("</").append(sb2);
+					}
 				}
 			}
 			break;
-
+			
+			case (XMLStreamReader.CHARACTERS):
+			{
+				if(reader.getText().trim().length()>0 && justIgnored == false)
+					sb.append("<![CDATA[").append(reader.getText().trim()).append("]]>");
+				if(hitIdentifier)
+				{
+					String tValue = reader.getText().trim();
+					if (null != XmlSourceName){
+						if (tValue.length()> 0){
+							doc.setUrl(XmlSourceName + tValue);
+						}
+					}
+				}
 			}
+			break;
+			case (XMLStreamReader.END_ELEMENT):
+			{
+				hitIdentifier = !reader.getLocalName().equalsIgnoreCase(PKElement);
+				if (!ignoreFields.contains(reader.getLocalName())){
+					if (levelOneFields.contains(reader.getLocalName())) {
+						JSONObject json;
+						try {
+							json = XML.toJSONObject(sb.toString());
+							for (String names: json.getNames(json))
+							{
+								JSONObject rec = null;
+								JSONArray jarray = null;
+	
+								try {
+									jarray = json.getJSONArray(names);
+									doc.addToMetadata(names, handleJsonArray(jarray));
+								} catch (JSONException e) {
+									try {
+										rec = json.getJSONObject(names);
+										doc.addToMetadata(names, convertJsonObjectToLinkedHashMap(rec));
+									} catch (JSONException e2) {
+										try {
+											Object[] val = {json.getString(names)};
+											doc.addToMetadata(names,val);
+										} catch (JSONException e1) {
+											e1.printStackTrace();
+										}
+									}
+								}
+							}
+	
+						} catch (JSONException e) {
+							e.printStackTrace();
+						}
+						sb.delete(0, sb.length());
+						docList.add(doc);
+					}
+					else{
+						if (this.bPreserveCase) {
+							sb.append("</").append(reader.getLocalName()).append(">");						
+						}
+						else {
+							sb.append("</").append(reader.getLocalName().toLowerCase()).append(">");
+						}
+	
+					}
+				}
+			} // (end case)
+			break;
+			} // (end switch)
 		}
 		return docList;
 	}

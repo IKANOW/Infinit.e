@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ * http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
 package com.ikanow.infinit.e.utility;
 
 import java.io.ByteArrayInputStream;
@@ -254,16 +269,18 @@ public class MongoDocumentTxfer {
 			Map<ObjectId, Integer> communityMap = new HashMap<ObjectId, Integer>();
 			Map<String, Integer> sourceKeyMap = new HashMap<String, Integer>();
 			for (DocumentPojo doc: docs) {
-				ObjectId community = doc.getCommunityId();
-				 Integer count = communityMap.get(community);
-				 communityMap.put(community, (count == null ? 1 : count + 1));
-				 int nSpecialFormat = doc.getSourceKey().indexOf('#');
-				 String sourceKey = doc.getSourceKey();
-				 if (nSpecialFormat > 0) {
-					 sourceKey = sourceKey.substring(0, nSpecialFormat);
-				 }
-				 Integer count2 = sourceKeyMap.get(sourceKey);
-				 sourceKeyMap.put(sourceKey, (count2 == null ? 1 : count2 + 1));
+				if (null != doc.getSourceKey()) { // (can only happen by error, still)
+					ObjectId community = doc.getCommunityId();
+					 Integer count = communityMap.get(community);
+					 communityMap.put(community, (count == null ? 1 : count + 1));
+					 int nSpecialFormat = doc.getSourceKey().indexOf('#');
+					 String sourceKey = doc.getSourceKey();
+					 if (nSpecialFormat > 0) {
+						 sourceKey = sourceKey.substring(0, nSpecialFormat);
+					 }
+					 Integer count2 = sourceKeyMap.get(sourceKey);
+					 sourceKeyMap.put(sourceKey, (count2 == null ? 1 : count2 + 1));
+				}
 			}
 			
 			new StoreAndIndexManager().removeFromDatastore_byURL(docs, true);

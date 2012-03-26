@@ -71,7 +71,12 @@
 		<copy file="../infinit.e.core.server/dist/opt/infinite-home/lib/infinit.e.core.server.jar" 
 			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.core.server-${infinite_version}-${infinite_release}.jar"/>
 		<copy file="../infinit.e.mongo-indexer/dist/opt/infinite-home/lib/infinit.e.mongo-indexer.jar" 
-			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-${infinite_version}-${infinite_release}.jar"/>		
+			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-${infinite_version}-${infinite_release}.jar"/>
+
+		<!-- Haven't included these as normal for OSS reasons, but can bundle in RPM -->
+		<copy todir="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/">
+			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar"/>
+		</copy>
 	</target>
 	
 	<!-- ================================= 

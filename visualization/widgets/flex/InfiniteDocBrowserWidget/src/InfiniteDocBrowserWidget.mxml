@@ -1,4 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
 <components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
 	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
 	xmlns:s="library://ns.adobe.com/flex/spark"
@@ -8,13 +23,7 @@
 	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 
 	<fx:Style source="com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
-	<fx:Style>
-		@namespace s "library://ns.adobe.com/flex/spark";
-		@namespace mx "library://ns.adobe.com/flex/mx";
-		/* If you need to override a style in our stylesheet, or add another
-		style that we did not support you can do so here, an example has been commented out
-		Please see documentation about over-riding MX component styles to display fonts*/
-	</fx:Style>
+
 	<fx:Script>
 		<![CDATA[
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
@@ -40,6 +49,8 @@
 			import mx.controls.dataGridClasses.DataGridColumn;
 			import mx.events.FlexEvent;
 			import mx.events.MenuEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
 			import mx.utils.StringUtil;
 			import spark.components.CheckBox;
 			import spark.events.IndexChangeEvent;
@@ -603,6 +614,8 @@
 				repeatvbox.setFocus();
 			}
 			
+			
+			
 			/**
 			 * Sets focus to the vbox when clicked on so it can be scrolled
 			 * using the up/down/left/right or pageup/pagedown keys.
@@ -690,18 +703,24 @@
 					var url:URLRequest = new URLRequest( repeaterItem.url );
 					navigateToURL( url, '_blank' );
 				}
-				else if ( null != repeaterItem.metadata )
-				{
-					Alert.show( JSONEncoder.encode( repeaterItem.metadata ), "Metadata fields" );
-				}
-				else if ( null != repeaterItem.description )
-				{
-					Alert.show( repeaterItem.description );
-				}
 				else
 				{
-					Alert.show( "No more information is available." );
+					var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=true";
+					var url1:URLRequest = new URLRequest( urlStr );
+					navigateToURL( url1, '_blank' );
 				}
+			/*else if ( null != repeaterItem.metadata )
+			{
+				Alert.show( JSONEncoder.encode( repeaterItem.metadata ), "Metadata fields" );
+			}
+			else if ( null != repeaterItem.description )
+			{
+				Alert.show( repeaterItem.description );
+			}
+			else
+			{
+				Alert.show( "No more information is available." );
+			}*/
 			}
 			
 			/**

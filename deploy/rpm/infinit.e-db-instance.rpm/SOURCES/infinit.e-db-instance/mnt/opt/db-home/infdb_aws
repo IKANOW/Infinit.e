@@ -48,6 +48,12 @@ db.shutdownServer()
 exit
 EOF
 		;;
+		kill_db_force)
+			mongo <<EOF admin --port $2
+db.shutdownServer({force:true})
+exit
+EOF
+		;;
 		is_config)
 			is_mongos=$(aws dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
 			if [ "$is_mongos" != "" ]; then
@@ -114,15 +120,21 @@ EOF
 			if [ $cluster_name ]; then
 				if [ $2 ]; then
 					ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+						#(these might be false positives due eg 11 vs 1; need this *$2* to handle ,-separated lists though)
 					for pip in $ipCandidates
 					do
-						reg_ex_chk=$(aws din --filter "private-ip-address=$pip" --filter "tag:db_instance=*$2*" | awk '{print $19"="$21}' | sed -rn 's/^db_instance=(.*)/\1/p' | egrep "(^|,)$2(,|$)")
-						if [ $reg_ex_chk ]; then
-							echo -e "$pip"
-						fi
+						idCandidates=$(aws din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+							# (Get the instance ID so I can use the more robust dtags for checking)
+						for pid in $idCandidates
+						do
+							# (There should only be one of these)		
+							reg_ex_chk=$(aws dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							if [ $reg_ex_chk ]; then
+								echo -e "$pip"
+								exit
+							fi
+						done
 					done
-					
-					
 				else
 					echo -e "\aMust supply Replica Set Parameter"
 				fi
@@ -135,15 +147,22 @@ EOF
 				if [ $2 ]; then
 					port=$((27017+$2))
 					ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+						#(these might be false positives due eg 11 vs 1; need this *$2* to handle ,-separated lists though)
 					for pip in $ipCandidates
 					do
-						reg_ex_chk=$(aws din --filter "private-ip-address=$pip" --filter "tag:db_instance=*$2*" | awk '{print $19"="$21}' | sed -rn 's/^db_instance=(.*)/\1/p' | egrep "(^|,)$2(,|$)")
-						if [ $reg_ex_chk ]; then
-							if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
-								echo $pip:$port
+						idCandidates=$(aws din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+							# (Get the instance ID so I can use the more robust dtags for checking)
+						for pid in $idCandidates
+						do
+							# (There should only be one of these)		
+							reg_ex_chk=$(aws dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							if [ $reg_ex_chk ]; then
+								if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
+									echo $pip:$port
+								fi													
 								break
-							fi													
-						fi
+							fi
+						done
 					done
 				else
 					echo -e "\aMust supply Replica Set Parameter"

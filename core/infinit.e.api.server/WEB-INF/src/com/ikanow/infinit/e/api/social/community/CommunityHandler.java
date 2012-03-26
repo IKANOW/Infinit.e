@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.social.community;
 
 import java.util.ArrayList;
@@ -68,7 +83,9 @@ public class CommunityHandler
 		{
 			if (isSysAdmin)
 			{
-				DBCursor dbc = DbManager.getSocial().getCommunity().find();				
+				DBCursor dbc = DbManager.getSocial().getCommunity().find(
+						new BasicDBObject("communityStatus", new BasicDBObject("$ne", "disabled")));
+				
 				if ( dbc.count() > 0 )
 				{
 					rp.setData(CommunityPojo.listFromDb(dbc, CommunityPojo.listType()), new CommunityPojoApiMap());
@@ -132,6 +149,7 @@ public class CommunityHandler
 				//Add user ID to query so only get (private) communities of which I'm a member
 				query.put("members._id", new ObjectId(userIdStr));
 			}
+			query.put("communityStatus", new BasicDBObject("$ne", "disabled"));
 			
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 			if ( dbc.count() > 0 )
@@ -156,20 +174,22 @@ public class CommunityHandler
 	/**
 	 * getCommunity (REST)
 	 * Returns information for a single community
-	 * @param idStr
+	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo getCommunity(String idStr) 
+	public ResponsePojo getCommunity(String userIdStr, String communityIdStr) 
 	{	
 		ResponsePojo rp = new ResponsePojo();
 		
 		try
 		{
+			
 			// Set up the query
 			BasicDBObject query = new BasicDBObject();
-			if (idStr != null)
+			if (communityIdStr != null)
 			{
-				query.put("_id", new ObjectId(idStr));
+				communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+				query.put("_id", new ObjectId(communityIdStr));
 			}
 			else
 			{
@@ -205,7 +225,7 @@ public class CommunityHandler
 	 */
 	public ResponsePojo getSystemCommunity() 
 	{	
-		return getCommunity(null);
+		return getCommunity(null, null);
 	}
 	
 	/**
@@ -371,6 +391,7 @@ public class CommunityHandler
 		try
 		{
 			//get the communitypojo
+			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			DBObject communitydbo = DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id",new ObjectId(communityIdStr)));
 			if ( communitydbo != null )
 			{
@@ -387,11 +408,13 @@ public class CommunityHandler
 							if ( cp.isOwner(new ObjectId(personIdStr)) || isSysAdmin )
 							{
 								//at this point, we have verified, community/user exist, not a personal group, user is member and owner
-								//set community as inactive
-								DbManager.getSocial().getCommunity().update(new BasicDBObject("_id",new ObjectId(communityIdStr)), new BasicDBObject("communityStatus","disabled"));
+								//set community as inactive (for some reason we don't delete it)
+								DbManager.getSocial().getCommunity().update(new BasicDBObject("_id",new ObjectId(communityIdStr)), 
+																			new BasicDBObject("$set", new BasicDBObject("communityStatus","disabled")));
+								
 								//remove all members
 								for ( CommunityMemberPojo cmp : cp.getMembers())
-									removeCommunityMember(cmp.get_id().toString(), communityIdStr, cmp.get_id().toString());
+									removeCommunityMember(personIdStr, communityIdStr, cmp.get_id().toString());
 								rp.setResponse(new ResponseObject("Delete community", true, "Community deleted successfully"));
 							}
 							else
@@ -433,12 +456,15 @@ public class CommunityHandler
 	/**
 	 * updateMemberStatus (REST)
 	 */
+	
 	public ResponsePojo updateMemberStatus(String callerIdStr, String personIdStr, String communityIdStr, String userStatus) 
 	{
 		boolean isSysAdmin = RESTTools.adminLookup(callerIdStr);
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
+			communityIdStr = allowCommunityRegex(callerIdStr, communityIdStr);
+			
 			//verify user is in this community, then update status
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dbo = DbManager.getSocial().getCommunity().findOne(query);
@@ -509,6 +535,7 @@ public class CommunityHandler
 		try
 		{
 			//verify user is in this community, then update status
+			communityIdStr = allowCommunityRegex(callerIdStr, communityIdStr);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dbo = DbManager.getSocial().getCommunity().findOne(query);
 			if ( dbo != null )
@@ -571,6 +598,7 @@ public class CommunityHandler
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
+			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
 			if ( dboComm != null )
@@ -666,6 +694,7 @@ public class CommunityHandler
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
+			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
 			if ( dboComm != null )
@@ -709,22 +738,24 @@ public class CommunityHandler
 	// (Note supports personId as either Id or username (email) both are unique indexes)
 	 * @param personIdStr
 	 * @param userIdStr
-	 * @param communityId
+	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityId) 
+	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr) 
 	{
+		communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can invite users to
 		// private communities however any member can be able to invite someone to a public community
-		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityId, userIdStr);
+		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canInvite = (isOwnerOrModerator || isSysAdmin) ? true : false;
 
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
-			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityId));
+			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
 			
 			if ( dboComm != null )
@@ -755,7 +786,7 @@ public class CommunityHandler
 							DbManager.getSocial().getCommunity().update(query, cp.toDb());
 							
 							//send email out inviting user
-							CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityId,"invite",userIdStr);
+							CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
 							DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
 							
 							PropertiesManager propManager = new PropertiesManager();
@@ -897,6 +928,7 @@ public class CommunityHandler
 	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json) 
 	{
 		ResponsePojo rp = new ResponsePojo();
+		communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can add update communities
@@ -1274,7 +1306,11 @@ public class CommunityHandler
 			if (dbo.size() > 0)
 			{
 				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);
-				if (community.getOwnerId().toString().equalsIgnoreCase(personIdStr))
+				if (community.getIsPersonalCommunity() && communityIdStr.equals(personIdStr))
+				{
+					isOwnerOrModerator = true;					
+				}
+				else if (community.getOwnerId().toString().equalsIgnoreCase(personIdStr))
 				{
 					isOwnerOrModerator = true;
 				}
@@ -1441,7 +1477,7 @@ public class CommunityHandler
 		Map<String, CommunityAttributePojo> c = new HashMap<String, CommunityAttributePojo>();
 		CommunityAttributePojo v = new CommunityAttributePojo();	
 		v.setType("Boolean");
-		v.setValue("true");
+		v.setValue("false");
 		c.put("isPublic", v);
 		v = new CommunityAttributePojo();
 		v.setType("Boolean");
@@ -1449,7 +1485,7 @@ public class CommunityHandler
 		c.put("usersCanSelfRegister", v);
 		v = new CommunityAttributePojo();
 		v.setType("Boolean");
-		v.setValue("false");
+		v.setValue("true");
 		c.put("registrationRequiresApproval", v);
 		v = new CommunityAttributePojo();
 		v.setType("Boolean");
@@ -1492,4 +1528,19 @@ public class CommunityHandler
 		c.put("publishCommentsPublicly", v);
 		return c;
 	}
+	
+	// Utility: make life easier in terms of adding/update/inviting/leaving from the command line
+	
+	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
+		if (communityIdStr.startsWith("*")) {
+			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			if (1 == communityIdStrs.length) {
+				communityIdStr = communityIdStrs[0]; 
+			}
+			else {
+				throw new RuntimeException("Invalid community pattern");
+			}
+		}	
+		return communityIdStr;
+	}	
 }

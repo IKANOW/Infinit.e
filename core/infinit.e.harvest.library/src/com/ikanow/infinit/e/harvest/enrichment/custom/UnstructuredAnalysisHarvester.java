@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.io.InputStream;
@@ -57,6 +72,9 @@ public class UnstructuredAnalysisHarvester
 		// (set this in execute harvest - makes it easy to only set once in the per doc version
 		//  called in bulk from the SAH)
 	
+	// Ensure we don't get long list of duplicates for commonly occurring words
+	private HashSet<String> regexDuplicates = null;
+	
 	/**
 	 * Default Constructor
 	 */
@@ -104,6 +122,7 @@ public class UnstructuredAnalysisHarvester
 			Iterator<DocumentPojo> it = documents.iterator();
 			while (it.hasNext()) {
 				DocumentPojo d = it.next();
+				regexDuplicates = new HashSet<String>();
 				
 				// For feeds, may need to go get the document text manually, it's a bit horrible since
 				// obviously may then go get the data again for full text extraction
@@ -180,6 +199,8 @@ public class UnstructuredAnalysisHarvester
 	 */
 	public boolean executeHarvest(HarvestContext context, SourcePojo source, DocumentPojo doc, boolean bMoreDocs)
 	{
+		regexDuplicates = new HashSet<String>();
+		
 		if (-1 == nBetweenDocs_ms) {
 			PropertiesManager props = new PropertiesManager();
 			nBetweenDocs_ms = props.getWebCrawlWaitTime();
@@ -391,12 +412,25 @@ public class UnstructuredAnalysisHarvester
 			Pattern metaPattern = createRegex(m.script, m.flags);
 			Matcher matcher = metaPattern.matcher(text);
 	
-			while(matcher.find())
-			{
-				String toAdd = matcher.group(m.groupNum);
-				if (null != m.replace)
-					toAdd = toAdd.replaceAll(toAdd, m.replace);
-				addToMeta(f,m.fieldName, toAdd);
+			try {
+				while(matcher.find())
+				{
+					if (null == m.groupNum) {
+						m.groupNum = 0;
+					}
+					String toAdd = matcher.group(m.groupNum);
+					if (null != m.replace) {
+						toAdd = metaPattern.matcher(toAdd).replaceFirst(m.replace);
+					}
+					
+					if (!regexDuplicates.contains(toAdd)) {
+						addToMeta(f,m.fieldName, toAdd);
+						regexDuplicates.add(toAdd);
+					}
+				}
+			}
+			catch (Exception e) {
+				this._context.getHarvestStatus().logMessage("processMeta1: " + e.getMessage(), true);
 			}
 		}
 		else if (m.scriptlang.equalsIgnoreCase("javascript")) {

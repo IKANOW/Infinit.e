@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.io.BufferedReader;
@@ -31,15 +46,20 @@ public class JavaScriptUtils
 		int start = script.indexOf("(");
 		int end = script.lastIndexOf(")");
 		
-		if (script.toLowerCase().startsWith("$script"))
-		{
-			// Remove $SCRIPT() wrapper and then wrap script in 'function getValue() { xxxxxx }'
-			return "function " + genericFunctionCall + "() { " + script.substring(start + 1, end) + " }";
+		try {
+			if (script.toLowerCase().startsWith("$script"))
+			{
+				// Remove $SCRIPT() wrapper and then wrap script in 'function getValue() { xxxxxx }'
+				return "function " + genericFunctionCall + "() { " + script.substring(start + 1, end) + " }";
+			}
+			else
+			{
+				// Simply remove $FUNC() wrapper
+				return script.substring(start + 1, end);
+			}
 		}
-		else
-		{
-			// Simply remove $FUNC() wrapper
-			return script.substring(start + 1, end);
+		catch (Exception e) {
+			throw new RuntimeException("Malformed script: " + script);
 		}
 	}
 	

@@ -1,15 +1,29 @@
 <?xml version="1.0" encoding="utf-8"?>
-<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
-			   xmlns:mx="library://ns.adobe.com/flex/mx"
-			   xmlns:component="com.ikanow.infinit.e.widget.library.components.*"
-			   xmlns:containers="flexlib.mdi.containers.*"
-			   xmlns:local="*"
-			   creationComplete="application1_creationCompleteHandler(event)"  
-			   >
+<!--
+   Copyright 2012, The Infinit.e Open Source Project
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:containers="flexlib.mdi.containers.*"
+	xmlns:local="*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:component="com.ikanow.infinit.e.widget.library.components.*"
+	creationComplete="application1_creationCompleteHandler(event)">
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 	<fx:Script>
-		<![CDATA[			
+		<![CDATA[
 			import com.ikanow.infinit.e.widget.library.data.ResultSet;
 			import com.ikanow.infinit.e.widget.library.data.WidgetContext;
 			import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
@@ -19,9 +33,6 @@
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
-			
-			import flexlib.mdi.events.MDIWindowEvent;
-			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
@@ -29,96 +40,59 @@
 			import mx.modules.ModuleLoader;
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
+			import flexlib.mdi.events.MDIWindowEvent;
 			
-			//private var API_SERVER:String = "http://beta.ikanow.com/api/"; 	//api url address of infinite api server
-			private var API_SERVER:String = "http://localhost:8184/"; 	//api url address of infinite api server
+			private var API_SERVER:String = "http://infinite.ikanow.com/api/"; 	//api url address of infinite api server
+			
 			private var COMMUNITYID:String = ""; //community id to search on, gets populated during load
+			
 			private var context:WidgetContext = new WidgetContext();    		//data holder
+			
 			private var queryResults:QueryResults;
+			
+			/**
+			 * Rescale event when module window gets resized, sends a message to the
+			 * module letting it know to adjust its size so it will scale appropriately.
+			 */
+			public function reScale( event:Event ):void
+			{
+				//try to cast module and rescale it				
+				var iwid:IWidget = devModule as IWidget;
+				iwid.onParentResize( devModuleContainer.height - 30, devModuleContainer.width );
+			}
+			
+			/**
+			 * On init of application, send modules the shared iwidgetcontext object.
+			 */
+			protected function application1_creationCompleteHandler( event:FlexEvent ):void
+			{
+				//add the resize event to module and fire off an intial resize
+				devModuleContainer.addEventListener( MDIWindowEvent.RESIZE, reScale );
+				devModule.onInit( context );
+				reScale( null );
+			}
 			
 			/**
 			 * Login button event, sends login query to API.
 			 */
-			protected function button1_clickHandler(event:Event):void
+			protected function button1_clickHandler( event:Event ):void
 			{
 				//login function
-				var hashpassword:String = Authentication.hashPassword(passwordInput.text);
-				infiniteLoginService.url = API_SERVER + "auth/login/" + URLEncoder.encode(usernameInput.text) + "/" + URLEncoder.encode(hashpassword);
+				var hashpassword:String = Authentication.hashPassword( passwordInput.text );
+				infiniteLoginService.url = API_SERVER + "auth/login/" + URLEncoder.encode( usernameInput.text ) + "/" + URLEncoder.encode( hashpassword );
 				infiniteLoginService.send();
-			}			
-			
-			/**
-			 * Login result event, checks if login was successful and sends out
-			 * a request for the logged in users groupid.
-			 */
-			protected function infiniteLoginServiceResult(event:ResultEvent):void
-			{								
-				var data:Object = JSONDecoder.decode(event.result as String);
-				
-				if ( data.response.success.toString() == "true" )
-				{												
-					//login successful, get group
-					infiniteGroupService.url = API_SERVER + "person/get/";
-					infiniteGroupService.send();
-				}
-				else
-				{
-					Alert.show("Error logging in.");
-				}				
-			}			
-			
-			/**
-			 * Error sending login request, usually from a bad URL. (Wrong API server)
-			 */
-			protected function infiniteLoginServiceFault(event:FaultEvent):void
-			{
-				Alert.show("Error logging in\n" + event.fault.message);
-			}
-			
-			/**
-			 * Result event for communityid API call, checks if it was successful then finds the
-			 * default group and sets our COMMUNITYID to that.
-			 */
-			protected function infiniteGroupServiceResult(event:ResultEvent):void
-			{
-				//build out the community id
-				var data:Object = JSONDecoder.decode(event.result as String);				
-				if ( data.response.success == true )
-				{		
-					var groups:ArrayCollection = new ArrayCollection(data.data.communities);					
-					for each (var group:Object in groups )
-					{
-						if ( COMMUNITYID.length > 0 )
-							COMMUNITYID += ",";
-						COMMUNITYID += group._id;
-					}					
-					loginLabel.text = "logged in!";
-					loginLabel.setStyle("color","0x00FF00");
-				}
-				else
-				{
-					Alert.show("Error logging in, couldn't get a users groups");
-				}
-			}
-			
-			/**
-			 * Fault event for community API call
-			 */
-			protected function infiniteGroupServiceFault(event:FaultEvent):void
-			{
-				Alert.show("Error logging in, during group api call\n" + event.fault.message);
 			}
 			
 			/**
 			 * Event handler for running query.  Takes input in querytext box and sends
 			 * an exact text search off to the infinite API.
 			 */
-			protected function button2_clickHandler(event:Event):void
+			protected function button2_clickHandler( event:Event ):void
 			{
 				//query function				
-				infiniteQueryService.url = API_SERVER + "knowledge/query/" + COMMUNITYID;					
-				infiniteQueryService.send(buildQueryRequest(infiniteQueryService,queryInput.text));
-				
+				infiniteQueryService.url = API_SERVER + "knowledge/query/" + COMMUNITYID;
+				infiniteQueryService.send( buildQueryRequest( infiniteQueryService, queryInput.text ) );
+			
 			}
 			
 			/**
@@ -126,12 +100,84 @@
 			 * and sends a JSON search off to infinite API.  See query syntax documentation
 			 * for exact syntax.
 			 */
-			protected function button3_clickHandler(event:Event):void
+			protected function button3_clickHandler( event:Event ):void
 			{
 				//advanced query function				
 				infiniteQueryService.url = API_SERVER + "knowledge/query/" + COMMUNITYID;
-				infiniteQueryService.send(queryInputJSON.text);
+				infiniteQueryService.send( queryInputJSON.text );
+			
+			}
+			
+			/**
+			 * Fault event for community API call
+			 */
+			protected function infiniteGroupServiceFault( event:FaultEvent ):void
+			{
+				Alert.show( "Error logging in, during group api call\n" + event.fault.message );
+			}
+			
+			/**
+			 * Result event for communityid API call, checks if it was successful then finds the
+			 * default group and sets our COMMUNITYID to that.
+			 */
+			protected function infiniteGroupServiceResult( event:ResultEvent ):void
+			{
+				//build out the community id
+				var data:Object = JSONDecoder.decode( event.result as String );
 				
+				if ( data.response.success == true )
+				{
+					var groups:ArrayCollection = new ArrayCollection( data.data.communities );
+					
+					for each ( var group:Object in groups )
+					{
+						if ( COMMUNITYID.length > 0 )
+							COMMUNITYID += ",";
+						COMMUNITYID += group._id;
+					}
+					loginLabel.text = "logged in!";
+					loginLabel.setStyle( "color", "0x00FF00" );
+				}
+				else
+				{
+					Alert.show( "Error logging in, couldn't get a users groups" );
+				}
+			}
+			
+			/**
+			 * Error sending login request, usually from a bad URL. (Wrong API server)
+			 */
+			protected function infiniteLoginServiceFault( event:FaultEvent ):void
+			{
+				Alert.show( "Error logging in\n" + event.fault.message );
+			}
+			
+			/**
+			 * Login result event, checks if login was successful and sends out
+			 * a request for the logged in users groupid.
+			 */
+			protected function infiniteLoginServiceResult( event:ResultEvent ):void
+			{
+				var data:Object = JSONDecoder.decode( event.result as String );
+				
+				if ( data.response.success.toString() == "true" )
+				{
+					//login successful, get group
+					infiniteGroupService.url = API_SERVER + "person/get/";
+					infiniteGroupService.send();
+				}
+				else
+				{
+					Alert.show( "Error logging in." );
+				}
+			}
+			
+			/**
+			 * Query failed function (perhaps cookie timed out)
+			 */
+			protected function infiniteQueryServiceFault( event:FaultEvent ):void
+			{
+				Alert.show( "Error sending query\n" + event.fault.message );
 			}
 			
 			/**
@@ -139,142 +185,167 @@
 			 * creates a context object out of it.  Sends to modules onReceiveNewQuery()
 			 * function to let them know they have new data.
 			 */
-			protected function infiniteQueryServiceResult(event:ResultEvent):void
-			{				
+			protected function infiniteQueryServiceResult( event:ResultEvent ):void
+			{
 				//receive the query results and send to widget
-				var data:Object = JSONDecoder.decode(event.result as String);
+				var data:Object = JSONDecoder.decode( event.result as String );
+				
 				if ( data.response.success == true )
 				{
 					queryResults = new QueryResults();
-					queryResults.populateQueryResults(data, null, context);					
-					context.onNewQuery(queryResults, data.response.message, null);
+					queryResults.populateQueryResults( data, null, context );
+					context.onNewQuery( queryResults, data.response.message, null );
 					var iwid:IWidget = devModule as IWidget;
 					iwid.onReceiveNewQuery();
 				}
 			}
 			
 			/**
-			 * Query failed function (perhaps cookie timed out)
-			 */
-			protected function infiniteQueryServiceFault(event:FaultEvent):void
-			{
-				Alert.show("Error sending query\n" + event.fault.message);
-			}
-						
-			/**
 			 * Builds the query into the post of a httprequest object
 			 */
-			private function buildQueryRequest(requester:HTTPService, queryTerm:String):String
+			private function buildQueryRequest( requester:HTTPService, queryTerm:String ):String
 			{
 				//create header
 				requester.method = "POST";
-				var header:Object=new Object();
-				header["Accept"] = "application/json";
+				var header:Object = new Object();
+				header[ "Accept" ] = "application/json";
 				requester.contentType = "application/json";
 				requester.headers = header;
 				
 				//send request
-				return "{ qt: [ { etext:\"" + queryTerm + "\" } ] }";	
+				return "{ qt: [ { etext:\"" + queryTerm + "\" } ] }";
 			}
-			
-			/**
-			 * Rescale event when module window gets resized, sends a message to the
-			 * module letting it know to adjust its size so it will scale appropriately.
-			 */
-			public function reScale(event:Event):void
-			{
-				//try to cast module and rescale it				
-				var iwid:IWidget = devModule as IWidget;
-				iwid.onParentResize(devModuleContainer.height-30,devModuleContainer.width);
-			}
-			
-			/**
-			 * On init of application, send modules the shared iwidgetcontext object.
-			 */
-			protected function application1_creationCompleteHandler(event:FlexEvent):void
-			{				
-				//add the resize event to module and fire off an intial resize
-				devModuleContainer.addEventListener(MDIWindowEvent.RESIZE,reScale);
-				devModule.onInit(context);
-				reScale(null);				
-			}
-			
 		]]>
 	</fx:Script>
-	
+
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 		<s:HTTPService id="infiniteLoginService"
-					   result="infiniteLoginServiceResult(event)"
-					   fault="infiniteLoginServiceFault(event)"/>
+			fault="infiniteLoginServiceFault(event)"
+			result="infiniteLoginServiceResult(event)" />
 		<s:HTTPService id="infiniteQueryService"
-					   result="infiniteQueryServiceResult(event)"
-					   fault="infiniteQueryServiceFault(event)"/>
+			fault="infiniteQueryServiceFault(event)"
+			result="infiniteQueryServiceResult(event)" />
 		<s:HTTPService id="infiniteGroupService"
-					   result="infiniteGroupServiceResult(event)"
-					   fault="infiniteGroupServiceFault(event)"/>
+			fault="infiniteGroupServiceFault(event)"
+			result="infiniteGroupServiceResult(event)" />
 	</fx:Declarations>
-	<s:VGroup width="100%" height="100%">
-		
-		<containers:MDICanvas id="widgetCanvas" top="50" bottom="0" width="100%" height="100%"
-							  verticalScrollPolicy="off" horizontalScrollPolicy="off" >
-			<containers:MDIWindow id="panel" resizable="false" title="Infinite Sandbox" horizontalAlign="center" verticalAlign="middle"
-								  verticalScrollPolicy="off" horizontalScrollPolicy="off"
-								  maximize="{event.preventDefault();}" minimize="{event.preventDefault();}" 
-								  close="{event.preventDefault();}" x="0" y="50" width="275" height="270"
-								  layout="absolute" verticalGap="0" visible="true"  >
-				
-				<s:VGroup paddingLeft="5" paddingTop="5" paddingBottom="5" paddingRight="5" horizontalAlign="center" verticalAlign="middle">				 				
+	<s:VGroup 
+		width="100%"
+		height="100%">
+
+		<containers:MDICanvas id="widgetCanvas"
+			width="100%"
+			height="100%"
+			verticalScrollPolicy="off"
+			horizontalScrollPolicy="off"
+			bottom="0"
+			top="50">
+			<containers:MDIWindow id="panel"
+				verticalScrollPolicy="off"
+				horizontalScrollPolicy="off"
+				x="0"
+				y="50"
+				width="275"
+				height="270"
+				layout="absolute"
+				horizontalAlign="center"
+				verticalAlign="middle"
+				verticalGap="0"
+				close="{ event.preventDefault(); }"
+				maximize="{ event.preventDefault(); }"
+				minimize="{ event.preventDefault(); }"
+				resizable="false"
+				title="Infinite Sandbox"
+				visible="true">
+
+				<s:VGroup 
+					horizontalAlign="center"
+					paddingBottom="5"
+					paddingLeft="5"
+					paddingRight="5"
+					paddingTop="5"
+					verticalAlign="middle">
 					<s:Group>
 						<s:BorderContainer borderVisible="true">
 							<s:layout>
-								<s:VerticalLayout verticalAlign="middle" horizontalAlign="center"/>
+								<s:VerticalLayout 
+									horizontalAlign="center"
+									verticalAlign="middle" />
 							</s:layout>
 							<s:Label text="Step 1: Login" />
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Username" />
-								<s:TextInput id="usernameInput"/>								
+								<s:TextInput id="usernameInput" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Password" />
-								<s:TextInput id="passwordInput" displayAsPassword="true" enter="button1_clickHandler(event)" />
+								<s:TextInput id="passwordInput"
+									displayAsPassword="true"
+									enter="button1_clickHandler(event)" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
-								<s:Button label="Login" click="button1_clickHandler(event)" />
-								<s:Label id="loginLabel" text="not logged in" color="red" />
-							</s:HGroup>							
-						</s:BorderContainer>						
+								<s:Button 
+									label="Login"
+									click="button1_clickHandler(event)" />
+								<s:Label id="loginLabel"
+									text="not logged in"
+									color="red" />
+							</s:HGroup>
+						</s:BorderContainer>
 					</s:Group>
 					<s:Group>
 						<s:BorderContainer borderVisible="true">
 							<s:layout>
-								<s:VerticalLayout verticalAlign="middle" horizontalAlign="center"/>
+								<s:VerticalLayout 
+									horizontalAlign="center"
+									verticalAlign="middle" />
 							</s:layout>
 							<s:Label text="Step 2: Basic Query" />
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Term" />
-								<s:TextInput id="queryInput" enter="button2_clickHandler(event)" text="*"/>
-								<s:Button label="Search" click="button2_clickHandler(event)" />
+								<s:TextInput id="queryInput"
+									text="*"
+									enter="button2_clickHandler(event)" />
+								<s:Button 
+									label="Search"
+									click="button2_clickHandler(event)" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Advanced JSON Query" />
 							</s:HGroup>
-							<s:HGroup verticalAlign="middle">									
-								<s:TextInput id="queryInputJSON" enter="button3_clickHandler(event)"/>
-								<s:Button label="Search" click="button3_clickHandler(event)" />
+							<s:HGroup verticalAlign="middle">
+								<s:TextInput id="queryInputJSON"
+									enter="button3_clickHandler(event)" />
+								<s:Button 
+									label="Search"
+									click="button3_clickHandler(event)" />
 							</s:HGroup>
 						</s:BorderContainer>
 					</s:Group>
-				</s:VGroup>			
+				</s:VGroup>
 			</containers:MDIWindow>
-			<containers:MDIWindow id="devModuleContainer" resizable="true" title="Widget Holder (not visible in live GUI)" horizontalAlign="center" verticalAlign="middle"
-								  verticalScrollPolicy="off" horizontalScrollPolicy="off"
-								  maximize="{event.preventDefault();}" minimize="{event.preventDefault();}" 
-								  close="{event.preventDefault();}" x="450" y="50" width="400" height="400" layout="absolute" verticalGap="0"
-								  visible="true" >
-				
-				<local:SkeletonModule id="devModule" title="aslkfd" />	
+			<containers:MDIWindow id="devModuleContainer"
+				verticalScrollPolicy="off"
+				horizontalScrollPolicy="off"
+				x="450"
+				y="50"
+				width="400"
+				height="400"
+				layout="absolute"
+				horizontalAlign="center"
+				verticalAlign="middle"
+				verticalGap="0"
+				close="{ event.preventDefault(); }"
+				maximize="{ event.preventDefault(); }"
+				minimize="{ event.preventDefault(); }"
+				resizable="true"
+				title="Widget Holder (not visible in live GUI)"
+				visible="true">
+
+				<local:SkeletonModule id="devModule"
+					title="Sample Widget" />
 			</containers:MDIWindow>
 		</containers:MDICanvas>
-	</s:VGroup>		
+	</s:VGroup>
 </s:Application>

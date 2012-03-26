@@ -14,6 +14,8 @@ subscrip_date=$(date +'%b %e, %Y %l:%M:%S %p')
 
 IS_MONGOS=$(infdb is_mongos)
 echo "This is a MongoS: $IS_MONGOS"
+IS_DBINSTANCE=$(infdb is_dbinstance)
+echo "This is a DB instance: $IS_DBINSTANCE"
 
 ################################################################################
 # Start - Implement sharding if specified in infinite.service.properties
@@ -38,7 +40,7 @@ fi
 		
 ################################################################################
 # Start - Add administrative and test accounts to the DB
-if [ $IS_MONGOS == "false" ]; then
+if [ $IS_DBINSTANCE == "true" ]; then
 	echo "Adding administrative and test account plus default widgets to the DB"
 	
 	ADMIN_PWD_ENC=$(echo -n $ADMIN_PWD  | sha256sum | xxd -r -p | base64)
@@ -46,14 +48,14 @@ if [ $IS_MONGOS == "false" ]; then
 	
 	mongo <<EOF
 use social;
-community={"_id" : ObjectId("4c927585d591d31d7b37097a"),"created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"),"name" : "Infinit.e System Community","description" : "Infinit.e System Community","isSystemCommunity" : true,"isPersonalCommunity" : false,"communityAttributes" : {"usersCanCreateSubCommunities" : {"type" : "boolean","value" : "false"},"registrationRequiresApproval" : {"type" : "boolean","value" : "true"},"isPublic" : {"type" : "boolean","value" : "true"},"usersCanSelfRegister" : {"type" : "boolean","value" : "false"}},"userAttributes" : {"publishCommentsPublicly" : {"type" : "boolean","defaultValue" : "false","allowOverride" : true},"publishQueriesToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishLoginToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishSharingToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishCommentsToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true}},"communityStatus" : "active","numberOfMembers" : 0};
+community={"_id" : ObjectId("4c927585d591d31d7b37097a"),"created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"), "ownerId": ObjectId("4e3706c48d26852237078005"), "ownerDisplayName": "Admin Infinite", "name" : "Infinit.e System Community","description" : "Infinit.e System Community","isSystemCommunity" : true,"isPersonalCommunity" : false,"communityAttributes" : {"usersCanCreateSubCommunities" : {"type" : "boolean","value" : "false"},"registrationRequiresApproval" : {"type" : "boolean","value" : "true"},"isPublic" : {"type" : "boolean","value" : "true"},"usersCanSelfRegister" : {"type" : "boolean","value" : "false"}},"userAttributes" : {"publishCommentsPublicly" : {"type" : "boolean","defaultValue" : "false","allowOverride" : true},"publishQueriesToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishLoginToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishSharingToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishCommentsToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true}},"communityStatus" : "active","numberOfMembers" : 2};
 db.community.insert(community);
 person1={"_id" : ObjectId("4e3706c48d26852237078005"),"created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"),"accountStatus" : "active","email" : "admin_infinite@ikanow.com","firstName" : "Admin","lastName" : "Infinite","displayName" : "Admin Infinite","phone" : "","communities" : [{"_id" : ObjectId("4e3706c48d26852237078005"), "name" : "Admin Infinite's Personal Community"}, {"_id" : ObjectId("4c927585d591d31d7b37097a"), "name" : "Infinit.e System Community"}],"WPUserID" : "174","SubscriptionID" : "189","SubscriptionTypeID" : "1","SubscriptionStartDate" : "$subscrip_date"};
 db.person.insert(person1);
 community={"_id" : ObjectId("4e3706c48d26852237078005"),"created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"),"name" : "Admin Infinite's Personal Community","description" : "Admin Infinite's Personal Community","isSystemCommunity" : false,"isPersonalCommunity" : true,"communityAttributes" : {"usersCanCreateSubCommunities" : {"type" : "boolean","value" : "false"},"registrationRequiresApproval" : {"type" : "boolean","value" : "false"},"isPublic" : {"type" : "boolean","value" : "false"},"usersCanSelfRegister" : {"type" : "boolean","value" : "false"}},"userAttributes" : {"publishCommentsPublicly" : {"type" : "boolean","defaultValue" : "false","allowOverride" : true},"publishQueriesToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishLoginToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishSharingToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true},"publishCommentsToActivityFeed" : {"type" : "boolean","defaultValue" : "true","allowOverride" : true}},"communityStatus" : "active","numberOfMembers" : 0};
 db.community.insert(community);
 var isUserPresent = db.community.findOne({"_id" : ObjectId("4c927585d591d31d7b37097a"), "members._id": ObjectId("4e3706c48d26852237078005")},{"_id":1});
-if (null == isUserPresent) db.community.update({ "_id" : ObjectId("4c927585d591d31d7b37097a") }, { "\$push": { "members": { "_id": ObjectId("4e3706c48d26852237078005"), "email": "admin_infinite@ikanow.com", "displayName": "Admin Infinite", "userType": "member", "userStatus":"active" } } });
+if (null == isUserPresent) db.community.update({ "_id" : ObjectId("4c927585d591d31d7b37097a") }, { "\$push": { "members": { "_id": ObjectId("4e3706c48d26852237078005"), "email": "admin_infinite@ikanow.com", "displayName": "Admin Infinite", "userType": "owner", "userStatus":"active" } } });
 use security;
 auth={"WPUserID" : null,"_id" : ObjectId("4ca4a7c5b94b6296f3469d36"),"accountStatus" : "ACTIVE","accountType" : "Admin","created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"),"password" : "$ADMIN_PWD_ENC","profileId" : ObjectId("4e3706c48d26852237078005"),"username" : "admin_infinite@ikanow.com"};
 db.authentication.insert(auth);

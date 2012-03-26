@@ -1,5 +1,21 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.document.file;
 
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.net.MalformedURLException;
 import java.net.UnknownHostException;
@@ -32,6 +48,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
@@ -66,6 +83,102 @@ public class FileHarvester implements HarvesterInterface {
 	private List<DocumentPojo> docsToRemove = null;
 
 	private HarvestContext _context;
+	
+	/**
+	 * Get a specific doc to return the bytes for
+	 * @throws Exception 
+	 */
+	public static byte[] getFile(String fileURL, SourcePojo source ) throws Exception
+	{
+		SmbFile file = null;
+		try 
+		{
+			if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
+			{
+				file = new SmbFile(source.getUrl());
+			}
+			else
+			{
+				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
+				file = new SmbFile(source.getUrl(), auth);
+			}
+			//traverse the smb share
+			SmbFile searchFile = searchFileShare( file, source, 5, fileURL);
+			
+			if ( searchFile == null )
+				return null;
+			else
+			{
+				//found the file, return the bytes
+				SmbFileInputStream in = new SmbFileInputStream(searchFile);
+				ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+				
+				int read;
+				byte[] data = new byte[16384];
+				while ( (read = in.read(data, 0, data.length)) != -1 )
+				{
+					buffer.write(data,0,read);
+				}
+				buffer.flush();
+				return buffer.toByteArray();
+			}			
+		} 
+		catch (Exception e) 
+		{
+			throw e;
+		}
+	}
+	
+	/**
+	 * Same as the traverse method but returns the smbfile if it finds searchFile
+	 * returns null otherwise
+	 * 
+	 * @param f
+	 * @param source
+	 * @param depth
+	 * @param searchFile
+	 * @return
+	 * @throws SmbException
+	 */
+	private static SmbFile searchFileShare( SmbFile f, SourcePojo source, int depth, String searchFile ) throws SmbException 
+	{
+		if( depth == 0 ) 
+		{
+			return null;
+		}
+
+		SmbFile[] l;
+		try 
+		{
+			l = f.listFiles();
+			for(int i = 0; l != null && i < l.length; i++ ) 
+			{
+				// Check to see if the item is a directory or a file that needs to parsed
+				// if it is a directory then use recursion to dive into the directory
+				if( l[i].isDirectory() ) 
+				{
+					SmbFile search = searchFileShare( l[i], source, depth - 1, searchFile );
+					if ( search != null )
+						return search;
+				}
+				else if ( l[i].getURL().toString().equals(searchFile) )
+				{					
+					return l[i];
+				}
+			}
+		} 
+		catch (SmbException e) 
+		{			
+			if (5 == depth) 
+			{ 
+				// Top level error, abandon ship
+				throw e;
+			}
+		}
+		return null;
+	}
+	
+	
 	/**
 	 * Get the list of docs
 	 * @return
@@ -182,7 +295,9 @@ public class FileHarvester implements HarvesterInterface {
 				
 				SourceFileConfigPojo fileSystem = source.getFileConfig();
 				XmlToMetadataParser xmlParser = new XmlToMetadataParser(fileSystem.XmlRootLevelValues, 
-						fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, fileSystem.XmlPreserveCase);
+						fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, 
+						fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase);
+				
 				XMLStreamReader xmlStreamReader;
 				try {
 					XMLInputFactory factory = XMLInputFactory.newInstance();
@@ -283,14 +398,59 @@ public class FileHarvester implements HarvesterInterface {
 					{
 						descCap = fullText.length();
 					}
-					//doc.setDescription(fullText.substring(0,descCap));
-					doc.setDescription(fullText);
+					doc.setDescription(fullText.substring(0,descCap));
 					doc.setModified(new Date(f.getDate()));
 					doc.setCreated(new Date());
 					doc.setUrl(f.getURL().toString());
 					doc.setTitle(f.getName().toString());
 					doc.setPublishedDate(new Date(f.getDate()));
 					doc.setId(new ObjectId());
+					
+					// If the metadata contains a more plausible date then use that
+					try {
+						String title = metadata.get(Metadata.TITLE);
+						if (null != title) {
+							doc.setTitle(title);
+						}
+					}
+					catch (Exception e) { // Fine just carry on						
+					}
+					try { 
+						Date date = metadata.getDate(Metadata.CREATION_DATE); // MS Word
+						if (null != date) { 
+							doc.setPublishedDate(date);
+						}
+						else {
+							date = metadata.getDate(Metadata.DATE); // Dublin
+							if (null != date) {
+								doc.setPublishedDate(date);
+							}
+							else {
+								date = metadata.getDate(Metadata.ORIGINAL_DATE);
+								if (null != date) {
+									doc.setPublishedDate(date);
+								}
+							}
+						}
+					}
+					catch (Exception e) { // Fine just carry on						
+					}
+					// If the metadata contains a geotag then apply that:
+					try {
+						String lat = metadata.get(Metadata.LATITUDE);
+						String lon = metadata.get(Metadata.LONGITUDE);
+						if ((null != lat) && (null != lon)) {
+							GeoPojo gt = new GeoPojo();
+							gt.lat = Double.parseDouble(lat);
+							gt.lon = Double.parseDouble(lon);
+							doc.setDocGeo(gt);
+						}
+					}
+					catch (Exception e) { // Fine just carry on						
+					}
+					
+					// Save the entire metadata:
+					doc.addToMetadata("tika", metadata);
 
 					for(ObjectId communityId: source.getCommunityIds())
 					{
@@ -319,6 +479,10 @@ public class FileHarvester implements HarvesterInterface {
 				} catch (TikaException e) {
 					errors++;
 					_context.getHarvestStatus().logMessage(e.getMessage(), true);
+				}
+				catch (Exception e) {
+					errors++;
+					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 				}
 				finally { // Close the input stream if an error occurs
 					if (null != in) {

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.document;
 
 import java.util.List;
@@ -71,6 +86,9 @@ public class EntityPojo
 	}
 	public void setDisambiguatedName(String disambiguous_name) {
 		this.disambiguated_name = disambiguous_name;
+		if ((null == index) && (null != type)) {
+			this.index = new StringBuffer(disambiguous_name).append('/').append(type).toString().toLowerCase();
+		}
 	}
 	public String getIndex() {
 		return index;
@@ -89,6 +107,9 @@ public class EntityPojo
 	}
 	public void setType(String type) {
 		this.type = type;
+		if ((null == index) && (null != disambiguated_name)) {
+			this.index = new StringBuffer(disambiguated_name).append('/').append(type).toString().toLowerCase();
+		}
 	}
 	public Double getRelevance() {
 		return relevance;

@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.social.sharing;
 
 import java.io.ByteArrayOutputStream;
@@ -696,6 +711,8 @@ public class ShareHandler
 		
 		try 
 		{
+			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
+			
 			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getShare().findOne(query);
 			if (dbo != null)
 			{
@@ -766,6 +783,8 @@ public class ShareHandler
 		
 		try 
 		{
+			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
+			
 			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getShare().findOne(query);
 			if (dbo != null)
 			{
@@ -987,4 +1006,19 @@ public class ShareHandler
 			query.put("owner._id", new ObjectId(userIdStr));			
 		}
 	}
+	
+	// Utility: make life easier in terms of adding/update/inviting/leaving from the command line
+	
+	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
+		if (communityIdStr.startsWith("*")) {
+			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			if (1 == communityIdStrs.length) {
+				communityIdStr = communityIdStrs[0]; 
+			}
+			else {
+				throw new RuntimeException("Invalid community pattern");
+			}
+		}	
+		return communityIdStr;
+	}	
 }

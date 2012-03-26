@@ -23,6 +23,6 @@ echo ''
 echo 'Command:'
 echo curl -XPOST -b cookie.txt  $1/config/source/test -d @json.txt
 curl -XPOST -b cookie.txt  $1/config/source/test -d @json.txt
-rm tmp.json
+
 echo ''
 echo ''

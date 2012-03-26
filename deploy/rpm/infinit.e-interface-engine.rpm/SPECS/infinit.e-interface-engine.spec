@@ -42,6 +42,20 @@ Infinit.e search engine REST API
 	ln -s -f infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.web.war
 
 %post
+
+#
+# INSTALL *AND* UPGRADE
+#	
+	# Increase tomcat limits
+	if [ -d /etc/security ]; then
+		if [ -f /etc/security/limits.conf ]; then
+			sed -i /"^tomcat.*"/d /etc/security/limits.conf
+		fi
+		
+		echo "tomcat    soft    nofile          65536" >> /etc/security/limits.conf
+		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
+	fi
+
 #
 # INSTALL *AND* UPGRADE
 #	

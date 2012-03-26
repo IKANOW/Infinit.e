@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.build" default="build">
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.build" default="createrepo">
 	<!-- (Bamboo dir structure) -->
 	<property name="utility" value="../../../utility"/>
 	<property name="core" value="../../../core"/>
@@ -28,7 +28,7 @@
 	<property name="infinit.e.flex.location" value="${basedir}/../infinit.e.flex.client"/>
 	<property name="InfiniteDocBrowserWidget.location" value="${basedir}/../InfiniteDocBrowserWidget"/>
 	<property name="InfiniteEventGraphWidget.location" value="${basedir}/../InfiniteEventGraphWidget"/>
-	<property name="InfiniteMapWidget.location" value="${basedir}/../InfiniteMapWidget"/>
+	<property name="InfiniteMapQuestWidget.location" value="${basedir}/../InfiniteMapQuestWidget"/>
 	<property name="InfiniteSentimentWidget.location" value="${basedir}/../InfiniteSentimentWidget"/>
 	<property name="InfiniteSignificanceWidget.location" value="${basedir}/../InfiniteSignificanceWidget"/>
 	<property name="InfiniteTimelineEventWidget.location" value="${basedir}/../InfiniteTimelineEventWidget"/>
@@ -80,8 +80,8 @@
 		<ant antfile="${InfiniteEventGraphWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteEventGraphWidget.location}"/>
 		</ant>
-		<ant antfile="${InfiniteMapWidget.location}/build/build.xml">
-			<property name="basedir" value="${InfiniteMapWidget.location}"/>
+		<ant antfile="${InfiniteMapQuestWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteMapQuestWidget.location}"/>
 		</ant>
 		<ant antfile="${InfiniteSentimentWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteSentimentWidget.location}"/>
@@ -126,4 +126,21 @@
 		</ant>
 		
 	</target>
+
+	<target name="createrepo" depends="build" description="Create yum repo for RPMs">
+		<mkdir dir="repo"/>
+		<copy todir="repo">
+			<fileset dir="${infinit.e-config.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+			<fileset dir="${infinit.e-index-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+			<fileset dir="${infinit.e-interface-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+			<fileset dir="${infinit.e-processing-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+			<fileset dir="${infinit.e-db-instance.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+		</copy>
+		<exec executable="createrepo">
+			<arg value="repo"/>
+		</exec>
+		<zip destfile="infinit.e-install-repo-${infinite_version}-${infinite_release}.zip" basedir="repo"/>
+	</target>
+
+
 </project>

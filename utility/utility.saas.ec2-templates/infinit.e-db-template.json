@@ -1,0 +1,155 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "AWS CloudFormation Infinit.e Base template to be adjusted to support both API and DB nodes. This version installs the RPMs from JIRA.",
+
+	"Parameters" : {
+		
+		"NodeName" : {
+			"Description" : "MANDATORY: The name used to display the node in the EC2 instances list (eg <projectname>-<function>-node. It is recommended that this be given the same name as the stack.",
+			"Type" : "String"
+		},
+		"ClusterName" : {
+			"Description" : "MANDATORY: The name of the cluster within the set of EC2 instances that the node should join",
+			"Type" : "String"
+		},
+		"ReplicaSetIds": {
+			"Description": "MANDATORY: An Infinit.e DB consists of 1+ replica sets, over which writes are balanced. Each replica set consists of 1+ nodes, over which reads are balanced. The replica sets (new ones can be added any time, as well as new nodes to replica sets) should be named in ascending order: 1, 2, 3 etc. Each node can belong to multiple replica sets by specifying a comma separated list eg '1,3,5'. Note that normally each node will just belong to one replica set.",
+			"AllowedPattern" : "[1-9][0-9,]*",
+			"ConstraintDescription" : "Normally just a single integer, the id of the replica set. Can also be a comma separated list for replica set ids, to join the node to multiple replica sets.",
+			"Default": "1",
+			"Type" : "String"
+		},
+		"AvailabilityZone" : {
+			"Description" : "MANDATORY: The availability zone in which to create the node (must be consistent with region from which stack is launched)",
+			"Type" : "String",
+			"Default": "us-east-1b"
+		},
+		"KeyName" : {
+			"Description" : "MANDATORY: Name of an existing EC2 KeyPair to enable SSH access to the instance (eg production, development, etc)",
+			"Type" : "String",
+			"Default" : "default"
+		},
+		"SecurityGroups" : {
+			"Description" : "MANDATORY: Infinit.e EC2 security group: eg production_db, production_api, default etc",
+			"Type" : "String",
+			"Default" : "default"
+		},
+		"ConfigFileS3Path" : {
+			"Description" : "MANDATORY: S3 of the file that controls the configuration of the node within the cluster",
+			"Type" : "String",
+			"Default": "s3://config.MYORG.com/infinite.configuration.properties"
+		},
+		"AwsAccessId" : {
+			"Description" : "MANDATORY: The AWS id (sometimes called access key) allowing access to S3",
+			"NoEcho": "true",
+			"Type" : "String"
+		},
+		"AwsAccessKey" : {
+			"Description" : "MANDATORY: The AWS key (sometimes called secret key) allowing access to S3",
+			"NoEcho": "true",
+			"Type" : "String"
+		},
+		"QuickInstall": {
+			"Description" : "OPTIONAL: Set to '--fast' (default) for quick install, '--slow' to get latest Java/Jpackage/splunk.",			
+			"Type" : "String",
+			"Default" : "--fast",
+			"AllowedValues" : [ "--fast", "--slow" ],
+			"ConstraintDescription" : "Set to '--fast' (default) for quick install, '--slow' to get latest Java/Jpackage/splunk."
+		},
+		"IsConfigSvr": {
+			"Description": "OPTIONAL: Set to 1 to run a config server on this node (1, 3, or 5 per cluster are required; they can run on their own machine or on any other DB node).",
+			"AllowedValues" : [ "0", "1" ],
+			"ConstraintDescription" : "0 (default) to disable the config server on this node, 1 to make it one of the 1/3/5 in the cluster.",
+			"Default": "0",
+			"Type" : "String"
+		},
+		"IsStorageNode": {
+			"Description": "OPTIONAL: Set to 1 (default) to run a storage node (you can run both as a storage node or both storage node and config server), 0 to run as a standalone config server. Note that ReplicaSetIds must be specified if this is set to 1.",
+			"AllowedValues" : [ "0", "1" ],
+			"ConstraintDescription" : "Set to 1 (default) to run a storage node, 0 to run as a standalone config server.",
+			"Default": "1",
+			"Type" : "String"
+		},
+		"InstanceType" : {
+			"Description" : "OPTIONAL: Infinit.e EC2 instance type: m1.xlarge recommended for operational deployments, m1.large for dev/test deployments or standalone config servers",
+			"Type" : "String",
+			"Default" : "m1.xlarge",
+			"AllowedValues" : [ "m1.large", "m1.xlarge" ],
+			"ConstraintDescription" : "m1.large (dev/test deployments, standalone config servers), m1.xlarge (operational deployments)."
+		}
+	},
+
+	"Mappings": {
+		
+		"IsStorageNode": {
+			"0": { "Name": "db_dummy" },
+			"1": { "Name": "db_instance" }
+		}
+	},
+	
+	"Resources" : {
+		
+		"Ec2Instance" : {			
+			"Type" : "AWS::EC2::Instance",
+			
+			"Properties" : {
+				
+				"ImageId" : "ami-b6e331df",
+				"InstanceType": { "Ref": "InstanceType" },
+				"KeyName": { "Ref": "KeyName" },
+				"SecurityGroups": [ { "Ref": "SecurityGroups" } ],
+				"AvailabilityZone": { "Ref": "AvailabilityZone" },
+				
+				"Tags" : [ { 
+					"Key": "Name", 
+					"Value": { "Ref": "NodeName" } 
+				},
+				{
+					"Key": "cluster-name", 
+					"Value": { "Ref": "ClusterName" } 
+				},
+				{
+					"Key": "config", 
+					"Value": { "Ref": "IsConfigSvr" } 
+				},
+				{
+					"Key": { "Fn::FindInMap": [ "IsStorageNode", { "Ref": "IsStorageNode" }, "Name" ] }, 
+					"Value": { "Ref": "ReplicaSetIds" } 
+				},
+				{
+					"Key": "db_interface", 
+					"Value": "1" 
+				}
+				],
+				
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
+						                   
+							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
+							                   "yum install -y infinit.e-platform.prerequisites.online;",
+							                   
+							                   "curl -O 'http://s3tools.org/repo/CentOS_5/s3tools.repo';", "yum -y install s3cmd;", 
+
+						                   "cd /opt/infinite-install/config; ",						                   
+							                   "echo ", { "Ref": "AwsAccessId" }, " > s3;", 
+							                   "echo ", { "Ref": "AwsAccessKey" }, " >> s3;",
+							                   "for i in `seq 1 4`; do echo '' >> s3; done;",
+							                   "echo n >> s3; echo y >> s3; echo n >> s3;",
+							                   "s3cmd --configure < s3; rm -f s3;",
+							                   
+							                   "s3cmd get ", { "Ref": "ConfigFileS3Path" }, ";",
+							                   
+							               "cd /opt/infinite-install/; ",						                   
+							               	   "sh install.sh dbnode ", { "Ref": "QuickInstall" }, ";",
+						                   
+							               "yum -y --nogpgcheck install infinit.e-config;",    
+							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
+					}
+				}
+			}
+		}
+	}
+}

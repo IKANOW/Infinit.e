@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi;
 
 import java.io.DataOutputStream;
@@ -174,6 +189,86 @@ public class AlchemyAPI_JSON {
 	    return GET("URLGetText", "url", params);
 	}
     
+    // 4a] Get keywords from text
+    
+    public String TextGetRankedKeywords(String text)
+    throws IOException, SAXException,
+           ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+	    return TextGetRankedKeywords(text, new AlchemyAPI_NamedEntityParams());
+	}
+	public String TextGetRankedKeywords(String text, AlchemyAPI_NamedEntityParams params)
+	throws IOException, SAXException,
+	       ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+		CheckText(text);
+	
+		params.setText(text);
+		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
+        params.setCustomParameters("sentiment", "1");
+        // Default is normal, not sure which is best
+        //params.setCustomParameters("keywordExtractMode", "strict");
+	
+		nGetExtractRequests++;		
+		return POST("TextGetRankedKeywords", "text", params);
+	}
+
+    // 4b] Get keywords from URL
+
+	public String URLGetRankedKeywords(String url)
+	throws IOException, SAXException,
+	ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+		CheckURL(url);
+
+		AlchemyAPI_NamedEntityParams params = new AlchemyAPI_NamedEntityParams();
+		params.setUrl(url);
+		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
+		params.setShowSourceText(true);
+		params.setCustomParameters("sentiment", "1");
+
+		return POST("URLGetRankedNamedKeywords", "url", params);
+	}
+	
+    // 5a] Get concepts from text
+    
+    public String TextGetRankedConcepts(String text)
+    throws IOException, SAXException,
+           ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+	    return TextGetRankedConcepts(text, new AlchemyAPI_NamedEntityParams());
+	}
+	public String TextGetRankedConcepts(String text, AlchemyAPI_NamedEntityParams params)
+	throws IOException, SAXException,
+	       ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+		CheckText(text);
+	
+		params.setText(text);
+		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
+	
+		nGetExtractRequests++;		
+		return POST("TextGetRankedConcepts", "text", params);
+	}
+
+    // 5b] Get concepts from URL
+
+	public String URLGetRankedConcepts(String url)
+	throws IOException, SAXException,
+	ParserConfigurationException, XPathExpressionException, ExtractorDocumentLevelException
+	{
+		CheckURL(url);
+
+		AlchemyAPI_NamedEntityParams params = new AlchemyAPI_NamedEntityParams();
+		params.setUrl(url);
+		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
+		params.setShowSourceText(true);
+
+		return POST("URLGetRankedNamedConcepts", "url", params);
+	}
+	
+	
+	
 //////////////////////////////////////////////////////////////////////////////////////////
 	
 // Utility functions, level 1

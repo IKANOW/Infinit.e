@@ -47,7 +47,7 @@ start()
 				if [ $counter -eq 0 ]; then
 					config_string="$ip:27016"
 				else
-					config_string="$config_string, $ip:27016"
+					config_string="$config_string,$ip:27016"
 				fi
 				counter=$(($counter+1))
 			done
@@ -176,7 +176,7 @@ EOF
 )
 							err_count=$(echo $reply | grep errmsg | wc -l)
 							while [ $err_count -gt 0 ]; do
-								echo "Initialization did not complete successfully"
+								echo "Initialization did not complete successfully: $reply"
 								rs_master=$(infdb master_of_set $x)
 								if [ $(echo $rs_master | grep '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\:[0-9]\+' | wc -l) -gt 0 ]; then
 									echo "Replica Set is Currently running. Master: $rs_master"
@@ -208,7 +208,6 @@ EOF
 								
 								######################################################################
 								# Only do the next block of the DB has one or more shards
-								#if [ "$DB_SHARDED"="1" ]; then
 									echo "Informing mongoS of shard (will error if shard as already been added successfully)"							
 									#connect to a mongoS instance and inform it of the shard
 									mongo <<EOF
@@ -217,7 +216,6 @@ db.runCommand({addShard:"replica_set$x/$this_ip:$port"});
 exit
 EOF
 >/dev/null
-								#fi
 								# End sharding block
 								######################################################################
 								
@@ -231,20 +229,20 @@ EOF
 	echo "mongo_infinite start complete"
 }
 
-stop_instance()
-{
-	echo "Beginning mongo_infinite Stop (instance only)"
-	infdb kill_db 27018
-}
-
 stop()
 {
+	SOFT=$1
+	ALL=$2
+	#^^^ SOFT/HARD, ALL/""
+
 	echo "Beginning mongo_infinite Stop"
 	###############################  DB Instance Kill ########################################
 
-	if [ $(infdb is_config) == "true" ]; then
-		echo "This will shutdown the config server - this may not be what you want ... use stop_instance if not (sleeping for 10s to give you a chance to make up your mind!)"
-		sleep 10
+	if [ "$ALL" == "ALL" ]; then
+		if [ $(infdb is_config) == "true" ]; then
+			echo "This will shutdown the config server - this may not be what you want ... use stop_instance if not (sleeping for 5s to give you a chance to make up your mind!)"
+			sleep 5
+		fi
 	fi 
 
 
@@ -257,6 +255,17 @@ stop()
 		port=$((27017+$x))
 		arbport=$((27217+$x))
 		
+		if [ "$SOFT" != "SOFT" ]; then
+			rs_me=$(infdb my_ip)
+			rs_master=$(infdb master_of_set $x)
+		
+			# Hard, remove the replica set and arbiter (if it exists)
+			mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$port\")"
+			if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
+				mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$arbport\")"
+			fi
+		fi 
+		
 		count=0
 		while [[ "$(infdb mongo_running $port 2>&1)" == "true" && $count -lt 10 ]]; do
 			infdb kill_db $port >/dev/null 2>&1
@@ -265,7 +274,8 @@ stop()
 		done
 		
 		if [ $count -ge 10 ]; then
-			echo "Tried multiple times, MongoD on port $port would not stop"
+			infdb kill_db_force $port >/dev/null 2>&1
+			echo "Tried multiple times, MongoD on port $port would not stop, force closed it"
 		fi
 		
 		if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
@@ -276,18 +286,20 @@ stop()
 
 	################################ Config Server Kill #######################################
 
-	if [ $(infdb is_config) == "true" ]; then 
-		echo "Stopping Config Server on Port 27016"
-		infdb kill_db 27016 >/dev/null 2>&1
-		count=0
-		while [[ "$(infdb mongo_running 27016 2>&1)" == "true" && $count -lt 10 ]]; do
+	if [ "$ALL" == "ALL" ]; then
+		if [ $(infdb is_config) == "true" ]; then 
+			echo "Stopping Config Server on Port 27016"
 			infdb kill_db 27016 >/dev/null 2>&1
-			sleep 3
-			count=$((1+$count))
-		done
-		
-		if [ $count -ge 10 ]; then
-			echo "Tried multiple times, Mongo Config would not stop"
+			count=0
+			while [[ "$(infdb mongo_running 27016 2>&1)" == "true" && $count -lt 10 ]]; do
+				infdb kill_db 27016 >/dev/null 2>&1
+				sleep 3
+				count=$((1+$count))
+			done
+			
+			if [ $count -ge 10 ]; then
+				echo "Tried multiple times, Mongo Config would not stop"
+			fi
 		fi
 	fi
 
@@ -315,11 +327,6 @@ stop()
 	fi	
 }
 
-restart () {
-	stop
-	start
-}
-
 ulimit -n 12000
 RETVAL=0
 
@@ -328,13 +335,24 @@ case "$1" in
     start
     ;;
   stop)
-    stop
+    stop "HARD" "ALL"
+    ;;
+  soft_stop)
+    stop "SOFT" "ALL"
     ;;
   stop_instance)
-    stop_instance
+    stop "HARD" "INSTANCE"
+    ;;
+  soft_stop_instance)
+    stop "SOFT" "INSTANCE"
+    ;;
+  restart_instance)
+    stop "SOFT" "INSTANCE"
+    start
     ;;
   restart|reload|force-reload)
-    restart
+    stop "SOFT" "ALL"
+    start
     ;;
   *)
     echo "Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart}"

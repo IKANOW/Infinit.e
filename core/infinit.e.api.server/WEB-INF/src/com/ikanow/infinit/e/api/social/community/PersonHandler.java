@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.api.social.community;
 
 import java.text.DateFormat;
@@ -11,6 +26,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.authentication.AuthenticationPojoApiMap;
@@ -58,7 +74,12 @@ public class PersonHandler
 		{
 			// Set up the query
 			PersonPojo personQuery = new PersonPojo();
-			personQuery.set_id(new ObjectId(id));
+			try {
+				personQuery.set_id(new ObjectId(id));
+			}
+			catch (Exception e) { // Not an id, try email
+				personQuery.setEmail(id);
+			}
 			
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getPerson().findOne(personQuery.toDb());
 			PersonPojo person = PersonPojo.fromDb(dbo, PersonPojo.class);
@@ -221,6 +242,7 @@ public class PersonHandler
 		ap.setId(profileId);
 		ap.setProfileId(profileId);
 		ap.setUsername(pp.getEmail());
+		ap.setAccountStatus(AccountStatus.ACTIVE);
 		if (null == wpa.getPassword()) { // Obligatory
 			rp.setResponse(new ResponseObject("WP Register User",false,"Need to specify password"));
 			return rp;
