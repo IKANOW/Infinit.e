@@ -41,8 +41,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	
 	private static final Logger logger = Logger.getLogger(ExtractorAlchemyAPI_Metadata.class);
 	private AlchemyAPI_JSON _alch = AlchemyAPI_JSON.GetInstanceFromProperties();
-	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();
-	
+	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();	
 
 	/**
 	 * Construtor, adds capabilities of Alchemy to hashmap
@@ -114,26 +113,27 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			}
 			
 			// Then get concepts:
-			json_doc = _alch.TextGetRankedConcepts(partialDoc.getFullText());
-			try
-			{
-				checkAlchemyErrors(json_doc, partialDoc.getUrl());
-			}
-			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
-			{
-				throw ex;
-			}
-			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
-			{
-				throw ex;
-			}
-			// Turn concepts into metadata:
-			sc = gson.fromJson(json_doc,AlchemyPojo.class);
-			if (null != sc.concepts) {
-				partialDoc.addToMetadata("AlchemyAPI_concepts", sc.concepts.toArray(new AlchemyConceptPojo[sc.concepts.size()]));
-			}
+			//TODO (INF-997): commented out until we work out what to do with all this 
+//			json_doc = _alch.TextGetRankedConcepts(partialDoc.getFullText());
+//			try
+//			{
+//				checkAlchemyErrors(json_doc, partialDoc.getUrl());
+//			}
+//			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
+//			{
+//				throw ex;
+//			}
+//			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
+//			{
+//				throw ex;
+//			}
+//			// Turn concepts into metadata:
+//			sc = gson.fromJson(json_doc,AlchemyPojo.class);
+//			if (null != sc.concepts) {
+//				partialDoc.addToMetadata("AlchemyAPI_concepts", sc.concepts.toArray(new AlchemyConceptPojo[sc.concepts.size()]));
+//			}
 			
-			// Alchemy post processsing:
+			// Alchemy post processsing (empty stub):
 			this.postProcessEntities(partialDoc);
 		}
 		catch (Exception e)
@@ -160,8 +160,8 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		// Run through specified extractor need to pull these properties from config file
 		try
 		{			
-			//TODO (INF-1325): Also extract metadata when run in this mode
 			String json_doc = _alch.URLGetRankedKeywords(partialDoc.getUrl());
+				// (gets text also)
 			try
 			{
 				checkAlchemyErrors(json_doc, partialDoc.getUrl());
@@ -178,8 +178,8 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			AlchemyPojo sc = new Gson().fromJson(json_doc,AlchemyPojo.class);			
 			//pull fulltext
 			partialDoc.setFullText(sc.text);
-			//pull entities
-			List<EntityPojo> ents = convertToEntityPoJo(sc);
+			//pull keywords
+			List<EntityPojo> ents = convertKeywordsToEntityPoJo(sc);
 			if (null != partialDoc.getEntities()) {
 				partialDoc.getEntities().addAll(ents);
 				partialDoc.setEntities(partialDoc.getEntities());
@@ -187,6 +187,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			else if (null != ents) {
 				partialDoc.setEntities(ents);
 			}
+			//TODO (INF-997): replicate whatever topic extraction is done for extractEntities  
 			
 			// Alchemy post processsing:
 			this.postProcessEntities(partialDoc);
@@ -231,62 +232,14 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	@Override
 	public void extractText(DocumentPojo doc) throws ExtractorDocumentLevelException
 	{
-		try
-		{
-			//TODO (INF-1325): Also extract metadata when run in this mode
-			String json_doc = _alch.URLGetText(doc.getUrl());
-			try
-			{
-				checkAlchemyErrors(json_doc, doc.getUrl());
-			}
-			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
-			{
-				throw ex;
-			}
-			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
-			{
-				throw ex;
-			}
-			//Deserialize json into AlchemyPojo Object
-			Gson gson = new Gson();
-			AlchemyPojo sc = gson.fromJson(json_doc,AlchemyPojo.class);	
-			doc.setFullText(sc.text);
-		}
-		catch (Exception e)
-		{
-			//Collect info and spit out to log
-			logger.error("Exception Message: doc=" + doc.getUrl() + " error=" +  e.getMessage(), e);
-			throw new InfiniteEnums.ExtractorDocumentLevelException();
-		}	
+		// In this case, extractText and extractTextAndEntities are doing the same thing
+		// eg allows for keywords + entities (either from OC or from AA or from any other extractor)
+		extractEntitiesAndText(doc);
 	}
 	
 	//_______________________________________________________________________
 	//______________________________UTILIY FUNCTIONS_______________________
 	//_______________________________________________________________________
-	
-	/**
-	 * Converts the json return from alchemy into a list
-	 * of entitypojo objects.
-	 * 
-	 * @param json The json text that alchemy creates for a document
-	 * @return A list of EntityPojo's that have been extracted from the document.
-	 */
-	private List<EntityPojo> convertToEntityPoJo(AlchemyPojo sc)
-	{
-		
-		//convert alchemy object into a list of entity pojos
-		List<EntityPojo> ents = new ArrayList<EntityPojo>();
-		if ( sc.entities != null)
-		{
-			for ( AlchemyEntityPojo ae : sc.entities)
-			{
-				EntityPojo ent = convertAlchemyEntToEntPojo(ae);
-				if ( ent != null )
-					ents.add(ent);
-			}
-		}
-		return ents;	
-	}
 	
 	/**
 	 * Converts the json return from alchemy into a list

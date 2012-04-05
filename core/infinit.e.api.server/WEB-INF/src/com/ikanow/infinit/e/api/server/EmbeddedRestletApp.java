@@ -127,6 +127,7 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/config/source/good/{communityid}", SourceInterface.class);  
         attach(router, "/config/source/bad/{communityid}", SourceInterface.class);  
         attach(router, "/config/source/pending/{communityid}",SourceInterface.class);
+        attach(router, "/config/source/user", SourceInterface.class);
         attach(router, "/config/source/test",SourceInterface.class);
         attach(router, "/config/source/delete/{sourceid}/{communityid}",SourceInterface.class);
         attach(router, "/config/source/delete/docs/{sourceid}/{communityid}",SourceInterface.class);

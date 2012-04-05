@@ -1,0 +1,15 @@
+{
+    "title": "Basic RSS Source Template",
+    "description": "Create a description of your source here.",
+    "url": "http://blahblahblah.com/blah.rss",
+    "communityIds": ["4c927585d591d31d7b37097a"],
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "mediaType": "Social",
+    "tags": [
+        "tag1",
+        "tag2"
+    ]
+}

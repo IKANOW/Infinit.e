@@ -64,6 +64,8 @@
 			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server-${infinite_version}-${infinite_release}.war"/>
 		<copy file="../infinit.e.web/dist/infinit.e.web.war" 
 			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web-${infinite_version}-${infinite_release}.war"/>
+		<copy file="../infinit.e.source.builder.web/dist/infinit.e.source.builder.web.war" 
+			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web-${infinite_version}-${infinite_release}.war"/>
 	</target>
 	
 	<!-- ================================= 

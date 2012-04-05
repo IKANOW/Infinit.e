@@ -46,6 +46,7 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.Globals.Identity;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.EntityExtractorEnum;
@@ -85,10 +86,12 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		_capabilities.put(EntityExtractorEnum.Quality, "1");
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
 		
-		if ( 1 == numInstances.incrementAndGet() ) // (first time only...)
-		{
-			shutdownHook = new ShutdownHook();
-			Runtime.getRuntime().addShutdownHook(shutdownHook);
+		if (Identity.IDENTITY_SERVICE == Globals.getIdentity()) { // (ie not for API)
+			if ( 1 == numInstances.incrementAndGet() ) // (first time only...)
+			{
+				shutdownHook = new ShutdownHook();
+				Runtime.getRuntime().addShutdownHook(shutdownHook);
+			}
 		}
 	}
 	
@@ -832,13 +835,16 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	{
 	    public void run() 
 	    {
-	    	if ((num_extraction_requests.get() > 0) || (num_extraction_collisions.get() > 0)){
-		    	StringBuilder sb = new StringBuilder();
-		    	sb.append("OpenCalais runtime report: ");
-				sb.append("num_of_extraction_requests=" + num_extraction_requests.get());
-				sb.append(" num_of_extraction_collisions=" + num_extraction_collisions.get());
-				logger.info(sb.toString());
+	    	if ((null != num_extraction_requests) && (null != num_extraction_collisions)) {
+		    	if ((num_extraction_requests.get() > 0) || (num_extraction_collisions.get() > 0)){
+			    	StringBuilder sb = new StringBuilder();
+			    	sb.append("OpenCalais runtime report: ");
+					sb.append("num_of_extraction_requests=" + num_extraction_requests.get());
+					sb.append(" num_of_extraction_collisions=" + num_extraction_collisions.get());
+					logger.info(sb.toString());
+		    	}
 	    	}
+	    	// (did see a null ptr exception here, not clear how it happens - ie ^^^ for robustness)
 	    }
 	}
 }

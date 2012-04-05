@@ -109,6 +109,9 @@ public class SourcePojo extends BaseDbPojo {
 	private String shah256Hash = null;	
 	final public static String shah256Hash_ = "shah256Hash";
 
+	private Integer searchCycle_secs = null; // Determines the time between searches, defaults as quickly as the harvest can cycle
+	final public static String searchCycle_secs_ = "searchCycle_secs";
+	
 	// Gets and sets
 	
 	public AuthenticationPojo getAuthentication() {
@@ -420,5 +423,10 @@ public class SourcePojo extends BaseDbPojo {
 		md.update(sb.toString().getBytes("UTF-8"));		
 		shah256Hash = (new BASE64Encoder()).encode(md.digest());	
 	}
-	
+	public Integer getSearchCycle_secs() {
+		return searchCycle_secs;
+	}
+	public void setSearchCycle_secs(Integer searchCycle_secs) {
+		this.searchCycle_secs = searchCycle_secs;
+	}	
 }

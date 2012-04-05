@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tomcatProjectProperties>
+    <rootDir>/sourcebuilder</rootDir>
+    <exportSource>true</exportSource>
+    <reloadable>true</reloadable>
+    <redirectLogger>false</redirectLogger>
+    <updateXml>true</updateXml>
+    <warLocation>infinite.e.source.builder.war</warLocation>
+    <extraInfo></extraInfo>
+    <webPath>source.builder</webPath>
+</tomcatProjectProperties>

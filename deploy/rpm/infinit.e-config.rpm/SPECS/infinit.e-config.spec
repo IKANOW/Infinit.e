@@ -161,7 +161,7 @@ Infinit.e system configuration
 %config /mnt/opt/infinite-home/config/log4j.api.properties
 %config /mnt/opt/infinite-home/config/log4j.service.properties
 %config /mnt/opt/infinite-home/config/event_schema.xml
-%config /mnt/opt/infinite-home/licenses/NOTICE.txt
+#%config /mnt/opt/infinite-home/licenses/NOTICE.txt
 %config /mnt/opt/infinite-home/licenses/ThirdPartyNotices_Appliance.pdf
 
 /mnt/opt/infinite-home/scripts/AlchemyLimitExceededAlert.python

@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -31,6 +32,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.log4j.Logger;
 
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
@@ -225,7 +227,11 @@ public class UnstructuredAnalysisHarvester
 			if (bGetRawDoc) {
 				try {
 					URL url = new URL(doc.getUrl());
-					InputStream urlStream = url.openStream();
+					URLConnection urlConnect = url.openConnection();
+					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+						urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
+					}//TOTEST
+					InputStream urlStream = urlConnect.getInputStream();
 					doc.setFullText(new Scanner(urlStream).useDelimiter("\\A").next());
 					bFetchedUrl = true;
 				}
@@ -412,6 +418,9 @@ public class UnstructuredAnalysisHarvester
 			Pattern metaPattern = createRegex(m.script, m.flags);
 			Matcher matcher = metaPattern.matcher(text);
 	
+			StringBuffer prefix = new StringBuffer(m.fieldName);
+			int nFieldNameLen = m.fieldName.length();
+			
 			try {
 				while(matcher.find())
 				{
@@ -422,10 +431,13 @@ public class UnstructuredAnalysisHarvester
 					if (null != m.replace) {
 						toAdd = metaPattern.matcher(toAdd).replaceFirst(m.replace);
 					}
+					prefix.setLength(nFieldNameLen);
+					prefix.append(toAdd);
+					String dupCheck = prefix.toString();
 					
-					if (!regexDuplicates.contains(toAdd)) {
+					if (!regexDuplicates.contains(dupCheck)) {
 						addToMeta(f,m.fieldName, toAdd);
-						regexDuplicates.add(toAdd);
+						regexDuplicates.add(dupCheck);
 					}
 				}
 			}
@@ -643,7 +655,12 @@ public class UnstructuredAnalysisHarvester
 			return field.replaceAll(regEx, replaceWith);
 		}
 		else {
-			return createRegex(regEx, flags).matcher(field).replaceAll(replaceWith);
+			if (flags.contains("H")) { // HTML decode
+				return StringEscapeUtils.unescapeHtml(createRegex(regEx, flags).matcher(field).replaceAll(replaceWith));
+			}
+			else {
+				return createRegex(regEx, flags).matcher(field).replaceAll(replaceWith);				
+			}
 		}
 	}
 

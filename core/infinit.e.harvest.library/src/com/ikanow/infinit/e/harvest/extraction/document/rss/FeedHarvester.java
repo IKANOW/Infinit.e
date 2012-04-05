@@ -166,22 +166,46 @@ public class FeedHarvester implements HarvesterInterface
 	}
 
 	// Process the feed
-	private void processFeed(SourcePojo source) {
+	private void processFeed(SourcePojo source) throws Exception {
 		// Process the feed
 		SyndFeed feed = null;
-		if (null != source.getUrl()) {
+		int nNonSearchUrls = -1;
+		if ((null != source.getUrl()) && ((null == source.getRssConfig())||(null == source.getRssConfig().getSearchConfig()))) {
+			// (if the second clause is false, the URL is a search query, will process differently, inside buildFeedList)
+			
 			feed = getFeed(source);
 		}
+		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
+		{
+			if (null != source.getRssConfig().getExtraUrls()) {
+				nNonSearchUrls = source.getRssConfig().getExtraUrls().size();
+			}
+			FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
+			searchEngineSubsystem.generateFeedFromSearch(source, _context);
+		}//TOTEST
 
-		if ( ( feed != null ) || ( null == source.getUrl() ) ) // (latter case: also have extra URLs)
+		if ( ( feed != null ) || ( null == source.getUrl() ) ) // (second case: also have extra URLs)
 		{
 			// Error handling, part 1:
 			this.nTmpHttpErrors = 0;
 			this.nTmpDocsSubmitted = 0;
 
 			// Extract the feed and place into the pojo
-			buildFeedList(feed, source);
-
+			try {
+				buildFeedList(feed, source);
+			}
+			catch (Exception e) {
+				// Propogate upwards:
+				throw e;
+			}
+			finally {
+				if (-1 != nNonSearchUrls) {
+					//TODO (INF-1282): this needs to resize back to nNonSearchUrls
+					source.getRssConfig().getExtraUrls();
+						// (non-null by construction of nNonSearchUrls)
+				}
+			}
+			
 			// Error handling part 2:
 			// clean up
 			if ((nTmpHttpErrors == this.nTmpDocsSubmitted) && (this.nTmpDocsSubmitted > 5))

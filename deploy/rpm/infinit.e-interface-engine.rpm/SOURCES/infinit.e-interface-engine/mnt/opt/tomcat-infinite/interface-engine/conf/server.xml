@@ -67,7 +67,7 @@
          Define a non-SSL HTTP/1.1 Connector on port 8080
     -->
     <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
-               connectionTimeout="20000" 
+               connectionTimeout="600000" 
                redirectPort="8443" />
     <!-- A "Connector" using the shared thread pool-->
     <!--
@@ -149,6 +149,8 @@
     </Context>
 	<Context docBase="infinit.e.web.war" path="" reloadable="true"/>
 
+	<Context docBase="infinit.e.source.builder.web.war" path="/sourcebuilder" reloadable="true" />
+	
       </Host>
     </Engine>
   </Service>

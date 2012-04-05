@@ -40,6 +40,7 @@ Infinit.e search engine REST API
 	cd $RPM_BUILD_DIR/mnt/opt/tomcat-infinite/interface-engine/webapps/
 	ln -s -f infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.api.server.war
 	ln -s -f infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.web.war
+	ln -s -f infinit.e.source.builder.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.source.builder.web.war
 
 %post
 
@@ -99,6 +100,7 @@ Infinit.e search engine REST API
 	# (Tidy up expanded WAR files)
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/ROOT
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/api
+	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/sourcebuilder
 
 %postun
 	# (Nothing to do)
@@ -142,6 +144,8 @@ Infinit.e search engine REST API
 /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server.war
 /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war
 /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web.war
+/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web-INFINITE_VERSION-INFINITE_RELEASE.war
+/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web.war
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_event_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_entity_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/random_query_generator.sh

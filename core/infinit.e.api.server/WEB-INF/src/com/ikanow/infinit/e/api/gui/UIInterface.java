@@ -53,11 +53,11 @@ public class UIInterface extends Resource
 		 Map<String,Object> attributes = request.getAttributes();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
-		 if ( urlStr.contains("/uisetup/get/"))
+		 if ( urlStr.contains("/uisetup/get"))
 		 {			
 			 action = "uisetup"; 
 		 }
-		 else if ( urlStr.contains("/uisetup/update/"))
+		 else if ( urlStr.contains("/uisetup/update"))
 		 {
 			 // (these first 2 will be null for the POST version) 
 			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
@@ -69,15 +69,15 @@ public class UIInterface extends Resource
 			 }
 			 action = "update";
 		 }
-		 else if ( urlStr.contains("/modules/get/"))
+		 else if ( urlStr.contains("/modules/get"))
 		 {
 			 action = "getmodules";
 		 }
-		 else if ( urlStr.contains("/modules/install/"))
+		 else if ( urlStr.contains("/modules/install"))
 		 {
 			 action = "installmodule";
 		 }
-		 else if ( urlStr.contains("/modules/delete/"))
+		 else if ( urlStr.contains("/modules/delete"))
 		 {
 			 action = "deletemodule";
 			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
@@ -86,12 +86,12 @@ public class UIInterface extends Resource
 		 {
 			 action = "getusermodules";
 		 }
-		 else if ( urlStr.contains("/modules/search/"))
+		 else if ( urlStr.contains("/modules/search"))
 		 {
 			 updateItem = RESTTools.decodeRESTParam("term", attributes);
 			 action = "searchmodules";
 		 }
-		 else if ( urlStr.contains("/modules/user/set/"))
+		 else if ( urlStr.contains("/modules/user/set"))
 		 {
 			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
 			 action = "savemodules";

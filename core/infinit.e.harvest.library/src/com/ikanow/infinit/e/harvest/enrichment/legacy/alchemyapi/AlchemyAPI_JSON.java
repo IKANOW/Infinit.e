@@ -227,7 +227,7 @@ public class AlchemyAPI_JSON {
 		params.setShowSourceText(true);
 		params.setCustomParameters("sentiment", "1");
 
-		return POST("URLGetRankedNamedKeywords", "url", params);
+		return POST("URLGetRankedKeywords", "url", params);
 	}
 	
     // 5a] Get concepts from text
@@ -264,7 +264,7 @@ public class AlchemyAPI_JSON {
 		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
 		params.setShowSourceText(true);
 
-		return POST("URLGetRankedNamedConcepts", "url", params);
+		return POST("URLGetRankedConcepts", "url", params);
 	}
 	
 	

@@ -634,8 +634,8 @@ public class CommunityHandler
 							
 							String subject = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName();
 							String body = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName() + "<br/>Do you want to accept this request?" +
-							"<br/><a href=\"" + rootUrl + "community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
-							"<a href=\"" + rootUrl + "community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
+							"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
+							"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
 							
 							SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), toAddresses, subject, body);
 							
@@ -794,14 +794,19 @@ public class CommunityHandler
 							
 							String subject = "Invite to join infinit.e community: " + cp.getName();
 							String body = "You have been invited to join the community " + cp.getName() + 
-								"<br/><a href=\"" + rootUrl + "community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
-								"<a href=\"" + rootUrl + "community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
+								"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
+								"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
 							
 							SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
 							
 							if (mail.send("text/html"))
 							{
-								rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));
+								if (isSysAdmin) {
+									rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+								}
+								else {
+									rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
+								}
 							}
 							else
 							{

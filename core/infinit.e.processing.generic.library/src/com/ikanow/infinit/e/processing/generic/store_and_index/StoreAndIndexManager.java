@@ -25,6 +25,7 @@ import java.util.TreeSet;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.elasticsearch.index.query.QueryBuilders;
 
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
@@ -51,6 +52,18 @@ public class StoreAndIndexManager {
 	
 	private static boolean _diagnosticMode = false;
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
+	
+	private int nMaxContentLen_bytes = 100000; // (100KB default max)
+	
+	public StoreAndIndexManager() {
+		com.ikanow.infinit.e.processing.generic.utils.PropertiesManager pm = 
+			new com.ikanow.infinit.e.processing.generic.utils.PropertiesManager();
+		
+		int nMaxContent = pm.getMaxContentSize();
+		if (nMaxContent > -1) {
+			nMaxContentLen_bytes = nMaxContent;
+		}
+	}
 	
 	/**
 	 * Get the total record count from a collection
@@ -152,7 +165,7 @@ public class StoreAndIndexManager {
 				if ((null != doc.getFullText()) && !doc.getFullText().isEmpty()) {
 					try
 					{
-						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getFullText());
+						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getFullText(), nMaxContentLen_bytes);
 						if ((null != gzippedContent.getUrl()) && (null != gzippedContent.getGzip_content())) 
 						{
 							// Be efficient and write field-by-field vs using JSON conversion
@@ -211,6 +224,21 @@ public class StoreAndIndexManager {
 			
 			// removeFromDataStore(), above, adds "_id" and "created" to the doc
 			this.removeFromSearch(docs);
+			
+		} catch (Exception e) {
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+		}
+	}//TESTED
+	
+	public void removeFromDatastore_bySourceKey(List<DocumentPojo> docs, String sourceKey, boolean bDeleteContent) {
+		try {
+			// Still need to go slow in the DB unfortunately because of the content
+			removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
+			
+			// Quick delete for index though:
+			ElasticSearchManager indexManager = IndexManager.getIndex(new StringBuffer("_all").append('/').append(DocumentPojoIndexMap.documentType_).toString());
+			indexManager.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey));
 			
 		} catch (Exception e) {
 			// If an exception occurs log the error

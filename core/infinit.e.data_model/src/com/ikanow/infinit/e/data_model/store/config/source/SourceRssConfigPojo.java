@@ -39,6 +39,12 @@ public class SourceRssConfigPojo {
 	}
 	private List<ExtraUrlPojo> extraUrls; 
 	
+	private String userAgent = null; // (if present, used to override the userAgent)
+	
+	// Using a set of search results to generate the feed:
+	
+	private SourceSearchFeedConfigPojo searchConfig = null;
+	
 // Functions:
 	
 	public void createIncludeExcludeRegexes() {
@@ -94,5 +100,17 @@ public class SourceRssConfigPojo {
 	}
 	public void setWaitTimeOverride_ms(Integer waitTimeOverride_ms) {
 		this.waitTimeOverride_ms = waitTimeOverride_ms;
+	}
+	public SourceSearchFeedConfigPojo getSearchConfig() {
+		return searchConfig;
+	}
+	public void setSearchConfig(SourceSearchFeedConfigPojo searchConfig) {
+		this.searchConfig = searchConfig;
+	}
+	public String getUserAgent() {
+		return userAgent;
+	}
+	public void setUserAgent(String userAgent) {
+		this.userAgent = userAgent;
 	}
 }

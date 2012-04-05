@@ -118,6 +118,7 @@ public class SourceUtils {
 				fields.put(SourcePojo.key_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_harvested_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_synced_, 1);
+				fields.put(SourcePojo.searchCycle_secs_, 1);
 			}
 			// (first off, set the harvest/sync date for any sources that don't have it set,
 			//  needed because sort doesn't return records without the sorting field) 
@@ -167,6 +168,17 @@ public class SourceUtils {
 			if ((null != sSourceType) && !candidate.getExtractType().equalsIgnoreCase(sSourceType)) {
 				continue;
 			}
+			if (null != candidate.getSearchCycle_secs()) {
+				if ((null != candidate.getHarvestStatus()) && (null != candidate.getHarvestStatus().getHarvested())) {
+					//(ie the source has been harvested, and there is a non-default search cycle setting)
+					if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
+							> now.getTime())
+					{
+						continue; // (too soon since the last harvest...)
+					}
+				}
+			}//TOTEST
+			
 			query.put(SourcePojo._id_, candidate.getId());
 			BasicDBObject modifyClause = new BasicDBObject();
 			modifyClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.in_progress.toString());

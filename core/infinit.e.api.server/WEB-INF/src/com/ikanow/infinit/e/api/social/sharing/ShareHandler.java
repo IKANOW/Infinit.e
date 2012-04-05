@@ -122,7 +122,8 @@ public class ShareHandler
 		///////////////////////////////////////////////////////////////////////////////////////////////
 		// Sample search queries
 		// share/search/
-		// share/search/?searchby=person&id=4d88d0f1f9a624a4b0c8bd71
+		// share/search/?type=binary
+		// share/search/?searchby=person&id=admin_infinite@ikanow.com
 		// share/search/?searchby=community&id=4d88d0f1f9a624a4b0c8bd71,4d88d0f1f9a624a4b0c8bd72&type=dataset&skip=0&limit=10
 		///////////////////////////////////////////////////////////////////////////////////////////////
 		
@@ -132,49 +133,71 @@ public class ShareHandler
 		HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(personIdStr);
 			// (need this to sanitize share communities even if searching explicitly by community) 
 		
-		// Default search is for person (on owner._id) if searchby == null 
-		if (searchby == null)
-		{
-			query.put("owner._id", new ObjectId(personIdStr));
-		}
-		
 		// Community search, supports one or more communities._id values
-		if (searchby != null && (searchby.equalsIgnoreCase("community") || searchby.equalsIgnoreCase("communities")))
+		if ((searchby != null) && (searchby.equalsIgnoreCase("community") || searchby.equalsIgnoreCase("communities")))
 		{
 			if (idStrList != null && idStrList.length() > 0)
 			{
+				idStrList = allowCommunityRegex(personIdStr, idStrList); // (allows regex)
+				
 				// List of communities to search on
-				if (idStrList.split(",").length > 1)
+				String[] idStrArray = idStrList.split(",");
+				List<ObjectId> communityIds = new ArrayList<ObjectId>();
+				for (String idStr : idStrArray)
 				{
-					String[] idStrArray = idStrList.split(",");
-					List<ObjectId> communityIds = new ArrayList<ObjectId>();
-					for (String idStr : idStrArray)
-					{
+					try {
 						ObjectId id = new ObjectId(idStr);
 						if ((null != memberOf) && (memberOf.contains(id))) {
-							try { communityIds.add(id); } catch (Exception e) {}
+							communityIds.add(id); 
 						}
 					}
-					
+					catch (Exception e) {}
+				}
+				if (communityIds.size() > 0) {
 					BasicDBObject communities = new BasicDBObject();
 					communities.append("$in", communityIds);
 					query.put("communities._id", communities);
 				}
-				// Single community
-				else
-				{
-					ObjectId id = new ObjectId(idStrList);
-					if ((null != memberOf) && (memberOf.contains(id))) {
-						query.put("communities._id", id);
-					}
-					else { // (some error but we'll let this go if the share has no security)
-						query.put("communities", new BasicDBObject("$exists", false));						
-					}
+				else { // (some error but we'll let this go if the share has no security)
+					query.put("communities", new BasicDBObject("$exists", false));						
 				}
 			}
 			else { // (some error but we'll let this go if the share has no security)
 				query.put("communities", new BasicDBObject("$exists", false));
 			}			
+			//TESTED regex and list versions (single and multiple), no allowed commmunity versions
+		}
+		else if ((searchby != null) && searchby.equalsIgnoreCase("person"))
+		{
+			if (!RESTTools.adminLookup(personIdStr) || (null == idStrList)) { // not admin or no ids spec'd
+				
+				query.put("owner._id", new ObjectId(personIdStr));
+			}//TESTED
+			else { // admin and spec'd - can either be an array of ids or an array of email addresses
+				memberOf = null; // (also returns all the communities in the mapper below)
+				
+				// List of communities to search on
+				String[] idStrArray = idStrList.split(",");
+				List<ObjectId> peopleIds = new ArrayList<ObjectId>();
+				for (String idStr : idStrArray)
+				{
+					try {
+						ObjectId id = new ObjectId(idStr);
+						peopleIds.add(id); 
+					}
+					catch (Exception e) { // Try as people's email addresses
+						query.put("owner.email", new BasicDBObject("$in", idStrArray));
+						peopleIds.clear();
+						break;
+					}//TESTED
+				}
+				if (peopleIds.size() > 0) {
+					BasicDBObject communities = new BasicDBObject();
+					communities.append("$in", peopleIds);
+					query.put("owner._id", communities);
+				}//TESTED
+			}
+			//TESTED: nobody, ids, emails
 		}
 		else { // Defaults to all communities to which a user belongs (or everything for admins)
 			

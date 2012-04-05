@@ -301,7 +301,7 @@ public class SourceHandler
 				// If the user is not the owner or moderator we need to send the owner
 				// and email asking them to approve or reject the source
 				try {
-					if (!isOwnerOrModerator && !isSysAdmin)
+					if (!isApproved)
 					{
 						emailSourceApprovalRequest(source);
 					}
@@ -346,37 +346,27 @@ public class SourceHandler
 						oldSource.setOwnerId(new ObjectId(ownerIdStr));
 					}
 					boolean isSourceOwner = oldSource.getOwnerId().toString().equalsIgnoreCase(ownerIdStr);
-					if (!isOwnerOrModerator && !isSysAdmin && !isSourceOwner)
+					if (!isApproved && !isSourceOwner)
 					{
 						rp.setResponse(new ResponseObject("Source", false, "User does not have permissions to "
 								+ "edit sources shared by this community."));
 						return rp;
 					}
 					
+					String oldHash = source.getShah256Hash();
 					
 					///////////////////////////////////////////////////////////////////////
-					// Note: The following fields in an existing source cannot be changed: URL, Key
+					// Note: The following fields in an existing source cannot be changed: Key
 					// Make sure new source url and key match existing source values
-					source.setUrl(oldSource.getUrl()); // (this also generates a key, which gets overwritten by...)
+					// (we allow URL to be changed, though obv the key won't be changed to reflect that)
 					source.setKey(oldSource.getKey());
 					// Overwrite/set other values in the new source from old source as appropriate
 					source.setCreated(oldSource.getCreated());
 					source.setModified(new Date());
 					source.setOwnerId(oldSource.getOwnerId());
-					if (oldSource.isApproved()) { // Always approve - annoyingly no way of unsetting this
-						source.setApproved(true);
-					}
-					else if (source.isApproved()) { // Want to re-approve
-						if (!isOwnerOrModerator && !isSysAdmin) // Don't have permission, so reset
-						{						
-							source.setApproved(oldSource.isApproved());
-						}
-					}
-					
+										
 					///////////////////////////////////////////////////////////////////////
-					// Note: Create/update the source's Shah-256 hash
-					source.generateShah256Hash();
-					
+					// Check for missing fields:
 					String missingFields = hasRequiredSourceFields(source);
 					if (missingFields != null && missingFields.length() > 0)
 					{
@@ -384,7 +374,39 @@ public class SourceHandler
 						return rp;
 					}
 					
-					// Source exists, update
+					///////////////////////////////////////////////////////////////////////
+					// Note: Create/update the source's Shah-256 hash
+					source.generateShah256Hash();
+					
+					///////////////////////////////////////////////////////////////////////
+					// Handle approval:
+					if (isApproved || oldHash.equalsIgnoreCase(source.getShah256Hash())) {
+						//(either i have permissions, or the source hasn't change)
+						
+						if (oldSource.isApproved()) { // Always approve - annoyingly no way of unsetting this
+							source.setApproved(true);
+						}
+						else if (source.isApproved()) { // Want to re-approve
+							if (!isApproved) // Don't have permission, so reset
+							{						
+								source.setApproved(oldSource.isApproved());
+							}
+						}					
+					}
+					else { // Need to re-approve						
+						try {
+							source.setApproved(false);
+							emailSourceApprovalRequest(source);
+						}
+						catch (Exception e) { // Unable to ask for permission, remove sources and error out
+							logger.error("Exception Message: " + e.getMessage(), e);
+							DbManager.getIngest().getSource().remove(new BasicDBObject(SourcePojo._id_, source.getId()));
+							rp.setData((String)null, (BasePojoApiMap<String>)null); // (unset)
+							rp.setResponse(new ResponseObject("Source", false, "Unable to email authority for permission, maybe email infrastructure isn't added? Error: " + e.getMessage()));
+						}
+					}//TOTEST					
+					
+					// Source exists, update and prepare reply
 					DbManager.getIngest().getSource().update(query, source.toDb());
 					rp.setResponse(new ResponseObject("Source", true, "Source has been updated successfully."));
 					rp.setData(source, new SourcePojoApiMap(communityIdSet));
@@ -426,6 +448,11 @@ public class SourceHandler
 			if (!isApproved) {
 				queryDbo.put(SourcePojo.ownerId_, new ObjectId(personIdStr));
 			}
+			if (!bDocsOnly) {
+				BasicDBObject turnOff = new BasicDBObject(MongoDbManager.set_, 
+											new BasicDBObject(SourcePojo.isApproved_, false));
+				DbManager.getIngest().getSource().update(queryDbo, turnOff);
+			}
 			BasicDBObject srcDbo = (BasicDBObject) DbManager.getIngest().getSource().findOne(queryDbo, queryFields);
 			if (null == srcDbo) {
 				rp.setResponse(new ResponseObject("Delete Source", false, "Error finding source or permissions error."));			
@@ -440,12 +467,19 @@ public class SourceHandler
 				docFields.append(DocumentPojo.url_, 1);
 				docFields.append(DocumentPojo.index_, 1);
 				docFields.append(DocumentPojo.sourceKey_, 1);
-				DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields);
-				nDocsDeleted = dbc.count();
-				List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
 				
-				new StoreAndIndexManager().removeFromDatastore_byURL(docs, true);
-
+				for (;;) {
+					DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).limit(10000); // (ie batches of 10K)
+					if (0 == nDocsDeleted) {
+						nDocsDeleted = dbc.count();
+					}
+					if (0 == dbc.size()) {
+						break;
+					}
+					List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
+					new StoreAndIndexManager().removeFromDatastore_bySourceKey(docs, source.getKey(), true);
+						// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")
+				}
 				DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, new ObjectId(communityIdStr)), 
 						new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, -nDocsDeleted)));
 			}			
@@ -488,7 +522,12 @@ public class SourceHandler
 				communityIdSet.add(communityId);
 
 				BasicDBObject query = new BasicDBObject();
-				query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
+				try {
+					query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
+				}
+				catch (Exception e) { // (allow either _id or key)
+					query.put(SourcePojo.key_, sourceIdStr);					
+				}
 				query.put(SourcePojo.communityIds_, communityId);
 
 				DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
@@ -542,13 +581,41 @@ public class SourceHandler
 				
 				// Set up the query
 				BasicDBObject query = new BasicDBObject();
-				query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
+				try {
+					query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
+				}
+				catch (Exception e) { // (allow either _id or key)
+					query.put(SourcePojo.key_, sourceIdStr);					
+				}
 				query.put(SourcePojo.communityIds_, communityId);
-				DbManager.getIngest().getSource().remove(query);			
-				rp.setResponse(new ResponseObject("Deny Source",true,"Source removed successfully"));
+
+				// Get the source - what we do with it depends on whether it's ever been active or not
+				DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
+				SourcePojo sp = SourcePojo.fromDb(dbo,SourcePojo.class);
 				
-				// Send email notification to the person who submitted the source
-				emailSourceApproval(getSource(sourceIdStr), personIdStr, "Denied");
+				// Case 1: is currently active, set to inactive
+				
+				if (sp.isApproved()) {
+					sp.setApproved(false);
+					DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
+					rp.setResponse(new ResponseObject("Decline Source",true,"Source set to unapproved, use config/source/delete to remove it"));
+				}
+				
+				// Case 2: is currently inactive, has been active
+				
+				else if (null != sp.getHarvestStatus()) {
+					rp.setResponse(new ResponseObject("Decline Source",false,"Source has been active, use config/source/delete to remove it"));
+				}
+				
+				// Case 3: 
+
+				else {
+					DbManager.getIngest().getSource().remove(query);			
+					rp.setResponse(new ResponseObject("Deny Source",true,"Source removed successfully"));					
+					// Send email notification to the person who submitted the source
+					emailSourceApproval(getSource(sourceIdStr), personIdStr, "Denied");
+				}
+								
 			} 
 			catch (Exception e)
 			{
@@ -628,7 +695,6 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query);			
 
 			// Remove communityids we don't want the user to see:
-			// Remove communityids we don't want the user to see:
 			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(communityIdSet));			
 			rp.setResponse(new ResponseObject("Bad Sources",true,"Successfully returned bad sources"));
 		} 
@@ -677,7 +743,59 @@ public class SourceHandler
 		}
 		return rp;
 	}
+	
+	
+	/**
+	 * getUserSources
+	 * @param userIdStr
+	 * @param userId
+	 * @return
+	 */
+	public ResponsePojo getUserSources(String userIdStr) 
+	{
+		ResponsePojo rp = new ResponsePojo();
+		try 
+		{	
+			HashSet<ObjectId> userCommunities = RESTTools.getUserCommunities(userIdStr);
+			
+			DBCursor dbc = null;
+			BasicDBObject query = new BasicDBObject(); 
+			query.put(SourcePojo.communityIds_, new BasicDBObject("$in", userCommunities));
+			
+			// Get all sources for admins
+			if (RESTTools.adminLookup(userIdStr))
+			{
+				dbc = DbManager.getIngest().getSource().find(query);
+			}
+			// Get only sources the user owns
+			else
+			{
+				query.put(SourcePojo.ownerId_, new ObjectId(userIdStr));
+				dbc = DbManager.getIngest().getSource().find(query);
+			}
+			
+			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap( userCommunities));
+			rp.setResponse(new ResponseObject("User's Sources", true, "successfully returned user's sources"));
+		} 
+		catch (Exception e)
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("User's Sources", false, "error returning user's sources"));			
+		}
+		return rp;
+	}
 
+
+	
+	/**
+	 * testSource
+	 * @param sourceJson
+	 * @param nNumDocsToReturn
+	 * @param bReturnFullText
+	 * @param userIdStr
+	 * @return
+	 */
 	public ResponsePojo testSource(String sourceJson, int nNumDocsToReturn, boolean bReturnFullText, String userIdStr) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
@@ -770,6 +888,7 @@ public class SourceHandler
 		return isApproved;
 	}	
 	
+	
 	/**
 	 * validateSourceKey
 	 * Checks source key passed in for uniqueness, if the key is not
@@ -830,9 +949,9 @@ public class SourceHandler
 				"URL: " + source.getUrl() + "<br/>" + 
 				"</p>" +
 				"<p>Please click on the Approve or Reject links below to complete the approval process: </p>" +
-				"<li><a href=\"" + rootUrl + "knowledge/source/approve/" + source.getId().toString() + "/" +
+				"<li><a href=\"" + rootUrl + "config/source/approve/" + source.getId().toString() + "/" +
 					c.getId().toString() + "/\">Approve new Source</a></li>" +
-				"<li><a href=\"" + rootUrl + "knowledge/source/deny/" + source.getId().toString() + "/" +
+				"<li><a href=\"" + rootUrl + "config/source/decline/" + source.getId().toString() + "/" +
 					c.getId().toString() + "/\">Reject new Source</a></li>";
 			
 			// Email address or addresses to send to

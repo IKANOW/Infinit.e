@@ -24,6 +24,7 @@ import java.util.Set;
 import java.util.regex.Pattern;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.social.community.CommunityHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -312,6 +313,24 @@ public class UIHandler
 			else {
 				boolean bAdmin = RESTTools.adminLookup(userIdStr);
 
+				if (!bAdmin) { // need to be owner or moderator to add to a source
+					if (null == module.getCommunityIds() || module.getCommunityIds().isEmpty()) {
+						module.addToCommunityIds(new ObjectId(userIdStr)); // (ie adds to personal community)
+					}
+					else {
+						HashSet<ObjectId> newSet = new HashSet<ObjectId>();
+						for (ObjectId communityId: module.getCommunityIds()) {
+							if (CommunityHandler.isOwnerOrModerator(communityId.toString(), userIdStr)) {
+								newSet.add(communityId);
+							}
+						}
+						if (newSet.isEmpty()) {
+							newSet.add(new ObjectId(userIdStr)); // (ie adds to personal community)
+						}
+						module.setCommunityIds(newSet);
+					}
+				}//TOTEST
+				
 				// Get username from profile id:
 				AuthenticationPojo userQuery = new AuthenticationPojo();
 				userQuery.setProfileId(new ObjectId(userIdStr));
@@ -384,7 +403,7 @@ public class UIHandler
 		}
 		catch (Exception ex) {
 			//ex.printStackTrace();
-			rp.setResponse(new ResponseObject("Install Module",false,"Module install error"));			
+			rp.setResponse(new ResponseObject("Install Module",false,"Module install error: " + ex.getMessage()));			
 		}//TESTED
 		return rp;
 	}//TESTED

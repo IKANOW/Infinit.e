@@ -22,6 +22,9 @@ public class Globals
 	private static String configLocation = "/opt/infinite-home/config";
 	private static Identity identity = Identity.IDENTITY_NONE;  	
 	
+	public static Identity getIdentity() {
+		return identity;
+	}
 	public static void setIdentity(Identity id) {
 		identity = id;
 	}

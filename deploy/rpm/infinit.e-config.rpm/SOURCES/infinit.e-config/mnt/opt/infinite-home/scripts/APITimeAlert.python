@@ -10,6 +10,7 @@ config = ConfigParser.ConfigParser()
 config.read('/opt/infinite-home/config/python.cfg')
 sendEmailTo = config.get('config', 'mail.to')
 sendEmailFrom = config.get('config', 'mail.from')
+serveraddr = commands.getoutput("/sbin/ifconfig | grep -o 'addr:[0-9.]*' | grep -v '127.0.0.1'")
 
 source = '/opt/infinite-home/logs/infinit.e.api.log'
 capTime = 5 #seconds
@@ -25,7 +26,7 @@ if today.resultCount > 0:
 	print 'Today: ' + str(today_time) + 's'
 
 	if today_time > capTime:
-		today.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[ALERT] Infinit.e API Search Time Exceeding '+str(capTime)+' Seconds ('+str(today_time)+'s)" priority=highest sendresults=true')
+		today.setFetchOption(search='sendemail from=' + sendEmailFrom + ' to=' + sendEmailTo +' subject="[ALERT] Infinit.e API Search Time Exceeding '+str(capTime)+' Seconds ('+str(today_time)+'s) ['+serveraddr+']" priority=highest sendresults=true')
 		r = today.results[0]
 		print 'Cap Email Sent to ' + sendEmailTo
 	else:

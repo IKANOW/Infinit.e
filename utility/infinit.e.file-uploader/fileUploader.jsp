@@ -1,3 +1,18 @@
+<!--
+Copyright 2012 The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
 <%@page import="java.net.FileNameMap"%>
 <%@page import="java.net.URLConnection"%>
 
@@ -17,6 +32,7 @@
 	static Boolean showAll = false;
 	static Boolean localCookie = false;
 	static String user = null;
+	static String communityList = null; // (ensures that generateCommunityList is called)
 	static CookieManager cm = new CookieManager();
 
 	static class keepAlive
@@ -30,6 +46,38 @@
 		
 		}
 		public ka response;
+		
+	}
+	static class personGet
+	{
+		static class resp
+		{
+			String action;
+			Boolean success;
+			String message;
+			int time;
+		
+		}
+		static class community
+		{
+			String _id;
+			String name;
+		}
+		static class data
+		{
+			String _id;
+			String created;
+			String modified;
+			String accountStatus;
+			String email;
+			String firstName;
+			String lastName;
+			String displayName;
+			String phone;
+			community[] communities;
+		}
+		public resp response;
+		public data data;
 		
 	}
 	static class getShare
@@ -182,7 +230,7 @@
 	
 	public static String stringOfUrl(String addr, HttpServletRequest request, HttpServletResponse response)
 	{
-		//if(localCookie)
+		if(localCookie)
 			CookieHandler.setDefault(cm);
         try
         {
@@ -199,16 +247,17 @@
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         	}
         	else
-        		System.out.println("NULLLLLLLLL");
-        	IOUtils.copy(url.openStream(), output);
+        		System.out.println("Infinit.e Cookie Value is Null");
+        	IOUtils.copy(urlConnection.getInputStream(), output);
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
         		setBrowserInfiniteCookie(response, newCookie);
         	}
 			
-        	
-        	return output.toString();
+        	String toReturn = output.toString();
+        	output.close();
+        	return toReturn;
         }
         catch(IOException e)
         {
@@ -220,7 +269,7 @@
 	{	
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(password.getBytes("UTF-8"));			
-		return URLEncoder.encode((new BASE64Encoder()).encode(md.digest()));	
+		return URLEncoder.encode((new BASE64Encoder()).encode(md.digest()), "UTF-8");	
 	}
 	private Boolean logMeIn(String username, String pword, HttpServletRequest request, HttpServletResponse response ) throws IOException, NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException 
     {
@@ -268,25 +317,25 @@
 	}
 	
 	
-	private String AddToShare(byte[] bytes, String mimeType, String title, String description, HttpServletRequest request, HttpServletResponse response)
+	private String AddToShare(byte[] bytes, String mimeType, String title, String description, Set<String> communities, HttpServletRequest request, HttpServletResponse response)
 	{
-		return UpdateToShare(bytes, mimeType, title, description, null, request, response);
+		return UpdateToShare(bytes, mimeType, title, description, null, communities, request, response);
 	}
 	//uploads a new widget's bytes and returns it's shareID if successful. If a share
 	//ID is provided, then it updates the widget containing that shareID
-	private String UpdateToShare(byte[] bytes, String mimeType, String title, String description, String prevId, HttpServletRequest request, HttpServletResponse response)
+	private String UpdateToShare(byte[] bytes, String mimeType, String title, String description, String prevId,Set<String> communities, HttpServletRequest request, HttpServletResponse response)
 	{
 		String charset = "UTF-8";
 		String url = "";
 		
 		try{
 			if (prevId == null)
-				url = API_ROOT + "share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = API_ROOT + "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			else
-				url = API_ROOT + "share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = API_ROOT + "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			
-			//if(localCookie)
-			CookieHandler.setDefault(cm);
+			if(localCookie)
+				CookieHandler.setDefault(cm);
 			URLConnection connection = new URL(url).openConnection();
 			connection.setDoOutput(true);
 	        connection.setRequestProperty("Accept-Charset",charset);
@@ -332,10 +381,10 @@
     		{
     			if (prevId != null && mr.data == null)
     			{
-    				System.out.println("Added Share to community: " + addShareToCommunity(prevId, request, response));
+    				addRemoveCommunities(prevId, communities, request, response);
     				return prevId;
     			}
-    			System.out.println("Added Share to community: " + addShareToCommunity(prevId, request, response));
+    			addRemoveCommunities(mr.data, communities, request, response);
     			return mr.data; //When a new upload, mr.data contains the ShareID for the upload
     		}
     		else
@@ -349,44 +398,43 @@
 		}
 	}
 	
-	private String UpdateToShareKeepFile(String title, String description, String prevId, HttpServletRequest request, HttpServletResponse response)
+	private void addRemoveCommunities(String shareId, Set<String> commsToAdd, HttpServletRequest request, HttpServletResponse response)
 	{
-		System.out.println("Accessed UpdateToShareKeepFile");
-		try{
-			String charset = "UTF-8";
-			
-			//wfot specific
-			String communityId = "4e9c77ef17ef3523b657a890";
-			String comment = "Added for file access to all users (Added by fileUploader.jsp)";
-			
-			String json = stringOfUrl(API_ROOT + "social/share/update/json/" + URLEncoder.encode(prevId,charset) + "/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/?json=<>", request, response);
-			getModules gm = new Gson().fromJson(json, getModules.class);
-			if (gm == null)
-				return "Update Failed: returned object was null: " + json;
-			System.out.println("Added Share to community: " + addShareToCommunity(prevId, request, response));
-			return prevId;
-		}catch(IOException e)
+		personGet.community[] userCommunities = getUserCommunities(request, response);
+		
+		for (personGet.community userComm : userCommunities)
 		{
-			e.printStackTrace();
-			return "Update Failed:" + e.getMessage();
+			if (stringInSet(userComm._id, commsToAdd))
+				addShareToCommunity(shareId, userComm._id, request, response);
+			else
+				removeShareFromCommunity(shareId, userComm._id, request, response);
 		}
 	}
 	
-	private String addShareToCommunity( String shareId, HttpServletRequest request, HttpServletResponse response)
+	private Boolean stringInSet(String value, Set<String> set)
+	{
+		if (set != null)
+		{
+			for (String compare: set)
+			{
+				if (value.equalsIgnoreCase(compare))
+					return true;
+			}
+		}
+		return false;
+	}
+	private String addShareToCommunity( String shareId, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
 		try{
 			String charset = "UTF-8";
-			
-			//wfot specific
-			String communityId = "4e9c77ef17ef3523b657a890";
+
 			String comment = "Added by fileUploader";
 			
 			///share/add/community/{shareid}/{comment}/{communityid}
-			String json = stringOfUrl(API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
+			String json = stringOfUrl(API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
-				//return false;
-				return "Json was null: " + json + "\n " + API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
+				return "Json was null: " + json + "\n " + API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
 			return gm.response.message + API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
 		}catch(IOException e)
 		{
@@ -395,44 +443,191 @@
 		}
 		
 	}
+	
+	private String removeShareFromCommunity( String shareId, String communityId, HttpServletRequest request, HttpServletResponse response)
+	{
+		try{
+			String charset = "UTF-8";
+
+			String comment = "Added by fileUploader";
+			
+			///social/share/remove/community/{shareid}/{communityid}
+			String json = stringOfUrl(API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
+			System.out.println("Removing from Community:" + json);
+			getModules gm = new Gson().fromJson(json, getModules.class);
+			if (gm == null)
+				return "Json was null: " + json + "\n " + API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
+			return gm.response.message + API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/";
+		}catch(IOException e)
+		{
+			e.printStackTrace();
+			return e.getMessage();
+		}
+		
+	}
+	
+	private personGet.community[] getUserCommunities(HttpServletRequest request, HttpServletResponse response)
+	{
+		try{
+			String charset = "UTF-8";
+
+			String json = stringOfUrl(API_ROOT + "person/get/", request, response);
+			personGet pg = new Gson().fromJson(json, personGet.class);
+			if (pg != null)
+			{
+				user = pg.data.email;
+				return pg.data.communities;
+			}
+			return null;
+		}catch(Exception e)
+		{
+			e.printStackTrace();
+			return null;
+		}
+	}
+	
+	public String generateCommunityList(HttpServletRequest request, HttpServletResponse response)
+	{
+		String toReturn = "<select multiple=\"multiple\" name=\"communities\" id=\"communities\">";
+		personGet.community[] pgs = getUserCommunities(request, response);
+		if (pgs !=null)
+		{
+			for(personGet.community comm : pgs)
+			{
+				toReturn += "<option value=\""+ comm._id + "\">"+ comm.name +"</option>";
+			}	
+		}
+		return toReturn + "</select>";
+	}
 
 	private String populatePreviousUploads(HttpServletRequest request, HttpServletResponse response)
 	{
 		String toReturn = "";
 		String delim = "$$$";
-		String json = stringOfUrl(API_ROOT + "share/search/?type=binary&searchby=type", request, response);
+		String ext = null;
+		Object o = request.getParameter("ext");
+		if (null != o) {
+			ext = o.toString();
+		}
+		String searchCriteria = "";
+		if ((null != ext) && ext.startsWith("type:")) {
+			searchCriteria = "?type=" + ext.substring(5);
+			ext = null;
+		}
+		else if ((null != ext) && ext.equalsIgnoreCase("see all")) {
+			ext = null;			
+		}
+		String json = stringOfUrl(API_ROOT + "social/share/search/" + searchCriteria, request, response);
+		
 		 if (json != null)
 		{
 			getShare gs = new Gson().fromJson(json, getShare.class);
-			for ( getShare.shareData info : gs.data)
+			if (gs != null && gs.data != null)
 			{
-				if (request.getParameter("ext") == null)
+				for ( getShare.shareData info : gs.data)
 				{
-					String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id;
-					toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
-				}
-				else
-				{
-					String ext = request.getParameter("ext").toString();
-					
-					if (ext.contains("jar") || ext.contains("JAR"))
+			    	if ((showAll == false) && 
+			    			(info.owner != null) && (info.owner.email != null) && !user.equalsIgnoreCase(info.owner.email))
+			    	{
+			    		continue;
+			    	}
+			    	
+					String owner = "unknown";
+					if ((null != info.owner) && (null != info.owner.email)) {
+						owner = info.owner.email;
+					}
+					if (ext == null)
 					{
-						if ( info.mediaType.equalsIgnoreCase("application/java-archive") || info.mediaType.equalsIgnoreCase("application/x-java-archive") || info.mediaType.equalsIgnoreCase("application/octet-stream"))
+						String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id+delim;
+						for (getShare.shareCommunity scomm : info.communities)
 						{
-							System.out.println("Outputting Uploaded Jar files");
-							String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id;
-							toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
+							value+=scomm._id + ",";
+						}
+						value += delim + owner;
+						toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
+					}
+					else
+					{
+						if (ext.contains("jar") || ext.contains("JAR"))
+						{
+							if ((null != info.mediaType) && (info.mediaType.equalsIgnoreCase("application/java-archive") || info.mediaType.equalsIgnoreCase("application/x-java-archive") || info.mediaType.equalsIgnoreCase("application/octet-stream")))
+							{
+								System.out.println("Outputting Uploaded Jar files");
+								String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id+delim;
+								for (getShare.shareCommunity scomm : info.communities)
+								{
+									value+=scomm._id + ",";
+								}
+								value += delim + owner;
+								toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
+							}
+						}
+						else if ((null != info.mediaType) && info.mediaType.contains(ext))
+						{
+							System.out.println("Extension '" + ext + "' Triggered Mime Type : " + info.mediaType.toString());
+							String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id+delim;
+							for (getShare.shareCommunity scomm : info.communities)
+							{
+								value+=scomm._id + ",";
+							}
+							value += delim + owner;
+							toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";							
 						}
 					}
-					else if (info.mediaType.contains(ext))
-					{
-						System.out.println("Extension '" + ext + "' Triggered Mime Type : " + info.mediaType.toString());
-						String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id;
-						toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
-						
-					}
+					
 				}
-				
+			}
+		}
+		return toReturn; 
+	}
+	
+	
+	
+	private String populateMediaTypes(HttpServletRequest request, HttpServletResponse response)
+	{
+		String toReturn = "<option> See All </option>";
+		String delim = "$$$";
+		String json = stringOfUrl(API_ROOT + "social/share/search/", request, response);
+		String ext = null;
+		Object o = request.getParameter("ext");
+		if (null != o) {
+			ext = o.toString();
+		}
+		
+		 if (json != null)
+		{
+			getShare gs = new Gson().fromJson(json, getShare.class);
+			if (gs != null && gs.data != null)
+			{
+			    Set<String> set = new TreeSet<String>(String.CASE_INSENSITIVE_ORDER);
+			    for ( getShare.shareData info : gs.data)
+				{
+			    	if ((showAll == false) && 
+			    			(info.owner != null) && (info.owner.email != null) && !user.equalsIgnoreCase(info.owner.email))
+			    	{
+			    		continue;
+			    	}
+					if(info.mediaType != null && !set.contains(info.mediaType))
+					{
+						set.add(info.mediaType);
+					}
+					if(info.type != null && !set.contains(info.type))
+					{
+						set.add("type:" + info.type);
+					}					
+				}
+			    
+			    for (String mt : set)
+			    {
+			    	String selected_text = "";
+			    	if ((null != ext) && mt.equalsIgnoreCase(ext))
+			    	{
+			    		selected_text = "selected";
+			    	}
+			    	
+			    	toReturn += "<option " + selected_text + " value=\""+mt+"\" > " + mt + "</option>";
+			    }
+			    
 			}
 		}
 		return toReturn; 
@@ -499,7 +694,10 @@ if (API_ROOT == null)
 		}
 	}
 
-	
+	if (API_ROOT.contains("localhost"))
+		localCookie=true;
+	else
+		localCookie=false;
 }
 Boolean isLoggedIn = isLoggedIn(request, response);
 if (isLoggedIn == null)
@@ -510,6 +708,9 @@ if (isLoggedIn == null)
 
 else if (isLoggedIn == true)
 { 
+	showAll = (request.getParameter("sudo") != null);
+	communityList = generateCommunityList(request, response);
+	
 	if (request.getParameter("logout") != null)
 	{
 		logOut(request, response);
@@ -533,12 +734,18 @@ else if (isLoggedIn == true)
 			String fileDS = null;
 			byte[] iconBytes = null;
 			String iconDS = null;
+			Set<String> communities = new HashSet<String>();
 	 		while (iter.hasNext()) {
 	 		    FileItemStream item = iter.next();
 	 		    String name = item.getFieldName();
 	 		    InputStream stream = item.openStream();
 	 		    if (item.isFormField()) {
-	 		    	request.setAttribute(name, Streams.asString(stream));
+	 		    	if (name.equalsIgnoreCase("communities"))
+	 		    	{
+	 		    		communities.add(Streams.asString(stream));
+	 		    	}
+	 		    	else
+	 		    		request.setAttribute(name, Streams.asString(stream));
 	 		    	
 	 		    	//out.println("<b>" + name + ":</b>" + request.getAttribute(name).toString()+"</br>");
 	 		    } else 
@@ -559,13 +766,19 @@ else if (isLoggedIn == true)
 	 				removeFromShare(fileId, request, response).toString();
 	 			
 	 		}
+	 		////////////////////////////////////Update Community Info////////////////////////////////
+	 		else if ((null == request.getAttribute("file"))||(request.getAttribute("file").toString().isEmpty())) 
+	 		{
+	 			String fileId = request.getAttribute("DBId").toString();
+	 			if (fileId != null && fileId != "")
+    				addRemoveCommunities(fileId, communities, request, response);	 			
+	 		}
 	 		else
 	 		{
 	 		
 		 	//////////////////////////////////////////////////////////////////////////////////
 		 		
 		 		Boolean newUpload =(request.getAttribute("DBId").toString().length() == 0 );
-		 		//Boolean keepFileSame =(request.getAttribute("file_check").toString().length() != 0 );
 				
 				
 		 		///////////////////////////////// SWF Manip  /////////////////////////////////
@@ -576,16 +789,12 @@ else if (isLoggedIn == true)
 				{
 					if (newUpload)
 					{
-						fileId = AddToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), request, response);
+						fileId = AddToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), communities, request, response);
 					}
-					//else if (keepFileSame) //use previous link (ignores what the user may have changed it to))
-					//{
-					//	fileId = UpdateToShareKeepFile(request.getAttribute("title").toString(),request.getAttribute("description").toString(), request.getAttribute("DBId").toString(), request, response);
-					//}
 					else
 					{
 						fileId = request.getAttribute("DBId").toString();
-						UpdateToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), fileId, request, response);
+						UpdateToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), fileId,communities, request, response);
 					}
 					
 					if (fileId.contains("Failed"))
@@ -597,8 +806,6 @@ else if (isLoggedIn == true)
 						fileUrl = SHARE_ROOT + fileId;
 						if (newUpload)
 							out.println("You have successfully added a file to the share, it's location is: " + fileUrl);
-						//else if (keepFileSame)
-						//	out.println("You have successfully modified the title and description of the file. The file's location is still: " + fileUrl);
 						else
 							out.println("You have successfully updated a file on the share, it's location is: " + fileUrl);
 					}
@@ -622,6 +829,27 @@ else if (isLoggedIn == true)
 	%>
 	
 	<script>
+	function clearCommList()
+		{
+			mult_comms = document.getElementById('communities');
+			for ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )
+			{
+			  o = mult_comms.options[i];
+			  o.selected = false;
+			}
+		}
+		function highlightComms(commList)
+		{
+			mult_comms = document.getElementById('communities');
+			for ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )
+			{
+			  o = mult_comms.options[i];
+			  if(commList.indexOf(o.value) == -1)
+				o.selected = false;
+			  else  
+			  	o.selected = true;
+			}
+		}
 	function populate()
 	{
 
@@ -632,10 +860,8 @@ else if (isLoggedIn == true)
 		DBId = document.getElementById('DBId');
 		deleteId = document.getElementById('deleteId');
 		deleteButton = document.getElementById('deleteButton');
-		//file_check = document.getElementById('file_check');
-		//file_provide = document.getElementById('file_provide');
-		//file_url = document.getElementById('file_url');
 		share_url = document.getElementById('share_url');
+		owner = document.getElementById('owner');
 		url_row = document.getElementById('url_row');
 		dropdown = document.getElementById("upload_info");
 		list = dropdown.options[dropdown.selectedIndex].value;
@@ -648,13 +874,10 @@ else if (isLoggedIn == true)
 			DBId.value = "";
 			deleteId.value = "";
 			share_url.value = "";
-			//file_url.value = "";
-			//file_check.checked = false;
-			//useUrl();
+			owner.value = "";
 			url_row.style.display = 'none';
 			deleteButton.style.visibility = 'hidden';
-			//file_check.style.display = 'none';
-			//file_provide.style.display = 'none';
+			clearCommList();
 			return;
 		}
 		//_id, created, title, description
@@ -665,6 +888,8 @@ else if (isLoggedIn == true)
 		res_title = split[2];
 		res_description = split[3];
 		res_url = split[4];
+		communities = split[5];
+		res_owner = split[6];
 
 		
 		title.value = res_title;
@@ -672,38 +897,18 @@ else if (isLoggedIn == true)
 		created.value = res_created;
 		DBId.value = res_id;
 		deleteId.value = res_id;
-		//file_url.value = res_url;
 		share_url.value = res_url;
+		owner.value = res_owner;
 		deleteButton.style.visibility = '';
 		url_row.style.display = '';
-		//file_check.style.display = '';
-		//file_check.checked = true;
-		//useUrl();
-		//file_provide.style.display = '';
+		highlightComms(communities);
 	}
-	/*
-		function useUrl()
-		{
-			file = document.getElementById('file');
-			//file_url = document.getElementById('file_url');
-			
-			if (document.getElementById('file_check').checked)
-			{
-				file_url.style.display = "";
-				file.style.display = "none";
-			}
-			else
-			{
-				file.style.display = "";
-				file_url.style.display = "none";
-			}
-		}
-	*/
 		function validate_fields()
 		{
 			title = document.getElementById('title').value;
 			description = document.getElementById('description').value;
 			file = document.getElementById('file').value;
+			//share_url = document.getElementById('share_url').value;
 			//file_url = document.getElementById('file_url').value;
 			//file_check = document.getElementById('file_check').checked;
 			
@@ -715,11 +920,6 @@ else if (isLoggedIn == true)
 			if (description == "")
 			{
 				alert('Please provide a description.');
-				return false;
-			}
-			if (file == "" )
-			{
-				alert('Please provide your file.');
 				return false;
 			}
 			
@@ -738,11 +938,21 @@ else if (isLoggedIn == true)
 		<div id="uploader_outter_div" name="uploader_outter_div" align="center" style="width:100%" >
 	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:450px; margin:auto">
 	        	<h2>File Uploader</h2>
+	        	<form id="search_form" name="search_form" method="get">
+	        		<div align="center"">
+	        		<label for="ext">Filter On</label>
+					  <select name="ext" id="ext" onchange="this.form.submit();">
+					    <% out.print(populateMediaTypes(request, response)); %>
+					  </select>
+					 </div>
+					 <% if (showAll) out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");  %>	        		
+	        	</form>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
 	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New File</option> <% out.print(populatePreviousUploads(request, response)); %></select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" style="visibility:hidden;" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
 	        		<input type="hidden" name="deleteFile" id="deleteFile" />
+					 <% if (showAll) out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");  %>	        		
 	        	</form>
 	            <form id="upload_form" name="upload_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return validate_fields();" >
 	                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding-left:10px; padding-right:10px">
@@ -758,12 +968,24 @@ else if (isLoggedIn == true)
 	                    <td><textarea rows="4" cols="30" name="description" id="description" ></textarea></td>
 	                  </tr>
 	                  <tr>
+	                  	<td>Communities:</td>
+	                  	<td><% out.print(communityList); %></td>
+	                  </tr>
+	                  <tr>
 	                    <td>File:</td>
 	                    <td><input type="file" name="file" id="file" /><!--<input type="text" name="file_url" id="file_url" size="32" style="display:none;" /><input type="checkbox" id="file_check" name="file_check" onchange="useUrl()" style="display:none;" /> <span id="file_provide" name="file_provide" style="display:none;" > Use Existing File </span>--></td>
 	                  </tr>
 	                  <tr id="url_row" style="display:none">
 	                  	<td>Share URL:</td>
-	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="55"/>
+	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="50"/>
+	                  	</td>
+	                  </tr>
+	                  <tr>
+	                  	<td>Owner:</td>
+	                  	<td><!--TODO 
+	                  	<input type="text" name="owner" id="owner" readonly="readonly" size="25"/>
+	                  	 -->
+	                    <input type="text" name="owner" id="owner" size="25" />
 	                  	</td>
 	                  </tr>
 	                  <tr>
@@ -773,6 +995,7 @@ else if (isLoggedIn == true)
 					<input type="hidden" name="created" id="created" />
 					<input type="hidden" name="DBId" id="DBId" />
 					<input type="hidden" name="fileUrl" id="fileUrl" />
+					 <% if (showAll) out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");  %>	        		
 				</form>
 	        </div>
 	        <form id="logout_form" name="logout_form" method="post">
@@ -786,7 +1009,7 @@ else if (isLoggedIn == true)
 }
 else if (isLoggedIn == false)
 {
-	localCookie =(request.getParameter("local") != null);
+	//localCookie =(request.getParameter("local") != null);
 	//System.out.println("LocalCookie = " + localCookie.toString());
 	String errorMsg = "";
 	if (request.getParameter("logintext") != null || request.getParameter("passwordtext") != null)

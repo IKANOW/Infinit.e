@@ -199,6 +199,10 @@ function start() {
 	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
 	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
 	fi    
+    if [[ -d /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/ ]]; then
+	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/AppConstants.js
+	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/AppConstants.js
+	fi    
     return $RETVAL
 }
 

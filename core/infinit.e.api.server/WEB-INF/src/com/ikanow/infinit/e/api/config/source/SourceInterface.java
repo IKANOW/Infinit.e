@@ -119,6 +119,11 @@ public class SourceInterface extends Resource
 				 action = "pending";
 			 }
 			 
+			 else if ( urlStr.contains("source/user"))
+			 {
+				 action = "user";
+			 }
+			 
 			 else if ( urlStr.contains("source/save/") || urlStr.contains("knowledge/sources/save/"))
 			 {
 				 // Use URLDecoder on the json string
@@ -289,6 +294,10 @@ public class SourceInterface extends Resource
 						 else if ( action.equals("pending"))
 						 {
 							 rp = this.source.getPendingSources(cookieLookup, communityid);
+						 }
+						 else if ( action.equals("user"))
+						 {
+							 rp = this.source.getUserSources(cookieLookup);
 						 }
 						 else if ( action.equals("delete") || action.equals("deletedocs"))
 						 {

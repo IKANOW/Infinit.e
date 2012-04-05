@@ -28,6 +28,6 @@ DESC=${7// /%20}
 ################################################################################
 # Call via post, send file
 echo 'Command:'
-echo curl -XPOST -b cookie.txt  $1/social/share/save/json/$SHAREID/$TYPE/$TITLE/$DESC/ -d @share.json
-curl -XPOST -b cookie.txt  $1/social/share/save/json/$SHAREID/$TYPE/$TITLE/$DESC/ -d @share.json
+echo curl -XPOST -b cookie.txt  $1/social/share/update/json/$SHAREID/$TYPE/$TITLE/$DESC/ -d @share.json
+curl -XPOST -b cookie.txt  $1/social/share/update/json/$SHAREID/$TYPE/$TITLE/$DESC/ -d @share.json
 echo ''

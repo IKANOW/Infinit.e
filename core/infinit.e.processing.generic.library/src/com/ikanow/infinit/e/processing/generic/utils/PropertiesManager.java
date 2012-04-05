@@ -85,6 +85,21 @@ public class PropertiesManager {
 	public String getApplicationVersion() {
 		return this.getProperty("app.version");
 	}
+	/** 
+	  * Get max content length to save
+	  */
+	public int getMaxContentSize() {
+		String s = this.getProperty("store.maxcontent");
+		if (s == null) {
+			return -1;
+		}
+		try {
+			return Integer.parseInt(s);
+		}
+		catch (Exception e) {
+			return -1;
+		}
+	}
 	
 }
 

@@ -1,3 +1,19 @@
+<!--
+Copyright 2012 The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<%@page import="javax.xml.ws.Response"%>
 <%@page import="org.apache.jasper.JasperException"%>
 <%@page import="javax.script.ScriptException"%>
 <%@page import="javax.script.ScriptEngineManager"%>
@@ -13,9 +29,11 @@
 	static String SHARE_ROOT = "$infinite/share/get/";
 	static Boolean showAll = false;
 	static Boolean debugMode = false;
-	//static Boolean localCookie = false;
+	static Boolean localCookie = false;
 	static String user = null;
+	static String communityList = null; // (ensures that generateCommunityList is called)
 	static CookieManager cm = new CookieManager();
+	
 
 	static class keepAlive
 	{
@@ -178,8 +196,7 @@
 	}
 	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
 	{
-		if(debugMode)
-			System.out.println("Set Browser Cookie to " + value);
+		System.out.println("Set Browser Cookie to " + value);
 		Cookie cookie = new Cookie ("infinitecookie",value);
 		cookie.setPath("/");
 		response.addCookie(cookie);
@@ -228,7 +245,7 @@
 	
 	public static String stringOfUrl(String addr, HttpServletRequest request, HttpServletResponse response)
 	{
-		//if(localCookie)
+		if(localCookie)
 			CookieHandler.setDefault(cm);
         try
         {
@@ -237,25 +254,32 @@
         	URLConnection urlConnection = url.openConnection();
 
         	String cookieVal = getBrowserInfiniteCookie(request);
+        	
         	if (cookieVal != null)
         	{
-        		urlConnection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
+        		System.out.println("stringOfUrl-- getBrowserInfiniteCookie = " + cookieVal);
+        		urlConnection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
+        		//urlConnection.setRequestProperty("Cookie","infinitecookie=" + cookieVal);
+        		urlConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
         		urlConnection.setDoInput(true);
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         		//urlConnection.setRequestProperty("Content-Type", "text/plain;charset=UTF-8");
         	}
-        	else if (debugMode)
+        	else
         		System.out.println("Don't Current Have a Cookie Value");
-        	IOUtils.copy(url.openStream(), output);
+        	IOUtils.copy(urlConnection.getInputStream(), output);
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
         		setBrowserInfiniteCookie(response, newCookie);
         	}
 			
+        	System.out.println(output.toString());
         	
-        	return output.toString();
+        	String toReturn = output.toString();
+        	output.close();
+        	return toReturn;
         }
         catch(IOException e)
         {
@@ -354,7 +378,7 @@
 			else
 				url = API_ROOT + "share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			
-			//if(localCookie)
+			if(localCookie)
 				CookieHandler.setDefault(cm);
 			URLConnection connection = new URL(url).openConnection();
 			connection.setDoOutput(true);
@@ -521,6 +545,7 @@
 			personGet pg = new Gson().fromJson(json, personGet.class);
 			if (pg != null)
 			{
+				user = pg.data.email;
 				return pg.data.communities;
 			}
 			return null;
@@ -605,7 +630,7 @@
 	//Places the widget information into the Database
 	private Boolean installWidget(String wigJson, HttpServletRequest request, HttpServletResponse response)
 	{
-		//if(localCookie)
+		if(localCookie)
 			CookieHandler.setDefault(cm);
 		String url = API_ROOT + "knowledge/uisetup/modules/install/";
         String charset = "UTF-8";
@@ -709,8 +734,14 @@ if (API_ROOT == null)
 		}
 	}
 
-	
+	if (API_ROOT.contains("localhost"))
+		localCookie=true;
+	else
+		localCookie=false;
 }
+
+
+
 Boolean isLoggedIn = isLoggedIn(request, response);
 if (isLoggedIn == null)
 {
@@ -720,10 +751,13 @@ if (isLoggedIn == null)
 
 else if (isLoggedIn == true)
 { 
+	showAll = (request.getParameter("sudo") != null);
+	communityList = generateCommunityList(request, response);
+	
 	if (request.getParameter("logout") != null)
 	{
 		logOut(request, response);
-		out.println("<meta http-equiv=\"refresh\" content=\"0\">");
+		out.println("<meta http-equiv=\"refresh\" content=\"\">");
 		
 	}
 	else
@@ -1244,7 +1278,7 @@ else if (isLoggedIn == true)
 	                  </tr>
 	                  <tr>
 	                  	<td>Communities:</td>
-	                  	<td><% out.print(generateCommunityList(request, response)); %></td>
+	                  	<td><% out.print(communityList); %></td>
 	                  </tr>
 	                  <tr>
 	                    <td>Swf File:</td>

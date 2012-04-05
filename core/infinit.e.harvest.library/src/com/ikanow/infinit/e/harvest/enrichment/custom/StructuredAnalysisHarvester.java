@@ -184,6 +184,7 @@ public class StructuredAnalysisHarvester
 			// 1. Document level fields
 					
 					// Extract Title if applicable
+					boolean bTryTitleLater = false;
 					try {
 						if (s.getTitle() != null)
 						{
@@ -196,6 +197,9 @@ public class StructuredAnalysisHarvester
 							{
 								f.setTitle(getFormattedTextFromField(s.getTitle()));
 							}
+							if (null == f.getTitle()) {
+								bTryTitleLater = true;
+							}
 						}
 					}
 					catch (Exception e) 
@@ -205,6 +209,7 @@ public class StructuredAnalysisHarvester
 					}
 
 					// Extract Description if applicable
+					boolean bTryDescriptionLater = false;
 					try {
 						if (s.getDescription() != null)
 						{
@@ -216,6 +221,9 @@ public class StructuredAnalysisHarvester
 							else
 							{
 								f.setDescription(getFormattedTextFromField(s.getDescription()));
+							}
+							if (null == f.getDescription()) {
+								bTryDescriptionLater = true;
 							}
 						}
 					}
@@ -269,6 +277,52 @@ public class StructuredAnalysisHarvester
 					intializeDocIfNeeded(f, g);
 					
 			// 3. final doc-level metadata fields:
+					
+					// If description was null before might need to get it from a UAH field
+					if (bTryTitleLater) {
+						try {
+							if (s.getTitle() != null)
+							{
+								intializeDocIfNeeded(f, g);
+								if (JavaScriptUtils.containsScript(s.getTitle()))
+								{
+									f.setTitle((String)getValueFromScript(s.getTitle(), null, null));
+								}
+								else
+								{
+									f.setTitle(getFormattedTextFromField(s.getTitle()));
+								}
+							}
+						}
+						catch (Exception e) 
+						{
+							this._context.getHarvestStatus().logMessage("title: " + e.getMessage(), true);						
+							logger.error("title: " + e.getMessage(), e);
+						}
+					}
+					
+					// If description was null before might need to get it from a UAH field
+					if (bTryDescriptionLater) {
+						try {
+							if (s.getDescription() != null)
+							{
+								intializeDocIfNeeded(f, g);
+								if (JavaScriptUtils.containsScript(s.getDescription()))
+								{
+									f.setDescription((String)getValueFromScript(s.getDescription(), null, null));
+								}
+								else
+								{
+									f.setDescription(getFormattedTextFromField(s.getDescription()));
+								}
+							}
+						}
+						catch (Exception e) 
+						{
+							this._context.getHarvestStatus().logMessage("description2: " + e.getMessage(), true);						
+							logger.error("description2: " + e.getMessage(), e);
+						}						
+					}
 					
 					// Extract Published Date if applicable
 					if (s.getPublishedDate() != null)

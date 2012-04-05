@@ -36,6 +36,7 @@
 	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
 	<property name="infinit.e.web.location" value="${basedir}/../infinit.e.web"/>
+	<property name="infinit.e.sourcebuilder.location" value="${basedir}/../infinit.e.source.builder.web"/>
 	<property name="infinit.e-config.rpm.location" value="${basedir}/../infinit.e-config.rpm"/>
 	<property name="infinit.e-index-engine.rpm.location" value="${basedir}/../infinit.e-index-engine.rpm"/>
 	<property name="infinit.e-interface-engine.rpm.location" value="${basedir}/../infinit.e-interface-engine.rpm"/>
@@ -104,6 +105,9 @@
 
 		<ant antfile="${infinit.e.web.location}/build.xml">
 			<property name="basedir" value="${infinit.e.web.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.sourcebuilder.location}/build.xml">
+			<property name="basedir" value="${infinit.e.sourcebuilder.location}"/>
 		</ant>
 
 		

@@ -34,13 +34,13 @@ public class CompressedFullTextPojo extends BaseDbPojo {
 	public CompressedFullTextPojo() {}
 		// (for deserialization)
 	
-	public CompressedFullTextPojo(String url_, String text_) {
+	public CompressedFullTextPojo(String url_, String text_, int nMaxLen) {
 		url = url_;
 		try {
 			ByteArrayOutputStream out = new ByteArrayOutputStream();
 			GZIPOutputStream gzip = new GZIPOutputStream(out);
-			if (text_.length() > 100000) {
-				gzip.write(text_.getBytes(), 0, 100000); // (first 100KB only)
+			if (text_.length() > nMaxLen) {
+				gzip.write(text_.getBytes(), 0, nMaxLen); // (first 100KB only)
 			}
 			else {
 				gzip.write(text_.getBytes());
