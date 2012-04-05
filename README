@@ -1,0 +1,2 @@
+The first Open Source document analysis platform 
+https://ikanow.jira.com/wiki/display/INFOSS/Infinit.e+Overview
