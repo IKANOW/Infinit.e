@@ -48,7 +48,13 @@
 				model.navigator.navigate( navButtons.selectedItem );
 			}
 			
-			protected function saveButton_clickHandler( event:MouseEvent ):void
+			protected function saveButton_mouseDownHandler( event:MouseEvent ):void
+			{
+				model.createAdvancedQuery();
+			}
+			
+			
+			protected function saveButton_mouseUpHandler( event:MouseEvent ):void
 			{
 				model.saveAdvancedQuery();
 				model.navigator.closeQueryView();
@@ -142,7 +148,8 @@
 					width="90"
 					styleName="roundedBlueButton"
 					label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
-					click="saveButton_clickHandler(event)" />
+					mouseDown="saveButton_mouseDownHandler(event)"
+					mouseUp="saveButton_mouseUpHandler(event)" />
 
 				<!-- Search Button -->
 				<common:InfButton id="searchButton"

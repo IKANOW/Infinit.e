@@ -25,16 +25,16 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 03 00    * * *   root	if [ -d /var/log/elasticsearch ]; then find /var/log/elasticsearch -mtime +30 -a -name "*.log" | xargs rm -f; fi
 
 # Report if the Alchemy Limit has been reached by checking hourly
-00 *     * * *   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/AlchemyLimitExceededAlert.python
+00 *     * * *   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/AlchemyLimitExceededAlert.python; fi
  
 # Report if the API Search Time has spiked or jumped above a set time once daily at 8pm
-00 20    * * *   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/APITimeAlert.python
+00 20    * * *   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/APITimeAlert.python; fi
  
 # Report the API Search Times Weekly (Sundays)
-00 14    * * 0   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyAPITimeStatus.python
+00 14    * * 0   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyAPITimeStatus.python; fi
  
 # Report the Alchemy message counts weekly (Sundays)
-00 14    * * 0   root /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyExtractorStatus.python
+00 14    * * 0   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/WeeklyExtractorStatus.python; fi
 
 # Report if the API does not receive 100 Results on a common search (Hourly between 6am and 9pm)
 00 6-21    * * *   root service tomcat6-interface-engine status | grep -q 'is running' && sh /opt/infinite-home/scripts/APINumResultsCheck.sh localhost:8080/api

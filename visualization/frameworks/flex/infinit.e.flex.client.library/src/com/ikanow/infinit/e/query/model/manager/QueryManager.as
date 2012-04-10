@@ -47,9 +47,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
-	
 	import flash.utils.setTimeout;
-	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -436,7 +434,7 @@ package com.ikanow.infinit.e.query.model.manager
 			// add the query terms
 			queryString.qt = queryTerms.source;
 			
-			// add the query logic 
+			// add the query logic
 			queryString.logic = queryLogic;
 			
 			// set the community ids
@@ -458,7 +456,7 @@ package com.ikanow.infinit.e.query.model.manager
 				// use the collection that has the least amount of sources and mark srcInclude as true or false depending
 				var useCurrentSources:Boolean = sourcesCurrent.length < sourcesAvailable.length;
 				var sourcesCollection:ArrayCollection = useCurrentSources ? sourcesCurrent : sourcesAvailable;
-				
+			
 				queryString.input = new Object();
 				queryString.input[ QueryConstants.SRC_INCLUDE ] = useCurrentSources;
 				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
@@ -532,10 +530,10 @@ package com.ikanow.infinit.e.query.model.manager
 			lastQueryStringRequest = queryString.clone();*/
 			
 			// set the last query string
-			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;			
+			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
 			
 			// add the last query string to the recent queries collection
-			return QueryUtil.getTypedQueryString( tempQueryString, QueryStringTypes.QUERY);
+			return QueryUtil.getTypedQueryString( tempQueryString, QueryStringTypes.QUERY );
 		}
 		
 		

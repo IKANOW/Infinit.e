@@ -767,11 +767,11 @@ else if (isLoggedIn == true)
 	 			
 	 		}
 	 		////////////////////////////////////Update Community Info////////////////////////////////
-	 		else if ((null == request.getAttribute("file"))||(request.getAttribute("file").toString().isEmpty())) 
+	 		else if (null == fileBytes) 
 	 		{
-	 			String fileId = request.getAttribute("DBId").toString();
-	 			if (fileId != null && fileId != "")
-    				addRemoveCommunities(fileId, communities, request, response);	 			
+	 			String shareId = request.getAttribute("DBId").toString();
+	 			if (shareId != null && shareId != "")
+    				addRemoveCommunities(shareId, communities, request, response);	 			
 	 		}
 	 		else
 	 		{
@@ -805,9 +805,9 @@ else if (isLoggedIn == true)
 					{
 						fileUrl = SHARE_ROOT + fileId;
 						if (newUpload)
-							out.println("You have successfully added a file to the share, it's location is: " + fileUrl);
+							out.println("You have successfully added a file to the share, its location is: " + fileUrl);
 						else
-							out.println("You have successfully updated a file on the share, it's location is: " + fileUrl);
+							out.println("You have successfully updated a file on the share, its location is: " + fileUrl);
 					}
 				}
 				else

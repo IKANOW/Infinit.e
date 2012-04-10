@@ -129,5 +129,5 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/lib/infinit.e.processing.generic.library-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar
-/mnt/opt/infinite-home/lib/jcifs-1.3.14.jar
+/mnt/opt/infinite-home/lib/jcifs-1.3.17.jar
 /mnt/opt/infinite-home/lib/tika-app-1.0.jar

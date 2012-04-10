@@ -4,7 +4,7 @@ Summary: Infinit.e system configuration
 Name: infinit.e-config
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: curl splunk iptables
+Requires: curl iptables
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -32,8 +32,10 @@ Infinit.e system configuration
 	fi
 
 	if [ $1 -eq 2 ]; then
-		# THIS IS AN UPGRADE - (Stop splunk)
-		service splunk stop || :
+		if [ -f /opt/splunk/bin/splunk ]; then
+			# THIS IS AN UPGRADE - (Stop splunk)
+			service splunk stop || :
+		fi
 	fi
 
 	
@@ -65,12 +67,14 @@ Infinit.e system configuration
 			ln -sf $RPM_INSTALL_PREFIX/infinite-home /opt
 			chown -h tomcat.tomcat /opt/infinite-home 
 		fi 
-	 	if [ -d /opt/splunk-infinite ] && [ ! -h /opt/splunk-infinite ]; then
-			echo "Error: /opt/splunk-infinite exists"
-			exit 1
-		else
-			ln -sf $RPM_INSTALL_PREFIX/splunk-infinite /opt
-			chown -h splunk.splunk /opt/splunk-infinite 
+		if [ -f /opt/splunk/bin/splunk ]; then
+		 	if [ -d /opt/splunk-infinite ] && [ ! -h /opt/splunk-infinite ]; then
+				echo "Error: /opt/splunk-infinite exists"
+				exit 1
+			else
+				ln -sf $RPM_INSTALL_PREFIX/splunk-infinite /opt
+				chown -h splunk.splunk /opt/splunk-infinite 
+			fi
 		fi 
 	fi
 	
@@ -78,19 +82,23 @@ Infinit.e system configuration
 	# Relocate Splunk data storage
 	# This is necessary because Splunk uses the partition of SPLUNK_HOME not
 	# SPLUNK_DB in order to decide if disk space is low (in some circumstances)
-	if ! grep -q "^minFreeSpace = 1" /opt/splunk/etc/system/local/server.conf; then
-		echo "[diskUsage]" >> /opt/splunk/etc/system/local/server.conf
-		echo "minFreeSpace = 1" >> /opt/splunk/etc/system/local/server.conf
-	fi
-	# Move the DB location, if it hasn't already been moved
-	if ! grep -q "^SPLUNK_DB" /opt/splunk/etc/splunk-launch.conf; then
-		echo "SPLUNK_DB=/opt/splunk-infinite" >> /opt/splunk/etc/splunk-launch.conf
+	if [ -f /opt/splunk/bin/splunk ]; then
+		if ! grep -q "^minFreeSpace = 1" /opt/splunk/etc/system/local/server.conf; then
+			echo "[diskUsage]" >> /opt/splunk/etc/system/local/server.conf
+			echo "minFreeSpace = 1" >> /opt/splunk/etc/system/local/server.conf
+		fi
+		# Move the DB location, if it hasn't already been moved
+		if ! grep -q "^SPLUNK_DB" /opt/splunk/etc/splunk-launch.conf; then
+			echo "SPLUNK_DB=/opt/splunk-infinite" >> /opt/splunk/etc/splunk-launch.conf
+		fi
 	fi
 	
 	###########################################################################
 	# (Add splunk to start-up-on-boot list)
-	chkconfig --add splunk
-	chkconfig splunk on
+	if [ -f /opt/splunk/bin/splunk ]; then
+		chkconfig --add splunk
+		chkconfig splunk on
+	fi
 	
 	###########################################################################
 	# Rewrite the property files (infinite.api.properties & infinite.service.properties)
@@ -111,13 +119,15 @@ Infinit.e system configuration
 				rm /opt/infinite-home
 			fi
 		fi
-		###########################################################################
-		# (Stop splunk)
-		service splunk stop
-		###########################################################################
-		# (Remove splunk from the start-up-on-boot list)
-		chkconfig splunk off
-		chkconfig --del splunk
+		if [ -f /opt/splunk/bin/splunk ]; then
+			###########################################################################
+			# (Stop splunk)
+			service splunk stop
+			###########################################################################
+			# (Remove splunk from the start-up-on-boot list)
+			chkconfig splunk off
+			chkconfig --del splunk
+		fi
 	fi
 
 %postun
@@ -128,8 +138,10 @@ Infinit.e system configuration
 
 ###########################################################################
 # FINAL STEP FOR INSTALLS AND UPGRADES
-	# (Start splunk up)
-	service splunk start
+	if [ -f /opt/splunk/bin/splunk ]; then
+		# (Start splunk up)
+		service splunk start
+	fi
 
 ###########################################################################
 # Get node discovery mode from infinite.service.properties-elastic.node.discovery
@@ -172,11 +184,6 @@ Infinit.e system configuration
 /mnt/opt/infinite-home/scripts/rewrite_property_files.sh
 /mnt/opt/infinite-home/scripts/set_cluster.sh
 %attr(-,root,root) /etc/cron.d/infinite-logging
-
-# yum.repos.d files removed - 
-#%attr(-,root,root) /etc/yum.repos.d/10gen-mongodb.repo
-#%attr(-,root,root) /etc/yum.repos.d/s3tools.repo
-#%attr(-,root,root) /etc/yum.repos.d/cloudera-cdh3-tmp.repo
 
 # (Splunk config)
 %dir %attr(-,splunk,splunk) /mnt/opt/splunk-infinite

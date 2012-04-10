@@ -59,7 +59,7 @@
 			
 			"Properties" : {
 				
-				"ImageId" : "ami-b6e331df",
+				"ImageId" : "ami-71954d18",
 				"InstanceType": { "Ref": "InstanceType" },
 				"KeyName": { "Ref": "KeyName" },
 				"SecurityGroups": [ { "Ref": "SecurityGroups" } ],

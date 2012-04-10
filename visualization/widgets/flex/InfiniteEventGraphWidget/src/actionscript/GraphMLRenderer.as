@@ -1,12 +1,12 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project
- * 
+ *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
- * 
+ *
  * http://www.apache.org/licenses/LICENSE-2.0
- * 
+ *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
  * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -123,7 +123,7 @@ package actionscript
 				<key id="verb" for="edge" attr.name="edge relation" attr.type="string"></key>
 				);
 			
-			var mapOfHashSets:Object = new Object();
+			var mapOfNodeMaps:Object = new Object();
 			
 			if ( CXDIM_FULL == crossDimensional )
 			{
@@ -131,17 +131,17 @@ package actionscript
 					;
 				graphML.appendChild( mainGraph );
 				
-				mapOfHashSets[ mainGraph.@id ] = new HashSet();
+				mapOfNodeMaps[ mainGraph.@id ] = new Object();
 			}
 			
 			if ( null != eventResults )
 			{
-				addNodesAndEdges( graphML, mapOfHashSets, eventResults.getEvents(), userFilter, crossDimensional );
+				addNodesAndEdges( graphML, mapOfNodeMaps, eventResults.getEvents(), userFilter, crossDimensional );
 			}
 			
 			if ( null != factResults )
 			{
-				addNodesAndEdges( graphML, mapOfHashSets, factResults.getFacts(), userFilter, crossDimensional );
+				addNodesAndEdges( graphML, mapOfNodeMaps, factResults.getFacts(), userFilter, crossDimensional );
 			}
 			
 			return graphML;
@@ -157,12 +157,12 @@ package actionscript
 			// Main processing
 			
 			var mainGraph:XML = null;
-			var mainNodeSet:HashSet = null;
+			var mainNodeMap:Object = null;
 			
 			if ( CXDIM_FULL == crossDimensional )
 			{
 				mainGraph = xmlObj.graph[ 0 ];
-				mainNodeSet = mapOfHashSets[ mainGraph.@id ];
+				mainNodeMap = mapOfHashSets[ mainGraph.@id ];
 			}
 			
 			for each ( var assoc:Object in source )
@@ -263,9 +263,9 @@ package actionscript
 				
 				if ( null != mainGraph )
 				{
-					createEdgesAndNode( ent1_name, ent1_type, ent1_dim, ent1, ent1_sig, false, ent2_name, ent2_type, ent2_dim, ent2, ent2_sig, false, edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeSet );
-					createEdgesAndNode( ent1_name, ent1_type, ent1_dim, ent1, ent1_sig, ( null != ent2_name ), geo_name, geo_type, geo_dim, geo, geo_sig, false, edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeSet );
-					createEdgesAndNode( ent2_name, ent2_type, ent2_dim, ent2, ent2_sig, ( null != ent1_name ), geo_name, geo_type, geo_dim, geo, geo_sig, ( null != ent1_name ), edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeSet );
+					createEdgesAndNode( ent1_name, ent1_type, ent1_dim, ent1, ent1_sig, ent2_name, ent2_type, ent2_dim, ent2, ent2_sig, edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeMap );
+					createEdgesAndNode( ent1_name, ent1_type, ent1_dim, ent1, ent1_sig, geo_name, geo_type, geo_dim, geo, geo_sig, edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeMap );
+					createEdgesAndNode( ent2_name, ent2_type, ent2_dim, ent2, ent2_sig, geo_name, geo_type, geo_dim, geo, geo_sig, edgeName, assoc_sig, assoc_doccount, mainGraph, mainNodeMap );
 				}
 				else
 				{
@@ -310,17 +310,17 @@ package actionscript
 				
 			}
 			
-			var nodeSet:HashSet = mapOfHashSets[ graphName ] as HashSet;
+			var nodeMap:Object = mapOfHashSets[ graphName ] as Object;
 			
 			var newGraph:XML = null;
 			
-			if ( null == nodeSet )
+			if ( null == nodeMap )
 			{
 				// First time this type pairing has been seen
 				
 				// Deduplication set for nodes:
-				nodeSet = new HashSet();
-				mapOfHashSets[ graphName ] = nodeSet;
+				nodeMap = new Object();
+				mapOfHashSets[ graphName ] = nodeMap;
 				
 				// Graph:
 				newGraph = <graph edgedefault="directed"></graph>
@@ -333,10 +333,10 @@ package actionscript
 			{
 				newGraph = xmlObj.graph.( @id == graphName )[ 0 ];
 			}
-			createEdgesAndNode( name1, type1, dim1, index1, sig1, false, name2, type2, dim2, index2, sig2, false, edgeName, edgeSig, edgeCount, newGraph, nodeSet );
+			createEdgesAndNode( name1, type1, dim1, index1, sig1, name2, type2, dim2, index2, sig2, edgeName, edgeSig, edgeCount, newGraph, nodeMap );
 		} // end addNodesAndEdges_graph
 		
-		private function createEdgesAndNode( name1:String, type1:String, dim1:String, index1:String, sig1:Number, seen1:Boolean, name2:String, type2:String, dim2:String, index2:String, sig2:Number, seen2:Boolean, edgeName:String, edgeSig:Number, edgeCount:Number, graphXML:XML, nodeSet:HashSet ):void
+		private function createEdgesAndNode( name1:String, type1:String, dim1:String, index1:String, sig1:Number, name2:String, type2:String, dim2:String, index2:String, sig2:Number, edgeName:String, edgeSig:Number, edgeCount:Number, graphXML:XML, nodeMap:Object ):void
 		{
 			if ( ( null == name1 ) || ( null == name2 ) )
 			{
@@ -345,8 +345,8 @@ package actionscript
 			
 			// Create node:
 			
-			createNode( name1, type1, dim1, index1, sig1, graphXML, seen1 ? null : nodeSet );
-			createNode( name2, type2, dim2, index2, sig2, graphXML, seen2 ? null : nodeSet );
+			var nId1:String = createNode( name1, type1, dim1, index1, sig1, graphXML, nodeMap );
+			var nId2:String = createNode( name2, type2, dim2, index2, sig2, graphXML, nodeMap );
 			
 			// Create edge:
 			
@@ -369,8 +369,8 @@ package actionscript
 			var edge:XML = <edge></edge>
 				;
 			edge.@id = "e" + int( ++edgeCount_ ).toString();
-			edge.@source = index1;
-			edge.@target = index2;
+			edge.@source = nId1;
+			edge.@target = nId2;
 			edge.appendChild( sigNode );
 			edge.appendChild( nameNode );
 			edge.appendChild( typeNode );
@@ -379,7 +379,7 @@ package actionscript
 		
 		} // end createEdgesAndNode
 		
-		private function createNode( name:String, type:String, dim:String, index:String, sig:Number, graphXML:XML, nodeSet:HashSet ):void
+		private function createNode( name:String, type:String, dim:String, index:String, sig:Number, graphXML:XML, nodeMap:Object ):String
 		{
 			// Useful info from the main function:
 			//xmlObj.appendChild(<key id="sig" for="node" attr.name="significance" attr.type="double"></key>);
@@ -387,37 +387,39 @@ package actionscript
 			//xmlObj.appendChild(<key id="type" for="node" attr.name="type" attr.type="string"></key>);
 			//xmlObj.appendChild(<key id="dim" for="node" attr.name="dimension" attr.type="string"></key>);
 			
-			if ( null != nodeSet )
+			var nodeId:String = nodeMap[ index ];
+			
+			// This indicates that the node has already been create for this graph
+			if ( null == nodeId )
 			{
-				// This indicates that the node has already been create for this graph
-				if ( !nodeSet.contains( index ) )
-				{
-					
-					// Create element
-					var sigNode:XML = <data key="sig"></data>
-						;
-					sigNode.appendChild( sig );
-					var nameNode:XML = <data key="name"></data>
-						;
-					nameNode.appendChild( name );
-					var typeNode:XML = <data key="type"></data>
-						;
-					typeNode.appendChild( type );
-					var dimNode:XML = <data key="dim"></data>
-						;
-					dimNode.appendChild( dim );
-					var node:XML = <node></node>
-						;
-					node.@id = "n" + int( ++nodeCount_ ).toString();
-					node.appendChild( sigNode );
-					node.appendChild( nameNode );
-					node.appendChild( typeNode );
-					node.appendChild( dimNode );
-					
-					graphXML.appendChild( node );
-				}
 				
+				// Create element
+				var sigNode:XML = <data key="sig"></data>
+					;
+				sigNode.appendChild( sig );
+				var nameNode:XML = <data key="name"></data>
+					;
+				nameNode.appendChild( name );
+				var typeNode:XML = <data key="type"></data>
+					;
+				typeNode.appendChild( type );
+				var dimNode:XML = <data key="dim"></data>
+					;
+				dimNode.appendChild( dim );
+				var node:XML = <node></node>
+					;
+				nodeId = "n" + int( ++nodeCount_ ).toString();
+				node.@id = nodeId;
+				node.appendChild( sigNode );
+				node.appendChild( nameNode );
+				node.appendChild( typeNode );
+				node.appendChild( dimNode );
+				
+				graphXML.appendChild( node );
+				nodeMap[ index ] = nodeId;
 			}
+			return nodeId;
+		
 		} // end createNode
 	} // (end class)
 } // end package)

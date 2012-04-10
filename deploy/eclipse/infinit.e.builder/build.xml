@@ -1,5 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.build" default="createrepo">
+	
+	<!-- Versioning: these are not set again if already set -->
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>
+	
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>
+
 	<!-- (Bamboo dir structure) -->
 	<property name="utility" value="../../../utility"/>
 	<property name="core" value="../../../core"/>

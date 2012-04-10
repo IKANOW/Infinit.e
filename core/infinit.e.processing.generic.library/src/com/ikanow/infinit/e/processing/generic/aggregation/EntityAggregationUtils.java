@@ -244,30 +244,39 @@ public class EntityAggregationUtils {
 						// (enforce consecutive accesses for this potentially very slow operation)
 				}
 				
-				if (0 == docCountInDb) { 
+				if (0 == docCountInDb) { // (Because it's an upsert, so can't check in updatedExist)
 					return;
 				}
 				
-				int i = 0;				
+				int i = 0;			
+				String errMessage = "";
 				for (i = 0; i < 10; ++i) { // Check whether this worked (sigh)
 					if (cr.containsField("updatedExisting")) {
 						boolean updatedExisting = cr.getBoolean("updatedExisting", false);
 						if (updatedExisting) {
 							break;
 						}
+						if (0 == i) {
+							errMessage = cr.toString(); // (get first error message)
+						}
 						// Else rerun..
-						Thread.sleep(100);
+						Thread.sleep(1000);
 						synchronized (GenericProcessingController.class) {
 							docDb.update(query1, multiopA, false, true);
 							cr = DbManager.getFeature().getLastError(DbManager.getFeature().getEntity().getName());
 						}
 					}
+					else {
+						errMessage = "Catastrophic MongoDB problem: Didn't contain updatedExisting: " + cr.toString();
+						break;
+					}
 				}
 				if (10 == i) { // Failed
-					logger.error("Failed to update: " + index + "(" + docCount + ", " + docCountInDb + ")");
+					errMessage = errMessage + "/" +  cr.toString(); // (append last error message)
+					logger.error("Failed to update: " + index + "(" + docCount + ", " + docCountInDb + "): " + errMessage);
 				}
 				else if (i > 0) {
-					logger.warn("Took " + i + " attempts to update "+ index);				
+					logger.warn("Took " + i + " attempts to update " + index + ": " + errMessage);				
 				}
 			}
 		}

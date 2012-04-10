@@ -64,6 +64,8 @@ package com.ikanow.infinit.e.query.model.presentation
 		
 		private var loadFileReference:FileReference = new FileReference();
 		
+		private var saveQueryString:String = "empty";
+		
 		//======================================
 		// constructor 
 		//======================================
@@ -78,6 +80,19 @@ package com.ikanow.infinit.e.query.model.presentation
 		//======================================
 		// public methods 
 		//======================================
+		
+		public function createAdvancedQuery():void
+		{
+			var qs:Object = ObjectUtil.copy( queryManager.saveAdvancedQuery() );
+			qs[ "tempCommIDs" ] = qs.queryString.communityIds.source;
+			qs[ "tempQT" ] = qs.queryString.qt.source;
+			
+			if ( qs.queryString.input != null )
+				qs[ "tempInputSources" ] = qs.queryString.input.sources.source;
+			else
+				qs[ "tempInputSources" ] = null;
+			saveQueryString = JSONEncoder.encode( qs );
+		}
 		
 		public function loadAdvancedQuery():void
 		{
@@ -94,11 +109,7 @@ package com.ikanow.infinit.e.query.model.presentation
 		
 		public function saveAdvancedQuery():void
 		{
-			var qs:Object = ObjectUtil.copy( queryManager.saveAdvancedQuery() );
-			qs[ "tempCommIDs" ] = qs.queryString.communityIds.source;
-			qs[ "tempQT" ] = qs.queryString.qt.source;
-			qs[ "tempInputSources" ] = qs.queryString.input.sources.source;
-			saveFileReference.save( JSONEncoder.encode( qs ), "query.infq" );
+			saveFileReference.save( saveQueryString, "query.infq" );
 		}
 		
 		//======================================
@@ -116,7 +127,9 @@ package com.ikanow.infinit.e.query.model.presentation
 			//TRY TO CONVERT QUERYSTRING BY HAND
 			typedQueryString.queryString.communityIds = checkNullOrTranslateArray( jsonObject.tempCommIDs, new String() );
 			typedQueryString.queryString.qt = checkNullOrTranslateArray( jsonObject.tempQT, new QueryTerm() );
-			typedQueryString.queryString.input.sources = checkNullOrTranslateArray( jsonObject.tempInputSources, new String() );
+			
+			if ( typedQueryString.queryString.input != null )
+				typedQueryString.queryString.input.sources = checkNullOrTranslateArray( jsonObject.tempInputSources, new String() );
 			
 			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.RUN_HISTORY_QUERY );
 			queryEvent.typedQueryString = typedQueryString;
