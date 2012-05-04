@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -19,6 +19,7 @@ package com.ikanow.infinit.e.shared.event
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputAggregationOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputDocumentOptions;
+	import com.ikanow.infinit.e.shared.model.vo.QueryOutputFilterOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
@@ -58,8 +59,6 @@ package com.ikanow.infinit.e.shared.event
 		
 		public static const SAVE_QUERY_ADVANCED_SETTINGS:String = "saveQueryAdvancedSettingsEvent";
 		
-		public static const SAVE_QUERY_ADVANCED_SCORING_SETTINGS:String = "saveQueryAdvancedScoringSettingsEvent";
-		
 		public static const CANCEL_EDIT_ADVANCED_QUERY:String = "cancelEditAdvancedQueryEvent";
 		
 		public static const CLEAR_LAST_QUERY:String = "clearLastQueryEvent";
@@ -72,6 +71,8 @@ package com.ikanow.infinit.e.shared.event
 		
 		public static const UPDATE_QUERY_LOGIC:String = "updateQueryLogicEvent";
 		
+		public static const UPDATE_QUERY_NAVIGATE:String = "updateQueryAndNavigate";
+		
 		public static const EDIT_QUERY_TERM:String = "editQueryTermEvent";
 		
 		public static const CANCEL_EDIT_QUERY_TERM:String = "cancelEditQueryTermEvent";
@@ -79,8 +80,6 @@ package com.ikanow.infinit.e.shared.event
 		public static const ADD_QUERY_TERM_TO_QUERY:String = "addQueryTermToQueryEvent";
 		
 		public static const UPDATE_QUERY_TERM:String = "updateQueryTermEvent";
-		
-		public static const ADD_QUERY_TERMS_TO_QUERY:String = "addQueryTermsToQueryEvent";
 		
 		public static const RESET:String = "resetQueryEvent";
 		
@@ -105,6 +104,8 @@ package com.ikanow.infinit.e.shared.event
 		
 		public var aggregationOptions:QueryOutputAggregationOptions;
 		
+		public var filterOptions:QueryOutputFilterOptions;
+		
 		public var scoreOptions:QueryScoreOptions;
 		
 		public var dragEvent:DragEvent;
@@ -123,7 +124,7 @@ package com.ikanow.infinit.e.shared.event
 		// constructor 
 		//======================================
 		
-		public function QueryEvent( type:String, bubbles:Boolean = true, cancelable:Boolean = false, dialogControl:DialogControl = null, keywordString:String = null, keywordString2:String = null, communityids:String = null, querySuggestion:QuerySuggestion = null, queryString:Object = null, typedQueryString:TypedQueryString = null, documentOptions:QueryOutputDocumentOptions = null, aggregationOptions:QueryOutputAggregationOptions = null, scoreOptions:QueryScoreOptions = null, dragEvent:DragEvent = null, queryTerm:QueryTerm = null, queryTermObject:* = null, queryTerms:ArrayCollection = null, queryLogic:String = null, searchType:String = null )
+		public function QueryEvent( type:String, bubbles:Boolean = true, cancelable:Boolean = false, dialogControl:DialogControl = null, keywordString:String = null, keywordString2:String = null, communityids:String = null, querySuggestion:QuerySuggestion = null, queryString:Object = null, typedQueryString:TypedQueryString = null, documentOptions:QueryOutputDocumentOptions = null, aggregationOptions:QueryOutputAggregationOptions = null, filterOptions:QueryOutputFilterOptions = null, scoreOptions:QueryScoreOptions = null, dragEvent:DragEvent = null, queryTerm:QueryTerm = null, queryTermObject:* = null, queryTerms:ArrayCollection = null, queryLogic:String = null, searchType:String = null )
 		{
 			super( type, bubbles, cancelable, dialogControl );
 			this.keywordString = keywordString;
@@ -134,6 +135,7 @@ package com.ikanow.infinit.e.shared.event
 			this.typedQueryString = typedQueryString;
 			this.documentOptions = documentOptions;
 			this.aggregationOptions = aggregationOptions;
+			this.filterOptions = filterOptions;
 			this.scoreOptions = scoreOptions;
 			this.dragEvent = dragEvent;
 			this.queryTerm = queryTerm;
@@ -150,7 +152,7 @@ package com.ikanow.infinit.e.shared.event
 		
 		override public function clone():Event
 		{
-			return new QueryEvent( type, bubbles, cancelable, dialogControl, keywordString, keywordString2, communityids, querySuggestion, queryString, typedQueryString, documentOptions, aggregationOptions, scoreOptions, dragEvent, queryTerm, queryTermObject, queryTerms, queryLogic, searchType );
+			return new QueryEvent( type, bubbles, cancelable, dialogControl, keywordString, keywordString2, communityids, querySuggestion, queryString, typedQueryString, documentOptions, aggregationOptions, filterOptions, scoreOptions, dragEvent, queryTerm, queryTermObject, queryTerms, queryLogic, searchType );
 		}
 	}
 }

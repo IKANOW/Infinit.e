@@ -33,9 +33,8 @@ url.root=URL_ROOT
 # Harvester Properties
 harvester.types=HARVESTER_TYPES
 harvest.feed.wait=HARVEST_FEED_WAIT
-harvest.mintime.ms=HARVESTER_MINTIME_MS
+harvest.feed.useragent=HARVESTER_USERAGENT
 harvest.maxdocs_persource=HARVESTER_MAXDOCS_SOURCE
-harvest.threads=HARVESTER_THREADS
 
 #####################################################
 #Mail Server Settings

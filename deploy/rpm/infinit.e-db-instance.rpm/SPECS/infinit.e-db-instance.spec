@@ -64,6 +64,8 @@ Infinit.e Mongo DB installation and update
 		chown -R mongod:mongod /opt/db-home/data
 	fi
 	chkconfig --add mongo_infinite
+	chkconfig mongo_infinite on
+	chkconfig mongod off
 
 ###########################################################################
 # INSTALL ONLY

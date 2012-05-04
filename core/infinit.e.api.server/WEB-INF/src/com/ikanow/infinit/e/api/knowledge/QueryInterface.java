@@ -22,17 +22,16 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
 import org.restlet.data.Status;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -56,7 +55,7 @@ import com.ikanow.infinit.e.data_model.store.social.authentication.Authenticatio
 // POST<preamble>/knowledge/query/<communityIdList>
 // <JSON object>
 
-public class QueryInterface extends Resource 
+public class QueryInterface extends ServerResource 
 {
 	// Utility objects
 	private QueryHandler _queryController = new QueryHandler();
@@ -72,9 +71,10 @@ public class QueryInterface extends Resource
 	
 	// Constructor/main processing 
 	
-	public QueryInterface(Context context, Request request, Response response) 
+	@Override
+	public void doInit() 
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		
 		// Some basic housekeeping
 		 _cookie = request.getCookies().getFirstValue("infinitecookie",true);		 
@@ -106,11 +106,7 @@ public class QueryInterface extends Resource
 			 else {
 				_requestDetails = this.createQueryPojo(_queryJson);
 			 }
-			 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
-		 }
-		 
-		 // All modifications of this resource
-		 this.setModifiable(true);
+		 }		 
 	}//TESTED
 	
 	//___________________________________________________________________________________
@@ -123,7 +119,8 @@ public class QueryInterface extends Resource
 	 * @throws ResourceException
 	 */
 
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity) 
 	{
 
 		if (Method.POST == getRequest().getMethod()) 
@@ -139,8 +136,8 @@ public class QueryInterface extends Resource
 				getResponse().setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
 			}
 		}		 
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+		
+		return get();
 	}//TESTED
 	
 	//___________________________________________________________________________________
@@ -152,7 +149,8 @@ public class QueryInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get() 
 	{
 		String errorString = "Unknown query error";
 		String data = null;
@@ -1109,11 +1107,14 @@ public class QueryInterface extends Resource
 
 //	private static final QueryResource test = new QueryResource(true); 
 	
-	@SuppressWarnings("unused")
-	private QueryInterface(boolean bTest) {
+	//Because there is no default constructor this breaks the api
+	//possibly could get around by creating an empty constructor
+	//did not test that - caleb 4/24/2012
+	/*private QueryInterface(boolean bTest) {
 		this.testUrlParsing();
-	}
+	}*/
 	
+	@SuppressWarnings("unused")
 	private void testUrlParsing()
 	{
 		String testString = 

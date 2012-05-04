@@ -151,7 +151,6 @@ public class MongoDbManager {
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, version doesn't -currently- matter)
-			String sVersion = new PropertiesManager().getLegacyNamingVersion();
 			if (sLogicalCollectionName.equalsIgnoreCase("authentication")) {			
 				return _savedMongo.getDB("security").getLastError();
 			}
@@ -162,28 +161,13 @@ public class MongoDbManager {
 				return _savedMongo.getDB("file").getLastError();
 			}
 			else if (sLogicalCollectionName.equalsIgnoreCase("uimodules")) {			
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					return _savedMongo.getDB("module").getLastError();
-				}
-				else {
-					return _savedMongo.getDB("gui").getLastError();
-				}
+				return _savedMongo.getDB("gui").getLastError();
 			}
 			else if (sLogicalCollectionName.equalsIgnoreCase("uifavoritemodules")) {			
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					return _savedMongo.getDB("module").getLastError();
-				}
-				else {
-					return _savedMongo.getDB("gui").getLastError();
-				}
+				return _savedMongo.getDB("gui").getLastError();
 			}
 			else if (sLogicalCollectionName.equalsIgnoreCase("uisetup")) {			
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					return _savedMongo.getDB("admin").getLastError();
-				}
-				else {
-					return _savedMongo.getDB("gui").getLastError();					
-				}
+				return _savedMongo.getDB("gui").getLastError();					
 			}
 			else {
 				return _savedMongo.getDB("social").getLastError();
@@ -229,49 +213,25 @@ public class MongoDbManager {
 		}
 		public GridFS getShareBinary() {
 			if (null == _social_share_binary) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					_social_share_binary = new GridFS(_savedMongo.getDB("file"), "jars");
-				}
-				else {
-					_social_share_binary = new GridFS(_savedMongo.getDB("file"), "binary_shares");					
-				}
+				_social_share_binary = new GridFS(_savedMongo.getDB("file"), "binary_shares");					
 			}
 			return _social_share_binary;
 		}
 		public DBCollection getUIModules() {
 			if (null == _social_gui_modules) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					_social_gui_modules = _savedMongo.getDB("module").getCollection("modules");
-				}
-				else {
-					_social_gui_modules = _savedMongo.getDB("gui").getCollection("modules");					
-				}
+				_social_gui_modules = _savedMongo.getDB("gui").getCollection("modules");					
 			}
 			return _social_gui_modules;
 		}
 		public DBCollection getUIFavoriteModules() {
 			if (null == _social_gui_favmodules) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					_social_gui_favmodules = _savedMongo.getDB("module").getCollection("usermodules");
-				}
-				else {
-					_social_gui_favmodules = _savedMongo.getDB("gui").getCollection("favmodules");					
-				}
+				_social_gui_favmodules = _savedMongo.getDB("gui").getCollection("favmodules");					
 			}
 			return _social_gui_favmodules;
 		}
 		public DBCollection getUISetup() {
 			if (null == _social_gui_setup) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {			
-					_social_gui_setup = _savedMongo.getDB("admin").getCollection("uisetup");
-				}
-				else {
-					_social_gui_setup = _savedMongo.getDB("gui").getCollection("setup");					
-				}
+				_social_gui_setup = _savedMongo.getDB("gui").getCollection("setup");					
 			}
 			return _social_gui_setup;
 		}
@@ -289,11 +249,7 @@ public class MongoDbManager {
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
-			String sVersion = new PropertiesManager().getLegacyNamingVersion();
-			if (sVersion.equalsIgnoreCase("BETA")) {			
-				return _savedMongo.getDB("harvester").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("metadata")){
+			if (sLogicalCollectionName.equalsIgnoreCase("metadata")){
 				return _savedMongo.getDB("doc_metadata").getLastError();				
 			}
 			else if (sLogicalCollectionName.equalsIgnoreCase("content")){
@@ -305,25 +261,13 @@ public class MongoDbManager {
 		}
 		public DBCollection getMetadata() {
 			if (null == _document_metadata) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_document_metadata = _savedMongo.getDB("harvester").getCollection("feeds");
-				}
-				else {
-					_document_metadata = _savedMongo.getDB("doc_metadata").getCollection("metadata");					
-				}
+				_document_metadata = _savedMongo.getDB("doc_metadata").getCollection("metadata");					
 			}
 			return _document_metadata;
 		}
 		public DBCollection getContent() {
 			if (null == _document_content) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_document_content = _savedMongo.getDB("harvester").getCollection("gzip_content");
-				}
-				else {
-					_document_content = _savedMongo.getDB("doc_content").getCollection("gzip_content");					
-				}
+				_document_content = _savedMongo.getDB("doc_content").getCollection("gzip_content");					
 			}
 			return _document_content;
 		}
@@ -347,48 +291,24 @@ public class MongoDbManager {
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
-			String sVersion = new PropertiesManager().getLegacyNamingVersion();
-			if (sVersion.equalsIgnoreCase("BETA")) {			
-				return _savedMongo.getDB("harvester").getLastError();
-			}
-			else {
-				return _savedMongo.getDB("feature").getLastError();				
-			}
+			return _savedMongo.getDB("feature").getLastError();				
 		}
 		
 		public DBCollection getEntity() {
 			if (null == _feature_entity) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_feature_entity = _savedMongo.getDB("harvester").getCollection("gazateer");
-				}
-				else {
-					_feature_entity = _savedMongo.getDB("feature").getCollection("entity");					
-				}
+				_feature_entity = _savedMongo.getDB("feature").getCollection("entity");					
 			}
 			return _feature_entity;
 		}
 		public DBCollection getAssociation() {
 			if (null == _feature_assoc) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_feature_assoc = _savedMongo.getDB("harvester").getCollection("event_gazateer");
-				}
-				else {
-					_feature_assoc = _savedMongo.getDB("feature").getCollection("association");					
-				}
+				_feature_assoc = _savedMongo.getDB("feature").getCollection("association");					
 			}
 			return _feature_assoc;
 		}
 		public DBCollection getGeo() {
 			if (null == _feature_geo) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_feature_geo = _savedMongo.getDB("harvester").getCollection("georeference");
-				}
-				else {
-					_feature_geo = _savedMongo.getDB("feature").getCollection("geo");					
-				}
+				_feature_geo = _savedMongo.getDB("feature").getCollection("geo");					
 			}
 			return _feature_geo;
 		}
@@ -404,36 +324,19 @@ public class MongoDbManager {
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
-			String sVersion = new PropertiesManager().getLegacyNamingVersion();
-			if (sVersion.equalsIgnoreCase("BETA")) {			
-				return _savedMongo.getDB("harvester").getLastError();
-			}
-			else if (sVersion.equalsIgnoreCase("V0S1")) {
-				return _savedMongo.getDB("config").getLastError();								
-			}
-			else {
-				return _savedMongo.getDB("ingest").getLastError();				
-			}
+			return _savedMongo.getDB("ingest").getLastError();				
 		}
 		
 		public DBCollection getSource() {
 			if (null == _ingest_source) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_ingest_source = _savedMongo.getDB("harvester").getCollection("sources");
-				}
-				else if (sVersion.equalsIgnoreCase("V0S1")) {
-					_ingest_source = _savedMongo.getDB("config").getCollection("source");										
-				}
-				else {
-					_ingest_source = _savedMongo.getDB("ingest").getCollection("source");										
-				}
+				_ingest_source = _savedMongo.getDB("ingest").getCollection("source");										
 			}
 			return _ingest_source;
 		}
 	}
+
+	// 3.5 Custom processing collection
 	
-	//CALEBS SWEET CUSTOM CLASS
 	public static class CustomMongoDb 
 	{	
 		CustomMongoDb(Mongo mongo) { _savedMongo = mongo; }		
@@ -443,24 +346,12 @@ public class MongoDbManager {
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
-			String sVersion = new PropertiesManager().getLegacyNamingVersion();
-			if (sVersion.equalsIgnoreCase("BETA")) {			
-				return _savedMongo.getDB("custommr").getLastError();
-			}
-			else {
-				return _savedMongo.getDB("custommr").getLastError();				
-			}
+			return _savedMongo.getDB("custommr").getLastError();				
 		}
 		
 		public DBCollection getLookup() {
 			if (null == _config_customlookup) {
-				String sVersion = new PropertiesManager().getLegacyNamingVersion();
-				if (sVersion.equalsIgnoreCase("BETA")) {
-					_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");
-				}
-				else {
-					_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");										
-				}
+				_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");										
 			}
 			return _config_customlookup;
 		}

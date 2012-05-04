@@ -4,7 +4,7 @@ LAST_CLEANSE="0"
 RESET_FILE="/opt/infinite-home/bin/RESET_FILE"
 SYNC_FILE="/opt/infinite-home/bin/SYNC_FILE"
 STOP_FILE="/opt/infinite-home/bin/STOPFILE"
-EXTRA_JAVA_ARGS=" -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000"
+EXTRA_JAVA_ARGS=" -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -classpath *:infinit.e.core.server.jar"
 
 harvest()
 {
@@ -12,11 +12,11 @@ harvest()
 	#do harvest cycle
 	if [ -f "$RESET_FILE" ]; then
 		echo "Reseting Harvester"
-		java ${EXTRA_JAVA_ARGS} -jar infinit.e.core.server.jar --harvest --config $CONFIG_LOCATION --reset
+		java ${EXTRA_JAVA_ARGS} com.ikanow.infinit.e.core.CoreMain --harvest --config $CONFIG_LOCATION --reset
 		rm -f $RESET_FILE
 	else
 		echo "Doing normal harvest"
-		java ${EXTRA_JAVA_ARGS} -jar infinit.e.core.server.jar --harvest --config $CONFIG_LOCATION 
+		java ${EXTRA_JAVA_ARGS} com.ikanow.infinit.e.core.CoreMain --harvest --config $CONFIG_LOCATION 
 	fi
 }
 
@@ -29,7 +29,7 @@ optimize()
 sync()
 {
 	echo "Syncing"
-	java ${EXTRA_JAVA_ARGS} -jar infinit.e.core.server.jar --sync --from $LAST_CLEANSE --config $CONFIG_LOCATION 
+	java ${EXTRA_JAVA_ARGS} com.ikanow.infinit.e.core.CoreMain --sync --from $LAST_CLEANSE --config $CONFIG_LOCATION 
 
 	LAST_CLEANSE="$(date +%s)"
 	rm -f "$SYNC_FILE"

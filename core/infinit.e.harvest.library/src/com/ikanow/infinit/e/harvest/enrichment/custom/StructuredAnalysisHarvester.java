@@ -37,10 +37,9 @@ import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo;
-import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.DocGeoSpecPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.GeoSpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.EntitySpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.AssociationSpecPojo;
-import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.GeoSpecPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
@@ -127,6 +126,9 @@ public class StructuredAnalysisHarvester
 			if (s.getScriptEngine() != null)
 			{
 				factory = new ScriptEngineManager();
+				if ((null == s.getScriptEngine()) || s.getScriptEngine().equalsIgnoreCase("javascript")) {
+					s.setScriptEngine("JavaScript"); // (sigh case sensitive)
+				}
 				engine = factory.getEngineByName(s.getScriptEngine());
 			}
 			
@@ -233,6 +235,32 @@ public class StructuredAnalysisHarvester
 						logger.error("description: " + e.getMessage(), e);
 					}
 					
+
+					// Extract fullText if applicable
+					boolean bTryFullTextLater = false;
+					try {
+						if (s.getFullText() != null)
+						{
+							intializeDocIfNeeded(f, g);
+							if (JavaScriptUtils.containsScript(s.getFullText()))
+							{
+								f.setFullText((String)getValueFromScript(s.getFullText(), null, null));
+							}
+							else
+							{
+								f.setFullText(getFormattedTextFromField(s.getFullText()));
+							}
+							if (null == f.getFullText()) {
+								bTryFullTextLater = true;
+							}
+						}
+					}
+					catch (Exception e) 
+					{
+						this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);						
+						logger.error("fullText: " + e.getMessage(), e);
+					}
+					
 					// Published date and URL are done after the UAH 
 					// (since the UAH can't access them, and they might be populated via the UAH)
 					
@@ -321,6 +349,29 @@ public class StructuredAnalysisHarvester
 						{
 							this._context.getHarvestStatus().logMessage("description2: " + e.getMessage(), true);						
 							logger.error("description2: " + e.getMessage(), e);
+						}						
+					}
+					
+					// If fullText was null before might need to get it from a UAH field
+					if (bTryFullTextLater) {
+						try {
+							if (s.getFullText() != null)
+							{
+								intializeDocIfNeeded(f, g);
+								if (JavaScriptUtils.containsScript(s.getFullText()))
+								{
+									f.setFullText((String)getValueFromScript(s.getFullText(), null, null));
+								}
+								else
+								{
+									f.setFullText(getFormattedTextFromField(s.getFullText()));
+								}
+							}
+						}
+						catch (Exception e) 
+						{
+							this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);						
+							logger.error("fullText: " + e.getMessage(), e);
 						}						
 					}
 					
@@ -1732,7 +1783,7 @@ public class StructuredAnalysisHarvester
 	 * @param d DocGeoSpecPojo
 	 * @return GeoJSONPojo
 	 */
-	private GeoPojo getDocGeo(DocGeoSpecPojo d)
+	private GeoPojo getDocGeo(GeoSpecPojo d)
 	{
 		GeoPojo docGeo = new GeoPojo();
 		String latValue = null;
@@ -1871,27 +1922,106 @@ public class StructuredAnalysisHarvester
 			{
 				String latValue = null;
 				String lonValue = null;
-				
-				if (JavaScriptUtils.containsScript(gsp.getLat()))
-				{
-					latValue = (String)getValueFromScript(gsp.getLat(), null, null);
+				// The GeoSpecPojo already has lat and lon so we just need to retrieve the values
+				if ((gsp.getLat() != null) && (gsp.getLon() != null)) {
+					if (JavaScriptUtils.containsScript(gsp.getLat()))
+					{
+						latValue = (String)getValueFromScript(gsp.getLat(), null, null);
+					}
+					else
+					{
+						latValue = getFormattedTextFromField(gsp.getLat());
+					}
+	
+					if (JavaScriptUtils.containsScript(gsp.getLon()))
+					{
+						lonValue = (String)getValueFromScript(gsp.getLon(), null, null);
+					}
+					else
+					{
+						lonValue = getFormattedTextFromField(gsp.getLon());
+					}
+					
+					if (latValue != null && lonValue != null)
+					{
+						dLat = Double.parseDouble(latValue);
+						dLon = Double.parseDouble(lonValue);
+					}
 				}
+				
 				else
 				{
-					latValue = getFormattedTextFromField(gsp.getLat());
-				}
+					String city, region, country, countryCode = null;
+					
+					// Create a GeoReferencePojo from the GeoSpec object
+					GeoFeaturePojo gfp = new GeoFeaturePojo();
 
-				if (JavaScriptUtils.containsScript(gsp.getLon()))
-				{
-					lonValue = (String)getValueFromScript(gsp.getLon(), null, null);
-				}
-				else
-				{
-					lonValue = getFormattedTextFromField(gsp.getLon());
-				}
-				
-				if (latValue != null && lonValue != null)
-				{
+					if (gsp.getCity() != null)
+					{
+						if (JavaScriptUtils.containsScript(gsp.getCity()))
+						{
+							city = (String)getValueFromScript(gsp.getCity(), null, null);
+						}
+						else
+						{
+							city = gsp.getCity();
+						}
+
+						gfp.setCity(city);
+						gfp.setSearch_field(city);
+					}
+
+					if (gsp.getStateProvince() != null)
+					{
+						if (JavaScriptUtils.containsScript(gsp.getStateProvince()))
+						{
+							region = (String)getValueFromScript(gsp.getStateProvince(), null, null);
+						}
+						else
+						{
+							region = gsp.getStateProvince();
+						}
+
+						gfp.setRegion(region);
+						if (gfp.getSearch_field() == null) gfp.setSearch_field(region);
+					}
+
+					if (gsp.getCountry() != null)
+					{
+						if (JavaScriptUtils.containsScript(gsp.getCountry()))
+						{
+							country = (String)getValueFromScript(gsp.getCountry(), null, null);
+						}
+						else
+						{
+							country = gsp.getCountry();
+						}
+
+						gfp.setCountry(country);
+						if (gfp.getSearch_field() == null) gfp.setSearch_field(country);
+					}
+
+					if (gsp.getCountryCode() != null)
+					{
+						if (JavaScriptUtils.containsScript(gsp.getCountryCode()))
+						{
+							countryCode = (String)getValueFromScript(gsp.getCountryCode(), null, null);
+						}
+						else
+						{
+							countryCode = gsp.getCountryCode();
+						}
+
+						gfp.setCountry_code(countryCode);
+						if (gfp.getSearch_field() == null) gfp.setSearch_field(countryCode);
+					}
+
+					// Send the GeoReferencePojo to enrichGeoInfo to attempt to get lat and lon values
+					List<GeoFeaturePojo> gList = GeoReference.enrichGeoInfo(gfp, false, true, 1);
+					latValue = gList.get(0).getGeoindex().lat.toString();
+					lonValue = gList.get(0).getGeoindex().lon.toString();
+					
+					// Set lat and long in DocGeo if possible
 					dLat = Double.parseDouble(latValue);
 					dLon = Double.parseDouble(lonValue);
 				}

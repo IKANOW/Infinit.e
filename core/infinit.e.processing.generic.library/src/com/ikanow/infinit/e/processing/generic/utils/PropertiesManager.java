@@ -101,6 +101,21 @@ public class PropertiesManager {
 		}
 	}
 	
+	// Get preferred (max) index replicas
+	
+	public int getMaxIndexReplicas() {
+		String s = this.getProperty("elastic.max_replicas");
+		if (s == null) {
+			return 1; // (default)
+		}
+		try {
+			return Integer.parseInt(s);
+		}
+		catch (Exception e) {
+			return 1; // (default)
+		}		
+	}
+	
 }
 
 

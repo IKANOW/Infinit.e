@@ -16,15 +16,13 @@
 package com.ikanow.infinit.e.api.knowledge;
 
 import java.util.Map;
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -34,7 +32,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
  * @author cmorgan
  *
  */
-public class SearchInterface extends Resource 
+public class SearchInterface extends ServerResource 
 {
 	private SearchHandler search = new SearchHandler();
 	private String action = "";
@@ -49,9 +47,10 @@ public class SearchInterface extends Resource
 	private boolean wantGeo = true;
 	private boolean wantLinkdata = false;
 	
-	public SearchInterface(Context context, Request request, Response response) 
+	@Override
+	public void doInit() 
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);		 
 		 Map<String,Object> attributes = request.getAttributes();
 		 String urlStr = request.getResourceRef().toString();
@@ -82,10 +81,7 @@ public class SearchInterface extends Resource
 		 {
 			 action = "suggestgeo";
 			 term = RESTTools.decodeRESTParam("term", attributes);
-		 }
-		 
-		 // All modifications of this resource
-		 this.setModifiable(true);
+		 }		 
 		 
 		 //turn off cookies for rss calls
 		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
@@ -97,7 +93,6 @@ public class SearchInterface extends Resource
 		 if ((null != linkdata) && ( (linkdata.equals("1")) || (linkdata.equalsIgnoreCase("true")) )) {
 			 wantLinkdata = true;
 		 }
-		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
 	/**
@@ -107,7 +102,8 @@ public class SearchInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get( ) 
 	{
 	
 		 String data = "";

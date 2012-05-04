@@ -22,6 +22,15 @@ fi
 if echo $IS_MASTER  | grep -qi "true"; then
 	if [ ! -z "$MONGODB" ]; then
 		if [ -x /usr/bin/mongo ]; then
+		
+			# HANDLE LOCK:
+			#(first just handle the case where there is no lock set yet - set to a dummy date so will succeed)
+			mongo $MONGODB:$MONGODP/feature --eval 'db.sync_lock.insert({_id:ObjectId("4f985f98d4eefff2ed6963dc"), "last_sync":new Date(new Date().getTime()-2*3600*1000*24)})'
+			if mongo $MONGODB:$MONGODP/feature --eval 'db.sync_lock.findAndModify({query: {last_sync:{$lt:new Date(new Date().getTime()-3600*1000*24)}}, update: {$set:{last_sync:new Date()}}})' | grep "null"; then
+				echo "Database is locked, skipping"
+				exit
+			fi
+		
 			# (Harvester must be stopped)
 			# (Note all the other harvesters need to be stopped also, accomplished via cron jobs)
 			service infinite-px-engine status && exit
@@ -47,6 +56,9 @@ if echo $IS_MASTER  | grep -qi "true"; then
 				echo "Skipped DB pruning and index resync" >> $LOGDIR/sync_time.txt
 			fi			
             date >> $LOGDIR/sync_time.txt
+            
+            # REMOVE LOCK
+			mongo $MONGODB:$MONGODP/feature --eval 'db.sync_lock.drop()'            
 		fi
 	fi
 fi

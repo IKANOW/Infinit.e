@@ -150,26 +150,30 @@ public class MongoDocumentTxfer {
 			//System.out.println("Getting content..." + feed.getTitle() + " / " + feed.getUrl());
 			
 			// Get the content:
-			BasicDBObject contentQ = new BasicDBObject("url", doc.getUrl());
-			BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
-			if (null != dboContent) {
-				byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				
-				ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
-				GZIPInputStream gzip = new GZIPInputStream(in);				
-				int nRead = 0;
-				StringBuffer output = new StringBuffer();
-				while (nRead >= 0) {
-					nRead = gzip.read(storageArray, 0, 200000);
-					if (nRead > 0) {
-						String s = new String(storageArray, 0, nRead, "UTF-8");
-						output.append(s);
+			if (StoreAndIndexManager.docHasExternalContent(doc.getUrl())) {				
+				BasicDBObject contentQ = new BasicDBObject("url", doc.getUrl());
+				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
+				if (null != dboContent) {
+					byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				
+					ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
+					GZIPInputStream gzip = new GZIPInputStream(in);				
+					int nRead = 0;
+					StringBuffer output = new StringBuffer();
+					while (nRead >= 0) {
+						nRead = gzip.read(storageArray, 0, 200000);
+						if (nRead > 0) {
+							String s = new String(storageArray, 0, nRead, "UTF-8");
+							output.append(s);
+						}
 					}
+					doc.setFullText(output.toString());
 				}
-				doc.setFullText(output.toString());
-			}				
+			}
+			// (else document has full text already)
+			
 			// Get tags, if necessary:
 			// Always overwrite tags - one of the reasons we might choose to migrate
-			//if (null == feed.getTags()) 
+			//if (null == feed.getTags()) (OLD CODE SEE ABOVE) 
 			{
 				SourcePojo src = _sourceCache.get(doc.getSourceKey());
 				if (null == src) {

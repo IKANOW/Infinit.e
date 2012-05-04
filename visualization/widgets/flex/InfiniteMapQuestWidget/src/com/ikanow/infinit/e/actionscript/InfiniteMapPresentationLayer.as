@@ -190,12 +190,20 @@ package com.ikanow.infinit.e.actionscript
 				
 				for ( var i:int = 0; i < clickedMarker.length; i++ )
 				{
-					_filteredGeoNames.add( clickedMarker[ i ].index );
+					//make sure clickedMarker is something we can see (not hidden with menu selections)
+					var marker:Object = clickedMarker[ i ];
 					
-					//first check if this markers feed was already added
-					if ( !docIds.contains( clickedMarker[ i ].feed ) )
+					if ( ( marker.object_type == "docgeo" && _guiLayer.SHOW_GEO_DOCUMENTS ) ||
+						( marker.object_type == "entity" && _guiLayer.SHOW_GEO_ENTITIES ) ||
+						( marker.object_type == "event" && _guiLayer.SHOW_GEO_EVENTS ) )
 					{
-						docIds.add( clickedMarker[ i ].feed );
+						_filteredGeoNames.add( clickedMarker[ i ].index );
+						
+						//first check if this markers feed was already added
+						if ( !docIds.contains( clickedMarker[ i ].feed ) )
+						{
+							docIds.add( clickedMarker[ i ].feed );
+						}
 					}
 				}
 				// Build description
@@ -336,6 +344,7 @@ package com.ikanow.infinit.e.actionscript
 							event.object_type = "event";
 							event.feed = feed._id;
 							event.feedObj = feed;
+							event.index = event.geo_index;
 							_entityMarkers.addItem( event );
 							
 							if ( !filtered )
@@ -366,6 +375,7 @@ package com.ikanow.infinit.e.actionscript
 						docGeoObject[ "geotag" ] = new Object();
 						docGeoObject[ "geotag" ][ "lat" ] = feed.docGeo.lat;
 						docGeoObject[ "geotag" ][ "lon" ] = feed.docGeo.lon;
+						docGeoObject[ "index" ] = "docgeo(" + feed.docGeo.lat + "," + feed.docGeo.lon + ")";
 						_entityMarkers.addItem( docGeoObject );
 					}
 				}

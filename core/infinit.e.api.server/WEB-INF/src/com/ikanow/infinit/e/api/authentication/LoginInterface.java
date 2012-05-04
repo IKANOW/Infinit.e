@@ -21,16 +21,15 @@ import java.util.Map;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
-import org.restlet.Context;
+import org.restlet.Request;
+import org.restlet.Response;
 import org.restlet.data.CookieSetting;
 import org.restlet.data.MediaType;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 import org.restlet.util.Series;
 
 import com.ikanow.infinit.e.api.Parameters;
@@ -42,7 +41,7 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 
-public class LoginInterface extends Resource 
+public class LoginInterface extends ServerResource 
 {
 	private static final Logger logger = Logger.getLogger(LoginInterface.class);
 	
@@ -61,9 +60,13 @@ public class LoginInterface extends Resource
 	private boolean multi = false;
 	private boolean override = true;
 	
-	public LoginInterface(Context context, Request request, Response response) throws IOException 
+	//public LoginInterface(Context context, Request request, Response response) throws IOException 
+	@Override
+	public void doInit()
 	{
-		 super(context, request, response);
+		 //super(context, request, response);
+		Response response = this.getResponse();
+		Request request = this.getRequest();
 		 String urlStr = request.getResourceRef().toString();
 		 Map<String,Object> attributes = request.getAttributes();
 		 parameters = new Parameters(request.getResourceRef().getQueryAsForm());
@@ -141,8 +144,15 @@ public class LoginInterface extends Resource
 				 bAllGood &= (DbManager.getSocial().getCommunity().count() > 0);
 				 	// (also test connection to the DB)
 				 
-				 if (!bAllGood) {
-					 throw new IOException("Index not running");
+				 if (!bAllGood) 
+				 {
+					 //TODO you can't throw errors anymore so do something more logical
+					 try {
+						throw new IOException("Index not running");
+					} catch (IOException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
 				 }
 			 }//TESTED
 			//If a redirect is supplied, send them there after logging in if successful
@@ -180,13 +190,9 @@ public class LoginInterface extends Resource
 			 Series<CookieSetting> cooks = response.getCookieSettings();				 
 			 cooks.add(createSessionCookie(null, false));
 			 response.setCookieSettings(cooks);
-		 }
-		 
-		 // All modifications of this resource
-		 this.setModifiable(true);
-		 
-		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
+		 }		 
 	}
+	
 	private CookieSetting createSessionCookie(ObjectId user, boolean bSet)
 	{
 		//Create a new objectId to map this cookie to a userid
@@ -222,7 +228,9 @@ public class LoginInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	//public Representation represent(Variant variant) throws ResourceException
+	@Get
+	public Representation get() throws ResourceException
 	{
 		 ResponsePojo rp = new ResponsePojo();
 		 Date startTime = new Date();	 

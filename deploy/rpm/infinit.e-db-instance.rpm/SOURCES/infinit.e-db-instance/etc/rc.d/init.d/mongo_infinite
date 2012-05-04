@@ -28,7 +28,30 @@ start()
 		echo "Starting Configuration Server"
 		mkdir -p /data/configdb/ >/dev/null
 		chown -R mongod.mongod /data/ >/dev/null
+
+		# Remove any stale lock files		
+		already_running=$(ps -ef | grep mongo | awk "/port 27016/" | wc -l)			
+		if [ $already_running -eq 0 ]; then
+			if [ -f /data/configdb/mongod.lock ]; then
+				echo "Unclean shutdown, entering recovery mode: configdb"
+				rm -f /data/configdb/mongod.lock
+				runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --repair --dbpath /data/configdb/" 
+			fi
+		fi
+
 		runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --configsvr --port 27016 --logpath /var/log/mongo/mongod.config.log --dbpath /data/configdb/ --fork"
+
+		sleep_count=0
+		while [ "$(infdb all_configs_running)" != true ]; do
+			echo "Waiting for all configs to start up. This may take some time on initial install."
+			sleep 15
+			sleep_count=$(($sleep_count+1))
+			if [ $sleep_count -gt 40 ]; then
+				echo "Ten minutes has passed and all config servers have not come up...exiting"
+				return 0;
+			fi
+		done
+
 	else
 		echo "Note: This is not a configuration Server."
 	fi
@@ -38,6 +61,7 @@ start()
 	
 	if [[ $(infdb is_mongos) == "true" || $(infdb is_dbinstance) == "true" ]]; then 
 		counter=0
+		sleep_count=0
 		
 		while [[ $counter -ne 1 && $counter -ne 3 ]]; do 
 			counter=0
@@ -60,11 +84,23 @@ start()
 				#Sleep for one minute
 				sleep 60
 			fi
+			sleep_count=$(($sleep_count+1))
+			if [ $sleep_count -gt 10 ]; then
+				echo "Ten minutes has passed and we could not find 1 or 3 designated config servers...exiting"
+				return 0;
+			fi
 		done
 		
+		
+		sleep_count=0
 		while [ "$(infdb all_configs_running)" != true ]; do
 			echo "Waiting for all configs to start up. This may take some time on initial install."
 			sleep 15
+			sleep_count=$(($sleep_count+1))
+			if [ $sleep_count -gt 40 ]; then
+				echo "Ten minutes has passed and all config servers have not come up...exiting"
+				return 0;
+			fi
 		done
 		
 		## Every DB Data location will have it's own MongoS found on port 27017
@@ -91,6 +127,13 @@ start()
 			if [ $already_running -eq 0 ]; then
 				mkdir -p /data/rs$x >/dev/null 2>&1
 				chown -R mongod.mongod /data/ >/dev/null 2>&1
+		
+				# Remove any stale lock files	
+				if [ -f /data/rs$x/mongod.lock ]; then
+					echo "Unclean shutdown, entering recovery mode: rs$x"
+					rm -f /data/rs$x/mongod.lock
+					runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --repair --dbpath /data/rs$x" 
+				fi
 				
 				##Oplog should be 20480MB, if it is smaller, it's for debugging purposes
 				runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.rs$x.log --port $port --logappend --dbpath /data/rs$x --shardsvr --rest --fork --nojournal --oplogSize 20480" >/dev/null 2>&1
@@ -98,12 +141,19 @@ start()
 				members=$(infdb all_members_of_set $x)
 				num_members=$( echo $members | wc -w )
 					
+				sleep_count=0
 				while [ "$(infdb mongo_running 27017 2>&1)" != "true" ]; do
 					echo -e "Waiting for local mongoS to start."
 					sleep 20
+					
+					sleep_count=$(($sleep_count+1))
+					if [ $sleep_count -gt 30 ]; then
+						echo "Ten minutes has passed and we could not connect to mongoS...exiting"
+						return 0;
+					fi
 				done
 					
-					# only a sole member to the replica set
+					
 					
 					if [ $num_members -ge 1 ]; then	
 							#create configuration
@@ -150,7 +200,7 @@ start()
 									done
 								fi
 							fi
-							
+							sleep_count=0
 							while [ "$(echo $wait)" == "true" ]; do
 								echo "Must wait for all members to come up...waiting"
 								sleep 15
@@ -162,6 +212,14 @@ start()
 										wait="true"
 									fi
 								done
+								
+								sleep_count=$(($sleep_count+1))
+								if [ $sleep_count -gt 80 ]; then
+									echo "20 minutes has passed and we could not connect to the member...exiting"
+									return 0;
+								fi
+								
+								
 							done
 
 							echo "Initiating the Replica Set (This may take quite some time)"
@@ -174,9 +232,16 @@ rs.initiate($config);
 exit
 EOF
 )
+							## A value greater than 0 here could be this has been initialized before
 							err_count=$(echo $reply | grep errmsg | wc -l)
 							while [ $err_count -gt 0 ]; do
-								echo "Initialization did not complete successfully: $reply"
+							
+								if [ $(echo $reply | grep initialized | wc -l) ]; then
+									echo "This DB has been Initialized before"
+								else
+									echo "Initialization did not complete successfully: $reply"
+								fi
+								
 								rs_master=$(infdb master_of_set $x)
 								if [ $(echo $rs_master | grep '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\:[0-9]\+' | wc -l) -gt 0 ]; then
 									echo "Replica Set is Currently running. Master: $rs_master"
@@ -187,13 +252,16 @@ rs.reconfig($config)
 exit
 EOF
 )
+									echo $recon
+									
 									err_count=$(echo $recon | grep errmsg | wc -l)
 									if [ $err_count -gt 0 ]; then
 										echo $recon
 									fi
 									
 								else
-									echo "Master was not found"
+									echo "Master was not found...Will Try again in 5s"
+									sleep 5
 								fi
 							done
 													
@@ -201,26 +269,28 @@ EOF
 								echo "Waiting 1 minute for configuration to come online"
 								sleep 60
 								
-								################################################################################
-								# Is the MongoDB instance to be sharded or not
-								SERVICE_PROPERTY_FILE='/mnt/opt/infinite-home/config/infinite.service.properties'
-								DB_SHARDED=`grep "^db.sharded=" $SERVICE_PROPERTY_FILE | sed s/'db.sharded='// | sed s/' '//g`
-								
-								######################################################################
-								# Only do the next block of the DB has one or more shards
-									echo "Informing mongoS of shard (will error if shard as already been added successfully)"							
-									#connect to a mongoS instance and inform it of the shard
-									mongo <<EOF
+								echo "Adding Shard (will error if shard as already been added successfully)"							
+								#connect to a mongoS instance and inform it of the shard
+								mongo <<EOF
 use admin
 db.runCommand({addShard:"replica_set$x/$this_ip:$port"});
 exit
 EOF
 >/dev/null
-								# End sharding block
-								######################################################################
 								
 							fi
 					fi
+					
+					#########################################################
+					#
+					# Restart the MongoS now that the replica server is up	
+					
+					echo "Restarting MongoS now we have at least one good replica server"
+					
+					infdb kill_db 27017 > /dev/null
+					sleep 5
+					runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
+					
 			else
 				echo "Mongo Already Running On Port $port.... Skipping"
 			fi			

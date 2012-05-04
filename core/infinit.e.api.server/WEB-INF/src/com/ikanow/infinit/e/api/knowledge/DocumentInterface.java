@@ -19,15 +19,12 @@ package com.ikanow.infinit.e.api.knowledge;
  * 
  */
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
-import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.knowledge.DocumentHandler.DocumentFileInterface;
 import com.ikanow.infinit.e.api.social.sharing.ByteArrayOutputRepresentation;
@@ -42,7 +39,7 @@ import java.util.Map;
  * @author cmorgan
  *
  */
-public class DocumentInterface extends Resource 
+public class DocumentInterface extends ServerResource 
 {
 	//private static final Logger logger = Logger.getLogger(FeedResource.class);
 	
@@ -56,7 +53,99 @@ public class DocumentInterface extends Resource
 	
 	private DocumentHandler docHandler = new DocumentHandler();
 	
-	public DocumentInterface(Context context, Request request, Response response) 
+	@Override
+	public void doInit()	
+	{
+		Request request = this.getRequest();
+		String urlStr = request.getResourceRef().toString();
+		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
+		 
+		 Map<String,Object> attributes = request.getAttributes();
+		 if ( urlStr.contains("/knowledge/feed/") || urlStr.contains("/knowledge/doc/") || urlStr.contains("/knowledge/document/"))
+		 {	
+			 docid = RESTTools.decodeRESTParam("feedid", attributes);
+			 Map<String, String> queryOptions = this.getQuery().getValuesMap();
+			 String returnFullText = queryOptions.get("returnFullText");			 
+			 if ((null != returnFullText) && ((returnFullText.equalsIgnoreCase("true")) || (returnFullText.equals("1")))) 
+			 {
+				 bReturnFullText = true;
+			 }
+			 String returnRawData = queryOptions.get("returnRawData");
+			 if ((null != returnRawData) && ((returnRawData.equalsIgnoreCase("true")) || (returnRawData.equals("1")))) 
+			 {
+				 this.returnRawData = true;
+			 }
+			 action = "doc";
+		 }
+	}
+	
+	@Get
+	public Representation get()
+	{
+		ResponsePojo rp = new ResponsePojo(); 
+		 Date startTime = new Date();	
+		 
+		 if ( needCookie )
+		 {
+			 cookieLookup = RESTTools.cookieLookup(cookie);
+			 if ( cookieLookup == null )
+			 {
+				 rp = new ResponsePojo();
+				 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Cookie session expired or never existed, please login first"));
+			 }
+			 else
+			 {
+				 if ( action.equals("doc"))
+				 {
+					 rp = this.docHandler.getInfo(cookieLookup, docid, bReturnFullText, returnRawData);
+					 //return full text takes precedence over raw data
+					 if ( !bReturnFullText && returnRawData && rp.getResponse().isSuccess() )
+					 {		
+						 try
+						 {
+							 //return the bytes like we do in shares
+							 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();						
+							 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
+							 rep.setOutputBytes(dfp.bytes);
+							 //rep.setSize(dfp.bytes.length);
+							 return rep;
+						 }
+						 catch (Exception ex )
+						 {
+							 rp = new ResponsePojo(new ResponseObject("Doc Info", false, "error converting bytes to output"));
+						 }	
+					 }
+				 }
+			 }
+		 }
+		 else
+		 {
+			 //no methods that dont need cookies
+		 }
+		 
+		 
+		 Date endTime = new Date();
+		 rp.getResponse().setTime(endTime.getTime() - startTime.getTime());
+		 return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
+	}
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	
+	/*public DocumentInterface(Context context, Request request, Response response) 
 	{
 		 super(context, request, response);
 		 String urlStr = request.getResourceRef().toString();
@@ -85,13 +174,7 @@ public class DocumentInterface extends Resource
 		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
-	/**
-	 * Represent the user object in the requested format.
-	 * 
-	 * @param variant
-	 * @return
-	 * @throws ResourceException
-	 */
+	
 	public Representation represent(Variant variant) throws ResourceException 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
@@ -116,8 +199,7 @@ public class DocumentInterface extends Resource
 						 try
 						 {
 							 //return the bytes like we do in shares
-							 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();
-							 
+							 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();						
 							 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
 							 rep.setOutputBytes(dfp.bytes);
 							 rep.setSize(dfp.bytes.length);
@@ -140,5 +222,5 @@ public class DocumentInterface extends Resource
 		 Date endTime = new Date();
 		 rp.getResponse().setTime(endTime.getTime() - startTime.getTime());
 		 return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
-	}
+	}*/
 }

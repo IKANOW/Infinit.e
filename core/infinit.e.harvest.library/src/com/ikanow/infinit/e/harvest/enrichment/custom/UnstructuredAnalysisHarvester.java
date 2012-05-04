@@ -228,7 +228,7 @@ public class UnstructuredAnalysisHarvester
 				try {
 					URL url = new URL(doc.getUrl());
 					URLConnection urlConnect = url.openConnection();
-					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {						
 						urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
 					}//TOTEST
 					InputStream urlStream = urlConnect.getInputStream();
@@ -413,7 +413,7 @@ public class UnstructuredAnalysisHarvester
 	 */
 	private void processMeta(DocumentPojo f, metaField m, String text) {
 		
-		if (m.scriptlang.equalsIgnoreCase("regex")) {
+		if ((null == m.scriptlang) || m.scriptlang.equalsIgnoreCase("regex")) {
 		
 			Pattern metaPattern = createRegex(m.script, m.flags);
 			Matcher matcher = metaPattern.matcher(text);
@@ -607,17 +607,17 @@ public class UnstructuredAnalysisHarvester
 		{
 			if (s.getField().equalsIgnoreCase("fulltext")) {
 				if (null != document.getFullText()) {
-					document.setFullText(cleanseField(document.getFullText(), s.getRegEx(), s.getFlags(), s.getReplacement()));
+					document.setFullText(cleanseField(document.getFullText(), s.getScript(), s.getFlags(), s.getReplacement()));
 				}
 			}
 			else if (s.getField().equalsIgnoreCase("description")) {
 				if (null != document.getDescription()) {
-					document.setDescription(cleanseField(document.getDescription(), s.getRegEx(), s.getFlags(), s.getReplacement()));
+					document.setDescription(cleanseField(document.getDescription(), s.getScript(), s.getFlags(), s.getReplacement()));
 				}
 			}
 			else if (s.getField().equalsIgnoreCase("title")) {
 				if (null != document.getTitle()) {
-					document.setTitle(cleanseField(document.getTitle(), s.getRegEx(), s.getFlags(), s.getReplacement()));
+					document.setTitle(cleanseField(document.getTitle(), s.getScript(), s.getFlags(), s.getReplacement()));
 				}				
 			}
 			else if (s.getField().startsWith("metadata.")) {
@@ -628,7 +628,7 @@ public class UnstructuredAnalysisHarvester
 					for (int i = 0; i < meta.length; ++i) {
 						Object metaValue = meta[i];
 						if (metaValue instanceof String) {
-							newMeta[i] = (Object)cleanseField((String)metaValue, s.getRegEx(), s.getFlags(), s.getReplacement());
+							newMeta[i] = (Object)cleanseField((String)metaValue, s.getScript(), s.getFlags(), s.getReplacement());
 						}
 						else {
 							newMeta[i] = metaValue;

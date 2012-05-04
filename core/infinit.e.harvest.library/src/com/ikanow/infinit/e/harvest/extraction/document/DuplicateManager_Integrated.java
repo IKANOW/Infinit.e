@@ -33,6 +33,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 
 /**
  * @author cmorgan
@@ -109,6 +110,10 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		return duplicationLogic(query, source, duplicateSources);
 	}	
 
+	public Date getLastDuplicateModifiedTime() {
+		return _modifiedTimeOfActualDuplicate;
+	}
+	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// File handling specific logic
@@ -171,8 +176,12 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	boolean duplicationLogic(BasicDBObject query, SourcePojo source, List<String> duplicateSources) {
 		duplicateSources.clear();
+		String parentSourceKey = null;
+		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUpdateCycle_secs())) {
+			parentSourceKey = source.getKey(); // (so can saved modified time for later analysis)
+		}//TESTED
 		
-		LinkedList<String> possibleDups = getCandidateDuplicates(query);
+		LinkedList<String> possibleDups = getCandidateDuplicates(query, parentSourceKey);
 		if (!possibleDups.isEmpty()) {
 			String definiteDup = isFunctionalDuplicate(source, possibleDups);
 			if (null == definiteDup) {
@@ -193,16 +202,23 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	// Utility function to take DB query and return key information from matching documents
 	
-	private static LinkedList<String> getCandidateDuplicates(BasicDBObject query) {
+	private Date _modifiedTimeOfActualDuplicate = null; // (if we have a pure 1-1 duplicate, store its modified time)
+	
+	private LinkedList<String> getCandidateDuplicates(BasicDBObject query, String parentSourceKey) {
+		_modifiedTimeOfActualDuplicate = null;
 		LinkedList<String> returnVal = new LinkedList<String>(); 
 		
 		DBCollection collection = DbManager.getDocument().getMetadata();
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.sourceKey_, 1);
 		fields.put(DocumentPojo._id_, 0);
+		if (null != parentSourceKey) {
+			fields.put(DocumentPojo.modified_, 1);
+		}//TESTED
 		DBCursor dbc = collection.find(query, fields);
 		
 		while (dbc.hasNext()) {
-			String sourceKey = (String) dbc.next().get(DocumentPojo.sourceKey_);
+			DBObject dbo = dbc.next();
+			String sourceKey = (String) dbo.get(DocumentPojo.sourceKey_);
 			if (null != sourceKey) {
 				int nCompositeSourceKey = sourceKey.indexOf('#'); // (handle <key>#<id> case)
 				if (-1 != nCompositeSourceKey) {
@@ -210,6 +226,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 				}//TESTED
 				returnVal.add(sourceKey);
 			}
+			if ((null != parentSourceKey) && (parentSourceKey.equalsIgnoreCase(sourceKey))) {
+				_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);
+			}//TESTED
 		}
 		return returnVal;
 	}//TESTED (created different types of duplicate, put print statements in, tested by hand)

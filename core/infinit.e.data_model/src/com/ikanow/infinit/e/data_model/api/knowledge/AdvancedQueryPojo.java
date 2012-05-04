@@ -190,16 +190,13 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 		}
 		public AggregationOutputPojo aggregation = null; // (off by default)
 		
-		// (not supported as of Beta Spin3)
-		static public class MomentumOutputPojo {
-			public Boolean enable = true;
-			public String aggInterval = "1m";
-			public Boolean docCount = true;
-			public Boolean entityCount = true;
-			public Boolean geoCount = true;
-			public Boolean eventCount = true;
+		// Output filters (entity types, assoc verb categories)
+		static public class FilterOutputPojo {
+			public String[] entityTypes = null;
+			public String[] assocVerbs = null;
 		}
-		public MomentumOutputPojo moments = null; // (off by default)
+		public FilterOutputPojo filter = null; // (off by default)
+		
 	}
 	public QueryOutputPojo output; // (optional, just defaults to the above defaults if omitted)
 }

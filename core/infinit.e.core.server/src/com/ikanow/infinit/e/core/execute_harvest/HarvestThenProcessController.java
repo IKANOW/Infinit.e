@@ -279,10 +279,12 @@ public class HarvestThenProcessController {
 				List<DocumentPojo> toRemove = new LinkedList<DocumentPojo>();				
 				
 				_harvesterController.get().harvestSource(_sourceToProcess, toAdd, toUpdate, toRemove);
+					// (toAdd includes toUpdate)
 				
 				if (HarvestEnum.error != _sourceToProcess.getHarvestStatus().getHarvest_status()) {
 					_genericController.get().processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove);
-					long nDocsDeleted = toUpdate.size() + toRemove.size();
+						// (toRemove includes toUpdate)
+					long nDocsDeleted = toRemove.size();
 					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, nDocsDeleted);
 						// (note also releases the "in_progress" lock)
 				}

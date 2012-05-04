@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.api.knowledge.processing;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -159,6 +160,9 @@ public class ScoringUtils
 	boolean _s0_bSummaries;
 	boolean _s0_bMetadata;
 	
+	HashSet<String> _s0_entityTypeFilter = null;
+	HashSet<String> _s0_assocVerbFilter = null;
+	
 	ScoringUtils_MultiCommunity _s0_multiCommunityHandler;
 		// (handles approximating significance from multiple communities with various overlaps)
 	StandaloneEventHashAggregator _s0_standaloneEventAggregator;
@@ -172,6 +176,7 @@ public class ScoringUtils
 														StatisticsPojo scores,
 														long nStart, long nToClientLimit,
 														String[] communityIds,
+														String[] entityTypeFilterStrings, String[] assocVerbFilterStrings,
 														LinkedList<BasicDBObject> entityReturn,
 														LinkedList<BasicDBObject> standaloneEventsReturn)
 	{
@@ -233,6 +238,22 @@ public class ScoringUtils
 				_s0_bSummaries = false;
 			}
 		} //TESTED		
+		
+		if (null != entityTypeFilterStrings) {
+			_s0_entityTypeFilter = new HashSet<String>();
+			for (String entityType: entityTypeFilterStrings) {
+				_s0_entityTypeFilter.add(entityType.toLowerCase());
+			}
+		}
+		if (_s0_bEvents || _s0_bFacts || _s0_bSummaries || (null != standaloneEventsReturn)) { // (ie most of the time!)
+			if (null != assocVerbFilterStrings) {
+				_s0_assocVerbFilter = new HashSet<String>();
+				for (String assocVerb: assocVerbFilterStrings) {
+					_s0_assocVerbFilter.add(assocVerb);
+				}
+			}
+		}
+		//TESTED
 		
 // First loop: just count and store
 		
@@ -335,7 +356,7 @@ public class ScoringUtils
 			// Simple handling for standalone events
 			if ((null != _s0_standaloneEventAggregator) && !_s0_bNeedToCalcSig) {
 				//if _s0_bNeedToCalcSig then do this elsewhere
-				ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+				ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
 			}//TOTEST
 			
 			if (!_s0_bNeedToCalcSig) {
@@ -391,6 +412,15 @@ public class ScoringUtils
 				for(Iterator<?> e0 = l.iterator(); e0.hasNext();){					
 					BasicDBObject e = (BasicDBObject)e0.next();
 	
+					// Check if entity is in type filter list
+					if (null != _s0_entityTypeFilter) {
+						String entType = e.getString(EntityPojo.type_);
+						if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+							nEntsInDoc--;
+							continue;
+						}
+					}
+					
 					// Get attributes
 					
 					double freq = -1.0;
@@ -786,7 +816,7 @@ public class ScoringUtils
 
 								// Phase "1": middle ranking (used to be good, not so much any more)
 								if (null != _s0_standaloneEventAggregator) {
-									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_standaloneEventAggregator, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
 								}//TOTEST
 							
 							}//TESTED
@@ -797,7 +827,7 @@ public class ScoringUtils
 
 							// Phase "2": never any good!
 							if (null != _s0_standaloneEventAggregator) {
-								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
 							}//TOTEST
 						}
 					}
@@ -806,7 +836,7 @@ public class ScoringUtils
 						
 						// Phase "2": never any good!
 						if (null != _s0_standaloneEventAggregator) {
-							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
 						}//TOTEST
 					}
 				}//TESTED
@@ -892,7 +922,7 @@ public class ScoringUtils
 			
 			// Phase "0" - these are the highest prio events
 			if (null != _s0_standaloneEventAggregator) {
-				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_standaloneEventAggregator, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
 			}//TOTEST
 			
 			try {
@@ -935,13 +965,16 @@ public class ScoringUtils
 				// Check if events etc enabled
 				if ((!_s0_bEvents && !_s0_bFacts && !_s0_bSummaries)) {
 					f.removeField(DocumentPojo.associations_);										
-				}//TESTED
-				else if (!_s0_bEvents || !_s0_bFacts || !_s0_bSummaries) {					
+				}//TESTED				
+				else if (!_s0_bEvents || !_s0_bFacts || !_s0_bSummaries || (null != _s0_assocVerbFilter)) {					
+					
 					// Keep only specified event_types
 					BasicDBList lev = (BasicDBList)(f.get(DocumentPojo.associations_));
 					if (null != lev) {
 						for(Iterator<?> e0 = lev.iterator(); e0.hasNext();){
 							BasicDBObject e = (BasicDBObject)e0.next();
+							
+							// Type filter
 							String sEvType = e.getString(AssociationPojo.assoc_type_);
 							boolean bKeep = true;
 							if (null == sEvType) {
@@ -959,9 +992,48 @@ public class ScoringUtils
 							if (!bKeep) {
 								e0.remove();
 							}
+							else { // Type matches, now for some more complex logic....
+								if (null != _s0_assocVerbFilter) { // Verb filter
+									if (!_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+										e0.remove();
+										bKeep = false;
+									}
+								}
+								if ((null != _s0_entityTypeFilter) && bKeep) {
+									String entIndex = e.getString(AssociationPojo.entity1_index_);
+									if (null != entIndex) {
+										String entType = null; 
+										int nIndex = entIndex.lastIndexOf('/');
+										if (nIndex >= 0) {
+											entType = entIndex.substring(nIndex + 1);
+										}
+										if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+											e0.remove();
+											bKeep = false;
+										}
+									}//(end if ent1_index exists)
+									if (bKeep) { // same for ent index 2
+										entIndex = e.getString(AssociationPojo.entity2_index_);
+										if (null != entIndex) {
+											String entType = null; 
+											int nIndex = entIndex.lastIndexOf('/');
+											if (nIndex >= 0) {
+												entType = entIndex.substring(nIndex + 1);
+											}
+											if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+												e0.remove();
+												bKeep = false;
+											}
+										}//(end if ent2_index exists)
+									}
+								}//(end entity filter logic for associations)
+								//TESTED
+							}//(end output filter logic)
+
 						} // (end loop over events)	
 					} // (end if this doc has events)
-				} //TESTED
+					
+				} //TESTED				
 				
 				// Check if metadata is enabled
 				if (!_s0_bMetadata) {
@@ -974,6 +1046,15 @@ public class ScoringUtils
 						
 						if (!_s0_bNonGeoEnts) { // then must only be getting geo (else wouldn't be in this loop)
 							if (null == e.get(EntityPojo.geotag_)) {
+								e0.remove();
+								continue;
+							}
+						}
+						
+						// Output filter
+						if (null != _s0_entityTypeFilter) {
+							String entType = e.getString(EntityPojo.type_);
+							if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
 								e0.remove();
 								continue;
 							}

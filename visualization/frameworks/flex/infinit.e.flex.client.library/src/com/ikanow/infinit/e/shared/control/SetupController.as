@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -19,10 +19,12 @@ package com.ikanow.infinit.e.shared.control
 	import com.ikanow.infinit.e.shared.event.SetupEvent;
 	import com.ikanow.infinit.e.shared.model.manager.SetupManager;
 	import com.ikanow.infinit.e.shared.model.vo.Setup;
+	import com.ikanow.infinit.e.shared.model.vo.Share;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.service.setup.ISetupServiceDelegate;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.rpc.events.ResultEvent;
 	
 	/**
@@ -103,6 +105,21 @@ package com.ikanow.infinit.e.shared.control
 			setupManager.setSetup( ServiceResult( event.result ).data as Setup );
 		}
 		
+		[EventHandler( event = "SetupEvent.GET_WIDGET_OPTIONS" )]
+		
+		public function getWidgetOptions( event:SetupEvent ):void
+		{
+			executeServiceCall( "SetupController.getWidgetOptions()", event, setupServiceDelegate.getWidgetOptions( event ), getWidgetOptions_resultHandler, defaultFaultHandler );
+		}
+		
+		public function getWidgetOptions_resultHandler( event:ResultEvent ):void
+		{
+			var result:ServiceResult = ServiceResult( event.result );
+			var data:ArrayCollection = result.data as ArrayCollection;
+			setupManager.saveWidgetOptions( data );
+			//setupManager.setSetup( ServiceResult( event.result ).data as Setup );
+		}
+		
 		[EventHandler( event = "SetupEvent.RESET" )]
 		/**
 		 * Reset Setup
@@ -122,6 +139,8 @@ package com.ikanow.infinit.e.shared.control
 		{
 			setupManager.saveSetup();
 		}
+		
+		
 		
 		[EventHandler( event = "SetupEvent.SELECT_MODULE_FAVORITE" )]
 		/**

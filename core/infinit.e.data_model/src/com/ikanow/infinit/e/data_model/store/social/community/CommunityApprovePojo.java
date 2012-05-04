@@ -29,6 +29,7 @@ public class CommunityApprovePojo extends BaseDbPojo
 	private String communityId = null;
 	private String personId = null;
 	private Date issueDate = null;
+	private String sourceId = null;
 	
 	public void set_id(ObjectId _id) {
 		this._id = _id;
@@ -65,6 +66,12 @@ public class CommunityApprovePojo extends BaseDbPojo
 	}
 	public Date getIssueDate() {
 		return issueDate;
+	}
+	public void setSourceId(String sourceId) {
+		this.sourceId = sourceId;
+	}
+	public String getSourceId() {
+		return sourceId;
 	}
 	
 	

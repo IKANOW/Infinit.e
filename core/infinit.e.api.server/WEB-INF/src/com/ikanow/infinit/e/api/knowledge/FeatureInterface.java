@@ -19,15 +19,13 @@ package com.ikanow.infinit.e.api.knowledge;
  * 
  */
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -40,7 +38,7 @@ import java.util.Map;
  * @author cmorgan
  *
  */
-public class FeatureInterface extends Resource 
+public class FeatureInterface extends ServerResource 
 {
 	//private static final Logger logger = Logger.getLogger(FeedResource.class);
 	
@@ -53,9 +51,10 @@ public class FeatureInterface extends Resource
 	
 	private FeatureHandler featureHandler = new FeatureHandler();
 	
-	public FeatureInterface(Context context, Request request, Response response) 
+	@Override
+	public void doInit() 
 	{
-		 super(context, request, response);
+		Request request = this.getRequest();
 		 String urlStr = request.getResourceRef().toString();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
@@ -85,12 +84,6 @@ public class FeatureInterface extends Resource
 			 updateItem = RESTTools.decodeRESTParam("gazid",attributes);
 			 action = "feature";			 
 		 }
-		 // All modifications of this resource
-		 this.setModifiable(true);
-		 
-		 //this.user = findUser(userid);
-		 //getVariants().add(new Variant(MediaType.TEXT_PLAIN));
-		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
 	/**
@@ -100,7 +93,8 @@ public class FeatureInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get() 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
 		 Date startTime = new Date();	

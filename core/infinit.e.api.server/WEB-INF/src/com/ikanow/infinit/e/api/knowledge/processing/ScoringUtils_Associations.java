@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.api.knowledge.processing;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.TreeSet;
@@ -63,7 +64,7 @@ class ScoringUtils_Associations {
 		LinkedList<BasicDBObject>[] listBuckets = null; 
 		LinkedList<BasicDBObject> tmpList = null; // (until they're ordered)
 		
-	}//TOTEST
+	}//TESTED
 	
 	static class StandaloneEventHashCode { // (used to aggregate standalone events) 
 		StandaloneEventHashCode(BasicDBObject evt_, boolean bIsSummary_, boolean bIsFact_) { 
@@ -164,6 +165,7 @@ class ScoringUtils_Associations {
 	
 	static void addStandaloneEvents(BasicDBObject doc, double dDocSig, int nPhase,
 										StandaloneEventHashAggregator standaloneEventAggregator,
+										HashSet<String> entTypeFilter, HashSet<String> assocVerbFilter,
 										boolean bEvents, boolean bSummaries, boolean bFacts)
 	{
 		String sDocIsoPubDate = null;
@@ -174,6 +176,7 @@ class ScoringUtils_Associations {
 			for(Iterator<?> e0 = lev.iterator(); e0.hasNext();)
 			{
 				BasicDBObject e = (BasicDBObject)e0.next();
+				
 				String sEvType = e.getString(AssociationPojo.assoc_type_);
 				boolean bIsFact = false;
 				boolean bIsSummary = false;
@@ -192,6 +195,42 @@ class ScoringUtils_Associations {
 					if (!bSummaries) bKeep = false;
 					bIsSummary = true;
 				}//TESTED x4
+				
+				// Verb filter
+				if (null != assocVerbFilter) {
+					if (!assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+						bKeep = false;
+					}
+				}						
+				if ((null != entTypeFilter) && bKeep) {
+					String entIndex = e.getString(AssociationPojo.entity1_index_);
+					if (null != entIndex) {
+						String entType = null; 
+						int nIndex = entIndex.lastIndexOf('/');
+						if (nIndex >= 0) {
+							entType = entIndex.substring(nIndex + 1);
+						}
+						if ((null != entType) && (!entTypeFilter.contains(entType))) {
+							e0.remove();
+							bKeep = false;
+						}
+					}//(end if ent1_index exists)
+					if (bKeep) { // same for ent index 2
+						entIndex = e.getString(AssociationPojo.entity2_index_);
+						if (null != entIndex) {
+							String entType = null; 
+							int nIndex = entIndex.lastIndexOf('/');
+							if (nIndex >= 0) {
+								entType = entIndex.substring(nIndex + 1);
+							}
+							if ((null != entType) && (!entTypeFilter.contains(entType))) {
+								e0.remove();
+								bKeep = false;
+							}
+						}//(end if ent2_index exists)
+					}
+				}//(end entity filter logic for associations)
+				//TESTED
 				
 				if (bKeep) 
 				{
@@ -272,7 +311,6 @@ class ScoringUtils_Associations {
 							standaloneEventAggregator.tmpList.addFirst(e);
 							standaloneEventAggregator.nPhase0Events++;
 						}
-						//TOTEST
 					}
 					else { // Update doc count
 						long nDocCount = oldEvt.getInt(AssociationPojo.doccount_, 1) + 1;

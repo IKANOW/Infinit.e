@@ -35,7 +35,9 @@ public class SourceRssConfigPojo {
 	public static class ExtraUrlPojo {
 		public String url;
 		public String title;
-		public String description;
+		public String description; // (optional)
+		public String publishedDate; // (optional)
+		public String fullText; // (optional - for cases where you need to build many docs from one page, also debugging) 
 	}
 	private List<ExtraUrlPojo> extraUrls; 
 	
@@ -45,27 +47,27 @@ public class SourceRssConfigPojo {
 	
 	private SourceSearchFeedConfigPojo searchConfig = null;
 	
+	private Integer updateCycle_secs; // Optional, if present will re-extract duplicate URLs
+	
 // Functions:
 	
-	public void createIncludeExcludeRegexes() {
-		if (null != regexInclude) {
+	public Matcher getIncludeMatcher(String sUrl) {
+		if ((null == regexIncludePattern) && (null != regexInclude)) {
 			regexIncludePattern = Pattern.compile(regexInclude, Pattern.CASE_INSENSITIVE);
 		}
-		if (null != regexExclude) {
-			regexExcludePattern = Pattern.compile(regexExclude, Pattern.CASE_INSENSITIVE);
+		if (null != regexIncludePattern) {
+			return regexIncludePattern.matcher(sUrl);
 		}
-	}
-	public Matcher getIncludeMatcher(String sUrl) {
-		if (null == regexIncludePattern) {
-			return null;
-		}
-		return regexIncludePattern.matcher(sUrl);
+		else return null;
 	}
 	public Matcher getExcludeMatcher(String sUrl) {
-		if (null == regexExcludePattern) {
-			return null;
+		if ((null == regexExcludePattern) && (null != regexExclude)) {
+			regexExcludePattern = Pattern.compile(regexExclude, Pattern.CASE_INSENSITIVE);
 		}
-		return regexExcludePattern.matcher(sUrl);
+		if (null != regexExcludePattern) {
+			return regexExcludePattern.matcher(sUrl);
+		}
+		else return null;
 	}
 	
 	// Get set:
@@ -78,9 +80,11 @@ public class SourceRssConfigPojo {
 	}
 	public void setRegexInclude(String regexInclude) {
 		this.regexInclude = regexInclude;
+		regexIncludePattern = null;
 	}
 	public void setRegexExclude(String regexExclude) {
 		this.regexExclude = regexExclude;
+		regexExcludePattern = null;
 	}
 
 	public String getFeedType() {
@@ -112,5 +116,11 @@ public class SourceRssConfigPojo {
 	}
 	public void setUserAgent(String userAgent) {
 		this.userAgent = userAgent;
+	}
+	public void setUpdateCycle_secs(Integer updateCycle_secs) {
+		this.updateCycle_secs = updateCycle_secs;
+	}
+	public Integer getUpdateCycle_secs() {
+		return updateCycle_secs;
 	}
 }

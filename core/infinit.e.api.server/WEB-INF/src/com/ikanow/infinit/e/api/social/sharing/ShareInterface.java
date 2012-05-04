@@ -22,17 +22,16 @@ import java.net.URLDecoder;
 import java.util.Date;
 import java.util.Map;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
 import org.restlet.data.Status;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -40,7 +39,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.mongodb.util.JSON;
 
-public class ShareInterface extends Resource
+public class ShareInterface extends ServerResource
 {
 	// 
 	private ShareHandler shareController = new ShareHandler();
@@ -77,9 +76,10 @@ public class ShareInterface extends Resource
 	 * @param response
 	 * @throws UnsupportedEncodingException 
 	 */
-	public ShareInterface(Context context, Request request, Response response) throws UnsupportedEncodingException 
+	@Override
+	public void doInit() 
 	{
-		super(context, request, response);
+		Request request = this.getRequest();
 		
 		Map<String,Object> attributes = request.getAttributes();
 		urlStr = request.getResourceRef().toString();
@@ -139,12 +139,16 @@ public class ShareInterface extends Resource
 				try 
 				{
 					json = URLDecoder.decode(json, "UTF-8");
+					action = "saveJson";
 				}
 				catch (UnsupportedEncodingException e) 
 				{
-					throw e;
+					//TODO can't throw exceptions
+					//set to failed so it doesn't run
+					//throw e;
+					action = "failed";
 				}
-				action = "saveJson";
+				
 			}
 			
 			else if ( urlStr.contains("/share/add/binary/"))
@@ -201,12 +205,7 @@ public class ShareInterface extends Resource
 				comment = RESTTools.decodeRESTParam("comment", attributes);
 				action = "addCommunity";
 			}
-			
-			getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 		}
-
-		// All modifications of this resource
-		this.setModifiable(true);
 	}
 	
 	
@@ -217,7 +216,8 @@ public class ShareInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity)   
 	{
 		if (Method.POST == getRequest().getMethod()) 
 		{
@@ -269,8 +269,7 @@ public class ShareInterface extends Resource
 			}
 		}
 				
-		Representation response = represent(null);		
-		this.getResponse().setEntity(response);		
+		return get();		
 	}
 
 	
@@ -278,7 +277,8 @@ public class ShareInterface extends Resource
 	/**
 	 * 
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get() 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
 		 Date startTime = new Date();	
@@ -364,7 +364,7 @@ public class ShareInterface extends Resource
 							 {							 
 								 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(share.getMediaType()));
 								 rep.setOutputBytes(share.getBinaryData());
-								 rep.setSize(share.getBinaryData().length);
+								 //rep.setSize(share.getBinaryData().length);
 								 return rep;							 
 							 }
 							 catch (Exception ex )

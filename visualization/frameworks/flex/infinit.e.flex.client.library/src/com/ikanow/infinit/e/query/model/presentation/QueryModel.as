@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.query.model.presentation
 {
 	import com.ikanow.infinit.e.query.model.manager.QueryManager;
 	import com.ikanow.infinit.e.shared.event.QueryEvent;
+	import com.ikanow.infinit.e.shared.model.manager.SetupManager;
 	import com.ikanow.infinit.e.shared.model.presentation.base.PresentationModel;
 	import com.ikanow.infinit.e.shared.model.vo.QueryInput;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutput;
@@ -24,6 +25,7 @@ package com.ikanow.infinit.e.query.model.presentation
 	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
+	import com.ikanow.infinit.e.shared.model.vo.Setup;
 	import com.ikanow.infinit.e.shared.model.vo.TypedQueryString;
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
@@ -56,6 +58,19 @@ package com.ikanow.infinit.e.query.model.presentation
 		[Inject]
 		public var navigator:QueryNavigator;
 		
+		[Inject( "queryManager.lastQueryStringRequest", bind = "true" )]
+		/**
+		 * The last query string that was performed
+		 */
+		public var lastQueryStringRequest:QueryStringRequest;
+		
+		
+		[Inject( "setupManager", bind = "true" )]
+		/**
+		 * The setup manager to send queries to
+		 */
+		public var setupManager:SetupManager;
+		
 		//======================================
 		// private properties 
 		//======================================
@@ -83,15 +98,13 @@ package com.ikanow.infinit.e.query.model.presentation
 		
 		public function createAdvancedQuery():void
 		{
-			var qs:Object = ObjectUtil.copy( queryManager.saveAdvancedQuery() );
-			qs[ "tempCommIDs" ] = qs.queryString.communityIds.source;
-			qs[ "tempQT" ] = qs.queryString.qt.source;
+			var queryString:Object = null;
 			
-			if ( qs.queryString.input != null )
-				qs[ "tempInputSources" ] = qs.queryString.input.sources.source;
-			else
-				qs[ "tempInputSources" ] = null;
-			saveQueryString = JSONEncoder.encode( qs );
+			if ( lastQueryStringRequest != null )
+			{
+				queryString = QueryUtil.getQueryStringObject( lastQueryStringRequest );
+			}
+			saveQueryString = JSONEncoder.encode( queryString );
 		}
 		
 		public function loadAdvancedQuery():void
@@ -118,22 +131,13 @@ package com.ikanow.infinit.e.query.model.presentation
 		
 		protected function completeFileHandler( event:Event ):void
 		{
+			var queryString:QueryString = null;
 			var json:String = loadFileReference.data.toString();
-			var jsonObject:Object = JSONDecoder.decode( json );
-			var tempQueryString:Object = ObjectUtil.copy( jsonObject.queryString );
-			
-			//try to convert object, the arraycollections do not get converted correctly :( do by hand
-			var typedQueryString:TypedQueryString = ObjectTranslatorUtil.translateObject( jsonObject, new TypedQueryString, null, false, true ) as TypedQueryString;
-			//TRY TO CONVERT QUERYSTRING BY HAND
-			typedQueryString.queryString.communityIds = checkNullOrTranslateArray( jsonObject.tempCommIDs, new String() );
-			typedQueryString.queryString.qt = checkNullOrTranslateArray( jsonObject.tempQT, new QueryTerm() );
-			
-			if ( typedQueryString.queryString.input != null )
-				typedQueryString.queryString.input.sources = checkNullOrTranslateArray( jsonObject.tempInputSources, new String() );
-			
-			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.RUN_HISTORY_QUERY );
-			queryEvent.typedQueryString = typedQueryString;
-			dispatcher.dispatchEvent( queryEvent );
+			queryString = ObjectTranslatorUtil.translateObject( JSONDecoder.decode( json ), new QueryString, null, false, true ) as QueryString;
+			var tempSetup:Setup = new Setup();
+			tempSetup.queryString = queryString;
+			tempSetup.communityIds = queryString.communityIds.toArray();
+			setupManager.setSetup( tempSetup );
 		}
 		
 		protected function selectFileHandler( event:Event ):void

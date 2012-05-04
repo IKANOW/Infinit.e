@@ -14,6 +14,7 @@ AWS_KEY=`grep "^aws.access.key=" $SERVICE_PROPERTY_FILE | sed s/'aws.access.key=
 SECRET_KEY=`grep "^aws.secret.key=" $SERVICE_PROPERTY_FILE | sed s/'aws.secret.key='// | sed s/"^\s*"// | sed s/"\s*$"//`
 ELASTIC_NODES=`grep "^elastic.search.nodes=" $SERVICE_PROPERTY_FILE | sed s/'elastic.search.nodes='// | sed s/"^\s*"// | sed s/"\s*$"//`
 BOOTSTRAP_MLOCKALL=`grep "^bootstrap.mlockall=" $SERVICE_PROPERTY_FILE | sed s/'bootstrap.mlockall='// | sed s/"^\s*"// | sed s/"\s*$"//`
+MIN_NODES=`grep "^elastic.search.min_peers=" $SERVICE_PROPERTY_FILE | sed s/'elastic.search.min_peers='// | sed s/"^\s*"// | sed s/"\s*$"//`
 
 ################################################################################
 # 
@@ -22,6 +23,9 @@ cp $YML_TEMPLATE $TMP_YML_FILE
 sed -i "s|CLUSTER_NAME|$CLUSTER_NAME|g" $TMP_YML_FILE
 
 sed -i "s|DISCOVERY_MODE|$DISCOVERY_MODE|g" $TMP_YML_FILE
+
+sed -i "s|MIN_NODES|$MIN_NODES|g" $TMP_YML_FILE
+
 if [ $DISCOVERY_MODE = "zen" ]; then
 	sed -i "s|ELASTIC_NODES|$ELASTIC_NODES|g" $TMP_YML_FILE
 	sed -i "s|.*cloud:.*|#\0|g" $TMP_YML_FILE

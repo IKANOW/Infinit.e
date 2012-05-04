@@ -18,24 +18,22 @@ package com.ikanow.infinit.e.api.gui;
 import java.io.IOException;
 import java.util.Map;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
 import org.restlet.data.Status;
-import org.restlet.resource.Representation;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
-
-import org.restlet.resource.Resource;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 
-public class UIInterface extends Resource
+public class UIInterface extends ServerResource
 {
 	String action = "";
 	String cookieLookup = "";
@@ -46,9 +44,10 @@ public class UIInterface extends Resource
 	private String cookie = null;
 	private boolean needCookie = true;
 	
-	public UIInterface(Context context, Request request, Response response)
+	@Override
+	public void doInit()
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		 String urlStr = request.getResourceRef().toString();
 		 Map<String,Object> attributes = request.getAttributes();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
@@ -95,10 +94,7 @@ public class UIInterface extends Resource
 		 {
 			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
 			 action = "savemodules";
-		 }
-		 
-		 this.setModifiable(true);
-		 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
+		 }		 
 	}
 	
 	/**
@@ -109,8 +105,9 @@ public class UIInterface extends Resource
 	 * @throws ResourceException
 	 */
 
-	public void acceptRepresentation(Representation entity) throws ResourceException {
-
+	@Post
+	public Representation post(Representation entity)
+	{
 		if (Method.POST == getRequest().getMethod()) {
 			try {
 				query = entity.getText();
@@ -119,9 +116,8 @@ public class UIInterface extends Resource
 				e.printStackTrace();
 				getResponse().setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
 			}
-		}		 
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+		}		 		
+		return get();
 	}//TESTED
 	
 	/**
@@ -131,7 +127,8 @@ public class UIInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get( ) 
 	{
 		 ResponsePojo rp = new ResponsePojo();
 		 if ( needCookie )

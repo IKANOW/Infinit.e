@@ -491,6 +491,7 @@ public class ShareHandler
 				
 				// Save the document to the share collection
 				DbManager.getSocial().getShare().update(query, share.toDb());
+				rp.setData(share, new SharePojoApiMap(null));
 				rp.setResponse(new ResponseObject("Share", true, "Share updated successfully."));
 			}
 			// Create new share
@@ -514,6 +515,7 @@ public class ShareHandler
 				// Serialize the ID and Dates in the object to MongoDB format
 				// Save the document to the share collection
 				DbManager.getSocial().getShare().save(share.toDb());
+				rp.setData(share, new SharePojoApiMap(null));
 				rp.setResponse(new ResponseObject("Share", true, "New share added successfully."));
 			}
 		}

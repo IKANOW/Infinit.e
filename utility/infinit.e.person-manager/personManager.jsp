@@ -29,7 +29,7 @@ limitations under the License.
 <%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*;" errorPage="" %>
 <%!
 	static String API_ROOT = null;
-	
+	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = false;
 	static Boolean localCookie = false;
 	static String user = null;
@@ -312,7 +312,6 @@ limitations under the License.
 	
 	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
 	{
-		//System.out.println("Set Browser Cookie to " + value);
 		Cookie cookie = new Cookie ("infinitecookie",value);
 		cookie.setPath("/");
 		response.addCookie(cookie);
@@ -327,7 +326,6 @@ limitations under the License.
 			{
 				if (cookie.getName().equals("infinitecookie"))
 				{
-					//System.out.println("Got Browser Cookie Line 109: " + cookie.getValue());
 					return cookie.getValue() + ";";
 				}
 			}
@@ -352,7 +350,6 @@ limitations under the License.
 	            	{
 	            		int equalsLoc = value.indexOf("=");
 	            		int semicolonLoc = value.indexOf(";");
-	            		//System.out.println("Got Connection Cookie Line 133: " + value.substring(equalsLoc+1,semicolonLoc));
 	            		return value.substring(equalsLoc+1,semicolonLoc);
 	            	}
 	            }
@@ -379,7 +376,7 @@ limitations under the License.
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         	}
-        	else
+        	else if (DEBUG_MODE)
         		System.out.println("Infinit.e Cookie Value is Null");
         	IOUtils.copy(urlConnection.getInputStream(), output);
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
@@ -422,7 +419,7 @@ limitations under the License.
         		connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
         		connection.setDoInput(true);
         	}
-        	else
+        	else if (DEBUG_MODE)
         		System.out.println("NULLLLLLLLL");
 	
 	    	connection.setDoOutput(true);
@@ -455,7 +452,8 @@ limitations under the License.
 	
 		catch (Exception e)
 		{
-			System.out.println("Exception: " + e.getMessage());
+			if (DEBUG_MODE)
+				System.out.println("Exception: " + e.getMessage());
 		}
 			return result;
 	}
@@ -664,14 +662,16 @@ limitations under the License.
 		//Otherwise, the invite call
 		String url = API_ROOT + "social/community/member/invite/"+communityId+"/"+personId;
 		String json = stringOfUrl(url, request, response);
-		//System.out.println("Adding user to community: " + json);
+		if (DEBUG_MODE)
+			System.out.println("Adding user to community: " + json);
 	}
 	
 	public void setUserCommunityStatus(HttpServletRequest request, HttpServletResponse response, String communityId, String personId, String status)
 	{
 		String url = API_ROOT + "social/community/member/update/status/"+communityId+"/"+personId+"/" + status;
 		String json = stringOfUrl(url, request, response);
-		//System.out.println("Setting User Community Status to " + status + " : " + json);
+		if (DEBUG_MODE)
+			System.out.println("Setting User Community Status to " + status + " : " + json);
 	}
 	
 	public void removeUserFromCommunity(HttpServletRequest request, HttpServletResponse response, String communityId, String personId)
@@ -738,25 +738,29 @@ limitations under the License.
 		if (json != null)
 		{
 			getPerson gp = new Gson().fromJson(json, getPerson.class);
+
+			if (null == gp.data) { // user doesn't exist that's fine
+				return "";
+			}
 			
 			String _id = gp.data._id;
-			if (_id != null)
+			if (_id == null)
 				_id = "";
 			
 			String email = gp.data.email;
-			if (email != null)
+			if (email == null)
 				email = "";
 			
 			String firstname = gp.data.firstName;
-			if (firstname != null)
+			if (firstname == null)
 				firstname = "";
 			
 			String lastname = gp.data.lastName;
-			if (lastname != null)
+			if (lastname == null)
 				lastname = "";
 			
 			String phone = gp.data.phone;
-			if (phone != null)
+			if (phone == null)
 				phone = "";
 			
 			String value = _id+delim+email+delim+firstname+delim+lastname+delim+phone+delim;
@@ -1128,13 +1132,14 @@ else if (isLoggedIn == true)
 else if (isLoggedIn == false)
 {
 	localCookie =(request.getParameter("local") != null);
-	//System.out.println("LocalCookie = " + localCookie.toString());
+
 	String errorMsg = "";
 	if (request.getParameter("logintext") != null || request.getParameter("passwordtext") != null)
 	{
 		if(logMeIn(request.getParameter("logintext"),request.getParameter("passwordtext"), request, response))
 		{
 			showAll = (request.getParameter("sudo") != null);
+			DEBUG_MODE = (request.getParameter("debug") != null);
 			out.println("<meta http-equiv=\"refresh\" content=\"0\">");
 			out.println("Successfully Logged In. Please Wait.");
 		}

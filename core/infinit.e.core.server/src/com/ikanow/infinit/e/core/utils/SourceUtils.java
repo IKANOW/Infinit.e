@@ -82,8 +82,10 @@ public class SourceUtils {
 			else {
 				query = new BasicDBObject();
 			}
-			query.put(SourcePojo.isApproved_, true);
-			if (!bSync) {
+			if (null == sSourceId) {
+				query.put(SourcePojo.isApproved_, true);
+			}
+			if (!bSync && (null == sSourceId)) {
 				query.put(SourcePojo.harvestBadSource_,  new BasicDBObject(MongoDbManager.ne_, true)); // (ie true or doesn't exist)
 					// (still sync bad sources)
 			}
@@ -118,7 +120,10 @@ public class SourceUtils {
 				fields.put(SourcePojo.key_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_harvested_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_synced_, 1);
-				fields.put(SourcePojo.searchCycle_secs_, 1);
+				if (null == sSourceId) {
+					fields.put(SourcePojo.searchCycle_secs_, 1);
+				}
+				// (otherwise - effectively overriding this with null for "debug" calls)
 			}
 			// (first off, set the harvest/sync date for any sources that don't have it set,
 			//  needed because sort doesn't return records without the sorting field) 
@@ -155,6 +160,7 @@ public class SourceUtils {
 		
 		PropertiesManager pm = new PropertiesManager();
 		int nBatchSize = pm.getDistributionBatchSize(bSync);
+		Long defaultSearchCycle_ms = pm.getMinimumHarvestTimePerSourceMs();
 		
 		// The logic for getting the next set of sources is:
 		// 2] Get the oldest 20 sources that are:
@@ -168,7 +174,13 @@ public class SourceUtils {
 			if ((null != sSourceType) && !candidate.getExtractType().equalsIgnoreCase(sSourceType)) {
 				continue;
 			}
-			if (null != candidate.getSearchCycle_secs()) {
+			if ((null != candidate.getSearchCycle_secs()) || (null != defaultSearchCycle_ms)) {
+				if (null == candidate.getSearchCycle_secs()) {
+					candidate.setSearchCycle_secs((int)(defaultSearchCycle_ms/1000));
+				}
+				if (candidate.getSearchCycle_secs() < 0) {
+					continue; // negative search cycle => disabled
+				}
 				if ((null != candidate.getHarvestStatus()) && (null != candidate.getHarvestStatus().getHarvested())) {
 					//(ie the source has been harvested, and there is a non-default search cycle setting)
 					if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
@@ -177,7 +189,7 @@ public class SourceUtils {
 						continue; // (too soon since the last harvest...)
 					}
 				}
-			}//TOTEST
+			}//TESTED
 			
 			query.put(SourcePojo._id_, candidate.getId());
 			BasicDBObject modifyClause = new BasicDBObject();

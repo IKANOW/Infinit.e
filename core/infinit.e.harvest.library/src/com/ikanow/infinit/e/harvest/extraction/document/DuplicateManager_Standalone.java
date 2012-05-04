@@ -91,4 +91,7 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	public boolean needsUpdated_Url(Date modifiedDate, String url, String sourceKey) {
 		return true;
 	}		
+	public Date getLastDuplicateModifiedTime() { // (returns an hour ago)
+		return new Date(new Date().getTime() - 3600);
+	}
 }

@@ -140,42 +140,49 @@ public class FileHarvester implements HarvesterInterface {
 	 * @return
 	 * @throws SmbException
 	 */
+	
 	private static SmbFile searchFileShare( SmbFile f, SourcePojo source, int depth, String searchFile ) throws SmbException 
 	{
-		if( depth == 0 ) 
-		{
+		//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
+		// This is v undesirable and should be fixed once the underlying bug has been fixed
+		// (note in practice this is only an issue for multiple threads going to the same domain)
+		synchronized (FileHarvester.class) {
+			if( depth == 0 ) 
+			{
+				return null;
+			}
+	
+			SmbFile[] l;
+			try 
+			{
+				l = f.listFiles();
+				for(int i = 0; l != null && i < l.length; i++ ) 
+				{
+					// Check to see if the item is a directory or a file that needs to parsed
+					// if it is a directory then use recursion to dive into the directory
+					if( l[i].isDirectory() ) 
+					{
+						SmbFile search = searchFileShare( l[i], source, depth - 1, searchFile );
+						if ( search != null )
+							return search;
+					}
+					else if ( l[i].getURL().toString().equals(searchFile) )
+					{					
+						return l[i];
+					}
+				}
+			} 
+			catch (SmbException e) 
+			{			
+				if (5 == depth) 
+				{ 
+					// Top level error, abandon ship
+					throw e;
+				}
+			}
 			return null;
 		}
-
-		SmbFile[] l;
-		try 
-		{
-			l = f.listFiles();
-			for(int i = 0; l != null && i < l.length; i++ ) 
-			{
-				// Check to see if the item is a directory or a file that needs to parsed
-				// if it is a directory then use recursion to dive into the directory
-				if( l[i].isDirectory() ) 
-				{
-					SmbFile search = searchFileShare( l[i], source, depth - 1, searchFile );
-					if ( search != null )
-						return search;
-				}
-				else if ( l[i].getURL().toString().equals(searchFile) )
-				{					
-					return l[i];
-				}
-			}
-		} 
-		catch (SmbException e) 
-		{			
-			if (5 == depth) 
-			{ 
-				// Top level error, abandon ship
-				throw e;
-			}
-		}
-		return null;
+		// (End INF-1406 sync bug, see above explanation)
 	}
 	
 	
@@ -321,19 +328,18 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setSourceKey(source.getKey());
 						doctoAdd.setMediaType(source.getMediaType());
 						doctoAdd.setSourceType(source.getExtractType());
-						//doctoAdd.setDescription();
 						doctoAdd.setModified(new Date(f.getDate()));
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()){ // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
 							if (null == doctoAdd.getMetadata()) { // Pathological - always set by parseDocument()
-								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).toString());
+								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append(".xml").toString());
 							}
 							else {
 								if (null == md5) { // Will never happen, MD5 always exists
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).toString());
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append(".xml").toString());
 								}
 								else { // This is the standard call if the XML parser has not been configured to build the URL
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).toString());								
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(".xml").toString());								
 								}
 							}
 						}
@@ -342,11 +348,8 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setId(new ObjectId());
 						doctoAdd.setSourceUrl(f.getURL().toString());
 
-						// Post-processing, now URL has been set can do a full check for dedups
-						// (note this is duplicated in checkForUpdatesAndDedups - probably unnecessarily)
-						if (needsUpdated_Url(modDate, doctoAdd.getUrl().toString(), source.getKey())) {
-							files.add(doctoAdd);
-						}
+						// Always add to files because I'm deleting the source URL
+						files.add(doctoAdd);						
 					}
 
 				} catch (XMLStreamException e1) {
@@ -364,7 +367,7 @@ public class FileHarvester implements HarvesterInterface {
 		}
 		else //Tika supports Excel,Word,Powerpoint,Visio, & Outlook Documents
 		{
-			// (note this is duplicated in checkForUpdatesAndDedups - probably unnecessarily)
+			// (This dedup tells me if it's an add/update vs ignore - qr.isDuplicate higher up tells me if I need to add or update)
 			if(needsUpdated_Url(modDate, f.getURL().toString(), source.getKey()))
 			{
 
@@ -450,7 +453,7 @@ public class FileHarvester implements HarvesterInterface {
 					}
 					
 					// Save the entire metadata:
-					doc.addToMetadata("tika", metadata);
+					doc.addToMetadata("_FILE_METADATA_", metadata);
 
 					for(ObjectId communityId: source.getCommunityIds())
 					{
@@ -504,24 +507,30 @@ public class FileHarvester implements HarvesterInterface {
 
 		SmbFile[] l;
 		try {
-			l = f.listFiles();
-			for(int i = 0; l != null && i < l.length; i++ ) {
-
-				// Check to see if the item is a directory or a file that needs to parsed
-				// if it is a file then parse the sucker using tika 
-				// if it is a directory then use recursion to dive into the directory
-				if (files.size() > this.maxDocsPerCycle) {
-					break;
-				}
-				if( l[i].isDirectory() ) {
-					traverse( l[i], source, depth - 1 );					
-				}
-				else {
-					parse( l[i], source);
-						// (Adds to this.files)
+			//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
+			// This is v undesirable and should be fixed once the underlying bug has been fixed
+			// (note in practice this is only an issue for multiple threads going to the same domain)
+			synchronized (FileHarvester.class) {
+				l = f.listFiles();
+				
+				for(int i = 0; l != null && i < l.length; i++ ) {
+	
+					// Check to see if the item is a directory or a file that needs to parsed
+					// if it is a file then parse the sucker using tika 
+					// if it is a directory then use recursion to dive into the directory
+					if (files.size() > this.maxDocsPerCycle) {
+						break;
+					}
+					if( l[i].isDirectory() ) {
+						traverse( l[i], source, depth - 1 );					
+					}
+					else {
+						parse( l[i], source);
+							// (Adds to this.files)
+					}
 				}
 			}
-
+			// (End INF-1406 sync bug, see above explanation)
 
 		} catch (SmbException e) {
 			
@@ -534,8 +543,6 @@ public class FileHarvester implements HarvesterInterface {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 			}
 		}
-
-
 	}
 
 

@@ -40,7 +40,7 @@ public class UnstructuredAnalysisConfigPojo
 		public String fieldName;
 		public Context context;
 		public String script; // (or regex for scriptlang=="regex")
-		public String scriptlang; // (currently "javascript" or "regex")
+		public String scriptlang; // (currently "javascript" or "regex", defaults to "javascript")
 		public String replace; // (currently only used in "regex" mode)
 		public Integer groupNum; // (currently only used in "regex" mode)
 		public String flags; // (currently only used in "regex" mode)

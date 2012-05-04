@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -22,6 +22,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.Setup;
+	import com.ikanow.infinit.e.shared.model.vo.Share;
 	import com.ikanow.infinit.e.shared.model.vo.Widget;
 	import com.ikanow.infinit.e.shared.model.vo.WidgetSummary;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
@@ -29,6 +30,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import flash.events.Event;
 	import mx.collections.ArrayCollection;
@@ -120,11 +122,15 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			if ( setup && setup.openModules )
 			{
-				for each ( var widgetSummary:WidgetSummary in setup.openModules )
+				for each ( var widget:Widget in selectedWidgets )
 				{
-					if ( widgetSummary.widgetUrl == widgetUrl )
+					if ( widget.url == widgetUrl )
 					{
-						widgetOptions = widgetSummary.widgetOptions;
+						if ( widgetModuleManager.widgetSaveMap.containsKey( widget.title ) )
+						{
+							return JSONDecoder.decode( ( widgetModuleManager.widgetSaveMap.get( widget.title ) as Share ).share );
+						}
+						
 					}
 				}
 			}
@@ -191,8 +197,11 @@ package com.ikanow.infinit.e.shared.model.manager
 					url += Constants.STRING_ARRAY_DELIMITER + "600"; // height
 					
 					// widget options
-					var widgetOptions:Object = widgetModuleManager.getWidgetModuleOptions( widget.url );
-					url += Constants.STRING_ARRAY_DELIMITER + JSONUtil.encode( widgetOptions );
+					//BURCH OLD WIDGET OPTIONS, Removed to save to shares, just return an empty widget options now
+					//var widgetOptions:Object = widgetModuleManager.getWidgetModuleOptions( widget.url );
+					//url += Constants.STRING_ARRAY_DELIMITER + JSONUtil.encode( widgetOptions );
+					url += Constants.STRING_ARRAY_DELIMITER + JSONUtil.encode( null );
+					widgetModuleManager.saveWidgetModuleOptions( widget.title, widget.url, widget.author );
 				}
 			}
 			else
@@ -218,6 +227,11 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			// save the user widgets
 			saveUserWidgets();
+		}
+		
+		public function saveWidgetOptions( shares:ArrayCollection ):void
+		{
+			widgetModuleManager.setWidgetOptions( shares );
 		}
 		
 		/**

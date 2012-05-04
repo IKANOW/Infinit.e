@@ -116,7 +116,7 @@ public class AggregationUtils {
 	// OUTPUT PARSING - UTILS:
 	
 	public static void parseOutputAggregation(AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo aggregation,
-			SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj)
+			String[] entTypeFilterStrings, String[] assocVerbFilterStrings, SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj)
 	{
 		// 1.] Go through aggregation list
 		
@@ -151,22 +151,89 @@ public class AggregationUtils {
 
 		// Entities - due to problems with significance, handled on a document by document basis, see Significance helper class
 		
-		// Events
+		// Associations (Events/Facts)
+		
+		// Association verb category filter	
+		StringBuilder verbCatRegex = null;
+		StringBuilder entTypeRegex = null;
+		
+		if (((null != aggregation) && (null != aggregation.eventsNumReturn) && (aggregation.eventsNumReturn > 0))
+				||
+			((null != aggregation) && (null != aggregation.factsNumReturn) && (aggregation.factsNumReturn > 0)))
+		{
+			if (null != entTypeFilterStrings) {
+				entTypeRegex = new StringBuilder("(?:");
+				for (String entType: entTypeFilterStrings) {
+					entTypeRegex.append(".*?/").append(entType.toLowerCase()).append('|');
+				}
+				entTypeRegex.setLength(entTypeRegex.length() - 1); // (remove trailing |)
+				entTypeRegex.append(")");
+			}//TESTED
+			
+			if (null != assocVerbFilterStrings) {
+				
+				verbCatRegex = new StringBuilder("\\|(?:");
+				for (String assocVerbFilterString: assocVerbFilterStrings) {
+					verbCatRegex.append(assocVerbFilterString).append('|');
+				}
+				verbCatRegex.setLength(verbCatRegex.length() - 1); // (remove trailing |)
+				verbCatRegex.append(")");
+			}//TESTED
+		}
+		//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 		
 		if ((null != aggregation) && (null != aggregation.eventsNumReturn) && (aggregation.eventsNumReturn > 0)) 
-		{
+		{			
+			StringBuffer regex = new StringBuffer("^Event\\|");
+			if (null != entTypeRegex) {
+				regex.append(entTypeRegex);
+			}
+			else {
+				regex.append("[^|]*");
+			}
+			if (null != verbCatRegex) {
+				regex.append(verbCatRegex);
+			}
+			if (null != entTypeRegex) {
+				regex.append("\\|").append(entTypeRegex);				
+			}
+			else {
+				regex.append("\\|.*");
+			}
+			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 			
 			TermsFacetBuilder fb = FacetBuilders.termsFacet("events").field(AssociationPojo.assoc_index_).size(aggregation.eventsNumReturn).nested(DocumentPojo.associations_);
-			fb.regex("^Event\\|.*");		
+			fb.regex(regex.toString());
+			
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
 			}
 			searchSettings.addFacet(fb);					
 		}
-		if ((null != aggregation) && (null != aggregation.factsNumReturn) && (aggregation.factsNumReturn > 0)) {
+		if ((null != aggregation) && (null != aggregation.factsNumReturn) && (aggregation.factsNumReturn > 0))
+		{
+			StringBuffer regex = new StringBuffer("^Fact\\|");
+			if (null != entTypeRegex) {
+				regex.append(entTypeRegex);
+			}
+			else {
+				regex.append("[^|]*");
+			}
+			if (null != verbCatRegex) {
+				regex.append(verbCatRegex);
+			}
+			if (null != entTypeRegex) {
+				regex.append("\\|").append(entTypeRegex);				
+			}
+			else {
+				regex.append("\\|.*");
+			}
+			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
+			
 			TermsFacetBuilder fb = FacetBuilders.termsFacet("facts").field(AssociationPojo.assoc_index_).size(aggregation.factsNumReturn).nested(DocumentPojo.associations_);
-			fb.regex("^Fact\\|.*");		
+			fb.regex(regex.toString());
+			
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
@@ -226,16 +293,16 @@ public class AggregationUtils {
 			Matcher m = eventIndexParser.matcher(term);
 			if (m.matches()) {
 				BasicDBObject json = new BasicDBObject();				
-				json.put("assoc_type", sEventOrFact);
+				json.put(AssociationPojo.assoc_type_, sEventOrFact);
 				String sEnt1_index = m.group(1);
-				if (null != sEnt1_index) json.put("entity1_index", sEnt1_index.replaceAll("%7C", "|"));
+				if (null != sEnt1_index) json.put(AssociationPojo.entity1_index_, sEnt1_index.replaceAll("%7C", "|"));
 				String sVerbCat = m.group(2);
-				if (null != sVerbCat) json.put("verb_category", sVerbCat.replaceAll("%7C", "|"));
+				if (null != sVerbCat) json.put(AssociationPojo.verb_category_, sVerbCat.replaceAll("%7C", "|"));
 				String sEnt2_index = m.group(3);
-				if (null != sEnt2_index) json.put("entity2_index", sEnt2_index.replaceAll("%7C", "|"));
+				if (null != sEnt2_index) json.put(AssociationPojo.entity2_index_, sEnt2_index.replaceAll("%7C", "|"));
 				String sGeoIndex = m.group(4);
-				if (null != sGeoIndex) json.put("geo_index", sGeoIndex.replaceAll("%7C", "|"));
-				json.put("doccount", facetEl.getCount());				
+				if (null != sGeoIndex) json.put(AssociationPojo.geo_index_, sGeoIndex.replaceAll("%7C", "|"));
+				json.put(AssociationPojo.doccount_, facetEl.getCount());				
 				
 				// Add significance if possible
 				if ((null == scoreStats) || !scoreStats.calcAssocationSignificance(sEnt1_index, sEnt2_index, sGeoIndex, json)) {
@@ -244,7 +311,7 @@ public class AggregationUtils {
 					//json.put("entity2_sig", 0.0);
 					//json.put("geo_sig", 0.0);
 					// Mandatory:
-					json.put("assoc_sig", 0.0);
+					json.put(AssociationPojo.assoc_sig_, 0.0);
 				}				
 				facetList.add(json);
 			}

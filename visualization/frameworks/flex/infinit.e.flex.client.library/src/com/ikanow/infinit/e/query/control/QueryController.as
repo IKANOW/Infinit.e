@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -21,6 +21,7 @@ package com.ikanow.infinit.e.query.control
 	import com.ikanow.infinit.e.shared.control.base.InfiniteController;
 	import com.ikanow.infinit.e.shared.event.QueryEvent;
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QuerySuggestions;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
@@ -29,6 +30,9 @@ package com.ikanow.infinit.e.query.control
 	import mx.rpc.events.FaultEvent;
 	import mx.rpc.events.ResultEvent;
 	
+	//======================================
+	// public methods 
+	//======================================
 	/**
 	 * Query Controller
 	 */
@@ -61,16 +65,6 @@ package com.ikanow.infinit.e.query.control
 		public function addQueryTermToQuery( event:QueryEvent ):void
 		{
 			queryBuilderModel.addQueryTermToQuery( event.queryTerm );
-		}
-		
-		[EventHandler( event = "QueryEvent.ADD_QUERY_TERMS_TO_QUERY" )]
-		/**
-		 * Add a query terms to the query
-		 * @param event
-		 */
-		public function addQueryTermsToQuery( event:QueryEvent ):void
-		{
-			queryBuilderModel.addQueryTermsToQuery( event.queryTerms );
 		}
 		
 		[EventHandler( event = "QueryEvent.CANCEL_EDIT_ADVANCED_QUERY" )]
@@ -270,16 +264,6 @@ package com.ikanow.infinit.e.query.control
 			queryManager.runSimpleQuery( event.querySuggestion );
 		}
 		
-		[EventHandler( event = "QueryEvent.SAVE_QUERY_ADVANCED_SCORING_SETTINGS" )]
-		/**
-		 * Saves the query advanced scoring settings
-		 * @param event
-		 */
-		public function saveAdvancedScoringSettings( event:QueryEvent ):void
-		{
-			queryManager.setAdvancedScoringOptions( event.scoreOptions );
-		}
-		
 		[EventHandler( event = "QueryEvent.SAVE_QUERY_ADVANCED_SETTINGS" )]
 		/**
 		 * Saves the query advanced settings
@@ -287,7 +271,7 @@ package com.ikanow.infinit.e.query.control
 		 */
 		public function saveAdvancedSettings( event:QueryEvent ):void
 		{
-			queryManager.setAdvancedOptions( event.documentOptions, event.aggregationOptions, event.scoreOptions );
+			queryManager.setAdvancedOptions( event.documentOptions, event.aggregationOptions, event.filterOptions, event.scoreOptions );
 		}
 		
 		[EventHandler( event = "QueryEvent.TRY_GET_QUERY_SUGGESTIONS" )]
@@ -300,6 +284,17 @@ package com.ikanow.infinit.e.query.control
 			queryManager.tryGetQuerySuggestions( event.searchType, event.keywordString, event.keywordString2 );
 		}
 		
+		[EventHandler( event = "QueryEvent.UPDATE_QUERY_NAVIGATE" )]
+		/**
+		 * Saves the query advanced scoring settings, navigates to a new page
+		 * @param event
+		 */
+		public function updateQueryAndNavigate( event:QueryEvent ):void
+		{
+			var queryString:QueryString = event.queryString as QueryString;
+			queryBuilderModel.addQueryTermsToQuery( queryString.qt );
+			queryManager.updateQueryAndNavigate( queryString, event.searchType );
+		}
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_LOGIC" )]
 		/**
 		 * Updates the query logic string to be used in a query
@@ -319,7 +314,6 @@ package com.ikanow.infinit.e.query.control
 		{
 			queryBuilderModel.updateQueryTerm( event.queryTerm );
 		}
-		
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_TERMS" )]
 		/**
 		 * Update the query terms to be used in the query
@@ -330,4 +324,9 @@ package com.ikanow.infinit.e.query.control
 			queryManager.setQueryTerms( event.queryTerms );
 		}
 	}
+
+
+
+
+
 }

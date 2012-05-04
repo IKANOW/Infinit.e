@@ -81,28 +81,33 @@ public class DocumentHandler
 			}
 			if (bReturnFullText) 
 			{
-				byte[] storageArray = new byte[200000];
-				DBCollection contentDB = DbManager.getDocument().getContent();
-				BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, dp.getUrl());
-				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
-				if (null != dboContent) {
-					byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));				
-					ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
-					GZIPInputStream gzip = new GZIPInputStream(in);				
-					int nRead = 0;
-					StringBuffer output = new StringBuffer();
-					while (nRead >= 0) {
-						nRead = gzip.read(storageArray, 0, 200000);
-						if (nRead > 0) {
-							String s = new String(storageArray, 0, nRead, "UTF-8");
-							output.append(s);
+				if (null == dp.getFullText()) { // (Some things like database records might have this stored already)
+					byte[] storageArray = new byte[200000];
+					DBCollection contentDB = DbManager.getDocument().getContent();
+					BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, dp.getUrl());
+					BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
+					if (null != dboContent) {
+						byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));				
+						ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
+						GZIPInputStream gzip = new GZIPInputStream(in);				
+						int nRead = 0;
+						StringBuffer output = new StringBuffer();
+						while (nRead >= 0) {
+							nRead = gzip.read(storageArray, 0, 200000);
+							if (nRead > 0) {
+								String s = new String(storageArray, 0, nRead, "UTF-8");
+								output.append(s);
+							}
 						}
+						dp.setFullText(output.toString());
+						dp.makeFullTextNonTransient();
 					}
-					dp.setFullText(output.toString());
-					dp.makeFullTextNonTransient();
-				}								
+				}				
 			}
-			else if ( returnRawData )
+			else if (!returnRawData) {
+				dp.setFullText(null); // (obviously will normally contain full text anyway)
+			}
+			else // if ( returnRawData )
 			{
 				//check if the harvest type is file, return the file instead
 				//if file is db return the json
@@ -146,7 +151,7 @@ public class DocumentHandler
 			}
 			rp.setData(dp, new DocumentPojoApiMap());
 			rp.setResponse(new ResponseObject("Doc Info",true,"Feed info returned successfully"));
-		}
+		}//(end full text vs raw data)
 		catch (Exception e)
 		{
 			// If an exception occurs log the error

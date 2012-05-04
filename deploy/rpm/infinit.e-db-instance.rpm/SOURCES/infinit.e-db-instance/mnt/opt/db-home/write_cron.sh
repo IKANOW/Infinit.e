@@ -32,7 +32,7 @@ echo -e $TEMPLATE > $file
 
 if [ $(infdb is_config) == "true" ]; then 
 	balancer_stopper="true"
-	echo "00 02    * * *   root    /opt/db-home/backup-script.sh 27016" >> $file
+	echo "01 01    * * *   root    /opt/db-home/backup-script.sh 27016" >> $file
 fi
 
 if [ $(infdb is_dbinstance) == "true" ]; then
@@ -41,7 +41,7 @@ if [ $(infdb is_dbinstance) == "true" ]; then
 	for x in $repl_sets
 	do
 		port=$((27017+$x))
-		echo "00 02    * * *   root    /opt/db-home/backup-script.sh $port" >> $file
+		echo "01 01    * * *   root    /opt/db-home/backup-script.sh $port" >> $file
 	done
 fi
 

@@ -32,7 +32,6 @@ limitations under the License.
 <%@ page import="org.apache.commons.httpclient.methods.PostMethod" %>
 <%@ page import="java.io.BufferedReader" %>
 <%@ page import="java.io.InputStreamReader" %>
-
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%! 
@@ -128,7 +127,7 @@ limitations under the License.
 			if (action.equals("logout")) 
 			{
 				logOut(request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0\">");
+				out.println("<meta http-equiv=\"refresh\" content=\"0; url=index.jsp\">");
 			}
 			else if (action.equals("edit")) 
 			{
@@ -145,7 +144,7 @@ limitations under the License.
 			else if (action.equals("publish-source")) 
 			{
 				publishSource(request, response);
-				populateEditSourceForm(shareId, request, response);
+				clearSourceForm();
 			}
 			else if (action.equals("test")) 
 			{
@@ -409,10 +408,10 @@ limitations under the License.
 		if (userSources.size() > 0)
 		{
 			sources.append("<table bgcolor=\"silver\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
-
+			
 			// Sort the sources alphabetically
 			List<String> sortedKeys = new ArrayList<String>(userSources.keySet());
-			Collections.sort( sortedKeys );
+			Collections.sort( sortedKeys, String.CASE_INSENSITIVE_ORDER );
 			
 			int itemNumber = 1;
 			
@@ -433,7 +432,7 @@ limitations under the License.
 							+ "\" title=\"Edit Source\"><img src=\"img/edit.png\" border=0></a>";
 
 					deleteLink = "<a href=\"index.jsp?action=delete&shareid=" + id
-							+ "\" title=\"Delete Share and Source\" "
+							+ "\" title=\"Delete Share\" "
 							+ "onclick='return confirm(\"Do you really wish to delete the share: "
 							+ title + "?\");'><img src=\"img/delete.png\" border=0></a>";
 				}
@@ -465,7 +464,6 @@ limitations under the License.
 			sources.append("(*) - Share (Editable)<br />");
 			sources.append("(+) - Document that is not owned by you</td>");
 			sources.append("</tr>");
-			
 			
 			// Calculate number of pages, current page, page links...
 			sources.append(getPageString(userSources.size(), 1));
@@ -600,11 +598,14 @@ limitations under the License.
 			String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
 			JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, sourceJson.toString(4), request, response));
 			JSONObject json_response = jsonObject.getJSONObject("response");
+			JSONObject json_data = new JSONObject ( jsonObject.getString("data") );
+			
 			clearSourceForm();
+			populateEditSourceForm(json_data.getString("_id"), request, response);
 		}
 		catch (Exception e)
 		{
-			
+			//System.out.println(e.getMessage());
 		}
 	}
 	
@@ -612,10 +613,9 @@ limitations under the License.
 	// createNewShare
 	private void createNewShare(String templateId, HttpServletRequest request, HttpServletResponse response)
 	{
-		Random r = new Random();
-		char c = (char)(r.nextInt(26) + 'a');
+		long timestamp = System.currentTimeMillis()/1000;
 		
-		String title = "1" + c + " - New source";
+		String title = "*New Source." + String.valueOf(timestamp);
 		String description = "New source";
 		String json = "";
 		
@@ -640,12 +640,14 @@ limitations under the License.
 			
 			JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, json, request, response));
 			JSONObject json_response = jsonObject.getJSONObject("response");
+			JSONObject json_data = new JSONObject ( jsonObject.getString("data") );
+			String newShareId = json_data.getString("_id");
+			populateEditSourceForm(newShareId, request, response);
 		}
 		catch (Exception e)
 		{	
-			System.out.println(e.getMessage());
+			//System.out.println(e.getMessage());
 		}
-		clearSourceForm();
 	}
 
 
@@ -735,7 +737,7 @@ limitations under the License.
 			} 
 			catch (Exception e) 
 			{
-				//sourceJson = "Error:" + e.getMessage();
+				sourceJson = "Error:" + e.getMessage();
 			}
 		}
 	} // TESTED
@@ -757,8 +759,8 @@ limitations under the License.
 			}
 			
 			String apiAddress = "";
-			String urlShareTitle = URLEncoder.encode(shareTitle, "UTF-8");
-			String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
+			String urlShareTitle = URLEncoder.encode(shareTitle.trim(), "UTF-8");
+			String urlShareDescription = URLEncoder.encode(shareDescription.trim(), "UTF-8");
 			
 			if (oldId != null)
 			{

@@ -27,6 +27,8 @@ import java.util.Set;
 import java.util.List;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+
+import com.ikanow.infinit.e.api.config.source.SourceHandler;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SendMail;
@@ -61,6 +63,7 @@ import com.mongodb.DBObject;
 public class CommunityHandler 
 {
 	private static final Logger logger = Logger.getLogger(CommunityHandler.class);
+	private SourceHandler sourceHandler = new SourceHandler();
 	
 	//////////////////////////////////////////////////////////////////////////
 	////////////////////////   REST handlers  ////////////////////////////////
@@ -604,68 +607,75 @@ public class CommunityHandler
 			if ( dboComm != null )
 			{
 				CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
-				if ( !cp.getIsPersonalCommunity())
+				if ( !cp.getIsPersonalCommunity() )
 				{
-					Map<String,CommunityAttributePojo> commatt = cp.getCommunityAttributes();
-					if ( commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true"))
-					{		
-						boolean requiresApproval = false;
-						if ( commatt.containsKey("registrationRequiresApproval") )
-							requiresApproval = commatt.get("registrationRequiresApproval").getValue().equals("true");
-						//if approval is required, add user to comm, wait for owner to approve
-						//otherwise go ahead and add as a member
-						if ( requiresApproval )
-						{
-							DBObject dboPerson = DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id",new ObjectId(personIdStr)));
-							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
-							cp.addMember(pp,true);
-							//write both objects back to db now
-							DbManager.getSocial().getCommunity().update(query, cp.toDb());
-														
-							//send email out to owner for approval
-							CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"join",personIdStr);
-							DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
-							
-							// Get to addresses for Owner and Moderators
-							String toAddresses = getToAddressesFromCommunity(cp);
-							
-							PropertiesManager propManager = new PropertiesManager();
-							String rootUrl = propManager.getUrlRoot();
-							
-							String subject = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName();
-							String body = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName() + "<br/>Do you want to accept this request?" +
-							"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
-							"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
-							
-							SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), toAddresses, subject, body);
-							
-							if (mail.send("text/html"))
+					if ( !cp.isMember(new ObjectId(personIdStr)))
+					{
+						Map<String,CommunityAttributePojo> commatt = cp.getCommunityAttributes();
+						if ( commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true"))
+						{		
+							boolean requiresApproval = false;
+							if ( commatt.containsKey("registrationRequiresApproval") )
+								requiresApproval = commatt.get("registrationRequiresApproval").getValue().equals("true");
+							//if approval is required, add user to comm, wait for owner to approve
+							//otherwise go ahead and add as a member
+							if ( requiresApproval )
 							{
-								rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully, awaiting owner approval"));
-								rp.setData(new CommunityApprovalPojo(false));
+								DBObject dboPerson = DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id",new ObjectId(personIdStr)));
+								PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+								cp.addMember(pp,true);
+								//write both objects back to db now
+								DbManager.getSocial().getCommunity().update(query, cp.toDb());
+															
+								//send email out to owner for approval
+								CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"join",personIdStr);
+								DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
+								
+								// Get to addresses for Owner and Moderators
+								String toAddresses = getToAddressesFromCommunity(cp);
+								
+								PropertiesManager propManager = new PropertiesManager();
+								String rootUrl = propManager.getUrlRoot();
+								
+								String subject = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName();
+								String body = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName() + "<br/>Do you want to accept this request?" +
+								"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
+								"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
+								
+								SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), toAddresses, subject, body);
+								
+								if (mail.send("text/html"))
+								{
+									rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully, awaiting owner approval"));
+									rp.setData(new CommunityApprovalPojo(false));
+								}
+								else
+								{
+									rp.setResponse(new ResponseObject("Join Community",false,"The system was uable to send an email to the owner"));								
+								}
 							}
 							else
 							{
-								rp.setResponse(new ResponseObject("Join Community",false,"The system was uable to send an email to the owner"));								
-							}
+								BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(personIdStr));
+								DBObject dboPerson = DbManager.getSocial().getPerson().findOne(queryPerson);
+								PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+								cp.addMember(pp);
+								pp.addCommunity(cp);
+								//write both objects back to db now
+								DbManager.getSocial().getCommunity().update(query, cp.toDb());
+								DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
+								rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully"));
+								rp.setData(new CommunityApprovalPojo(true));
+							}						
 						}
 						else
 						{
-							BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(personIdStr));
-							DBObject dboPerson = DbManager.getSocial().getPerson().findOne(queryPerson);
-							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
-							cp.addMember(pp);
-							pp.addCommunity(cp);
-							//write both objects back to db now
-							DbManager.getSocial().getCommunity().update(query, cp.toDb());
-							DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
-							rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully"));
-							rp.setData(new CommunityApprovalPojo(true));
-						}						
+							rp.setResponse(new ResponseObject("Join Community",false,"You must be invited to this community"));
+						}
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Join Community",false,"You must be invited to this community"));
+						rp.setResponse(new ResponseObject("Join Community",false,"You are already a member of this community"));
 					}
 				}
 				else
@@ -781,36 +791,44 @@ public class CommunityHandler
 						{
 							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
 							
-							cp.addMember(pp, true);
-							
-							DbManager.getSocial().getCommunity().update(query, cp.toDb());
-							
-							//send email out inviting user
-							CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
-							DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
-							
-							PropertiesManager propManager = new PropertiesManager();
-							String rootUrl = propManager.getUrlRoot();
-							
-							String subject = "Invite to join infinit.e community: " + cp.getName();
-							String body = "You have been invited to join the community " + cp.getName() + 
-								"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
-								"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
-							
-							SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
-							
-							if (mail.send("text/html"))
+							if ( !cp.isMember(pp.get_id()))
 							{
-								if (isSysAdmin) {
-									rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+							
+								cp.addMember(pp, true);
+								
+								DbManager.getSocial().getCommunity().update(query, cp.toDb());
+								
+								//send email out inviting user
+								CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
+								DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
+								
+								PropertiesManager propManager = new PropertiesManager();
+								String rootUrl = propManager.getUrlRoot();
+								
+								String subject = "Invite to join infinit.e community: " + cp.getName();
+								String body = "You have been invited to join the community " + cp.getName() + 
+									"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
+									"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
+								
+								SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
+								
+								if (mail.send("text/html"))
+								{
+									if (isSysAdmin) {
+										rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+									}
+									else {
+										rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
+									}
 								}
-								else {
-									rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
+								else
+								{
+									rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason."));
 								}
 							}
 							else
 							{
-								rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason."));
+								rp.setResponse(new ResponseObject("Invite Community",false,"The user is already a member of this community."));
 							}
 						}
 						else
@@ -861,46 +879,67 @@ public class CommunityHandler
 				if (dbo != null )
 				{
 					CommunityApprovePojo cap = CommunityApprovePojo.fromDb(dbo, CommunityApprovePojo.class);
-					BasicDBObject query = new BasicDBObject("_id",new ObjectId(cap.getCommunityId()));
-					DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
-					
-					if ( dboComm != null )
+					if ( cap.getType().equals("source"))
 					{
-						CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
-						if ( resp.equals("false"))
+						//approving a source
+						if ( resp.equals("true"))
 						{
-							//if response is false (deny), always just remove user from community							
-							cp.removeMember(new ObjectId(cap.getPersonId()));
-							DbManager.getSocial().getCommunity().update(query, cp.toDb());
+							rp = sourceHandler.approveSource(cap.getSourceId(), cap.getCommunityId(), cap.getRequesterId());
 						}
 						else
 						{
-							//if response is true (allow), always just add community info to user, and change status to active
-							BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(cap.getPersonId()));
-							DBObject dboperson = DbManager.getSocial().getPerson().findOne(queryPerson);
-							if ( dboperson != null)
-							{
-								cp.updateMemberStatus(cap.getPersonId(), "active");
-								cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
-								DbManager.getSocial().getCommunity().update(query, cp.toDb());
-								
-								PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
-								pp.addCommunity(cp);
-								DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
-							}
-							else
-							{
-								rp.setResponse(new ResponseObject("Request Response",false,"The person does not exist."));
-							}
+							rp = sourceHandler.denySource(cap.getSourceId(), cap.getCommunityId(), cap.getRequesterId());
 						}
-						//remove request object now
-						DbManager.getSocial().getCommunityApprove().remove(new BasicDBObject("_id",new ObjectId(requestIdStr)));
-						//return successfully
-						rp.setResponse(new ResponseObject("Request Response",true,"Request answered successfully!"));
+						if ( rp.getResponse().isSuccess() )
+						{
+							//remove request object now
+							DbManager.getSocial().getCommunityApprove().remove(new BasicDBObject("_id",new ObjectId(requestIdStr)));
+						}
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Request Response",false,"The community does not exist."));
+						//approving a user joining a community
+						BasicDBObject query = new BasicDBObject("_id",new ObjectId(cap.getCommunityId()));
+						DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
+						
+						if ( dboComm != null )
+						{
+							CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
+							if ( resp.equals("false"))
+							{
+								//if response is false (deny), always just remove user from community							
+								cp.removeMember(new ObjectId(cap.getPersonId()));
+								DbManager.getSocial().getCommunity().update(query, cp.toDb());
+							}
+							else
+							{
+								//if response is true (allow), always just add community info to user, and change status to active
+								BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(cap.getPersonId()));
+								DBObject dboperson = DbManager.getSocial().getPerson().findOne(queryPerson);
+								if ( dboperson != null)
+								{
+									cp.updateMemberStatus(cap.getPersonId(), "active");
+									cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
+									DbManager.getSocial().getCommunity().update(query, cp.toDb());
+									
+									PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
+									pp.addCommunity(cp);
+									DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
+								}
+								else
+								{
+									rp.setResponse(new ResponseObject("Request Response",false,"The person does not exist."));
+								}
+							}
+							//remove request object now
+							DbManager.getSocial().getCommunityApprove().remove(new BasicDBObject("_id",new ObjectId(requestIdStr)));
+							//return successfully
+							rp.setResponse(new ResponseObject("Request Response",true,"Request answered successfully!"));
+						}
+						else
+						{
+							rp.setResponse(new ResponseObject("Request Response",false,"The community does not exist."));
+						}
 					}
 				}
 				else

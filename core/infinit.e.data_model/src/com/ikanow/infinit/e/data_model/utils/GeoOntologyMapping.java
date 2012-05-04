@@ -16,7 +16,9 @@
 package com.ikanow.infinit.e.data_model.utils;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Pattern;
 
 public class GeoOntologyMapping {
@@ -29,6 +31,8 @@ public class GeoOntologyMapping {
 	private static final Pattern PATTERN_COUNTRYSUBSIDIARY = Pattern.compile("provinceorstate|stateorcountry", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PATTERN_CITY = Pattern.compile("city", Pattern.CASE_INSENSITIVE);
 	private static final Pattern PATTERN_GEOGRAPHICALREGION = Pattern.compile("naturalfeature|region|geographicalfeature", Pattern.CASE_INSENSITIVE);		
+	
+	private static Map<String,List<String>> ontMap = null;
 	/**
 	 * A temporary method that attempts to map a few known extraction types
 	 * to a small subset of the opencyc ontology to get started with our ontology
@@ -145,26 +149,32 @@ public class GeoOntologyMapping {
 	 */
 	public static List<String> getOntologyList(String startOntology)
 	{
-		List<String> onts = new ArrayList<String>();
-		boolean foundOnt = false;
+		if ( ontMap == null )
+			initOntMap();
 		if ( startOntology == null )
-			foundOnt = true;
-		else
-			startOntology = startOntology.toLowerCase();
-		for (String ont : currentOntologyList )
+			startOntology = currentOntologyList[0];
+		return ontMap.get(startOntology.toLowerCase());		
+	}
+	
+	/**
+	 * Builds a map for every item in the ontology list
+	 * This is an optomization so when we do a lookup
+	 * we can just call ontMap.get(ontname) and already
+	 * have the list built out. See getOntologyList
+	 * 
+	 */
+	public static void initOntMap()
+	{
+		ontMap = new HashMap<String, List<String>>();
+		for (int i = 0; i < currentOntologyList.length; i++ )
 		{
-			if ( foundOnt )
-				onts.add(ont);
-			else
+			List<String> ontList = new ArrayList<String>();
+			for ( int j = i; j < currentOntologyList.length; j++ )
 			{
-				if ( startOntology.equals(ont) )
-				{
-					foundOnt = true;
-					onts.add(ont);
-				}
+				ontList.add(currentOntologyList[j]);
 			}
+			ontMap.put(currentOntologyList[i], ontList);
 		}
-		return onts;
 	}
 	
 }

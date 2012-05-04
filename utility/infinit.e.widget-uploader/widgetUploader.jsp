@@ -27,8 +27,8 @@ limitations under the License.
 <%!
 	static String API_ROOT = null;
 	static String SHARE_ROOT = "$infinite/share/get/";
+	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = false;
-	static Boolean debugMode = false;
 	static Boolean localCookie = false;
 	static String user = null;
 	static String communityList = null; // (ensures that generateCommunityList is called)
@@ -196,7 +196,6 @@ limitations under the License.
 	}
 	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
 	{
-		System.out.println("Set Browser Cookie to " + value);
 		Cookie cookie = new Cookie ("infinitecookie",value);
 		cookie.setPath("/");
 		response.addCookie(cookie);
@@ -257,16 +256,13 @@ limitations under the License.
         	
         	if (cookieVal != null)
         	{
-        		System.out.println("stringOfUrl-- getBrowserInfiniteCookie = " + cookieVal);
         		urlConnection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
-        		//urlConnection.setRequestProperty("Cookie","infinitecookie=" + cookieVal);
         		urlConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
         		urlConnection.setDoInput(true);
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
-        		//urlConnection.setRequestProperty("Content-Type", "text/plain;charset=UTF-8");
         	}
-        	else
+        	else if (DEBUG_MODE)
         		System.out.println("Don't Current Have a Cookie Value");
         	IOUtils.copy(urlConnection.getInputStream(), output);
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
@@ -274,8 +270,9 @@ limitations under the License.
         	{
         		setBrowserInfiniteCookie(response, newCookie);
         	}
-			
-        	System.out.println(output.toString());
+        	
+        	if (DEBUG_MODE)
+        		System.out.println(output.toString());
         	
         	String toReturn = output.toString();
         	output.close();
@@ -312,13 +309,11 @@ limitations under the License.
 	
 	public Boolean isLoggedIn(HttpServletRequest request, HttpServletResponse response)
 	{
-		//System.out.println("isLoggedIn Called");
 		String json = stringOfUrl(API_ROOT + "auth/keepalive", request, response);
-		//System.out.println(json);
+
 		if (json != null)
 		{
 			keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
-			//System.out.println("IsLoggedIn = " + keepA.response.success);
 			return keepA.response.success;
 		}
 		else
@@ -442,7 +437,7 @@ limitations under the License.
 	
 	private Boolean removeShareFromCommunity(String shareId, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
-		if(debugMode)
+		if(DEBUG_MODE)
 			System.out.println("Removing share from community:");
 		try{
 			String charset = "UTF-8";
@@ -451,13 +446,13 @@ limitations under the License.
 			keepAlive ka = new Gson().fromJson(json, keepAlive.class);
 			if (ka != null)
 			{
-				if(debugMode)
+				if(DEBUG_MODE)
 					System.out.println("Share: " + shareId + "ComunityId: " + communityId + "Removed:" + ka.response.success + " Message: " + ka.response.message);
 				return ka.response.success;
 			}
 			else
 			{
-				if(debugMode)
+				if(DEBUG_MODE)
 					System.out.println("JSON return null:   " + API_ROOT + "social/share/removecommunity/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/");
 			}
 			return false;
@@ -508,7 +503,7 @@ limitations under the License.
 	
 	private Boolean addShareToCommunity( String shareId, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
-		if(debugMode)
+		if(DEBUG_MODE)
 			System.out.println("Adding share to community:");
 		try{
 			String charset = "UTF-8";
@@ -520,12 +515,12 @@ limitations under the License.
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
 			{
-				if(debugMode)
+				if(DEBUG_MODE)
 					System.out.println("The JSON for Adding a share to community was null");
 				return false;
 			}
 				//return "Json was null: " + json + "\n " + API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
-			if(debugMode)
+			if(DEBUG_MODE)
 				System.out.println("Share: " + shareId + "   CommunityId: " + communityId + " Shared:" + gm.response.success + "  Message: " + gm.response.message);
 			return gm.response.success;
 		}catch(IOException e)
@@ -1320,7 +1315,7 @@ else if (isLoggedIn == false)
 		if(logMeIn(request.getParameter("logintext"),request.getParameter("passwordtext"), request, response))
 		{
 			showAll = (request.getParameter("sudo") != null);
-			debugMode = (request.getParameter("debug") != null);
+			DEBUG_MODE = (request.getParameter("debug") != null);
 			out.println("<meta http-equiv=\"refresh\" content=\"0\">");
 			out.println("Login Success");
 		}

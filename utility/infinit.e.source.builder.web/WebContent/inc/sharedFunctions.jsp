@@ -215,17 +215,21 @@ limitations under the License.
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         	}
+        	
 			IOUtils.copy(urlConnection.getInputStream(), output);
 			String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
         		setBrowserInfiniteCookie(response, newCookie);
         	}
-			return output.toString();
+        	
+        	String toReturn = output.toString();
+        	output.close();
+        	return toReturn;
 		} 
 		catch (IOException e) 
 		{
-			//System.out.println(e.getMessage());
+			System.out.println(e.getMessage());
 			return null;
 		}
 	} // TESTED
@@ -279,7 +283,8 @@ limitations under the License.
 		Cookie cookie = new Cookie ("infinitecookie",value);
 		cookie.setPath("/");
 		response.addCookie(cookie);
-	}
+	} // TESTED
+	
 	
 	// getBrowserInfiniteCookie
 	public static String getBrowserInfiniteCookie(HttpServletRequest request)
@@ -296,7 +301,8 @@ limitations under the License.
 			}
 		}
 		return null;
-	}
+	} // TESTED
+	
 	
 	// getConnectionInfiniteCookie
 	public static String getConnectionInfiniteCookie(URLConnection urlConnection)
@@ -322,7 +328,8 @@ limitations under the License.
 			}  
 		}
     	return null;
-	}
+	} // TESTED
+	
 	
 	//!---------- END Get/Post API Handlers ----------!
 	
@@ -335,7 +342,7 @@ limitations under the License.
 	private String logOut(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("auth/logout/", request, response);
-	}
+	} // TESTED
 	
 	
 	// getShare -
@@ -407,6 +414,7 @@ limitations under the License.
 			
 			// Get the user's shares from social.share where type = source or source_published
 			String tempJson = getSourceShares(request, response);
+			
 			// Covert to JSONObject
 			JSONObject json = new JSONObject(tempJson);
 			JSONObject json_response = json.getJSONObject("response");
@@ -491,7 +499,7 @@ limitations under the License.
 		{
 		}
 		return null;
-	} // 
+	} // TESTED 
 	
 	
 	

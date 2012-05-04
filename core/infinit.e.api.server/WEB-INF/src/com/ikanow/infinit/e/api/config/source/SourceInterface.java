@@ -22,17 +22,16 @@ import java.util.Date;
 import java.util.Map;
 
 import org.apache.log4j.Logger;
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
 import org.restlet.data.Status;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -43,7 +42,7 @@ import com.mongodb.util.JSON;
  * @author cmorgan
  *
  */
-public class SourceInterface extends Resource 
+public class SourceInterface extends ServerResource 
 {
 	private String sourceid = null;
 	private String action = "";
@@ -66,9 +65,10 @@ public class SourceInterface extends Resource
 	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(SourceInterface.class);	
 	
-	public SourceInterface(Context context, Request request, Response response) throws UnsupportedEncodingException 
+	@Override
+	public void doInit() 
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		 Map<String,Object> attributes = request.getAttributes();
 		 urlStr = request.getResourceRef().toString();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);	
@@ -90,19 +90,7 @@ public class SourceInterface extends Resource
 				 extracttype = RESTTools.decodeRESTParam("extracttype", attributes);
 				 sourcetags = RESTTools.decodeRESTParam("sourcetags", attributes);
 				 action = "add"; 
-			 }
-			 
-			 else if (urlStr.contains("source/approve/") || urlStr.contains("knowledge/sources/approve/"))
-			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
-				 action = "approve";
-			 }
-			 
-			 else if ( urlStr.contains("source/decline/") || urlStr.contains("knowledge/sources/decline/"))
-			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
-				 action = "deny";
-			 }
+			 }			 
 			 
 			 else if ( urlStr.contains("source/good") || urlStr.contains("knowledge/sources/good/"))
 			 {
@@ -131,12 +119,16 @@ public class SourceInterface extends Resource
 				 try 
 				 {
 					 json = URLDecoder.decode(json, "UTF-8");
+					 action = "saveSource";
 				 }
 				 catch (UnsupportedEncodingException e) 
 				 {
-					 throw e;
+					 //throw e;
+					 //TODO cannot throw errors so do something useful
+					 //set to failed temporarily so it doesn't run
+					 action = "failed";
 				 }
-				 action = "saveSource";
+				 
 			 }			 
 			 else if ( urlStr.contains("source/delete/docs") || urlStr.contains("sources/delete/docs") )
 			 {
@@ -154,20 +146,18 @@ public class SourceInterface extends Resource
 				 action = "info";
 			 }
 		 }
-		 
-		// All modifications of this resource
-		this.setModifiable(true);
-		getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
 	
 	/**
 	 * acceptRepresentation
+	 * @return 
 	 */
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity) throws ResourceException 
 	{
 		if (Method.POST == getRequest().getMethod()) 
-		{
+		{			
 			try 
 			{
 				json = entity.getText();
@@ -199,8 +189,7 @@ public class SourceInterface extends Resource
 			}
 		}
 		
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+		return get();
 	}
 	
 	
@@ -212,7 +201,8 @@ public class SourceInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get() throws ResourceException 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
 		 Date startTime = new Date();
@@ -270,14 +260,6 @@ public class SourceInterface extends Resource
 						 {
 							 rp = this.source.addSource(sourcetitle, sourcedesc, sourceurl, extracttype, 
 									 sourcetags, mediatype, communityid, cookieLookup);
-						 }
-						 else if (action.equals("approve"))
-						 {
-							 rp = this.source.approveSource(sourceid, communityid, cookieLookup);
-						 }
-						 else if ( action.equals("deny"))
-						 {
-							 rp = this.source.denySource(sourceid, communityid, cookieLookup);
 						 }
 						 else if ( action.equals("info") )
 						 {

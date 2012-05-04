@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -94,6 +94,10 @@ package com.ikanow.infinit.e.shared.model.constant
 		// setup service
 		public static const GET_SETUP_URL:String = SERVER_URL + "social/gui/uisetup/get/";
 		
+		public static const GET_WIDGET_OPTIONS_ACTION:String = "Share";
+		
+		public static const GET_WIDGET_OPTIONS_URL:String = SERVER_URL + "social/share/search/?type=widgetsave";
+		
 		public static const GET_SETUP_ACTION:String = "UISetup";
 		
 		public static const UPDATE_SETUP_URL:String = SERVER_URL + "social/gui/uisetup/update/";
@@ -142,6 +146,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		public static const GET_QUERY_ASSOC_SUGGESTIONS_URL:String = SERVER_URL + "knowledge/feature/eventSuggest/";
 		
 		public static const GET_QUERY_ASSOC_SUGGESTIONS_ACTION:String = "Association Suggestions";
+		
+		public static const GET_SOCIAL_SHARE_ADD_JSON_URL:String = SERVER_URL + "social/share/update/json/";
 	}
 }
 

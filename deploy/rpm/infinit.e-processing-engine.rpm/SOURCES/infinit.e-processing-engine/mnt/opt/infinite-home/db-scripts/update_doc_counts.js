@@ -20,13 +20,13 @@ r = function(k, vals) {
 	return vals[0];
 }
 
-// 1.1: CREATE THE LIST IN THE CONFIG COLLECTION
+// 1.1: CREATE THE LIST IN THE INGEST COLLECTION
 
 res = db.source.mapReduce(m, r, { out: { replace: "tmpDocCounts" }, query: my_query, limit: my_limit } );
 
 // 1.2 MOVE TO THE DOC_METADATA COLLECTION
 
-db.getMongo().getDB( "admin" ).runCommand({renameCollection:"config.tmpDocCounts",to:"doc_metadata.tmpDocCounts"});
+db.getMongo().getDB( "admin" ).runCommand({renameCollection:"ingest.tmpDocCounts",to:"doc_metadata.tmpDocCounts"});
 
 ////////////////////////////////////////////////////////////
 
@@ -74,10 +74,10 @@ db.tmpDocCounts.drop()
 
 // PHASE 3: UPDATE THE SOURCES TABLE
 
-// 3.1 Move back to config so we can update the sources table
+// 3.1 Move back to ingest so we can update the sources table
 
-db.getMongo().getDB( "admin" ).runCommand({renameCollection:"doc_metadata.tmpDocCounts2",to:"config.tmpDocCounts2"});
-db = db.getMongo().getDB( "config" );
+db.getMongo().getDB( "admin" ).runCommand({renameCollection:"doc_metadata.tmpDocCounts2",to:"ingest.tmpDocCounts2"});
+db = db.getMongo().getDB( "ingest" );
 
 m3 = function() {
 	if (null != this.value.communityIds) {

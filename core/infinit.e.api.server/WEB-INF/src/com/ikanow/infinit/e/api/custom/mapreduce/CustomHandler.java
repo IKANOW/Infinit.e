@@ -188,8 +188,9 @@ public class CustomHandler
 		List<ObjectId> commids = new ArrayList<ObjectId>(); 
 		for ( String s : communityIds.split(","))
 			commids.add(new ObjectId(s));
+		boolean bAdmin = RESTTools.adminLookup(userid);
 		//first make sure user is allowed to submit on behalf of the commids given
-		if ( RESTTools.adminLookup(userid) || isInAllCommunities(commids, userid) )
+		if ( bAdmin || isInAllCommunities(commids, userid) )
 		{
 			CustomMapReduceJobPojo cmr = new CustomMapReduceJobPojo();
 			//make sure user can use the input collection
@@ -238,7 +239,19 @@ public class CustomHandler
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
+						CustomMapReduceJobPojo currJob = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+						if (currJob.submitterID.equals(cmr.submitterID) || bAdmin) {
+							// Save key fields from current job then overwrite
+							cmr._id = currJob._id;
+							cmr.outputCollection = currJob.outputCollection;
+							DbManager.getCustom().getLookup().save(cmr.toDb());												
+							
+							rp.setResponse(new ResponseObject("Schedule MapReduce Job",true,"Updated existing job, will run on: " + new Date(nextRun).toString()));
+						}
+						else {
+												
+							rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
+						}
 					}
 				} 
 				catch (IllegalArgumentException e)
@@ -261,6 +274,158 @@ public class CustomHandler
 		else
 		{
 			rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You are not an admin or member of all the communities given."));
+		}
+		return rp;
+	}
+	
+	public ResponsePojo updateJob(String userid, String jobid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue)
+	{
+		ResponsePojo rp = new ResponsePojo();
+		//first make sure job exists, and user is allowed to edit
+		ObjectId job;
+		try
+		{
+			job = new ObjectId(jobid);
+		}
+		catch (Exception ex)
+		{
+			rp.setResponse(new ResponseObject("Update MapReduce Job", false, "jobid was unable to parse, incorrect format?"));
+			return rp;
+		}
+		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("_id", job));
+		if ( dbo != null )
+		{
+			CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+			//verify user can update this job
+			if ( RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
+			{
+				//check if job is already running
+				if ( cmr.jobidS != null )
+				{
+					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
+					return rp;
+				}
+				//check each variable to see if its needs/can be updated
+				if ( !communityIds.equals("null") )
+				{
+					List<ObjectId> commids = new ArrayList<ObjectId>(); 
+					for ( String s : communityIds.split(","))
+						commids.add(new ObjectId(s));
+					boolean bAdmin = RESTTools.adminLookup(userid);
+					//make sure user is allowed to submit on behalf of the commids given
+					if ( bAdmin || isInAllCommunities(commids, userid) )
+					{
+						cmr.communityIds = commids;
+					}
+					else
+					{
+						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You are not an admin or member of all the communities given."));
+						return rp;
+					}
+				}
+				if ( !inputColl.equals("null"))
+				{
+					//make sure user can use the input collection
+					String inputCollection = getStandardInputCollection(inputColl);			
+					if ( inputCollection != null )
+					{
+						cmr.isCustomTable = false;
+					}
+					else
+					{
+						inputCollection = getCustomInputCollection(inputColl, cmr.communityIds);
+						cmr.isCustomTable = true;
+					}
+					if ( inputCollection != null)
+					{
+						cmr.inputCollection = inputCollection;
+					}
+					else
+					{
+						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You are not allowed to use the given input collection."));
+						return rp;
+					}
+				}
+				try 
+				{
+					if ( !title.equals("null"))
+					{
+						cmr.jobtitle = title;
+						//make sure the new title hasn't been used before
+						DBObject dbo1 = DbManager.getCustom().getLookup().findOne(new BasicDBObject("jobtitle",title));
+						if ( dbo1 != null )
+						{
+							rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
+							return rp;
+						}
+					}
+					if ( !desc.equals("null"))
+					{
+						cmr.jobdesc = desc;
+					}
+					if ( !jarURL.equals("null"))
+					{
+						cmr.jarURL = jarURL;
+					}
+					if ( !nextRunTime.equals("null"))
+					{
+						cmr.nextRunTime = Long.parseLong(nextRunTime);
+					}
+					if ( !schedFreq.equals("null"))
+					{
+						cmr.scheduleFreq = SCHEDULE_FREQUENCY.valueOf(schedFreq);
+					}
+					if ( !mapperClass.equals("null"))
+					{
+						cmr.mapper = mapperClass;
+					}
+					if ( !reducerClass.equals("null"))
+					{
+						cmr.reducer = reducerClass;
+					}
+					if ( !combinerClass.equals("null"))
+					{
+						cmr.combiner = combinerClass;
+					}
+					if ( !query.equals("null"))
+					{
+						cmr.query = query;
+					}
+					if ( !outputKey.equals("null"))
+					{
+						cmr.outputKey = outputKey;
+					}
+					if ( !outputValue.equals("null"))
+					{
+						cmr.outputValue = outputValue;
+					}
+				} 
+				catch (IllegalArgumentException e)
+				{
+					logger.error("Exception Message: " + e.getMessage(), e);
+					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"No enum matching scheduled frequency, try NONE, DAILY, WEEKLY, MONTHLY"));
+				}
+				catch (Exception e)
+				{
+					// If an exception occurs log the error
+					logger.error("Exception Message: " + e.getMessage(), e);
+					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"error scheduling job"));
+				}
+							
+				//update succeeded, right back to db over existing
+				DbManager.getCustom().getLookup().save(cmr.toDb());
+				rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Job updated successfully, will run on: " + new Date(cmr.nextRunTime).toString()));
+				rp.setData(cmr._id.toString(), null);
+
+			}
+			else
+			{
+				rp.setResponse(new ResponseObject("Update MapReduce Job", false, "You are not an admin or submitter of this job"));
+			}
+		}
+		else
+		{
+			rp.setResponse(new ResponseObject("Update MapReduce Job", false, "No jobs with this ID exist"));
 		}
 		return rp;
 	}
@@ -401,6 +566,64 @@ public class CustomHandler
 		catch (Exception ex)
 		{
 			rp.setResponse(new ResponseObject("Custom Map Reduce Run",false,"error running map reduce"));
+		}
+		return rp;
+	}
+
+	public ResponsePojo removeJob(String userid, String jobid) 
+	{
+ResponsePojo rp = new ResponsePojo();		
+		
+		List<Object> searchTerms = new ArrayList<Object>();
+		try
+		{
+			ObjectId jid = new ObjectId(jobid);
+			searchTerms.add(new BasicDBObject("_id",jid));
+		}
+		catch (Exception ex)
+		{
+			//oid failed, will only add title
+		}
+		searchTerms.add(new BasicDBObject("jobtitle",jobid));
+				
+		try 
+		{
+			//find admin entry);
+			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));			
+			if ( dbo != null )
+			{				
+				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+				//make sure user is allowed to see results
+				if ( RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
+				{
+					//make sure job is not running
+					if ( cmr.jobidS == null )
+					{
+						//remove results and job
+						DbManager.getCustom().getLookup().remove(new BasicDBObject("_id", cmr._id));
+						DbManager.getCollection("custommr", cmr.outputCollection).drop();
+						rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job and results removed successfully. If the jar: " + cmr.jarURL + " is stored in the sharedb, it will need to be removed separately."));
+					}
+					else
+					{
+						rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
+					}
+				}
+				else
+				{
+					rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"User must be the submitter or an admin to remove jobs"));
+				}
+			}
+			else
+			{
+				rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job does not exist"));
+			}
+		} 
+		catch (Exception e)
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"error retrieving job info"));
 		}
 		return rp;
 	}

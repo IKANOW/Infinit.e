@@ -27,10 +27,16 @@ import java.util.regex.Matcher;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.jdom.Element;
+import org.jdom.output.XMLOutputter;
+import org.json.JSONException;
+import org.json.JSONObject;
+import org.json.XML;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
@@ -38,6 +44,7 @@ import com.ikanow.infinit.e.data_model.store.social.authentication.Authenticatio
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
+import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.TextEncryption;
 import com.sun.syndication.feed.module.georss.GeoRSSModule;
@@ -52,6 +59,7 @@ import com.sun.syndication.feed.synd.SyndContentImpl;
 import com.sun.syndication.feed.synd.SyndEntry;
 import com.sun.syndication.feed.synd.SyndEntryImpl;
 import com.sun.syndication.feed.synd.SyndFeed;
+import com.sun.syndication.feed.synd.SyndFeedImpl;
 import com.sun.syndication.fetcher.FeedFetcher;
 import com.sun.syndication.fetcher.impl.FeedFetcherCache;
 import com.sun.syndication.fetcher.impl.HashMapFeedInfoCache;
@@ -63,7 +71,6 @@ public class FeedHarvester implements HarvesterInterface
 
 	// List of Feeds
 	private List<DocumentPojo> docsToAdd = null;
-	@SuppressWarnings("unused")
 	private List<DocumentPojo> docsToUpdate = null;
 	@SuppressWarnings("unused")
 	private List<DocumentPojo> docsToRemove = null;
@@ -74,6 +81,9 @@ public class FeedHarvester implements HarvesterInterface
 	// Initialize the Logger
 	private static final Logger logger = Logger.getLogger(FeedHarvester.class);
 
+	// Parameters
+	PropertiesManager props = new PropertiesManager();
+	
 	/**
 	 * Default Constructor, does nothing
 	 */
@@ -98,6 +108,22 @@ public class FeedHarvester implements HarvesterInterface
 		this.docsToUpdate = toUpdate;
 		this.docsToRemove = toRemove;
 		
+		// Fill in any blank user agents at the top level, for simplicity
+		if (null != props.getHarvestUserAgent()) {
+			String userAgent = props.getHarvestUserAgent();			
+			if (null == source.getRssConfig()) {
+				source.setRssConfig(new SourceRssConfigPojo());
+			}
+			if (null == source.getRssConfig().getUserAgent()) { // ...But rss.userAgent doesn't:
+				source.getRssConfig().setUserAgent(userAgent); // then override it
+			}
+			if (null != source.getRssConfig().getSearchConfig()) { // If rss.searchConfig exists...
+				if (null == source.getRssConfig().getSearchConfig().getUserAgent()) { // but rss.searchConfig.userAgent doesn't:
+					source.getRssConfig().getSearchConfig().setUserAgent(userAgent);
+				}
+			}
+		} // (end default user agent logic)
+		
 		try 
 		{
 			logger.debug("Source: " + source.getUrl());
@@ -106,6 +132,7 @@ public class FeedHarvester implements HarvesterInterface
 			processFeed(source);
 
 			logger.debug("Doc List Size: " + this.docsToAdd.size());			
+			logger.debug("Doc Update Size: " + this.docsToUpdate.size());			
 		} 
 		catch (Exception e)
 		{
@@ -137,6 +164,9 @@ public class FeedHarvester implements HarvesterInterface
 			try 
 			{
 				FeedFetcher feedFetcher = new HttpClientFeedFetcher(null, authenticateFeed(source.getAuthentication()));
+				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+					feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+				}
 				return feedFetcher.retrieveFeed(new URL(source.getUrl()));
 			} 
 			catch (Exception e) {
@@ -152,6 +182,9 @@ public class FeedHarvester implements HarvesterInterface
 			{
 				FeedFetcherCache feedInfoCache = HashMapFeedInfoCache.getInstance();
 				FeedFetcher feedFetcher = new HttpURLFeedFetcher(feedInfoCache);
+				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+					feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+				}
 				return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(source.getUrl())));
 			} 
 			catch (Exception e) 
@@ -169,7 +202,8 @@ public class FeedHarvester implements HarvesterInterface
 	private void processFeed(SourcePojo source) throws Exception {
 		// Process the feed
 		SyndFeed feed = null;
-		int nNonSearchUrls = -1;
+		boolean bExtraUrls = ( null == source.getUrl() );
+		
 		if ((null != source.getUrl()) && ((null == source.getRssConfig())||(null == source.getRssConfig().getSearchConfig()))) {
 			// (if the second clause is false, the URL is a search query, will process differently, inside buildFeedList)
 			
@@ -177,14 +211,12 @@ public class FeedHarvester implements HarvesterInterface
 		}
 		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
 		{
-			if (null != source.getRssConfig().getExtraUrls()) {
-				nNonSearchUrls = source.getRssConfig().getExtraUrls().size();
-			}
 			FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
 			searchEngineSubsystem.generateFeedFromSearch(source, _context);
-		}//TOTEST
+			bExtraUrls = true;
+		}//TESTED
 
-		if ( ( feed != null ) || ( null == source.getUrl() ) ) // (second case: also have extra URLs)
+		if ( ( feed != null ) || bExtraUrls ) // (second case: also have extra URLs)
 		{
 			// Error handling, part 1:
 			this.nTmpHttpErrors = 0;
@@ -195,15 +227,8 @@ public class FeedHarvester implements HarvesterInterface
 				buildFeedList(feed, source);
 			}
 			catch (Exception e) {
-				// Propogate upwards:
+				// Propagate upwards:
 				throw e;
-			}
-			finally {
-				if (-1 != nNonSearchUrls) {
-					//TODO (INF-1282): this needs to resize back to nNonSearchUrls
-					source.getRssConfig().getExtraUrls();
-						// (non-null by construction of nNonSearchUrls)
-				}
 			}
 			
 			// Error handling part 2:
@@ -238,9 +263,9 @@ public class FeedHarvester implements HarvesterInterface
 	private void buildFeedList(SyndFeed syndFeed, SourcePojo source) 
 	{
 		// If there's a max number of sources to get per harvest, configure that here:
-		PropertiesManager props = new PropertiesManager();
 		long nWaitTime_ms = props.getWebCrawlWaitTime();
 		long nMaxTime_ms = props.getMaxTimePerFeed(); // (can't override this, too easy to break the system...)
+		long nNow = new Date().getTime();
 		if (null != source.getRssConfig()) {
 			if (null != source.getRssConfig().getWaitTimeOverride_ms()) {
 				nWaitTime_ms = source.getRssConfig().getWaitTimeOverride_ms();
@@ -255,11 +280,13 @@ public class FeedHarvester implements HarvesterInterface
 		
 		// Add extra docs
 		List<SyndEntry> tmpList = null;
+		int nRealSyndEntries = 0;
 		if (null == syndFeed) {
 			tmpList = new LinkedList<SyndEntry>();
 		}
 		else {
 			tmpList = syndFeed.getEntries();
+			nRealSyndEntries = tmpList.size();
 		}
 		
 		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getExtraUrls())) {
@@ -272,7 +299,19 @@ public class FeedHarvester implements HarvesterInterface
 					synd.setDescription(description);
 				}
 				synd.setTitle(extraUrl.title);
+				if (null != extraUrl.publishedDate) {
+					try {
+						synd.setPublishedDate(new Date(DateUtility.parseDate(extraUrl.publishedDate)));						
+					}
+					catch (Exception e) {} // do nothign will use now as pub date
+				}				
 				tmpList.add((SyndEntry) synd);
+
+				if (null != extraUrl.fullText) {
+					SyndFeedImpl fullTextContainer = new SyndFeedImpl();
+					fullTextContainer.setDescription(extraUrl.fullText);
+					synd.setSource(fullTextContainer);
+				}
 			}
 		}
 		
@@ -281,12 +320,16 @@ public class FeedHarvester implements HarvesterInterface
 		LinkedList<String> duplicateSources = new LinkedList<String>(); 		
 		try {
 			Map<String, List<SyndEntry>> urlDups = new HashMap<String, List<SyndEntry>>();
-			for ( Object synd : tmpList ) 
-			{
+			int nSyndEntries = 0;
+			for ( Object synd : tmpList )
+			{				
+				nSyndEntries++; // (keep count so we know we're accessing our own fake SyndEntryImpls)
 				final SyndEntry entry = (SyndEntry)synd;
+	
 				if ( null != entry.getLink() ) //if url returns null, skip this entry
 				{
 					String url = this.cleanUrlStart(entry.getLink());
+
 					if (null != source.getRssConfig()) { // Some RSS specific logic
 						// If an include is specified, must match
 						Matcher includeMatcher = source.getRssConfig().getIncludeMatcher(url);
@@ -390,7 +433,7 @@ public class FeedHarvester implements HarvesterInterface
 					}
 
 					logger.debug("	Doc : " + url + " : " + title);
-
+					
 					try {					
 						DuplicateManager qr = _context.getDuplicateManager();
 						if (null != entry.getDescription()) {
@@ -400,10 +443,34 @@ public class FeedHarvester implements HarvesterInterface
 							duplicate = qr.isDuplicate_UrlTitleDescription(url, title.replaceAll("\\<.*?\\>", "").trim(), null, source, duplicateSources);						
 							//^^^(this is different to isDuplicate_UrlTitle because it enforces that the description be null, vs just checking the title)
 						}
-
+						if (duplicate && (null != source.getRssConfig()) && (null != source.getRssConfig().getUpdateCycle_secs())) { 
+							// Check modified times...
+							Date dupModDate = qr.getLastDuplicateModifiedTime();
+							if (null != dupModDate) {
+								if (dupModDate.getTime() + source.getRssConfig().getUpdateCycle_secs()*1000 < nNow) {
+									DocumentPojo doc = buildDocument(entry, source, duplicateSources);
+									if ((nSyndEntries > nRealSyndEntries) && (null != entry.getSource())) {
+										// (Use dummy TitleEx to create a "fake" full text block)
+										doc.setFullText(entry.getSource().getDescription());
+									}
+									this.docsToUpdate.add(doc);
+									
+									if ((this.docsToAdd.size() + this.docsToUpdate.size()) >= nMaxDocs) {
+										break; // (that's enough documents)
+									}
+								}
+							}
+						}//TESTED (duplicates we update instead of ignoring)
+						
 						if (!duplicate) {
-							buildDocument(entry, source, duplicateSources);
-							if (this.docsToAdd.size() >= nMaxDocs) {
+							DocumentPojo doc = buildDocument(entry, source, duplicateSources);
+							if ((nSyndEntries > nRealSyndEntries) && (null != entry.getSource())) {
+								// (Use dummy TitleEx to create a "fake" full text block)
+								doc.setFullText(entry.getSource().getDescription());
+							}
+							this.docsToAdd.add(doc);
+
+							if ((this.docsToAdd.size() + this.docsToUpdate.size()) >= nMaxDocs) {
 								break; // (that's enough documents)
 							}
 						}
@@ -426,7 +493,7 @@ public class FeedHarvester implements HarvesterInterface
 		} 
 	}
 
-	private void buildDocument(SyndEntry entry, SourcePojo source, LinkedList<String> duplicateSources) {
+	private DocumentPojo buildDocument(SyndEntry entry, SourcePojo source, LinkedList<String> duplicateSources) {
 
 		String tmpURL = this.cleanUrlStart(entry.getLink().toString()); 
 		// (can't return null because called from code which checks this)
@@ -525,9 +592,25 @@ public class FeedHarvester implements HarvesterInterface
 					doc.setDocGeo(gp);
 				}
 			}
+		}// end if GeoRSS
+		
+		// Arbitrary other metadata:
+
+		if (null != entry.getForeignMarkup()) {
+			JSONObject rssMetadata = new JSONObject();
+			
+			@SuppressWarnings("unchecked")
+			List<Element> fms = (List<Element>) entry.getForeignMarkup();
+			for (Element fm : fms) {
+				try {
+					rssMetadata.put(fm.getName(), XML.toJSONObject(new XMLOutputter().outputString(fm)));
+				} 
+				catch (JSONException e) {} // (do nothing just carry on)
+			}
+			doc.addToMetadata("_FEED_METADATA_", rssMetadata);
 		}
 
-		this.docsToAdd.add(doc);
+		return doc;
 	}
 
 	// 

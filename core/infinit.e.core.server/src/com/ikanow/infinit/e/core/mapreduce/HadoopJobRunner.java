@@ -229,7 +229,7 @@ public class HadoopJobRunner
 			}
 			String commQuery = "\"communityId\": {\"$in\": [";		
 			for ( ObjectId oid : communityIds)
-				commQuery += "ObjectId(\""+oid.toString()+"\"), ";
+				commQuery += "{ \"$oid\":\""+oid.toString()+"\"}, ";
 			commQuery = commQuery.substring(0, commQuery.length()-2);
 			commQuery += "]}";
 			query += commQuery + "}";
@@ -274,6 +274,7 @@ public class HadoopJobRunner
 					"\n\t<property><!-- Class for the combiner [optional] --><name>mongo.job.combiner</name><value>"+combiner+"</value></property>"+
 					"\n\t<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>"+
 					"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
+					"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
 					"\n</configuration>");
 			out.flush();
 			out.close();
@@ -296,7 +297,7 @@ public class HadoopJobRunner
 	 */
 	private String assignNewConfigLocation() 
 	{		
-		String dirname = prop_custom.getHadoopConfigPath() + "/config/xmlFiles/";
+		String dirname = prop_custom.getHadoopConfigPath() + "/xmlFiles/";
 		File dir = new File(dirname);
 		if ( !dir.exists() )
 			dir.mkdir();

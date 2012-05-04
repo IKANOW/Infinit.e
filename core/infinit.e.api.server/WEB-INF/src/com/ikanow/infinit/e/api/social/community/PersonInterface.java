@@ -20,16 +20,15 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.Map;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.Parameters;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
@@ -42,7 +41,7 @@ import com.ikanow.infinit.e.data_model.api.authentication.WordPressUserPojo;
 /**
  * @author cvitter
  */
-public class PersonInterface extends Resource
+public class PersonInterface extends ServerResource
 {
 	private String personId = null;
 	
@@ -60,10 +59,10 @@ public class PersonInterface extends Resource
 	private boolean needCookie = true;
 	private String ipAddress = null;
 	
-	
-	public PersonInterface(Context context, Request request, Response response) 
+	@Override	
+	public void doInit() 
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		 
 		 Map<String,Object> attributes = request.getAttributes();
 		 ipAddress =  request.getClientInfo().getAddress();
@@ -145,10 +144,7 @@ public class PersonInterface extends Resource
 				 }
 				 action = "wpupdate";
 			 }
-			 getVariants().add(new Variant(MediaType.APPLICATION_JSON));
-		 }
-		 // All modifications of this resource
-		 this.setModifiable(true);		 
+		 }	 
 	}
 	
 	//___________________________________________________________________________________
@@ -161,7 +157,8 @@ public class PersonInterface extends Resource
 	 * @throws ResourceException
 	 */
 
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity)   
 	{
 
 		if (Method.POST == getRequest().getMethod()) 
@@ -172,11 +169,11 @@ public class PersonInterface extends Resource
 				// Do nothing, the error should bubble back to the user itself
 			}
 		}		 
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+		return get();
 	}//TESTED
 	
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get() 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
 		 Date startTime = new Date();	

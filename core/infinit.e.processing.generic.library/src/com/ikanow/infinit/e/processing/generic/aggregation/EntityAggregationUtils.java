@@ -214,7 +214,6 @@ public class EntityAggregationUtils {
 		String index = entFeature.getIndex();
 		long totalFreq = entFeature.getTotalfreq();
 		long docCount = entFeature.getDoccount();
-		long docCountInDb = entFeature.getDbSyncDoccount();
 		
 		try
 		{
@@ -233,51 +232,20 @@ public class EntityAggregationUtils {
 				System.out.println("EntityAggregationUtils.updateMatchingEntities: " + query1.toString() + " / " + multiopA.toString());
 			}
 			else {
-				com.mongodb.CommandResult cr = null;
 				synchronized (GenericProcessingController.class) {
 					// Because this op can be slow, and traverse a lot of disk, need to ensure that
 					// we don't allow all the threads to hammer it at once (the updates all yield to each other
 					// enough that the disk goes totally crazy)
 					
 					docDb.update(query1, multiopA, false, true);
-					cr = DbManager.getFeature().getLastError(DbManager.getFeature().getEntity().getName());
+					DbManager.getDocument().getLastError(DbManager.getDocument().getMetadata().getName());
 						// (enforce consecutive accesses for this potentially very slow operation)
 				}
 				
-				if (0 == docCountInDb) { // (Because it's an upsert, so can't check in updatedExist)
-					return;
-				}
-				
-				int i = 0;			
-				String errMessage = "";
-				for (i = 0; i < 10; ++i) { // Check whether this worked (sigh)
-					if (cr.containsField("updatedExisting")) {
-						boolean updatedExisting = cr.getBoolean("updatedExisting", false);
-						if (updatedExisting) {
-							break;
-						}
-						if (0 == i) {
-							errMessage = cr.toString(); // (get first error message)
-						}
-						// Else rerun..
-						Thread.sleep(1000);
-						synchronized (GenericProcessingController.class) {
-							docDb.update(query1, multiopA, false, true);
-							cr = DbManager.getFeature().getLastError(DbManager.getFeature().getEntity().getName());
-						}
-					}
-					else {
-						errMessage = "Catastrophic MongoDB problem: Didn't contain updatedExisting: " + cr.toString();
-						break;
-					}
-				}
-				if (10 == i) { // Failed
-					errMessage = errMessage + "/" +  cr.toString(); // (append last error message)
-					logger.error("Failed to update: " + index + "(" + docCount + ", " + docCountInDb + "): " + errMessage);
-				}
-				else if (i > 0) {
-					logger.warn("Took " + i + " attempts to update " + index + ": " + errMessage);				
-				}
+				// Was originally checked updatedExisting but for INF-1406, it sometimes seemed to be 
+				// checking the wrong command. I suspect the reason we had this code in here has gone away,
+				// and it doesn't matter if this update occasionally fails anyway, it will just be out of date
+				// so the check/retry has been removed.
 			}
 		}
 		catch(Exception ex){

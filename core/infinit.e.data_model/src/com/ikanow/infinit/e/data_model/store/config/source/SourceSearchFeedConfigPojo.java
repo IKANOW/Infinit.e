@@ -22,15 +22,19 @@ public class SourceSearchFeedConfigPojo {
 	private String userAgent = null; // Optional, if present is used for the "User-Agent:" HTTP field
 	
 	private String script = null; // Mandatory, processes the search results and returns an array of the following JSON objects:
-									// { "description: string,
+									// { "description: string, // (optionally)
+									//   "publishedDate": string, // (optionally)
 									//   "title": string,
 									//	 "url": string }
 									// These links are then harvested as if they were "rss.extraUrls"
+	private String scriptlang = null; // Currently only "javascript" is supported
 	
 	private String pageChangeRegex = null; // If non-null, this regex should be used to match the pagination URL parameter (which will be replaced by pageChangeReplace)
-	private String pageChangeReplace = null; // Mandatory if pageChangeRegex is non-null, must be a regex where $1 is the page*numResultsPerPage
+											// Also, group 1 should be the start, to allow any offsets specified in the URL to be respected
+	private String pageChangeReplace = null; // Mandatory if pageChangeRegex is non-null, must be a replace string where $1 is the page*numResultsPerPage
 	private Integer numPages = 10; // Mandatory if pageChangeRegex is non-null - controls the number of pages deep the search will go
 	private Integer numResultsPerPage = 1; // Mandatory if pageChangeRegex is non-null - controls the number of results per page 
+	private Integer waitTimeBetweenPages_ms = null; // Optional, only used if pageChangeRegex is non-null - controls a wait between successive pages if set
 	
 	// Getters and setters
 	
@@ -69,6 +73,18 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public Integer getNumResultsPerPage() {
 		return numResultsPerPage;
+	}
+	public void setScriptlang(String scriptlang) {
+		this.scriptlang = scriptlang;
+	}
+	public String getScriptlang() {
+		return scriptlang;
+	}
+	public void setWaitTimeBetweenPages_ms(Integer waitTimeBetweenPages_ms) {
+		this.waitTimeBetweenPages_ms = waitTimeBetweenPages_ms;
+	}
+	public Integer getWaitTimeBetweenPages_ms() {
+		return waitTimeBetweenPages_ms;
 	}
 	
 }

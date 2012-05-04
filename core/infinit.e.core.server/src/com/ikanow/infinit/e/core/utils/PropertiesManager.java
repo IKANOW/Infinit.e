@@ -101,6 +101,15 @@ public class PropertiesManager {
 			return Long.parseLong(s);
 		}
 	}
+	public Long getMinimumHarvestTimePerSourceMs() { // (Limits the harvest cycle time for sources, ie can be overridden) 
+		String s = this.getProperty("harvest.source.mintime.ms");
+		if ((null == s) || s.isEmpty()) {
+			return null;
+		}
+		else {
+			return Long.parseLong(s);
+		}
+	}
 	
 	// Format is either (type:nthreads_per_type)+ for types in (file,db,feed) or just an integer (across all types)
 	// Defaults to "5"

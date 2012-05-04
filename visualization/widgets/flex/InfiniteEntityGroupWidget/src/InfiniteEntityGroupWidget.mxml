@@ -1,0 +1,2902 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	currentState="nodata"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }"
+	dragEnter="widgetmodule1_dragEnterHandler(event)">
+
+	<fx:Style source="com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
+			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+			import com.ikanow.infinit.e.widget.library.utility.DateConverter;
+			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+			import com.ikanow.infinit.e.widget.library.utility.InfiniteIcons;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			import flash.utils.flash_proxy;
+			import flash.utils.setTimeout;
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.controls.Button;
+			import mx.controls.DataGrid;
+			import mx.controls.Image;
+			import mx.controls.Menu;
+			import mx.controls.dataGridClasses.DataGridColumn;
+			import mx.events.DataGridEvent;
+			import mx.events.DragEvent;
+			import mx.events.FlexEvent;
+			import mx.events.ListEvent;
+			import mx.events.MenuEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.StringUtil;
+			import spark.components.CheckBox;
+			import spark.events.IndexChangeEvent;
+			import assets.skins.DetailsCheckbox;
+			import assets.skins.InfiniteFilterApplyOrIgnore;
+			import flexlib.mdi.containers.MDIWindow;
+			import org.alivepdf.colors.RGBColor;
+			import org.alivepdf.data.Grid;
+			import org.alivepdf.data.GridColumn;
+			import org.alivepdf.display.Display;
+			import org.alivepdf.fonts.FontFamily;
+			import org.alivepdf.fonts.Style;
+			import org.alivepdf.images.ImageFormat;
+			import org.alivepdf.images.PNGImage;
+			import org.alivepdf.images.ResizeMode;
+			import org.alivepdf.layout.Layout;
+			import org.alivepdf.layout.Orientation;
+			import org.alivepdf.layout.Size;
+			import org.alivepdf.layout.Unit;
+			import org.alivepdf.pages.Page;
+			import org.alivepdf.pdf.PDF;
+			import org.alivepdf.saving.Method;
+			import system.data.Map;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+			
+			private static const SORT_BY_SCORE:int = 0;
+			
+			private static const SORT_BY_DATE:int = 1;
+			
+			private var _context:IWidgetContext;
+			
+			// knowledge is the base data from the query
+			[Bindable]
+			private var knowledge:ArrayCollection = new ArrayCollection();
+			
+			// currData is the (potentially filtered) data
+			[Bindable]
+			private var currData:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var pages:int;
+			
+			[Bindable]
+			private var dataSet:ArrayCollection;
+			
+			private var pageSets:ArrayCollection;
+			
+			private var currentPage:Number = 0;
+			
+			// Semantic web links
+			[Bindable]
+			private var linkMenuData:ArrayCollection = null;
+			
+			// Determines if filtering results are immediately applied:
+			private var ignoreLocalFilter:Boolean = false;
+			
+			//private var eventMenu:Menu;
+			private var eventMenuArray:Array = new Array();
+			
+			private var communityIds:String = "";
+			
+			private var hasFilter:Boolean = false;
+			
+			private var internalFilterUpdate:Boolean = false;
+			
+			/**
+			 * function to build out the pages for the results
+			 *
+			 * @param pages The number of pages to build
+			 */
+			
+			private var maxPages:int = 10;
+			
+			/**
+			 * function to update entity set of feeds for the slider
+			 *
+			 * @param data The array collection containing the feeds to populate the entity set
+			 */
+			
+			private var maxDocsPerPage:int = 10;
+			
+			[Bindable]
+			private var groupEntityDataProvider:ArrayList = new ArrayList();
+			
+			[Bindable]
+			private var groupGroupDataProvider:ArrayList = new ArrayList();
+			
+			[Bindable]
+			private var groupGroupEntityDataProvider:ArrayList = new ArrayList();
+			
+			private var popupGroup:PopUpGroup;
+			
+			private var groupEntityMap:Map = new HashMap();
+			
+			private var previousGroupName = null;
+			
+			private var exporter:CSVExporter = null;
+			
+			public function groupRemoveGroup( event:MouseEvent ):void
+			{
+				
+				var group:String = groupGroupDataGrid.selectedItem as String;
+				groupGroupDataProvider.removeItem( group );
+				groupGroupDataGrid.invalidateList();
+				//remove group from map
+				groupEntityMap.remove( group );
+				//select next available group in list
+			
+			}
+			
+			public function groupRemoveItem( event:MouseEvent ):void
+			{
+				groupGroupEntityDataProvider.removeItemAt( groupGroupEntityDataGrid.selectedIndex );
+				groupGroupEntityDataGrid.invalidateList();
+			}
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				if ( null == this.exporter )
+				{
+					this.exporter = new CSVExporter();
+				}
+				var csv:String = "";
+				var crossDim:int;
+				
+				switch ( format.toLowerCase() )
+				{
+					case "all.csv":
+						crossDim = CSVExporter.CSV_ALL;
+						break;
+					case "docs.csv":
+						crossDim = CSVExporter.CSV_DOCS;
+						break;
+					case "ents.csv":
+						crossDim = CSVExporter.CSV_ENTS;
+						break;
+					case "assocs.csv":
+						crossDim = CSVExporter.CSV_ASSOCS;
+						break;
+					default:
+						return null;
+				}
+				csv = this.exporter.createCSV( currData, crossDim );
+				
+				if ( null != csv )
+				{
+					var ba:ByteArray = new ByteArray();
+					ba.writeUTFBytes( csv );
+					return ba;
+				}
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				printPDF.addPage( new Page( Orientation.PORTRAIT, Unit.MM, Size.LETTER ) );
+				printPDF.setFont( FontFamily.ARIAL, Style.UNDERLINE, 14 );
+				printPDF.writeText( 14, title );
+				printPDF.setFont( FontFamily.ARIAL, Style.NORMAL, 12 );
+				printPDF.newLine( 10 );
+				
+				
+				for ( var i:int = 0; i < dataSet.length; i++ ) //Start Loop through Docs
+				{
+					printPDF.setFont( FontFamily.ARIAL, Style.UNDERLINE, 12 );
+					printPDF.textStyle( new RGBColor( 0x0000FF ) ); //blue
+					printPDF.writeText( 12, dataSet.getItemAt( i ).title, dataSet.getItemAt( i ).url );
+					printPDF.newLine( 8 );
+					printPDF.setFont( FontFamily.ARIAL, Style.NORMAL, 12 );
+					printPDF.textStyle( new RGBColor( 0x008000 ) ); //green
+					printPDF.writeText( 12, dataSet.getItemAt( i ).url, dataSet.getItemAt( i ).url );
+					printPDF.newLine( 8 );
+					
+					if ( dataSet.getItemAt( i ).description && dataSet.getItemAt( i ).description.length > 0 )
+					{
+						printPDF.newLine( 5 );
+						printPDF.textStyle( new RGBColor( 0x000000 ) );
+						printPDF.setFont( FontFamily.ARIAL, Style.ITALIC, 10 );
+						var reg:RegExp = /\n| +|\t/g;
+						var stringToPrint:String = HtmlConvert.htmlDecode( StringUtil.trim( dataSet.getItemAt( i ).description ) ).replace( reg, ' ' ).substr( 0, 300 )
+						
+						if ( stringToPrint.length == 300 )
+							stringToPrint += '...'
+						printPDF.lineStyle( new RGBColor( 0x808080 ), .2 );
+						printPDF.addMultiCell( 200, 12, stringToPrint, 1 );
+						printPDF.newLine( 2 );
+						printPDF.setFont( FontFamily.ARIAL, Style.NORMAL, 12 );
+					}
+					printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+					printPDF.writeText( 12, dataSet.getItemAt( i ).publishedDate );
+					printPDF.addText( "Score: " + dataSet.getItemAt( i ).score.toFixed( 1 ).toString(), 185, printPDF.getY() + 7 );
+					printPDF.newLine( 8 );
+					
+					
+					printPDF.textStyle( new RGBColor( 0x000000 ) )
+					//Print Shown Entities
+					var vb:VGroup = entitiesVbox[ i ] as VGroup;
+					
+					if ( vb.visible )
+					{
+						printPDF.writeText( 12, "Entities: " );
+						printPDF.newLine( 10 );
+						printPDF.addImage( vb.getChildAt( 0 ), printPDF.getX(), printPDF.getY() );
+						printPDF.newLine( 10 );
+						
+						if ( vb.numChildren >= 2 )
+						{
+							var entityGroup:VGroup = vb.getChildAt( 1 ) as VGroup;
+							
+							for ( var j:int = 0; j < entityGroup.numChildren; j++ )
+							{
+								var entityH:HGroup = entityGroup.getChildAt( j ) as HGroup;
+								
+								var spacer:String = '  |  ';
+								
+								printPDF.writeText( 12, ( entityH.getChildAt( 2 ) as spark.components.Label ).text ); //Entity Name
+								printPDF.writeText( 12, spacer );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( entityH.getChildAt( 8 ) as spark.components.Label ).text ); //DocSig
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( entityH.getChildAt( 9 ) as spark.components.Label ).text ); //Value
+								printPDF.writeText( 12, spacer );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( entityH.getChildAt( 13 ) as spark.components.Label ).text ); //QuerySig
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( entityH.getChildAt( 14 ) as spark.components.Label ).text ); //Value
+								printPDF.writeText( 12, spacer );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( entityH.getChildAt( 18 ) as spark.components.Label ).text ); //DocRel
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( entityH.getChildAt( 19 ) as spark.components.Label ).text ); //Value
+								printPDF.writeText( 12, spacer );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( entityH.getChildAt( 23 ) as spark.components.Label ).text ); //Freq
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( entityH.getChildAt( 24 ) as spark.components.Label ).text ); //Value
+								
+								
+								printPDF.newLine( 8 );
+								
+							}
+							
+						}
+						printPDF.newLine( 10 );
+					} //End Printing Entities
+					
+					//Begin Printing GeoTags
+					var geovb:VGroup = geotagsVbox[ i ] as VGroup;
+					
+					if ( geovb.visible )
+					{
+						
+						printPDF.writeText( 12, ( geovb.getChildAt( 0 ) as spark.components.Label ).text ); //Geotags:
+						printPDF.newLine( 8 );
+						
+						for ( var dex:int = 1; dex < geovb.numChildren; dex++ )
+						{
+							var geoGroup:HGroup = geovb.getChildAt( dex ) as HGroup;
+							
+							var spacerPDF:String = '  |  ';
+							
+							var numkids:Number = geoGroup.numChildren;
+							
+							if ( numkids == 1 )
+							{
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 0 ) as spark.components.Label ).text ); //Geotag Name
+							}
+							else
+							{
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 2 ) as spark.components.Label ).text ); //Geotag Name
+								printPDF.writeText( 12, spacerPDF );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 6 ) as spark.components.Label ).text ); //Lat
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 7 ) as spark.components.Label ).text ); //Value
+								printPDF.writeText( 12, spacerPDF );
+								printPDF.textStyle( new RGBColor( 0x808080 ) ); //gray
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 11 ) as spark.components.Label ).text ); //Long
+								printPDF.textStyle( new RGBColor( 0x000000 ) ) //black
+								printPDF.writeText( 12, ( geoGroup.getChildAt( 12 ) as spark.components.Label ).text ); //Value
+								printPDF.newLine( 8 );
+							}
+						}
+						
+						printPDF.newLine( 10 );
+					} // End Printing GeoTags
+					
+					
+					
+					//Begin Printing Events
+					var eventvb:VGroup = eventsVbox[ i ] as VGroup;
+					
+					if ( eventvb.visible )
+					{
+						
+						printPDF.writeText( 12, ( eventvb.getChildAt( 0 ) as spark.components.Label ).text ); //Events:
+						printPDF.newLine( 8 );
+						
+						try
+						{ //No Event Text
+							var eventGroup:HGroup = eventvb.getChildAt( 1 ) as HGroup;
+							var numkidsPDF:Number = eventGroup.numChildren;
+							
+							if ( numkidsPDF == 1 )
+							{
+								printPDF.writeText( 12, ( eventGroup.getChildAt( 0 ) as spark.components.Label ).text ); //No Event Text
+							}
+						}
+						catch ( err:Error ) //Event Datagrid
+						{
+							var eventGrid:mx.controls.DataGrid = eventvb.getChildAt( 1 ) as mx.controls.DataGrid;
+							//Convert DataGrid to AlivePdf Grid Type
+							var gridColumnSubject:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Subject", "entity1", 35 );
+							var gridColumnVerb:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Verb", "verb", 35 );
+							var gridColumnVerbCat:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Verb Cat", "verb_category", 35 );
+							var gridColumnObject:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Object", "entity", 30 );
+							var gridColumnTime:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Time", "time_start", 30 );
+							var gridColumnLocation:org.alivepdf.data.GridColumn = new org.alivepdf.data.GridColumn( "Location", "geo_index", 30 );
+							var columns:Array = new Array( gridColumnSubject, gridColumnVerb, gridColumnVerbCat, gridColumnObject, gridColumnTime, gridColumnLocation );
+							var gridToPrint:Grid = new Grid( eventGrid.dataProvider.toArray(), 400, 1200, new RGBColor( 0xd3d3d3 ), new RGBColor( 0xf5f5f5 ), new RGBColor( 0 ), true, new RGBColor( 0x0 ) );
+							gridToPrint.columns = columns;
+							printPDF.addGrid( gridToPrint );
+						}
+						
+						
+						printPDF.newLine( 10 );
+					} // End Printing Events
+					
+					
+					//Begin Printing Facts
+					var factvb:VGroup = factsVbox[ i ] as VGroup;
+					
+					if ( factvb.visible )
+					{
+						
+						printPDF.writeText( 12, ( factvb.getChildAt( 0 ) as spark.components.Label ).text ); //Events:
+						printPDF.newLine( 8 );
+						
+						try
+						{ //No Facts Text
+							var factGroup:HGroup = factvb.getChildAt( 1 ) as HGroup;
+							var numkidsPDF:Number = factGroup.numChildren;
+							
+							if ( numkidsPDF == 1 )
+							{
+								printPDF.writeText( 12, ( factGroup.getChildAt( 0 ) as spark.components.Label ).text ); //No Event Text
+							}
+						}
+						catch ( err:Error ) //Facts Datagrid
+						{
+							var factGrid:mx.controls.DataGrid = factvb.getChildAt( 1 ) as mx.controls.DataGrid;
+							//Convert DataGrid to AlivePdf Grid Type
+							gridColumnSubject = new org.alivepdf.data.GridColumn( "Subject", "entity1", 35 );
+							gridColumnVerb = new org.alivepdf.data.GridColumn( "Verb", "verb", 35 );
+							gridColumnVerbCat = new org.alivepdf.data.GridColumn( "Verb Cat", "verb_category", 35 );
+							gridColumnObject = new org.alivepdf.data.GridColumn( "Object", "entity", 30 );
+							gridColumnTime = new org.alivepdf.data.GridColumn( "Time", "time_start", 30 );
+							gridColumnLocation = new org.alivepdf.data.GridColumn( "Location", "geo_index", 30 );
+							columns = new Array( gridColumnSubject, gridColumnVerb, gridColumnVerbCat, gridColumnObject, gridColumnTime, gridColumnLocation );
+							gridToPrint = new Grid( factGrid.dataProvider.toArray(), 400, 1200, new RGBColor( 0xd3d3d3 ), new RGBColor( 0xf5f5f5 ), new RGBColor( 0 ), true, new RGBColor( 0x0 ) );
+							gridToPrint.columns = columns;
+							printPDF.addGrid( gridToPrint );
+						}
+						
+						
+						printPDF.newLine( 10 );
+					} // End Printing Facts
+					
+					
+					//Begin Printing Summaries
+					var summariesvb:VGroup = summariesVbox[ i ] as VGroup;
+					
+					if ( summariesvb.visible )
+					{
+						
+						printPDF.writeText( 12, ( summariesvb.getChildAt( 0 ) as spark.components.Label ).text ); //Events:
+						printPDF.newLine( 8 );
+						
+						try
+						{ //No Event Text
+							var summariesGroup:HGroup = summariesvb.getChildAt( 1 ) as HGroup;
+							var numkidsPDF:Number = summariesGroup.numChildren;
+							
+							if ( numkidsPDF == 1 )
+							{
+								printPDF.writeText( 12, ( summariesGroup.getChildAt( 0 ) as spark.components.Label ).text ); //No Event Text
+							}
+						}
+						catch ( err:Error ) //Event Datagrid
+						{
+							var summariesGrid:mx.controls.DataGrid = summariesvb.getChildAt( 1 ) as mx.controls.DataGrid;
+							//Convert DataGrid to AlivePdf Grid Type
+							gridColumnSubject = new org.alivepdf.data.GridColumn( "Subject", "entity1", 35 );
+							gridColumnVerb = new org.alivepdf.data.GridColumn( "Verb", "verb", 35 );
+							gridColumnVerbCat = new org.alivepdf.data.GridColumn( "Verb Cat", "verb_category", 35 );
+							gridColumnObject = new org.alivepdf.data.GridColumn( "Object", "entity", 30 );
+							gridColumnTime = new org.alivepdf.data.GridColumn( "Time", "time_start", 30 );
+							gridColumnLocation = new org.alivepdf.data.GridColumn( "Location", "geo_index", 30 );
+							columns = new Array( gridColumnSubject, gridColumnVerb, gridColumnVerbCat, gridColumnObject, gridColumnTime, gridColumnLocation );
+							gridToPrint = new Grid( summariesGrid.dataProvider.toArray(), 400, 1200, new RGBColor( 0xd3d3d3 ), new RGBColor( 0xf5f5f5 ), new RGBColor( 0 ), true, new RGBColor( 0x0 ) );
+							gridToPrint.columns = columns;
+							printPDF.addGrid( gridToPrint );
+						}
+						
+						
+						printPDF.newLine( 10 );
+					} // End Printing Summaries
+					
+					printPDF.newLine( 10 );
+				} //End Loop through Docs
+				
+				
+				return printPDF;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			{
+				if ( widgetOptions != null )
+				{
+					var options:String = widgetOptions.save;
+					//reverse the encoding
+					options = options.replace( new RegExp( "INF_R_BRACE", "g" ), "]" );
+					options = options.replace( new RegExp( "INF_F_SLASH", "g" ), "/" );
+					var loadObject:GroupStoreObject = JSONDecoder.decode( options ) as GroupStoreObject;
+					
+					if ( loadObject != null )
+					{
+						for ( var i:int = 0; i < loadObject.keys.length; i++ )
+						{
+							var key:String = loadObject.keys[ i ];
+							groupEntityMap.put( key, loadObject.values[ i ] );
+						}
+					}
+				}
+			}
+			
+			/**
+			 * This function gets called when the parent resizeWindow gets dragged
+			 * or changes in size.  This allows the widget to adjust its internal
+			 * width/height so scaling can occur.  This function should be
+			 * used as follows:
+			 *
+			 * this.width = newWidth;
+			 * this.height = newHeight;
+			 *
+			 * Because of the way the parent container resizes this function is necessary
+			 * to allow proper widget resizing (change size events do not get fired inside
+			 * when the outer container changes.
+			 *
+			 * @param newHeight The new height of the parent container
+			 * @param newWidth The new width of the parent container
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = true;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				currentState = "dataview";
+				currData = _context.getQuery_FilteredResults().getTopDocuments();
+				
+				//check which state the module should be in
+				if ( currData != null && currData.length > 0 )
+				{
+					fixDates(); //add published longs on all dates so they can be sorted by date
+					
+					if ( sortOptions.selectedIndex == SORT_BY_DATE )
+					{ // (ranked by score by default - if enabled that means ranking by date)
+						rankBy( "publishedLong", true, true );
+					}
+					updateDataSet();
+				}
+				else
+				{
+					this.currentState = "nodata";
+				}
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				currentState = "dataview";
+				knowledge = _context.getQuery_TopResults().getTopDocuments();
+				currData = knowledge;
+				
+				communityIds = "";
+				var currQuery:Object = _context.getCurrentQuery();
+				
+				if ( currQuery != null )
+				{
+					var commIds:Array = _context.getCurrentQuery()[ "communityIds" ];
+					
+					communityIds = "";
+					
+					for each ( var cid:String in commIds )
+					{
+						communityIds += cid + ",";
+					}
+					communityIds = communityIds.substr( 0, communityIds.length - 1 );
+				}
+				
+				
+				//check which state the module should be in
+				if ( currData != null && currData.length > 0 )
+				{
+					fixDates(); //add published longs on all dates so they can be sorted by date
+					
+					if ( sortOptions.selectedIndex == SORT_BY_DATE )
+					{ // (ranked by score by default - if enabled that means ranking by date)
+						rankBy( "publishedLong", true, true );
+					}
+					updateDataSet();
+				}
+				else
+				{
+					this.currentState = "nodata";
+				}
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				var store:GroupStoreObject = new GroupStoreObject( groupEntityMap );
+				var storeString:String = JSONEncoder.encode( store ).replace( new RegExp( "/", "g" ), "INF_F_SLASH" ).replace( new RegExp( "]", "g" ), "INF_R_BRACE" );
+				var temp:Object = new Object();
+				temp.save = storeString;
+				return temp;
+			}
+			
+			/**
+			 * @return()s A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				var ac:ArrayCollection = new ArrayCollection();
+				ac.addItem( "all.csv" );
+				ac.addItem( "docs.csv" );
+				ac.addItem( "ents.csv" );
+				ac.addItem( "assocs.csv" );
+				return ac;
+			}
+			
+			/**
+			 * function to control the paging between significance pages
+			 *
+			 * @param event The MouseEvent received when a page is selected
+			 */
+			
+			protected function Paging_clickHandler( event:MouseEvent ):void
+			{
+				//create a variable to hold the entities for this page
+				var pageEnts:Number;
+				var button:LinkButton;
+				
+				if ( pages > 0 )
+				{
+					if ( event.target.id == "forwardButton" )
+					{
+						if ( currentPage < pages )
+						{
+							currentPage++;
+						}
+					}
+					else if ( event.target.id == "fullForwardButton" )
+					{
+						currentPage = pages;
+					}
+					else if ( event.target.id == "backButton" )
+					{
+						if ( currentPage > 1 )
+						{
+							currentPage--;
+						}
+					}
+					else if ( event.target.id == "fullBackButton" )
+					{
+						currentPage = 1;
+					}
+					else if ( event.target is LinkButton )
+					{
+						button = event.target as LinkButton;
+						currentPage = Number( button.label );
+					}
+					highlightPage( currentPage );
+					loadPageData( pageSets.getItemAt( currentPage - 1 ) as ArrayCollection );
+				}
+				contentContainer.verticalScrollPosition = 0;
+				contentContainer.horizontalScrollPosition = 0;
+				repeatvbox.setFocus();
+			}
+			protected function groupGroupDataGrid_itemClickHandler( event:ListEvent ):void
+			{
+				/*if ( previousGroupName != null )
+				{
+					groupEntityMap.put( group, groupGroupEntityDataProvider.toArray() );
+				}*/
+				if ( groupGroupDataProvider.length >= ( event.rowIndex + 1 ) )
+				{
+					var group:String = groupGroupDataGrid.selectedItem as String;
+					//var group:String = groupGroupDataProvider.getItemAt( event.rowIndex ) as String;
+					groupGroupLabel.text = group;
+					//previousGroupName = group;
+					
+					var array:Array = groupEntityMap.get( group ) as Array;
+					groupGroupEntityDataProvider = new ArrayList( array );
+					groupGroupEntityDataGrid.invalidateList();
+					groupGroupEntityDataGrid.enabled = true;
+				}
+				else
+				{
+					groupGroupEntityDataGrid.enabled = false;
+					groupGroupEntityDataProvider = new ArrayList();
+					groupGroupEntityDataGrid.invalidateList();
+					groupGroupLabel.text = "Add a Group, then drag entities here";
+				}
+			}
+			
+			protected function groupGroupEntityDataGrid_dragEnterHandler( event:DragEvent ):void
+			{
+				
+				if ( event.dragInitiator == groupEntityDataGrid )
+				{
+					var target:DataGrid = DataGrid( event.currentTarget );
+					DragManager.acceptDragDrop( target );
+				}
+			}
+			
+			
+			
+			/**
+			 * Sets focus to the vbox when clicked on so it can be scrolled
+			 * using the up/down/left/right or pageup/pagedown keys.
+			 *
+			 * @param event The mouse event when the click occurs.
+			 */
+			protected function repeatvbox_clickHandler( event:MouseEvent ):void
+			{
+				repeatvbox.setFocus();
+			}
+			
+			/**
+			 * Event handler for key presses w/in the repeater.  Checks for
+			 * page up and page down keys and scrolls the page by its height
+			 * appropriately
+			 *
+			 * @param event The keyboard event when a key is released
+			 */
+			protected function repeatvbox_keyUpHandler( event:KeyboardEvent ):void
+			{
+				if ( event.keyCode == 33 ) //page up
+				{
+					contentContainer.verticalScrollPosition -= this.height;
+				}
+				else if ( event.keyCode == 34 ) //page down
+				{
+					contentContainer.verticalScrollPosition += this.height;
+				}
+			
+			}
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+			
+			/**
+			 * Passes mousewheel up to next level so scrolling will work through them.
+			 */
+			protected function snippet_mouseWheelHandler( event:MouseEvent ):void
+			{
+				dispatchEvent( event );
+			}
+			
+			protected function sortOptions_changeHandler( event:IndexChangeEvent ):void
+			{
+				if ( event.newIndex == 1 )
+				{
+					rankBy( "publishedLong", true, true );
+				}
+				else
+				{
+					rankBy( "score", true, true );
+				}
+				updateDataSet();
+			}
+			
+			protected function widgetmodule1_dragEnterHandler( event:DragEvent ):void
+			{
+				trace( "widget kill event" );
+				event.stopImmediatePropagation();
+			}
+			
+			private function applyGroupClick():void
+			{
+				var keys:Array = groupEntityMap.getKeys();
+				var matches:Array = new Array( keys.length );
+				
+				//loop over every doc, checking matches against ents in groups and keeping count
+				for each ( var doc:Object in currData )
+				{
+					//zero out array
+					for ( var i:int = 0; i < matches.length; i++ )
+					{
+						matches[ i ] = 0;
+					}
+					
+					//loop over docs entities checking against groups
+					for each ( var ent:Object in doc.entities )
+					{
+						for ( var k:int = 0; k < keys.length; k++ )
+						{
+							var key:String = keys[ k ];
+							
+							for each ( var keyEnt:Object in groupEntityMap.get( key ) )
+							{
+								if ( ent.disambiguous_name == keyEnt.disambiguous_name && ent.type == keyEnt.type )
+								{
+									matches[ k ]++;
+								}
+							}
+						}
+					}
+					
+					//once done marking up, add matches back to doc
+					for ( var j:int = 0; j < matches.length; j++ )
+					{
+						if ( matches[ j ] > 0 )
+						{
+							var entity:Object = new Object();
+							entity.type = "Group";
+							entity.disambiguated_name = keys[ j ];
+							entity.actual_name = keys[ j ];
+							entity.dimension = "What";
+							entity.index = ( keys[ j ] as String ).toLowerCase() + "/group";
+							entity.frequency = matches[ j ];
+							doc.entities.push( entity );
+						}
+					}
+				}
+				this.currentState = "dataview";
+				updateDataSet();
+			}
+			
+			/**
+			 * function to navigate to the article when the link is clicked
+			 *
+			 * @param event The Event received when the feed link is clicked
+			 */
+			private function articleClick( event:Event ):void
+			{
+				var imageItem:Image = event.target.parent as Image;
+				var repeaterItem:Object;
+				
+				if ( imageItem != null )
+				{
+					repeaterItem = imageItem.getRepeaterItem();
+				}
+				else
+				{
+					repeaterItem = event.target.getRepeaterItem();
+				}
+				
+				if ( repeaterItem.url.indexOf( "http" ) > -1 )
+				{
+					var url:URLRequest = new URLRequest( repeaterItem.url );
+					navigateToURL( url, '_blank' );
+				}
+				else
+				{
+					var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=true";
+					var url1:URLRequest = new URLRequest( urlStr );
+					navigateToURL( url1, '_blank' );
+				}
+			/*else if ( null != repeaterItem.metadata )
+			{
+				Alert.show( JSONEncoder.encode( repeaterItem.metadata ), "Metadata fields" );
+			}
+			else if ( null != repeaterItem.description )
+			{
+				Alert.show( repeaterItem.description );
+			}
+			else
+			{
+				Alert.show( "No more information is available." );
+			}*/
+			}
+			
+			/**
+			 * function to build the entities categories
+			 *
+			 * @param _entities The entities of the feed used to build their categories
+			 *
+			 * @return The array collection of categories
+			 */
+			private function buildCategories( _entities:Array ):ArrayCollection
+			{
+				_entities = _entities.sortOn( "type" );
+				
+				var categories:ArrayCollection = new ArrayCollection();
+				var entities:ArrayCollection = new ArrayCollection();
+				
+				for each ( var ent:Object in _entities )
+				{
+					entities.addItem( ent );
+				}
+				
+				while ( entities.length > 0 )
+				{
+					var data:Object = new Object();
+					
+					var firstEnt:Object = entities.removeItemAt( 0 )
+					
+					var groups:ArrayCollection = new ArrayCollection();
+					groups.addItem( firstEnt );
+					
+					//loop through entities array to find entities that have the same category
+					for ( var i:int = 0; i < entities.length; i++ )
+					{
+						if ( firstEnt.type == entities.getItemAt( i ).type )
+						{
+							groups.addItem( entities.removeItemAt( i ) );
+							i -= 1;
+						}
+					}
+					
+					data.entities = groups;
+					
+					//add the type to the array
+					//groups.addItemAt(firstEnt.type,0);
+					//get the icon for the groups type
+					//var icon:String = "com/ikanow/infinit/e/assets/nodeIcons/" +  InfiniteIcons.getIcon(firstEnt.type);
+					//add the icon to the group
+					//groups.addItemAt(icon,0);
+					
+					data.icon = EmbeddedImages.findIcon( firstEnt.type, firstEnt.dimension );
+					data.type = firstEnt.type;
+					
+					//add the grouped entities to the categories array
+					categories.addItem( data );
+				}
+				
+				//return the categories array colletion
+				return categories;
+			}
+			
+			private function buildPages( numPages:Number ):void
+			{
+				if ( numPages > this.maxPages )
+				{
+					numPages = this.maxPages;
+				}
+				
+				//build out the buttons to correspond to each page
+				for ( var i:int = numPages; i > 0; i-- )
+				{
+					var button:LinkButton = new LinkButton();
+					button.label = i.toString();
+					button.width = 45;
+					button.setStyle( 'color', 'blue' );
+					button.setStyle( 'textDecoration', 'underline' );
+					
+					button.addEventListener( MouseEvent.CLICK, Paging_clickHandler );
+					
+					if ( i == 1 )
+					{
+						button.enabled = false;
+					}
+					
+					repeaterPages.addElementAt( button, 0 );
+				}
+			}
+			
+			private function cancelGroupClick():void
+			{
+				this.currentState = "dataview";
+			}
+			
+			private function closeGroupPopup( event:Event ):void
+			{
+				var groupname:String = popupGroup.getGroupName();
+				
+				if ( groupname != null )
+				{
+					if ( !groupEntityMap.containsKey( groupname ) || groupEntityMap.get( groupname ) == null )
+					{
+						groupEntityMap.put( groupname, new Array() );
+						groupGroupDataProvider.addItem( groupname );
+						groupGroupDataGrid.selectedItem = groupname;
+						
+						//groupGroupDataGrid.selectedIndex = groupGroupDataProvider.length - 1;
+						groupGroupDataGrid.validateNow();
+						groupGroupDataGrid.scrollToIndex( groupGroupDataGrid.selectedIndex );
+						var evt:ListEvent = new ListEvent( "", false, false, 0, groupGroupDataGrid.selectedIndex );
+						groupGroupDataGrid_itemClickHandler( evt );
+					}
+				}
+			}
+			
+			/**
+			 * Creates the datagrid that is displayed when the
+			 * show events button is clicked.  The tricky bit is
+			 * we have to set the width to approximately the actual width when opened
+			 * so the columns will draw up correctly.  After the grid has been drawn its
+			 * width will be reset to 100% so it can stretch with the window resizing.
+			 *
+			 * @return A datagrid set up to display events.
+			 */
+			private function createEventDataGrid():mx.controls.DataGrid
+			{
+				var eventgrid:mx.controls.DataGrid = new mx.controls.DataGrid();
+				eventgrid.variableRowHeight = true;
+				eventgrid.minHeight = 50; //show atleast 1 row (even if blank)
+				eventgrid.maxHeight = 300;
+				//eventgrid.height = 300;
+				eventgrid.width = 650; //we first must set the width to this so the columns draw sensible
+				var dgcol1:DataGridColumn = new DataGridColumn();
+				dgcol1.headerText = "Subject";
+				dgcol1.dataField = "entity1";
+				//dgcol1.width = 100;
+				var dgcol2:DataGridColumn = new DataGridColumn();
+				dgcol2.headerText = "Verb";
+				dgcol2.dataField = "verb";
+				//dgcol2.width = 100;
+				var dgcol3:DataGridColumn = new DataGridColumn();
+				dgcol3.headerText = "Verb Cat";
+				dgcol3.dataField = "verb_category";
+				//dgcol3.width = 50;
+				var dgcol4:DataGridColumn = new DataGridColumn();
+				dgcol4.headerText = "Object";
+				dgcol4.dataField = "entity2";
+				//dgcol4.width = 100;
+				var dgcol5:DataGridColumn = new DataGridColumn();
+				dgcol5.headerText = "Time";
+				dgcol5.dataField = "time_start";
+				//dgcol5.width = 75;
+				var dgcol6:DataGridColumn = new DataGridColumn();
+				dgcol6.headerText = "Location";
+				dgcol6.dataField = "geo_index";
+				//dgcol6.width = 75;
+				
+				eventgrid.columns = [ dgcol1, dgcol2, dgcol3, dgcol4, dgcol5, dgcol6 ];
+				return eventgrid;
+			}
+			
+			private function filterQuery( event:Event ):void //TODO TEST
+			{
+				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+				var docSet:Set = new HashSet();
+				docSet.add( feed._id );
+				var docEntMap:Map = new HashMap();
+				
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in feed.entities )
+				{
+					if ( ent.selected == null || ent.selected == true )
+					{
+						
+						ents.add( ent.index );
+					}
+				}
+				docEntMap.put( feed._id, ents );
+				
+				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docSet, docEntMap, "_id", "_id", "Doc Filter: " + HtmlConvert.convertEntities_txt( feed.title ) );
+			}
+			
+			private function filterQueryMatchDocAllEnt( event:Event ):void //TODO test
+			{
+				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in feed.entities )
+				{
+					if ( ent.selected == null || ent.selected == true )
+					{
+						if ( !ents.isEmpty() )
+						{
+							desc += " OR ";
+						}
+						ents.add( ent.index );
+						desc += ent.index;
+					}
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				
+				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );
+			}
+			
+			private function filterQueryMatchDocAllEnt_AND( event:Event ):void //TODO test
+			{
+				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in feed.entities )
+				{
+					if ( !ents.isEmpty() )
+					{
+						desc += " OR ";
+					}
+					ents.add( ent.index );
+					desc += ent.index;
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				
+				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );
+			}
+			
+			private function filterQueryMatchDocMatchEnt( event:Event ):void //TODO test - im not sure if i need to add all other matching ents?
+			{
+				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in feed.entities )
+				{
+					if ( ent.selected == null || ent.selected == true )
+					{
+						if ( null != ent.index )
+						{
+							if ( !ents.isEmpty() )
+							{
+								desc += " OR ";
+							}
+							ents.add( ent.index );
+							desc += ent.index;
+						}
+					}
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				
+				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_SELECTED_ENTITIES, desc );
+			}
+			
+			private function fixDates():void
+			{
+				for each ( var feed:Object in currData )
+				{
+					feed.publishedLong = DateConverter.parseDate( feed.publishedDate ).getTime();
+				}
+			}
+			
+			private function generatedSortedCategories( type:String, categories:ArrayCollection, nIndex:int, sorton:String ):void
+			{
+				for each ( var match:Object in categories )
+				{
+					if ( match.type == type )
+					{
+						var order:Array = new Array();
+						
+						for each ( var e:Object in match.entities )
+						{
+							e[ "name" ] = e.disambiguated_name;
+							order.push( e );
+						}
+						
+						if ( sorton == "datasetSignificance" )
+						{
+							order.sortOn( sorton, Array.NUMERIC | Array.DESCENDING );
+						}
+						else if ( sorton == "significance" )
+						{
+							order.sortOn( sorton, Array.NUMERIC | Array.DESCENDING );
+						}
+						else if ( sorton == "relevance" )
+						{
+							order.sortOn( sorton, Array.NUMERIC | Array.DESCENDING );
+						}
+						else if ( sorton == "frequency" )
+						{
+							order.sortOn( sorton, Array.NUMERIC | Array.DESCENDING );
+						}
+						else if ( sorton == "name" )
+						{
+							order.sortOn( "name" );
+						}
+						
+						var sorted:ArrayCollection = new ArrayCollection();
+						
+						for each ( var _e:Object in order )
+						{
+							sorted.addItem( _e );
+						}
+						
+						loadCategoryEntities( sorted, nIndex );
+						break;
+					}
+				}
+			}
+			
+			private function groupAddGroupClick():void
+			{
+				popupGroup = new PopUpGroup();
+				popupGroup.addEventListener( Event.CLOSE, closeGroupPopup );
+				PopUpManager.addPopUp( popupGroup, this, true );
+				PopUpManager.centerPopUp( popupGroup );
+				popupGroup.focusTextBox();
+			
+			}
+			
+			private function groupGroupHeaderClick( event:Event ):void
+			{
+				//header sorted groups, need to sort background data
+			}
+			
+			private function hasMatch( entNames:HashSet, feedEnts:ArrayCollection ):Boolean
+			{
+				if ( null != feedEnts )
+				{
+					for each ( var ent:Object in feedEnts )
+					{
+						if ( entNames.contains( ent.index ) )
+						{
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+			
+			private function hasMatch_AND( entNames:HashSet, feedEnts:ArrayCollection ):Boolean
+			{
+				var nfound:int = 0;
+				
+				if ( null != feedEnts )
+				{
+					for each ( var ent:Object in feedEnts )
+					{
+						if ( entNames.contains( ent.index ) )
+						{
+							nfound++;
+						}
+						
+						if ( entNames.size() == nfound )
+						{
+							break;
+						}
+					}
+				}
+				
+				if ( entNames.size() == nfound )
+				{
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+			
+			/**
+			 * function to update the page button
+			 *
+			 * @param page The current page to highlight
+			 * @param type The type requesting the method
+			 */
+			private function highlightPage( page:Number ):void
+			{
+				// Sort out forward/backward buttons...
+				if ( page == 1 )
+				{
+					backButton.enabled = false;
+					fullBackButton.enabled = false;
+				}
+				else
+				{
+					backButton.enabled = true;
+					fullBackButton.enabled = true;
+				}
+				
+				if ( page == this.pages )
+				{
+					forwardButton.enabled = false;
+					fullForwardButton.enabled = false;
+				}
+				else
+				{
+					forwardButton.enabled = true;
+					fullForwardButton.enabled = true;
+				}
+				
+				// Then renumber buttons
+				
+				var button:LinkButton;
+				
+				var nMinPage:int = page - int( this.maxPages / 2 );
+				
+				if ( ( nMinPage > 1 ) && ( ( nMinPage + ( this.maxPages - 1 ) ) > this.pages ) )
+				{
+					nMinPage = this.pages - ( this.maxPages - 1 );
+				}
+				
+				if ( nMinPage < 1 )
+				{
+					nMinPage = 1;
+				}
+				
+				for ( var i:int = 0; i < repeaterPages.numElements; i++ )
+				{
+					if ( repeaterPages.getElementAt( i ) is LinkButton )
+					{
+						button = repeaterPages.getElementAt( i ) as LinkButton;
+						button.label = ( nMinPage + i ).toString();
+						
+						if ( button.label == page.toString() )
+						{
+							button.enabled = false;
+						}
+						else
+						{
+							button.enabled = true;
+						}
+					}
+				}
+			}
+			
+			/**
+			 * function to load entities based on category
+			 *
+			 * @param event The MouseEvent received when an icon category is clicked
+			 * @param entities The entities for the category
+			 * @param index The index of the category in the repeater
+			 */
+			private function loadCategoryEntities( entities:ArrayCollection, index:Number ):void
+			{
+				var vGroup:VGroup = new VGroup();
+				vGroup.name = "entities";
+				
+				var vb:VGroup = entitiesVbox[ index ] as VGroup;
+				
+				for each ( var entity:Object in entities )
+				{
+					
+					// Entity list framework					
+					
+					var hGroup:HGroup = new HGroup();
+					hGroup.gap = 2;
+					hGroup.verticalAlign = "middle";
+					
+					var vrule0:Line = new Line();
+					vrule0.xFrom = 0;
+					vrule0.xTo = 0;
+					vrule0.yFrom = 0;
+					vrule0.yTo = 10;
+					vrule0.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule:Line = new Line();
+					vrule.xFrom = 0;
+					vrule.xTo = 0;
+					vrule.yFrom = 0;
+					vrule.yTo = 10;
+					vrule.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule1:Line = new Line();
+					vrule1.xFrom = 0;
+					vrule1.xTo = 0;
+					vrule1.yFrom = 0;
+					vrule1.yTo = 10;
+					vrule1.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule2:Line = new Line();
+					vrule2.xFrom = 0;
+					vrule2.xTo = 0;
+					vrule2.yFrom = 0;
+					vrule2.yTo = 10;
+					vrule2.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule3:Line = new Line();
+					vrule3.xFrom = 0;
+					vrule3.xTo = 0;
+					vrule3.yFrom = 0;
+					vrule3.yTo = 10;
+					vrule3.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule4:Line = new Line();
+					vrule4.xFrom = 0;
+					vrule4.xTo = 0;
+					vrule4.yFrom = 0;
+					vrule4.yTo = 10;
+					vrule4.stroke = new SolidColorStroke( 0x000000, 2 );
+					
+					// Build entity list components					
+					
+					var checkbox:CheckBox = new CheckBox();
+					checkbox.setStyle( "skinClass", DetailsCheckbox );
+					checkbox.content = entity;
+					checkbox.toolTip = "Include/exclude this entity in the filter (select \"Filter...\" to apply)";
+					
+					if ( entity[ "selected" ] == null )
+					{
+						entity[ "selected" ] = true;
+					}
+					checkbox.selected = entity.selected;
+					checkbox.addEventListener( MouseEvent.CLICK, function uncheckedChange( event:MouseEvent ):void
+					{
+						event.target.content.selected = event.target.selected;
+					} );
+					
+					var entName:spark.components.Label = new spark.components.Label();
+					entName.text = entity.disambiguated_name.toString();
+					entName.toolTip = "[Mouse: Sort on entity name]";
+					entName.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+					{
+						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "name" );
+					} );
+					
+					var button2:LinkButton = new LinkButton();
+					button2.label = "Links...";
+					button2.labelPlacement = "left";
+					button2.data = entity;
+					
+					//If statement no longer needed because a link will always be provided for the entity profiler
+					//					if (null == entity.linkdata) {
+					//						//button2.enabled = false;
+					//					}
+					//					else {
+					button2.addEventListener( MouseEvent.CLICK, function showLinkMenu( event:MouseEvent ):void
+					{
+						var thisEnt:Object = event.target.data;
+						this.linkMenuData = new ArrayCollection;
+						
+						//ENTITY PROFILER
+						
+						var entProf:Object = new Object;
+						var currentURL:String = ExternalInterface.call( "window.location.href.toString" );
+						var toConcat:String = "InfiniteEntityProfiler.html?entity=" + URLEncoder.encode( thisEnt.index );
+						
+						if ( communityIds != "" )
+						{
+							toConcat += "&communities=" + communityIds; //TODO add this back on
+						}
+						
+						currentURL = currentURL.replace( /[^\/]*.htm.*/gi, "" );
+						currentURL = currentURL.replace( /?.*$/, "" );
+						entProf.url = currentURL + toConcat;
+						entProf.label = "Entity Profile: " + thisEnt.disambiguated_name;
+						this.linkMenuData.addItem( entProf );
+						
+						
+						// Check the presence of linkdata:
+						if ( null != thisEnt.linkdata )
+						{
+							for each ( var link:String in thisEnt.linkdata )
+							{
+								var mit:Object = new Object;
+								mit.url = link;
+								
+								if ( link.indexOf( "umbel.org" ) >= 0 )
+								{
+									mit.label = "Umbel...";
+								}
+								else if ( link.indexOf( "/factbook/" ) >= 0 )
+								{
+									mit.label = "Factbook...";
+								}
+								else if ( link.indexOf( "opencyc.org" ) >= 0 )
+								{
+									mit.label = "OpenCyc...";
+								}
+								else if ( link.indexOf( "dbpedia" ) >= 0 )
+								{
+									mit.label = "DBpedia...";
+								}
+								else if ( link.indexOf( "freebase.com" ) >= 0 )
+								{
+									mit.label = "Freebase...";
+								}
+								else if ( link.indexOf( "/yago/" ) >= 0 )
+								{
+									mit.label = "Wikipedia...";
+								}
+								else
+								{
+									mit.label = link;
+								}
+								this.linkMenuData.addItem( mit );
+							}
+							
+							
+							
+						}
+						
+						var myMenu:Menu = Menu.createMenu( null, this.linkMenuData, false );
+						myMenu.addEventListener( MenuEvent.ITEM_CLICK, showEntityLinkData );
+						myMenu.show( event.stageX, event.stageY );
+					} );
+					//}
+					
+					var rel:spark.components.Label = new spark.components.Label();
+					rel.setStyle( "color", "#808080" );
+					rel.toolTip = "The relevance of the entity to this document";
+					rel.text = "DocRel: ";
+					
+					var relvalue:spark.components.Label = new spark.components.Label();
+					relvalue.text = ( Math.round( Number( entity.relevance ) * 100 ) ).toPrecision( 2 ) + "%";
+					relvalue.toolTip = "[Mouse: Sort on document relevance]";
+					relvalue.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+					{
+						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "relevance" );
+					} );
+					
+					var freq:spark.components.Label = new spark.components.Label();
+					freq.setStyle( "color", "#808080" );
+					freq.toolTip = "The number of occurrences of this entity in this document";
+					freq.text = "Freq: ";
+					
+					var freqvalue:spark.components.Label = new spark.components.Label();
+					freqvalue.text = entity.frequency;
+					freqvalue.toolTip = "[Mouse: Sort on document frequency]";
+					freqvalue.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+					{
+						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "frequency" );
+					} );
+					
+					var dataSig:spark.components.Label = new spark.components.Label();
+					dataSig.setStyle( "color", "#808080" );
+					dataSig.toolTip = "The significance of the entity to the query, across all documents";
+					dataSig.text = "QuerySig: ";
+					
+					var dataSigvalue:spark.components.Label = new spark.components.Label();
+					dataSigvalue.text = Math.round( Number( entity.datasetSignificance ) ) + "%";
+					dataSigvalue.toolTip = "[Mouse: Sort on query significance]";
+					dataSigvalue.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+					{
+						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "datasetSignificance" );
+					} );
+					
+					var docSig:spark.components.Label = new spark.components.Label();
+					docSig.setStyle( "color", "#808080" );
+					docSig.toolTip = "The significance of the entity occurences in this document to the query";
+					docSig.text = "DocSig: ";
+					
+					var docSigvalue:spark.components.Label = new spark.components.Label();
+					docSigvalue.text = Math.round( Number( entity.significance ) ) + "%";
+					docSigvalue.toolTip = "[Mouse: Sort on document significance]";
+					docSigvalue.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+					{
+						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "significance" );
+					} );
+					
+					var button:LinkButton = new LinkButton();
+					button.label = "Add To Query";
+					button.labelPlacement = "left";
+					button.data = entity;
+					button.addEventListener( MouseEvent.CLICK, function addToQuery( event:MouseEvent ):void
+					{
+						send2Query( event.target.data );
+					} );
+					
+					// Layout for the entity list					
+					
+					//add the entity and an option to add it   
+					//to the query to the hgroup
+					hGroup.addElement( checkbox );
+					
+					var spacer:Spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					hGroup.addElement( entName );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					
+					hGroup.addElement( vrule0 );
+					hGroup.addElement( button2 );
+					
+					hGroup.addElement( vrule );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					hGroup.addElement( docSig );
+					hGroup.addElement( docSigvalue );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					
+					hGroup.addElement( vrule1 );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					hGroup.addElement( dataSig );
+					hGroup.addElement( dataSigvalue );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					
+					hGroup.addElement( vrule2 );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					hGroup.addElement( rel );
+					hGroup.addElement( relvalue );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					
+					hGroup.addElement( vrule3 );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					hGroup.addElement( freq );
+					hGroup.addElement( freqvalue );
+					spacer = new Spacer();
+					spacer.width = 9;
+					hGroup.addElement( spacer );
+					
+					hGroup.addElement( vrule4 );
+					hGroup.addElement( button );
+					
+					//add the hgroup to the vbox
+					vGroup.addElement( hGroup );
+				}
+				
+				for ( var i:int = 0; i < vb.numElements; i++ )
+				{
+					if ( vb.getElementAt( i ) is VGroup )
+					{
+						vb.removeElementAt( i );
+					}
+				}
+				vb.addElement( vGroup );
+				
+				listOpens.target = vb;
+				open.valueTo = ( vGroup.numElements * 30 ) + 16;
+				listOpens.end();
+				listOpens.play();
+			}
+			
+			/**
+			 * function to load the entities of the feed
+			 *
+			 * @param event The MouseEvent received when the load entities button is clicked
+			 */
+			private function loadFeedEntities( event:Event ):void
+			{
+				var categories:ArrayCollection = new ArrayCollection();
+				var vbox:VGroup = entitiesVbox[ event.target.repeaterIndex ] as VGroup;
+				var index:Number = event.target.repeaterIndex;
+				
+				if ( vbox.visible == false )
+				{
+					if ( vbox.numElements > 0 )
+					{
+						vbox.removeAllElements();
+					}
+					
+					var feed:Object = this.dataSet.getItemAt( event.target.repeaterIndex );
+					
+					//if the feed has entitiees load those entities into an 
+					//hgroup so that they can be displayed
+					if ( feed.entities != null && feed.entities.length > 0 )
+					{
+						categories = buildCategories( feed.entities );
+						
+						var hGroup:HGroup = new HGroup();
+						hGroup.gap = 2;
+						hGroup.verticalAlign = "middle";
+						
+						for each ( var cat:Object in categories )
+						{
+							if ( 0 != hGroup.numChildren )
+							{
+								var spacer:Spacer = new Spacer();
+								spacer.width = 4;
+								hGroup.addElement( spacer );
+								var vrule0:Line = new Line();
+								vrule0.xFrom = 0;
+								vrule0.xTo = 0;
+								vrule0.yFrom = 0;
+								vrule0.yTo = 20;
+								vrule0.stroke = new SolidColorStroke( 0x999999, 2 );
+								hGroup.addElement( vrule0 );
+								spacer = new Spacer();
+								spacer.width = 4;
+								hGroup.addElement( spacer );
+							}
+							
+							var lButton:LinkButton = new LinkButton();
+							lButton.label = cat.type.toString();
+							lButton.toggle = true;
+							lButton.setStyle( "icon", cat.icon );
+							lButton.addEventListener( MouseEvent.CLICK, function passData( event:MouseEvent ):void
+							{
+								var target:LinkButton = ( event.currentTarget as LinkButton );
+								
+								if ( null != target )
+								{
+									var parent:HGroup = target.parent as HGroup;
+									
+									for ( var i:Number = 0; i < parent.numChildren; ++i )
+									{
+										var otherButton:LinkButton = parent.getChildAt( i ) as LinkButton;
+										
+										if ( null != otherButton )
+										{
+											otherButton.setStyle( 'textDecoration', 'none' );
+										}
+									}
+									generatedSortedCategories( event.currentTarget.label, categories, index, "datasetSignificance" );
+									target.setStyle( 'textDecoration', 'underline' );
+								}
+							} );
+							hGroup.addElement( lButton );
+						}
+						
+						vbox.addElement( hGroup );
+						
+						listOpens.target = vbox;
+						open.valueTo = vbox.numElements * 27;
+						listOpens.end();
+						listOpens.play();
+						
+						vbox.visible = true;
+						showEntities[ event.target.repeaterIndex ].label = "Hide entities";
+					}
+					else
+					{
+						var nGroup:HGroup = new HGroup();
+						var noents:spark.components.Label = new spark.components.Label();
+						
+						noents.text = "No Entities Found";
+						
+						//add the entity
+						nGroup.addElement( noents );
+						
+						//add the hgroup to the vbox
+						vbox.addElement( nGroup );
+						
+						listOpens.target = vbox;
+						open.valueTo = vbox.numElements * 10;
+						listOpens.end();
+						listOpens.play();
+						
+						vbox.visible = true;
+						showEntities[ event.target.repeaterIndex ].label = "Hide entities";
+					}
+				}
+				else
+				{
+					listClosed.target = vbox;
+					close.valueFrom = vbox.height;
+					listClosed.end();
+					listClosed.play();
+					
+					vbox.visible = false;
+					showEntities[ event.target.repeaterIndex ].label = "Show entities";
+				}
+			}
+			
+			private function loadFeedEvents( event:Event, show:Boolean, vbox:VGroup, label:String, eventType:String ):void
+			{
+				var lab:spark.components.Label = new spark.components.Label;
+				lab.text = label;
+				
+				
+				var found:Boolean = false;
+				
+				if ( show )
+				{
+					if ( vbox.numElements > 0 )
+					{
+						vbox.removeAllElements();
+					}
+					vbox.gap = 10;
+					vbox.addElement( lab );
+					
+					var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+					var heightToOpenTo:Number = 50;
+					
+					//if the feed has events load those events into an 
+					//hgroup so that they can be displayed
+					if ( feed.associations != null && feed.associations.length > 0 )
+					{
+						//convert events to usable
+						var eventList:ArrayCollection = new ArrayCollection();
+						
+						for each ( var evt:Object in feed.associations )
+						{
+							if ( ( eventType == "All" ) || ( evt.assoc_type == eventType ) )
+							{
+								var newEvent:Object = new Object;
+								newEvent[ "entity1" ] = evt.entity1;
+								newEvent[ "verb" ] = evt.verb;
+								newEvent[ "entity2" ] = evt.entity2;
+								newEvent[ "verb_category" ] = evt.verb_category;
+								newEvent[ "geo_index" ] = evt.geo_index;
+								newEvent[ "time_start" ] = evt.time_start;
+								eventList.addItem( newEvent );
+							}
+						}
+						heightToOpenTo = ( eventList.length + 1 ) * 50;
+						
+						if ( heightToOpenTo > 300 )
+							heightToOpenTo = 300;
+						var eventgrid:mx.controls.DataGrid = createEventDataGrid();
+						eventgrid.height = heightToOpenTo;
+						eventgrid.dataProvider = eventList;
+						vbox.addElement( eventgrid );
+						eventgrid.percentWidth = 100; //after the grid has open we set its width to 100% so it will stretch
+						
+						
+						found = true;
+					}
+					
+					if ( found == true )
+					{
+						
+						listOpens.target = vbox;
+						open.valueTo = heightToOpenTo + 20;
+						listOpens.end();
+						listOpens.play();
+						
+						vbox.visible = true;
+							//showEvents[event.target.repeaterIndex].label = "Hide events";
+					}
+					else
+					{
+						var nGroup:HGroup = new HGroup();
+						var notags:spark.components.Label = new spark.components.Label();
+						
+						notags.text = "No Matching Associations Found";
+						
+						//add the entity
+						nGroup.addElement( notags );
+						
+						//add the hgroup to the vbox
+						vbox.addElement( nGroup );
+						
+						listOpens.target = vbox;
+						open.valueTo = ( vbox.numElements * 24 );
+						listOpens.end();
+						listOpens.play();
+						
+						vbox.visible = true;
+						//showEvents[event.target.repeaterIndex].label = "Hide events";
+						found = false;
+					}
+				}
+				else
+				{
+					listClosed.target = vbox;
+					close.valueFrom = vbox.height;
+					listClosed.end();
+					listClosed.play();
+					
+					vbox.visible = false;
+				}
+			}
+			
+			/**
+			 * function to load geotagged entities when the view geotags button is
+			 * clicked on for a feed
+			 *
+			 * @param event The MouseEvent received when the view geotags button is clicked
+			 */
+			private function loadFeedGeotags( event:Event ):void
+			{
+				var vbox:VGroup = geotagsVbox[ event.target.repeaterIndex ] as VGroup;
+				var lab:spark.components.Label = new spark.components.Label;
+				lab.text = "Geotags:";
+				
+				var found:Boolean = false;
+				
+				if ( vbox.visible == false )
+				{
+					if ( vbox.numElements > 0 )
+					{
+						vbox.removeAllElements();
+					}
+					vbox.gap = 10;
+					vbox.addElement( lab );
+					
+					var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+					
+					//if the feed has entitiees load those entities into an 
+					//hgroup so that they can be displayed
+					if ( feed.entities != null && feed.entities.length > 0 )
+					{
+						// Geotag list framework						
+						
+						for each ( var entity:Object in feed.entities )
+						{
+							if ( entity.geotag != null )
+							{
+								found = true;
+								
+								var hGroup:HGroup = new HGroup();
+								hGroup.gap = 2;
+								hGroup.verticalAlign = "middle";
+								
+								var vrule:Line = new Line();
+								vrule.xFrom = 0;
+								vrule.xTo = 0;
+								vrule.yFrom = 0;
+								vrule.yTo = 10;
+								vrule.stroke = new SolidColorStroke( 0x000000, 2 );
+								var vrule1:Line = new Line();
+								vrule1.xFrom = 0;
+								vrule1.xTo = 0;
+								vrule1.yFrom = 0;
+								vrule1.yTo = 10;
+								vrule1.stroke = new SolidColorStroke( 0x000000, 2 );
+								var vrule2:Line = new Line();
+								vrule2.xFrom = 0;
+								vrule2.xTo = 0;
+								vrule2.yFrom = 0;
+								vrule2.yTo = 10;
+								vrule2.stroke = new SolidColorStroke( 0x000000, 2 );
+								
+								// Geotag list elements
+								
+								var checkbox:CheckBox = new CheckBox();
+								checkbox.setStyle( "skinClass", DetailsCheckbox );
+								checkbox.content = entity;
+								checkbox.toolTip = "Include/exclude this entity in the filter (select \"Filter ...\" to apply)";
+								
+								if ( entity[ "selected" ] == null )
+								{
+									entity[ "selected" ] = true;
+								}
+								checkbox.selected = entity.selected;
+								checkbox.addEventListener( MouseEvent.CLICK, function uncheckedChange( event:MouseEvent ):void
+								{
+									event.target.content.selected = event.target.selected;
+								} );
+								
+								var entName:spark.components.Label = new spark.components.Label();
+								entName.text = entity.disambiguated_name.toString();
+								
+								var lat:spark.components.Label = new spark.components.Label();
+								lat.toolTip = "The latitude of the entity value";
+								lat.setStyle( "color", "#808080" );
+								lat.text = "Lat: ";
+								
+								var latvalue:spark.components.Label = new spark.components.Label();
+								latvalue.text = Number( entity.geotag.lat ).toFixed( 3 );
+								
+								var lon:spark.components.Label = new spark.components.Label();
+								lon.toolTip = "The longitude of the entity value";
+								lon.setStyle( "color", "#808080" );
+								lon.text = "Long: ";
+								
+								var lonvalue:spark.components.Label = new spark.components.Label();
+								lonvalue.text = Number( entity.geotag.lon ).toFixed( 3 );
+								
+								// Remove this: there's no immediate function for it
+								// (At some point could be used as a "filter to all documents containg this geotag?"
+								//								var button:LinkButton = new LinkButton();
+								//								button.label = "View On Map";
+								//								button.labelPlacement = "left"
+								
+								// Build geotag list
+								
+								//add the entity and an option to add it   
+								//to the query to the hgroup
+								hGroup.addElement( checkbox );
+								
+								var spacer:Spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								hGroup.addElement( entName );
+								spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								
+								hGroup.addElement( vrule );
+								spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								hGroup.addElement( lat );
+								hGroup.addElement( latvalue );
+								spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								
+								hGroup.addElement( vrule1 );
+								spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								hGroup.addElement( lon );
+								hGroup.addElement( lonvalue );
+								spacer = new Spacer();
+								spacer.width = 9;
+								hGroup.addElement( spacer );
+								
+								// Remove this: there's no immediate function for it
+								// (At some point could be used as a "filter to all documents containg this geotag?"
+								//								hGroup.addElement(vrule2);
+								//								hGroup.addElement(button);
+								
+								//add the hgroup to the vbox
+								vbox.addElement( hGroup );
+							}
+						}
+						
+						if ( found == true )
+						{
+							listOpens.target = vbox;
+							open.valueTo = ( vbox.numElements * 24 );
+							listOpens.end();
+							listOpens.play();
+							
+							vbox.visible = true;
+							showGeotags[ event.target.repeaterIndex ].label = "Hide geotags";
+						}
+						else
+						{
+							var nGroup:HGroup = new HGroup();
+							var notags:spark.components.Label = new spark.components.Label();
+							
+							notags.text = "No Geotags Found";
+							
+							//add the entity
+							nGroup.addElement( notags );
+							
+							//add the hgroup to the vbox
+							vbox.addElement( nGroup );
+							
+							listOpens.target = vbox;
+							open.valueTo = ( vbox.numElements * 24 );
+							listOpens.end();
+							listOpens.play();
+							
+							vbox.visible = true;
+							showGeotags[ event.target.repeaterIndex ].label = "Hide geotags";
+							found = false;
+						}
+					}
+				}
+				else
+				{
+					listClosed.target = vbox;
+					close.valueFrom = vbox.height;
+					listClosed.end();
+					listClosed.play();
+					
+					vbox.visible = false;
+					showGeotags[ event.target.repeaterIndex ].label = "Show geotags";
+				}
+			}
+			
+			/**
+			 * function to load data for each page
+			 *
+			 * @param event The Mouse Event received when a page button is clicked
+			 */
+			private function loadPageData( currentSet:ArrayCollection ):void
+			{
+				if ( dataSet.length > 0 )
+				{
+					dataSet.removeAll();
+				}
+				
+				var pageData:ArrayCollection = currentSet;
+				
+				for ( var i:int = 0; i < pageData.length; i++ )
+				{
+					dataSet.addItem( pageData.getItemAt( i ) );
+				}
+			}
+			
+			private function onClickEntityGroup():void
+			{
+				if ( this.currentState == "entityGroup" )
+				{
+					this.setCurrentState( "dataview" );
+				}
+				else
+				{
+					this.setCurrentState( "entityGroup" );
+					groupEntityDataProvider.removeAll();
+					
+					//load data in
+					var entMap:Map = new HashMap();
+					
+					for each ( var doc:Object in currData )
+					{
+						for each ( var ent:Object in doc.entities )
+						{
+							if ( !entMap.containsKey( ent.disambiguated_name ) )
+							{
+								entMap.put( ent.disambiguated_name, ent );
+							}
+						}
+					}
+					
+					groupEntityDataProvider = new ArrayList( entMap.getValues() );
+					groupEntityDataGrid.dispatchEvent( new DataGridEvent( DataGridEvent.HEADER_RELEASE, false, true, 0, null, 0, null, null, 0 ) );
+				}
+			}
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results
+			
+			private function onClickIgnoreLocalFilter():void
+			{
+				internalFilterUpdate = true;
+				
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if ( !this.ignoreLocalFilter )
+				{
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					
+					if ( hasFilter )
+						currData = _context.getQuery_FilteredResults().getTopDocuments();
+					else
+						currData = _context.getQuery_TopResults().getTopDocuments();
+				}
+				else
+				{
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					currData = _context.getQuery_TopResults().getTopDocuments();
+				}
+				
+				fixDates(); //add published longs on all dates so they can be sorted by date
+				
+				if ( sortOptions.selectedIndex == SORT_BY_DATE )
+				{ // (ranked by score by default - if enabled that means ranking by date)
+					rankBy( "publishedLong", true, true );
+				}
+				updateDataSet();
+				
+				internalFilterUpdate = false;
+			}
+			
+			private function onEventMenuClick( event:MenuEvent ):void
+			{
+				var toggleString:String = event.item.@toggled;
+				var toggled:Boolean = false;
+				
+				if ( toggleString == "true" )
+					toggled = true;
+				
+				if ( event.index == 0 ) //Events
+				{
+					loadFeedEvents( event, toggled, eventsVbox[ event.target.repeaterIndex ] as VGroup, "Events:", "Event" );
+				}
+				else if ( event.index == 1 ) //Facts
+				{
+					loadFeedEvents( event, toggled, factsVbox[ event.target.repeaterIndex ] as VGroup, "Facts:", "Fact" );
+				}
+				else if ( event.index == 2 ) //Summaries
+				{
+					loadFeedEvents( event, toggled, summariesVbox[ event.target.repeaterIndex ] as VGroup, "Summaries:", "Summary" );
+				}
+				else
+				{ // All
+					loadFeedEvents( event, toggled, summariesVbox[ event.target.repeaterIndex ] as VGroup, "All:", "All" );
+				}
+			}
+			
+			private function onFilterMenuClick( event:MenuEvent ):void
+			{
+				if ( event.index < 2 )
+				{ // 0 or 1 select or deselect all entities
+					var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
+					
+					for each ( var ent:Object in feed.entities )
+					{
+						ent.selected = ( event.index == 0 );
+					}
+					// Re-render the checkboxes somehow
+					//TBD this isn't ideal but it will do for now
+					var vbox:VGroup = entitiesVbox[ event.target.repeaterIndex ] as VGroup;
+					
+					for ( var i:int = 0; i < vbox.numElements; i++ )
+					{
+						if ( vbox.getElementAt( i ) is VGroup )
+						{
+							var vbox2:VGroup = vbox.getElementAt( i ) as VGroup;
+							
+							for ( var j:int = 0; j < vbox2.rowCount; ++j )
+							{
+								var entities:HGroup = vbox2.getChildAt( j ) as HGroup;
+								var cb:CheckBox = entities.getChildAt( 0 ) as CheckBox;
+								cb.selected = ( event.index == 0 );
+							}
+						}
+					}
+					// Geotags:
+					vbox = geotagsVbox[ event.target.repeaterIndex ] as VGroup;
+					
+					for ( i = 1; i < vbox.rowCount; ++i )
+					{
+						// (1 because the first element is the label "geotags"!)
+						
+						var geotags:HGroup = vbox.getChildAt( i ) as HGroup;
+						cb = geotags.getChildAt( 0 ) as CheckBox;
+						cb.selected = ( event.index == 0 );
+					}
+				}
+				else if ( 2 == event.index )
+				{ // Filter this document
+					filterQuery( event );
+				}
+				else if ( 3 == event.index )
+				{ // Filter all selected entities
+					filterQueryMatchDocMatchEnt( event );
+				}
+				else if ( 4 == event.index )
+				{ // Filter all documents containing entities (ANY)
+					filterQueryMatchDocAllEnt( event );
+				}
+				else if ( 5 == event.index )
+				{ // Filter all documents containing entities (ANY)
+					filterQueryMatchDocAllEnt_AND( event );
+				}
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete( event:Event ):void
+			{
+				var events:Event = new Event( "Done Loading" );
+				dispatchEvent( events );
+			}
+			
+			
+			
+			
+			private function rankBy( rankingField:String, numeric:Boolean, descending:Boolean ):void
+			{
+				this.currData = new ArrayCollection( this.currData.toArray() );
+				// (semi-deep copy to avoid messing up the common array...)
+				
+				var dataSortField:SortField = new SortField();
+				dataSortField.name = rankingField;
+				dataSortField.numeric = numeric;
+				dataSortField.descending = descending;
+				var numericDataSort:Sort = new Sort();
+				numericDataSort.fields = [ dataSortField ];
+				
+				this.currData.sort = numericDataSort;
+				this.currData.refresh();
+			}
+			
+			/**
+			 * function to add entities to the dimension explorer
+			 *
+			 * @param entity The entity to send
+			 */
+			private function send2Query( entity:Object ):void
+			{
+				var query:Object = _context.getCurrentQuery();
+				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
+				var newTerm:Object = new Object();
+				newTerm[ "entity" ] = entity.index;
+				queryTerms.addItem( newTerm );
+				_context.setCurrentQuery( query, null );
+			}
+			
+			private function showEntityLinkData( event:MenuEvent ):void
+			{
+				if ( null != event.item )
+				{
+					var url:URLRequest = new URLRequest( event.item.url );
+					navigateToURL( url, '_blank' );
+				}
+				else
+				{
+					Alert.show( "No URL defined for this link." );
+				}
+			}
+			
+			private function sortEntityName( obj1:Object, obj2:Object ):int
+			{
+				var ent1:String = ( obj1.disambiguated_name as String ).toLowerCase();
+				var ent2:String = ( obj2.disambiguated_name as String ).toLowerCase();
+				
+				if ( ent1 < ent2 )
+				{
+					return -1;
+				}
+				else if ( ent1 == ent2 )
+				{
+					return 0;
+				}
+				else
+				{
+					return 1;
+				}
+			}
+			
+			/**
+			 * function to load a thumbnail screen capture of the feed using thumbalizr
+			 *
+			 * @param event The FlexEvent received when the creation of the component is complete
+			 */
+			private function thumbalizr( event:FlexEvent ):void
+			{
+				var Img:Image = img[ event.target.repeaterIndex ] as Image;
+				var key:String = "6b2c99fed51971a8aa620f6d2086d141";
+				var size:String = "256";
+				var mark:String = "100";
+				var url:String = ( link[ event.target.repeaterIndex ] as mx.controls.LinkButton ).label;
+				
+				Img.source = "http://api.thumbalizr.com/?url=" + url + "&api_key=" + key + "&width=" + size + "&quality=" + mark;
+				//Img.source = "http://snapcasa.com/get.aspx?code=" + code + "&key=" + key + "&size=" + size + "&mark=" + mark + "&url=" + url;
+			}
+			
+			//
+			// Utility function to truncate titles
+			//
+			private function titleFormatter( titleToFormat:String ):String
+			{
+				var a:String = titleToFormat.substr( 0, 96 );
+				
+				if ( titleToFormat.length > 96 )
+				{
+					a += "...";
+				}
+				return a;
+			}
+			
+			private function updateDataSet():void
+			{
+				dataSet = new ArrayCollection();
+				
+				pageSets = new ArrayCollection();
+				
+				if ( repeaterPages != null )
+				{
+					if ( repeaterPages.numElements > 0 )
+					{
+						for ( var p:int = 0; p < repeaterPages.numElements; p++ )
+						{
+							repeaterPages.removeElementAt( 0 );
+							p--;
+						}
+					}
+				}
+				//find the number of available pages
+				pages = ( ( this.currData.length + this.maxDocsPerPage - 1 ) / this.maxDocsPerPage );
+				
+				if ( pages > 0 )
+				{
+					//create the buckets of items for each page
+					for ( var i:int = 0; i < pages; i++ )
+					{
+						var sets:ArrayCollection = new ArrayCollection();
+						
+						for ( var j:int = i * this.maxDocsPerPage; j < this.currData.length; j++ )
+						{
+							var feed:Object = this.currData.getItemAt( j );
+							
+							sets.addItem( feed );
+							
+							if ( sets.length == this.maxDocsPerPage )
+							{
+								break;
+							}
+						}
+						
+						pageSets.addItem( sets );
+					}
+					
+					//set the first page
+					currentPage = 1;
+					
+					//build the buttons for the pages
+					buildPages( pages );
+					highlightPage( currentPage );
+					
+					//load first pages data
+					var first:ArrayCollection = pageSets.getItemAt( 0 ) as ArrayCollection;
+					
+					//show the first ten items as the default
+					for ( var l:int = 0; l < first.length; l++ )
+					{
+						dataSet.addItem( first.getItemAt( l ) );
+						
+						if ( l == this.maxDocsPerPage )
+						{
+							break;
+						}
+					}
+					var nDocs:int = this.currData.length;
+					numReturned.text = pages + " Page" + ( ( pages == 1 ) ? " " : "s " ) +
+						"(" + nDocs + " Document" + ( ( nDocs == 1 ) ? ")" : "s)" );
+				}
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:Animate id="listOpens"
+			duration="750"
+			repeatBehavior="reverse"
+			target="{ entitiesVbox }">
+			<s:SimpleMotionPath id="open"
+				property="height"
+				valueFrom="0"
+				valueTo="200" />
+		</s:Animate>
+
+		<s:Animate id="listClosed"
+			duration="750"
+			repeatBehavior="reverse"
+			target="{ entitiesVbox }">
+			<s:SimpleMotionPath id="close"
+				property="height"
+				valueFrom="200"
+				valueTo="0" />
+		</s:Animate>
+
+		<mx:Resize id="resizeBig"
+			widthFrom="64"
+			widthTo="256" />
+		<mx:Resize id="resizeSmall"
+			widthFrom="256"
+			widthTo="64" />
+	</fx:Declarations>
+
+	<components:states>
+		<s:State name="dataview" />
+		<s:State name="nodata" />
+		<s:State name="entityGroup" />
+	</components:states>
+
+	<!-- Header -->
+	<components:headerContent>
+
+		<s:HGroup gap="-3">
+
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+				toolTip="Ignore Workspace Filtering - Show All Results"
+				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+
+			<!-- Sort Options Drop Down List -->
+			<components:WidgetDropDownList id="sortOptions"
+				width="130"
+				selectedIndex="{ SORT_BY_SCORE }"
+				change="setTimeout( sortOptions_changeHandler, 100, event )">
+				<components:dataProvider>
+					<s:ArrayList source="[Rank by Score,Rank by Date]" />
+				</components:dataProvider>
+			</components:WidgetDropDownList>
+
+			<components:WidgetHeaderButton id="groupButton"
+				width="130"
+				height="100%"
+				label="Entity Groups"
+				click="setTimeout( onClickEntityGroup, 100 )" />
+
+		</s:HGroup>
+
+	</components:headerContent>
+
+	<!-- No Data -->
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="middle"
+		includeIn="nodata">
+		<s:Label 
+			text="No data, try running a query"
+			includeIn="nodata" />
+	</s:VGroup>
+
+	<!-- Entity Grouper -->
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="2"
+		paddingRight="2"
+		paddingTop="2"
+		includeIn="entityGroup">
+
+		<s:HGroup 
+			width="100%"
+			height="100%">
+			<mx:DataGrid id="groupEntityDataGrid"
+				width="50%"
+				height="100%"
+				dataProvider="{ groupEntityDataProvider }"
+				dragEnabled="true">
+				<mx:columns>
+					<mx:DataGridColumn 
+						dataField="disambiguated_name"
+						headerText="Entity"
+						sortCompareFunction="sortEntityName" />
+					<mx:DataGridColumn 
+						dataField="type"
+						headerText="Type" />
+					<mx:DataGridColumn 
+						dataField="doccount"
+						headerText="Doc Count" />
+				</mx:columns>
+			</mx:DataGrid>
+			<s:VGroup 
+				width="50%"
+				height="100%">
+				<s:HGroup width="100%">
+					<s:Label 
+						text="Groups"
+						width="100%" />
+					<s:Button 
+						label="Add Group"
+						click="setTimeout(groupAddGroupClick,100)" />
+				</s:HGroup>
+				<mx:DataGrid id="groupGroupDataGrid"
+					width="100%"
+					height="100%"
+					dataProvider="{ groupGroupDataProvider }"
+					itemClick="groupGroupDataGrid_itemClickHandler(event)"
+					headerRelease="groupGroupHeaderClick(event)">
+					<mx:columns>
+						<mx:DataGridColumn headerText="Group" />
+						<mx:DataGridColumn headerText="Remove">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:LinkButton 
+										label="X"
+										click="outerDocument.groupRemoveGroup(event)" />
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+				<s:Label id="groupGroupLabel"
+					text="Add a Group, then drag entities here" />
+				<mx:DataGrid id="groupGroupEntityDataGrid"
+					width="100%"
+					height="100%"
+					dataProvider="{ groupGroupEntityDataProvider }"
+					enabled="false"
+					dragEnter="groupGroupEntityDataGrid_dragEnterHandler(event)"
+					dropEnabled="true">
+					<mx:columns>
+						<mx:DataGridColumn 
+							dataField="disambiguated_name"
+							headerText="Entity" />
+						<mx:DataGridColumn 
+							dataField="type"
+							headerText="Type" />
+						<mx:DataGridColumn headerText="Remove">
+							<mx:itemRenderer>
+								<fx:Component>
+									<mx:LinkButton 
+										label="X"
+										click="outerDocument.groupRemoveItem(event)" />
+								</fx:Component>
+							</mx:itemRenderer>
+						</mx:DataGridColumn>
+					</mx:columns>
+				</mx:DataGrid>
+			</s:VGroup>
+		</s:HGroup>
+		<s:HGroup 
+			width="100%"
+			horizontalAlign="right">
+			<s:Button 
+				label="Apply Groups"
+				click="setTimeout( applyGroupClick, 100)" />
+			<s:Button 
+				label="Cancel"
+				click="setTimeout( cancelGroupClick, 100)" />
+		</s:HGroup>
+
+	</s:VGroup>
+
+	<!-- Doc Browser -->
+	<mx:Canvas id="contentContainer"
+		width="100%"
+		height="100%"
+		includeIn="dataview">
+
+		<s:VGroup width="100%">
+			<mx:VBox id="repeatvbox"
+				creationPolicy="all"
+				width="100%"
+				backgroundColor="0xFFFFFF"
+				paddingLeft="20"
+				paddingTop="5"
+				verticalGap="3"
+				click="repeatvbox_clickHandler(event)"
+				keyUp="repeatvbox_keyUpHandler(event)"
+				includeIn="dataview">
+				<mx:Repeater id="repeat"
+					dataProvider="{ dataSet }"
+					recycleChildren="true"
+					startingIndex="0">
+					<mx:HBox 
+						width="95%"
+						height="100%"
+						horizontalGap="0">
+						<mx:Image id="img"
+							width="64"
+							rollOutEffect="{ resizeSmall }"
+							rollOverEffect="{ resizeBig }"
+							click="articleClick(event)"
+							creationComplete="thumbalizr(event)"
+							maintainAspectRatio="true" />
+						<mx:VBox id="vb"
+							width="95%"
+							height="100%"
+							paddingBottom="5"
+							paddingTop="5">
+
+							<mx:Label id="titleLabel"
+								htmlText="{ titleFormatter( HtmlConvert.convertEntities_txt( repeat.currentItem.title ) ) }"
+								toolTip="{ HtmlConvert.convertEntities_txt( repeat.currentItem.title ) }"
+								color="blue"
+								fontSize="16"
+								paddingLeft="6"
+								textDecoration="underline"
+								click="articleClick(event)"
+								buttonMode="true"
+								mouseChildren="false"
+								useHandCursor="true" />
+
+							<mx:LinkButton id="link"
+								label="{ repeat.currentItem.url.substr( 0, 196 ) }"
+								toolTip="{ repeat.currentItem.url }"
+								color="green"
+								fontSize="14"
+								textAlign="left"
+								click="articleClick(event)" />
+							<mx:TextArea id="snippet"
+								width="100%"
+								height="{ repeat.currentItem.description.length > 0 ? 60 : 0 }"
+								htmlText="{ HtmlConvert.convertEntities( StringUtil.trim( repeat.currentItem.description ) ) }"
+								borderColor="0xC0C0C0"
+								fontSize="14"
+								paddingLeft="6"
+								mouseWheel="snippet_mouseWheelHandler(event)"
+								editable="false"
+								visible="{ repeat.currentItem.description.length > 0 ? 'true' : 'false' }">
+							</mx:TextArea>
+							<mx:HBox 
+								height="100%"
+								width="100%">
+								<mx:Label id="timelabel"
+									text="{ repeat.currentItem.publishedDate }"
+									toolTip="Date of publication"
+									color="0x808080"
+									paddingLeft="6"
+									textAlign="left" />
+
+								<mx:Spacer width="80%" />
+								<mx:HBox 
+									height="100%"
+									width="20%"
+									horizontalAlign="right">
+									<mx:Label id="score"
+										htmlText="Scores: { repeat.currentItem.aggregateSignif.toFixed( 1 ) } | { repeat.currentItem.queryRelevance.toFixed( 1 ) } | &lt;b&gt;{ repeat.currentItem.score.toFixed( 1 ) }&lt;/b&gt;"
+										toolTip="Infinit.e significance, query relevance, and combined score (each normalized so that the average is 100)"
+										color="0x808080"
+										textAlign="right" />
+								</mx:HBox>
+							</mx:HBox>
+							<mx:HBox id="buttonsHgroup"
+								width="100%">
+								<mx:LinkButton id="showEntities"
+									label="Show entities"
+									color="0x4272DB"
+									textAlign="left"
+									click="loadFeedEntities(event)" />
+								<s:Group>
+									<s:Line 
+										xFrom="0"
+										xTo="0"
+										yFrom="3"
+										yTo="17">
+										<s:stroke>
+											<mx:SolidColorStroke 
+												color="#4272DB"
+												weight="2" />
+										</s:stroke>
+									</s:Line>
+								</s:Group>
+								<mx:LinkButton id="showGeotags"
+									label="Show geotags"
+									color="0x4272DB"
+									textAlign="left"
+									click="loadFeedGeotags(event)" />
+								<s:Group>
+									<s:Line 
+										xFrom="0"
+										xTo="0"
+										yFrom="3"
+										yTo="17">
+										<s:stroke>
+											<mx:SolidColorStroke 
+												color="#4272DB"
+												weight="2" />
+										</s:stroke>
+									</s:Line>
+								</s:Group>
+								<mx:MenuBar id="eventMenu"
+									labelField="@label"
+									menuBarItemRenderer="assets.skins.InfiniteMenuBarItem"
+									enabled="{ (null != repeat.currentItem.associations)&amp;&amp;(repeat.currentItem.associations.length > 0) }"
+									backgroundSkin="assets.skins.MenuBarSkin"
+									itemDownSkin="assets.skins.ActivatorSkin"
+									itemOverSkin="assets.skins.ActivatorSkin"
+									itemUpSkin="assets.skins.ActivatorSkin"
+									itemClick="onEventMenuClick(event)"
+									itemSkin="assets.skins.ActivatorSkin">
+									<fx:XMLList>
+										<menuitem 
+											label="Show associations"
+											color="0x4272DB">
+											<!-- (Note can't re-order these without refactoring above event handler) -->
+											<menuitem id="eventEvent"
+												label="Events"
+												toggled="false"
+												type="check" />
+											<menuitem id="eventFace"
+												label="Facts"
+												toggled="false"
+												type="check" />
+											<menuitem id="eventSummary"
+												label="Summaries"
+												toggled="false"
+												type="check" />
+											<menuitem id="eventAll"
+												label="All"
+												toggled="false"
+												type="check" />
+										</menuitem>
+									</fx:XMLList>
+								</mx:MenuBar>
+								<s:Group>
+									<s:Line 
+										xFrom="0"
+										xTo="0"
+										yFrom="3"
+										yTo="17">
+										<s:stroke>
+											<mx:SolidColorStroke 
+												color="#4272DB"
+												weight="2" />
+										</s:stroke>
+									</s:Line>
+								</s:Group>
+								<mx:MenuBar id="filterMenu"
+									labelField="@label"
+									menuBarItemRenderer="assets.skins.InfiniteMenuBarItem"
+									backgroundSkin="assets.skins.MenuBarSkin"
+									itemDownSkin="assets.skins.ActivatorSkin"
+									itemOverSkin="assets.skins.ActivatorSkin"
+									itemUpSkin="assets.skins.ActivatorSkin"
+									itemClick="onFilterMenuClick(event)"
+									itemSkin="assets.skins.ActivatorSkin">
+									<fx:XMLList>
+										<menuitem 
+											label="Filter..."
+											color="0x4272DB">
+											<!-- (Note can't re-order these without refactoring above event handler) -->
+											<menuitem id="filterSelAll"
+												label="Select all document's entities" />
+											<menuitem id="filterDeselAll"
+												label="Deselect all document's entities" />
+											<menuitem id="filterAddDoc"
+												label="Filter: this document only" />
+											<menuitem id="filterAddEnts"
+												label="Filter: selected entities only" />
+											<menuitem id="filterAddDocsAny"
+												label="Add docs containing selected entities to filter" />
+											<menuitem id="filterAddDocsAll"
+												label="Add docs containing all selected entities to filter" />
+										</menuitem>
+									</fx:XMLList>
+								</mx:MenuBar>
+							</mx:HBox>
+							<s:VGroup id="entitiesVbox"
+								width="100%"
+								height="0"
+								visible="false" />
+							<mx:Spacer height="10" />
+							<s:VGroup id="geotagsVbox"
+								width="100%"
+								height="0"
+								visible="false" />
+							<mx:Spacer height="10" />
+							<s:VGroup id="eventsVbox"
+								width="100%"
+								height="0"
+								visible="false" />
+							<mx:Spacer height="10" />
+							<s:VGroup id="factsVbox"
+								width="100%"
+								height="0"
+								visible="false" />
+							<mx:Spacer height="10" />
+							<s:VGroup id="summariesVbox"
+								width="100%"
+								height="0"
+								visible="false" />
+						</mx:VBox>
+					</mx:HBox>
+				</mx:Repeater>
+			</mx:VBox>
+
+			<s:VGroup 
+				width="100%"
+				horizontalAlign="center"
+				includeIn="dataview">
+				<s:HGroup id="pageNavi"
+					width="100%"
+					horizontalAlign="center"
+					verticalAlign="middle"
+					gap="0">
+					<mx:LinkButton id="fullBackButton"
+						label="&lt;&lt;"
+						width="45"
+						enabled="false"
+						color="blue"
+						fontWeight="bold"
+						textDecoration="underline"
+						click="Paging_clickHandler(event)" />
+					<mx:LinkButton id="backButton"
+						label="&lt;"
+						width="45"
+						enabled="false"
+						color="blue"
+						fontWeight="bold"
+						textDecoration="underline"
+						click="Paging_clickHandler(event)" />
+					<s:HGroup id="repeaterPages">
+						<!-- Put buttons in here dynamically -->
+					</s:HGroup>
+					<mx:LinkButton id="forwardButton"
+						label="&gt;"
+						width="45"
+						enabled="{ pages > 1 }"
+						color="blue"
+						fontWeight="bold"
+						textDecoration="underline"
+						click="Paging_clickHandler(event)" />
+					<mx:LinkButton id="fullForwardButton"
+						label="&gt;&gt;"
+						width="45"
+						enabled="{ pages > 1 }"
+						color="blue"
+						fontWeight="bold"
+						textDecoration="underline"
+						click="Paging_clickHandler(event)" />
+				</s:HGroup>
+				<mx:Spacer height="5" />
+				<s:Label id="numReturned"
+					fontWeight="bold" />
+				<mx:Spacer height="5" />
+			</s:VGroup>
+		</s:VGroup>
+
+	</mx:Canvas>
+
+</components:WidgetModule>

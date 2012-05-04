@@ -27,14 +27,15 @@ public class StructuredAnalysisConfigPojo
 	// Private class variables
 	private String title = null;
 	private String description = null;
+	private String fullText = null;
 	private String url = null;
 	private String publishedDate = null;
 	private String scriptEngine = null;
 	private String script = null;
 	private String[] scriptFiles = null;
-	private DocGeoSpecPojo docGeo = null; 
 	private List<EntitySpecPojo> entities = null;
 	private List<AssociationSpecPojo> associations = null;
+	private GeoSpecPojo docGeo = null; 
 		
 	/**
 	 * @return the title
@@ -60,6 +61,19 @@ public class StructuredAnalysisConfigPojo
 	 */
 	public void setDescription(String description) {
 		this.description = description;
+	}
+	
+	/**
+	 * @return the fullText
+	 */
+	public String getFullText() {
+		return fullText;
+	}
+	/**
+	 * @param fullText the fullText to set
+	 */
+	public void seFullText(String fullText) {
+		this.fullText = fullText;
 	}
 	
 	/**
@@ -128,13 +142,13 @@ public class StructuredAnalysisConfigPojo
 	/**
 	 * @param documentGeotag the documentGeotag to set
 	 */
-	public void setDocumentGeo(DocGeoSpecPojo documentGeo) {
+	public void setDocumentGeo(GeoSpecPojo documentGeo) {
 		this.docGeo = documentGeo;
 	}
 	/**
 	 * @return the documentGeotag
 	 */
-	public DocGeoSpecPojo getDocumentGeo() {
+	public GeoSpecPojo getDocumentGeo() {
 		return docGeo;
 	}
 	
@@ -165,93 +179,7 @@ public class StructuredAnalysisConfigPojo
 	}
 
 	
-	/**
-	 * DocGeoSpecPojo
-	 * @author cvitter
-	 */
-	public static class DocGeoSpecPojo
-	{
-		private String lat = null;
-		private String lon = null;
-		private String city = null;
-		private String stateProvince = null;
-		private String country = null;
-		private String countryCode = null;
-		
-		/**
-		 * @param lat the lat to set
-		 */
-		public void setLat(String lat) {
-			this.lat = lat;
-		}
-		/**
-		 * @return the lat
-		 */
-		public String getLat() {
-			return lat;
-		}
-		/**
-		 * @param lon the lon to set
-		 */
-		public void setLon(String lon) {
-			this.lon = lon;
-		}
-		/**
-		 * @return the lon
-		 */
-		public String getLon() {
-			return lon;
-		}
-		/**
-		 * @param city the city to set
-		 */
-		public void setCity(String city) {
-			this.city = city;
-		}
-		/**
-		 * @return the city
-		 */
-		public String getCity() {
-			return city;
-		}
-		/**
-		 * @param state the state to set
-		 */
-		public void setStateProvince(String stateProvince) {
-			this.stateProvince = stateProvince;
-		}
-		/**
-		 * @return the state
-		 */
-		public String getStateProvince() {
-			return stateProvince;
-		}
-		/**
-		 * @param country the country to set
-		 */
-		public void setCountry(String country) {
-			this.country = country;
-		}
-		/**
-		 * @return the country
-		 */
-		public String getCountry() {
-			return country;
-		}
-		/**
-		 * @param countryCode the countryCode to set
-		 */
-		public void setCountryCode(String countryCode) {
-			this.countryCode = countryCode;
-		}
-		/**
-		 * @return the countryCode
-		 */
-		public String getCountryCode() {
-			return countryCode;
-		}
-	}
-	
+
 	
 	/**
 	 * EntitySpecPojo
@@ -633,43 +561,90 @@ public class StructuredAnalysisConfigPojo
 	
 	/**
 	 * GeoSpecPojo
-	 * Based on GeoPojo, used as a template by the StructuredAnalysisHarvester to
-	 * create geoTags within entities and/or associations in a document 
 	 * @author cvitter
 	 */
 	public static class GeoSpecPojo
 	{
 		private String lat = null;
 		private String lon = null;
+		private String city = null;
+		private String stateProvince = null;
+		private String country = null;
+		private String countryCode = null;
 		
 		/**
-		 * @param latitude the latitude to set
+		 * @param lat the lat to set
 		 */
-		public void setLat(String latitude) 
-		{
-			this.lat = latitude;
+		public void setLat(String lat) {
+			this.lat = lat;
 		}
 		/**
-		 * @return the latitude
+		 * @return the lat
 		 */
 		public String getLat() {
 			return lat;
 		}
-		
 		/**
-		 * @param longitude the longitude to set
+		 * @param lon the lon to set
 		 */
-		public void setLon(String longitude) 
-		{
-			this.lon = longitude;
+		public void setLon(String lon) {
+			this.lon = lon;
 		}
 		/**
-		 * @return the longitude
+		 * @return the lon
 		 */
 		public String getLon() {
 			return lon;
-		}		
-		
+		}
+		/**
+		 * @param city the city to set
+		 */
+		public void setCity(String city) {
+			this.city = city;
+		}
+		/**
+		 * @return the city
+		 */
+		public String getCity() {
+			return city;
+		}
+		/**
+		 * @param state the state to set
+		 */
+		public void setStateProvince(String stateProvince) {
+			this.stateProvince = stateProvince;
+		}
+		/**
+		 * @return the state
+		 */
+		public String getStateProvince() {
+			return stateProvince;
+		}
+		/**
+		 * @param country the country to set
+		 */
+		public void setCountry(String country) {
+			this.country = country;
+		}
+		/**
+		 * @return the country
+		 */
+		public String getCountry() {
+			return country;
+		}
+		/**
+		 * @param countryCode the countryCode to set
+		 */
+		public void setCountryCode(String countryCode) {
+			this.countryCode = countryCode;
+		}
+		/**
+		 * @return the countryCode
+		 */
+		public String getCountryCode() {
+			return countryCode;
+		}
 	}
+	
 
 }

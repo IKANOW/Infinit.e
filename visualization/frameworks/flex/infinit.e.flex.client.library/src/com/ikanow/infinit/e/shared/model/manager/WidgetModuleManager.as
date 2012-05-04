@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -18,32 +18,47 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.shared.event.QueryEvent;
 	import com.ikanow.infinit.e.shared.event.WidgetEvent;
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
+	import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+	import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
 	import com.ikanow.infinit.e.shared.model.constant.WidgetConstants;
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
+	import com.ikanow.infinit.e.shared.model.vo.Member;
 	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
+	import com.ikanow.infinit.e.shared.model.vo.Share;
 	import com.ikanow.infinit.e.shared.model.vo.User;
 	import com.ikanow.infinit.e.shared.model.vo.Widget;
 	import com.ikanow.infinit.e.shared.model.vo.WidgetSummary;
+	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	import com.ikanow.infinit.e.shared.util.JSONUtil;
+	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.PDFGenerator;
+	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
 	import com.ikanow.infinit.e.widget.library.data.WidgetContext;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
 	import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
+	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+	import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+	import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import flash.display.DisplayObject;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.resources.IResourceManager;
 	import mx.resources.ResourceManager;
+	import mx.rpc.events.ResultEvent;
 	import mx.rpc.http.mxml.HTTPService;
+	import system.data.Map;
+	import system.data.maps.HashMap;
 	
 	/**
 	 * Widget Manager
@@ -108,6 +123,8 @@ package com.ikanow.infinit.e.shared.model.manager
 		 * The tooltip for the current filter
 		 */
 		public var filterToolTip:String = Constants.BLANK;
+		
+		public var widgetSaveMap:Map = null;
 		
 		//======================================
 		// protected properties 
@@ -227,7 +244,8 @@ package com.ikanow.infinit.e.shared.model.manager
 		
 		public function getCurrentQuery():Object
 		{
-			return currentQueryStringRequest.clone() as Object;
+			return QueryUtil.getQueryStringObject( currentQueryStringRequest );
+			//return currentQueryStringRequest.clone() as Object;
 		}
 		
 		/**
@@ -249,6 +267,7 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			return widgetOptions;
 		}
+		
 		
 		public function invokeQueryEngine( queryObject:Object, widgetHttpService:HTTPService = null ):Boolean
 		{
@@ -343,6 +362,59 @@ package com.ikanow.infinit.e.shared.model.manager
 			selectedItem = null;
 		}
 		
+		
+		public function saveWidgetModuleOptions( widgetTitle:String, widgetURL:String, widgetAuthor:String ):void
+		{
+			for each ( var url:String in _widgetUrls )
+			{
+				if ( url == widgetURL )
+				{
+					var index:int = _widgetUrls.indexOf( url );
+					var widgetOptions:Object = IWidget( _widgets[ index ] ).onSaveWidgetOptions();
+					
+					if ( widgetOptions != null )
+					{
+						//save widget options to share, possibly overwriting old widget options
+						saveWidgetOptionsToShare( widgetTitle, widgetOptions )
+					}
+					break;
+				}
+			}
+		}
+		
+		public function saveWidgetOptionsToShare( savetitle:String, saveobject:Object ):void
+		{
+			//only save if the widgetSaveMap has been initialized, this means that the
+			//load uisetup has come in
+			if ( widgetSaveMap != null )
+			{
+				var desc:String = "save options for the widget";
+				var id:String = "null";
+				
+				if ( widgetSaveMap.containsKey( savetitle ) )
+				{
+					id = ( widgetSaveMap.get( savetitle ) as Share )._id;
+				}
+				//put the share object back in the map
+				//or add a new entry if necessary
+				var share:Share = new Share();
+				share._id = id;
+				share.title = savetitle;
+				share.owner = new Member();
+				share.owner._id = currentUser._id;
+				var json:String = JSONUtil.encode( saveobject );
+				share.share = json;
+				widgetSaveMap.put( savetitle, share );
+				
+				var httpService:HTTPService = new HTTPService();
+				httpService.url = ServiceConstants.GET_SOCIAL_SHARE_ADD_JSON_URL + id + "/" + "widgetsave/" + URLEncoder.encode( savetitle ) + "/" + URLEncoder.encode( desc );
+				httpService.method = "POST";
+				httpService.contentType = "application/json";
+				httpService.addEventListener( ResultEvent.RESULT, widgetSaveResultHandler );
+				httpService.send( json );
+			}
+		}
+		
 		[Inject( "queryManager.currentQueryStringRequest", bind = "true" )]
 		/**
 		 * set the current query string
@@ -372,6 +444,31 @@ package com.ikanow.infinit.e.shared.model.manager
 			applyQueryToAllWidgets( context.getQuery_AllResults() );
 		}
 		
+		public function setWidgetOptions( shares:ArrayCollection ):void
+		{
+			//initialize the save map
+			widgetSaveMap = new HashMap();
+			
+			if ( shares != null && shares.length > 0 )
+			{
+				for each ( var share:Share in shares )
+				{
+					if ( share.owner._id == currentUser._id )
+					{
+						widgetSaveMap.put( share.title, share );
+					}
+				}
+				
+				//send load messages to any widget that has already been loaded
+				for ( var i:int = 0; i < _widgetUrls.length; i++ )
+				{
+					var widgetUrl:String = _widgetUrls[i];
+					var widget:IWidget = _widgets[i] as IWidget;					
+					widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
+				}
+			}
+		}
+		
 		public function unloadWidget( widget:Widget ):void
 		{
 			var index:int = _widgetUrls.indexOf( widget.url );
@@ -387,42 +484,33 @@ package com.ikanow.infinit.e.shared.model.manager
 		
 		public function updateCurrentQuery( newQuery:Object, modifiedElements:String ):void
 		{
-			var queryEvent:QueryEvent;
+			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
 			
-			// update the scoring options or add query terms
-			if ( modifiedElements && modifiedElements == QueryConstants.SCORE )
+			var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+			queryEvent.queryString = queryString;
+			
+			// Default event: update query, pop up nothing
+			
+			if ( modifiedElements )
 			{
-				var scoreOptionsNew:QueryScoreOptions = scoreOptions.clone();
-				
-				if ( newQuery[ QueryConstants.SCORE ] )
+				if ( modifiedElements.indexOf( QueryConstants.INPUT_OPTIONS ) >= 0 )
 				{
-					// time decay
-					if ( newQuery[ QueryConstants.SCORE ][ QueryConstants.TIME_PROXIMITY ] )
-					{
-						scoreOptionsNew.timeProx.time = newQuery[ QueryConstants.SCORE ][ QueryConstants.TIME_PROXIMITY ][ QueryConstants.TIME ];
-						scoreOptionsNew.timeProx.decay = newQuery[ QueryConstants.SCORE ][ QueryConstants.TIME_PROXIMITY ][ QueryConstants.DECAY ];
-					}
-					
-					// gei decay
-					if ( newQuery[ QueryConstants.SCORE ][ QueryConstants.GEO_PROXIMITY ] )
-					{
-						scoreOptionsNew.geoProx.ll = newQuery[ QueryConstants.SCORE ][ QueryConstants.GEO_PROXIMITY ][ QueryConstants.LAT_LONG ];
-						scoreOptionsNew.geoProx.decay = newQuery[ QueryConstants.SCORE ][ QueryConstants.GEO_PROXIMITY ][ QueryConstants.DECAY ];
-					}
-					
-					// update the scoring options
-					queryEvent = new QueryEvent( QueryEvent.SAVE_QUERY_ADVANCED_SCORING_SETTINGS );
-					queryEvent.scoreOptions = scoreOptionsNew;
-					dispatcher.dispatchEvent( queryEvent );
-				}
+					// Update-query-and-pop-up-source-manager						
+					queryEvent.searchType = NavigationConstants.WORKSPACES_SOURCES_ID;
+				}//TESTED
+				else if ( ( modifiedElements.indexOf( QueryConstants.SCORING_OPTIONS ) >= 0 )
+					|| ( modifiedElements.indexOf( QueryConstants.OUTPUT_OPTIONS ) >= 0 ) )
+				{
+					// Update-query-and-pop-up-query-settings	
+					queryEvent.searchType = NavigationConstants.WORKSPACE_SETTINGS_ID;
+				}//TESTED
+				else if ( modifiedElements.indexOf( QueryConstants.QUERY_TERMS ) >= 0 )
+				{
+					// Update-query-and-pop-up-advanced-query-terms
+					queryEvent.searchType = NavigationConstants.QUERY_BUILDER_ID;
+				}//TESTED
 			}
-			else
-			{
-				// add query terms
-				queryEvent = new QueryEvent( QueryEvent.ADD_QUERY_TERMS_TO_QUERY );
-				queryEvent.queryTerms = new ArrayCollection( newQuery.qt );
-				dispatcher.dispatchEvent( queryEvent );
-			}
+			dispatcher.dispatchEvent( queryEvent );
 		
 		}
 		
@@ -499,6 +587,26 @@ package com.ikanow.infinit.e.shared.model.manager
 			}
 			
 			filterToolTip = text;
+		}
+		
+		//======================================
+		// private methods 
+		//======================================
+		
+		/**
+		 * Write back new id to share handler if necessa
+		 **/
+		private function widgetSaveResultHandler( event:ResultEvent ):void
+		{
+			var json:Object = JSONDecoder.decode( event.result as String );
+			var response:ServiceResponse = ObjectTranslatorUtil.translateObject( json.response, new ServiceResponse ) as ServiceResponse;
+			
+			if ( response.responseSuccess )
+			{
+				var share:Share = Share( ObjectTranslatorUtil.translateObject( json.data, new Share ) );
+				//next put the share into the map
+				widgetSaveMap.put( share.title, share );
+			}
 		}
 	}
 }

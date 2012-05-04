@@ -3,6 +3,7 @@ cluster:
   name: CLUSTER_NAME
 discovery:
   type: DISCOVERY_MODE
+  zen.minimum_master_nodes: MIN_NODES  
   #zen only:
   zen.ping.multicast.enabled: false
   zen.ping.unicast.hosts: ELASTIC_NODES

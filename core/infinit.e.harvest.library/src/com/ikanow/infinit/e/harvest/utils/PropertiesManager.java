@@ -123,6 +123,13 @@ public class PropertiesManager {
 			return Long.parseLong(s);
 		}
 	}
+	public String getHarvestUserAgent() { // Default user agent
+		String s = this.getProperty("harvest.feed.useragent");
+		if ((null == s) || s.isEmpty()) {
+			return null;
+		}
+		return s;
+	}
 	
 // DB class names for DbHarvester
 	

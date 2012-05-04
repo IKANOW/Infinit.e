@@ -20,8 +20,8 @@ import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.restlet.Application;  
 import org.restlet.Restlet;  
-import org.restlet.Router; 
-import org.restlet.resource.Resource;
+import org.restlet.resource.ServerResource;
+import org.restlet.routing.Router;
 
 import com.ikanow.infinit.e.api.authentication.LoginInterface;
 import com.ikanow.infinit.e.api.config.source.SourceInterface;
@@ -140,6 +140,8 @@ public class EmbeddedRestletApp extends Application
         router.attach("/knowledge/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
         //VO NAMING
         attach(router, "/custom/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/removejob/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getresults/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getjobs", CustomInterface.class);
         attach(router, "/custom/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
@@ -310,7 +312,7 @@ public class EmbeddedRestletApp extends Application
         
         return router;  
     }
-    static private void attach(Router router, String url,  Class<? extends Resource> clazz) {
+    static private void attach(Router router, String url,  Class<? extends ServerResource> clazz) {
     	if (url.endsWith("/")) {
     		throw new IllegalArgumentException("Trailing / is automatically added as option");
     	}

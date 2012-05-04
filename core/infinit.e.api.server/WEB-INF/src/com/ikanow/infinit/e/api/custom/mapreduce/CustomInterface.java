@@ -15,26 +15,24 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.custom.mapreduce;
 
-import java.io.UnsupportedEncodingException;
 import java.util.Date;
 import java.util.Map;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 
-public class CustomInterface extends Resource 
+public class CustomInterface extends ServerResource 
 {
 	private String action = "";	
 	private String cookieLookup = null;
@@ -64,9 +62,10 @@ public class CustomInterface extends Resource
 	//private static final StringBuffer logMsg = new StringBuffer();
 	//private static final Logger logger = Logger.getLogger(CustomInterface.class);
 	
-	public CustomInterface(Context context, Request request, Response response) throws UnsupportedEncodingException 
+	@Override
+	public void doInit() 
 	{
-		 super(context, request, response);
+		 Request request = this.getRequest();
 		 Map<String,Object> attributes = request.getAttributes();
 		 urlStr = request.getResourceRef().toString();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);	
@@ -96,6 +95,29 @@ public class CustomInterface extends Resource
 				 outputKey = RESTTools.decodeRESTParam("outputKey", attributes);
 				 outputValue = RESTTools.decodeRESTParam("outputValue", attributes);
 			 }
+			 else if ( urlStr.contains("/custom/mapreduce/updatejob") )
+			 {
+				 action = "update";
+				 jobid = RESTTools.decodeRESTParam("jobid", attributes);
+				 communityIds = RESTTools.decodeRESTParam("communityIds", attributes);
+				 freqSched = RESTTools.decodeRESTParam("frequencyToRun", attributes);
+				 nextRunTime = RESTTools.decodeRESTParam("timeToRun", attributes);
+				 jarURL = RESTTools.decodeRESTParam("jarURL", attributes);
+				 mapperClass = RESTTools.decodeRESTParam("mapperClass", attributes);
+				 reducerClass = RESTTools.decodeRESTParam("reducerClass", attributes);
+				 combinerClass = RESTTools.decodeRESTParam("combinerClass", attributes);
+				 query = RESTTools.decodeRESTParam("query", attributes);
+				 title = RESTTools.decodeRESTParam("jobtitle", attributes);
+				 desc = RESTTools.decodeRESTParam("jobdesc", attributes);
+				 inputColl = RESTTools.decodeRESTParam("inputcollection", attributes);
+				 outputKey = RESTTools.decodeRESTParam("outputKey", attributes);
+				 outputValue = RESTTools.decodeRESTParam("outputValue", attributes);
+			 }
+			 else if ( urlStr.contains("/custom/mapreduce/removejob"))
+			 {
+				 jobid = RESTTools.decodeRESTParam("jobid", attributes);
+				 action = "removejob";
+			 }
 			 else if (urlStr.contains("/knowledge/mapreduce/getjobs") || urlStr.contains("/custom/mapreduce/getjobs"))
 			 {
 				 action = "getjobs";
@@ -108,26 +130,22 @@ public class CustomInterface extends Resource
 				 query = RESTTools.decodeRESTParam("query", attributes);
 				 inputColl = RESTTools.decodeRESTParam("inputcollection", attributes);
 			 }
-		 }
-		 
-		// All modifications of this resource
-		this.setModifiable(true);
-		getVariants().add(new Variant(MediaType.APPLICATION_JSON));
+		 }		 
 	}
 	
 	
 	/**
 	 * acceptRepresentation
 	 */
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity) throws ResourceException 
 	{
 		if (Method.POST == getRequest().getMethod()) 
 		{
 			//do nothing?
 		}
-		
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+				
+		return get();
 	}
 	
 	
@@ -138,7 +156,8 @@ public class CustomInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get( ) throws ResourceException 
 	{
 		 ResponsePojo rp = new ResponsePojo(); 
 		 Date startTime = new Date();		 
@@ -161,6 +180,10 @@ public class CustomInterface extends Resource
 				 {
 					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue);
 				 }
+				 else if ( action.equals("update") )
+				 {
+					 rp = this.customhandler.updateJob(cookieLookup, jobid, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue);
+				 }
 				 else if ( action.equals("getjobs"))
 				 {
 					 rp = this.customhandler.getAllJobs(cookieLookup);
@@ -168,6 +191,10 @@ public class CustomInterface extends Resource
 				 else if ( action.equals("mapreduce"))
 				 {
 					 rp = this.customhandler.runMapReduce(cookieLookup, inputColl, map, reduce, query);
+				 }
+				 else if ( action.equals("removejob") )
+				 {
+					 rp = this.customhandler.removeJob(cookieLookup, jobid); 
 				 }
 			 }			 
 		 }		 

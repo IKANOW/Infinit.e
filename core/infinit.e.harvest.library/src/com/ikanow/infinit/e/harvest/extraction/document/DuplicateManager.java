@@ -59,6 +59,13 @@ public interface DuplicateManager {
 	boolean isDuplicate_Url(String url, SourcePojo source, List<String> duplicateSources);
 
 	/**
+	 * If last call to isDuplicate_xxx return true, and the rss.updateCycle_secs is set, returns modified time
+	 * of duplicate for more analysis
+	 * @return Date (the modified date of the duplicate doc)
+	 */ 
+	Date getLastDuplicateModifiedTime();
+	
+	/**
 	 * Tests to see if duplicates exist based on defined key.
 	 * If it is not a duplicate, true is returned. If it is a duplicate,
 	 * the modified date is then checked to see if the file has been updated.

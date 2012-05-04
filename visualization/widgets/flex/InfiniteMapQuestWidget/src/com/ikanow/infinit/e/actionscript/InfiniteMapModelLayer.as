@@ -46,7 +46,7 @@ public function addRegionToQuery_fromPresentation( latlng:LatLng, nRadiusKm:Numb
 	newGeoTerm[ "dist" ] = new String( "" + nRadiusKm );
 	newTerm[ "geo" ] = newGeoTerm;
 	queryTerms.addItem( newTerm );
-	_context.setCurrentQuery( query, null );
+	_context.setCurrentQuery( query, "qt" );
 }
 
 // getData_fromPresentation - Returns the current query/filtered data to the presentation layer

@@ -50,6 +50,7 @@
 			import mx.events.FlexMouseEvent;
 			import mx.events.ItemClickEvent;
 			import mx.events.MenuEvent;
+			import mx.events.ResizeEvent;
 			import mx.graphics.SolidColorStroke;
 			import mx.managers.PopUpManager;
 			import spark.components.BorderContainer;
@@ -902,6 +903,8 @@
 				this._map.addEventListener( TileMapEvent.MOVE_START, onMapStartedMoving );
 				this._map.addEventListener( TileMapEvent.MOVE_END, onMapFinishedMoving );
 				this._map.addEventListener( TileMapEvent.ZOOM_END, onMapFinishedMoving );
+				//this._map.addEventListener( Event.RESIZE, onMapFinishedMoving );
+				this.addEventListener( ResizeEvent.RESIZE, onMapFinishedMoving );
 				
 				// Handle region selection
 				this._map.addEventListener( MouseEvent.MOUSE_MOVE, onMapMoveMouse );
@@ -1063,19 +1066,16 @@
 				if ( event.newIndex == MAP_OVERLAY )
 				{
 					_map.mapType = "map";
-						//_map.setMapType( MapType.NORMAL_MAP_TYPE );
 				}
 				
 				if ( event.newIndex == SATTELITE_OVERLAY )
 				{
 					_map.mapType = "sat";
-						//_map.setMapType( MapType.SATELLITE_MAP_TYPE );
 				}
 				
 				if ( event.newIndex == HYBRID_OVERLAY )
 				{
 					_map.mapType = "hyb";
-						//_map.setMapType( MapType.HYBRID_MAP_TYPE );
 				}
 			}
 			
@@ -1409,7 +1409,8 @@
 				y="0"
 				width="100%"
 				height="100%"
-				zoom="4" key="{ API_KEY }" />
+				key="{ API_KEY }"
+				zoom="4" />
 		</s:Group>
 	</s:HGroup>
 	<fx:Script source="com/ikanow/infinit/e/actionscript/InfiniteMapModelLayer.as" />

@@ -1,0 +1,43 @@
+@CHARSET "UTF-8";
+
+body 
+{
+	background-color : #363e41;
+	font-family: sans-serif;
+}
+
+.standardTable
+{
+	background-color : #6E7476;
+	font-family: sans-serif;	
+}
+
+.standardSubTable
+{
+	background-color : #E8E8E8;
+	font-family: sans-serif;	
+}
+
+.subTableHeader
+{
+	font-family: sans-serif;
+	font-weight: bold;
+	text-decoration: none;
+}
+
+.subTableFooter
+{
+	font-family: sans-serif;
+	font-size: small;
+	font-weight: normal;
+	text-decoration: none;
+	background-color : #E8E8E8;
+}
+
+.headerLink
+{
+	font-family: sans-serif;
+	color: #ffffff;
+	font-weight: bold;
+	text-decoration: none;
+}

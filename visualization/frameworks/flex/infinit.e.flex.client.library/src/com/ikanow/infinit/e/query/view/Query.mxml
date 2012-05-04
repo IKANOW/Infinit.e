@@ -113,57 +113,69 @@
 				styleName="lightGrey"
 				left="0"
 				verticalCenter="2" />
-
-			<s:HGroup id="buttonsGroup"
-				horizontalCenter="0"
-				verticalCenter="2">
-
-				<!-- Query Builder / Settings Buttons -->
-				<common:InfButtonBar id="navButtons"
-					dataProvider="{ model.navigator.states }"
-					height="39"
-					selectedIndex="{ model.navigator.currentStateIndex }"
-					styleName="switchButtonBar"
-					verticalCenter="0"
-					change="navButtons_changeHandler(event)"
-					requireSelection="true" />
-
-			</s:HGroup>
-
-			<!-- Action Buttons -->
+			<!-- Group Query Builder / Settings and Action Buttons to prevent overlap -->
 			<s:HGroup 
+				width="100%"
+				paddingLeft="135"
 				paddingRight="10"
 				right="0"
 				verticalAlign="middle"
 				verticalCenter="2"
-				gap="10">
+				gap="40">
 
-				<common:InfButton id="loadButton"
-					width="90"
-					styleName="roundedBlueButton"
-					label="{ resourceManager.getString( 'infinite', 'common.load' ) }"
-					click="loadButton_clickHandler(event)" />
+				<s:HGroup id="buttonsGroup"
+					width="100%"
+					horizontalAlign="center"
+					horizontalCenter="0"
+					verticalCenter="2">
 
-				<common:InfButton id="saveButton"
-					width="90"
-					styleName="roundedBlueButton"
-					label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
-					mouseDown="saveButton_mouseDownHandler(event)"
-					mouseUp="saveButton_mouseUpHandler(event)" />
+					<!-- Query Builder / Settings Buttons -->
+					<common:InfButtonBar id="navButtons"
+						dataProvider="{ model.navigator.states }"
+						height="39"
+						selectedIndex="{ model.navigator.currentStateIndex }"
+						styleName="switchButtonBar"
+						verticalCenter="0"
+						change="navButtons_changeHandler(event)"
+						requireSelection="true" />
 
-				<!-- Search Button -->
-				<common:InfButton id="searchButton"
-					width="90"
-					styleName="roundedBlueButton"
-					label="{ resourceManager.getString( 'infinite', 'common.search' ) }"
-					click="searchButton_clickHandler(event)" />
+				</s:HGroup>
 
-				<!-- Cancel Button -->
-				<common:InfButton id="cancelButton"
-					label="{ resourceManager.getString( 'infinite', 'common.cancel' ) }"
-					styleName="cancelButton"
-					click="cancelButton_clickHandler()" />
+				<!-- Action Buttons -->
+				<s:HGroup 
+					paddingRight="10"
+					right="0"
+					verticalAlign="middle"
+					verticalCenter="2"
+					gap="10">
 
+					<common:InfButton id="loadButton"
+						width="90"
+						styleName="roundedBlueButton"
+						label="{ resourceManager.getString( 'infinite', 'common.load' ) }"
+						click="loadButton_clickHandler(event)" />
+
+					<common:InfButton id="saveButton"
+						width="90"
+						styleName="roundedBlueButton"
+						label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
+						mouseDown="saveButton_mouseDownHandler(event)"
+						mouseUp="saveButton_mouseUpHandler(event)" />
+
+					<!-- Search Button -->
+					<common:InfButton id="searchButton"
+						width="90"
+						styleName="roundedBlueButton"
+						label="{ resourceManager.getString( 'infinite', 'common.search' ) }"
+						click="searchButton_clickHandler(event)" />
+
+					<!-- Cancel Button -->
+					<common:InfButton id="cancelButton"
+						label="{ resourceManager.getString( 'infinite', 'common.cancel' ) }"
+						styleName="cancelButton"
+						click="cancelButton_clickHandler()" />
+
+				</s:HGroup>
 			</s:HGroup>
 
 			<!-- Close Button -->

@@ -20,17 +20,16 @@ import java.net.URLDecoder;
 import java.util.Date;
 import java.util.Map;
 
-import org.restlet.Context;
+import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
-import org.restlet.data.Request;
-import org.restlet.data.Response;
 import org.restlet.data.Status;
-import org.restlet.resource.Representation;
-import org.restlet.resource.Resource;
+import org.restlet.representation.Representation;
+import org.restlet.representation.StringRepresentation;
+import org.restlet.resource.Get;
+import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
-import org.restlet.resource.StringRepresentation;
-import org.restlet.resource.Variant;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -39,7 +38,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 /**
  * @author cvitter
  */
-public class CommunityInterface extends Resource 
+public class CommunityInterface extends ServerResource 
 {
 	private CommunityHandler community = new CommunityHandler();
 	
@@ -66,8 +65,10 @@ public class CommunityInterface extends Resource
 	private String urlStr = null;
 	private String json = null;
 	
-	public CommunityInterface(Context context, Request request, Response response) throws UnsupportedEncodingException {		 
-		super(context, request, response);
+	@Override
+	public void doInit()
+	{
+		Request request = this.getRequest();
 		 
 		Map<String,Object> attributes = request.getAttributes();
 		
@@ -163,12 +164,15 @@ public class CommunityInterface extends Resource
 				try 
 				{
 					json = URLDecoder.decode(json, "UTF-8");
+					action = "updateCommunity";
 				}
 				catch (UnsupportedEncodingException e) 
 				{
-					throw e;
-				}
-				action = "updateCommunity";
+					//cannot throw exceptions anymore so
+					//set actino to failed so it doesn't run
+					//throw e;
+					action = "failed";
+				}				
 			}
 			
 			else if ( urlStr.contains("/community/member/join/"))
@@ -200,10 +204,6 @@ public class CommunityInterface extends Resource
 			}
 			
 		}
-		 
-		// All modifications of this resource
-		this.setModifiable(true);
-		getVariants().add(new Variant(MediaType.APPLICATION_JSON));
 	}
 	
 	
@@ -216,7 +216,8 @@ public class CommunityInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public void acceptRepresentation(Representation entity) throws ResourceException 
+	@Post
+	public Representation post(Representation entity)   
 	{
 		if (Method.POST == getRequest().getMethod()) 
 		{
@@ -233,8 +234,7 @@ public class CommunityInterface extends Resource
 				getResponse().setStatus(Status.CLIENT_ERROR_BAD_REQUEST);
 			}
 		}
-		Representation response = represent(null);
-		this.getResponse().setEntity(response);
+		return get();
 	}
 
 	
@@ -245,7 +245,8 @@ public class CommunityInterface extends Resource
 	 * @return
 	 * @throws ResourceException
 	 */
-	public Representation represent(Variant variant) throws ResourceException 
+	@Get
+	public Representation get( )  
 	{
 		 ResponsePojo rp = new ResponsePojo();
 		 Date startTime = new Date();  

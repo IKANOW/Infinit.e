@@ -46,6 +46,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPo
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityApprovePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
@@ -504,54 +505,41 @@ public class SourceHandler
 	 * @param communityIdStrList
 	 * @return
 	 */
-	public ResponsePojo approveSource(String sourceIdStr, String communityIdStr, String personIdStr) 
+	public ResponsePojo approveSource(String sourceIdStr, String communityIdStr, String submitterId) 
 	{
 		ResponsePojo rp = new ResponsePojo();	
 
-		//////////////////////////////////////////////////////////////////////////////////////
-		// Note: user must be an admin, owner or moderator of one or more groups to approve a source
-		communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
-		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
-
-		if (isApproved)
+		try 
 		{
-			try 
-			{
-				Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
-				ObjectId communityId = new ObjectId(communityIdStr);
-				communityIdSet.add(communityId);
+			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
+			ObjectId communityId = new ObjectId(communityIdStr);
+			communityIdSet.add(communityId);
 
-				BasicDBObject query = new BasicDBObject();
-				try {
-					query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
-				}
-				catch (Exception e) { // (allow either _id or key)
-					query.put(SourcePojo.key_, sourceIdStr);					
-				}
-				query.put(SourcePojo.communityIds_, communityId);
-
-				DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
-				SourcePojo sp = SourcePojo.fromDb(dbo,SourcePojo.class);
-				sp.setApproved(true);
-
-				DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
-				rp.setData(sp, new SourcePojoApiMap(communityIdSet));
-				rp.setResponse(new ResponseObject("Approve Source",true,"Source approved successfully"));
-				
-				// Send email notification to the person who submitted the source
-				emailSourceApproval(sp, personIdStr, "Approved");
-			} 
-			catch (Exception e)
-			{
-				logger.error("Exception Message: " + e.getMessage(), e);
-				rp.setResponse(new ResponseObject("Approve Source",false,"Error approving source"));
+			BasicDBObject query = new BasicDBObject();
+			try {
+				query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
 			}
-		}
-		else
+			catch (Exception e) { // (allow either _id or key)
+				query.put(SourcePojo.key_, sourceIdStr);					
+			}
+			query.put(SourcePojo.communityIds_, communityId);
+
+			DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
+			SourcePojo sp = SourcePojo.fromDb(dbo,SourcePojo.class);
+			sp.setApproved(true);
+
+			DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
+			rp.setData(sp, new SourcePojoApiMap(communityIdSet));
+			rp.setResponse(new ResponseObject("Approve Source",true,"Source approved successfully"));
+			
+			// Send email notification to the person who submitted the source
+			emailSourceApproval(sp, submitterId, "Approved");
+		} 
+		catch (Exception e)
 		{
-			rp.setResponse(new ResponseObject("Approve Source", false, 
-			"Error approving source. You must be a community owner or moderator to approve a source"));
-		}
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Approve Source",false,"Error approving source"));
+		}		
 
 		return rp;
 	}
@@ -562,72 +550,59 @@ public class SourceHandler
 	 * @param communityIdStrList
 	 * @return
 	 */
-	public ResponsePojo denySource(String sourceIdStr, String communityIdStr, String personIdStr) 
+	public ResponsePojo denySource(String sourceIdStr, String communityIdStr, String submitterId) 
 	{
 		ResponsePojo rp = new ResponsePojo();	
 
-		//////////////////////////////////////////////////////////////////////////////////////
-		// Note: user must be owner or moderator of one or more groups to deny a source
-		communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
-		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
-
-		if (isApproved)
+		try 
 		{
-			try 
-			{
-				Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
-				ObjectId communityId = new ObjectId(communityIdStr);
-				communityIdSet.add(communityId);
-				
-				// Set up the query
-				BasicDBObject query = new BasicDBObject();
-				try {
-					query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
-				}
-				catch (Exception e) { // (allow either _id or key)
-					query.put(SourcePojo.key_, sourceIdStr);					
-				}
-				query.put(SourcePojo.communityIds_, communityId);
-
-				// Get the source - what we do with it depends on whether it's ever been active or not
-				DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
-				SourcePojo sp = SourcePojo.fromDb(dbo,SourcePojo.class);
-				
-				// Case 1: is currently active, set to inactive
-				
-				if (sp.isApproved()) {
-					sp.setApproved(false);
-					DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
-					rp.setResponse(new ResponseObject("Decline Source",true,"Source set to unapproved, use config/source/delete to remove it"));
-				}
-				
-				// Case 2: is currently inactive, has been active
-				
-				else if (null != sp.getHarvestStatus()) {
-					rp.setResponse(new ResponseObject("Decline Source",false,"Source has been active, use config/source/delete to remove it"));
-				}
-				
-				// Case 3: 
-
-				else {
-					DbManager.getIngest().getSource().remove(query);			
-					rp.setResponse(new ResponseObject("Deny Source",true,"Source removed successfully"));					
-					// Send email notification to the person who submitted the source
-					emailSourceApproval(getSource(sourceIdStr), personIdStr, "Denied");
-				}
-								
-			} 
-			catch (Exception e)
-			{
-				// If an exception occurs log the error
-				logger.error("Exception Message: " + e.getMessage(), e);
-				rp.setResponse(new ResponseObject("Deny Source",false,"error removing source"));
+			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
+			ObjectId communityId = new ObjectId(communityIdStr);
+			communityIdSet.add(communityId);
+			
+			// Set up the query
+			BasicDBObject query = new BasicDBObject();
+			try {
+				query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
 			}
-		}
-		else
+			catch (Exception e) { // (allow either _id or key)
+				query.put(SourcePojo.key_, sourceIdStr);					
+			}
+			query.put(SourcePojo.communityIds_, communityId);
+
+			// Get the source - what we do with it depends on whether it's ever been active or not
+			DBObject dbo = (BasicDBObject)DbManager.getIngest().getSource().findOne(query);
+			SourcePojo sp = SourcePojo.fromDb(dbo,SourcePojo.class);
+			
+			// Case 1: is currently active, set to inactive
+			
+			if (sp.isApproved()) {
+				sp.setApproved(false);
+				DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
+				rp.setResponse(new ResponseObject("Decline Source",true,"Source set to unapproved, use config/source/delete to remove it"));
+			}
+			
+			// Case 2: is currently inactive, has been active
+			
+			else if (null != sp.getHarvestStatus()) {
+				rp.setResponse(new ResponseObject("Decline Source",false,"Source has been active, use config/source/delete to remove it"));
+			}
+			
+			// Case 3: 
+
+			else {
+				DbManager.getIngest().getSource().remove(query);			
+				rp.setResponse(new ResponseObject("Deny Source",true,"Source removed successfully"));					
+				// Send email notification to the person who submitted the source
+				emailSourceApproval(getSource(sourceIdStr), submitterId, "Denied");
+			}
+							
+		} 
+		catch (Exception e)
 		{
-			rp.setResponse(new ResponseObject("Deny Source", false, 
-			"Error denying source. You must be a community owner or moderator to deny a source"));
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Deny Source",false,"error removing source"));
 		}
 		return rp;
 	}
@@ -923,6 +898,8 @@ public class SourceHandler
 	 */
 	private static boolean emailSourceApprovalRequest(SourcePojo source)
 	{
+		
+		
 		// Get Information for Person requesting the new source
 		PersonPojo p = PersonHandler.getPerson(source.getOwnerId().toString());
 		
@@ -940,6 +917,35 @@ public class SourceHandler
 		// that the approve or reject the source
 		for (CommunityPojo c : communities)
 		{
+			// Email address or addresses to send to
+			// Extract email addresses for owners and moderators from list of community members
+			StringBuffer sendTo = new StringBuffer();
+			Set<CommunityMemberPojo> members = c.getMembers();
+			CommunityMemberPojo owner = null;
+			for (CommunityMemberPojo member : members)
+			{
+				if (member.getUserType().equalsIgnoreCase("owner") || member.getUserType().equalsIgnoreCase("moderator"))
+				{
+					owner = member;
+					if (sendTo.length() > 0) sendTo.append(";");
+					sendTo.append(member.getEmail());
+				}
+			}
+			if (0 == sendTo.length()) { 
+				throw new RuntimeException("community " + c.getName() + " / " + c.getId() + " has no owner/moderator");
+			}
+			
+			//create a community request and post to db
+			CommunityApprovePojo cap = new CommunityApprovePojo();
+			cap.set_id(new ObjectId());
+			cap.setCommunityId( c.getId().toString() );
+			cap.setIssueDate(new Date());
+			cap.setPersonId(owner.get_id().toString());
+			cap.setRequesterId(p.get_id().toString());
+			cap.setType("source");
+			cap.setSourceId(source.getId().toString());
+			DbManager.getSocial().getCommunityApprove().insert(cap.toDb());		
+			
 			// Message Body
 			String body = "<p>" + p.getDisplayName() + " has requested that the following source be " +
 				"added to the " + c.getName() + " community:</p>" + 
@@ -949,26 +955,10 @@ public class SourceHandler
 				"URL: " + source.getUrl() + "<br/>" + 
 				"</p>" +
 				"<p>Please click on the Approve or Reject links below to complete the approval process: </p>" +
-				"<li><a href=\"" + rootUrl + "config/source/approve/" + source.getId().toString() + "/" +
+				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/true" +
 					c.getId().toString() + "/\">Approve new Source</a></li>" +
-				"<li><a href=\"" + rootUrl + "config/source/decline/" + source.getId().toString() + "/" +
-					c.getId().toString() + "/\">Reject new Source</a></li>";
-			
-			// Email address or addresses to send to
-			// Extract email addresses for owners and moderators from list of community members
-			StringBuffer sendTo = new StringBuffer();
-			Set<CommunityMemberPojo> members = c.getMembers();
-			for (CommunityMemberPojo member : members)
-			{
-				if (member.getUserType().equalsIgnoreCase("owner") || member.getUserType().equalsIgnoreCase("moderator"))
-				{
-					if (sendTo.length() > 0) sendTo.append(";");
-					sendTo.append(member.getEmail());
-				}
-			}
-			if (0 == sendTo.length()) { 
-				throw new RuntimeException("community " + c.getName() + " / " + c.getId() + " has no owner/moderator");
-			}
+				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/false" +
+					c.getId().toString() + "/\">Reject new Source</a></li>";							
 			
 			// Send
 			new SendMail(new PropertiesManager().getAdminEmailAddress(), sendTo.toString(), subject, body).send("text/html");	

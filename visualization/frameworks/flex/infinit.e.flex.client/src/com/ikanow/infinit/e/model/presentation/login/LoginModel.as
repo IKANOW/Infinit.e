@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -24,6 +24,7 @@ package com.ikanow.infinit.e.model.presentation.login
 	import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
 	import com.ikanow.infinit.e.shared.model.presentation.base.PresentationModel;
 	import com.ikanow.infinit.e.shared.model.vo.User;
+	import com.ikanow.infinit.e.shared.model.vo.Widget;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import flash.events.Event;
@@ -200,6 +201,7 @@ package com.ikanow.infinit.e.model.presentation.login
 		 */
 		protected function getApplicationData():void
 		{
+			getWidgetOptions();
 			getUser();
 			getSetup();
 			getCommunities();
@@ -266,6 +268,13 @@ package com.ikanow.infinit.e.model.presentation.login
 			// show the dashboard view
 			if ( currentUser )
 				navigator.showDashboardView();
+		}
+		
+		protected function getWidgetOptions():void
+		{
+			var setupEvent:SetupEvent = new SetupEvent( SetupEvent.GET_WIDGET_OPTIONS );
+			setupEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'setupService.getWidgetOptions' ) );
+			dispatcher.dispatchEvent( setupEvent );
 		}
 		
 		/**

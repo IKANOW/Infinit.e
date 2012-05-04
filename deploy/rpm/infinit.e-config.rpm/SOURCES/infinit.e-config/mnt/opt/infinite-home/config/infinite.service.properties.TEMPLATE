@@ -28,6 +28,8 @@ elastic.node.discovery=DISCOVERY_MODE
 elastic.url=ELASTIC_URL
 elastic.cluster=ELASTIC_CLUSTER
 elastic.search.nodes=ELASTIC_NODES
+elastic.search.min_peers=ELASTIC_MIN_PEERS
+elastic.max_replicas=ELASTIC_MAX_REPLICAS
 ################################################################################
 # mlockall = should equal true except if running on a machine with < 4GB of RAM
 bootstrap.mlockall=BOOTSTRAP_MLOCKALL
@@ -40,7 +42,9 @@ url.root=URL_ROOT
 # Harvester Properties
 harvester.types=HARVESTER_TYPES
 harvest.feed.wait=HARVEST_FEED_WAIT
+harvest.feed.useragent=HARVESTER_USERAGENT
 harvest.mintime.ms=HARVESTER_MINTIME_MS
+harvest.source.mintime.ms=HARVESTER_MINTIME_SOURCE_MS
 harvest.maxdocs_persource=HARVESTER_MAXDOCS_SOURCE
 harvest.threads=HARVESTER_THREADS
 

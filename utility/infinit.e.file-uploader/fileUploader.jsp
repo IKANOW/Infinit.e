@@ -29,6 +29,7 @@ limitations under the License.
 <%!
 	static String API_ROOT = null;
 	static String SHARE_ROOT = null;
+	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = false;
 	static Boolean localCookie = false;
 	static String user = null;
@@ -246,7 +247,7 @@ limitations under the License.
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         	}
-        	else
+        	else if (DEBUG_MODE)
         		System.out.println("Infinit.e Cookie Value is Null");
         	IOUtils.copy(urlConnection.getInputStream(), output);
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
@@ -453,7 +454,8 @@ limitations under the License.
 			
 			///social/share/remove/community/{shareid}/{communityid}
 			String json = stringOfUrl(API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
-			System.out.println("Removing from Community:" + json);
+			if (DEBUG_MODE)
+				System.out.println("Removing from Community:" + json);
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
 				return "Json was null: " + json + "\n " + API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
@@ -552,7 +554,8 @@ limitations under the License.
 						{
 							if ((null != info.mediaType) && (info.mediaType.equalsIgnoreCase("application/java-archive") || info.mediaType.equalsIgnoreCase("application/x-java-archive") || info.mediaType.equalsIgnoreCase("application/octet-stream")))
 							{
-								System.out.println("Outputting Uploaded Jar files");
+								if(DEBUG_MODE)
+									System.out.println("Outputting Uploaded Jar files");
 								String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id+delim;
 								for (getShare.shareCommunity scomm : info.communities)
 								{
@@ -564,7 +567,8 @@ limitations under the License.
 						}
 						else if ((null != info.mediaType) && info.mediaType.contains(ext))
 						{
-							System.out.println("Extension '" + ext + "' Triggered Mime Type : " + info.mediaType.toString());
+							if (DEBUG_MODE)
+								System.out.println("Extension '" + ext + "' Triggered Mime Type : " + info.mediaType.toString());
 							String value = info._id+delim+info.created+delim+info.title+delim+info.description+delim+SHARE_ROOT+info._id+delim;
 							for (getShare.shareCommunity scomm : info.communities)
 							{
@@ -709,6 +713,7 @@ if (isLoggedIn == null)
 else if (isLoggedIn == true)
 { 
 	showAll = (request.getParameter("sudo") != null);
+	DEBUG_MODE = (request.getParameter("debug") != null);
 	communityList = generateCommunityList(request, response);
 	
 	if (request.getParameter("logout") != null)

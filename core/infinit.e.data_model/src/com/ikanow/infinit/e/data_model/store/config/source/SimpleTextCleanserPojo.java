@@ -18,7 +18,9 @@ package com.ikanow.infinit.e.data_model.store.config.source;
 public class SimpleTextCleanserPojo 
 {
 	private String field = null;
-	private String regEx = null;
+	private String regEx = null; // OBSOLETED, remove once posible
+	private String script = null;
+	private String scriptlang = null; // (defaults to "javascript")
 	private String replacement = null;
 	private String flags = null;
 	
@@ -29,10 +31,13 @@ public class SimpleTextCleanserPojo
 		return field;
 	}
 	
-	public void setRegEx(String regEx) {
-		this.regEx = regEx;
+	public void setScript(String script) {
+		this.script = script;
 	}
-	public String getRegEx() {
+	public String getScript() {
+		if (null == regEx) {
+			return script;
+		}
 		return regEx;
 	}
 	
@@ -47,6 +52,12 @@ public class SimpleTextCleanserPojo
 	}
 	public void setFlags(String flags) {
 		this.flags = flags;
+	}
+	public void setScriptlang(String scriptlang) {
+		this.scriptlang = scriptlang;
+	}
+	public String getScriptlang() {
+		return scriptlang;
 	}
 
 }

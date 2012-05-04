@@ -37,7 +37,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.joda.time.Interval;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.query.BaseFilterBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -115,7 +114,7 @@ public class QueryHandler {
 		
 		BaseQueryBuilder queryObj = null;
 		
-	// 0.1] Input data
+	// 0.1] Input data (/filtering)
 
 		if (null != query.input.name) { // This is actually a share id visible to this user
 			try {
@@ -132,9 +131,80 @@ public class QueryHandler {
 			parentFilterObj = parentFilterObj.must(sourceFilter);
 		}//TESTED
 		
-	// 0.2] Pre-Lucene Scoring
+	// 0.2] Output filtering	
 		
-		// 0.2.1] General
+		// Output filters: parse (also used by aggregation, scoring)
+		
+		String[] entityTypeFilterStrings = null;
+		String[] assocVerbFilterStrings = null;
+		if ((null != query.output) && (null != query.output.filter)) {
+			if (null != query.output.filter.entityTypes) {
+				entityTypeFilterStrings = query.output.filter.entityTypes;
+				if (0 == entityTypeFilterStrings.length) {
+					entityTypeFilterStrings = null;
+				}
+				else if ((1 == entityTypeFilterStrings.length) && (entityTypeFilterStrings[0].isEmpty())) {
+					entityTypeFilterStrings = null;					
+				}
+			}
+			if (null != query.output.filter.assocVerbs) {
+				assocVerbFilterStrings = query.output.filter.assocVerbs;				
+				if (0 == assocVerbFilterStrings.length) {
+					assocVerbFilterStrings = null;
+				}
+				else if ((1 == assocVerbFilterStrings.length) && (assocVerbFilterStrings[0].isEmpty())) {
+					assocVerbFilterStrings = null;					
+				}
+			}
+		}
+		
+		// Now apply output filters to query
+		
+		BoolFilterBuilder outputFilter = this.parseOutputFiltering(entityTypeFilterStrings, assocVerbFilterStrings);
+		if (null != outputFilter) {
+			parentFilterObj = parentFilterObj.must(outputFilter);
+		}
+		//TESTED
+		
+	// 0.3] Query terms
+		
+		StringBuffer querySummary = new StringBuffer();
+		int nQueryElements = 0;
+		
+		if (null != query.qt) {
+			nQueryElements = query.qt.size();
+			
+			if (nQueryElements > 0) { // NORMAL CASE
+				
+				this.handleEntityExpansion(DbManager.getFeature().getEntity(), query.qt, userIdStr, communityIdStrList);
+				
+				BaseQueryBuilder queryElements[] = new BaseQueryBuilder[nQueryElements];
+				StringBuffer sQueryElements[] = new StringBuffer[nQueryElements];
+				for (int i = 0; i < nQueryElements; ++i) {
+					queryElements[i] = this.parseQueryTerm(query.qt.get(i), (sQueryElements[i] = new StringBuffer()));
+				}					
+				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);		
+				if (null == queryObj) { //error parsing logic
+					errorString = "Error parsing logic";
+					return null;
+				}
+			}
+			else { //(QT exists but doesn't have any elements)
+				queryObj = QueryBuilders.matchAllQuery();
+				querySummary.append('*');
+			}
+		}//TESTED
+		else {
+			queryObj = QueryBuilders.matchAllQuery();
+			querySummary.append('*');				
+		} //(QT not specified)
+		
+		//DEBUG
+		//querySummary.append(new Gson().toJson(query, AdvancedQueryPojo.class));
+		
+	// 0.4] Pre-Lucene Scoring
+		
+		// 0.4.1] General
 		
 		// Different options:
 		//   a] Get the most recent N documents matching the query, score post-query
@@ -192,51 +262,14 @@ public class QueryHandler {
 			}//TOTEST
 		}//(if docs aren't enabled, don't need to worry about sorting)
 		
-	// 0.3] Query terms
-		
-		StringBuffer querySummary = new StringBuffer();
-		int nQueryElements = 0;
-		
-		if (null != query.qt) {
-			nQueryElements = query.qt.size();
-			
-			if (nQueryElements > 0) { // NORMAL CASE
-				
-				this.handleEntityExpansion(DbManager.getFeature().getEntity(), query.qt, userIdStr, communityIdStrList);
-				
-				BaseQueryBuilder queryElements[] = new BaseQueryBuilder[nQueryElements];
-				StringBuffer sQueryElements[] = new StringBuffer[nQueryElements];
-				for (int i = 0; i < nQueryElements; ++i) {
-					queryElements[i] = this.parseQueryTerm(query.qt.get(i), (sQueryElements[i] = new StringBuffer()));
-				}					
-				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);		
-				if (null == queryObj) { //error parsing logic
-					errorString = "Error parsing logic";
-					return null;
-				}
-			}
-			else { //(QT exists but doesn't have any elements)
-				queryObj = QueryBuilders.matchAllQuery();
-				querySummary.append('*');
-			}
-		}//TESTED
-		else {
-			queryObj = QueryBuilders.matchAllQuery();
-			querySummary.append('*');				
-		} //(QT not specified)
-		
-		//DEBUG
-		//querySummary.append(new Gson().toJson(query, AdvancedQueryPojo.class));
-		
-		// 0.2.2] Prox scoring
+		// 0.4.2] Prox scoring (needs to happen after [0.3]
 
 		// Add proximity scoring:
 		if (nRecordsToGet > 0) {
 			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score);				
 		}// (else not worth the effort)
-
-				
-	// 0.4] Pre-lucene output options
+								
+	// 0.5] Pre-lucene output options
 		
 		// only return the id field and score
 		// (Both _id and score come back as default options, SearchHit:: getId and getScore, don't need anything else)
@@ -260,14 +293,14 @@ public class QueryHandler {
 		}
 		else { // Apply various aggregation (=="facet") outputs to searchSettings
 			boolean bSpecialCase = (null != query.raw) && (null != query.raw.query);
-			AggregationUtils.parseOutputAggregation(query.output.aggregation, searchSettings, bSpecialCase?parentFilterObj:null);
+			AggregationUtils.parseOutputAggregation(query.output.aggregation, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
 		}
 		//TESTED x2			
 		
 		//(timing)
 		nQuerySetupTime = System.currentTimeMillis() - nQuerySetupTime;
 		
-	// 0.5] Perform Lucene query
+	// 0.6] Perform Lucene query
 		
 		SearchResponse queryResults = null;
 		if ((null != query.raw) && (null != query.raw.query)) 
@@ -286,7 +319,7 @@ public class QueryHandler {
 		
 		long nLuceneTime = queryResults.getTookInMillis();
 
-	// 0.6] Lucene scores	
+	// 0.7] Lucene scores	
 		
 		long nProcTime = 0;
 		long nProcTime_tmp = System.currentTimeMillis();
@@ -304,7 +337,7 @@ public class QueryHandler {
 		
 		nProcTime += (System.currentTimeMillis() - nProcTime_tmp);
 		
-	// 0.7] Get data from Mongo + handle scoring
+	// 0.8] Get data from Mongo + handle scoring
 
 		//(timing)
 		long nMongoTime = System.currentTimeMillis();
@@ -337,6 +370,7 @@ public class QueryHandler {
 														docs0, query.score, query.output, stats, 
 															nRecordsToSkip, nRecordsToOutput, 
 																communityIdStrs,
+																entityTypeFilterStrings, assocVerbFilterStrings,
 																aggregatedEntities, standaloneEvents);
 			nProcTime += (System.currentTimeMillis() - nProcTime_tmp);
 		}
@@ -345,15 +379,15 @@ public class QueryHandler {
 		}
 		//TESTED (all queries)
 		
-	// 0.8] Output:
+	// 0.9] Output:
 
 		rp.setResponse(new ResponseObject("Query", true, querySummary.toString()));
 		
-		// 0.8.1] Stats:
+		// 0.9.1] Stats:
 		stats.resetArrays();
 		rp.setStats(stats); // (only actually uses the response pojo, but get rid of big fields anyway...)
 
-		// 0.8.2] Facets:
+		// 0.9.2] Facets:
 
 		if (null != aggregatedEntities) { // Entity aggregation
 			rp.setEntities(aggregatedEntities);				
@@ -374,7 +408,7 @@ public class QueryHandler {
 			
 		} // (end facets not overwritten)			
 		
-		// 0.8.3] Documents
+		// 0.9.3] Documents
 		if  (query.output.docs.enable) {
 			if ((null != docs) && (docs.size() > 0)) {
 				rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
@@ -387,7 +421,7 @@ public class QueryHandler {
 			rp.setData(new ArrayList<BasicDBObject>(0), (BasePojoApiMap<BasicDBObject>)null);
 		}
 		
-		// Timing/logging
+		// 0.9.4] Timing/logging
 		
 		long nTotalTime = System.currentTimeMillis() - nSysTime;
 		rp.getResponse().setTime(nTotalTime);
@@ -491,6 +525,38 @@ public class QueryHandler {
 		return sourceFilter;
 	}
 
+////////////////////////////////////////////////////////////////////////
+	
+// 1.X1] Output filter parsing	
+
+	BoolFilterBuilder parseOutputFiltering(String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
+	{
+		BoolFilterBuilder outputFilter = null;
+		
+		if (null != entityTypeFilterStrings) {
+			outputFilter = FilterBuilders.boolFilter();
+			
+			outputFilter.must(FilterBuilders.nestedFilter(DocumentPojo.entities_, 
+					FilterBuilders.termsFilter(EntityPojo.type_, entityTypeFilterStrings)));
+		}
+		if (null != assocVerbFilterStrings) {
+			if (null == outputFilter) {
+				outputFilter = FilterBuilders.boolFilter();				
+			}
+			BoolFilterBuilder verbFilter = FilterBuilders.boolFilter();	
+			StringBuffer sb = new StringBuffer();
+			for (String assocVerb: assocVerbFilterStrings) {
+				sb.setLength(0);
+				sb.append('"').append(assocVerb).append('"');
+				verbFilter.should(FilterBuilders.nestedFilter(DocumentPojo.associations_, 
+						QueryBuilders.queryString(sb.toString()).field(AssociationPojo.verb_category_)));
+				//(closest to exact that we can manage, obv verb_cat should actually be not_analyzed)
+			}
+			outputFilter.must(verbFilter);
+		}		
+		return outputFilter;
+	}//TESTED
+	
 ////////////////////////////////////////////////////////////////////////
 
 // 1.2] Query term parsing
@@ -614,7 +680,7 @@ public class QueryHandler {
 			}
 			sQueryTerm.append('(');
 			
-			BaseQueryBuilder termQ = this.parseGeoTerm(qt.geo, sQueryTerm, EntityPojo.geotag_);
+			BaseQueryBuilder termQ = this.parseGeoTerm(qt.geo, sQueryTerm, GeoParseField.ALL);
 			if (null != termQ) 
 			{
 				if (null == term) 
@@ -918,10 +984,20 @@ public class QueryHandler {
 	 * OPTIONAL for all arg ontology_type (will apply a heuristic search only grabbing onts that level and below
 	 * 
 	 */
-	BaseQueryBuilder parseGeoTerm(AdvancedQueryPojo.QueryTermPojo.GeoTermPojo geo, StringBuffer sQueryTerm, String sFieldName)
+	BaseQueryBuilder parseGeoTerm(AdvancedQueryPojo.QueryTermPojo.GeoTermPojo geo, StringBuffer sQueryTerm, GeoParseField parseFields)
 	{
-		BaseQueryBuilder termQ = null;
-		BaseFilterBuilder filterQ = null;
+		BoolQueryBuilder boolQ = QueryBuilders.boolQuery();
+		List<String> ont_terms = null;
+		//Get ontology types
+		if ( null != geo.ontology_type )
+		{			
+			//get all ontology terms we are looking for
+			ont_terms = GeoOntologyMapping.getOntologyList(geo.ontology_type);	
+		}
+		else 
+		{
+			ont_terms = GeoOntologyMapping.getOntologyList(null);				
+		}
 		
 		if ((null != geo.centerll) && (null != geo.dist)) 
 		{
@@ -939,16 +1015,44 @@ public class QueryHandler {
 				
 				char c = geo.dist.charAt(geo.dist.length() - 1);
 				if ((c < 0x30) || (c > 0x39)) // not a digit
-				{ 
-					filterQ = FilterBuilders.geoDistanceFilter(sFieldName).distance(geo.dist).point(lat, lon);
+				{ 				
+					//ENT
+					//Add in ontology_type if necessary
+					//in the end this results in query = CURR_GEO_QUERY AND (ONT_TYPE = [ont1 OR ont2 OR ont3])			
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
+					{						
+						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).boost(1.0F));
+						subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));	
+						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+					}
+					
+					//ASSOC AND DOCGEO (only added if ont is point or null)
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
+						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
+						boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(geo.dist).point(lat, lon)));					
 				}
 				else 
 				{					
-					filterQ = FilterBuilders.geoDistanceFilter(sFieldName).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon);
+					//ENT
+					//Add in ontology_type if necessary
+					//in the end this results in query = CURR_GEO_QUERY AND (ONT_TYPE = [ont1 OR ont2 OR ont3])	
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
+					{
+						//boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, QueryBuilders.nestedQuery(DocumentPojo.entities_, FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).boost(1.0F));
+						subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));													
+						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+					}
+					//ASSOC AND DOCGEO (only added if ont is point or null)
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
+						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
+						boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)));
 				}
-				if (null != filterQ) {
-					sQueryTerm.append("dist(*.geotag, (").append(geo.centerll).append(")) < ").append(geo.dist);
-				}
+				sQueryTerm.append("dist(*.geotag, (").append(geo.centerll).append(")) < ").append(geo.dist);				
 			}				
 		}//TESTED logic11,logic12
 		else if ((null != geo.minll) && (null != geo.maxll)) 
@@ -964,7 +1068,8 @@ public class QueryHandler {
 			}
 			String[] latlon2 = geo.maxll.split("\\s*,\\s*");
 			
-			if  ((2 == latlon1.length) && (2 == latlon2.length)) {
+			if  ((2 == latlon1.length) && (2 == latlon2.length)) 
+			{
 				latmin = Double.parseDouble(latlon1[0]);
 				lonmin = Double.parseDouble(latlon1[1]);
 				latmax = Double.parseDouble(latlon2[0]);
@@ -976,13 +1081,23 @@ public class QueryHandler {
 				lonmin = lonmin < lonmax ? lonmin : lonmax;
 				lonmax = lonmin >= lonmax ? lonmin : lonmax;
 									
-				// If we've got this far, we've found all the different locations
-				//termQ = QueryBuilders.nestedQuery("entities", FilterBuilders.geoBoundingBoxFilter(sFieldName).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost((float)1.0);
-				filterQ = FilterBuilders.geoBoundingBoxFilter(sFieldName).topLeft(latmax,lonmin).bottomRight(latmin, lonmax);
-			}
-			if (null != filterQ) {
-				sQueryTerm.append("*.geotag: [(").append(geo.minll).append("), (").append(geo.maxll).append(")]");
-			}
+				// If we've got this far, we've found all the different locations				
+				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
+				{
+					//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
+					BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(EntityPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost(1.0F));
+					subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));												
+					boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+				}
+				
+				//ASSOC AND DOCGEO (only added if ont is point or null)			
+				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
+					boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoBoundingBoxFilter(AssociationPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
+					boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(DocumentPojo.docGeo_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)));
+							
+				sQueryTerm.append("*.geotag: [(").append(geo.minll).append("), (").append(geo.maxll).append(")]");	
+			}	
 		}//TESTED logic13,logic14
 		else if ( (null != geo.name))
 		{
@@ -992,30 +1107,8 @@ public class QueryHandler {
 		{
 			//TODO (INF-1118): NOT IMPLEMENTED YET
 		}			
-		
-		//Add in ontology_type if necessary
-		//in the end this results in query = CURR_GEO_QUERY AND (ONT_TYPE = [ont1 OR ont2 OR ont3])
-		if ( (null != geo.ontology_type) && (null != filterQ) )
-		{			
-			//get all ontology terms we are looking for
-			List<String> ont_terms = GeoOntologyMapping.getOntologyList(geo.ontology_type);			
-			if ( ont_terms.size() > 0 )
-			{
-				//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-				BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(filterQ).boost(1.0F));
-				for ( String ont : ont_terms )
-					subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont));						
 				
-				termQ = subQ;
-			}
-		}
-		
-		//All geo query are in nested doc.entities object and are pushed in this
-		if ( termQ != null ) //if ontology_type was added on the query will be in termQ
-			termQ = QueryBuilders.nestedQuery(DocumentPojo.entities_, termQ).scoreMode("max").boost((float)1.0);
-		else if ( filterQ != null ) //if only a geotermw as added the query will be in filterQ
-			termQ = QueryBuilders.nestedQuery(DocumentPojo.entities_, filterQ).scoreMode("max").boost((float)1.0);
-		return termQ;
+		return boolQ;
 	}
 	
 	////////////////////////////////////////////////////////////////////////
@@ -1094,7 +1187,7 @@ public class QueryHandler {
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(");
-			query.must(this.parseGeoTerm(event.geo, sQueryTerm, AssociationPojo.geotag_));
+			query.must(this.parseGeoTerm(event.geo, sQueryTerm, GeoParseField.ASSOC));
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TOTEST
@@ -2013,4 +2106,11 @@ public class QueryHandler {
 		scoreParams.timeProx.decay = "1m";
 		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams);		
 	}
+	
+	public enum GeoParseField
+	{
+		ALL,ASSOC,DOC,ENT;
+	}
 }
+
+

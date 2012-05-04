@@ -39,6 +39,7 @@ import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeat
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
+import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 
@@ -104,8 +105,9 @@ public class GenericProcessingController {
 	public void InitializeIndex(boolean bDeleteDocs, boolean bDeleteEntityFeature, boolean bDeleteEventFeature) {
 		
 		try {
-			//create elasticsearch indexes			
-			int nPreferredReplicas = 1;
+			//create elasticsearch indexes
+			PropertiesManager pm = new PropertiesManager();
+			int nPreferredReplicas = pm.getMaxIndexReplicas();
 			
 			Builder localSettingsEvent = ImmutableSettings.settingsBuilder();
 			localSettingsEvent.put("number_of_shards", 1).put("number_of_replicas", 0);
@@ -217,9 +219,10 @@ public class GenericProcessingController {
 		// Delete toUpdate and toAdd (also overwriting "created" for updated docs, well all actually...)
 		toDelete.addAll(toUpdate_subsetOfAdd);
 		StoreAndIndexManager storageManager = new StoreAndIndexManager();
-		storageManager.removeFromDatastore_byURL(toDelete, (harvestType == InfiniteEnums.FEEDS));
+		storageManager.removeFromDatastore_byURL(toDelete, (harvestType != InfiniteEnums.DATABASE));
+			// (note: expands toDelete if any sourceUrl "docs" are present, see FileHarvester)
 
-		// (Storing feeds messes up the doc/event/entity objects, so don't do that just yet...)
+		// (Storing docs messes up the doc/event/entity objects, so don't do that just yet...)
 		
 		// Aggregation:
 		// 1+2. Create aggregate entities/events ("features") and write them to the DB
@@ -238,7 +241,7 @@ public class GenericProcessingController {
 		// (second field determines if content gets saved)
 		perSourceAggregation.applyAggregationToDocs(toAdd);
 			// (First save aggregated statistics back to the docs' entity/event instances)
-		storeFeeds(toAdd, (harvestType == InfiniteEnums.FEEDS));
+		storeFeeds(toAdd, (harvestType != InfiniteEnums.DATABASE));
 
 		// Then finish aggregation:
 		

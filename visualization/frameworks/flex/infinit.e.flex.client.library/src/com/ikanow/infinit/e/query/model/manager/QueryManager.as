@@ -31,6 +31,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.QueryObject;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputAggregationOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputDocumentOptions;
+	import com.ikanow.infinit.e.shared.model.vo.QueryOutputFilterOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
@@ -44,12 +45,14 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
+	import mx.controls.Alert;
 	import mx.resources.ResourceManager;
 	import mx.utils.ObjectUtil;
 	
@@ -176,6 +179,12 @@ package com.ikanow.infinit.e.query.model.manager
 		
 		[Bindable]
 		/**
+		 * Query Ouput Filter Options
+		 */
+		public var filterOptions:QueryOutputFilterOptions = new QueryOutputFilterOptions();
+		
+		[Bindable]
+		/**
 		 * Query Scoring Options
 		 */
 		public var scoreOptions:QueryScoreOptions = new QueryScoreOptions();
@@ -224,7 +233,7 @@ package com.ikanow.infinit.e.query.model.manager
 		public function cancelEditAdvancedQuery():void
 		{
 			// set the last query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ) );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			queryString.qt = lastQueryString.qt.source;
 			queryString.logic = lastQueryString.logic;
 			queryString.qtOptions = lastQueryString.qtOptions;
@@ -307,10 +316,12 @@ package com.ikanow.infinit.e.query.model.manager
 			lastSuggestionKeywordString = "";
 			documentOptions = null
 			aggregationOptions = null;
+			filterOptions = null;
 			scoreOptions = null;
 			setQueryStatistics( null );
 			aggregationOptions = new QueryOutputAggregationOptions();
 			documentOptions = new QueryOutputDocumentOptions();
+			filterOptions = new QueryOutputFilterOptions();
 			scoreOptions = new QueryScoreOptions();
 			initRecentQueries();
 		}
@@ -322,7 +333,7 @@ package com.ikanow.infinit.e.query.model.manager
 		public function runAdvancedQuery():void
 		{
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
 			
 			// set to wildcard if no query terms
 			if ( queryTerms.length == 0 )
@@ -351,10 +362,11 @@ package com.ikanow.infinit.e.query.model.manager
 			// set advanced options
 			aggregationOptions = typedQueryString.queryString.output.aggregation;
 			documentOptions = typedQueryString.queryString.output.docs;
+			filterOptions = typedQueryString.queryString.output.filter;
 			scoreOptions = typedQueryString.queryString.score;
 			
 			// create a query string request
-			var queryStringNew:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ) );
+			var queryStringNew:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			queryStringNew.qt = typedQueryString.queryString.qt.source;
 			queryStringNew.logic = typedQueryString.queryString.logic;
 			queryStringNew.qtOptions = typedQueryString.queryString.qtOptions;
@@ -409,7 +421,7 @@ package com.ikanow.infinit.e.query.model.manager
 		public function runSimpleQuery( querySuggestion:QuerySuggestion ):void
 		{
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
 			
 			// set the query term
 			queryString.qt = [ QueryUtil.getQueryTermFromSuggestion( querySuggestion ) ];
@@ -420,57 +432,8 @@ package com.ikanow.infinit.e.query.model.manager
 		
 		public function saveAdvancedQuery():TypedQueryString
 		{
-			/*var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
-			
-			// set to wildcard if no query terms
-			if ( queryTerms.length == 0 )
-			{
-				var queryTerm:QueryTerm = new QueryTerm();
-				queryTerm.etext = Constants.WILDCARD;
-				queryLogic = QueryConstants.DEFAULT_QUERY_LOGIC;
-				queryTerms.addItem( queryTerm );
-			}
-			
-			// add the query terms
-			queryString.qt = queryTerms.source;
-			
-			// add the query logic
-			queryString.logic = queryLogic;
-			
-			// set the community ids
-			var communtityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
-			queryString.communityIds = communtityIds.split( Constants.STRING_ARRAY_DELIMITER );
-			
-			if ( setup && setup.queryString && setup.queryString.qtOptions )
-				queryString.qtOptions = setup.queryString.qtOptions;
-			else
-				queryString.qtOptions = null;
-			
-			var sourcesAll:ArrayCollection = new ArrayCollection( sources.source );
-			var sourcesCurrent:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, true );
-			var sourcesAvailable:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, false );
-			
-			// update the sources input if the user has not selected all of the sources
-			if ( sourcesCurrent.length > 0 && sourcesAvailable.length > 0 )
-			{
-				// use the collection that has the least amount of sources and mark srcInclude as true or false depending
-				var useCurrentSources:Boolean = sourcesCurrent.length < sourcesAvailable.length;
-				var sourcesCollection:ArrayCollection = useCurrentSources ? sourcesCurrent : sourcesAvailable;
-			
-				queryString.input = new Object();
-				queryString.input[ QueryConstants.SRC_INCLUDE ] = useCurrentSources;
-				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
-			}
-			
-			var tempLastQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
-			var typedQueryString:TypedQueryString = QueryUtil.getTypedQueryString( tempLastQueryString, QueryStringTypes.QUERY );
-			
-			return typedQueryString;*/
-			
-			
-			//RUN QUERY PART TODO !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
 			
 			// set to wildcard if no query terms
 			if ( queryTerms.length == 0 )
@@ -513,22 +476,6 @@ package com.ikanow.infinit.e.query.model.manager
 				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
 			}
 			
-			// run the query
-			/*var queryEvent:QueryEvent = new QueryEvent( QueryEvent.QUERY );
-			queryEvent.queryString = QueryUtil.getQueryStringObject( queryString );
-			queryEvent.communityids = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
-			queryEvent.dialogControl = DialogControl.create( true, ResourceManager.getInstance().getString( 'infinite', 'queryService.searching' ) );
-			dispatcher.dispatchEvent( queryEvent );
-			
-			// clear the query statistics
-			setQueryStatistics( new ServiceStatistics() );
-			
-			// set the current query string
-			currentQueryStringRequest = queryString.clone();
-			
-			// set the last query string request
-			lastQueryStringRequest = queryString.clone();*/
-			
 			// set the last query string
 			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
 			
@@ -544,34 +491,19 @@ package com.ikanow.infinit.e.query.model.manager
 		 * @param aggregationOptions
 		 * @param documentOptions
 		 */
-		public function setAdvancedOptions( documentOptions:QueryOutputDocumentOptions, aggregationOptions:QueryOutputAggregationOptions, scoreOptions:QueryScoreOptions ):void
+		public function setAdvancedOptions( documentOptions:QueryOutputDocumentOptions, aggregationOptions:QueryOutputAggregationOptions, filterOptions:QueryOutputFilterOptions, scoreOptions:QueryScoreOptions ):void
 		{
 			this.documentOptions = documentOptions;
 			this.aggregationOptions = aggregationOptions;
+			this.filterOptions = filterOptions;
 			this.scoreOptions = scoreOptions;
 			
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ) );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			queryString.qt = lastQueryStringRequest.qt;
 			queryString.logic = lastQueryStringRequest.logic;
 			
 			// run the query to save the options
 			runQuery( queryString, true, QueryStringTypes.SETTINGS );
-		}
-		
-		/**
-		 * Update the advanced query scoring options and run a query to save
-		 * @param scoreOptions
-		 * @param aggregationOptions
-		 * @param documentOptions
-		 */
-		public function setAdvancedScoringOptions( scoreOptions:QueryScoreOptions ):void
-		{
-			this.scoreOptions = scoreOptions;
-			
-			// show the settings view
-			var navigationEvent:NavigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
-			navigationEvent.navigationItemId = NavigationConstants.WORKSPACE_SETTINGS_ID;
-			dispatcher.dispatchEvent( navigationEvent );
 		}
 		
 		/**
@@ -671,7 +603,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// initialize the current query string if null
 			if ( !currentQueryStringRequest )
-				currentQueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ) );
+				currentQueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			
 			currentQueryStringRequest.qt = qtNew;
 		}
@@ -715,6 +647,49 @@ package com.ikanow.infinit.e.query.model.manager
 				nextSuggestionKeywordString = keywordString;
 			else
 				getQuerySuggestions( keywordString, searchType );
+		}
+		
+		/**
+		 * Updates the query object, pops up the changed settings page
+		 */
+		
+		public function updateQueryAndNavigate( queryString:QueryString, newFocus:String ):void
+		{
+			var newQueryString:QueryStringRequest = updateQuery( queryString );
+			
+			// These have already been set (or are about to be set):
+			newQueryString.qt = currentQueryStringRequest.qt;
+			newQueryString.logic = currentQueryStringRequest.logic;
+			
+			// This can't be changed
+			newQueryString.communityIds = currentQueryStringRequest.communityIds;
+			
+			// set the current query string
+			currentQueryStringRequest = newQueryString.clone();
+			
+			// show the new view
+			if ( null != newFocus )
+			{
+				var navigationEvent:NavigationEvent = null;
+				
+				// (special case for query builder)
+				if ( NavigationConstants.QUERY_BUILDER_ID == newFocus )
+				{
+					navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+					navigationEvent.navigationItemId = NavigationConstants.QUERY_BUILDER_ID;
+					dispatcher.dispatchEvent( navigationEvent );
+					
+					navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+					navigationEvent.navigationItemId = NavigationConstants.WORKSPACES_QUERY_ID;
+					dispatcher.dispatchEvent( navigationEvent );
+				}
+				else // (source manager or query settings)
+				{
+					navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+					navigationEvent.navigationItemId = newFocus;
+					dispatcher.dispatchEvent( navigationEvent );
+				}
+			}
 		}
 		
 		//======================================
@@ -798,6 +773,7 @@ package com.ikanow.infinit.e.query.model.manager
 			return suggestionsNew;
 		}
 		
+		
 		/**
 		 * Initialize the query strings and run the first query
 		 */
@@ -813,25 +789,8 @@ package com.ikanow.infinit.e.query.model.manager
 			if ( !setup.queryString )
 				return;
 			
-			// set advanced options
-			aggregationOptions = setup.queryString.output.aggregation;
-			documentOptions = setup.queryString.output.docs;
-			scoreOptions = setup.queryString.score;
-			
-			// create a query string request
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ) );
-			queryString.qt = setup.queryString.qt.source;
-			queryString.logic = setup.queryString.logic.replace( QueryOperatorTypes.AND_NOT, QueryOperatorTypes.NOT );
-			queryString.qtOptions = setup.queryString.qtOptions;
-			queryString.input = null;
-			
-			// set the sources
-			if ( setup.queryString.input && setup.queryString.input.sources )
-			{
-				queryString.input = new Object();
-				queryString.input[ QueryConstants.SRC_INCLUDE ] = setup.queryString.input.srcInclude;
-				queryString.input[ QueryConstants.SOURCES ] = setup.queryString.input.sources.source;
-			}
+			// create a query string request (also updates aggregationOptions, documentOptions, filterOptions, scoreOptions)
+			var queryString:QueryStringRequest = this.updateQuery( setup.queryString );
 			
 			// set the community ids
 			queryString.communityIds = setup.communityIds;
@@ -955,6 +914,34 @@ package com.ikanow.infinit.e.query.model.manager
 			// add the last query string to the recent queries collection
 			recentQueries.addItem( QueryUtil.getTypedQueryString( lastQueryString, queryStringType ) );
 			recentQueries.refresh();
+		}
+		
+		/**
+		 * Update the query object (utility function)
+		 */
+		protected function updateQuery( queryString:QueryString ):QueryStringRequest
+		{
+			// set advanced options
+			aggregationOptions = queryString.output.aggregation;
+			documentOptions = queryString.output.docs;
+			filterOptions = queryString.output.filter;
+			scoreOptions = queryString.score;
+			
+			// create a query string request
+			var newQueryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
+			newQueryString.qt = queryString.qt.source;
+			newQueryString.logic = queryString.logic.replace( QueryOperatorTypes.AND_NOT, QueryOperatorTypes.NOT );
+			newQueryString.qtOptions = queryString.qtOptions;
+			newQueryString.input = null;
+			
+			// set the sources
+			if ( queryString.input && queryString.input.sources )
+			{
+				newQueryString.input = new Object();
+				newQueryString.input[ QueryConstants.SRC_INCLUDE ] = queryString.input.srcInclude;
+				newQueryString.input[ QueryConstants.SOURCES ] = queryString.input.sources.source;
+			}
+			return newQueryString;
 		};
 	}
 }
