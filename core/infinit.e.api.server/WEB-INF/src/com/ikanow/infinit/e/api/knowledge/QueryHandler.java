@@ -986,7 +986,7 @@ public class QueryHandler {
 	 */
 	BaseQueryBuilder parseGeoTerm(AdvancedQueryPojo.QueryTermPojo.GeoTermPojo geo, StringBuffer sQueryTerm, GeoParseField parseFields)
 	{
-		BoolQueryBuilder boolQ = QueryBuilders.boolQuery();
+		BoolQueryBuilder boolQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1);
 		List<String> ont_terms = null;
 		//Get ontology types
 		if ( null != geo.ontology_type )
@@ -1009,12 +1009,11 @@ public class QueryHandler {
 			String[] latlon = geo.centerll.split("\\s*,\\s*");
 			if (2 == latlon.length) 
 			{
-				
 				lat = Double.parseDouble(latlon[0]);
 				lon = Double.parseDouble(latlon[1]);
 				
 				char c = geo.dist.charAt(geo.dist.length() - 1);
-				if ((c < 0x30) || (c > 0x39)) // not a digit
+				if ((c < 0x30) || (c > 0x39)) // not a digit, difference calculation is different
 				{ 				
 					//ENT
 					//Add in ontology_type if necessary
@@ -1022,35 +1021,34 @@ public class QueryHandler {
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 					{						
 						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-						BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).boost(1.0F));
-						subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));	
-						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).boost(1.0F));
+						subQ.must(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms.toArray()));	
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 					}
 					
 					//ASSOC AND DOCGEO (only added if ont is point or null)
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0));
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
-						boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(geo.dist).point(lat, lon)));					
+						boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(geo.dist).point(lat, lon)));					
 				}
-				else 
+				else // (identical to the above except geo distance parsing is different)
 				{					
 					//ENT
 					//Add in ontology_type if necessary
 					//in the end this results in query = CURR_GEO_QUERY AND (ONT_TYPE = [ont1 OR ont2 OR ont3])	
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 					{
-						//boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, QueryBuilders.nestedQuery(DocumentPojo.entities_, FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
 						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-						BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).boost(1.0F));
-						subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));													
-						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).boost(1.0F));
+						subQ.must(QueryBuilders.termsQuery(EntityPojo.ontology_type_, ont_terms.toArray()));													
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 					}
 					//ASSOC AND DOCGEO (only added if ont is point or null)
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-						boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).scoreMode("max").boost((float)1.0));
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
-						boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)));
+						boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)));
 				}
 				sQueryTerm.append("dist(*.geotag, (").append(geo.centerll).append(")) < ").append(geo.dist);				
 			}				
@@ -1085,16 +1083,16 @@ public class QueryHandler {
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 				{
 					//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-					BoolQueryBuilder subQ = QueryBuilders.boolQuery().minimumNumberShouldMatch(1).must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(EntityPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost(1.0F));
-					subQ.should(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms));												
-					boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
+					BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(EntityPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost(1.0F));
+					subQ.must(QueryBuilders.termsQuery(EntityPojo.ontology_type_, ont_terms.toArray()));													
+					boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 				}
 				
 				//ASSOC AND DOCGEO (only added if ont is point or null)			
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-					boolQ.must(QueryBuilders.nestedQuery(DocumentPojo.associations_, QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoBoundingBoxFilter(AssociationPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).scoreMode("max").boost((float)1.0)).scoreMode("max").boost((float)1.0));
+					boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoBoundingBoxFilter(AssociationPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).scoreMode("max").boost((float)1.0));
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
-					boolQ.must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(DocumentPojo.docGeo_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)));
+					boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(DocumentPojo.docGeo_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)));
 							
 				sQueryTerm.append("*.geotag: [(").append(geo.minll).append("), (").append(geo.maxll).append(")]");	
 			}	
