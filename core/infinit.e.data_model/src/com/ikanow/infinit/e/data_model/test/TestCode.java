@@ -77,6 +77,7 @@ public class TestCode {
 		ResponsePojo rp1 = new ResponsePojo();
 		SourcePojo sp = new SourcePojo();
 		sp.setUrl("http://test");
+		sp.setKey(sp.generateSourceKey());
 		sp.addToCommunityIds(new ObjectId("a0000000000000000000000a"));
 		sp.addToCommunityIds(new ObjectId("c0000000000000000000000c"));
 		//CHECK THIS DOESN'T COMPILE
@@ -86,7 +87,7 @@ public class TestCode {
 		//CANONICAL EXAMPLE:
 		Set<ObjectId> communities = new HashSet<ObjectId>();
 		communities.add(new ObjectId("a0000000000000000000000a"));
-		rp1.setData(sp, new SourcePojoApiMap(communities));
+		rp1.setData(sp, new SourcePojoApiMap(null, null, communities));
 		String sRPSingleObject = rp1.toApi();
 		System.out.println("RPa=" + sRPSingleObject); // ("chris" removed, toApi handles RepsonsePojo specially)
 		////////////////////////////////////////////////
@@ -97,7 +98,7 @@ public class TestCode {
 		String sJson = "{ 'url':'http://test2', 'isApproved': false, 'harvestBadSource': true } ";
 		//sp = BaseApiPojo.mapFromApi(sJson, SourcePojo.class, null);
 		// Equivalent to:
-		SourcePojo sp2 = ApiManager.mapFromApi(sJson, SourcePojo.class, new SourcePojoApiMap(new HashSet<ObjectId>()));
+		SourcePojo sp2 = ApiManager.mapFromApi(sJson, SourcePojo.class, new SourcePojoApiMap(null, null, new HashSet<ObjectId>()));
 		System.out.println("RPd="+new Gson().toJson(sp2)); // "alex" and "chris" both removed
 		
 		//API: add a list to the response Pojo
@@ -106,7 +107,7 @@ public class TestCode {
 		//rp1.setData(list); // (Not allowed SourcePojo isn't a BaseApiPojo)
 
 		sp2.addToCommunityIds(new ObjectId("a0000000000000000000000a")); // (alex will be allowed again)
-		rp1.setData(list, new SourcePojoApiMap(communities));
+		rp1.setData(list, new SourcePojoApiMap(null, null, communities));
 		String sRPList = rp1.toApi(); 
 		sp2.setCommunityIds(null);
 		
@@ -124,7 +125,7 @@ public class TestCode {
 		
 		// API: finally transform to a JSON list (applies mapping)	
 		try {
-			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(communities)));
+			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(null, null, communities)));
 				// should fail because one of the communities does not have
 			System.out.println("**********FAILED SHOULD HAVE THROWN SECURITY EXCEPTION");
 		}
@@ -136,20 +137,20 @@ public class TestCode {
 				}
 			}			
 			// Try again:
-			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(communities)));
+			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(null, null, communities)));
 				// (just has "alex")			
 		}
 		
 		// And now in the other direction, ie deserializing....
-		ResponsePojo rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class, SourcePojo.class, new SourcePojoApiMap(communities));
+		ResponsePojo rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class, SourcePojo.class, new SourcePojoApiMap(null, null, communities));
 		System.out.println("RECREATED RP_SRC=" + rpRecreated.toApi());
 		System.out.println("RECREATED SRC(RP_SRC)=" + ((BasicDBObject)((SourcePojo)rpRecreated.getData()).toDb()).toString());
-		rpRecreated = ResponsePojo.listFromApi(sRPList, ResponsePojo.class, SourcePojo.listType(), new SourcePojoApiMap(communities));
+		rpRecreated = ResponsePojo.listFromApi(sRPList, ResponsePojo.class, SourcePojo.listType(), new SourcePojoApiMap(null, null, communities));
 		System.out.println("RECREATED RP_LSRC=" + rpRecreated.toApi());
 		
 		rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class);
 		System.out.println("RECREATED RAW(RP_SRC)=" + ((JsonElement)rpRecreated.getData()));
-		sp = ApiManager.mapFromApi((JsonElement)rpRecreated.getData(), SourcePojo.class, new SourcePojoApiMap(communities));
+		sp = ApiManager.mapFromApi((JsonElement)rpRecreated.getData(), SourcePojo.class, new SourcePojoApiMap(null, null, communities));
 		System.out.println("RECREATED SRC(RAW(RP_SRC))=" + ((JsonElement)rpRecreated.getData()));
 		
 		// Real-life source pojo testing:

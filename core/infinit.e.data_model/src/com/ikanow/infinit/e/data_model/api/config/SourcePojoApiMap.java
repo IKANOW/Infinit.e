@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.api.config;
 
 import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Set;
 
 import org.bson.types.ObjectId;
@@ -24,12 +25,14 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
+import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 
 // When retrieving a source object, need to restrict visibility of communities to
 // those allowed to know
@@ -38,19 +41,23 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 
 	// Construction:
 	
+	public SourcePojoApiMap(ObjectId userId, Set<ObjectId> allowedCommunityIds, Set<ObjectId> ownedOrModeratedCommunities) {
+		_userId = userId;
+		_allowedCommunityIds = allowedCommunityIds;
+		_ownedOrModeratedCommunities = ownedOrModeratedCommunities;
+	}
+	// NOTE: auto set key can only be done for testing, since it doesn't guarantee uniqueness...
 	public SourcePojoApiMap(Set<ObjectId> allowedCommunityIds) {
 		_allowedCommunityIds = allowedCommunityIds;
 	}
-	public SourcePojoApiMap(Set<ObjectId> allowedCommunityIds, boolean bAutoSetKey) {
-		_allowedCommunityIds = allowedCommunityIds;
-		_bAutoSetKey = bAutoSetKey;
-	}
 	private Set<ObjectId> _allowedCommunityIds = null;
-	private boolean _bAutoSetKey = true;
+	
+	private ObjectId _userId = null; // (stays null for admin)
+	private Set<ObjectId> _ownedOrModeratedCommunities = null;
 	
 	public GsonBuilder extendBuilder(GsonBuilder gb) {
-		return gb.registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer(_allowedCommunityIds)).
-					registerTypeAdapter(SourcePojo.class, new SourcePojoDeserializer(_allowedCommunityIds, _bAutoSetKey));		
+		return gb.registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer(_userId, _allowedCommunityIds, _ownedOrModeratedCommunities)).
+					registerTypeAdapter(SourcePojo.class, new SourcePojoDeserializer(_allowedCommunityIds));		
 	}
 	
 	// Custom serialization:
@@ -58,39 +65,105 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 	protected static class SourcePojoSerializer implements JsonSerializer<SourcePojo> 
 	{
 		private Set<ObjectId> _allowedCommunityIds = null;
-		SourcePojoSerializer(Set<ObjectId> allowedCommunityIds) {
+		private ObjectId _userId;
+		private Set<ObjectId> _ownedOrModeratedCommunities = null;
+		
+		SourcePojoSerializer(ObjectId userId, Set<ObjectId> allowedCommunityIds, Set<ObjectId> ownedOrModeratedCommunities) {
+			_userId = userId;
 			_allowedCommunityIds = allowedCommunityIds;
+			_ownedOrModeratedCommunities = ownedOrModeratedCommunities;
 		}
 		@Override
 		public JsonElement serialize(SourcePojo source, Type typeOfT, JsonSerializationContext context)
 		{
+			boolean bIsPublic = false;
+			if (source.isPublic() || (null == _userId) || _userId.equals(source.getOwnerId())) {
+				// (null if admin)
+				bIsPublic = true;
+			}
+			// (else check below vs community list)
+			
 			Set<ObjectId> tmp = source.getCommunityIds();
 			if (null != tmp) {
 				source.setCommunityIds(null);
 				for (ObjectId communityID: tmp) {
 					if (_allowedCommunityIds.contains(communityID)) {
 						source.addToCommunityIds(communityID);
+						if (!bIsPublic) {
+							if (_ownedOrModeratedCommunities.contains(communityID)) {
+								bIsPublic = true;
+							}
+						}
 					}
 				}
 			}
+			String url = source.getUrl();
+			SourceRssConfigPojo rss = source.getRssConfig();
+			if (!bIsPublic) { // Cleanse URLs
+				int nIndex = -1;
+				if ((null != url) && ((nIndex = url.indexOf('?')) >= 0)) {
+					source.setUrl(url.substring(0, 1 + nIndex));
+				}
+				if ((null != rss) && (null != rss.getExtraUrls())) {
+					SourceRssConfigPojo newRss = new SourceRssConfigPojo();
+					ArrayList<SourceRssConfigPojo.ExtraUrlPojo> newList = new ArrayList<SourceRssConfigPojo.ExtraUrlPojo>(rss.getExtraUrls().size());
+					for (SourceRssConfigPojo.ExtraUrlPojo urlObj: rss.getExtraUrls()) {
+						SourceRssConfigPojo.ExtraUrlPojo newUrlObj = new SourceRssConfigPojo.ExtraUrlPojo();
+						if ((null != urlObj.url) && ((nIndex = urlObj.url.indexOf('?')) >= 0)) {
+							newUrlObj.url = urlObj.url.substring(0, 1 + nIndex);
+						}
+						else {
+							newUrlObj.url = urlObj.url;
+						}
+						newUrlObj.title = urlObj.title; 
+						newUrlObj.description = urlObj.description;
+						newUrlObj.publishedDate = urlObj.publishedDate;
+						newUrlObj.fullText = urlObj.fullText;
+						newList.add(newUrlObj);
+					}
+					newRss.setExtraUrls(newList);
+					source.setRssConfig(newRss);
+				}
+				else if (null != rss) {
+					source.setRssConfig(null);					
+				}
+			}
+			//TESTED (extraUrls with and without ?s, RSS/no extraURLs, URL) 
+			
 			if (null == source.getCommunityIds()) { // Somehow a security error has occurred
 				//Exception out and hope for the best!
 				throw new RuntimeException("Insufficient access permissions on this object");
 			}
 			JsonElement json = BaseApiPojo.getDefaultBuilder().create().toJsonTree(source);
-			if (null != tmp) { // (this just ensures that the pojo isn't modified by the mapping)
+			if (!bIsPublic) { // Remove a load of potentially sensitive information
+				JsonObject jsonObj = json.getAsJsonObject();
+				//(url cleansed above)
+				jsonObj.remove(SourcePojo.structuredAnalysis_);
+				jsonObj.remove(SourcePojo.unstructuredAnalysis_);
+				jsonObj.remove(SourcePojo.database_);
+				jsonObj.remove(SourcePojo.file_);
+				//(rss cleansed above)
+				jsonObj.remove(SourcePojo.authentication_);
+			}			
+			// Ensure the POJO isn't modified by the mapping
+			if (null != tmp) {
 				source.setCommunityIds(tmp);
+			}
+			if (null != url) {
+				source.setUrl(url);
+			}
+			if (null != rss) { 
+				source.setRssConfig(rss);
 			}
 			return json;
 		}		
-	}
+	}//TESTED (private: yes, public sources: yes, owned sources: yes, non-owner/own community: yes)  
+	
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 
 	{
 		private Set<ObjectId> _allowedCommunityIds = null;
-		private boolean _bAutoSetKey = true;
-		SourcePojoDeserializer(Set<ObjectId> allowedCommunityIds, boolean bAutoSetKey) {
+		SourcePojoDeserializer(Set<ObjectId> allowedCommunityIds) {
 			_allowedCommunityIds = allowedCommunityIds;
-			_bAutoSetKey = bAutoSetKey;
 		}
 		@Override
 		public SourcePojo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
@@ -100,11 +173,6 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 				source.setCommunityIds(null);
 				for (ObjectId communityId: _allowedCommunityIds) {
 					source.addToCommunityIds(communityId);
-				}
-			}
-			if (null == source.getKey()) {
-				if (_bAutoSetKey) {
-					source.setUrl(source.getUrl()); // (recalculate source key)
 				}
 			}
 			return source;

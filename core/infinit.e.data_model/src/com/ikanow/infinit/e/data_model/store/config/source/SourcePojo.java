@@ -58,7 +58,7 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String url_ = "url";
 	private String title = null;
 	final public static String title_ = "title";
-	private boolean isPublic = true;
+	private Boolean isPublic = null;
 	final public static String isPublic_ = "isPublic";
 	private ObjectId ownerId = null;
 	final public static String ownerId_ = "ownerId";
@@ -167,7 +167,6 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public void setUrl(String url) {
 		this.url = url;
-		generateSourceKey();
 	}
 	public String getTitle() {
 		return title;
@@ -193,8 +192,14 @@ public class SourcePojo extends BaseDbPojo {
 	public void setExtractType(String extractType) {
 		this.extractType = extractType;
 	}
-	public boolean isPublic() {
+	public Boolean getIsPublic() {
 		return isPublic;
+	}
+	public boolean isPublic() {
+		return (isPublic == null)?false:isPublic; // (ie defaults to false)
+	}
+	public void setIsPublic(Boolean isPublic) {
+		this.isPublic = isPublic;		
 	}
 	public void setPublic(boolean isPublic) {
 		this.isPublic = isPublic;
@@ -369,7 +374,7 @@ public class SourcePojo extends BaseDbPojo {
 	 * Strips out http://, smb:// /, :, etc. from the URL field to generate
 	 * Example: http://www.ikanow.com/rss -> www.ikanow.com.rss
 	 */
-	private void generateSourceKey()
+	public String generateSourceKey()
 	{
 		String s;
 		if (null != this.url) {
@@ -380,7 +385,7 @@ public class SourcePojo extends BaseDbPojo {
 		}
 		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[/:+?&(),]", ".");
 		if (s.startsWith(".")) s = s.substring(1);
-		this.key = s;
+		return s;
 	}
 	/**
 	 * generateShah256Hash

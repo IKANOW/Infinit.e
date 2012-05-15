@@ -46,6 +46,8 @@ public class ResponsePojo extends BaseApiPojo
 			if (null == response) {
 				response = new ResponseObject();
 			}
+			//DEBUG
+			//e.printStackTrace();
 			response.message = "Error serializing response: " + e.getMessage();
 			return toApi(this, null);
 		}//TESTED
