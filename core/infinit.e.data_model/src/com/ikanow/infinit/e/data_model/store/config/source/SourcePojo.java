@@ -384,18 +384,22 @@ public class SourcePojo extends BaseDbPojo {
 			s = this.rss.getExtraUrls().get(0).url; // (going to bomb out if any of this doesn't exist anyway)
 		}
 		int nIndex = s.indexOf('?');
+		final int nMaxLen = 64;
 		if (nIndex >= 0) {
+			if (nIndex > nMaxLen) {
+				nIndex = nMaxLen; // (ie max length)
+			}
 			StringBuffer sb = new StringBuffer(s.substring(0, nIndex));
-			sb.append(".params_").append(s.length() - nIndex).append('_').append(Math.abs(s.hashCode()) % 100);
+			sb.append(".").append(s.length() - nIndex).append('.').append(Math.abs(s.hashCode()) % 100);
 			s = sb.toString();
+		}
+		else if (s.length() > nMaxLen) {
+			s = s.substring(0, nMaxLen);
 		}
 		//TESTED (urls with and without ?)
 		
 		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[/:+?&(),]", ".");
 		if (s.startsWith(".")) s = s.substring(1);
-		if (s.length() > 64) {
-			s = s.substring(0, 64);
-		}
 		return s;
 	}
 	/**
