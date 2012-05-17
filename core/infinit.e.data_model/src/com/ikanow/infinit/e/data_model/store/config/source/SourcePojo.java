@@ -111,6 +111,8 @@ public class SourcePojo extends BaseDbPojo {
 
 	private Integer searchCycle_secs = null; // Determines the time between searches, defaults as quickly as the harvest can cycle
 	final public static String searchCycle_secs_ = "searchCycle_secs";
+	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
+	final public static String maxDocs_ = "maxDocs";
 	
 	// Gets and sets
 	
@@ -448,6 +450,12 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public void setSearchCycle_secs(Integer searchCycle_secs) {
 		this.searchCycle_secs = searchCycle_secs;
+	}
+	public void setMaxDocs(Integer maxDocs) {
+		this.maxDocs = maxDocs;
+	}
+	public Integer getMaxDocs() {
+		return maxDocs;
 	}
 
 	///////////////////////////////////////////////////////////////////////////////////
