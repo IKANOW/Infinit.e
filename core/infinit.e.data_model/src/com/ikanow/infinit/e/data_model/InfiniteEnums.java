@@ -56,8 +56,9 @@ public class InfiniteEnums
 	}
 	public enum HarvestEnum {
 		success,
+		success_iteration, // (exceed max docs per harvest)
 		error,
-		in_progress
+		in_progress // (used to "lock" sources across multiple harvesters)
 	}
 
 	public enum CommitType {

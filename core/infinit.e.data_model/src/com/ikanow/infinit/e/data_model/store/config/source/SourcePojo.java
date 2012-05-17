@@ -448,5 +448,20 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public void setSearchCycle_secs(Integer searchCycle_secs) {
 		this.searchCycle_secs = searchCycle_secs;
-	}	
+	}
+
+	///////////////////////////////////////////////////////////////////////////////////
+	
+	// Transient state (implementation details)
+	
+	transient private boolean reachedMaxDocs = false;
+		// (if set to true, means that the next search cycle won't be applied - otherwise if you only search once per day
+		//  and only process 5K docs/search, it can take a while to build up large repositories)
+	
+	public void setReachedMaxDocs() {
+		this.reachedMaxDocs = true;
+	}
+	public boolean reachedMaxDocs() {
+		return reachedMaxDocs;
+	}
 }
