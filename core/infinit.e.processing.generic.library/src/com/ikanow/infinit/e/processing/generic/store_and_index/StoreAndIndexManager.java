@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.processing.generic.store_and_index;
 
 
+import java.net.UnknownHostException;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -55,6 +56,9 @@ public class StoreAndIndexManager {
 	
 	private int nMaxContentLen_bytes = 100000; // (100KB default max)
 	
+	private String harvesterUUID = null;
+	public String getUUID() { return harvesterUUID; }
+	
 	public StoreAndIndexManager() {
 		com.ikanow.infinit.e.processing.generic.utils.PropertiesManager pm = 
 			new com.ikanow.infinit.e.processing.generic.utils.PropertiesManager();
@@ -62,26 +66,16 @@ public class StoreAndIndexManager {
 		int nMaxContent = pm.getMaxContentSize();
 		if (nMaxContent > -1) {
 			nMaxContentLen_bytes = nMaxContent;
+		}		
+		try {
+			StringBuffer sb = new StringBuffer("?DEL?").append(java.net.InetAddress.getLocalHost().getHostName());
+			harvesterUUID = sb.toString();
+		} catch (UnknownHostException e) {
+			harvesterUUID = "?DEL?UNKNOWN";
 		}
 	}
 	
-	/**
-	 * Get the total record count from a collection
-	 * @param collection
-	 * @return
-	 */
-	public long getFeedsCount() {
-		long count = 0;
-		try {
-			// Get the cursor from mongodb
-		 	count = DbManager.getDocument().getMetadata().find().count();
-		} catch(Exception e) {
-			// If an exception occurs log the error
-			logger.error("Exception Message: " + e.getMessage(), e);
-		}
-		return count;
-	}//TESTED
-	
+/////////////////////////////////////////////////////////////////////////////////////////////////	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
 	
 // Datastore addition		
@@ -104,8 +98,10 @@ public class StoreAndIndexManager {
 			saveContent(docs);
 		}
 		this.addToSearch(docs);
-		this.resizeDB();		
+		
 	}//TESTED
+	
+	/////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Utilities
 	
@@ -116,7 +112,7 @@ public class StoreAndIndexManager {
 	 */
 	private void addToDatastore(DBCollection col, DocumentPojo doc) {
 		if (!_diagnosticMode) {
-			if (!docHasExternalContent(doc.getUrl())) {
+			if (!docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
 				doc.makeFullTextNonTransient(); // (ie store full text in this case)
 			}
 			col.save(doc.toDb());
@@ -164,7 +160,7 @@ public class StoreAndIndexManager {
 			
 			for ( DocumentPojo doc : docs )
 			{
-				if ((null != doc.getFullText()) && !doc.getFullText().isEmpty() && docHasExternalContent(doc.getUrl())) {
+				if ((null != doc.getFullText()) && !doc.getFullText().isEmpty() && docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
 					try
 					{
 						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getFullText(), nMaxContentLen_bytes);
@@ -174,7 +170,7 @@ public class StoreAndIndexManager {
 							BasicDBObject query = new BasicDBObject(CompressedFullTextPojo.url_, gzippedContent.getUrl());
 							BasicDBObject update = gzippedContent.getUpdate();
 							if (!_diagnosticMode) {
-								contentDb.update(query, update, true, false); // (ie upsert)
+								contentDb.update(query, update, true, false); // (ie upsert, supported because query includes shard key==url)
 							}
 							else {
 								System.out.println("StoreAndIndexManager.savedContent, save content: " + gzippedContent.getUrl());
@@ -197,12 +193,28 @@ public class StoreAndIndexManager {
 	
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
+/////////////////////////////////////////////////////////////////////////////////////////////////	
 	
 // Datastore removal		
+
+	/**
+	 * This function removes documents "soft deleted" by this harvester
+	 */
+	
+	public void removeSoftDeletedDocuments()
+	{
+		BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID);
+		
+		if (_diagnosticMode) {
+			System.out.println("Soft delete: " + DbManager.getDocument().getMetadata().count(query));			
+		}
+		else {
+			DbManager.getDocument().getMetadata().remove(query);			
+		}
+	}//TESTED
 	
 	/**
-	 * Remove a list of doc documents from the data store
-	 * @param feeds
+	 * Remove a list of doc documents from the data store (you have their id)
 	 */
 	public void removeFromDatastore_byId(List<DocumentPojo> docs, boolean bDeleteContent) {
 		try {
@@ -219,6 +231,9 @@ public class StoreAndIndexManager {
 		}
 	}//TESTED
 	
+	/**
+	 * Remove a list of doc documents from the data store (you have their url)
+	 */
 	public void removeFromDatastore_byURL(List<DocumentPojo> docs, boolean bDeleteContent) {
 		
 		// Remove from data store:
@@ -243,10 +258,36 @@ public class StoreAndIndexManager {
 		}
 	}//TESTED
 	
+	/**
+	 * Remove a list of doc documents from the data store (you have a source key, so in most cases you can go much quicker)
+	 */
 	public void removeFromDatastore_bySourceKey(List<DocumentPojo> docs, String sourceKey, boolean bDeleteContent) {
 		try {
-			// Still need to go slow in the DB unfortunately because of the content
-			removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
+			if (bDeleteContent) {
+				// Worth quickly checking if all of these docs have no external content (eg XML), will be *much* faster...
+				boolean bNoDocsHaveExternalContent = true;
+				for (DocumentPojo doc: docs) {
+					if (docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
+						bNoDocsHaveExternalContent = false;
+						break;
+					}
+				}//TESTED			
+				if (!bNoDocsHaveExternalContent) {
+					// Still need to go slow in the DB unfortunately because of the content
+					removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
+				}
+				else {
+					bDeleteContent = false; // ie drop to clause below
+				}
+			}
+			
+			if (!bDeleteContent) { // databases and the like, can do a really quick delete
+
+				BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+				BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
+												new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
+				DbManager.getDocument().getMetadata().update(query, softDelete, false, true);
+			}
 			
 			// Quick delete for index though:
 			ElasticSearchManager indexManager = IndexManager.getIndex(new StringBuffer("_all").append('/').append(DocumentPojoIndexMap.documentType_).toString());
@@ -256,7 +297,9 @@ public class StoreAndIndexManager {
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
-	}//TESTED
+	}//TESTED (all above clauses, including "no external content", "external content", and "external content but none found (eg XML)"
+	
+	/////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Utility
 	
@@ -308,6 +351,7 @@ public class StoreAndIndexManager {
 			}
 		}
 	}//TESTED
+	
 	private void removeFromDatastore_byId(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
 		BasicDBObject fields = new BasicDBObject();
 		
@@ -316,6 +360,7 @@ public class StoreAndIndexManager {
 			removeFromDatastore_byId(col, f, fields, bDeleteContent);
 		}
 	}//TESTED
+	
 	/**
 	 * Remove a doc from the data store
 	 * @param col
@@ -328,7 +373,10 @@ public class StoreAndIndexManager {
 		query.put(DocumentPojo._id_, doc.getId());
 		BasicDBObject deadDoc = null;
 		if (!_diagnosticMode) {
-			deadDoc = (BasicDBObject) col.findAndModify(query, fields, null, true, null, false, false);
+			BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
+										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
+			deadDoc = (BasicDBObject) col.findAndModify(query, fields, null, false, softDelete, false, false);
+				// (can do this on sharded collections because it uses _id, the shard key)
 		}
 		else { // (diagnostic mode)
 			deadDoc = (BasicDBObject) col.findOne(query, fields);			
@@ -343,7 +391,7 @@ public class StoreAndIndexManager {
 			doc.setUrl(deadDoc.getString(DocumentPojo.url_));
 			
 			if ((null != doc.getUrl()) && bDeleteContent) { // Use URL to determine whether to delete content
-				bDeleteContent =  docHasExternalContent(doc.getUrl());
+				bDeleteContent =  docHasExternalContent(doc.getUrl(), null);
 			}
 		}
 		if (bDeleteContent) {
@@ -370,7 +418,7 @@ public class StoreAndIndexManager {
 
 		// (Remove its content also:)
 		if (bDeleteContent) {
-			if (docHasExternalContent(doc.getUrl())) {
+			if (docHasExternalContent(doc.getUrl(), null)) {
 				if (!_diagnosticMode) {
 					DbManager.getDocument().getContent().remove(query);
 				}
@@ -387,7 +435,11 @@ public class StoreAndIndexManager {
 		
 		BasicDBObject deadDoc = null;
 		if (!_diagnosticMode) {
-			deadDoc = (BasicDBObject) col.findAndModify(query, fields, null, true, null, false, false);
+			BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
+										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
+			
+			col.update(query, softDelete, false, true); // (needs to be multi- even though there's a single element for sharding reasons)
+			deadDoc = (BasicDBObject) col.findOne(query, fields);
 		}
 		else {
 			deadDoc = (BasicDBObject) col.findOne(query, fields);
@@ -404,6 +456,7 @@ public class StoreAndIndexManager {
 		}
 	}//TESTED
 	
+/////////////////////////////////////////////////////////////////////////////////////////////////	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
 
 // Synchronize database with index	
@@ -532,6 +585,8 @@ public class StoreAndIndexManager {
 		
 	}//TESTED (not change since by-eye testing in Beta)
 	
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+	
 	// Utility required by the above function
 	
 	private void deleteFromIndex(ElasticSearchManager indexManager, LinkedList<String> docsToDelete) {
@@ -554,100 +609,119 @@ public class StoreAndIndexManager {
 	}//TESTED
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
+/////////////////////////////////////////////////////////////////////////////////////////////////	
 	
 // Handle resizing the DB if it gets too large	
-		
-		/**
-		 * This method checks if doc count is
-		 * below threshhold set in properties
-		 * @return true is below threshhold, false if not
-		 */
-		public boolean checkStorageCapacity()
-		{
-			long currDocsInDB = 0;
-			try {
-				currDocsInDB = DbManager.getDocument().getMetadata().count();
-			} catch (Exception e ) {
-				// If an exception occurs log the error
-				logger.error("Exception Message: " + e.getMessage(), e);
-			}
-			long storageCapacity = new PropertiesManager().getStorageCapacity();
-			return (currDocsInDB < storageCapacity); 
+
+	// Utility function for diagnostic prints etc
+
+	public long getDatabaseSize() {
+		return DbManager.getDocument().getMetadata().count();
+	}
+
+	/**
+	 * This function checks if DB storage requirements are met,
+	 * if not it will start removing docs based on least used/oldest
+	 * 
+	 * @return true once DB is within bounds, false if an error occurs
+	 */
+
+	public boolean resizeDB()
+	{
+		//Do quick check to check if we are already under storage requirements
+		if ( checkStorageCapacity() ) {
+			return false;
 		}
-		
-		/**
-		 * This function checks if DB storage requirements are met,
-		 * if not it will start removing docs based on least used/oldest
-		 * 
-		 * @return true once DB is within bounds, false if an error occurs
-		 */
-		private boolean resizeDB()
+		else
 		{
-			//Do quick check to check if we are already under storage requirements
-			if ( checkStorageCapacity() )
-				return true;
-			else
-			{
-				//if quick check fails, start removing docs to get under requirement
-				try
-				{
-					long currDocsInDB = DbManager.getDocument().getMetadata().count();
-					long storageCap = new PropertiesManager().getStorageCapacity();
-					
-					List<DocumentPojo> docsToRemove = getLeastActiveDocs((int) (currDocsInDB-storageCap));			
-					removeFromDatastore_byId(docsToRemove, true); // (remove content since don't know if it exists)
-						//(^ this also removes from index)
-					
-					return true;
-				}
-				catch (Exception e)
-				{
-					// If an exception occurs log the error
-					logger.error("Exception Message: " + e.getMessage(), e);
-					return false;
-				}
-			}
-		}//TOTEST (functionality not currently used)
-		
-		/**
-		 * Returns a list of the least active documents
-		 * List is of length numDocs
-		 * 
-		 * @param numDocs Number of documents to return that are least active
-		 * @return a list of documents that are least active in DB
-		 */
-		private List<DocumentPojo> getLeastActiveDocs(int numDocs)
-		{
-			List<DocumentPojo> olddocs = null;
-			
-			//TODO (INF-1301): WRITE AN ALGORITHM TO CALCULATE THIS BASED ON USAGE, just using time last accessed currently
-			//give a weight to documents age and documents activity to calculate
-			//least active (current incarnation doesn't work)
+			//if quick check fails, start removing docs to get under requirement
 			try
 			{
-				DBCursor dbc = DbManager.getDocument().getMetadata().find(new BasicDBObject(), new BasicDBObject()).sort(new BasicDBObject("_id",1)).limit(numDocs);
-					// (note, just retrieve _id fields: _id starts with timestamp so these are approximately oldest created)
-				olddocs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
-				
+				long currDocsInDB = DbManager.getDocument().getMetadata().count();
+				long storageCap = new PropertiesManager().getStorageCapacity();
+
+				List<DocumentPojo> docsToRemove = getLeastActiveDocs((int) (currDocsInDB-storageCap));			
+				removeFromDatastore_byId(docsToRemove, true); // (remove content since don't know if it exists)
+				//(^ this also removes from index)
+
+				return true;
 			}
-			catch (Exception e )
+			catch (Exception e)
 			{
 				// If an exception occurs log the error
 				logger.error("Exception Message: " + e.getMessage(), e);
+				return true;
 			}
-			return olddocs;
-		}//TOTEST (functionality not currently used)			
+		}
+	}//TESTED 
 
-		////////////////////////////////////////////////////////////////////////////////	
+	/////////////////////////////////////////////////////////////////////////////////////////////////
+	
+	// Utility
+	
+	/**
+	 * This method checks if doc count is
+	 * below threshhold set in properties
+	 * @return true is below threshhold, false if not
+	 */
+	private boolean checkStorageCapacity()
+	{
+		long currDocsInDB = 0;
+		try {
+			currDocsInDB = DbManager.getDocument().getMetadata().count();
+		} catch (Exception e ) {
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+		}
+		long storageCapacity = new PropertiesManager().getStorageCapacity();
+		return (currDocsInDB < storageCapacity); 
+	}
 
-		// Utility
-		
+	/**
+	 * Returns a list of the least active documents
+	 * List is of length numDocs
+	 * 
+	 * @param numDocs Number of documents to return that are least active
+	 * @return a list of documents that are least active in DB
+	 */
+	private List<DocumentPojo> getLeastActiveDocs(int numDocs)
+	{
+		List<DocumentPojo> olddocs = null;
+
+		//TODO (INF-1301): WRITE AN ALGORITHM TO CALCULATE THIS BASED ON USAGE, just using time last accessed currently
+		//give a weight to documents age and documents activity to calculate
+		//least active (current incarnation doesn't work)
+		try
+		{
+			DBCursor dbc = DbManager.getDocument().getMetadata().find(new BasicDBObject(), new BasicDBObject()).sort(
+					new BasicDBObject(DocumentPojo._id_,1)).limit(numDocs);
+			// (note, just retrieve _id fields: _id starts with timestamp so these are approximately oldest created)
+
+			olddocs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
+
+		}
+		catch (Exception e )
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+		}
+		return olddocs;
+	}//TOTEST (functionality not currently used)			
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////	
+
+// Utility
+
 		// Utility function to decide if we need to remove content
 		// (ie JDBC and XML have their content as part of their metadata, eg fields
 		//  others like HTTP and Files can have large amounts of content that we don't want to store in the DB object)
 
-		static public boolean docHasExternalContent(String url) {
-			if (null == url) {
+		static public boolean docHasExternalContent(String url, String srcUrl) {
+			if (null != srcUrl) {
+				return false;
+			}
+			else if (null == url) {
 				return true;
 			}
 			else if (url.startsWith("jdbc:")) {

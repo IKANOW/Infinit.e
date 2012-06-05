@@ -26,6 +26,7 @@ limitations under the License.
 
 	<fx:Script>
 		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
@@ -432,7 +433,7 @@ limitations under the License.
 			 *
 			 * @param widgetOptions the last save object or null if there was none
 			 */
-			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
 				//TODO
 			}

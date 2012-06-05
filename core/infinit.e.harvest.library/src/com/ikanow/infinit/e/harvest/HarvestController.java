@@ -42,6 +42,9 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceeded
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -50,8 +53,6 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.EntityExtractorEnum;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.IEntityExtractor;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI_Metadata;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.opencalais.ExtractorOpenCalais;
@@ -66,7 +67,6 @@ import com.ikanow.infinit.e.harvest.extraction.document.database.DatabaseHarvest
 import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
-import com.ikanow.infinit.e.harvest.extraction.text.legacy.ITextExtractor;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;

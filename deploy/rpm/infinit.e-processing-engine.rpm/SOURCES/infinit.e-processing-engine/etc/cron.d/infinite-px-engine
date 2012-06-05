@@ -39,5 +39,5 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Sunday afternoon: weekly sources report
 00 14	 * * 0	 root	 /opt/infinite-home/bin/weekly_sources_report.sh
 
-#Custom Mapreduce check/run jobs every 10 minutes
-00,10,20,30,40,50 * * * * root /opt/infinite-home/bin/custommr.sh
+#Custom Mapreduce check/run jobs every 1 minutes
+*/1 * * * * tomcat /opt/infinite-home/bin/custommr.sh

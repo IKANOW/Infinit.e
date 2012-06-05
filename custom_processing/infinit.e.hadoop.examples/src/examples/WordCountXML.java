@@ -24,6 +24,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 
+import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.mongodb.hadoop.util.MongoTool;
 
 
@@ -36,10 +37,7 @@ public class WordCountXML extends MongoTool
 
         public void map( Object key, BSONObject value, Context context ) throws IOException, InterruptedException{
 
-            System.out.println( "key: " + key );
-            System.out.println( "value: " + value );
-
-            final StringTokenizer itr = new StringTokenizer( value.get( "x" ).toString() );
+            final StringTokenizer itr = new StringTokenizer( value.get( DocumentPojo.description_ ).toString() );
             while ( itr.hasMoreTokens() ){
                 word.set( itr.nextToken() );
                 context.write( word, one );
@@ -61,12 +59,6 @@ public class WordCountXML extends MongoTool
             result.set( sum );
             context.write( key, result );
         }
-    }
-
-    static{
-        // Load the XML config defined in hadoop-local.xml
-        //Configuration.addDefaultResource( "config/hadoop-local.xml" );    
-        //Configuration.addDefaultResource( "/tmp/config/harvester-feed.xml" );        
     }
 
     public static void main( String[] args ) throws Exception{

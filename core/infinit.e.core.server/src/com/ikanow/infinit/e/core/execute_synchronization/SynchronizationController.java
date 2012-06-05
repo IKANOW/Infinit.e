@@ -24,6 +24,8 @@ import org.apache.log4j.Logger;
 import com.ikanow.infinit.e.core.utils.SourceUtils;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
+import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.ikanow.infinit.e.processing.generic.synchronization.SynchronizationManager;
 
 public class SynchronizationController {
@@ -82,7 +84,11 @@ public class SynchronizationController {
         		}
         	}
         }
-		
+        StoreAndIndexManager dataStore = new StoreAndIndexManager();
+        AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+        dataStore.removeSoftDeletedDocuments();
+        AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+
 		logger.info("DB fixes: " + fixes_db);
 		logger.info("Search fixes: " + fixes_search);
         

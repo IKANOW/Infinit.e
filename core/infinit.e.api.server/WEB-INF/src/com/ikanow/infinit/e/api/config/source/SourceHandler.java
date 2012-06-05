@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import com.ikanow.infinit.e.api.social.community.CommunityHandler;
@@ -51,6 +52,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPoj
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
@@ -94,6 +96,7 @@ public class SourceHandler
 			// Only return those community IDs that the user is a member of unless the 
 			// user is an administrator in which case you can return all community IDs
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
+			Set<ObjectId> ownedOrModeratedCommunityIdSet = new TreeSet<ObjectId>();
 			boolean bAdmin = false;
 			if (RESTTools.adminLookup(userIdStr))
 			{
@@ -109,10 +112,26 @@ public class SourceHandler
 				rp.setResponse(new ResponseObject("Source Info",false,"error retrieving source info (or permissions error)"));				
 			}
 			else {
+				ObjectId userId = null;
 				if (bAdmin) {
 					communityIdSet = source.getCommunityIds();
-				}			
-				rp.setData(source, new SourcePojoApiMap(communityIdSet));
+				}
+				else if (!source.isPublic()) { // (otherwise can bypass this)
+					userId = new ObjectId(userIdStr);
+					if (userId.equals(source.getOwnerId())) {
+						userId = null; // (no need to mess about with sets)
+					}
+					else {
+						for (ObjectId communityId: communityIdSet) {
+							if (isOwnerOrModerator(communityId.toString(), userIdStr)) {
+								ownedOrModeratedCommunityIdSet.add(communityId);													
+							}
+						}
+					}
+				}
+				//TESTED (source owner, in community) 
+				
+				rp.setData(source, new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));
 				rp.setResponse(new ResponseObject("Source Info",true,"Successfully retrieved source info"));
 			}
 		} 
@@ -153,7 +172,7 @@ public class SourceHandler
 			newSource.setId(new ObjectId());
 			newSource.setTitle(sourcetitle);
 			newSource.setDescription(sourcedesc);
-			newSource.setUrl(sourceurl); // (also sets key, which is then tidied up below)
+			newSource.setUrl(sourceurl); // (key derived below)
 			newSource.setExtractType(extracttype);
 			newSource.setOwnerId(new ObjectId(userIdStr));
 			newSource.setTags(new HashSet<String>(Arrays.asList(sourcetags.split(","))));
@@ -164,7 +183,7 @@ public class SourceHandler
 			newSource.setModified(new Date());
 			newSource.generateShah256Hash();
 			
-			newSource.setKey(validateSourceKey(newSource.getId(), newSource.getKey()));
+			newSource.setKey(validateSourceKey(newSource.getId(), newSource.generateSourceKey()));
 			
 			///////////////////////////////////////////////////////////////////////
 			// Add the new source to the harvester.sources collection
@@ -234,8 +253,7 @@ public class SourceHandler
 				// the communityid param (supports multiple IDs in a comma separated list)
 				communityIdSet.add(new ObjectId(communityIdStr));
 				
-				source = ApiManager.mapFromApi(sourceString, SourcePojo.class, new SourcePojoApiMap(communityIdSet, false));
-					// (false => don't auto set key)
+				source = ApiManager.mapFromApi(sourceString, SourcePojo.class, new SourcePojoApiMap(communityIdSet));
 				if (null == source.getCommunityIds()) {
 					source.setCommunityIds(new HashSet<ObjectId>());
 				}
@@ -262,13 +280,23 @@ public class SourceHandler
 				source.setApproved(isApproved);
 				source.setCreated(new Date());
 				source.setModified(new Date());
-				source.setUrl(source.getUrl()); // (sets the key, oops!)
+				source.setUrl(source.getUrl()); // (key generated below)
 	
-				source.setKey(validateSourceKey(source.getId(), source.getKey()));
+				source.setKey(validateSourceKey(source.getId(), source.generateSourceKey()));
 	
 				source.generateShah256Hash();
 					// Note: Create/update the source's Shah-256 hash 
 			
+				// RSS search harvest types tend to be computationally expensive and therefore
+				// should be done less frequently (by default once/4-hours seems good):
+				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getSearchConfig())) {
+					// If the search cycle has not been specified, use a default:
+					if (null == source.getSearchCycle_secs()) {
+						source.setSearchCycle_secs(4*3600); // (ie 4 hours)
+					}
+				}
+				//TESTED
+				
 				///////////////////////////////////////////////////////////////////////
 				// Note: Check the SourcePojo to make sure the required fields are there
 				// return an error message to the user if any are missing
@@ -291,7 +319,7 @@ public class SourceHandler
 					else { // Still allow people to add identical sources, but warn them so they can delete it if they way
 						rp.setResponse(new ResponseObject("Source", true, "New source added successfully. Note functionally identical sources are also present within your communities, which may waste system resources."));					
 					}
-					rp.setData(source, new SourcePojoApiMap(communityIdSet));
+					rp.setData(source, new SourcePojoApiMap(null, communityIdSet, null));
 				}
 				catch (Exception e)
 				{
@@ -365,7 +393,48 @@ public class SourceHandler
 					source.setCreated(oldSource.getCreated());
 					source.setModified(new Date());
 					source.setOwnerId(oldSource.getOwnerId());
-										
+					if (null == source.getIsPublic()) {
+						source.setIsPublic(oldSource.getIsPublic());
+					}//TESTED
+
+					// Harvest status specification logic (we need normally need to keep these fields intact):
+					// - If harvest completely unspecified, delete everything but num records
+					// - If harvest specified, and there exists an existing harvest block then ignore
+					// - If harvest specified, and the harvest has previously been deleted, then copy (except num records)
+					if ((null == source.getHarvestStatus()) && (null != oldSource.getHarvestStatus())) { 
+						// request to unset the harvest status altogether
+						source.setHarvestStatus(new SourceHarvestStatusPojo()); // new harvest status
+						source.getHarvestStatus().setDoccount(oldSource.getHarvestStatus().getDoccount());
+							// but keep number of records
+					}
+					else if ((null != oldSource.getHarvestStatus()) && (null == oldSource.getHarvestStatus().getHarvest_status())) {
+						// Has previously been unset with the logic from the above clause
+						source.getHarvestStatus().setDoccount(oldSource.getHarvestStatus().getDoccount());
+							// (null != source.getHarvestStatus()) else would be in the clause above
+					}
+					else if (null != oldSource.getHarvestStatus()) {
+						source.setHarvestStatus(oldSource.getHarvestStatus());
+					}
+					//(else oldSource.getHarvestStatus is null, just retain the updated version)
+					
+					//TESTED: no original harvest status, failing to edit existing harvest status, delete status (except doc count), update deleted status (except doc count)
+					
+					// RSS search harvest types tend to be computationally expensive and therefore
+					// should be done less frequently (by default once/4-hours seems good):
+					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getSearchConfig())) {
+						// If the search cycle has not been specified, use a default:
+						if (null == source.getSearchCycle_secs()) {
+							if (null == oldSource.getSearchCycle_secs()) {
+								source.setSearchCycle_secs(4*3600); // (ie 4 hours)
+							}
+							else {
+								source.setSearchCycle_secs(oldSource.getSearchCycle_secs()); 
+							}
+						}
+						// (else if a new searchCycle has been specified then 
+					}
+					//TESTED (both of the above clauses)
+					
 					///////////////////////////////////////////////////////////////////////
 					// Check for missing fields:
 					String missingFields = hasRequiredSourceFields(source);
@@ -410,7 +479,7 @@ public class SourceHandler
 					// Source exists, update and prepare reply
 					DbManager.getIngest().getSource().update(query, source.toDb());
 					rp.setResponse(new ResponseObject("Source", true, "Source has been updated successfully."));
-					rp.setData(source, new SourcePojoApiMap(communityIdSet));
+					rp.setData(source, new SourcePojoApiMap(null, communityIdSet, null));
 				} 
 				catch (Exception e) 
 				{
@@ -440,6 +509,7 @@ public class SourceHandler
 			// (Can't use pojos for queries because sources currently have default fields)
 			BasicDBObject queryDbo = new BasicDBObject(SourcePojo.communityIds_, communityId);
 			BasicDBObject queryFields = new BasicDBObject(SourcePojo.key_, 1);
+			queryFields.put(SourcePojo.extractType_, 1);
 			try {
 				queryDbo.put(SourcePojo._id_, new ObjectId(sourceIdStr));
 			}
@@ -466,9 +536,11 @@ public class SourceHandler
 				BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
 				BasicDBObject docFields = new BasicDBObject();
 				docFields.append(DocumentPojo.url_, 1);
+				docFields.append(DocumentPojo.sourceUrl_, 1);
 				docFields.append(DocumentPojo.index_, 1);
 				docFields.append(DocumentPojo.sourceKey_, 1);
 				
+				StoreAndIndexManager dataStore = new StoreAndIndexManager();
 				for (;;) {
 					DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).limit(10000); // (ie batches of 10K)
 					if (0 == nDocsDeleted) {
@@ -478,9 +550,18 @@ public class SourceHandler
 						break;
 					}
 					List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
-					new StoreAndIndexManager().removeFromDatastore_bySourceKey(docs, source.getKey(), true);
-						// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")
+					
+					boolean bDeleteContent = (null == source.getExtractType()) 
+												|| !source.getExtractType().equalsIgnoreCase("database");
+						// (database have no external content so we can improve the efficiency)
+					
+					dataStore.removeFromDatastore_bySourceKey(docs, source.getKey(), bDeleteContent);
+						// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")					
 				}
+				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+				dataStore.removeSoftDeletedDocuments();
+				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+				
 				DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, new ObjectId(communityIdStr)), 
 						new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, -nDocsDeleted)));
 			}			
@@ -488,15 +569,27 @@ public class SourceHandler
 				DbManager.getIngest().getSource().remove(queryDbo);
 				rp.setResponse(new ResponseObject("Delete Source", true, "Deleted source and all documents: " + nDocsDeleted));			
 			}
-			else {
+			else { // Update the source harvest status (easy: no documents left!)
+				try {
+					DbManager.getIngest().getSource().update(queryDbo,
+							new BasicDBObject(MongoDbManager.set_, 
+									new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, 0L))
+							);
+				}
+				catch (Exception e) {} // Just carry on, shouldn't ever happen and it's too late to do anything about it
+				//TESTED
+				
 				rp.setResponse(new ResponseObject("Delete Source", true, "Deleted source documents: " + nDocsDeleted));						
 			}
 		}
 		catch (Exception e) {
+			//DEBUG
+			//e.printStackTrace();
 			rp.setResponse(new ResponseObject("Delete Source", false, 
-			"Error approving source. You must be a the owner, the community owner or a moderator to delete the source"));			
+			"Error deleting source. You must be a the owner, the community owner or a moderator to delete the source: " + e.getMessage()));			
 		}
 		return rp;
+
 	}//TESTED
 	
 	/**
@@ -529,7 +622,7 @@ public class SourceHandler
 			sp.setApproved(true);
 
 			DbManager.getIngest().getSource().update(query, (DBObject) sp.toDb());
-			rp.setData(sp, new SourcePojoApiMap(communityIdSet));
+			rp.setData(sp, new SourcePojoApiMap(null, communityIdSet, null));
 			rp.setResponse(new ResponseObject("Approve Source",true,"Source approved successfully"));
 			
 			// Send email notification to the person who submitted the source
@@ -621,8 +714,22 @@ public class SourceHandler
 		try 
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			ObjectId userId = null;
+			if (!RESTTools.adminLookup(userIdStr)) {
+				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
+			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
-			for (String s: communityIdStrs) communityIdSet.add(new ObjectId(s));
+			Set<ObjectId> ownedOrModeratedCommunityIdSet = new TreeSet<ObjectId>();
+			for (String s: communityIdStrs) {
+				ObjectId communityId = new ObjectId(s); 
+				communityIdSet.add(communityId);
+				if (null != userId) {
+					if (isOwnerOrModerator(communityId.toString(), userIdStr)) {
+						ownedOrModeratedCommunityIdSet.add(communityId);													
+					}					
+				}
+			}
+			//TESTED (owner and community owner, public and not public) 
 			
 			// Set up the query
 			BasicDBObject query = new BasicDBObject();
@@ -633,7 +740,7 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query);
 			
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(communityIdSet));			
+			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
 			rp.setResponse(new ResponseObject("Good Sources",true,"successfully returned good sources"));
 		} 
 		catch (Exception e)
@@ -660,8 +767,22 @@ public class SourceHandler
 		try 
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			ObjectId userId = null;
+			if (!RESTTools.adminLookup(userIdStr)) {
+				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
+			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
-			for (String s: Arrays.asList(communityIdStrs)) communityIdSet.add(new ObjectId(s));
+			Set<ObjectId> ownedOrModeratedCommunityIdSet = new TreeSet<ObjectId>();
+			for (String s: communityIdStrs) {
+				ObjectId communityId = new ObjectId(s); 
+				communityIdSet.add(communityId);
+				if (null != userId) {
+					if (isOwnerOrModerator(communityId.toString(), userIdStr)) {
+						ownedOrModeratedCommunityIdSet.add(communityId);													
+					}					
+				}
+			}
+			//TESTED (owner and community owner, public and not public) 
 			
 			// Set up the query
 			BasicDBObject query = new BasicDBObject();
@@ -670,7 +791,7 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query);			
 
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(communityIdSet));			
+			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
 			rp.setResponse(new ResponseObject("Bad Sources",true,"Successfully returned bad sources"));
 		} 
 		catch (Exception e)
@@ -697,8 +818,22 @@ public class SourceHandler
 		try 
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			ObjectId userId = null;
+			if (!RESTTools.adminLookup(userIdStr)) {
+				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
+			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
-			for (String s: Arrays.asList(communityIdStrs)) communityIdSet.add(new ObjectId(s));
+			Set<ObjectId> ownedOrModeratedCommunityIdSet = new TreeSet<ObjectId>();
+			for (String s: communityIdStrs) {
+				ObjectId communityId = new ObjectId(s); 
+				communityIdSet.add(communityId);
+				if (null != userId) {
+					if (isOwnerOrModerator(communityId.toString(), userIdStr)) {
+						ownedOrModeratedCommunityIdSet.add(communityId);													
+					}					
+				}
+			}
+			//TESTED (owner and community owner, public and not public) 
 			
 			// Set up the query
 			BasicDBObject query = new BasicDBObject();
@@ -707,7 +842,7 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query);
 			
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(communityIdSet));			
+			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
 			rp.setResponse(new ResponseObject("Pending Sources",true,"successfully returned pending sources"));
 		} 
 		catch (Exception e)
@@ -731,25 +866,36 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();
 		try 
 		{	
+			boolean bAdmin = RESTTools.adminLookup(userIdStr);
 			HashSet<ObjectId> userCommunities = RESTTools.getUserCommunities(userIdStr);
 			
 			DBCursor dbc = null;
 			BasicDBObject query = new BasicDBObject(); 
-			query.put(SourcePojo.communityIds_, new BasicDBObject("$in", userCommunities));
-			
+			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, userCommunities));
+								
+			Set<ObjectId> ownedOrModeratedCommunityIdSet = null;
+			if (!bAdmin) {
+				ownedOrModeratedCommunityIdSet = new TreeSet<ObjectId>();
+				for (ObjectId communityId: userCommunities) {
+					if (isOwnerOrModerator(communityId.toString(), userIdStr)) {
+						ownedOrModeratedCommunityIdSet.add(communityId);													
+					}					
+				}
+			}
 			// Get all sources for admins
-			if (RESTTools.adminLookup(userIdStr))
+			if (bAdmin)
 			{
 				dbc = DbManager.getIngest().getSource().find(query);
 			}
-			// Get only sources the user owns
+			// Get only sources the user owns or owns/moderates the parent community
 			else
 			{
 				query.put(SourcePojo.ownerId_, new ObjectId(userIdStr));
-				dbc = DbManager.getIngest().getSource().find(query);
-			}
-			
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap( userCommunities));
+				BasicDBObject query2 = new BasicDBObject();
+				query2.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, ownedOrModeratedCommunityIdSet));
+				dbc = DbManager.getIngest().getSource().find(new BasicDBObject(MongoDbManager.or_, Arrays.asList(query, query2)));
+			}			
+			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(null, userCommunities, null));
 			rp.setResponse(new ResponseObject("User's Sources", true, "successfully returned user's sources"));
 		} 
 		catch (Exception e)
@@ -776,8 +922,10 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
-			SourcePojo source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null, true));
-				// (true => auto calculate source key == default)
+			SourcePojo source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null));
+			if (null == source.getKey()) {
+				source.setKey(source.generateSourceKey()); // (a dummy value, not guaranteed to be unique)
+			}
 
 			// This is the only field that you don't normally need to specify in save but will cause 
 			// problems if it's not populated in test.
@@ -862,7 +1010,11 @@ public class SourceHandler
 		boolean isApproved = (isOwnerOrModerator || isSysAdmin) ? true : false;
 		return isApproved;
 	}	
-	
+	private boolean isOwnerOrModerator(String communityIdStr, String ownerIdStr)
+	{
+		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);
+		return isOwnerOrModerator;
+	}		
 	
 	/**
 	 * validateSourceKey
@@ -1128,7 +1280,7 @@ public class SourceHandler
 				communityIdStr = communityIdStrs[0]; 
 			}
 			else {
-				throw new RuntimeException("Invalid community pattern");
+				throw new RuntimeException("Invalid community pattern, matched " + communityIdStrs.length + " communities: " + ArrayUtils.toString(communityIdStrs));
 			}
 		}	
 		return communityIdStr;

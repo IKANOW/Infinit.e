@@ -67,10 +67,6 @@ extractor.text.default=DEFAULT_TEXT_EXTRACTOR
 app.alchemy.postproc=ALCHEMY_POSTPROC_VAL
 
 #####################################################
-# Hadoop config path
-hadoop.configpath=/mnt/opt/hadoop-infinite/mapreduce/
-
-#####################################################
 # JDBC Drives Supported by Infinit.e
 jdbc.db2.class=com.ibm.db2.jcc.DB2Driver
 jdbc.db2.url=db2

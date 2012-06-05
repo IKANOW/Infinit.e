@@ -44,6 +44,7 @@ import com.ikanow.infinit.e.data_model.store.social.authentication.Authenticatio
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
+import com.ikanow.infinit.e.harvest.extraction.document.file.XmlToMetadataParser;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.TextEncryption;
@@ -265,6 +266,7 @@ public class FeedHarvester implements HarvesterInterface
 		// If there's a max number of sources to get per harvest, configure that here:
 		long nWaitTime_ms = props.getWebCrawlWaitTime();
 		long nMaxTime_ms = props.getMaxTimePerFeed(); // (can't override this, too easy to break the system...)
+		int nMaxDocsPerSource = props.getMaxDocsPerSource();
 		long nNow = new Date().getTime();
 		if (null != source.getRssConfig()) {
 			if (null != source.getRssConfig().getWaitTimeOverride_ms()) {
@@ -274,6 +276,9 @@ public class FeedHarvester implements HarvesterInterface
 		long nMaxDocs = Long.MAX_VALUE;
 		if (nWaitTime_ms > 0) {
 			nMaxDocs = nMaxTime_ms/nWaitTime_ms;
+		}
+		if (nMaxDocs > nMaxDocsPerSource) { // (another limit, take the smaller of the 2)
+			nMaxDocs = nMaxDocsPerSource;
 		}
 		// (end per feed configuration)
 		
@@ -456,6 +461,7 @@ public class FeedHarvester implements HarvesterInterface
 									this.docsToUpdate.add(doc);
 									
 									if ((this.docsToAdd.size() + this.docsToUpdate.size()) >= nMaxDocs) {
+										source.setReachedMaxDocs();
 										break; // (that's enough documents)
 									}
 								}
@@ -471,6 +477,7 @@ public class FeedHarvester implements HarvesterInterface
 							this.docsToAdd.add(doc);
 
 							if ((this.docsToAdd.size() + this.docsToUpdate.size()) >= nMaxDocs) {
+								source.setReachedMaxDocs();
 								break; // (that's enough documents)
 							}
 						}
@@ -603,12 +610,22 @@ public class FeedHarvester implements HarvesterInterface
 			List<Element> fms = (List<Element>) entry.getForeignMarkup();
 			for (Element fm : fms) {
 				try {
-					rssMetadata.put(fm.getName(), XML.toJSONObject(new XMLOutputter().outputString(fm)));
+					JSONObject subObj = XML.toJSONObject(new XMLOutputter().outputString(fm));
+					if (1 == subObj.length()) {
+						for (String name: JSONObject.getNames(subObj)) {
+							rssMetadata.put(name, subObj.get(name));							
+						}
+					}
+					else { // (this will never happen in practice?)
+						rssMetadata.put(fm.getName(), subObj);
+					}
 				} 
 				catch (JSONException e) {} // (do nothing just carry on)
 			}
-			doc.addToMetadata("_FEED_METADATA_", rssMetadata);
-		}
+			if (!fms.isEmpty()) {
+				doc.addToMetadata("_FEED_METADATA_", XmlToMetadataParser.convertJsonObjectToLinkedHashMap(rssMetadata));
+			}
+		}//TESTED (longs converted to string, eg edgar:assistantDirector from "http.www.sec.gov.archives.edgar.usgaap.rss.xml")
 
 		return doc;
 	}

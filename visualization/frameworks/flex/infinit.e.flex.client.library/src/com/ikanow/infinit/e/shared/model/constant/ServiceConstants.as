@@ -96,7 +96,7 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		public static const GET_WIDGET_OPTIONS_ACTION:String = "Share";
 		
-		public static const GET_WIDGET_OPTIONS_URL:String = SERVER_URL + "social/share/search/?type=widgetsave";
+		public static const GET_WIDGET_OPTIONS_URL:String = SERVER_URL + "social/share/search/?type=widgetsave&ignoreAdmin=true";
 		
 		public static const GET_SETUP_ACTION:String = "UISetup";
 		

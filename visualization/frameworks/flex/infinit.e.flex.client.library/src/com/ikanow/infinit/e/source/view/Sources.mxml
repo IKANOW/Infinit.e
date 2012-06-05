@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -32,6 +32,7 @@
 		<![CDATA[
 			import com.ikanow.infinit.e.community.view.Communities;
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManager;
 			import com.ikanow.infinit.e.shared.model.vo.Source;
 			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
 			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelectorItem;
@@ -47,9 +48,13 @@
 			import mx.events.FlexMouseEvent;
 			import mx.events.ItemClickEvent;
 			import mx.events.ResizeEvent;
+			import mx.events.StateChangeEvent;
 			import mx.managers.PopUpManager;
 			import mx.managers.PopUpManagerChildList;
 			import spark.events.GridSelectionEvent;
+			
+			[Inject]
+			public var widgetManager:WidgetModuleManager;
 			
 			[Bindable]
 			[Inject]
@@ -68,6 +73,10 @@
 					PopUpManager.removePopUp( communitiesPopup );
 					communitiesPopup = null;
 					communitiesButton.selected = false;
+					//Burch for now lets just update the widgets everytime the communities popup is closed
+					//this needs switched to only happen when communities actually change, and this should
+					//really be moved to when the source dialog gets closed but it is utterly confusing as to when that interaction occurs :(
+					sendUpdatedWidgetOptions();
 				}
 			}
 			
@@ -207,6 +216,17 @@
 			{
 				searchTimer.reset();
 				searchTimer.start();
+			}
+			
+			/**
+			 * Communities have been changed, dispatch an event so we can change what save options are sent to the widgets
+			 */
+			private function sendUpdatedWidgetOptions():void
+			{
+				//var event:Event = new Event( "CommunitiesChangedEvent", true, false );
+				//this.dispatchEvent( event );
+				//widgetManager.dispatcher.dispatchEvent( event );
+				widgetManager.communitiesUpdated();
 			}
 		]]>
 	</fx:Script>

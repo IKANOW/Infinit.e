@@ -233,25 +233,18 @@ public class CustomHandler
 					DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("jobtitle",title));
 					if ( dbo == null )
 					{
-						DbManager.getCustom().getLookup().insert(cmr.toDb());												
-						rp.setResponse(new ResponseObject("Schedule MapReduce Job",true,"Job scheduled successfully, will run on: " + new Date(nextRun).toString()));
+						DbManager.getCustom().getLookup().insert(cmr.toDb());		
+						Date nextRunDate = new Date(nextRun);
+						Date now = new Date();
+						String nextRunString = nextRunDate.toString();
+						if ( nextRunDate.getTime() > now.getTime() )
+							nextRunString = " next available timeslot";
+						rp.setResponse(new ResponseObject("Schedule MapReduce Job",true,"Job scheduled successfully, will run on: " + nextRunString));
 						rp.setData(cmr._id.toString(), null);
 					}
 					else
-					{
-						CustomMapReduceJobPojo currJob = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
-						if (currJob.submitterID.equals(cmr.submitterID) || bAdmin) {
-							// Save key fields from current job then overwrite
-							cmr._id = currJob._id;
-							cmr.outputCollection = currJob.outputCollection;
-							DbManager.getCustom().getLookup().save(cmr.toDb());												
-							
-							rp.setResponse(new ResponseObject("Schedule MapReduce Job",true,"Updated existing job, will run on: " + new Date(nextRun).toString()));
-						}
-						else {
-												
-							rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
-						}
+					{					
+						rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
 					}
 				} 
 				catch (IllegalArgumentException e)
@@ -278,21 +271,23 @@ public class CustomHandler
 		return rp;
 	}
 	
-	public ResponsePojo updateJob(String userid, String jobid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue)
+	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
-		ObjectId job;
+		List<Object> searchTerms = new ArrayList<Object>();
 		try
 		{
-			job = new ObjectId(jobid);
+			ObjectId jid = new ObjectId(jobidortitle);
+			searchTerms.add(new BasicDBObject("_id",jid));
 		}
 		catch (Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Update MapReduce Job", false, "jobid was unable to parse, incorrect format?"));
-			return rp;
+			//oid failed, will only add title
 		}
-		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("_id", job));
+		searchTerms.add(new BasicDBObject("jobtitle",jobidortitle));
+		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));
+		
 		if ( dbo != null )
 		{
 			CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
@@ -435,9 +430,7 @@ public class CustomHandler
 		try
 		{
 			INPUT_COLLECTIONS input = INPUT_COLLECTIONS.valueOf(inputColl);
-			if ( input == INPUT_COLLECTIONS.IRS_WORKFORCE )
-				return "irs.workforce";
-			else if ( input == INPUT_COLLECTIONS.DOC_METADATA )
+			if ( input == INPUT_COLLECTIONS.DOC_METADATA )
 				return "doc_metadata.metadata";
 		}
 		catch (Exception ex)
@@ -570,21 +563,21 @@ public class CustomHandler
 		return rp;
 	}
 
-	public ResponsePojo removeJob(String userid, String jobid) 
+	public ResponsePojo removeJob(String userid, String jobidortitle) 
 	{
-ResponsePojo rp = new ResponsePojo();		
+		ResponsePojo rp = new ResponsePojo();		
 		
 		List<Object> searchTerms = new ArrayList<Object>();
 		try
 		{
-			ObjectId jid = new ObjectId(jobid);
+			ObjectId jid = new ObjectId(jobidortitle);
 			searchTerms.add(new BasicDBObject("_id",jid));
 		}
 		catch (Exception ex)
 		{
 			//oid failed, will only add title
 		}
-		searchTerms.add(new BasicDBObject("jobtitle",jobid));
+		searchTerms.add(new BasicDBObject("jobtitle",jobidortitle));
 				
 		try 
 		{

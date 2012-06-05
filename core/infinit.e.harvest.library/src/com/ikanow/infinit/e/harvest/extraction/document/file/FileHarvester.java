@@ -519,6 +519,7 @@ public class FileHarvester implements HarvesterInterface {
 					// if it is a file then parse the sucker using tika 
 					// if it is a directory then use recursion to dive into the directory
 					if (files.size() > this.maxDocsPerCycle) {
+						source.setReachedMaxDocs();
 						break;
 					}
 					if( l[i].isDirectory() ) {

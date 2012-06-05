@@ -121,7 +121,7 @@
 			 * 
 			 * @param widgetOptions the last save object or null if there was none
 			 */
-			public function onLoadWidgetOptions(widgetOptions:Object):void
+			public function onLoadWidgetOptions(widgetOptions:WidgetSaveObject):void
 			{
 				//TODO
 			}

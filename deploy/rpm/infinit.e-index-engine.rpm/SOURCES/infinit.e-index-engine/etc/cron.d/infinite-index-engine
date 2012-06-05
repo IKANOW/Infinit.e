@@ -17,6 +17,9 @@
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
+#Every minute, check the index engine is still running, restart it if not
+* * * * * root	if ! pgrep  -f org.elasticsearch.bootstrap.ElasticSearch > /dev/null && [ -f /var/lock/subsys/elasticsearch ]; then service infinite-index-engine start; fi 
+
 #At 2am back the index up (takes a few minutes, doesn't interrupt ES)
 00 02 * * * root	/opt/elasticsearch-infinite/master_backup_index.sh 
 

@@ -29,7 +29,7 @@ else
 			fi
 		;;
 		num_repl_sets)
-			repl_sets=$(aws dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
+			repl_sets=$(aws dtags --filter "key=db_instance" --simple | gawk '{ print $4 }' | sort -u | tr "," "\n")
 			echo $(echo $repl_sets | wc -w)
 		;;
 		repl_sets)
@@ -131,7 +131,6 @@ EOF
 							reg_ex_chk=$(aws dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
 							if [ $reg_ex_chk ]; then
 								echo -e "$pip"
-								exit
 							fi
 						done
 					done

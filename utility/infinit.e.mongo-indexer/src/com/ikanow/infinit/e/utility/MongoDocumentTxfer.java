@@ -23,6 +23,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
 import org.bson.types.ObjectId;
@@ -37,6 +38,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
+import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -117,6 +119,12 @@ public class MongoDocumentTxfer {
 
 // 1. Get the documents from the DB (combining data + metadata and refreshing source meta)
 		
+		// (Ignore soft-deleted records:)
+		if (null == query) {
+			query = new BasicDBObject();			
+		}
+		query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		
 		//Debug:
 		DBCursor dbc = null;
 		dbc = docsDB.find(query).skip(nSkip).limit(nLimit);
@@ -150,7 +158,7 @@ public class MongoDocumentTxfer {
 			//System.out.println("Getting content..." + feed.getTitle() + " / " + feed.getUrl());
 			
 			// Get the content:
-			if (StoreAndIndexManager.docHasExternalContent(doc.getUrl())) {				
+			if (StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {				
 				BasicDBObject contentQ = new BasicDBObject("url", doc.getUrl());
 				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
 				if (null != dboContent) {
@@ -262,10 +270,17 @@ public class MongoDocumentTxfer {
 	{		
 		try {
 			// Get the documents to delete
-			BasicDBObject queryFields = new BasicDBObject("metadata", 0); 			
-			DBCursor cur = DbManager.getDocument().getMetadata().find(query, queryFields); // (this internally works in batches of 1000)
+			BasicDBObject queryFields = new BasicDBObject(DocumentPojo.sourceKey_, 1);
+			queryFields.put(DocumentPojo.sourceUrl_, 1);
+			queryFields.put(DocumentPojo.url_, 1);
+			queryFields.put(DocumentPojo.communityId_, 1);
 			
+			DBCursor cur = DbManager.getDocument().getMetadata().find(query, queryFields).limit(nLimit); 
+				// (this internally works in batches of 1000)			
 			System.out.println("Found " + cur.count() + " records to delete");
+			if (nLimit > 0) {
+				System.out.println("(limited to " + nLimit + " records)");
+			}
 			
 			List<DocumentPojo> docs = DocumentPojo.listFromDb(cur, DocumentPojo.listType());
 
@@ -287,8 +302,12 @@ public class MongoDocumentTxfer {
 				}
 			}
 			
-			new StoreAndIndexManager().removeFromDatastore_byURL(docs, true);
-
+			StoreAndIndexManager dataStore = new StoreAndIndexManager(); 
+			dataStore.removeFromDatastore_byURL(docs, true);
+			AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+			dataStore.removeSoftDeletedDocuments();
+			AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());			
+			
 			// Actually update the DB counts:
 			for (Map.Entry<ObjectId, Integer> communityInfo: communityMap.entrySet()) {
 				System.out.println("Removed " + communityInfo.getValue() + " records from community " + communityInfo.getKey());

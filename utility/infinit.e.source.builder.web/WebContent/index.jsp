@@ -593,10 +593,18 @@ limitations under the License.
 			JSONObject sourceJson =  new JSONObject( sourceResponse.getString("data") );
 			
 			String urlShareTitle = URLEncoder.encode(sourceJson.getString("title"), "UTF-8");
-			String urlShareDescription = URLEncoder.encode(sourceJson.getString("description"), "UTF-8");
+			String urlShareDescription = "";
+			try
+			{
+				urlShareDescription = URLEncoder.encode(sourceJson.getString("description"), "UTF-8");
+			}
+			catch (Exception de)
+			{
+				urlShareDescription = URLEncoder.encode("Share description goes here");
+			}
 			
 			String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
-			JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, sourceJson.toString(4), request, response));
+			JSONObject jsonObject = new JSONObject( postToRestfulApi(apiAddress, sourceJson.toString(4), request, response) );
 			JSONObject json_response = jsonObject.getJSONObject("response");
 			JSONObject json_data = new JSONObject ( jsonObject.getString("data") );
 			

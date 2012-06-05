@@ -73,7 +73,7 @@ app.alchemy.postproc=ALCHEMY_POSTPROC_VAL
 
 #####################################################
 # Hadoop config path
-hadoop.configpath=/mnt/opt/hadoop-infinite/mapreduce/
+hadoop.configpath=HADOOP_DIR
 
 #####################################################
 # JDBC Drives Supported by Infinit.e

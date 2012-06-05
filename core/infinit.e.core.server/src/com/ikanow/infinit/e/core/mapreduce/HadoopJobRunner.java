@@ -16,32 +16,46 @@
 package com.ikanow.infinit.e.core.mapreduce;
 
 import java.io.BufferedOutputStream;
+import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URL;
 import java.net.URLConnection;
 
-import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
+
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobStatus;
 import org.bson.types.ObjectId;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.SAXException;
 
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo.SCHEDULE_FREQUENCY;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 import com.mongodb.gridfs.GridFSDBFile;
 
 
@@ -58,12 +72,14 @@ public class HadoopJobRunner
 	public void runScheduledJobs()
 	{				
 		//check mongo for jobs needing ran
-		List<CustomMapReduceJobPojo> jobs = getJobsToRun();
-		//Run each job		
-		for ( CustomMapReduceJobPojo job : jobs )
+		CustomMapReduceJobPojo job = getJobsToRun();
+		while ( job != null )
 		{
+			//Run each job				
 			System.out.println("Running job: " + job.jarURL);
 			runJob(job);
+			//try to get another available job
+			job = getJobsToRun();
 		}
 	}
 	
@@ -71,13 +87,16 @@ public class HadoopJobRunner
 	{
 		try
 		{
+			shardOutputCollection(job.outputCollection);
 			//get the jar file
-			String tempJarURL = downloadJarFile(job.jarURL);		
+			String tempJarURL = downloadJarFile(job.jarURL, job.communityIds);		
 			//add job to hadoop
-			runHadoopJob(job, tempJarURL);
-			//get job id and write to admin object?
-			JobStatus jobid = getJobID();
-			updateJobPojo(job._id, jobid.getJobID().getJtIdentifier(),jobid.getJobID().getId(), job.tempConfigXMLLocation, tempJarURL);
+			String jobid = runHadoopJob(job, tempJarURL);
+			//write jobid back to lookup
+			String[] jobParts = jobid.split("_");
+			String jobS = jobParts[1];
+			int jobN = Integer.parseInt( jobParts[2] );	
+			updateJobPojo(job._id, jobS, jobN, job.tempConfigXMLLocation, tempJarURL);
 		}
 		catch(Exception ex)
 		{
@@ -87,6 +106,24 @@ public class HadoopJobRunner
 	}
 	
 	/**
+	 * Attempt to shard the output collection.  If the collection
+	 * is already sharded it will just spit back an error which
+	 * is fine.
+	 * 
+	 * @param outputCollection
+	 */
+	private void shardOutputCollection(String outputCollection) 
+	{
+		System.out.println("Sharding output collection on _id");
+		//enable sharding for the custommr db incase it hasn't been
+		DbManager.getDB("admin").command(new BasicDBObject("enablesharding", "custommr"));
+		//enable sharding for the output collection
+		BasicDBObject command = new BasicDBObject("shardcollection", "custommr." + outputCollection);
+		command.append("key", new BasicDBObject("_id", 1));
+		DbManager.getDB("admin").command(command);		
+	}
+
+	/**
 	 * Downloads jar file from web using URL call.  Typically
 	 * the jar files we be kept in our /share store so we will
 	 * be calling our own api.
@@ -95,18 +132,30 @@ public class HadoopJobRunner
 	 * @return
 	 * @throws Exception 
 	 */
-	private String downloadJarFile(String jarURL) throws Exception
+	private String downloadJarFile(String jarURL, List<ObjectId> communityIds) throws Exception
 	{		
-		String shareString = "$infinite/share/get/";
+		String shareStringOLD = "$infinite/share/get/";
+		String shareStringNEW = "$infinite/social/share/get/";
 		String tempFileName = assignNewJarLocation();
 		System.out.println("Downloading jar: " + jarURL + " and saving at: " + tempFileName);
 		OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
-		if ( jarURL.startsWith(shareString))
+		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW))
 		{
 			//jar is local use id to grab jar (skips authentication)
-			String shareid = jarURL.substring(shareString.length());
+			String shareid = null;
+			if ( jarURL.startsWith(shareStringOLD) )
+			{
+				shareid = jarURL.substring(shareStringOLD.length());
+			}
+			else
+			{
+				shareid = jarURL.substring(shareStringNEW.length());
+			}
 			System.out.println("Getting shareid: " + shareid);
-			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(new BasicDBObject("_id",new ObjectId(shareid))),SharePojo.class);
+			BasicDBObject query = new BasicDBObject("_id",new ObjectId(shareid));
+			query.put("communities._id", new BasicDBObject("$in", communityIds));
+
+			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
 			if ( share.getBinaryId() != null )
 			{			
 				GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
@@ -156,31 +205,9 @@ public class HadoopJobRunner
 		}
 	}
 	
-	private JobStatus getJobID()
+	private String runHadoopJob(CustomMapReduceJobPojo job, String jar)
 	{
-		System.out.println("Getting jobid");
-		try
-		{
-			JobClient jc = new JobClient(new InetSocketAddress(prop_custom.getJobClientServer(), prop_custom.getJobClientPort()), new Configuration());			
-			JobStatus[] jobs = jc.getAllJobs();
-			JobStatus lastJob = jobs[0];
-			for ( JobStatus j : jobs )
-			{
-				if ( j.getStartTime() > lastJob.getStartTime() )
-					lastJob = j;								
-			}
-			System.out.println("Last job started at: " + new Date(lastJob.getStartTime()));
-			return lastJob;// jc.getAllJobs()[jc.getAllJobs().length-1];
-		}
-		catch (Exception ex)
-		{			
-			ex.printStackTrace();
-		}
-		return null;
-	}
-	
-	private void runHadoopJob(CustomMapReduceJobPojo job, String jar)
-	{
+		String jobid = null;
 		job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job.outputCollection,job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, job.query, job.communityIds, job.isCustomTable, job.outputKey, job.outputValue);
 		try
 		{				
@@ -192,7 +219,27 @@ public class HadoopJobRunner
 				command += s + " ";
 			System.out.println("Running command: " + command);
 			Process pr = rt.exec(commands);
-			pr.waitFor(); //wait for it to exec so we can get the jobid
+			
+			//Once we start running the command attach to stderr to
+			//receive the output to parse out the jobid
+			InputStream in = pr.getErrorStream();			
+			InputStreamReader is = new InputStreamReader(in);
+			BufferedReader br = new BufferedReader(is);
+	        String line = null;
+
+	        boolean bGotJobId = false;
+	        
+	        while (!bGotJobId && (line = br.readLine()) != null) 
+	        {
+	        	int getJobIdIndex = -1;  
+	        	String searchstring = "INFO mapred.JobClient: Running job: ";
+	        	if ((getJobIdIndex = line.indexOf(searchstring)) >= 0) 
+	        	{
+	        		// Get JobId and trim() it (obviously trivial)
+	        		jobid = line.substring(getJobIdIndex + searchstring.length()).trim();
+	        		bGotJobId = true;
+	        	}
+	        }       
 		}
 		catch (Exception ex)
 		{
@@ -201,6 +248,7 @@ public class HadoopJobRunner
 			System.out.println("bombs away");
 			ex.printStackTrace();
 		}
+		return jobid;
 	}
 	
 	/**
@@ -255,7 +303,7 @@ public class HadoopJobRunner
 			out.write("<?xml version=\"1.0\"?>\n<configuration>"+
 					"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
 					"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
-					"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>true</value></property>"+
+					"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>"+
 					"\n\t<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://"+dbserver+"/"+input+"</value></property>"+  
 					"\n\t<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://"+dbserver+"/"+output+"</value>  </property>"+  
 					"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + query + "</value></property>"+
@@ -351,22 +399,27 @@ public class HadoopJobRunner
 	/**
 	 * Queries mongo to see if any jobs need to be ran now (if their nextRunTime is
 	 * less than current time).
+	 * 5/23/2012 Burch - Updated to only return 1 job atomically, sets that jobs jobidS to
+	 * a blank so other core servers won't attempt to run it.
 	 * 
 	 * @return a list of jobs that need ran
 	 */
-	private List<CustomMapReduceJobPojo> getJobsToRun()
+	private CustomMapReduceJobPojo getJobsToRun()
 	{
-		List<CustomMapReduceJobPojo> jobs = new ArrayList<CustomMapReduceJobPojo>();
 		try
 		{
 			BasicDBObject query = new BasicDBObject();
 			query.append("jobidS", null);
 			query.append("nextRunTime", new BasicDBObject("$lt", new Date().getTime()));
 			System.out.println("Finding any jobs that need ran after: " + new Date().getTime());
-			DBCursor dbc = DbManager.getCustom().getLookup().find(query);
-			if ( dbc != null )
-			{				
-				jobs = CustomMapReduceJobPojo.listFromDb(dbc, CustomMapReduceJobPojo.listType());
+			BasicDBObject updates = new BasicDBObject("jobidS", "");
+			updates.append("lastRunTime", new Date());
+			BasicDBObject update = new BasicDBObject("$set", updates);
+			DBObject dbo = DbManager.getCustom().getLookup().findAndModify(query, update);
+
+			if ( dbo != null )
+			{		
+				return CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
 			}
 		}
 		catch(Exception ex)
@@ -375,7 +428,7 @@ public class HadoopJobRunner
 			ex.printStackTrace();
 		}
 		
-		return jobs;
+		return null;
 	}
 
 	/**
@@ -387,20 +440,38 @@ public class HadoopJobRunner
 		//get mongo entries that have jobids?
 		try
 		{
-			JobClient jc = new JobClient(new InetSocketAddress(prop_custom.getJobClientServer(), prop_custom.getJobClientPort()), new Configuration());			
+			JobClient jc = null;			
 			DBCursor dbc = DbManager.getCustom().getLookup().find(new BasicDBObject("jobidS", new BasicDBObject("$ne", null)));
 			while (dbc.hasNext())
 			{
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbc.next(), CustomMapReduceJobPojo.class);
-				System.out.println("Checking if job: " + cmr.jobidS + cmr.jobidN + " is complete");
-				//check if job is done, and update if it is	
-				JobStatus[] jobs = jc.getAllJobs();
-				for ( JobStatus j : jobs )
+				//make sure its an actual ID, we now set jobidS to "" when running the job
+				if ( !cmr.jobidS.equals("") )
 				{
-					if ( j.getJobID().getJtIdentifier().equals(cmr.jobidS) && j.getJobID().getId() == cmr.jobidN )
+					if (null == jc) {
+						jc = new JobClient(getJobClientConnection(), new Configuration());						
+					}					
+					System.out.println("Checking if job: " + cmr.jobidS + cmr.jobidN + " is complete");
+					//check if job is done, and update if it is	
+					JobStatus[] jobs = jc.getAllJobs();
+					for ( JobStatus j : jobs )
 					{
-						if ( j.isJobComplete() )
-							setJobComplete(cmr);
+						if ( j.getJobID().getJtIdentifier().equals(cmr.jobidS) && j.getJobID().getId() == cmr.jobidN )
+						{
+							if ( j.isJobComplete() )
+								setJobComplete(cmr);
+						}
+					}
+				}
+				else
+				{
+					//check if its been longer than 5min and mark job as complete (it failed to launch)
+					Date currDate = new Date();
+					Date lastDate = cmr.lastRunTime;
+					//if its been more than 5 min (5m*60s*1000ms)					
+					if ( currDate.getTime() - lastDate.getTime() > 300000 )
+					{
+						setJobComplete(cmr);
 					}
 				}
 			}	
@@ -434,11 +505,15 @@ public class HadoopJobRunner
 			updates.append("lastCompletionTime", new Date());
 			updates.append("tempConfigXMLLocation",null);
 			updates.append("tempJarLocation",null);
-			removeTempFile(cmr.tempConfigXMLLocation);
-			removeTempFile(cmr.tempJarLocation);
+			if (null != cmr.tempConfigXMLLocation) {
+				removeTempFile(cmr.tempConfigXMLLocation);
+			}
+			if (null != cmr.tempJarLocation) {
+				removeTempFile(cmr.tempJarLocation);
+			}
 			BasicDBObject update = new BasicDBObject();
-			update.append("$set",updates);
-			update.append("$inc",new BasicDBObject("timesRan", 1));
+			update.append(MongoDbManager.set_,updates);
+			update.append(MongoDbManager.inc_,new BasicDBObject("timesRan", 1));
 			DbManager.getCustom().getLookup().update(new BasicDBObject("_id",cmr._id),update);			
 			System.out.println("Setting job : " + cmr._id.toString() + " to complete, run again on: " + new Date(nextRunTime).toString());
 		}
@@ -456,7 +531,9 @@ public class HadoopJobRunner
 	private void removeTempFile(String file)
 	{
 		File f = new File(file);
-		f.delete();
+		if (null != f) {
+			f.delete();
+		}
 	}
 
 	/**
@@ -490,5 +567,70 @@ public class HadoopJobRunner
 			cal.add(Calendar.MONTH, 1*iterations);
 		}
 		return cal.getTimeInMillis();
+	}
+	
+	/**
+	 * Parses a given xml file and returns the requested value of propertyName.
+	 * The XML is expected to be in a format: <configuration><property><name>some.prop.name</name><value>some.value</value></property></configuration>
+	 * 
+	 * @param xmlFileLocation
+	 * @param propertyName
+	 * @return
+	 * @throws SAXException
+	 * @throws IOException
+	 * @throws ParserConfigurationException
+	 */
+	private String getXMLProperty(String xmlFileLocation, String propertyName) throws SAXException, IOException, ParserConfigurationException
+	{
+		File configFile = new File(xmlFileLocation);
+		
+		DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
+        DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
+        Document doc = docBuilder.parse(configFile);        
+        doc.getDocumentElement().normalize();
+        
+        NodeList listOfProps = doc.getElementsByTagName("property");
+        
+        for ( int i = 0; i < listOfProps.getLength(); i++ )
+        {
+        	Node prop = listOfProps.item(i);
+        	if ( prop.getNodeType() == Node.ELEMENT_NODE)
+        	{
+	        	Element propElement = (Element)prop;	        	
+	        	NodeList name = propElement.getElementsByTagName("name").item(0).getChildNodes();
+	        	Node nameValue = (Node) name.item(0);
+	        	String nameString = nameValue.getNodeValue().trim();
+	        	
+	        	//found the correct property
+	        	if ( nameString.equals(propertyName) )
+	        	{
+	        		//return the value
+	        		NodeList value = propElement.getElementsByTagName("value").item(0).getChildNodes();
+		        	Node valueValue = (Node) value.item(0);
+		        	String valueString = valueValue.getNodeValue().trim();		        	
+		        	return valueString;		        	
+	        	}
+        	}
+        }
+        return null;
+	}
+	
+	/**
+	 * Calls the XML Parser to grab the job client address and opens a connection to
+	 * the server.  The parameters must be in the hadoopconfig/mapred-site.xml file
+	 * under the property "mapred.job.tracker"
+	 * 
+	 * @return Connection to the job client
+	 * @throws SAXException
+	 * @throws IOException
+	 * @throws ParserConfigurationException
+	 */
+	private InetSocketAddress getJobClientConnection() throws SAXException, IOException, ParserConfigurationException
+	{
+		String jobclientAddress = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+		String[] parts = jobclientAddress.split(":");
+		String hostname = parts[0];
+		int port = Integer.parseInt(parts[1]);		
+		return new InetSocketAddress(hostname, port);
 	}
 }

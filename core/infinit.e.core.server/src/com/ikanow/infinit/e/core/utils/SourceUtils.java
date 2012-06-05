@@ -34,6 +34,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPo
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 
@@ -122,6 +123,7 @@ public class SourceUtils {
 				fields.put(SourceHarvestStatusPojo.sourceQuery_synced_, 1);
 				if (null == sSourceId) {
 					fields.put(SourcePojo.searchCycle_secs_, 1);
+					fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);
 				}
 				// (otherwise - effectively overriding this with null for "debug" calls)
 			}
@@ -174,22 +176,33 @@ public class SourceUtils {
 			if ((null != sSourceType) && !candidate.getExtractType().equalsIgnoreCase(sSourceType)) {
 				continue;
 			}
-			if ((null != candidate.getSearchCycle_secs()) || (null != defaultSearchCycle_ms)) {
-				if (null == candidate.getSearchCycle_secs()) {
-					candidate.setSearchCycle_secs((int)(defaultSearchCycle_ms/1000));
-				}
-				if (candidate.getSearchCycle_secs() < 0) {
-					continue; // negative search cycle => disabled
-				}
-				if ((null != candidate.getHarvestStatus()) && (null != candidate.getHarvestStatus().getHarvested())) {
-					//(ie the source has been harvested, and there is a non-default search cycle setting)
-					if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
-							> now.getTime())
-					{
-						continue; // (too soon since the last harvest...)
+			HarvestEnum candidateStatus = null;
+			if (null != candidate.getHarvestStatus()) {
+				candidateStatus = candidate.getHarvestStatus().getHarvest_status();
+			}
+			if ((HarvestEnum.success_iteration != candidateStatus) || 
+					((null != candidate.getSearchCycle_secs()) && (candidate.getSearchCycle_secs() < 0)))
+			{
+				//(^^^ don't respect iteration if source manually disabled)
+				
+				if ((null != candidate.getSearchCycle_secs()) || (null != defaultSearchCycle_ms)) {
+					if (null == candidate.getSearchCycle_secs()) {
+						candidate.setSearchCycle_secs((int)(defaultSearchCycle_ms/1000));
 					}
-				}
-			}//TESTED
+					if (candidate.getSearchCycle_secs() < 0) {
+						continue; // negative search cycle => disabled
+					}
+					if ((null != candidate.getHarvestStatus()) && (null != candidate.getHarvestStatus().getHarvested())) {
+						//(ie the source has been harvested, and there is a non-default search cycle setting)
+						if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
+								> now.getTime())
+						{
+							continue; // (too soon since the last harvest...)
+						}
+					}
+				}//TESTED
+			}
+			//TESTED: manually disabled (ignore), not success_iteration (ignore if outside cycle), success_iteration (always process)
 			
 			query.put(SourcePojo._id_, candidate.getId());
 			BasicDBObject modifyClause = new BasicDBObject();
@@ -286,104 +299,191 @@ public class SourceUtils {
 	
 ////////////////////////////////////////////////////////////////////////////////////////////
 	
-	// Synchronization specific utilities
-			
-		// Updates "in_progress" to either "success" or "error"
-		
-		public static void updateSyncStatus(SourcePojo source, HarvestEnum harvestStatus) {
-			BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
-			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString()));
-			DbManager.getIngest().getSource().update(query, update);
-		}
-		
+// Synchronization specific utilities
+
+	// Updates "in_progress" to either "success" or "error"
+
+	public static void updateSyncStatus(SourcePojo source, HarvestEnum harvestStatus) {
+		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString()));
+		DbManager.getIngest().getSource().update(query, update);
+	}
+
 ////////////////////////////////////////////////////////////////////////////////////////////
 	
 // Harvest specific source utilities
 		
-		// Updates "in_progress" to either "success" or "error", increments the doccount (per source and per community)
+	// Updates "in_progress" to either "success" or "error", increments the doccount (per source and per community)
+
+	public static void updateHarvestStatus(SourcePojo source, HarvestEnum harvestStatus, List<DocumentPojo> added, long nDocsDeleted) {
+		// Handle successful harvests where the max docs were reached, so don't want to respect the searchCycle
+		if ((harvestStatus == HarvestEnum.success) && (source.reachedMaxDocs())) {
+			harvestStatus = HarvestEnum.success_iteration;
+		}
+
+		// Always update status object in order to release the "in_progress" lock
+		// (make really really sure we don't exception out before doing this!)
+
+		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString()));
+
+		int nDocsAdded = 0;
+		if (null != added) {
+			nDocsAdded = added.size();
+		}
+		update.put(MongoDbManager.inc_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, nDocsAdded - nDocsDeleted));
 		
-		public static void updateHarvestStatus(SourcePojo source, HarvestEnum harvestStatus, List<DocumentPojo> added, long nDocsDeleted) {
-			
-			// Always update status object in order to release the "in_progress" lock
-			// (make really really sure we don't exception out before doing this!)
-			
-			BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
-			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString()));
-
-			int nDocsAdded = 0;
-			if (null != added) {
-				nDocsAdded = added.size();
+		long nTotalDocsAfterInsert = 0;
+		BasicDBObject fieldsToReturn = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, 1);
+		BasicDBObject updatedSource = 
+			(BasicDBObject) DbManager.getIngest().getSource().findAndModify(query, fieldsToReturn, null, false, update, true, false);
+		BasicDBObject harvestStatusObj = (BasicDBObject) updatedSource.get(SourcePojo.harvest_);
+		if (null != harvestStatusObj) {
+			Long docCount = harvestStatusObj.getLong(SourceHarvestStatusPojo.doccount_);
+			if (null != docCount) {
+				nTotalDocsAfterInsert = docCount;
 			}
-			update.put(MongoDbManager.inc_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, nDocsAdded - nDocsDeleted));
-			DbManager.getIngest().getSource().update(query, update);
-
-			// (OK now the only thing we really had to do is complete, add some handy metadata)
+		}
+		//TESTED
+		
+		// Prune documents if necessary
+		if ((null != source.getMaxDocs()) && (nTotalDocsAfterInsert > source.getMaxDocs())) {
+			long nToPrune = (nTotalDocsAfterInsert - source.getMaxDocs());
+			SourceUtils.pruneSource(source, (int) nToPrune);
+			nDocsDeleted += nToPrune;
 			
-			// Also update the document count table in doc_metadata:
-			if (nDocsAdded > 0) {
-				if (1 == source.getCommunityIds().size()) { // (simple/usual case, just 1 community)
-					query = new BasicDBObject(DocCountPojo._id_, source.getCommunityIds().iterator().next());
-					update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, nDocsAdded - nDocsDeleted));		
+			// And update to reflect that it now has max docs...
+			BasicDBObject update2_1 = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, source.getMaxDocs());
+			BasicDBObject update2 = new BasicDBObject(DbManager.set_, update2_1);
+			DbManager.getIngest().getSource().update(query, update2);
+		}					
+		//TESTED
+
+		// (OK now the only thing we really had to do is complete, add some handy metadata)
+
+		// Also update the document count table in doc_metadata:
+		if (nDocsAdded > 0) {
+			if (1 == source.getCommunityIds().size()) { // (simple/usual case, just 1 community)
+				query = new BasicDBObject(DocCountPojo._id_, source.getCommunityIds().iterator().next());
+				update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, nDocsAdded - nDocsDeleted));		
+				DbManager.getDocument().getCounts().update(query, update, true, false);
+			}
+			else if (!source.getCommunityIds().isEmpty()) { // Complex case since docs can belong to diff communities (but they're usually somewhat grouped)
+				Map<ObjectId, Integer> communityMap = new HashMap<ObjectId, Integer>();
+				for (DocumentPojo doc: added) {
+					ObjectId communityId = doc.getCommunityId();
+					Integer count = communityMap.get(communityId);
+					communityMap.put(communityId, (count == null ? 1 : count + 1));
+				}//end loop over added documents (updating the separate community counts)
+				long nDocsDeleted_byCommunity = nDocsDeleted/source.getCommunityIds().size();
+				// (can't do better than assume a uniform distribution - the whole thing gets recalculated weekly anyway...)
+
+				for (Map.Entry<ObjectId, Integer> communityInfo: communityMap.entrySet()) {
+					query = new BasicDBObject(DocCountPojo._id_, communityInfo.getKey());
+					update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, communityInfo.getValue() - nDocsDeleted_byCommunity));
 					DbManager.getDocument().getCounts().update(query, update, true, false);
+					// (true for upsert, false for multi add)
 				}
-				else if (!source.getCommunityIds().isEmpty()) { // Complex case since docs can belong to diff communities (but they're usually somewhat grouped)
-					Map<ObjectId, Integer> communityMap = new HashMap<ObjectId, Integer>();
-					for (DocumentPojo doc: added) {
-						ObjectId communityId = doc.getCommunityId();
-						Integer count = communityMap.get(communityId);
-						communityMap.put(communityId, (count == null ? 1 : count + 1));
-					}//end loop over added documents (updating the separate community counts)
-					long nDocsDeleted_byCommunity = nDocsDeleted/source.getCommunityIds().size();
-						// (can't do better than assume a uniform distribution - the whole thing gets recalculated weekly anyway...)
-					
-					for (Map.Entry<ObjectId, Integer> communityInfo: communityMap.entrySet()) {
-						query = new BasicDBObject(DocCountPojo._id_, communityInfo.getKey());
-						update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, communityInfo.getValue() - nDocsDeleted_byCommunity));
-						DbManager.getDocument().getCounts().update(query, update, true, false);
-							// (true for upsert, false for multi add)
+			}
+		}
+	}//TESTED (actually, except for multi community sources, which can't happen at the moment anyway)
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+
+	// Maps string type in source pojo to enum
+
+	public static int getHarvestType(SourcePojo source) {
+		if (source.getExtractType().equalsIgnoreCase("database")) {
+			return InfiniteEnums.DATABASE;
+		}
+		else if (source.getExtractType().equalsIgnoreCase("file")) {
+			return InfiniteEnums.FILES;
+		}
+		else {
+			return InfiniteEnums.FEEDS;
+		}
+	}//TESTED
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+
+	/**
+	 * Changes all sources badSource flag to false so it will be attempted again on
+	 * the next harvest cycle.
+	 * 
+	 * NOTE: If mutliple harvesters are called with reset flag they will all
+	 * set the bad source flag back to true for all sources
+	 * 
+	 */
+	public static void resetBadSources() 
+	{
+		try 
+		{			
+			BasicDBObject query = new BasicDBObject();
+			query.put(MongoDbManager.set_,new BasicDBObject(SourcePojo.harvestBadSource_, false));
+			DbManager.getIngest().getSource().update(new BasicDBObject(), query, false, true);			
+		} 
+		catch (Exception e) 
+		{
+			logger.error("Exception Message reseting feeds badsource flag: " + e.getMessage(), e);
+		} 
+	}//TESTED (unchanged from working Beta version)
+
+	/////////////////////////////////////////////////////////////////////////////////////
+
+	// Prune sources with max doc settings
+
+	private static void pruneSource(SourcePojo source, int nToPrune)
+	{
+		int nDocsDeleted = 0;
+		
+		// (code taken mostly from SourceHandler.deleteSource)
+		if (null != source.getKey()) { // or may delete everything!
+			BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+			BasicDBObject docFields = new BasicDBObject();
+			docFields.append(DocumentPojo.url_, 1);
+			docFields.append(DocumentPojo.sourceUrl_, 1);
+			docFields.append(DocumentPojo.index_, 1);
+			docFields.append(DocumentPojo.sourceKey_, 1);
+			
+			StoreAndIndexManager dataStore = new StoreAndIndexManager();
+			while (nToPrune > 0) {
+				int nToDelete = nToPrune;
+				if (nToDelete > 10000) {
+					nToDelete = 10000;
+				}
+				DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).limit(nToDelete); // (ie batches of 10K)
+				nToPrune -= nToDelete;
+				if (0 == nDocsDeleted) {
+					nDocsDeleted = dbc.count();
+				}
+				if (0 == dbc.size()) {
+					break;
+				}
+				List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
+				
+				boolean bDeleteContent = (null == source.getExtractType()) 
+											|| !source.getExtractType().equalsIgnoreCase("database");
+					// (database have no external content so we can improve the efficiency)
+				
+				// This next bit of code is taken from removeFromDatastore_bySourceKey
+				if (bDeleteContent) {
+					// Worth quickly checking if all of these docs have no external content (eg XML), will be *much* faster...
+					boolean bNoDocsHaveExternalContent = true;
+					for (DocumentPojo doc: docs) {
+						if (StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
+							bNoDocsHaveExternalContent = false;
+							break;
+						}
+					}//TESTED			
+					if (bNoDocsHaveExternalContent) {
+						bDeleteContent = false; // ie drop to clause below
 					}
 				}
+				dataStore.removeFromDatastore_byURL(docs, bDeleteContent);
+					// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")					
 			}
-		}//TOTEST (just the document count increments)
-		
-		////////////////////////////////////////////////////////////////////////////////////////////
-		
-		// Maps string type in source pojo to enum
-		
-		public static int getHarvestType(SourcePojo source) {
-			if (source.getExtractType().equalsIgnoreCase("database")) {
-				return InfiniteEnums.DATABASE;
-			}
-			else if (source.getExtractType().equalsIgnoreCase("file")) {
-				return InfiniteEnums.FILES;
-			}
-			else {
-				return InfiniteEnums.FEEDS;
-			}
-		}//TESTED
-		
-		////////////////////////////////////////////////////////////////////////////////////////////
-		
-		/**
-		 * Changes all sources badSource flag to false so it will be attempted again on
-		 * the next harvest cycle.
-		 * 
-		 * NOTE: If mutliple harvesters are called with reset flag they will all
-		 * set the bad source flag back to true for all sources
-		 * 
-		 */
-		public static void resetBadSources() 
-		{
-			try 
-			{			
-				BasicDBObject query = new BasicDBObject();
-				query.put(MongoDbManager.set_,new BasicDBObject(SourcePojo.harvestBadSource_, false));
-				DbManager.getIngest().getSource().update(new BasicDBObject(), query, false, true);			
-			} 
-			catch (Exception e) 
-			{
-				logger.error("Exception Message reseting feeds badsource flag: " + e.getMessage(), e);
-			} 
-		}//TESTED (unchanged from working Beta version)
-		
+		}
+		// No need to do anything related to soft deletion, this is all handled when the harvest ends 
+	}//TESTED
+	
 }

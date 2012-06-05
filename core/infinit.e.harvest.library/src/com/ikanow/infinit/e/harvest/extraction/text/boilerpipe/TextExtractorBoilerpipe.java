@@ -21,8 +21,8 @@ import org.apache.log4j.Logger;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
-import com.ikanow.infinit.e.harvest.extraction.text.legacy.ITextExtractor;
 
 import de.l3s.boilerpipe.extractors.ArticleExtractor;
 

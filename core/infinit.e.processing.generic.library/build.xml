@@ -130,6 +130,11 @@
 			</path>
 		</pathconvert>
 
+		<!-- Copy XML resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.xml,**/*.properties,**/*.txt,**/*.ico" />
+		</copy>		
+		
 		<!-- Bundled Jar for processing.generic with required libraries -->
 		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain">
 			<manifest>

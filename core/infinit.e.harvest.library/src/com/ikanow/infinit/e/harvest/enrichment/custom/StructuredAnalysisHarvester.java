@@ -139,9 +139,11 @@ public class StructuredAnalysisHarvester
 			// Iterate over each doc in docs, create entity and association pojo objects
 			// to add to the feed using the source entity and association spec pojos
 			Iterator<DocumentPojo> it = docs.iterator();
+			int nDocs = 0;
 			while (it.hasNext())
 			{
 				DocumentPojo f = it.next();
+				nDocs++;
 				try 
 				{ 
 					document = null;
@@ -271,7 +273,7 @@ public class StructuredAnalysisHarvester
 					try {
 						boolean bMetadataChanged = false;
 						if (null != this.unstructuredHandler) {
-							bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, it.hasNext());
+							bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
 						}	
 						if (contextController.isEntityExtractionRequired(source))
 						{

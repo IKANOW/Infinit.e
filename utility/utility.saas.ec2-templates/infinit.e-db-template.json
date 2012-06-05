@@ -146,7 +146,9 @@
 							               	   "sh install.sh dbnode ", { "Ref": "QuickInstall" }, ";",
 						                   
 							               "yum -y --nogpgcheck install infinit.e-config;",    
-							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
+							               "yum -y --nogpgcheck install infinit.e-db-instance;",
+						                   
+						                   "sed -i 's/^curl/#curl/' /etc/rc.local"    
 					}
 				}
 			}

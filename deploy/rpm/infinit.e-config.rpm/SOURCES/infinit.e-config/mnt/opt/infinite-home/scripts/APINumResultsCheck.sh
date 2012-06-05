@@ -51,9 +51,9 @@ HTTPGET="wget -q -O /dev/null --keep-session-cookies --save-cookies=cookies_$USE
 HTTPGET_LOG="wget -q -o /tmp/status.txt -O /tmp/apiResults.txt --keep-session-cookies --save-cookies=cookies_$USER.txt --load-cookies=cookies_$USER.txt"
 
 ################################################################################
-# Log-in (try for ~5 minutes then error out)
+# Log-in (try for ~3 minutes then error out)
 rm -rf cookies_$USER.txt
-for i in `seq 1 1`; do 
+for i in `seq 1 100`; do 
         $HTTPGET "http://$INFINITE_URL/$LOGIN/$USERPASS?override=false"
         if grep -q "infinitecookie" cookies_$USER.txt; then
                 sleep 1

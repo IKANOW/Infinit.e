@@ -1,0 +1,62 @@
+<scripts>
+	<script>
+	<name>common_mapper</name>
+	<value>
+	<![CDATA[
+		function()
+		{
+			if ((this.entities != null) && (this.communityId != null)) {
+				var commid = this.communityId;
+				for (var i = 0; i < this.entities.length; ++i) {
+					var entity = this.entities[i];
+					if ((entity.index != null) && (entity.doccount != null) && (entity.frequency != null) && (entity.totalfrequency != null)) {
+						emit({ index: entity.index, comm: commid, assoc: 0}, 
+							{ dc: 1, tdc: parseInt(entity.doccount), 
+							  f: parseInt(entity.frequency), tf: parseInt(entity.totalfrequency) });
+					}
+				}				
+			}
+			//TODO (INF-1276): Note that associations currently don't have a document-level doccount, so will leave this for now 
+			//if ((this.associations != null) && (this.communityId != null)) {
+			//	var commid = this.communityId;
+			//	for (var i = 0; i < this.associations.length; ++i) {
+			//		var assoc = this.associations[i];
+			//		emit({  ent1_index: assoc.entity1_index, ent2_index: assoc.entity2_index, geo_index: assoc.geo_index, 
+			//				verb_cat: assoc.verb_category, 
+			//				comm: commid, assoc: 1}, 
+			//				{ dc: 1, tdc: 0, f: 0, tf: 0 });
+			//	}				
+			//}
+		}
+	]]>
+	</value>
+	</script>
+	<script>
+	<name>common_reducer</name>
+	<value>
+	<![CDATA[
+		function(key, values)
+		{
+			var sum = { dc: 0, tdc: 0, f: 0, tf: 0 };
+			values.forEach(function(value) {
+				sum.dc += value.dc;
+				sum.f += value.f;
+				if (0 == sum.tdc) {
+					sum.tdc = value.tdc;
+					sum.tf = value.tf;
+				}
+				else { // Will treat the smallest value at the "most accurate"
+					if (value.tdc < sum.tdc) {
+						sum.tdc = value.tdc;
+					}
+					if (value.tf < sum.tf) {
+						sum.tf = value.tf;
+					}
+				}
+			});
+			return sum;
+		}
+	]]>
+	</value>
+	</script>
+</scripts>

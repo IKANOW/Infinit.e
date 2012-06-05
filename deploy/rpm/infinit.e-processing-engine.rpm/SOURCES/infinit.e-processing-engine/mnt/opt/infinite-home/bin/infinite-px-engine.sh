@@ -4,7 +4,7 @@ LAST_CLEANSE="0"
 RESET_FILE="/opt/infinite-home/bin/RESET_FILE"
 SYNC_FILE="/opt/infinite-home/bin/SYNC_FILE"
 STOP_FILE="/opt/infinite-home/bin/STOPFILE"
-EXTRA_JAVA_ARGS=" -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -classpath infinit.e.harvest.library.jar:*:infinit.e.core.server.jar"
+EXTRA_JAVA_ARGS=" -Xms2048m -Xmx2048m -Xmn512m -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -classpath infinit.e.harvest.library.jar:*:infinit.e.core.server.jar"
 
 harvest()
 {

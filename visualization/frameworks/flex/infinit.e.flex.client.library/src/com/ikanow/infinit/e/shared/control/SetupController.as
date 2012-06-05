@@ -117,7 +117,6 @@ package com.ikanow.infinit.e.shared.control
 			var result:ServiceResult = ServiceResult( event.result );
 			var data:ArrayCollection = result.data as ArrayCollection;
 			setupManager.saveWidgetOptions( data );
-			//setupManager.setSetup( ServiceResult( event.result ).data as Setup );
 		}
 		
 		[EventHandler( event = "SetupEvent.RESET" )]

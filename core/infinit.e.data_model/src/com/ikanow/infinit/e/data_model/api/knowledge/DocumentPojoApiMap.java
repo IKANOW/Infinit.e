@@ -16,11 +16,15 @@
 package com.ikanow.infinit.e.data_model.api.knowledge;
 
 import java.lang.reflect.Type;
+import java.util.Map;
 
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParseException;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
@@ -33,7 +37,8 @@ import com.mongodb.BasicDBObject;
 public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
-		return gp.registerTypeAdapter(DocumentPojo.class, new DocumentPojoSerializer());
+		return gp.registerTypeAdapter(DocumentPojo.class, new DocumentPojoSerializer())
+					.registerTypeAdapter(DocumentPojo.class, new DocumentPojoDeserializer());
 	}
 	
 	// Tidy up document pojo from DB format to API format (few slight differences, see DocumentPojo)
@@ -52,14 +57,14 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			JsonObject jo = je.getAsJsonObject();
 			JsonElement jetmp = null;
 			// 2. Source title should be an array:
-			jetmp = jo.get("source");
+			jetmp = jo.get(DocumentPojo.source_);
 			if (null != jetmp) {
 				JsonArray ja = new JsonArray();
 				ja.add(jetmp);
-				jo.add("source", ja);
+				jo.add(DocumentPojo.source_, ja);
 			}
 			// 3. Source keys should be an array:
-			jetmp = jo.get("sourceKey");
+			jetmp = jo.get(DocumentPojo.sourceKey_);
 			// (also the <key>#<format> should be reduced back to <key>)
 			if (null != jetmp) {
 				String sourceKey = jetmp.getAsString();
@@ -72,21 +77,21 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 				}
 				JsonArray ja = new JsonArray();
 				ja.add(jetmp);
-				jo.add("sourceKey", ja);
+				jo.add(DocumentPojo.sourceKey_, ja);
 			}
 			// 4. Media types should be an array:
-			jetmp = jo.get("mediaType");
+			jetmp = jo.get(DocumentPojo.mediaType_);
 			if (null != jetmp) {
 				JsonArray ja = new JsonArray();
 				ja.add(jetmp);
-				jo.add("mediaType", ja);
+				jo.add(DocumentPojo.mediaType_, ja);
 			}
 			// 5. Finally, CommunityId becomes an array
-			jetmp = jo.get("communityId");
+			jetmp = jo.get(DocumentPojo.communityId_);
 			if (null != jetmp) {
 				JsonArray ja = new JsonArray();
 				ja.add(jetmp);
-				jo.add("communityId", ja);
+				jo.add(DocumentPojo.communityId_, ja);
 			}
 			return jo;
 		}//TESTED (see DOC_API2 in TestCode)
@@ -97,16 +102,16 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 	
 	public static void mapToApi(BasicDBObject doc) {
 		// 1. (doc_index field)
-		doc.remove("index");
+		doc.remove(DocumentPojo.index_);
 		// 2. (source title)
-		String tmp = doc.getString("source");
+		String tmp = doc.getString(DocumentPojo.source_);
 		if (null != tmp) {
 			BasicDBList array = new BasicDBList();
 			array.add(tmp);
-			doc.put("source", array);
+			doc.put(DocumentPojo.source_, array);
 		}
 		// 3. (source key)
-		tmp = doc.getString("sourceKey");
+		tmp = doc.getString(DocumentPojo.sourceKey_);
 		if (null != tmp) {
 			int nCommunityIndex = 0;
 			if (-1 != (nCommunityIndex = tmp.indexOf('#')))  {
@@ -114,15 +119,67 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			}
 			BasicDBList array = new BasicDBList();
 			array.add(tmp);
-			doc.put("sourceKey", array);
+			doc.put(DocumentPojo.sourceKey_, array);
 		}
 		// 4. (media type)
-		tmp = doc.getString("mediaType");
+		tmp = doc.getString(DocumentPojo.mediaType_);
 		if (null != tmp) {
 			BasicDBList array = new BasicDBList();
 			array.add(tmp);
-			doc.put("mediaType", array);
+			doc.put(DocumentPojo.mediaType_, array);
 		}
 		
 	}//TESTED (see DOC_API1 in TestCode)
+		
+	protected static class DocumentPojoDeserializer implements JsonDeserializer<DocumentPojo> 
+	{
+		public DocumentPojo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
+		{
+			// We have converted many of the fields into arrays, we need to transform them back to single values
+			// (we will have to discard the 2nd+ fields in each array - this call is only used for testing so we can live
+			//  with that)
+			
+			JsonElement tmp = json.getAsJsonObject().get(DocumentPojo.source_);			
+			if ((null != tmp) && (tmp.isJsonArray())) {				
+				JsonArray tmpArray = tmp.getAsJsonArray();		
+				JsonElement singleVal = tmpArray.get(0);
+				json.getAsJsonObject().add(DocumentPojo.source_, singleVal);
+			}
+			tmp = json.getAsJsonObject().get(DocumentPojo.sourceKey_);			
+			if ((null != tmp) && (tmp.isJsonArray())) {				
+				JsonArray tmpArray = tmp.getAsJsonArray();		
+				JsonElement singleVal = tmpArray.get(0);
+				json.getAsJsonObject().add(DocumentPojo.sourceKey_, singleVal);
+			}
+			tmp = json.getAsJsonObject().get(DocumentPojo.mediaType_);			
+			if ((null != tmp) && (tmp.isJsonArray())) {				
+				JsonArray tmpArray = tmp.getAsJsonArray();		
+				JsonElement singleVal = tmpArray.get(0);
+				json.getAsJsonObject().add(DocumentPojo.mediaType_, singleVal);
+			}
+			tmp = json.getAsJsonObject().get(DocumentPojo.communityId_);			
+			if ((null != tmp) && (tmp.isJsonArray())) {				
+				JsonArray tmpArray = tmp.getAsJsonArray();		
+				JsonElement singleVal = tmpArray.get(0);
+				json.getAsJsonObject().add(DocumentPojo.communityId_, singleVal);
+			}
+			// Finally sort out metadata...
+			tmp = json.getAsJsonObject().get(DocumentPojo.metadata_);
+			if (null != tmp) {
+				json.getAsJsonObject().remove(DocumentPojo.metadata_);
+			}
+			
+			DocumentPojo doc = BaseApiPojo.getDefaultBuilder().create().fromJson(json, DocumentPojo.class);
+			
+			// ...And add metadata back again...
+			if (null != tmp) {
+				JsonObject tmpMeta = tmp.getAsJsonObject();
+				for (Map.Entry<String, JsonElement> meta: tmpMeta.entrySet()) {
+					doc.addToMetadata(meta.getKey(), meta.getValue());
+				}
+			}
+			
+			return doc;
+		}//TESTED (by hand only, no formal record)		
+	}
 }

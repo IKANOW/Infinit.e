@@ -8,24 +8,13 @@
 					<a href="people.jsp" class="headerLink" title="Add/Edit Users">People</a> &nbsp; &nbsp;
 					<a href="communities.jsp" class="headerLink" title="Add/Edit Communities">Communities</a> &nbsp; &nbsp;
 					<a href="sources.jsp" class="headerLink" title="Add/Edit Sources">Sources</a> &nbsp; &nbsp;
-					<a href="files.jsp" class="headerLink" title="Add/Edit Files">Files</a> &nbsp; &nbsp;
-					<a href="index.jsp" class="headerLink" title="Home">Home</a>
+					<!-- <a href="widgets.jsp" class="headerLink" title="Add/Edit Widgets">Widgets</a> &nbsp; &nbsp; -->
+					<!-- <a href="hadoop.jsp" class="headerLink" title="Add/Edit Hadoop Jars">Hadoop</a> &nbsp; &nbsp; -->
+					<!-- <a href="shares.jsp" class="headerLink" title="Add/Edit Shares">Shares</a> &nbsp; &nbsp; -->
+					<a href="index.jsp" class="headerLink" title="Home">Home</a> &nbsp; &nbsp;
+					<a href="?action=logout" class="headerLink" title="Logout">Logout</a>
 				</td>
-				<td align="right" widht="5%">
-<%
-	if (isLoggedIn) 
-	{
-		// Note:
-		// This invisible doNothingButton button below does nothing hence the name doNothingButton.
-		// Its purpose for being is to keepusers from logging themselves out every time they press 
-		// the return key inside a form. Do not remove or make visible.
-%>
-					<div style="visibility:hidden"><button name="doNothingButton" value="doNothingButton"></button></div>
-					<button name="logoutButton" value="logoutButton">Logout</button>
-<%
-	}
-%>
-				</td>
+				<td align="right" width="120" background="image/ikanow_logo_smaller_bg.png"></td>
 			</tr>
 		</table>
 	</td>

@@ -26,12 +26,12 @@ import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.EntityExtractorEnum;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.IEntityExtractor;
-import com.ikanow.infinit.e.harvest.extraction.text.legacy.ITextExtractor;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 

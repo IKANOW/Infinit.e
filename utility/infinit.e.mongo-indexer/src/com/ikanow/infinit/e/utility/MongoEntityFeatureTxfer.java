@@ -181,7 +181,13 @@ public class MongoEntityFeatureTxfer
 			DBCollection entityFeatureDB = DbManager.getFeature().getEntity();
 			ElasticSearchManager elasticManager = ElasticSearchManager.getIndex("entity_index");
 			
-			DBCursor cur = entityFeatureDB.find(query); // (this internally works in batches of 1000)
+			DBCursor cur = entityFeatureDB.find(query).limit(nLimit); 
+				// (this internally works in batches of 1000)
+			System.out.println("Found " + cur.count() + " records to delete");
+			if (nLimit > 0) {
+				System.out.println("(limited to " + nLimit + " records)");
+			}
+			
 			while (cur.hasNext())
 			{
 				EntityFeaturePojo gp = EntityFeaturePojo.fromDb(cur.next(),EntityFeaturePojo.class);

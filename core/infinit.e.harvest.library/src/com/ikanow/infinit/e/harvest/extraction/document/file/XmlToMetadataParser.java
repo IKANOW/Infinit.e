@@ -78,24 +78,27 @@ public class XmlToMetadataParser {
 	 * Converts a JsonObject to a LinkedHashMap.
 	 * @param json  JSONObject to convert
 	 */
-	@SuppressWarnings("static-access")
-	private LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json)
+	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json)
 	{
 		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>();
-		for (String names: json.getNames(json))
+		String[] names = JSONObject.getNames(json);
+		if (null == names) { // (empty object)
+			return null;
+		}
+		for (String name: names)
 		{
 			JSONObject rec = null;
 			JSONArray jarray = null;
 			try {
-				jarray = json.getJSONArray(names);
-				list.put(names, handleJsonArray(jarray));
+				jarray = json.getJSONArray(name);
+				list.put(name, handleJsonArray(jarray));
 			} catch (JSONException e2) {
 				try {
-					rec = json.getJSONObject(names);
-					list.put(names, convertJsonObjectToLinkedHashMap(rec));
+					rec = json.getJSONObject(name);
+					list.put(name, convertJsonObjectToLinkedHashMap(rec));
 				} catch (JSONException e) {
 					try {
-						list.put(names,json.getString(names));
+						list.put(name,json.getString(name));
 					} catch (JSONException e1) {
 						e1.printStackTrace();
 					}
@@ -106,12 +109,10 @@ public class XmlToMetadataParser {
 		{
 			return list;
 		}
-
 		return null;
 	}
-
 	
-	private Object[] handleJsonArray(JSONArray jarray)
+	static private Object[] handleJsonArray(JSONArray jarray)
 	{
 		Object o[] = new Object[jarray.length()];
 		for (int i = 0; i < jarray.length(); i++)
@@ -136,7 +137,6 @@ public class XmlToMetadataParser {
 	 * @param reader XMLStreamReader using Stax to avoid out of memory errors
 	 * @return List of Feeds with their Metadata set
 	 */
-	@SuppressWarnings("static-access")
 	public List<DocumentPojo> parseDocument(XMLStreamReader reader) throws XMLStreamException {
 		DocumentPojo doc = new DocumentPojo();
 		List<DocumentPojo> docList = new ArrayList<DocumentPojo>();
@@ -226,7 +226,7 @@ public class XmlToMetadataParser {
 						JSONObject json;
 						try {
 							json = XML.toJSONObject(sb.toString());
-							for (String names: json.getNames(json))
+							for (String names: JSONObject.getNames(json))
 							{
 								JSONObject rec = null;
 								JSONArray jarray = null;

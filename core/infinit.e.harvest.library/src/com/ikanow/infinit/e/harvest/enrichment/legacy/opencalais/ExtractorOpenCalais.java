@@ -41,6 +41,8 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
+import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
@@ -49,8 +51,6 @@ import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.Globals.Identity;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.EntityExtractorEnum;
-import com.ikanow.infinit.e.harvest.enrichment.legacy.IEntityExtractor;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 

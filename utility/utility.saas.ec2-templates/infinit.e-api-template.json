@@ -116,7 +116,9 @@
 							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
 							               "yum -y --nogpgcheck install infinit.e-index-engine;"    
 							               "yum -y --nogpgcheck install infinit.e-processing-engine;"    
-							               "yum -y --nogpgcheck install infinit.e-interface-engine;"    
+							               "yum -y --nogpgcheck install infinit.e-interface-engine;",
+						                   
+						                   "sed -i 's/^curl/#curl/' /etc/rc.local"  
 					}
 				}
 			}

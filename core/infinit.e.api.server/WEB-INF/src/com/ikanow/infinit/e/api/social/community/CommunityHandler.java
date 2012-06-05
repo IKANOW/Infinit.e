@@ -489,19 +489,23 @@ public class CommunityHandler
 					if ( cp.isMember(new ObjectId(personIdStr)) )
 					{
 						// Remove user:
-						if (userStatus.equalsIgnoreCase("remove")) {
-							removeCommunityMember(callerIdStr, communityIdStr, personIdStr);
-						}						
-						
-						//verified user, update status
-						if ( cp.updateMemberStatus(personIdStr, userStatus) )
+						if (userStatus.equalsIgnoreCase("remove")) 
 						{
-							DbManager.getSocial().getCommunity().update(query, cp.toDb());
-							rp.setResponse(new ResponseObject("Update member status",true,"Updated member status successfully"));
+							//removeCommunityMember(callerIdStr, communityIdStr, personIdStr);
+							rp = removeCommunityMember(callerIdStr, communityIdStr, personIdStr); //.setResponse(new ResponseObject("Update member status",true,"Member removed from community."));
 						}
 						else
 						{
-							rp.setResponse(new ResponseObject("Update member status",false,"Failed to update status"));
+							//verified user, update status
+							if ( cp.updateMemberStatus(personIdStr, userStatus) )
+							{
+								DbManager.getSocial().getCommunity().update(query, cp.toDb());
+								rp.setResponse(new ResponseObject("Update member status",true,"Updated member status successfully"));
+							}
+							else
+							{
+								rp.setResponse(new ResponseObject("Update member status",false,"Failed to update status"));
+							}
 						}
 					}
 					else
@@ -751,9 +755,11 @@ public class CommunityHandler
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr) 
+	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr, String skipInvitation) 
 	{
 		communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		
+		boolean skipInvite = ((null != skipInvitation) && (skipInvitation.equalsIgnoreCase("true"))) ? true : false;
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can invite users to
@@ -793,37 +799,52 @@ public class CommunityHandler
 							
 							if ( !cp.isMember(pp.get_id()))
 							{
-							
-								cp.addMember(pp, true);
-								
-								DbManager.getSocial().getCommunity().update(query, cp.toDb());
-								
-								//send email out inviting user
-								CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
-								DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
-								
-								PropertiesManager propManager = new PropertiesManager();
-								String rootUrl = propManager.getUrlRoot();
-								
-								String subject = "Invite to join infinit.e community: " + cp.getName();
-								String body = "You have been invited to join the community " + cp.getName() + 
-									"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
-									"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
-								
-								SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
-								
-								if (mail.send("text/html"))
+								if (skipInvite)
 								{
-									if (isSysAdmin) {
-										rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
-									}
-									else {
-										rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
-									}
+									// Update community with new member
+									cp.addMember(pp, false); // Member status set to Active
+									cp.setNumberOfMembers(cp.getNumberOfMembers() + 1); // Increment number of members
+									DbManager.getSocial().getCommunity().update(query, cp.toDb());
+									
+									// Add community to persons object and save to db
+									pp.addCommunity(cp);
+									DbManager.getSocial().getPerson().update(new BasicDBObject("_id", pp.get_id()), pp.toDb());
+									
+									rp.setResponse(new ResponseObject("Invite Community",true,"User added to community successfully."));
 								}
 								else
 								{
-									rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason."));
+									cp.addMember(pp, true); // Member status set to Pending
+									
+									DbManager.getSocial().getCommunity().update(query, cp.toDb());
+									
+									//send email out inviting user
+									CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
+									DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
+									
+									PropertiesManager propManager = new PropertiesManager();
+									String rootUrl = propManager.getUrlRoot();
+									
+									String subject = "Invite to join infinit.e community: " + cp.getName();
+									String body = "You have been invited to join the community " + cp.getName() + 
+										"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
+										"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
+									
+									SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
+									
+									if (mail.send("text/html"))
+									{
+										if (isSysAdmin) {
+											rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+										}
+										else {
+											rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
+										}
+									}
+									else
+									{
+										rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason."));
+									}
 								}
 							}
 							else
@@ -1262,7 +1283,6 @@ public class CommunityHandler
 				// Find person record to update
 				BasicDBObject query = new BasicDBObject();
 				query.put("_id", new ObjectId(communityIdStr));
-
 				DBObject dbo = DbManager.getSocial().getCommunity().findOne(query);
 
 				if (dbo != null) 
@@ -1300,7 +1320,6 @@ public class CommunityHandler
 						person.removeCommunity(personIdStr, communityIdStr);
 
 						rp.setData(community, new CommunityPojoApiMap());
-
 						rp.setResponse(new ResponseObject("Remove member from community", true, "Member has been removed from community"));	
 					}					
 					else

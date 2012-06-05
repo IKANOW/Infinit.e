@@ -11,7 +11,6 @@ function publishSourceAlert()
 }
 
 
-
 // showMessageToDisplay
 function showMessageToDisplay()
 {
@@ -63,23 +62,23 @@ var testSourcePage = ""+
 "<html>" +
 "<head>" +
 "	<meta http-equiv=\"Content-Type\" content=\"text/html; charset=ISO-8859-1\">" +
-"	<title>Infinit.e Source.Builder - V0.1</title>" +
+"	<title>Source Test Output</title>" +
 "	<script type=\"text/javascript\" src=\"inc/utilities.js\"></script>" +
 "</head>" +
 "<body>" +
 "<!-- Begin header.jsp  -->" +
-"	<table bgcolor=\"black\" cellpadding=\"0\" cellspacing=\"1\" width=\"100%\" >" +
+"	<table bgcolor=\"black\" cellpadding=\"4\" cellspacing=\"1\" width=\"100%\" >" +
 "		<tr>" +
-"			<td><a href=\"index.jsp\"><img src=\"img/ikanow_logo.png\" border=\"0\" /></a></td>" +
+"			<td style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'>Source Test Output</td>" +
 "		</tr>" +
 "		<tr bgcolor=\"white\">" +
 "			<td>" +
-"				<table width=\"100%\" cellpadding=\"5\">" +
+"				<table width=\"100%\" cellpadding=\"0\">" +
 "					<tr>" +
 "						<td>" +
 "<!-- End header.jsp  -->" +
 "<form id=\"testSourceForm\" name=\"testSourceForm\">" +
-"<table>" +
+"<table cellpadding=\"2\">" +
 "	<tr>" +
 "		<td>" +
 "			<textarea cols=\"125\" rows=\"5\" id=\"responseMessage\" name=\"responseMessage\" readonly=\"readonly\">XXXXXXXX</textarea>" +
@@ -99,7 +98,7 @@ var testSourcePage = ""+
 "			</td>" +
 "		</tr>" +
 "		<tr>" +
-"			<td>&nbsp;</td>" +
+"			<td style='font-family: sans-serif; font-weight: bold; background-color : #E8E8E8; color : #ffffff'>&nbsp;</td>" +
 "		</tr>" +
 "	</table>" +
 "</body>" +

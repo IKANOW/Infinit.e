@@ -35,6 +35,7 @@ public class MongoIndexerMain {
 	 * @throws NumberFormatException 
 	 * @throws IOException 
 	 */
+	
 	public static void main(String[] args) {
 
 		try {

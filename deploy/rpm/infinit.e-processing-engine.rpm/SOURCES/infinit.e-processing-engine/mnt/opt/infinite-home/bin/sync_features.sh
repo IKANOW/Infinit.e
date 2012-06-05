@@ -37,10 +37,17 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "Starting sync_features.sh" > $LOGDIR/sync_time.txt 
             date >> $LOGDIR/sync_time.txt
             
+            # (Remove any lingering soft deleted items)
+			/usr/bin/mongo --quiet $MONGODB:$MONGODP/doc_metadata --eval 'db.metadata.remove({"sourceKey": /^\?DEL\?/});'
+            date >> $LOGDIR/sync_time.txt
+			echo "Completed soft deletion mop up" >> $LOGDIR/sync_time.txt
+            
+            # (Update feature/document entity counts)
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/doc_metadata $SCRIPTDIR/calc_freq_counts.js
             date >> $LOGDIR/sync_time.txt
 			echo "Completed frequency recalculation" >> $LOGDIR/sync_time.txt
-			 
+
+			# (Update per-source document counts)			 
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/config $SCRIPTDIR/update_doc_counts.js
             date >> $LOGDIR/sync_time.txt
 			echo "Completed doc counts recalculation" >> $LOGDIR/sync_time.txt

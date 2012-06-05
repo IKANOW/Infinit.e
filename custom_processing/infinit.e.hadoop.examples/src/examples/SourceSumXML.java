@@ -23,6 +23,8 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 
+import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.util.MongoTool;
 
 
@@ -35,7 +37,21 @@ public class SourceSumXML extends MongoTool
 
         public void map( Object key, BSONObject value, Context context ) throws IOException, InterruptedException
         {
-        	Object source = value.get("source");        	
+        	// Document access methods:        	
+        	// 1. Pure BSON version
+        	//Object source = value.get("source");
+        	// 2. BSON with safe field names
+        	//Object source = value.get(DocumentPojo.source_);
+        	// 3. Data model abstraction
+        	//DocumentPojo doc = DocumentPojo.fromDb( (BasicDBObject) value, DocumentPojo.class );
+        	//String source = doc.getSource();
+        	// 4. Data model abstraction with faster deserialization
+        	value.removeField("associations");
+        	value.removeField("entities");
+        	value.removeField("metadata");
+        	DocumentPojo doc = DocumentPojo.fromDb( (BasicDBObject) value, DocumentPojo.class );
+        	String source = doc.getSource();
+        	
         	if ( source != null )
         	{
         		word.set(source.toString());

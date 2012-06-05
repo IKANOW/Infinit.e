@@ -171,9 +171,10 @@ public class AssociationAggregationUtils {
 						dboUpdate = col.findOne(query,fields);
 					}
 					else {
-						dboUpdate = col.findAndModify(query,fields,new BasicDBObject(),false,updateOp,false,true);								
-						// (returns event before the changes above, update the feature object below)
-						// (also atomically creates the object if it doesn't exist so is "distributed-safe")
+						dboUpdate = col.findAndModify(query,fields,new BasicDBObject(),false,updateOp,false,true);	
+							// (can use findAndModify because specify index, ie the shard key)
+							// (returns event before the changes above, update the feature object below)
+							// (also atomically creates the object if it doesn't exist so is "distributed-safe")
 					}
 					if ( ( dboUpdate != null ) && !dboUpdate.keySet().isEmpty() )
 					{

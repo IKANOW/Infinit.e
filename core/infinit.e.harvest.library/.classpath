@@ -26,5 +26,6 @@
 	<classpathentry kind="lib" path="lib/commons-logging-1.1.1.jar"/>
 	<classpathentry kind="lib" path="lib/tika-app-1.0.jar"/>
 	<classpathentry kind="lib" path="lib/jcifs-1.3.17.jar"/>
+	<classpathentry kind="lib" path="lib/htmlcleaner-2.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

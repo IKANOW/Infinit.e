@@ -55,6 +55,7 @@ public class CommunityInterface extends ServerResource
 	private String ownerDisplayName = null;
 	private String ownerEmail = null;
 	private String tags = null;
+	private String skipInvitation = null;
 	
 	private String action = "";
 	
@@ -84,6 +85,10 @@ public class CommunityInterface extends ServerResource
 		// Method.GET
 		if (request.getMethod() == Method.GET) 
 		{
+			// Query String Values
+			Map<String, String> queryOptions = this.getQuery().getValuesMap();
+			if (queryOptions.get("skipinvitation") != null) skipInvitation = queryOptions.get("skipinvitation");
+			
 			if (urlStr.contains("/community/get/") )
 			{
 				if (RESTTools.decodeRESTParam("communityid", attributes) != null) 
@@ -328,7 +333,7 @@ public class CommunityInterface extends ServerResource
 			 }
 			 else if ( action.equals("inviteCommunity"))
 			 {
-				 rp = this.community.inviteCommunity(cookieLookup, personId, communityId);
+				 rp = this.community.inviteCommunity(cookieLookup, personId, communityId, skipInvitation);
 			 }
 		 }
 		 

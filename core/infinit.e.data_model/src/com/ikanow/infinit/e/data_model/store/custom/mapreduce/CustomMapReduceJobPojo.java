@@ -47,7 +47,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public String tempConfigXMLLocation = null;
 	public String tempJarLocation = null;
 	public boolean isCustomTable = false;
-	
+	public Date lastRunTime = null;
 	public String mapper;
 	public String reducer;
 	public String combiner = "";
@@ -66,7 +66,6 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	
 	public enum INPUT_COLLECTIONS
 	{	
-		IRS_WORKFORCE,
 		DOC_METADATA;
 	}
 }

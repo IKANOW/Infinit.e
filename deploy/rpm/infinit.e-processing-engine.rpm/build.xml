@@ -75,7 +75,7 @@
 
 		<!-- Haven't included these as normal for OSS reasons, but can bundle in RPM -->
 		<copy todir="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/">
-			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar"/>
+			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar j-calais*.jar"/>
 		</copy>
 	</target>
 	

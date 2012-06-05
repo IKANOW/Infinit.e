@@ -106,7 +106,9 @@
 						                   
 							               "yum -y --nogpgcheck install infinit.e-config;",
 							               		"service splunk stop; chkconfig splunk --off;",
-							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
+							               "yum -y --nogpgcheck install infinit.e-db-instance;",
+						                   
+						                   "sed -i 's/^curl/#curl/' /etc/rc.local"   
 					}
 				}
 			}

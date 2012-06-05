@@ -5,6 +5,7 @@
     <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetModule"/>
     <classEntry path="com.ikanow.infinit.e.widget.library.assets.skins.WidgetOptionsGroupSkin"/>
     <classEntry path="com.ikanow.infinit.e.widget.library.components.WidgetOptionsGroup"/>
+    <classEntry path="com.ikanow.infinit.e.widget.library.data.WidgetSaveObject"/>
   </includeClasses>
   <includeResources/>
   <namespaceManifests/>

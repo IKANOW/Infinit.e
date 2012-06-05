@@ -383,13 +383,7 @@ limitations under the License.
 			return null;
 		}
 	} // TESTED
-	
-	
-	// getSourceShares - 
-	private String getSourceShares(HttpServletRequest request, HttpServletResponse response) 
-	{
-		return callRestfulApi("social/share/search/?type=source,source_published",request, response);
-	} // TESTED
+
 
 	
 	// getUserSources - 
@@ -402,13 +396,51 @@ limitations under the License.
 	// getSystemCommunity - 
 	private String getSystemCommunity(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("community/get/4c927585d591d31d7b37097a", request, response);
+		return callRestfulApi("social/community/getsystem/", request, response);
 	}
 	
-	// getSystemCommunity - 
+	// getAllCommunities - 
 	private String getAllCommunities(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("community/getall/", request, response);
+		return callRestfulApi("social/community/getall/", request, response);
+	}
+	
+	
+	// getPublicCommunities - 
+	private String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/community/getpublic/", request, response);
+	}
+	
+	
+	// getCommunity - 
+	private String getCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/community/get/" + id, request, response);
+	}
+	
+	// getCommunity - 
+	private String removeCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/community/remove/" + id, request, response);
+	}
+	
+	
+	// updateCommunityMemberStatus - 
+	private String updateCommunityMemberStatus(String communityid, String personid, String status,
+			HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/community/member/update/status/" + communityid + "/" 
+			+ personid + "/" + status, request, response);
+	}
+	
+	
+	// updateCommunityMemberType - 
+	private String updateCommunityMemberType(String communityid, String personid, String type,
+			HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/community/member/update/type/" + communityid + "/" 
+			+ personid + "/" + type, request, response);
 	}
 	
 	
@@ -424,6 +456,95 @@ limitations under the License.
 	{
 		return callRestfulApi("config/source/delete/" + sourceId + "/" + communityId, request, response);
 	}
+	
+	
+	
+	// getListOfAllShares - 
+	private Map<String,String> getListOfAllShares(HttpServletRequest request, HttpServletResponse response)
+	{
+		Map<String,String> allShares = new HashMap<String,String>();
+		
+		// publishedSources - array of source._ids of published sources
+		ArrayList<String> publishedSources = new ArrayList<String>();
+		try
+		{
+			JSONObject sharesObject = new JSONObject( getAllShares(request, response) );
+			JSONObject json_response = sharesObject.getJSONObject("response");
+			
+			if (json_response.getString("success").equalsIgnoreCase("true")) 
+			{
+				if (sharesObject.has("data")) 
+				{
+					// Iterate over share objects and write to our collection
+					JSONArray shares = sharesObject.getJSONArray("data");
+					for (int i = 0; i < shares.length(); i++) 
+					{
+						JSONObject share = shares.getJSONObject(i);
+						allShares.put(share.getString("title"), share.getString("_id"));
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			System.out.println(e.getMessage());
+		}
+		return allShares;
+	}
+	
+	
+	// getAllShares
+	private String getAllShares(HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("social/share/search/", request, response);
+	}
+	
+	
+	// getListOfSharesByType -
+	private Map<String,String> getListOfSharesByType(String type, HttpServletRequest request, HttpServletResponse response)
+	{
+		Map<String,String> allShares = new HashMap<String,String>();
+		
+		// publishedSources - array of source._ids of published sources
+		ArrayList<String> publishedSources = new ArrayList<String>();
+		try
+		{
+			JSONObject sharesObject = new JSONObject( searchSharesByType(type, request, response) );
+			JSONObject json_response = sharesObject.getJSONObject("response");
+			
+			if (json_response.getString("success").equalsIgnoreCase("true")) 
+			{
+				if (sharesObject.has("data")) 
+				{
+					// Iterate over share objects and write to our collection
+					JSONArray shares = sharesObject.getJSONArray("data");
+					for (int i = 0; i < shares.length(); i++) 
+					{
+						JSONObject share = shares.getJSONObject(i);
+						allShares.put(share.getString("title"), share.getString("_id"));
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			System.out.println(e.getMessage());
+		}
+		return allShares;
+	}
+	
+	// searchSharesByType
+	private String searchSharesByType(String typeStr, HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("social/share/search/?type=" + typeStr,request, response);
+	}
+	
+	
+	// getSourceShares - 
+	private String getSourceShares(HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/share/search/?type=source,source_published",request, response);
+	} // TESTED
 	
 	
 	// getUserSources - 
@@ -443,7 +564,6 @@ limitations under the License.
 				userIdStr = person.getString("_id");
 			}
 			
-			
 			// Get the user's shares from social.share where type = source or source_published
 			String tempJson = getSourceShares(request, response);
 			
@@ -459,11 +579,12 @@ limitations under the License.
 					for (int i = 0; i < data.length(); i++) 
 					{
 						JSONObject shareObj = data.getJSONObject(i);
-						String tempTitle = shareObj.getString("title") + " (*)";
+						String tempTitle = shareObj.getString("title");
 						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
 						if (sourceObj.has("_id")) publishedSources.add( sourceObj.getString("_id") );
-						if (sourceObj.has("ownerid") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
+						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
+						tempTitle += " (*)";
 						
 						userSources.put(tempTitle, shareObj.getString("_id"));
 					}
@@ -489,7 +610,7 @@ limitations under the License.
 							if (!publishedSources.contains( sourceObj.getString("_id") ))
 							{
 								String tempTitle = sourceObj.getString("title");
-								if (sourceObj.has("ownerid") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
+								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
 								userSources.put(tempTitle, sourceObj.getString("_id"));
 							}
 						}
@@ -534,6 +655,88 @@ limitations under the License.
 	}
 	
 	
+	// getListOfCommunityMembers
+	private Map<String,String> getListOfCommunityMembers(String id, HttpServletRequest request, HttpServletResponse response)
+	{
+		Map<String,String> allPeople = new HashMap<String,String>();
+		try
+		{
+			JSONObject communityObj = new JSONObject ( getCommunity(id, request, response) );
+			if ( communityObj.has("data") )
+			{
+				JSONObject community = new JSONObject ( communityObj.getString("data") );
+				if ( community.has("members") )
+				{
+					JSONArray members = community.getJSONArray("members");
+					for (int i = 0; i < members.length(); i++) 
+					{
+						JSONObject member = members.getJSONObject(i);
+						allPeople.put( member.getString("displayName"), member.getString("_id") );
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			//System.out.println(e.getMessage());
+		}
+		return allPeople;
+	}
+	
+	
+	// getListOfAllCommunities
+	private Map<String,String> getListOfAllCommunities(HttpServletRequest request, HttpServletResponse response)
+	{
+		Map<String,String> allCommunities = new HashMap<String,String>();
+		try
+		{
+			JSONObject communitiesObj = new JSONObject ( getAllCommunities(request, response) );
+			if ( communitiesObj.has("data") )
+			{
+				JSONArray communities = communitiesObj.getJSONArray("data");
+				for (int i = 0; i < communities.length(); i++) 
+				{
+					JSONObject community = communities.getJSONObject(i);
+					allCommunities.put( community.getString("name"), community.getString("_id") );
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			//System.out.println(e.getMessage());
+		}
+		return allCommunities;
+	}
+	
+	
+	// getListOfAllCommunities
+	private Map<String,String> getListOfAllNonPersonalCommunities(HttpServletRequest request, HttpServletResponse response)
+	{
+		Map<String,String> allCommunities = new HashMap<String,String>();
+		try
+		{
+			JSONObject communitiesObj = new JSONObject ( getAllCommunities(request, response) );
+			if ( communitiesObj.has("data") )
+			{
+				JSONArray communities = communitiesObj.getJSONArray("data");
+				for (int i = 0; i < communities.length(); i++) 
+				{
+					JSONObject community = communities.getJSONObject(i);
+					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false"))
+					{
+						allCommunities.put( community.getString("name"), community.getString("_id") );
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			//System.out.println(e.getMessage());
+		}
+		return allCommunities;
+	}
+	
+	
 	// getPerson -
 	private String getPerson(HttpServletRequest request, HttpServletResponse response) 
 	{
@@ -574,14 +777,29 @@ limitations under the License.
 	private String deletePerson(String id, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/delete/" + id, request, response);
-	}
+	} // TESTED 
 	
 	
-	// updatePassport
+	// updatePassword
 	private String updatePassword(String id, String password, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/update/password/" + id + "/" + password, request, response);
-	}
+	} // TESTED 
+	
+	
+	// addToCommunity
+	private String addToCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("social/community/member/invite/" + community + "/" + person + "?skipinvitation=true", request, response);
+	} // TESTED 
+	
+	// removeFromCommunity
+	private String removeFromCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("social/community/member/update/status/" + community + "/" + person + "/remove", request, response);
+	} // TESTED
+	
+	
 	
 	
 	// !---------- End Get/Post API Handlers ----------!

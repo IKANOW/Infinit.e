@@ -2,7 +2,7 @@
 
 body 
 {
-	background-color : #363e41;
+	background-color : #212323;
 	font-family: sans-serif;
 }
 
@@ -15,8 +15,15 @@ body
 .standardSubTable
 {
 	background-color : #E8E8E8;
+	font-family: sans-serif;
+}
+
+.listTable
+{
+	background-color : #E8E8E8;
 	font-family: sans-serif;	
 }
+
 
 .subTableHeader
 {
@@ -32,6 +39,22 @@ body
 	font-weight: normal;
 	text-decoration: none;
 	background-color : #E8E8E8;
+}
+
+.notAMemberOfCommunity
+{
+	font-family: sans-serif;
+	color: #898E90;
+	font-weight: normal;
+	text-decoration: none;
+}
+
+.disabledText
+{
+	font-family: sans-serif;
+	color: #898E90;
+	font-weight: normal;
+	text-decoration: none;
 }
 
 .headerLink

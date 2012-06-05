@@ -140,7 +140,7 @@
 			<fileset dir="${dir.build.classes}"/>
 
 	  		<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions -->
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar"/>
 		</jar>
 	</target>
 	

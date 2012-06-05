@@ -29,15 +29,19 @@
 			import com.ikanow.infinit.e.components.InfininiteRollover;
 			import com.ikanow.infinit.e.components.InfiniteRolloverWindow;
 			import com.ikanow.infinit.e.components.RolloverWindow;
+			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			import com.mapquest.DistanceUnits;
 			import com.mapquest.LatLngCollection;
 			import com.mapquest.tilemap.RectLL;
+			import com.mapquest.tilemap.RemoteCollection;
+			import com.mapquest.tilemap.ShapeCollection;
 			import com.mapquest.tilemap.TileMap;
 			import com.mapquest.tilemap.TileMapEvent;
 			import com.mapquest.tilemap.controls.inputdevice.MouseWheelZoomControl;
 			import com.mapquest.tilemap.controls.shadymeadow.SMLargeZoomControl;
+			import com.mapquest.tilemap.deserializers.DeserializeKML;
 			import com.mapquest.tilemap.overlays.CircleOverlay;
 			import com.mapquest.tilemap.pois.ImageMapIcon;
 			import com.mapquest.tilemap.pois.MapIcon;
@@ -56,6 +60,7 @@
 			import spark.components.BorderContainer;
 			import spark.components.Label;
 			import spark.components.VGroup;
+			import spark.effects.RemoveAction;
 			import spark.events.IndexChangeEvent;
 			import spark.primitives.Line;
 			import org.alivepdf.fonts.FontFamily;
@@ -67,6 +72,7 @@
 			import org.alivepdf.layout.Unit;
 			import org.alivepdf.pages.Page;
 			import org.alivepdf.pdf.PDF;
+			import system.data.Map;
 			import system.data.sets.HashSet;
 			
 			private static const MAP_OVERLAY:int = 0;
@@ -85,6 +91,8 @@
 			
 			public var SHOW_GEO_EVENTS:Boolean = true;
 			
+			public var SHOW_KML_LAYERS:Boolean = true;
+			
 			// Determines if filtering results are immediately applied:
 			public var ignoreLocalFilter:Boolean = false;
 			
@@ -95,6 +103,8 @@
 			// 3.1.2] Constants
 			
 			private const API_KEY:String = flash.external.ExternalInterface.call( "getMapLicenseKey" );
+			
+			private const ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
 			
 			// 3.1.3] Bindable parameters / other GUI-specific objects
 			
@@ -160,6 +170,13 @@
 			private var _ontologyMenu:Menu = null;
 			
 			private var rolloverWindow:InfininiteRollover;
+			
+			private var remoteCollection:ArrayCollection = new ArrayCollection();
+			
+			private var kmlCollection:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var kmlLayerNames:ArrayCollection = new ArrayCollection();
 			
 			public function isHeatMapEnabled_fromPresentation():Boolean
 			{
@@ -242,9 +259,45 @@
 			 *
 			 * @param saveString the last save string or null if there was none
 			 */
-			public function onLoadWidgetOptions( widgetOptions:Object ):void
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
-				this.widgetOptions = widgetOptions;
+				resetKMLCollections();
+				
+				if ( widgetOptions != null )
+				{
+					//this holds a users last map 
+					if ( widgetOptions.userSave != null )
+					{
+						this.widgetOptions = widgetOptions.userSave;
+					}
+					
+					//this holds kml supplied by a community
+					if ( widgetOptions.communitySave != null )
+					{
+						var keys:Array = widgetOptions.communitySave.getKeys();
+						var vals:Array = widgetOptions.communitySave.getValues();
+						
+						//loop over every kml url and load them all up
+						for ( var i:int = 0; i < keys.length; i++ )
+						{
+							//The keys are the commid, the val is a map of name -> kml urls
+							var kmlMap:Object = vals[ i ];
+							var kmlKeys:Array = kmlMap.keys;
+							var kmlVals:Array = kmlMap.values;
+							
+							for ( var j:int = 0; j < kmlVals.length; j++ )
+							{
+								var url:String = kmlVals[ j ];
+								url = url.replace( "\$infinite/", ENDPOINT_URL );
+								var remoteColl:RemoteCollection = new RemoteCollection( url, DeserializeKML );
+								remoteColl.name = getKmlName( keys[ i ], kmlKeys[ j ] );
+								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_LOADED, kmlLoaded );
+								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );
+								kmlCollection.addItem( remoteColl );
+							}
+						}
+					}
+				}
 			}
 			
 			/**
@@ -281,6 +334,13 @@
 				tempWidgetOptions[ "centerLat" ] = _map.center.lat;
 				tempWidgetOptions[ "centerLng" ] = _map.center.lng;
 				tempWidgetOptions[ "zoomLevel" ] = _map.zoom;
+				tempWidgetOptions[ "openKMLLayers" ] = new Array();
+				
+				for each ( var layer:Object in kmlLayerNames )
+				{
+					if ( layer.toggled )
+						tempWidgetOptions[ "openKMLLayers" ].push( layer.label );
+				}
 				return tempWidgetOptions;
 			}
 			
@@ -402,6 +462,27 @@
 				displayTypes.selectedIndex = -1;
 			}
 			
+			protected function kmlLayers_changeHandler( event:IndexChangeEvent ):void
+			{
+				//get the layer turned on/off and turn it on/off				
+				var kmlOption:Object = kmlLayerNames.getItemAt( event.newIndex ) as Object;
+				kmlOption.toggled = !kmlOption.toggled;
+				
+				if ( SHOW_KML_LAYERS )
+				{
+					if ( kmlOption.toggled )
+					{
+						_map.addShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+					}
+					else
+					{
+						_map.removeShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+					}
+				}
+				
+				kmlLayers.selectedIndex = -1;
+			}
+			
 			protected function ontologyMenuChangeEvent( event:MenuEvent ):void
 			{
 				//have to redraw data with points changed					
@@ -438,6 +519,12 @@
 					{
 						SHOW_GEO_EVENTS = showOption.toggled;
 						_presentationLayer.doMapDisplayProcessing();
+						break;
+					}
+					case "kmlLayers":
+					{
+						SHOW_KML_LAYERS = showOption.toggled;
+						displayKMLLayers( SHOW_KML_LAYERS );
 						break;
 					}
 				}
@@ -613,7 +700,7 @@
 			
 			private function createKML():ByteArray
 			{
-				var xml:String = "<kml xmlns=\"http://www.opengis.net/kml/2.2\"><Document>";
+				var xml:String = "< xmlns=\"http://www.opengis.net/kml/2.2\"><Document>";
 				xml += "<Style id=\"Document\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png</href></Icon></IconStyle></Style>";
 				xml += "<Style id=\"Entity\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle></Style>";
 				xml += "<Style id=\"Event\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ltblu-pushpin.png</href></Icon></IconStyle></Style>";
@@ -793,6 +880,19 @@
 			
 			}
 			
+			private function displayKMLLayers( show:Boolean ):void
+			{
+				for ( var i:int = 0; i < kmlLayerNames.length; i++ )
+				{
+					var layerToggle:Object = kmlLayerNames.getItemAt( i );
+					
+					if ( show && layerToggle.toggled )
+						_map.addShapeCollection( kmlCollection.getItemAt( i ) as RemoteCollection );
+					else
+						_map.removeShapeCollection( kmlCollection.getItemAt( i ) as RemoteCollection );
+				}
+			}
+			
 			private function doneResizingMap( event:TimerEvent ):void
 			{
 				if ( SHOW_HEAT_MAP )
@@ -801,6 +901,74 @@
 					
 					// For some reason call entire procesing after map finished moving, only heat map after resize?
 					_presentationLayer.heatMapRedraw_fromGUI();
+				}
+			}
+			
+			/**
+			 * Helper function for kmlLoaded(), checks if a layers name was in the
+			 * widget save options.  If it was that means a user previously had
+			 * this layer turned on and we should turn it on.  Otherwise it was not
+			 * on so we set it to false.
+			 */
+			private function getKMLLayerWasToggled( newLayerName:String ):Boolean
+			{
+				if ( this.widgetOptions.openKMLLayers != null )
+				{
+					var openKMLLayers:Array = this.widgetOptions.openKMLLayers;
+					
+					for each ( var layer:String in openKMLLayers )
+					{
+						if ( layer == newLayerName )
+							return true;
+					}
+				}
+				else
+				{
+					//if there was no save, we'll just turn on all the kml
+					return true;
+				}
+				//if we dont find the layer, we'll assume it was turned off
+				return false;
+			}
+			
+			/**
+			 * Gets the communities name and returns a string of the combined
+			 * kml name | community name
+			 *
+			 * I'm not sure if you can actually get the communities without
+			 * calling api calls which seems like overkill at this moment, will leave blank
+			 * currently.
+			 */
+			private function getKmlName( commID:String, kmlName:String ):String
+			{
+				var returnString:String = kmlName + " | " + commID;
+				return returnString;
+			}
+			
+			private function kmlFailed( event:Event ):void
+			{
+				var target:RemoteCollection = event.target as RemoteCollection;
+				trace( "Loading KML: " + target.name + " failed to init" );
+			}
+			
+			/**
+			 * Callback function for loading remote kml into the collection called
+			 * from onLoadWidgetOptions.  Will put any loaded collections into
+			 * the kmlCollection so that it can be loaded on the map and turned on/off
+			 * at will.
+			 */
+			private function kmlLoaded( event:Event ):void
+			{
+				var target:RemoteCollection = event.target as RemoteCollection;
+				kmlCollection.addItem( target );
+				var layerToggled:Boolean = getKMLLayerWasToggled( target.name );
+				kmlLayerNames.addItem( { label: target.name, data: target.name, type: "check", toggled: layerToggled } );
+				
+				//if kml is turned on, add this to the map now, otherwise just
+				//store it.
+				if ( SHOW_KML_LAYERS && layerToggled )
+				{
+					_map.addShapeCollection( target );
 				}
 			}
 			
@@ -1131,6 +1299,17 @@
 				_presentationLayer.doMapDisplayProcessing();
 			}
 			
+			private function resetKMLCollections():void
+			{
+				for each ( var remoteColl:RemoteCollection in kmlCollection )
+				{
+					_map.removeShapeCollection( remoteColl );
+				}
+				remoteCollection.removeAll();
+				kmlCollection.removeAll();
+				kmlLayerNames.removeAll();
+			}
+			
 			// (options)
 			
 			private function showRegionOptionsPopUp():void
@@ -1363,6 +1542,15 @@
 				change="setTimeout( displayTypes_changeHandler, 100, event )"
 				listWidth="170"
 				prompt="Display Types" />
+
+			<!-- Display Types Drop Down List -->
+			<components:WidgetPromptCheckBoxDropDownList id="kmlLayers"
+				width="125"
+				selectedIndex="-1"
+				dataProvider="{ kmlLayerNames }"
+				change="setTimeout( kmlLayers_changeHandler, 100, event )"
+				listWidth="170"
+				prompt="KML Layers" />
 
 		</s:HGroup>
 	</components:headerContent>

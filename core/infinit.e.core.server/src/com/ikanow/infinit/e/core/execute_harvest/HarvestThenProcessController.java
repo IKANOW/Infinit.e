@@ -32,6 +32,8 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
+import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
+import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 
 public class HarvestThenProcessController {
     private static Logger _logger = Logger.getLogger(HarvestThenProcessController.class);
@@ -111,6 +113,14 @@ public class HarvestThenProcessController {
 				} 
 				catch (InterruptedException e3) { }
 			}			        
+        }
+        StoreAndIndexManager dataStore = new StoreAndIndexManager();
+        boolean bResizedDB = dataStore.resizeDB();
+        AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+        dataStore.removeSoftDeletedDocuments();
+        AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+        if (bResizedDB) {
+        	_logger.info("(resized DB, now " + dataStore.getDatabaseSize() + " documents)");
         }
         
 		HarvestController.logHarvesterStats();
@@ -284,11 +294,17 @@ public class HarvestThenProcessController {
 				if (HarvestEnum.error != _sourceToProcess.getHarvestStatus().getHarvest_status()) {
 					_genericController.get().processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove);
 						// (toRemove includes toUpdate)
-					long nDocsDeleted = toRemove.size();
-					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, nDocsDeleted);
+					
+					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, toRemove.size());
 						// (note also releases the "in_progress" lock)
+						// (note also prunes sources based on "maxDocs")
 				}
 				// (if we've declared error, then "in_progress" lock already released so nothing to do)
+			}
+			catch (Error e) { // Don't like to catch these, but otherwise we leak away sources
+				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0);					
+				_logger.error("Source error on " + _sourceToProcess.getKey() + ": " + e.getMessage());
+				e.printStackTrace();				
 			}
 			catch (Exception e) { // Limit any problems to a single source
 				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0);					

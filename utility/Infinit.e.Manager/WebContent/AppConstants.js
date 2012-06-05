@@ -1,7 +1,7 @@
 function getEndPointUrl() {
 	//url = "";
-	//url = "http://localhost:8184/";
-    url = "http://50.57.133.246/api/";
+	url = "http://localhost:8184/";
+    //url = "http://50.57.133.246/api/";
     //url = "http://infinite.rr.ikanow.com/api/";
 	return url;
 }

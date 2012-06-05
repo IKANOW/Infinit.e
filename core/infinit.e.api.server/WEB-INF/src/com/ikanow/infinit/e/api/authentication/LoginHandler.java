@@ -56,13 +56,7 @@ public class LoginHandler
 			}
 			AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo,AuthenticationPojo.class);			
 			
-			// To avoid people just hitting this button 1000 times, ensure only sent once per 5 minutes
 			Date now = new Date();
-			if ((now.getTime() - ap.getModified().getTime()) < 300000L) { // ie 300s ie 5mins
-				rp.setResponse(new ResponseObject("Reset Password",true,"Password reset request ignored, try later."));
-				return rp; 
-			}//TESTED
-			
 			if (bLoggedIn) 
 			{				
 				//change pword
@@ -87,6 +81,12 @@ public class LoginHandler
 			}//TESTED
 			else 
 			{ // Two stage process ... first "forgotten password" just sends email containing link to click on
+				
+				// To avoid people just hitting this button 1000 times, ensure only sent once per 5 minutes
+				if ((now.getTime() - ap.getModified().getTime()) < 300000L) { // ie 300s ie 5mins
+					rp.setResponse(new ResponseObject("Reset Password",true,"Password reset request ignored, try later."));
+					return rp; 
+				}//TESTED
 				
 				// Update auth to ensure this isn't abused
 				ap.setModified(now);

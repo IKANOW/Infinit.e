@@ -853,8 +853,9 @@ else if (isLoggedIn == true)
 	if (request.getParameter("logout") != null)
 	{
 		logOut(request, response);
+		out.println("<div style=\" text-align: center;\">");
 		out.println("<meta http-equiv=\"refresh\" content=\"0\">");
-		
+		out.println("</div>");						
 	}
 	
 	else

@@ -115,7 +115,8 @@ package com.ikanow.infinit.e.actionscript
 		private var showOptionsData:ArrayCollection = new ArrayCollection( [ { label: "Heat map overlay", data: "heatMap", type: "check", toggled: "true" },
 																			 { label: "Geo-tagged documents", data: "geoDocuments", type: "check", toggled: "true" },
 																			 { label: "Geo-tagged entities", data: "geoEntities", type: "check", toggled: "true" },
-																			 { label: "Geo-tagged events", data: "geoEvents", type: "check", toggled: "true" } ] );
+																			 { label: "Geo-tagged events", data: "geoEvents", type: "check", toggled: "true" },
+																			 { label: "KML layers", data: "kmlLayers", type: "check", toggled: "true" } ] );
 		
 		//======================================
 		// constructor 

@@ -258,6 +258,7 @@ public class DatabaseHarvester implements HarvesterInterface
 			// Update source document with harvest success message
 			String truncationMode = null;
 			if (bTruncated) {
+				source.setReachedMaxDocs();
 				if (null == lastHarvestInfo) { // Was an initial import
 					truncationMode = new StringBuffer("query:").append(nNumRecordsToSkip + this.docsToAdd.size()).append('.').toString();
 				}

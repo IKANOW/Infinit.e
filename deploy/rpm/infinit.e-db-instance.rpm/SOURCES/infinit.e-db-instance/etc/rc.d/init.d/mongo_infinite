@@ -389,11 +389,11 @@ stop()
 		fi
 	fi
 
-	if [ $(ps -ef | grep mongo | grep -v grep | grep -v mongo_infinite | wc -l) -eq 0 ]; then
+	if [ $(ps -ef | grep -P "\s+mongo[sd]\s+--" | grep -v grep | grep -v mongo_infinite | wc -l) -eq 0 ]; then
 		echo "All Mongo Instances have been verified as stopped"
 	else
 		echo "Stop was run but there are still mongo processes running:"
-		ps -ef | grep mongo | grep -v grep | grep -v mongo_infinite
+		ps -ef | grep -P "\s+mongo[sd]\s+--" | grep -v grep | grep -v mongo_infinite
 	fi	
 }
 

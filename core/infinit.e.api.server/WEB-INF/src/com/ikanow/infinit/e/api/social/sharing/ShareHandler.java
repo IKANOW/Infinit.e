@@ -115,7 +115,7 @@ public class ShareHandler
 	 * @param limit
 	 * @return
 	 */
-	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit)
+	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -169,7 +169,7 @@ public class ShareHandler
 		}
 		else if ((searchby != null) && searchby.equalsIgnoreCase("person"))
 		{
-			if (!RESTTools.adminLookup(personIdStr) || (null == idStrList)) { // not admin or no ids spec'd
+			if ((ignoreAdmin && !RESTTools.adminLookup(personIdStr)) || (null == idStrList)) { // not admin or no ids spec'd
 				
 				query.put("owner._id", new ObjectId(personIdStr));
 			}//TESTED
@@ -201,7 +201,7 @@ public class ShareHandler
 		}
 		else { // Defaults to all communities to which a user belongs (or everything for admins)
 			
-			if (!RESTTools.adminLookup(personIdStr)) {			
+			if (ignoreAdmin || !RESTTools.adminLookup(personIdStr)) {			
 				if (null != memberOf) {
 					query.put("communities._id", new BasicDBObject("$in", memberOf));
 				}
@@ -767,7 +767,7 @@ public class ShareHandler
 					share.setModified(new Date());
 
 					DbManager.getSocial().getShare().update(query, share.toDb());
-					rp.setResponse(new ResponseObject("Share", false, "Community successfully added to the share"));
+					rp.setResponse(new ResponseObject("Share", true, "Community successfully added to the share"));
 				}
 				// Community already in share.communities
 				else

@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.harvest.extraction.document.rss;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.regex.Matcher;
@@ -32,7 +33,6 @@ import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisC
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
-import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 
 public class FeedHarvester_searchEngineSubsystem {
@@ -41,9 +41,6 @@ public class FeedHarvester_searchEngineSubsystem {
 	
 	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) {
 
-		PropertiesManager props = new PropertiesManager();
-		long nDefaultTimeBetweenPages_ms = props.getWebCrawlWaitTime(); 
-		
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		
 		SourceSearchFeedConfigPojo searchConfig = feedConfig.getSearchConfig();
@@ -52,8 +49,20 @@ public class FeedHarvester_searchEngineSubsystem {
 		}
 		
 		UnstructuredAnalysisConfigPojo savedUAHconfig = src.getUnstructuredAnalysisConfig(); // (can be null)
-		String savedUserAgent = feedConfig.getUserAgent(); 
+		String savedUserAgent = feedConfig.getUserAgent();
+		Integer savedWaitTimeOverride_ms = feedConfig.getWaitTimeOverride_ms();
 
+		// Create a deduplication set to ensure URLs derived from the search pages don't duplicate the originals
+		// (and also derived URLs)
+		HashSet<String> dedupSet = new HashSet<String>();
+		if (null != src.getRssConfig().getExtraUrls()) {
+			Iterator<ExtraUrlPojo> itDedupUrls = src.getRssConfig().getExtraUrls().iterator();
+			while (itDedupUrls.hasNext()) {
+				String dedupUrl = itDedupUrls.next().url;
+				dedupSet.add(dedupUrl);
+			}
+		}//TESTED
+		
 		Iterator<ExtraUrlPojo> itUrls = null;
 		// (ie no URL specified, so using extra URLs as search URLs - and optionally as real URLs also)
 		if ((null == savedUrl) && (null != src.getRssConfig().getExtraUrls()) && !src.getRssConfig().getExtraUrls().isEmpty()) {
@@ -129,26 +138,20 @@ public class FeedHarvester_searchEngineSubsystem {
 					if (null != searchConfig.getUserAgent()) {
 						feedConfig.setUserAgent(searchConfig.getUserAgent());
 					}
+					if (null != searchConfig.getWaitTimeBetweenPages_ms()) {
+						// Web etiquette: don't hit the same site too often
+						// (applies this value to sleeps inside UAH.executeHarvest)
+						feedConfig.setWaitTimeOverride_ms(searchConfig.getWaitTimeBetweenPages_ms());
+					}
+					//TESTED (including RSS-level value being written back again and applied in SAH/UAH code)
 					
 					DocumentPojo searchDoc = new DocumentPojo();
 					searchDoc.setUrl(url);
 
-					// Web etiquette: don't hit the same site too often
-					if (nPage > 0) { // ie not first time 
-						try {
-							if (null != searchConfig.getWaitTimeBetweenPages_ms()) {
-								Thread.sleep(searchConfig.getWaitTimeBetweenPages_ms());
-							}
-							else {
-								Thread.sleep(nDefaultTimeBetweenPages_ms);							
-							}
-						}
-						catch (Exception e) {} // Just carry on
-					}
-					
 					UnstructuredAnalysisHarvester dummyUAH = new UnstructuredAnalysisHarvester();
 					boolean bMoreDocs = (nPage < nMaxPages - 1);
-					dummyUAH.executeHarvest(context, src, searchDoc, bMoreDocs);
+					dummyUAH.executeHarvest(context, src, searchDoc, false, bMoreDocs);
+						// (the leading false means that we never sleep *before* the query, only after)
 					
 					//DEBUG
 					//System.out.println("NEW DOC MD: " + new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(searchDoc.getMetadata()));
@@ -163,23 +166,28 @@ public class FeedHarvester_searchEngineSubsystem {
 								
 								// 3 fields: url, title, description(=optional)
 								String linkUrl = bsonObj.getString(DocumentPojo.url_);
-								String linkTitle = bsonObj.getString(DocumentPojo.title_);
-								String linkDesc = bsonObj.getString(DocumentPojo.description_);
-								String linkPubDate = bsonObj.getString(DocumentPojo.publishedDate_);
-								String linkFullText = bsonObj.getString(DocumentPojo.fullText_);
 								
-								if ((null != linkUrl) && (null != linkTitle)) {
-									SourceRssConfigPojo.ExtraUrlPojo link = new SourceRssConfigPojo.ExtraUrlPojo();
-									link.url = linkUrl;
-									link.title = linkTitle;
-									link.description = linkDesc;
-									link.publishedDate = linkPubDate;
-									link.fullText = linkFullText;
-									if (null == feedConfig.getExtraUrls()) {
-										feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+								if (!dedupSet.contains(linkUrl)) {
+									dedupSet.add(linkUrl);
+								
+									String linkTitle = bsonObj.getString(DocumentPojo.title_);
+									String linkDesc = bsonObj.getString(DocumentPojo.description_);
+									String linkPubDate = bsonObj.getString(DocumentPojo.publishedDate_);
+									String linkFullText = bsonObj.getString(DocumentPojo.fullText_);
+									
+									if ((null != linkUrl) && (null != linkTitle)) {
+										SourceRssConfigPojo.ExtraUrlPojo link = new SourceRssConfigPojo.ExtraUrlPojo();
+										link.url = linkUrl;
+										link.title = linkTitle;
+										link.description = linkDesc;
+										link.publishedDate = linkPubDate;
+										link.fullText = linkFullText;
+										if (null == feedConfig.getExtraUrls()) {
+											feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+										}
+										feedConfig.getExtraUrls().add(link);
 									}
-									feedConfig.getExtraUrls().add(link);
-								}
+								}//(end if URL not already found)
 							}
 							catch (Exception e) {
 								// (just carry on)
@@ -204,6 +212,7 @@ public class FeedHarvester_searchEngineSubsystem {
 				// Fix any temp changes we made to the source
 				src.setUnstructuredAnalysisConfig(savedUAHconfig);
 				feedConfig.setUserAgent(savedUserAgent);
+				feedConfig.setWaitTimeOverride_ms(savedWaitTimeOverride_ms);
 			}			
 			if (null == itUrls) {
 				break;		

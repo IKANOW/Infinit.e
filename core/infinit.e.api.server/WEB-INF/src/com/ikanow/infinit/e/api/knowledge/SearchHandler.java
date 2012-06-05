@@ -144,9 +144,13 @@ public class SearchHandler
 		{
 			for (SearchHit hit: docs) 
 			{
+				SearchHitField shf = hit.field(EntityFeaturePojo.disambiguated_name_);
+				if (null == shf) { // robustness check, sometimes if the harvester goes wrong this field might be missing
+					continue;
+				}
 				
 				SearchSuggestPojo sp = new SearchSuggestPojo();
-				sp.setValue((String) hit.field(EntityFeaturePojo.disambiguated_name_).value());
+				sp.setValue((String) shf.value());
 				sp.setDimension((String) hit.field(EntityFeaturePojo.dimension_).value());
 				sp.setType((String) hit.field(EntityFeaturePojo.type_).value());
 				if (bIncludeGeo) 

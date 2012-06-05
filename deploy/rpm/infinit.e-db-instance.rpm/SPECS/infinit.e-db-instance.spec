@@ -31,12 +31,14 @@ Infinit.e Mongo DB installation and update
 %install
 
 ###########################################################################
-# INSTALL *AND* UPGRADE
+# NO INSTALL *OR* UPGRADE
 
 %post
 
 ###########################################################################
 # INSTALL *AND* UPGRADE
+
+	###########################################################################
 	# Handle relocation:
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 		echo "(Creating links from /opt to $RPM_INSTALL_PREFIX)"
@@ -48,7 +50,11 @@ Infinit.e Mongo DB installation and update
 			chown -h mongod.mongod /opt/db-home 
 		fi 
 	fi
-
+	if [ ! -d /opt/db-home/data ]; then
+		mkdir /opt/db-home/data
+		chown -R mongod:mongod /opt/db-home/data
+	fi
+	
 	###########################################################################
 	# Copy the infdb file to usr/bin based on install type (EC2 vs non)
 	SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties' 
@@ -58,20 +64,17 @@ Infinit.e Mongo DB installation and update
 	else
 		cp /opt/db-home/infdb_aws /usr/bin/infdb
 	fi
-
-	if [ ! -d /opt/db-home/data ]; then
-		mkdir /opt/db-home/data
-		chown -R mongod:mongod /opt/db-home/data
-	fi
-	chkconfig --add mongo_infinite
-	chkconfig mongo_infinite on
-	chkconfig mongod off
-
+	
 ###########################################################################
 # INSTALL ONLY
+
 	if [ $1 -eq 1 ]; then
+		chkconfig --add mongo_infinite
+		chkconfig mongo_infinite on
+		chkconfig mongod off
+
 		# (Stop mongodb if it was started by the above install)
-		service mongo_infinite soft_stop
+		service mongod stop
 		
 		rm -rf /data
 		ln -sf /opt/db-home/data/ /data
@@ -105,12 +108,8 @@ Infinit.e Mongo DB installation and update
 	fi
 	
 ###########################################################################
-# UPGRADE ONLY
-#
-	if [ $1 -eq 2 ]; then
-		service mongo_infinite start
-	fi
-	
+# NO UPGRADE ONLY
+
 %preun
 
 ###########################################################################
@@ -143,9 +142,7 @@ Infinit.e Mongo DB installation and update
 		###########################################################################
 		# THIS IS AN UPGRADE NOT AN *UN*INSTALL
 		###########################################################################
-		 
-		# (Soft Stop mongo processes)	
-		service mongo_infinite soft_stop
+		echo "(upgrade)"
 	fi
 
 %postun
@@ -156,7 +153,8 @@ Infinit.e Mongo DB installation and update
 ###########################################################################
 # FINAL STEP FOR INSTALLS AND UPGRADES
 
-
+	# (Start mongo if it isn't already running (else does nothing)	
+	service mongo_infinite start
 
 ###########################################################################
 # FILE LISTS
@@ -173,7 +171,6 @@ Infinit.e Mongo DB installation and update
 %attr(755,mongod,mongod) /mnt/opt/db-home/start_balancer.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/rotate-logs-script.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/setupAdminShards.sh
-%attr(755,mongod,mongod) /mnt/opt/db-home/migrate-beta-v0s_1.js
 %attr(755,mongod,mongod) /mnt/opt/db-home/
 %attr(755,mongod,mongod) /usr/bin/infdb
 %config %attr(755,mongod,mongod) /etc/rc.d/init.d/mongo_infinite

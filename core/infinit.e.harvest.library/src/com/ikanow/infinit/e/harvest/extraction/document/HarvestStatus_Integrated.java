@@ -46,6 +46,11 @@ public class HarvestStatus_Integrated implements HarvestStatus {
 	public void update(SourcePojo sourceToUpdate, Date harvestDate, HarvestEnum harvestStatus, 
 			String harvestMessage, boolean bTempDisable, boolean bPermDisable)
 	{
+		// Handle successful harvests where the max docs were reached, so don't want to respect the searchCycle
+		if ((harvestStatus == HarvestEnum.success) && (sourceToUpdate.reachedMaxDocs())) {
+			harvestStatus = HarvestEnum.success_iteration;
+		}
+		
 		if (null == sourceToUpdate.getHarvestStatus()) {
 			sourceToUpdate.setHarvestStatus(new SourceHarvestStatusPojo());
 		}

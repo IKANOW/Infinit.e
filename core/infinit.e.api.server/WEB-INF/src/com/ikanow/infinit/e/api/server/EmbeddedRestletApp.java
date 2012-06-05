@@ -276,6 +276,7 @@ public class EmbeddedRestletApp extends Application
         router.attach("/share/add/json/{type}/{title}/{description}/", ShareInterface.class);
         router.attach("/share/update/json/{id}/{type}/{title}/{description}/", ShareInterface.class);
         router.attach("/share/update/binary/{id}/{title}/{description}",ShareInterface.class); 
+        router.attach("/share/update/binary/{id}/{title}/{description}/",ShareInterface.class); 
         router.attach("/share/add/ref/{type}/{documentid}/{title}/{description}/", ShareInterface.class);
         router.attach("/share/update/ref/{id}/{type}/{documentid}/{title}/{description}/", ShareInterface.class);
         //V0 NAMING
@@ -303,6 +304,7 @@ public class EmbeddedRestletApp extends Application
         
         // Get/Search for Shares
         //BETA NAMING
+        // (NOTE THAT WE NEED TO PRESERVE THESE TWO GETS - THE UPLOADER JSPS NEED THEM AND IT'S HARD TO CHANGE AT THIS POINT)
         router.attach("/share/get/{id}", ShareInterface.class);
         router.attach("/share/get/{id}/", ShareInterface.class);
         router.attach("/share/search/", ShareInterface.class);

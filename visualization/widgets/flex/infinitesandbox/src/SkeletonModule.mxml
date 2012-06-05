@@ -1,26 +1,25 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project
-   
+
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.
    You may obtain a copy of the License at
-   
+
    http://www.apache.org/licenses/LICENSE-2.0
-   
+
    Unless required by applicable law or agreed to in writing, software
    distributed under the License is distributed on an "AS IS" BASIS,
    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
    See the License for the specific language governing permissions and
    limitations under the License.
 -->
-<components:WidgetModule
-			xmlns:fx="http://ns.adobe.com/mxml/2009"
-			xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
-			xmlns:s="library://ns.adobe.com/flex/spark"
-			xmlns:mx="library://ns.adobe.com/flex/mx"
-			implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
-			creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 	<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
@@ -37,33 +36,82 @@
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
-			
 			import mx.collections.ArrayCollection;
-			
 			import org.alivepdf.pdf.PDF;
 			
 			private var _context:IWidgetContext;
+			
 			private var titleArray:ArrayCollection = new ArrayCollection();
 			
 			/**
-			 * Method fired when module is done loading.  Sends
-			 * message to parent letting it know that module is
-			 * ready to receive data.
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
 			 */
-			private function onWidgetCreationComplete():void
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
 			{
-				
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
 			}
 			
 			/**
 			 * IWidget interface to receive data object (IWidgetContext).
 			 * Store the iwidgetcontext so we can receieve data later.
 			 */
-			public function onInit(context:IWidgetContext):void
+			public function onInit( context:IWidgetContext ):void
 			{
 				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
+			{
+				//TODO
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				//get filtered logic here
+				//_context.getQuery_FilteredResults().getTopDocuments();
 			}
 			
 			/**
@@ -72,79 +120,21 @@
 			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
 			 */
 			public function onReceiveNewQuery():void
-			{	
+			{
 				//get documents
 				var queryResults:ArrayCollection = _context.getQuery_TopResults().getTopDocuments();
+				
 				//set the labels of these docs and use as dataprovider for list
 				for each ( var doc:Object in queryResults )
-				doc.label = doc.title;
+					doc.label = doc.title;
 				titlesList.dataProvider = queryResults;
-				
-			}
 			
-			/**
-			 * IWidget interface that fires when a new filter is done (including from ourself)
-			 * We can access the data fromt he filter by using our
-			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
-			 */  
-			public function onReceiveNewFilter():void
-			{
-				//get filtered logic here
-				//_context.getQuery_FilteredResults().getTopDocuments();
-			}
-			
-			/**
-			 * function to rescale the component when the parent container is being resized
-			 * 
-			 * @param newHeight The new height the component needs to be set to
-			 * @param newWidth The new width the component needs to be set to
-			 */ 
-			public function onParentResize(newHeight:Number,newWidth:Number):void
-			{
-				this.height = newHeight;
-				this.width = newWidth;
-			}
-			
-			/**
-			 * Allow users to export the widget contents in the specified format
-			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
-			 * @param format: the format from the "supportedFormats" call
-			 * 
-			 * @returns a ByteArray containing the data to output
-			 */
-			public function onGenerateExportData(filename:String, format:String):ByteArray
-			{
-				return null;
-			}
-			
-			/**
-			 * This function gets called when the user clicks to output 
-			 * data to a PDF. Return null if custom PDF generation is
-			 * not desired.
-			 * 
-			 * @return a new alivePdf Page containing the converted data
-			 */
-			public function onGeneratePDF(printPDF:PDF, title:String):PDF
-			{
-				return null;
-			}
-			
-			/**
-			 * If a save object has been saved from 'onSaveWidgetOptions' then
-			 * when the app gets reloaded the last save string
-			 * will be passed to this function.
-			 * 
-			 * @param widgetOptions the last save object or null if there was none
-			 */
-			public function onLoadWidgetOptions(widgetOptions:Object):void
-			{
-				//TODO
 			}
 			
 			/**
 			 * This function gets called when the workspace is being saved.
 			 * return null if no save object is needed.
-			 * 
+			 *
 			 * @return an object this widget can use to reload state
 			 */
 			public function onSaveWidgetOptions():Object
@@ -162,44 +152,63 @@
 			public function supportedExportFormats():ArrayCollection
 			{
 				return null;
-			}	
-
+			}
+			
 			/**
 			 * The callback handler for clicking the sample button in the header of the app.
-			 * 
+			 *
 			 * @param event The mouse event when clicking the button.
 			 **/
-			protected function sampleButton_clickHandler(event:MouseEvent):void
+			protected function sampleButton_clickHandler( event:MouseEvent ):void
 			{
 				//perform some action when header button is clicked
 			}
-
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete():void
+			{
+			
+			}
 		]]>
 	</fx:Script>
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
-		
+
 	<!-- If you would like this widget to be styled similar to the other infinite widgets
 		you may place items in the headerContent section shown below and they will be drawn at
-		the top of the widget.  If you want to use similar looking buttons explore the 
+		the top of the widget.  If you want to use similar looking buttons explore the
 		com.ikanow.infinit.e.widget.library.components.* items looking for components
 		prefixed with Widget*.  Other components may be added to the header as well.
 	-->
-	<components:headerContent>		
-		<s:HGroup gap="-3">			
+	<components:headerContent>
+		<s:HGroup gap="-3">
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetToggleButton id="sampleButton"
-										   label="Sample Header Button"
-										   toolTip="This is the tooltip for a header button"
-										   click="sampleButton_clickHandler(event)"
-										    />
+				label="Sample Header Button"
+				toolTip="This is the tooltip for a header button"
+				click="sampleButton_clickHandler(event)" />
 		</s:HGroup>
 	</components:headerContent>
-	
-	<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center" 
-			  paddingBottom="5" paddingLeft="5" paddingRight="5" paddingTop="5">
-		<s:Label text="Sample Module" fontSize="30" />		
-		<s:List id="titlesList" width="100%" height="100%" />
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		paddingBottom="5"
+		paddingLeft="5"
+		paddingRight="5"
+		paddingTop="5"
+		verticalAlign="middle">
+		<s:Label 
+			text="Sample Module"
+			fontSize="30" />
+		<s:List id="titlesList"
+			width="100%"
+			height="100%" />
 	</s:VGroup>
 </components:WidgetModule>

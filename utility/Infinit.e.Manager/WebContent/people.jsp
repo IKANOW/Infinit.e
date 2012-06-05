@@ -50,19 +50,20 @@ limitations under the License.
 %>
 
 <%
-	
 	messageToDisplay = "";
 	
 	// 
 	if (isLoggedIn) 
 	{	
-		// Determine which action is being called for by the user
-		action = "";
+		// Capture value in the left handed table filter field
 		if (request.getParameter("listFilter") != null) listFilter = request.getParameter("listFilter");
 		if (request.getParameter("listFilter") == null)
 		{
 			if (request.getParameter("listFilterStr") != null) listFilter = request.getParameter("listFilterStr");
 		}
+		
+		// Determine which action to perform on postback/request
+		action = "";
 		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
@@ -70,13 +71,19 @@ limitations under the License.
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
 		
+		// Capture values sent by button clicks, these will override the action value as appropriate 
 		String saveAccount = "";
 		String createAccount = "";
 		String updatePassword = "";
+		String addto = "";
+		String removefrom = "";
 		if (request.getParameter("createAccount") != null) createAccount = request.getParameter("createAccount").toLowerCase();
 		if (request.getParameter("saveAccount") != null) saveAccount = request.getParameter("saveAccount").toLowerCase();
 		if (request.getParameter("updatePassword") != null) updatePassword = request.getParameter("updatePassword").toLowerCase();
+		if (request.getParameter("addto") != null) addto = request.getParameter("addto");
+		if (request.getParameter("removefrom") != null) removefrom = request.getParameter("removefrom");
 		
+		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
 		{
 			currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
@@ -88,8 +95,10 @@ limitations under the License.
 		
 		try
 		{
+			// Always clear the form first so there is no bleed over of values from previous requests
 			clearForm();
 
+			// Read in values from the edit form
 			String visiblePersonId = (request.getParameter("visiblePersonId") != null) ? request.getParameter("visiblePersonId") : "";
 			personid = (request.getParameter("personid") != null) ? request.getParameter("personid") : "";
 			firstName = (request.getParameter("firstName") != null) ? request.getParameter("firstName") : "";
@@ -100,6 +109,9 @@ limitations under the License.
 			passwordConfirmation = (request.getParameter("passwordConfirmation") != null) ? request.getParameter("passwordConfirmation") : "";
 			password = (request.getParameter("password") != null) ? request.getParameter("password") : "";
 			
+			Boolean redirect = false;
+			
+			// If user has clicked save, create, or update buttons do those actions before handling the action param
 			if (saveAccount.equals("saveaccount")) 
 			{
 				if ( validateFormFields() )
@@ -112,7 +124,7 @@ limitations under the License.
 				if ( validateFormFields() && validatePassword() )
 				{
 					savePerson(true, request, response);
-					out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?action=edit&personid=" + personid + "\">");
+					redirect = true;
 				}
 			}
 			if (updatePassword.equals("updatepassword")) 
@@ -121,6 +133,26 @@ limitations under the License.
 				{
 					updateAccountPassword(request, response);
 				}
+			}
+			if (addto.length() > 0)
+			{
+				addPersonToCommunity(personid, addto, request, response);
+				redirect = true;
+			}
+			if (removefrom.length() > 0)
+			{
+				removePersonFromCommunity(personid, removefrom, request, response);
+				redirect = true;
+			}
+			
+			// if redirect == true refresh the page to update the edit form's content to reflect changes
+			if (redirect) 
+			{
+				String urlParams = "";
+				if (listFilter.length() > 0) urlParams = "&listFilterStr="+ listFilter;
+				if (currentPage > 1) urlParams += "&page=" + currentPage;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?action=edit&personid=" 
+					+ personid + urlParams + "\">");
 			}
 			
 			if (action.equals("clearform")) 
@@ -146,10 +178,10 @@ limitations under the License.
 				listFilter = "";
 				populateEditForm(personid, request, response);
 			}
-			else if (action.equals("logoutbutton")) 
+			else if (action.equals("logout")) 
 			{
 				logOut(request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0\">");
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
 			}
 		}
 		catch (Exception e)
@@ -211,7 +243,7 @@ limitations under the License.
 					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
 			</tr>
 			<tr>
-				<td colspan="2" bgcolor="white"><%=listPeople(request, response) %></td>
+				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
 			</table>
 
@@ -451,7 +483,55 @@ private boolean deleteAccount( String id, HttpServletRequest request, HttpServle
 	{
 		messageToDisplay = "Error: Unable to Delete Account. (" + e.getMessage() + ")"; return false;
 	}
+}  // TESTED
+
+
+
+// addPersonToCommunity
+private boolean addPersonToCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
+{
+	try
+	{
+		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
+		if (updateResponse.getString("success").equalsIgnoreCase("true"))
+		{
+			messageToDisplay = "Success: Person added to community."; return true;
+		}
+		else
+		{
+			messageToDisplay = "Error: Unable to add person to community."; return false;
+		}
+	}
+	catch (Exception e)
+	{
+		messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; return false;
+	}
+}  // TESTED
+
+
+// removePersonFromCommunity
+private boolean removePersonFromCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
+{
+	try
+	{
+		JSONObject updateResponse = new JSONObject ( new JSONObject ( removeFromCommunity(community, person, request, response) ).getString("response") );
+		if (updateResponse.getString("success").equalsIgnoreCase("true"))
+		{
+			messageToDisplay = "Success: Person removed from community."; return true;
+		}
+		else
+		{
+			messageToDisplay = "Error: Unable to remove person from community."; return false;
+		}
+	}
+	catch (Exception e)
+	{
+		messageToDisplay = "Error: Unable to remove person from community. (" + e.getMessage() + ")"; return false;
+	}
 }
+
+
+
 
 
 // populateEditForm - 
@@ -479,23 +559,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			
 			// Output user communities
 			JSONArray communities = person.getJSONArray("communities");
-			StringBuffer sb = new StringBuffer();
-			sb.append("<table width=\"100%\">");
-			int column = 1;
-			for (int i = 0; i < communities.length(); i++)
-			{
-				JSONObject community = communities.getJSONObject(i);
-				if (column == 1) sb.append("<tr>");
-				sb.append("<td width=\"50%\">" + community.getString("name") + "</td>");
-				if (column == 1) { column = 2; }
-				else
-				{
-					sb.append("</tr>");
-					column = 1;
-				}
-			}
-			sb.append("</table>");
-			listOfCommunities = sb.toString();
+			listOfCommunities = getListOfCommunities(communities, request, response);
 		} 
 		catch (Exception e) 
 		{
@@ -503,6 +567,108 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 		}
 	}
 }  // TESTED
+
+
+// getListOfCommunities -
+// Retrieve a list of all communities in the system and display with the following conditions:
+// 1. Do not display the system or personal communities
+// 2. If user is a member have option to remove user from the community
+// 3. If user is not a member have the option to sign them up (users should not be able to sign them selves up
+//	  unless the community supports self registration.)
+private String getListOfCommunities(JSONArray memberOf, HttpServletRequest request, HttpServletResponse response)
+{	
+	StringBuffer communityList = new StringBuffer();
+	communityList.append("<table width=\"100%\">");
+	try
+	{
+		// Create an array list of communities the user is a member of
+		List<String> memberOfList = new ArrayList<String>();
+		for (int i = 0; i < memberOf.length(); i++)
+		{
+			JSONObject c = memberOf.getJSONObject(i);
+			memberOfList.add(c.getString("_id"));
+		}
+		
+		// Get a list of all communities from the api
+		JSONObject communitiesObject = new JSONObject( getAllCommunities(request, response) );
+		JSONArray communities = communitiesObject.getJSONArray("data");
+		
+		// Create an array list of all community names so we can sort them correctly for display
+		List<String> listOfCommunityNames = new ArrayList<String>();
+		for (int i = 0; i < communities.length(); i++)
+		{
+			JSONObject c = communities.getJSONObject(i);
+			listOfCommunityNames.add(c.getString("name"));
+		}
+		Collections.sort( listOfCommunityNames, String.CASE_INSENSITIVE_ORDER );
+		
+		int column = 1;
+		
+		for (String communityName : listOfCommunityNames)
+		{
+			// Iterate over the list of all communities
+			for (int i = 0; i < communities.length(); i++)
+			{
+				JSONObject community = communities.getJSONObject(i);
+				if (community.getString("name").equalsIgnoreCase(communityName.toLowerCase()))
+				{
+					// Only show the non-system, non-personal communities
+					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.getString("isSystemCommunity").equalsIgnoreCase("false"))
+					{
+						if (column == 1) { communityList.append("<tr valign=\"middle\">"); }
+						communityList.append("<td width=\"5%\">");
+						
+						String listFilterString = "";
+						if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+						String pageString = "";
+						if (currentPage > 1) pageString = "&page=" + currentPage;
+						
+						String deleteLink = "<a href=\"people.jsp?action=edit&personid=" + personid
+								+ pageString + listFilterString + "&removefrom=" + community.getString("_id") 
+								+ "\" title=\"Remove User from Community\" "
+								+ "onclick='return confirm(\"Do you really wish to remove the user account from: "
+								+ community.getString("name") + "?\");'><img src=\"image/minus_button.png\" border=0></a>";
+								
+						String addLink = "<a href=\"people.jsp?action=edit&personid=" + personid
+								+ pageString + listFilterString + "&addto=" + community.getString("_id") 
+								+ "\" title=\"Add User to Community\"><img src=\"image/plus_button.png\" border=0></a>";
+						
+						String divOne = "";
+						String divTwo = "";
+						if (memberOfList.contains(community.getString("_id")))
+						{
+							communityList.append(deleteLink);
+						}
+						else
+						{
+							communityList.append(addLink);
+							divOne = "<div class=\"notAMemberOfCommunity\">";
+							divTwo = "</div>";
+						}
+						
+						communityList.append("</td>");
+						communityList.append("<td width=\"45%\">");
+						communityList.append(divOne + community.getString("name") + divTwo);
+						communityList.append("</td>");
+						if (column == 1) { column = 2; }
+						else
+						{
+							communityList.append("</tr>");	
+							column = 1;
+						}
+					}
+				}
+				
+			}	
+		}
+	}
+	catch (Exception e)
+	{
+	}
+	communityList.append("</table>");
+	return communityList.toString();
+}
+
 
 
 // clearForm
@@ -523,16 +689,15 @@ private void clearForm()
 }  // TESTED
 
 
-
-// listPeople -
-private String listPeople(HttpServletRequest request, HttpServletResponse response)
+// listItems -
+private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
 	StringBuffer people = new StringBuffer();
 	Map<String, String> listOfPeople = getListOfAllPeople(request, response);
 	
 	if (listOfPeople.size() > 0)
 	{
-		people.append("<table bgcolor=\"silver\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
+		people.append("<table class=\"listTable\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
 
 		// Sort the sources alphabetically
 		List<String> sortedKeys = new ArrayList<String>(listOfPeople.keySet());
@@ -554,8 +719,6 @@ private String listPeople(HttpServletRequest request, HttpServletResponse respon
 		
 		// If the user has filtered the list down we might need to adjust our page calculations
 		// e.g. 20 total items might = 2 pages but filtered down to 5 items there would only be 1
-		
-
 		// Calculate first item to start with with
 		// Page = 1, item = 1
 		// Page = X, item = ( ( currentPage - 1 ) * itemsToShowPerPage ) + 1;
@@ -581,11 +744,11 @@ private String listPeople(HttpServletRequest request, HttpServletResponse respon
 				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
 				
 				editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
-						+ listFilterString + "\" title=\"Edit Use Account\">" + name + "</a>";
+						+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
 				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id
 						+ listFilterString + "\" title=\"Delete User Account\" "
 						+ "onclick='return confirm(\"Do you really wish to delete the user account for: "
-						+ name + "?\");'><img src=\"image/delete.png\" border=0></a>";
+						+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
 	
 				// Create the HTML table row
 				people.append("<tr>");
@@ -622,62 +785,6 @@ private String listPeople(HttpServletRequest request, HttpServletResponse respon
 	return people.toString();
 }
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-//getListOfAllCommunities -
-private String getListOfAllCommunities(HttpServletRequest request, HttpServletResponse response)
-{
-	StringBuffer communityList = new StringBuffer();
-	communityList.append("<table width=\"100%\">");
-	try
-	{
-		JSONObject communitiesObject = new JSONObject( getAllCommunities(request, response) );
-		JSONArray communities = communitiesObject.getJSONArray("data");
-		
-		int column = 1;
-		for (int i = 0; i < communities.length(); i++)
-		{
-			JSONObject community = communities.getJSONObject(i);
-			if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && 
-					community.getString("isSystemCommunity").equalsIgnoreCase("false"))
-			{
-				if (column == 1) { communityList.append("<tr>"); }
-				communityList.append("<td width=\"50%\">");
-				communityList.append("<input type=\"checkbox\" name=\"community\" value=\"" + community.getString("_id") + "\" />");
-				communityList.append(community.getString("name"));
-				communityList.append("</td>");
-				if (column == 1) { column = 2; }
-				else
-				{
-					communityList.append("</tr>");	
-					column = 1;
-				}
-			}
-		}
-	}
-	catch (Exception e)
-	{
-	}
-	communityList.append("</table>");
-	return communityList.toString();
-}
 
 
 %>

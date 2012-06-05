@@ -15,21 +15,36 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.generic.aggregation;
 
+import java.io.InputStream;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.processing.generic.utils.AssociationUtils;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBCollection;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
+import com.mongodb.MapReduceCommand.OutputType;
+import com.mongodb.MapReduceOutput;
 
 public class AggregationManager {
 
@@ -406,4 +421,141 @@ public class AggregationManager {
 		
 	} //TESTED (by eye - cut and paste from working BETA code)
 	
+	///////////////////////////////////////////////////////////////////////////////////////	
+	///////////////////////////////////////////////////////////////////////////////////////	
+
+	// HANDLING DELETED DOCUMENTS
+	
+	///////////////////////////////////////////////////////////////////////////////////////	
+	///////////////////////////////////////////////////////////////////////////////////////	
+
+	public static void updateEntitiesFromDeletedDocuments(String uuid) 
+	{		
+		try {
+			// Load string resource
+			
+			InputStream in = EntityAggregationUtils.class.getResourceAsStream("AggregationUtils_scriptlets.xml");
+			
+			// Get XML elements for the script
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(in);
+			NodeList nList = doc.getElementsByTagName("script");
+			
+			Map<String, String> scriptMap = new HashMap<String, String>();
+			
+			for (int temp = 0; temp < nList.getLength(); temp++) {			 
+				Node nNode = nList.item(temp);
+				if (nNode.getNodeType() == Node.ELEMENT_NODE) {				   
+					Element eElement = (Element) nNode;	
+					String name = getTagValue("name", eElement);
+					String value = getTagValue("value", eElement);
+					if ((null != name) && (null != value)) {
+						scriptMap.put(name, value);
+					}
+				}
+			}	
+			String mapScript = scriptMap.get("common_mapper");
+			String reduceScript = scriptMap.get("common_reducer");
+			
+			// Perform the map reduce (count deleted entities and associations)
+	
+			String outCollection = new StringBuilder(uuid).append("_AggregationUtils").toString();
+	
+			BasicDBObject mrQuery = new BasicDBObject(DocumentPojo.sourceKey_, uuid);
+			
+			@SuppressWarnings("unused")
+			MapReduceOutput res = 
+				DbManager.getDocument().getMetadata().mapReduce(mapScript, reduceScript, outCollection, OutputType.REPLACE, mrQuery);
+
+		}
+		catch (Exception e) { // (These should never be runtime failures, all I/O is vs files embedded at compile-time)
+			//DEBUG
+			e.printStackTrace();
+		}
+	}	
+	//TESTED (including scriptlets in AggregationUtils_scriptlets)
+	
+	public static void updateDocEntitiesFromDeletedDocuments(String uuid) 
+	{
+		String outCollection = new StringBuilder(uuid).append("_AggregationUtils").toString();
+		
+		DBCollection outColl = DbManager.getDB("doc_metadata").getCollection(outCollection);
+		
+		DBCursor dbc = outColl.find();
+		for (DBObject dbo: dbc) {
+			BasicDBObject entityEl = (BasicDBObject) dbo;
+			BasicDBObject entityVal = (BasicDBObject) entityEl.get("value");
+			
+			long nDocDecrement = entityVal.getLong("dc");
+			long nFreqDecrement = entityVal.getLong("f");
+			long nCurrFreq = entityVal.getLong("tf");
+			long nCurrDocCount = entityVal.getLong("tdc");
+			
+			// (These are by construction the lowest values so this will provide some defence against going -ve)
+			if (nDocDecrement > nCurrDocCount) {
+				nDocDecrement = nCurrDocCount;
+			}
+			if (nFreqDecrement > nCurrFreq) {
+				nFreqDecrement = nCurrFreq;
+			}
+			
+			BasicDBObject entityId = (BasicDBObject) entityEl.get("_id");
+			ObjectId commId = (ObjectId) entityId.get("comm");
+			String index = (String) entityId.get("index");
+			
+			BasicDBObject updateQuery = new BasicDBObject(EntityFeaturePojo.index_, index);
+			updateQuery.put(EntityFeaturePojo.communityId_, commId);
+			BasicDBObject entityUpdate1 = new BasicDBObject(EntityFeaturePojo.doccount_, -nDocDecrement);
+			entityUpdate1.put(EntityFeaturePojo.totalfreq_, -nFreqDecrement);
+			BasicDBObject entityUpdate = new BasicDBObject(DbManager.inc_, entityUpdate1);
+			
+			if (_diagnosticMode) {
+				System.out.println("UPDATE FEATURE DATABASE: " + updateQuery.toString() + "/" + entityUpdate.toString());
+			}
+			else {
+				DbManager.getFeature().getEntity().update(updateQuery, entityUpdate);
+					// (can be a single query because the query is on index, the shard)
+			}
+			//TESTED
+			
+			if ((nDocDecrement < nCurrDocCount) && (nDocDecrement*10 > nCurrDocCount)) {
+				// ie there are some documents left
+				// and the doc count has shifted by more than 10%
+				BasicDBObject updateQuery2 = new BasicDBObject(EntityPojo.docQuery_index_, index);
+				updateQuery2.put(DocumentPojo.communityId_, commId);
+				BasicDBObject entityUpdate2_1 = new BasicDBObject(EntityPojo.docUpdate_doccount_, nCurrDocCount - nDocDecrement);
+				entityUpdate2_1.put(EntityPojo.docUpdate_totalfrequency_, nCurrFreq - nFreqDecrement);
+				BasicDBObject entityUpdate2 = new BasicDBObject(DbManager.set_, entityUpdate2_1);
+
+				if (_diagnosticMode) {
+					System.out.println("UPDATE DOC DATABASE: " + updateQuery2.toString() + "/" + entityUpdate2.toString());
+				}
+				else {
+					DbManager.getDocument().getMetadata().update(updateQuery2, entityUpdate2, false, true);						
+				}
+			}
+		}//TESTED (including when to update logic above) 
+		
+		// Tidy up
+		DbManager.getDB("doc_metadata").getCollection(outCollection).drop();
+	}
+	
+	//////////////////////////////////////////////////////////////////////////////////////////////////
+
+	// Utility
+
+	private static String getTagValue(String sTag, Element eElement) {
+		NodeList nlList = eElement.getElementsByTagName(sTag).item(0).getChildNodes();
+		int listLength = nlList.getLength();		
+		
+		StringBuffer sb = new StringBuffer();
+		for (int i = 0; i < listLength; ++i) {
+			Node nValue = (Node) nlList.item(i);
+			if (null != nValue) {
+				sb.append(nValue.getNodeValue());
+			}			
+		}
+		return sb.toString();
+	}	
 }

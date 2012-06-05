@@ -67,6 +67,7 @@ public class ShareInterface extends ServerResource
 	SharePojo sharePojo = null;
 	private byte[] binaryData = null;
 	private boolean returnContent = true;
+	private boolean ignoreAdmin = false;
 	
 	
 	/**
@@ -109,6 +110,9 @@ public class ShareInterface extends ServerResource
 			if (queryOptions.get("searchby") != null) searchby = queryOptions.get("searchby");
 			if (queryOptions.get("json") != null) json = queryOptions.get("json");
 			if (queryOptions.get("type") != null) type = queryOptions.get("type");
+			if ((queryOptions.get("ignoreAdmin") != null) && (queryOptions.get("ignoreAdmin").equalsIgnoreCase("true"))) {
+				ignoreAdmin = true;				
+			}
 			if ((queryOptions.get("nocontent") != null) && (queryOptions.get("nocontent").equalsIgnoreCase("true"))) {
 				returnContent = false;				
 			}
@@ -229,11 +233,6 @@ public class ShareInterface extends ServerResource
 					json = entity.getText();
 					action = "saveJson";
 				}
-//				else if ( urlStr.contains("/share/update/json/") )
-//				{
-//					json = entity.getText();
-//					action = "updateJson";
-//				}	
 				else if ( urlStr.contains("/share/add/binary/"))
 				{
 					action = "addBinaryPOST";
@@ -364,7 +363,6 @@ public class ShareInterface extends ServerResource
 							 {							 
 								 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(share.getMediaType()));
 								 rep.setOutputBytes(share.getBinaryData());
-								 //rep.setSize(share.getBinaryData().length);
 								 return rep;							 
 							 }
 							 catch (Exception ex )
@@ -377,7 +375,7 @@ public class ShareInterface extends ServerResource
 				 }
 				 else if (action.equals("searchShares"))
 				 {
-					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit);
+					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin);
 				 }	 
 			 }
 		 }

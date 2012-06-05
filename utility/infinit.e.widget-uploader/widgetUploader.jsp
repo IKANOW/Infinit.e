@@ -369,9 +369,9 @@ limitations under the License.
 		
 		try{
 			if (prevId == null)
-				url = API_ROOT + "share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = API_ROOT + "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			else
-				url = API_ROOT + "share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = API_ROOT + "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			
 			if(localCookie)
 				CookieHandler.setDefault(cm);
@@ -410,6 +410,9 @@ limitations under the License.
             buffer.close();
             output.close();
             responseStream.close();
+            
+            /**/
+            System.out.println("JSON! " + json);
             
             modResponse mr = new Gson().fromJson(json, modResponse.class);
     		if (mr == null)
@@ -510,8 +513,8 @@ limitations under the License.
 			
 			String comment = "Added by widgetUploader";
 			
-			///share/add/community/{shareid}/{comment}/{communityid}
-			String json = stringOfUrl(API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
+			//social/share/add/community/{shareid}/{comment}/{communityid}
+			String json = stringOfUrl(API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
 			{
@@ -519,7 +522,7 @@ limitations under the License.
 					System.out.println("The JSON for Adding a share to community was null");
 				return false;
 			}
-				//return "Json was null: " + json + "\n " + API_ROOT + "share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
+				//return "Json was null: " + json + "\n " + API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
 			if(DEBUG_MODE)
 				System.out.println("Share: " + shareId + "   CommunityId: " + communityId + " Shared:" + gm.response.success + "  Message: " + gm.response.message);
 			return gm.response.success;
@@ -565,7 +568,7 @@ limitations under the License.
 					//_id,url,title,description,created,modified,version,imageurl,communities
 					if (showAll == true || info.author.equalsIgnoreCase(user))
 					{
-						String value = info._id+delim+info.url+delim+info.title+delim+info.description+delim+info.created+delim+info.modified+delim+info.version+delim+info.imageurl+delim+info.communityIds;
+						String value = info._id+delim+info.url+delim+info.title+delim+info.description+delim+info.created+delim+info.modified+delim+info.version+delim+info.imageurl+delim+info.communityIds+delim+info.author;
 						toReturn += "<option value=\""+value+"\" > <b>Edit:</b> " + info.title + "</option>";
 					}
 				}
@@ -752,8 +755,9 @@ else if (isLoggedIn == true)
 	if (request.getParameter("logout") != null)
 	{
 		logOut(request, response);
-		out.println("<meta http-equiv=\"refresh\" content=\"\">");
-		
+		out.println("<div style=\" text-align: center;\">");
+		out.println("<meta http-equiv=\"refresh\" content=\"0\">");
+		out.println("</div>");						
 	}
 	else
 	{
@@ -1079,6 +1083,8 @@ else if (isLoggedIn == true)
 			file_url = document.getElementById('file_url');
 			icon_url = document.getElementById('icon_url');
 			deleteButton = document.getElementById('deleteButton');
+			owner_text = document.getElementById('owner_text');
+			owner = document.getElementById('owner');
 			
 			
 			dropdown = document.getElementById("upload_info");
@@ -1100,6 +1106,8 @@ else if (isLoggedIn == true)
 				icon_url.value = "";
 				icon_check.checked = false;
 				file_check.checked = false;
+				owner.style.display = 'none';
+				owner_text.style.display = 'none';
 				deleteButton.style.visibility = 'hidden';
 				useUrlSwf();
 				useUrlIcon();
@@ -1118,6 +1126,7 @@ else if (isLoggedIn == true)
 			resVersion = split[6];
 			resImageurl = split[7];
 			communities = split[8];
+			res_author = split[9];
 	
 			icon_check.checked = true;
 			file_check.checked = true;
@@ -1133,9 +1142,12 @@ else if (isLoggedIn == true)
 			swfUrl.value = resUrl;
 			file_url.value = resUrl;
 			icon_url.value = resImageurl;
+			owner.value = res_author;
 			useUrlSwf();
 			useUrlIcon();
 			deleteButton.style.visibility = '';
+			owner.style.display = '';
+			owner_text.style.display = '';
 			highlightComms(communities);
 		}
 		function useUrlSwf()
@@ -1274,6 +1286,12 @@ else if (isLoggedIn == true)
 	                  <tr>
 	                  	<td>Communities:</td>
 	                  	<td><% out.print(communityList); %></td>
+	                  </tr>
+	                  <tr>
+	                  	<td id="owner_text">Owner:</td>
+	                  	<td>
+	                    <input type="text" name="owner" id="owner" readonly="readonly" size="25" />
+	                  	</td>
 	                  </tr>
 	                  <tr>
 	                    <td>Swf File:</td>

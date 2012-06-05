@@ -31,6 +31,7 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.feature.event.AssociationFeaturePojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
@@ -148,7 +149,10 @@ public class MongoAssociationFeatureTxfer
 				singleEvt.setVerb_category(evt.getVerb_category());
 				singleEvt.setGeo_index(evt.getGeo_index());
 				evt.setIndex(AssociationAggregationUtils.getEventFeatureIndex(singleEvt));
-				eventFeatureDB.update(new BasicDBObject("_id", dbo.get("_id")), new BasicDBObject("$set", new BasicDBObject("index", evt.getIndex())));
+				eventFeatureDB.update(new BasicDBObject("_id", dbo.get("_id")), 
+											new BasicDBObject(MongoDbManager.set_, 
+													new BasicDBObject(AssociationFeaturePojo.index_, evt.getIndex())), false, true);
+					// (has to be a multi-update even though it's unique because it's sharded on index)
 			}
 			
 			// Handle groups (system group is: "4c927585d591d31d7b37097a")
@@ -182,7 +186,13 @@ public class MongoAssociationFeatureTxfer
 			// Initialize the DB:	
 			DBCollection eventFeatureDB = DbManager.getFeature().getAssociation();
 			
-			DBCursor cur = eventFeatureDB.find(query); // (this internally works in batches of 1000; just get _id)
+			DBCursor cur = eventFeatureDB.find(query).limit(nLimit); 
+				// (this internally works in batches of 1000; just get _id)
+			System.out.println("Found " + cur.count() + " records to delete");
+			if (nLimit > 0) {
+				System.out.println("(limited to " + nLimit + " records)");
+			}		
+			
 			ArrayList<AssociationFeaturePojo> events = new ArrayList<AssociationFeaturePojo>();
 			LinkedList<String> eventIds = new LinkedList<String>(); 
 			while (cur.hasNext())

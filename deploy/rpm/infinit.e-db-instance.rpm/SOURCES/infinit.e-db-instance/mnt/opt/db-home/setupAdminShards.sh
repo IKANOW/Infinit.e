@@ -25,10 +25,10 @@ if [[ $IS_MONGOS == "true" && $DB_SHARDED == "1" ]]; then
 	mongo <<EOF
 use admin;
 db.runCommand( { enablesharding : "feature" } );
-db.runCommand( { shardcollection : "feature.entity", key : {_id : 1} } );
-db.runCommand( { shardcollection : "feature.event", key : {_id : 1} } );
+db.runCommand( { shardcollection : "feature.entity", key : {index : 1} } );
+db.runCommand( { shardcollection : "feature.association", key : {index: 1} } );
 db.runCommand( { enablesharding : "doc_content" } );
-db.runCommand( { shardcollection : "doc_content.gzip_content", key : {_id : 1} } );
+db.runCommand( { shardcollection : "doc_content.gzip_content", key : {url : 1} } );
 db.runCommand( { enablesharding : "doc_metadata" } );
 db.runCommand( { shardcollection : "doc_metadata.metadata", key : {_id : 1} } );
 exit

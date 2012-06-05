@@ -30,6 +30,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import flash.events.Event;
@@ -116,9 +117,9 @@ package com.ikanow.infinit.e.shared.model.manager
 		 * Gets the widget options for a widget that is loading
 		 * @param value
 		 */
-		public function getSetupWidgetOptions( widgetUrl:String ):Object
+		public function getSetupWidgetOptions( widgetUrl:String ):WidgetSaveObject
 		{
-			var widgetOptions:Object = null;
+			var widgetOptions:WidgetSaveObject = null;
 			
 			if ( setup && setup.openModules )
 			{
@@ -128,7 +129,8 @@ package com.ikanow.infinit.e.shared.model.manager
 					{
 						if ( widgetModuleManager.widgetSaveMap.containsKey( widget.title ) )
 						{
-							return JSONDecoder.decode( ( widgetModuleManager.widgetSaveMap.get( widget.title ) as Share ).share );
+							var save:WidgetSaveObject = widgetModuleManager.widgetSaveMap.get( widget.title ) as WidgetSaveObject
+							return filterWidgetSaveCommunities( save );
 						}
 						
 					}
@@ -425,6 +427,30 @@ package com.ikanow.infinit.e.shared.model.manager
 			}
 			
 			dispatchEvent( new Event( "selectedWidgetsChanged" ) );
+		}
+		
+		//======================================
+		// private methods 
+		//======================================
+		
+		/**
+		 * Take out any community saves that are not currently in the active set of communities
+		 */
+		private function filterWidgetSaveCommunities( save:WidgetSaveObject ):WidgetSaveObject
+		{
+			var filteredSave:WidgetSaveObject = new WidgetSaveObject();
+			filteredSave.shareid = save.shareid;
+			filteredSave.userSave = save.userSave;
+			
+			//Only add comm saves for these communities
+			for each ( var commid:Object in selectedCommunities )
+			{
+				if ( save.communitySave.containsKey( commid._id ) )
+				{
+					filteredSave.communitySave.put( commid._id, save.communitySave.get( commid._id ) );
+				}
+			}
+			return filteredSave;
 		}
 	}
 }

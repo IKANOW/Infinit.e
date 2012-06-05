@@ -920,7 +920,7 @@ public class QueryHandler {
 	
 	private static Interval parseMinMaxDates(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, long nMinTime, long nMaxTime) {
 		
-		if (null != time.min) {
+		if ((null != time.min) && (time.min.length() > 0)) {
 			if (time.min.equals("now")) { 
 				nMinTime = nMaxTime;
 			}
@@ -938,7 +938,7 @@ public class QueryHandler {
 				}
 			}
 		}
-		if (null != time.max) {
+		if ((null != time.max) && (time.max.length() > 0)) {
 			if (!time.max.equals("now")) { // (What we have by default)
 				try {
 					nMaxTime = Long.parseLong(time.max); // (unix time format)
