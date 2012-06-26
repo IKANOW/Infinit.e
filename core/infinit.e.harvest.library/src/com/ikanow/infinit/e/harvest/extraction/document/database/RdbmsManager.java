@@ -320,7 +320,12 @@ public class RdbmsManager {
 			case oracle:
 				return "jdbc:" + driver + ":@//" + hostname + ":" + port + "/" + databaseName;
 			default:
-				return "jdbc:" + driver + "://" + hostname + ":" + port + "/" + databaseName;
+				if ((hostname.length() > 0) && (port.length() > 0)) {
+					return "jdbc:" + driver + "://" + hostname + ":" + port + "/" + databaseName;
+				}
+				else {
+					return "jdbc:" + driver + ":" + databaseName;					
+				}
 		}
 	}
 		
