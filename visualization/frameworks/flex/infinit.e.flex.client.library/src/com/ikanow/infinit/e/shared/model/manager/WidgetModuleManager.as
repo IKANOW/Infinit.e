@@ -43,7 +43,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
 	import com.ikanow.infinit.e.widget.library.data.WidgetContext;
-	import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
 	import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
@@ -471,60 +471,64 @@ package com.ikanow.infinit.e.shared.model.manager
 		
 		public function setWidgetOptions( shares:ArrayCollection ):void
 		{
-			//initialize the save map
-			widgetSaveMap = new HashMap();
-			
-			if ( shares != null && shares.length > 0 )
+			//only try to save options if the user is already set
+			if ( currentUser != null )
 			{
-				for each ( var share:Share in shares )
-				{
-					//check all the communities on a share, if it is in your personal community
-					//then it is a user share object, otherwise its a communities share object
-					var isUser:Boolean = false;
-					
-					for each ( var community:Community in share.communities )
-					{
-						if ( community._id == currentUser._id )
-						{
-							isUser = true;
-							break;
-						}
-					}
-					
-					if ( !widgetSaveMap.containsKey( share.title ) )
-					{
-						//initialize save entry if it hasn't been already
-						widgetSaveMap.put( share.title, new WidgetSaveObject() );
-					}
-					var widgetSave:WidgetSaveObject = widgetSaveMap.get( share.title );
-					
-					if ( isUser ) //is users personal share
-					{
-						//set the users share object, if for some reason
-						//a user has 2 saves, this will overwrite any
-						//previous one, they should only have 1
-						widgetSave.userSave = JSONDecoder.decode( share.share );
-						widgetSave.shareid = share._id;
-					}
-					else //is community share
-					{
-						//add an entry for every community, if a community
-						//has 2 shares for a widget this will overwrite any
-						//previous one, they should only have 1 but there is
-						//nothing stopping an owner from submitting 2
-						for each ( var comm:Community in share.communities )
-						{
-							widgetSave.communitySave.put( comm._id, JSONDecoder.decode( share.share ) );
-						}
-					}
-				}
+				//initialize the save map
+				widgetSaveMap = new HashMap();
 				
-				//send load messages to any widget that has already been loaded
-				for ( var i:int = 0; i < _widgetUrls.length; i++ )
+				if ( shares != null && shares.length > 0 )
 				{
-					var widgetUrl:String = _widgetUrls[ i ];
-					var widget:IWidget = _widgets[ i ] as IWidget;
-					widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
+					for each ( var share:Share in shares )
+					{
+						//check all the communities on a share, if it is in your personal community
+						//then it is a user share object, otherwise its a communities share object
+						var isUser:Boolean = false;
+						
+						for each ( var community:Community in share.communities )
+						{
+							if ( community._id == currentUser._id )
+							{
+								isUser = true;
+								break;
+							}
+						}
+						
+						if ( !widgetSaveMap.containsKey( share.title ) )
+						{
+							//initialize save entry if it hasn't been already
+							widgetSaveMap.put( share.title, new WidgetSaveObject() );
+						}
+						var widgetSave:WidgetSaveObject = widgetSaveMap.get( share.title );
+						
+						if ( isUser ) //is users personal share
+						{
+							//set the users share object, if for some reason
+							//a user has 2 saves, this will overwrite any
+							//previous one, they should only have 1
+							widgetSave.userSave = JSONDecoder.decode( share.share );
+							widgetSave.shareid = share._id;
+						}
+						else //is community share
+						{
+							//add an entry for every community, if a community
+							//has 2 shares for a widget this will overwrite any
+							//previous one, they should only have 1 but there is
+							//nothing stopping an owner from submitting 2
+							for each ( var comm:Community in share.communities )
+							{
+								widgetSave.communitySave.put( comm._id, JSONDecoder.decode( share.share ) );
+							}
+						}
+					}
+					
+					//send load messages to any widget that has already been loaded
+					for ( var i:int = 0; i < _widgetUrls.length; i++ )
+					{
+						var widgetUrl:String = _widgetUrls[ i ];
+						var widget:IWidget = _widgets[ i ] as IWidget;
+						widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
+					}
 				}
 			}
 		}

@@ -30,6 +30,7 @@ public class MongoDbManager {
 	public static final String regex_ = "$regex"; 
 	public static final String exists_ = "exists"; 
 	public static final String and_ = "$and"; 
+	public static final String not_ = "$not"; 
 	public static final String or_ = "$or"; 
 	public static final String ne_ = "$ne"; 
 	public static final String gt_ = "$gt"; 
@@ -46,6 +47,7 @@ public class MongoDbManager {
 	public static final String push_ = "$push"; 
 	public static final String pushAll_ = "$pushAll"; 
 	public static final String pop_ = "$pop"; 
+	public static final String size_ = "$size";
 	
 	protected MongoDbManager() {}
 	
@@ -288,6 +290,7 @@ public class MongoDbManager {
 		private DBCollection _feature_entity;
 		private DBCollection _feature_assoc;
 		private DBCollection _feature_geo;
+		private DBCollection _feature_sync_lock;
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
@@ -311,6 +314,12 @@ public class MongoDbManager {
 				_feature_geo = _savedMongo.getDB("feature").getCollection("geo");					
 			}
 			return _feature_geo;
+		}
+		public DBCollection getSyncLock() { // (Used to synchronize batch operations performed via script)
+			if (null == _feature_sync_lock) {
+				_feature_sync_lock = _savedMongo.getDB("feature").getCollection("sync_lock");					
+			}
+			return _feature_sync_lock;			
 		}
 	}
 	

@@ -1,0 +1,16 @@
+var/spool/mail/tomcat {
+    copytruncate
+    weekly
+    rotate 10
+    compress
+    missingok
+    create 0644 tomcat tomcat
+}
+/var/spool/mail/root {
+    copytruncate
+    weekly
+    rotate 10
+    compress
+    missingok
+    create 0644 root root
+}

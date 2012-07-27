@@ -160,7 +160,7 @@ stop)
 	stop_apps
   ;;
 watchdog)
-  if [ ! -f $HOME_DIR/bin/STOPFILE ]; then
+  if [ ! -f $HOME_DIR/bin/STOPFILE ] && [ ! -f $HOME_DIR/bin/ALLSTOPFILE ]; then
 	if ! pgrep -f /opt/infinite-home/bin/infinite-px-engine.sh > /dev/null; then
   		start_apps 	
   	fi

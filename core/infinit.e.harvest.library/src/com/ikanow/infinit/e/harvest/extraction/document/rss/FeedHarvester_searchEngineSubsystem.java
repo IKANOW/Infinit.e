@@ -19,6 +19,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -39,8 +40,14 @@ public class FeedHarvester_searchEngineSubsystem {
 
 	private static final Logger logger = Logger.getLogger(FeedHarvester_searchEngineSubsystem.class);
 	
+	private int maxDocsPerCycle = 1000; // (should never exceed this, anyway...)
+	
 	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) {
 
+		if (context.isStandalone()) {
+			maxDocsPerCycle = context.getStandaloneMaxDocs();
+		}		
+		
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		
 		SourceSearchFeedConfigPojo searchConfig = feedConfig.getSearchConfig();
@@ -64,20 +71,43 @@ public class FeedHarvester_searchEngineSubsystem {
 		}//TESTED
 		
 		Iterator<ExtraUrlPojo> itUrls = null;
+		
+		// Spider parameters used in conjunction with itUrls
+		List<ExtraUrlPojo> iteratingList = null;
+		List<ExtraUrlPojo> waitingList = null;
+		int nIteratingDepth = 0;
+		
 		// (ie no URL specified, so using extra URLs as search URLs - and optionally as real URLs also)
 		if ((null == savedUrl) && (null != src.getRssConfig().getExtraUrls()) && !src.getRssConfig().getExtraUrls().isEmpty()) {
-			itUrls = src.getRssConfig().getExtraUrls().iterator();
+			// Spider logic:
+			iteratingList = src.getRssConfig().getExtraUrls();
+			// (end spidering logic)
+			
+			itUrls = iteratingList.iterator();
 			src.getRssConfig().setExtraUrls(new LinkedList<ExtraUrlPojo>());
+				// (ie overwrite the original list)
 		}//TESTED
 		
 		for (;;) { // The logic for this loop can vary...
+			if (dedupSet.size() >= maxDocsPerCycle) {
+				break;
+			}
+			String currTitle = null;
+			String currFullText = null;
+			String currDesc = null;
 		
 			if (null != itUrls) {
+								
 				ExtraUrlPojo urlPojo = itUrls.next(); 
 				savedUrl = urlPojo.url;
-				if (null != urlPojo.title) { // Also harvest this
-					src.getRssConfig().getExtraUrls().add(urlPojo);
+				if (0 == nIteratingDepth) {
+					if (null != urlPojo.title) { // Also harvest this
+						src.getRssConfig().getExtraUrls().add(urlPojo);
+					}
 				}
+				currTitle = urlPojo.title;
+				currDesc = urlPojo.description;
+				currFullText = urlPojo.fullText;
 			}//TESTED
 			
 			try { // If we error out, we're probably going to abandon the entire search
@@ -111,6 +141,10 @@ public class FeedHarvester_searchEngineSubsystem {
 				}//TESTED
 	
 				for (int nPage = 0; nPage < nMaxPages; ++nPage) {
+					if (dedupSet.size() >= maxDocsPerCycle) {
+						break;
+					}
+					
 					String url = savedUrl;	
 					
 			// Apply the regex to the URL for pagination, part 2
@@ -133,7 +167,7 @@ public class FeedHarvester_searchEngineSubsystem {
 			// Create a custom UAH object to fetch and parse the search results
 			
 					UnstructuredAnalysisConfigPojo dummyUAHconfig = new UnstructuredAnalysisConfigPojo();
-					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.First, feedConfig.getSearchConfig().getScript(), "javascript");
+					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.First, feedConfig.getSearchConfig().getScript(), "javascript", "dt");
 					src.setUnstructuredAnalysisConfig(dummyUAHconfig);
 					if (null != searchConfig.getUserAgent()) {
 						feedConfig.setUserAgent(searchConfig.getUserAgent());
@@ -147,6 +181,11 @@ public class FeedHarvester_searchEngineSubsystem {
 					
 					DocumentPojo searchDoc = new DocumentPojo();
 					searchDoc.setUrl(url);
+					searchDoc.setScore((double)nIteratingDepth); // (spidering param)
+					// If these exist (they won't normally), fill them:
+					searchDoc.setFullText(currFullText);
+					searchDoc.setDescription(currDesc);
+					searchDoc.setTitle(currTitle);
 
 					UnstructuredAnalysisHarvester dummyUAH = new UnstructuredAnalysisHarvester();
 					boolean bMoreDocs = (nPage < nMaxPages - 1);
@@ -174,18 +213,34 @@ public class FeedHarvester_searchEngineSubsystem {
 									String linkDesc = bsonObj.getString(DocumentPojo.description_);
 									String linkPubDate = bsonObj.getString(DocumentPojo.publishedDate_);
 									String linkFullText = bsonObj.getString(DocumentPojo.fullText_);
+									String spiderOut = bsonObj.getString("spiderOut");
 									
-									if ((null != linkUrl) && (null != linkTitle)) {
+									if (null != linkUrl) {
 										SourceRssConfigPojo.ExtraUrlPojo link = new SourceRssConfigPojo.ExtraUrlPojo();
 										link.url = linkUrl;
 										link.title = linkTitle;
 										link.description = linkDesc;
 										link.publishedDate = linkPubDate;
 										link.fullText = linkFullText;
-										if (null == feedConfig.getExtraUrls()) {
-											feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+										if ((null != itUrls) && (null != spiderOut) && spiderOut.equalsIgnoreCase("true")) { 
+											// In this case, add it back to the original list for chained processing
+											
+											if (null == waitingList) {
+												waitingList = new LinkedList<ExtraUrlPojo>();
+											}
+											waitingList.add(link);
+												// (can't result in an infinite loop like this because we check 
+											 	//  dedupSet.size() and only allow links not already in dedupSet)
+											
+										} //TESTED
+										if (null != linkTitle) {
+											
+											if (null == feedConfig.getExtraUrls()) {
+												feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+											}
+											feedConfig.getExtraUrls().add(link);											
 										}
-										feedConfig.getExtraUrls().add(link);
+										
 									}
 								}//(end if URL not already found)
 							}
@@ -218,7 +273,23 @@ public class FeedHarvester_searchEngineSubsystem {
 				break;		
 			}
 			else if (!itUrls.hasNext()) {
-				break;
+				if (null != waitingList) {
+					
+					// Spider logic:
+					if (null == searchConfig.getMaxDepth()) {
+						searchConfig.setMaxDepth(2); // (default max depth is 2 hops, ie original document, link, link from link)
+					}
+					nIteratingDepth++;
+					if (nIteratingDepth > searchConfig.getMaxDepth()) {
+						break;
+					}
+					itUrls = waitingList.iterator();
+					waitingList = null;
+					// (end spider logic)
+					
+				} //TESTED
+				else break;
+				
 			}//TESTED x2
 			
 		}//(end loop over candidate URLs)

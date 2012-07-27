@@ -45,20 +45,4 @@ public class AssociationUtils
 		else
 			return "Summary";
 	}
-	
-	public static void convertEventPojoToLowerCase(AssociationPojo event)
-	{
-		if ( null != event.getEntity1() )
-			event.setEntity1(event.getEntity1().toLowerCase());
-		if ( null != event.getEntity1_index() )
-			event.setEntity1_index(event.getEntity1_index().toLowerCase());
-		if ( null != event.getEntity2() )
-			event.setEntity2(event.getEntity2().toLowerCase());
-		if ( null != event.getEntity2_index() )
-			event.setEntity2_index(event.getEntity2_index().toLowerCase());
-		if ( null != event.getVerb() )
-			event.setVerb(event.getVerb().toLowerCase());
-		if ( null != event.getVerb_category() )
-			event.setVerb_category(event.getVerb_category().toLowerCase());
-	}
 }

@@ -26,6 +26,7 @@ import java.util.List;
 import java.util.Map.Entry;
 import java.util.Set;
 
+import org.apache.commons.lang.ArrayUtils;
 import org.bson.types.ObjectId;
 
 import com.google.gson.GsonBuilder;
@@ -62,6 +63,10 @@ public class DocumentPojo extends BaseDbPojo {
 	// Basic metadata
 	private ObjectId _id = null;
 	final public static String _id_ = "_id";
+		// (API-side, this is an immutable id for the doc, DB-side this the DB _id and changes with every update)
+	private ObjectId updateId = null; 
+	final public static String updateId_ = "updateId";
+		// (API-side, this is the current DB id, DB-side this is the original _id, or null if this doc has never been updated)
 	private String title = null;
 	final public static String title_ = "title";
 	private String url = null;
@@ -256,16 +261,8 @@ public class DocumentPojo extends BaseDbPojo {
 		this.fullText = this.tmpFullText;
 	}
 
-	public void setSourceType(String sourceType)
-	{
-		this.sourceType = sourceType;
-	}
-
-	public String getSourceType()
-	{
-		return this.sourceType;
-	}
-
+	// This is used for convenience, also used as a hacky flag to spot update documents
+	// that have been discarded from the update list.
 	public SourcePojo getTempSource() { return _source; }
 	public void setTempSource(SourcePojo tempSource) { _source = tempSource; }
 
@@ -291,13 +288,25 @@ public class DocumentPojo extends BaseDbPojo {
 			metadata = new LinkedHashMap<String, Object[]>();
 		}
 		Object obj[] = new Object[1]; obj[0] = fieldVal;
-		metadata.put(fieldName, obj);
+		Object[] current = metadata.get(fieldName);
+		if (null != current) {
+			metadata.put(fieldName, ArrayUtils.add(current, obj));
+		}
+		else {
+			metadata.put(fieldName, obj);
+		}
 	}
 	public void addToMetadata(String fieldName, Object[] fieldVals) {
 		if (null == metadata) {
 			metadata = new LinkedHashMap<String, Object[]>();
 		}
-		metadata.put(fieldName, fieldVals);
+		Object[] current = metadata.get(fieldName);
+		if (null != current) {
+			metadata.put(fieldName, ArrayUtils.addAll(current, fieldVals));
+		}
+		else {
+			metadata.put(fieldName, fieldVals);
+		}
 	}
 
 	public void setMetadata(LinkedHashMap<String, Object[]> metadata)
@@ -561,6 +570,14 @@ public class DocumentPojo extends BaseDbPojo {
 
 	public void setScore(Double score) {
 		this.score = score;
+	}
+
+	public void setUpdateId(ObjectId updateId) {
+		this.updateId = updateId;
+	}
+
+	public ObjectId getUpdateId() {
+		return updateId;
 	}
 
 }

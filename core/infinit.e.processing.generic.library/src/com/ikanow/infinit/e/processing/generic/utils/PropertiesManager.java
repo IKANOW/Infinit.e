@@ -115,6 +115,19 @@ public class PropertiesManager {
 			return 1; // (default)
 		}		
 	}
+
+	// Check if entity/association aggregation is disabled
+	
+	public boolean getAggregationDisabled() {
+		String s = this.getProperty("harvest.disable_aggregation");
+		if (null == s) {
+			return false;
+		}
+		else if (s.equals("1") || s.equalsIgnoreCase("true")) {
+			return true;
+		}
+		return false;
+	}
 	
 }
 

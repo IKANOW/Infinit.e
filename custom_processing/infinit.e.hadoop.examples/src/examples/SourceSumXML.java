@@ -23,6 +23,7 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 
+import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.util.MongoTool;
@@ -37,6 +38,17 @@ public class SourceSumXML extends MongoTool
 
         public void map( Object key, BSONObject value, Context context ) throws IOException, InterruptedException
         {
+        	//Argument access examples:
+        	//1. Just a string argument
+        	/*String args = context.getConfiguration().get("arguments");
+        	word.set(args);
+        	context.write(word,one);*/
+        	//2. Argument is some json we deserialize (i.e. argument is {"word":"something"} )
+        	//String args = context.getConfiguration().get("arguments");
+        	//argumentjson aj = new Gson().fromJson(args, argumentjson.class);        	
+        	//word.set(aj.word);
+        	//context.write(word,one);
+        	
         	// Document access methods:        	
         	// 1. Pure BSON version
         	//Object source = value.get("source");
@@ -56,7 +68,7 @@ public class SourceSumXML extends MongoTool
         	{
         		word.set(source.toString());
         		context.write( word, one);
-        	}
+        	}        	
         }
     }
 

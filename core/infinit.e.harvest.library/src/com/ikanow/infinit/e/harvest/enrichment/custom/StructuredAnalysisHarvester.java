@@ -16,12 +16,14 @@
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map.Entry;
 import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -35,6 +37,7 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.GeoSpecPojo;
@@ -52,6 +55,8 @@ import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.AssociationUtils;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 
 /**
  * StructuredAnalysisHarvester
@@ -66,7 +71,8 @@ public class StructuredAnalysisHarvester
 	private JSONObject iterator = null;
 	private String iteratorIndex = null;
 	private static Pattern pattern = Pattern.compile("\\$([a-zA-Z._0-9]+)|\\$\\{([^}]+)\\}");
-	private static HashMap<String, GeoPojo> geoMap = new HashMap<String, GeoPojo>();
+	private HashMap<String, GeoPojo> geoMap = new HashMap<String, GeoPojo>();
+	private HashSet<String> entityMap = new HashSet<String>();
 	
 	private HarvestContext _context;
 	
@@ -89,7 +95,8 @@ public class StructuredAnalysisHarvester
 	private ScriptEngineManager factory = null;
 	private ScriptEngine engine = null;
 	private Invocable inv = null;
-	
+	private static String parsingScript = null;
+	private boolean bInitializedParsingScript = false; // (needs to be done once per source)
 
 	/**
 	 * executeHarvest(SourcePojo source, List<DocumentPojo> feeds) extracts document GEO, Entities,
@@ -199,7 +206,7 @@ public class StructuredAnalysisHarvester
 							}
 							else
 							{
-								f.setTitle(getFormattedTextFromField(s.getTitle()));
+								f.setTitle(getFormattedTextFromField(s.getTitle(), null));
 							}
 							if (null == f.getTitle()) {
 								bTryTitleLater = true;
@@ -224,7 +231,7 @@ public class StructuredAnalysisHarvester
 							}
 							else
 							{
-								f.setDescription(getFormattedTextFromField(s.getDescription()));
+								f.setDescription(getFormattedTextFromField(s.getDescription(), null));
 							}
 							if (null == f.getDescription()) {
 								bTryDescriptionLater = true;
@@ -250,7 +257,7 @@ public class StructuredAnalysisHarvester
 							}
 							else
 							{
-								f.setFullText(getFormattedTextFromField(s.getFullText()));
+								f.setFullText(getFormattedTextFromField(s.getFullText(), null));
 							}
 							if (null == f.getFullText()) {
 								bTryFullTextLater = true;
@@ -273,7 +280,15 @@ public class StructuredAnalysisHarvester
 					try {
 						boolean bMetadataChanged = false;
 						if (null != this.unstructuredHandler) {
-							bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
+							try {
+								bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
+							}
+							catch (Exception e) {
+								contextController.handleExtractError(e, source); //handle extractor error if need be				
+								it.remove(); // remove the document from the list...
+								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								continue;
+							}
 						}	
 						if (contextController.isEntityExtractionRequired(source))
 						{
@@ -287,6 +302,9 @@ public class StructuredAnalysisHarvester
 							}
 							catch (Exception e) {
 								contextController.handleExtractError(e, source); //handle extractor error if need be				
+								it.remove(); // remove the document from the list...
+								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								continue;
 							}
 						}
 						if (bMetadataChanged) {
@@ -296,6 +314,65 @@ public class StructuredAnalysisHarvester
 							document = null;
 							intializeDocIfNeeded(f, g);							
 					        f.setFullText(sTmpFullText); //(restore)
+						}
+						
+						// Compare the new and old docs in the case when this doc is an update
+						if ((null != s.getOnUpdateScript()) && (null != f.getUpdateId())) {
+							// (note we must be in integrated mode - not called from source/test - if f.getId() != null)
+							
+							BasicDBObject query1 = new BasicDBObject(DocumentPojo._id_, f.getUpdateId());
+							BasicDBObject query2 = new BasicDBObject(DocumentPojo.updateId_, f.getUpdateId());
+							BasicDBObject query = new BasicDBObject(DbManager.or_, Arrays.asList(query1, query2));
+
+							BasicDBObject docObj = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
+							
+							if (null != docObj) {
+								
+								if (null == parsingScript) { // First time through, initialize parsing script 
+									// (to convert native JS return vals into something we can write into our metadata)
+									parsingScript = JavaScriptUtils.generateParsingScript();
+								}					
+								if (!bInitializedParsingScript) {
+									engine.eval(parsingScript);
+									bInitializedParsingScript = true;
+								}
+								DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
+						        engine.put("old_document", new JSONObject(g.toJson(doc)));
+						        try {
+						        	engine.eval(JavaScriptUtils.initOnUpdateScript);
+						        	Object returnVal = engine.eval(s.getOnUpdateScript());
+									BasicDBList outList = JavaScriptUtils.parseNativeJsObject(returnVal, engine);												
+									f.addToMetadata("_PERSISTENT_", outList.toArray());
+						        }
+						        catch (Exception e) {
+						        	// Extra step here...
+						        	if (null != doc.getMetadata()) { // Copy persistent metadata across...
+						        		Object[] persist = doc.getMetadata().get("_PERSISTENT_");
+						        		if (null != persist) {
+						        			f.addToMetadata("_PERSISTENT_", persist);
+						        		}						        		
+										this._context.getHarvestStatus().logMessage("SAH::onUpdateScript: " + e.getMessage(), true);
+										logger.error("SAH::onUpdateScript: " + e.getMessage(), e);
+						        	}
+						        	//(TESTED)
+						        }								
+								//TODO (INF-1507): need to write more efficient code to deserialize metadata?
+							}
+							
+							document = null;
+							intializeDocIfNeeded(f, g);
+							
+						}//TESTED (end if callback-on-update)
+						
+						// Check (based on the metadata and entities so far) whether to retain the doc
+						if (null != s.getRejectDocCriteria()) {
+							String rejectDoc = (String) getValueFromScript(s.getRejectDocCriteria(), null, null, false);	
+							if (null != rejectDoc) {
+								this._context.getHarvestStatus().logMessage("SAH_reject: " + rejectDoc, true);								
+								it.remove(); // remove the document from the list...
+								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								continue;								
+							}
 						}
 					}
 					catch (Exception e) {
@@ -320,7 +397,7 @@ public class StructuredAnalysisHarvester
 								}
 								else
 								{
-									f.setTitle(getFormattedTextFromField(s.getTitle()));
+									f.setTitle(getFormattedTextFromField(s.getTitle(), null));
 								}
 							}
 						}
@@ -343,7 +420,7 @@ public class StructuredAnalysisHarvester
 								}
 								else
 								{
-									f.setDescription(getFormattedTextFromField(s.getDescription()));
+									f.setDescription(getFormattedTextFromField(s.getDescription(), null));
 								}
 							}
 						}
@@ -366,7 +443,7 @@ public class StructuredAnalysisHarvester
 								}
 								else
 								{
-									f.setFullText(getFormattedTextFromField(s.getFullText()));
+									f.setFullText(getFormattedTextFromField(s.getFullText(), null));
 								}
 							}
 						}
@@ -398,7 +475,7 @@ public class StructuredAnalysisHarvester
 							try 
 							{ 
 								f.setPublishedDate(new Date(
-										DateUtility.parseDate((String)getFormattedTextFromField(s.getPublishedDate()))));
+										DateUtility.parseDate((String)getFormattedTextFromField(s.getPublishedDate(), null))));
 							} 
 							catch (Exception e) 
 							{
@@ -418,7 +495,7 @@ public class StructuredAnalysisHarvester
 							}
 							else
 							{
-								f.setUrl(getFormattedTextFromField(s.getUrl()));
+								f.setUrl(getFormattedTextFromField(s.getUrl(), null));
 							}
 						}
 					}
@@ -456,6 +533,38 @@ public class StructuredAnalysisHarvester
 					{
 						f.setAssociations(getAssociations(s.getAssociations(), f));
 					}
+					
+			// 5. Remove unwanted metadata fields
+					
+					String metaFields = s.getMetadataFields();
+					if (null != metaFields) {
+						boolean bInclude = true;
+						if (metaFields.startsWith("+")) {
+							metaFields = metaFields.substring(1);
+						}
+						else if (metaFields.startsWith("-")) {
+							metaFields = metaFields.substring(1);
+							bInclude = false;
+						}
+						String[] metaFieldArray = metaFields.split("\\s*,\\s*");
+						if (bInclude) {
+							Set<String> metaFieldSet = new HashSet<String>();
+							metaFieldSet.addAll(Arrays.asList(metaFieldArray));
+							Iterator<Entry<String,  Object[]>> metaField = f.getMetadata().entrySet().iterator();
+							while (metaField.hasNext()) {
+								Entry<String,  Object[]> metaFieldIt = metaField.next();
+								if (!metaFieldSet.contains(metaFieldIt.getKey())) {
+									metaField.remove();
+								}
+							}
+						} 
+						else { // exclude case, easier
+							for (String metaField: metaFieldArray) {
+								f.getMetadata().remove(metaField);
+							}
+						}
+						//TESTED: include (default + explicit) and exclude cases
+					}					
 				} 
 				catch (Exception e) 
 				{
@@ -496,6 +605,20 @@ public class StructuredAnalysisHarvester
 		
 		// Clear geoMap before we start extracting entities and associations for each feed
 		if (!geoMap.isEmpty()) geoMap.clear();
+		if (!entityMap.isEmpty()) entityMap.clear();
+		// Fill in geoMap and entityMap with any existing docs/entities
+		
+		if (f.getEntities() != null) 
+		{
+			for (EntityPojo ent: f.getEntities()) {
+				if (null != ent.getIndex()) {
+					entityMap.add(ent.getIndex());
+					if (null != ent.getGeotag()) {
+						geoMap.put(ent.getIndex(), ent.getGeotag());
+					}
+				}
+			}
+		}//TESTED (in INF_1360_test_source.json:test8, hand created f.entities containing "entity2/type2")
 	
 		// Iterate over each EntitySpecPojo and try to create an entity, or entities, from the data
 		JSONObject metadata = null;
@@ -537,68 +660,87 @@ public class StructuredAnalysisHarvester
 				String iterateOver = esp.getIterateOver();
 
 				// Check to see if the arrayRoot specified exists in the current doc before proceeding
-				JSONArray entityRecords;
-				if ((entityRecords = currObj.getJSONArray(iterateOver)) != null)
-				{					
-					// Get the type of object contained in EntityRecords[0]
-					String objType = entityRecords.get(0).getClass().toString();
+				
+				Object itEl = null;
+				try {
+					itEl = currObj.get(iterateOver);
+				}
+				catch (JSONException e) {} // carry on, trapped below...
+				
+				if (null == itEl) {
+					return entities;
+				}
+				JSONArray entityRecords = null;
+				try {
+					entityRecords = currObj.getJSONArray(iterateOver);
+				}
+				catch (JSONException e) {} // carry on, trapped below...
+					
+				if (null == entityRecords) {
+					entityRecords = new JSONArray();
+					entityRecords.put(itEl);
+				}
+				//TESTED
 
-					/*
-					 *  EntityRecords is a simple String[] array of entities
-					 */
-					if (objType.equalsIgnoreCase("class java.lang.String"))
+				// Get the type of object contained in EntityRecords[0]
+				String objType = entityRecords.get(0).getClass().toString();
+
+				/*
+				 *  EntityRecords is a simple String[] array of entities
+				 */
+				if (objType.equalsIgnoreCase("class java.lang.String"))
+				{
+					// Iterate over array elements and extract entities
+					for (int i = 0; i < entityRecords.length(); ++i) 
+					{							
+						String field = entityRecords.getString(i);
+						EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
+						if (entity != null) entities.add(entity);	
+					}
+				}
+
+				/*
+				 *  EntityRecords is a JSONArray
+				 */
+				else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
+				{
+					// Iterate over array elements and extract entities
+					for (int i = 0; i < entityRecords.length(); ++i) 
 					{
-						// Iterate over array elements and extract entities
-						for (int i = 0; i < entityRecords.length(); ++i) 
-						{							
-							String field = entityRecords.getString(i);
-							EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
+						// Get JSONObject containing entity fields and pass entityElement
+						// into the script engine so scripts can access it
+						JSONObject savedIterator = null;
+						if (engine != null) 
+						{
+							iterator = savedIterator = entityRecords.getJSONObject(i);
+						}
+
+						// Does the entity break out into multiple entities?
+						if (esp.getEntities() != null)
+						{
+							// Iterate over the entities and call getEntities recursively
+							for (EntitySpecPojo subEsp : esp.getEntities())
+							{	
+								iterator = savedIterator; // (reset this)
+								
+								List<EntityPojo> subEntities = getEntities(subEsp, f, iterator);
+								for (EntityPojo e : subEntities)
+								{
+									entities.add(e);
+								}
+							}
+						}
+						else
+						{
+							EntityPojo entity = getEntity(esp, null, String.valueOf(i), f);
 							if (entity != null) entities.add(entity);	
 						}
 					}
+				}
 
-					/*
-					 *  EntityRecords is a JSONArray
-					 */
-					else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
-					{
-						// Iterate over array elements and extract entities
-						for (int i = 0; i < entityRecords.length(); ++i) 
-						{
-							// Get JSONObject containing entity fields and pass entityElement
-							// into the script engine so scripts can access it
-							if (engine != null) 
-							{
-								iterator = entityRecords.getJSONObject(i);
-							}
-
-							// Does the entity break out into multiple entities?
-							if (esp.getEntities() != null)
-							{
-								// Iterate over the entities and call getEntities recursively
-								for (EntitySpecPojo subEsp : esp.getEntities())
-								{	
-									List<EntityPojo> subEntities = getEntities(subEsp, f, iterator);
-									for (EntityPojo e : subEntities)
-									{
-										entities.add(e);
-									}
-								}
-							}
-							else
-							{
-								EntityPojo entity = getEntity(esp, null, String.valueOf(i), f);
-								if (entity != null) entities.add(entity);	
-							}
-						}
-					}
-
-					if (iterator != currObj) { // (ie at the top level)
-						iterator = null;
-					}
-					
-				}//(end if iterateOver)
-
+				if (iterator != currObj) { // (ie at the top level)
+					iterator = null;
+				}
 			}
 			catch (Exception e)
 			{
@@ -651,8 +793,16 @@ public class StructuredAnalysisHarvester
 		
 		try
 		{
-			Boolean addEntity = true;
 			EntityPojo e = new EntityPojo();
+			
+			// Parse creation criteria script to determine if the entity should be added
+			if (esp.getCreationCriteriaScript() != null && JavaScriptUtils.containsScript(esp.getCreationCriteriaScript()))
+			{
+				boolean addEntity = executeEntityAssociationValidation(esp.getCreationCriteriaScript(), field, index);
+				if (!addEntity) {
+					return null;
+				}
+			}
 			
 			// Entity.disambiguous_name
 			String disambiguatedName = null;
@@ -662,14 +812,19 @@ public class StructuredAnalysisHarvester
 			}
 			else
 			{
+				if ((iterator != null) && (esp.getDisambiguated_name().startsWith("$metadata.") || esp.getDisambiguated_name().startsWith("${metadata."))) {
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage("Warning: in disambiguated_name, using global $metadata when iterating", true);
+					}
+				}
 				// Field - passed in via simple string array from getEntities
 				if (field != null)
 				{
-					disambiguatedName = field + getFormattedTextFromField(esp.getDisambiguated_name());
+					disambiguatedName = field + getFormattedTextFromField(esp.getDisambiguated_name(), field);
 				}
 				else
 				{
-					disambiguatedName = getFormattedTextFromField(esp.getDisambiguated_name());
+					disambiguatedName = getFormattedTextFromField(esp.getDisambiguated_name(), field);
 				}
 			}
 			
@@ -680,6 +835,9 @@ public class StructuredAnalysisHarvester
 			}
 			else
 			{
+				if (_context.isStandalone()) { // (minor message, while debugging only)
+					_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required disambiguatedName from: ").append(esp.getDisambiguated_name()).toString(), true);
+				}
 				return null;
 			}
 			
@@ -693,11 +851,14 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					freq = getFormattedTextFromField(esp.getFrequency());
+					freq = getFormattedTextFromField(esp.getFrequency(), field);
 				}
 				// Since we've specified freq, we're going to enforce it
 				if (null == freq) { // failed to get it
-					return null;
+					if (null == esp.getCreationCriteriaScript()) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required frequency from: ").append(esp.getFrequency()).toString(), true);
+						return null;
+					}
 				}
 			}
 
@@ -733,11 +894,19 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					actualName = getFormattedTextFromField(esp.getActual_name());
+					if ((iterator != null) && (esp.getActual_name().startsWith("$metadata.") || esp.getActual_name().startsWith("${metadata."))) {
+						if (_context.isStandalone()) { // (minor message, while debugging only)
+							_context.getHarvestStatus().logMessage("Warning: in actual_name, using global $metadata when iterating", true);
+						}
+					}
+					actualName = getFormattedTextFromField(esp.getActual_name(), field);
 				}
 				// Since we've specified actual name, we're going to enforce it (unless otherwise specified)
 				if (null == actualName) { // failed to get it
 					if (null == esp.getCreationCriteriaScript()) {
+						if (_context.isStandalone()) { // (minor message, while debugging only)
+							_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required actual_name from: ").append(esp.getActual_name()).toString(), true);
+						}
 						return null;
 					}
 				}
@@ -756,11 +925,12 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					type = getFormattedTextFromField(esp.getType());
+					type = getFormattedTextFromField(esp.getType(), field);
 				}
 				// Since we've specified type, we're going to enforce it (unless otherwise specified)
 				if (null == type) { // failed to get it
 					if (null == esp.getCreationCriteriaScript()) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required type from: ").append(esp.getType()).toString(), true);
 						return null;
 					}
 				}
@@ -775,6 +945,11 @@ public class StructuredAnalysisHarvester
 			String entityIndex = disambiguatedName + "/" + type;
 			e.setIndex(entityIndex.toLowerCase());
 			
+			// Now check if we already exist, discard if so:
+			if (entityMap.contains(e.getIndex())) {
+				return null;
+			}
+
 			// Entity.dimension
 			String dimension = null;
 			if (esp.getDimension() != null)
@@ -785,11 +960,12 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					dimension = getFormattedTextFromField(esp.getDimension());
+					dimension = getFormattedTextFromField(esp.getDimension(), field);
 				}
 				// Since we've specified dimension, we're going to enforce it (unless otherwise specified)
 				if (null == dimension) { // failed to get it
 					if (null == esp.getCreationCriteriaScript()) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required dimension from: ").append(esp.getDimension()).toString(), true);
 						return null;
 					}
 				}
@@ -817,11 +993,12 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					relevance = getFormattedTextFromField(esp.getRelevance());
+					relevance = getFormattedTextFromField(esp.getRelevance(), field);
 				}
 				// Since we've specified relevance, we're going to enforce it (unless otherwise specified)
 				if (null == relevance) { // failed to get it
 					if (null == esp.getCreationCriteriaScript()) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required relevance from: ").append(esp.getRelevance()).toString(), true);
 						return null;
 					}
 				}
@@ -834,10 +1011,56 @@ public class StructuredAnalysisHarvester
 				return null;				
 			}
 
+			// Entity.sentiment (optional field)
+			if (esp.getSentiment() != null)
+			{
+				String sentiment;
+				if (JavaScriptUtils.containsScript(esp.getSentiment()))
+				{
+					sentiment = (String)getValueFromScript(esp.getSentiment(), field, index);
+				}
+				else
+				{
+					sentiment = getFormattedTextFromField(esp.getSentiment(), field);
+				}
+				// (sentiment is optional, even if specified)
+				if (null != sentiment) {
+					try {
+						e.setSentiment(Double.parseDouble(sentiment));
+					}
+					catch (Exception e1) {
+						this._context.getHarvestStatus().logMessage(e1.getMessage(), true);
+						return null;				
+					}
+				}
+			}
+
+			// Entity Link data:
+			
+			if (esp.getLinkdata() != null)
+			{
+				
+				String linkdata = null;
+				if (JavaScriptUtils.containsScript(esp.getLinkdata()))
+				{
+					linkdata = (String)getValueFromScript(esp.getLinkdata(), field, index);
+				}
+				else
+				{
+					linkdata = getFormattedTextFromField(esp.getLinkdata(), field);
+				}
+				// linkdata is optional, even if specified
+				if (null != linkdata) {
+					String[] links = linkdata.split("\\s+");
+					e.setSemanticLinks(Arrays.asList(links));
+				}
+			}
+			
+			
 			// Extract Entity GEO or set Entity Geo equal to DocGeo if specified via useDocGeo
 			if (esp.getGeotag() != null)
 			{	
-				GeoPojo geo = getEntityGeo(esp.getGeotag(), null);
+				GeoPojo geo = getEntityGeo(esp.getGeotag(), null, field);
 				if (null != geo) {
 					e.setGeotag(geo);
 				}
@@ -845,17 +1068,11 @@ public class StructuredAnalysisHarvester
 			}
 			else if (esp.getUseDocGeo() == true)
 			{
-				GeoPojo geo = getEntityGeo(null, f);
+				GeoPojo geo = getEntityGeo(null, f, field);
 				if (null != geo) {
 					e.setGeotag(geo);
 				}
 				// (Allow this field to be intrinsically optional)
-			}
-
-			// Add the gazateer_index and geotag to geomap to get used by associations with matching indexes
-			if (e.getGeotag() != null)
-			{
-				geoMap.put(e.getIndex(), e.getGeotag());
 			}
 
 			// Entity.ontological_type (
@@ -868,7 +1085,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					ontology_type = getFormattedTextFromField(esp.getOntology_type());
+					ontology_type = getFormattedTextFromField(esp.getOntology_type(), field);
 				}
 				// Allow this field to be intrinsically optional
 			}
@@ -881,15 +1098,15 @@ public class StructuredAnalysisHarvester
 				e.setOntology_type(GeoOntologyMapping.mapEntityToOntology(type));				
 			}
 			e.setOntology_type(ontology_type);			
-			
-			// Parse creation criteria script to determine if the entity should be added
-			if (esp.getCreationCriteriaScript() != null && JavaScriptUtils.containsScript(esp.getCreationCriteriaScript()))
+						
+			// Add the index and geotag to geomap to get used by associations with matching indexes
+			if (e.getGeotag() != null)
 			{
-				addEntity = validateEntityWithScript(esp.getCreationCriteriaScript(), e);	
+				geoMap.put(e.getIndex(), e.getGeotag());
 			}
+			entityMap.add(e.getIndex());
 			
-			// 
-			if (addEntity) { return e; } else { return null; }
+			return e; 
 		}
 		catch (Exception ex)
 		{
@@ -968,21 +1185,27 @@ public class StructuredAnalysisHarvester
 			{
 				String iterateOver = esp.getIterateOver();
 
+				String slashSplit[] = iterateOver.split("/");
+				String commaSplit[] = iterateOver.split(",");
+
+				//TODO (INF-1595): This unfortunately doesn't seem to work with "entity1/" (you can use "entity1/dummy")
+				//or more seriously ... "entity2/dummy", does it assume entity1 is always present??
+				
 				// START - Multiplicative/Additive Association Creation
 				// entity1/entity2/geo_index/time_start/time_end or entity1,entity2,geo_index,time_start,time_end
-				if (iterateOver.split("/").length > 1 || iterateOver.split(",").length > 1)
+				if (slashSplit.length > 1 || commaSplit.length > 1)
 				{
 					ArrayList<String[]> assocsToCreate =  new ArrayList<String[]> ();
 
 					// Multiplicative - entity1/entity2/geo_index/time_start/time_end
-					if (iterateOver.split("/").length > 1)
+					if (slashSplit.length > 1)
 					{
 						assocsToCreate = getMultiplicativeAssociations(esp, iterateOver, f);	
 					}
 
 					// WARNING: This code has not been tested! It should work but...
 					// Additive - entity1,entity2,geo_index,time_start,time_end
-					else if (iterateOver.split(",").length > 1)
+					else if (commaSplit.length > 1)
 					{
 						assocsToCreate = getAdditiveAssociations(esp, iterateOver, f);
 					}
@@ -992,25 +1215,48 @@ public class StructuredAnalysisHarvester
 					{
 						for (String[] assocToCreate : assocsToCreate)
 						{
+							JSONObject currIt = new JSONObject();
+							
 							AssociationSpecPojo newAssoc = new AssociationSpecPojo();
 							// Entity1
-							if (assocToCreate[0] !=null) { newAssoc.setEntity1(assocToCreate[0]); }
-							else { newAssoc.setEntity1(esp.getEntity1()); }
+							if (assocToCreate[0] !=null) { 
+								newAssoc.setEntity1_index(assocToCreate[0]);
+								currIt.put("entity1_index", assocToCreate[0]);
+							}
+							else {
+								newAssoc.setEntity1(esp.getEntity1());
+								newAssoc.setEntity1_index(esp.getEntity1_index());
+							}
 							
 							// Entity2
-							if (assocToCreate[1] !=null) { newAssoc.setEntity2(assocToCreate[1]); }
-							else { newAssoc.setEntity2(esp.getEntity2()); }
+							if (assocToCreate[1] !=null) { 
+								newAssoc.setEntity2_index(assocToCreate[1]); 
+								currIt.put("entity2_index", assocToCreate[1]);
+							}
+							else {
+								newAssoc.setEntity2(esp.getEntity2());
+								newAssoc.setEntity2_index(esp.getEntity2_index());
+							}
 							
 							// Geo_index
-							if (assocToCreate[2] !=null) { newAssoc.setGeo_index(assocToCreate[2]); }
+							if (assocToCreate[2] !=null) { 
+								newAssoc.setGeo_index(assocToCreate[2]); 
+								currIt.put("geo_index", assocToCreate[2]);
+							}
 							else { newAssoc.setGeo_index(esp.getGeo_index()); }
 							
 							// Time_start
-							if (assocToCreate[3] !=null) { newAssoc.setTime_start(assocToCreate[3]); }
+							if (assocToCreate[3] !=null) { 
+								newAssoc.setTime_start(assocToCreate[3]);
+								currIt.put("time_start", assocToCreate[3]);
+							}
 							else { newAssoc.setTime_start(esp.getTime_start()); }
 							
 							// Time_end
-							if (assocToCreate[4] !=null) { newAssoc.setTime_end(assocToCreate[4]); }
+							if (assocToCreate[4] !=null) { 
+								newAssoc.setTime_end(assocToCreate[4]);
+								currIt.put("time_end", assocToCreate[4]);
+							}
 							else { newAssoc.setTime_end(esp.getTime_end()); }
 							
 							// Misc. Fields to copy from the original pojo
@@ -1021,9 +1267,15 @@ public class StructuredAnalysisHarvester
 							newAssoc.setGeotag(esp.getGeotag());
 
 							// Create an association from the AssociationSpecPojo and document
+							JSONObject savedIterator = iterator; // (just in case this needs to be retained - i don't think it does)
+							if (null != engine) { // (in case no script engine specified)
+								iterator = currIt;
+							}
 							AssociationPojo association = getAssociation(newAssoc, null, null, f);
 							if (association != null) associations.add(association);
+							iterator = savedIterator;
 						}
+						//TESTED
 					}
 				}
 				// END - Multiplicative/Additive Association Creation
@@ -1034,61 +1286,81 @@ public class StructuredAnalysisHarvester
 					try
 					{
 						// Check to see if the arrayRoot specified exists in the current doc before proceeding
-						if (currObj.has(iterateOver))
-						{
-							// Get array of association records from the specified root element
-							JSONArray assocRecords = currObj.getJSONArray(iterateOver);
+						// Get array of association records from the specified root element
+						
+						Object itEl = null;
+						try {
+							itEl = currObj.get(iterateOver);
+						}
+						catch (JSONException e) {} // carry on, trapped below...
+						
+						if (null == itEl) {
+							return associations;
+						}
+						JSONArray assocRecords = null;
+						try {
+							assocRecords = currObj.getJSONArray(iterateOver);
+						}
+						catch (JSONException e) {} // carry on, trapped below...
+							
+						if (null == assocRecords) {
+							assocRecords = new JSONArray();
+							assocRecords.put(itEl);
+						}
+						//TESTED						
 
-							// Get the type of object contained in assocRecords[0]
-							if (assocRecords.length() > 0) {
-								String objType = assocRecords.get(0).getClass().toString();
-	
-								// EntityRecords is a simple String[] array of associations
-								if (objType.equalsIgnoreCase("class java.lang.String"))
+						// Get the type of object contained in assocRecords[0]
+						if (assocRecords.length() > 0) {
+							String objType = assocRecords.get(0).getClass().toString();
+
+							// EntityRecords is a simple String[] array of associations
+							if (objType.equalsIgnoreCase("class java.lang.String"))
+							{
+								// Iterate over array elements and extract associations
+								for (int i = 0; i < assocRecords.length(); ++i) 
 								{
-									// Iterate over array elements and extract associations
-									for (int i = 0; i < assocRecords.length(); ++i) 
-									{
-										String field = assocRecords.getString(i);
-										AssociationPojo association = getAssociation(esp, field, Long.valueOf(i), f);
-										if (association != null) associations.add(association);	
-									}
+									String field = assocRecords.getString(i);
+									AssociationPojo association = getAssociation(esp, field, Long.valueOf(i), f);
+									if (association != null) associations.add(association);	
 								}
-	
-								// EntityRecords is a JSONArray
-								else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
+							}
+
+							// EntityRecords is a JSONArray
+							else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
+							{
+								// Iterate over array elements and extract associations
+								for (int i = 0; i < assocRecords.length(); ++i) 
 								{
-									// Iterate over array elements and extract associations
-									for (int i = 0; i < assocRecords.length(); ++i) 
+									// Get JSONObject containing association fields and pass assocElement
+									// into the script engine so scripts can access it
+									JSONObject savedIterator = null;
+									if (engine != null) 
 									{
-										// Get JSONObject containing association fields and pass assocElement
-										// into the script engine so scripts can access it
-										if (engine != null) 
-										{
-											iterator = assocRecords.getJSONObject(i);
-										}
-	
-										// Does the association break out into multiple associations?
-										if (esp.getAssociations() != null)
-										{
-											// Iterate over the associations and call getAssociations recursively
-											for (AssociationSpecPojo subEsp : esp.getAssociations())
-											{	
-												List<AssociationPojo> subAssocs = getAssociations(subEsp, f, iterator);
-												for (AssociationPojo e : subAssocs)
-												{
-													associations.add(e);
-												}
+										iterator = savedIterator = assocRecords.getJSONObject(i);
+									}
+
+									// Does the association break out into multiple associations?
+									if (esp.getAssociations() != null)
+									{
+										// Iterate over the associations and call getAssociations recursively
+										for (AssociationSpecPojo subEsp : esp.getAssociations())
+										{	
+											iterator = savedIterator; // (reset this)
+											
+											List<AssociationPojo> subAssocs = getAssociations(subEsp, f, iterator);
+											for (AssociationPojo e : subAssocs)
+											{
+												associations.add(e);
 											}
 										}
-										else
-										{
-											AssociationPojo association = getAssociation(esp, null, null, f);
-											if (association != null) associations.add(association);	
-										}
-									}//(else if is json object)
-								}//(end if >0 array elements)
-							}
+									}
+									else
+									{
+										AssociationPojo association = getAssociation(esp, null, Long.valueOf(i), f);
+										if (association != null) associations.add(association);	
+									}
+								}//(else if is json object)
+							}//(end if >0 array elements)
 
 							if (iterator != currObj) { // top level
 								iterator = null;
@@ -1153,7 +1425,6 @@ public class StructuredAnalysisHarvester
 			{
 				try
 				{
-					//
 					String[] assocToCreate = new String[5];
 
 					// Entity1
@@ -1207,8 +1478,6 @@ public class StructuredAnalysisHarvester
 		}
 	}
 	
-	
-	
 	/**
 	 * extractEntityLists
 	 * @param esp
@@ -1224,32 +1493,35 @@ public class StructuredAnalysisHarvester
 		// Get the list of entities from the feed
 		List<EntityPojo> entities = f.getEntities();
 		
-		//
+		// These are the fields over which we are iterating
 		for (String field : entityFields)
 		{
-			//
+			// Get the specified type for this field
 			String typeValue = getFieldValueFromAssociationSpecPojo(esp, field);
 			
-			// Get the disambiguous_name for any entity that matches the type field
-			ArrayList<String> dNames = new ArrayList<String>();
+			// Get the index for any entity that matches the type field
+			ArrayList<String> indexes = new ArrayList<String>();
 			if (typeValue != null)
 			{
 				for (EntityPojo e : entities)
 				{
 					if (e.getType().equalsIgnoreCase(typeValue))
 					{
-						dNames.add(e.getDisambiguatedName());
+						if (null != e.getIndex()) {
+							indexes.add(e.getIndex()); // (I think the code will always take this branch)
+						}
+						else { // (this is just a harmless safety net I think)
+							indexes.add(new StringBuffer(e.getDisambiguatedName().toLowerCase()).append(typeValue.toLowerCase()).toString());
+						}
 					}
 				}
-				if (dNames.size() > 0) entityLists.put(field, dNames);
+				if (indexes.size() > 0) entityLists.put(field, indexes);
 			}
 		}
+		//TESTED (see INF1360_test_source.json:test1 for entities, :test5 for geo_index)
 		
 		return entityLists;
 	}
-	
-	
-	
 	
 	/**
 	 * getFieldValueFromAssociationSpecPojo
@@ -1456,8 +1728,16 @@ public class StructuredAnalysisHarvester
 		String index = (count != null) ? count.toString() : null;
 		try
 		{
-			Boolean addAssoc = true;
 			AssociationPojo e = new AssociationPojo();
+			
+			// If the AssociationSpecPojo has a creation criteria script check the association for validity
+			if (esp.getCreationCriteriaScript() != null && JavaScriptUtils.containsScript(esp.getCreationCriteriaScript()))
+			{
+				boolean addAssoc = executeEntityAssociationValidation(esp.getCreationCriteriaScript(), field, index);
+				if (!addAssoc) {
+					return null;
+				}
+			}			
 			
 			boolean bDontResolveToIndices = false; // (can always override to summary)
 			if (null != esp.getAssoc_type() && (esp.getAssoc_type().equalsIgnoreCase("summary"))) {
@@ -1465,21 +1745,8 @@ public class StructuredAnalysisHarvester
 			}
 
 			// Assoc.entity1
-			if (esp.getEntity1() != null)
+			if ((esp.getEntity1() != null) || (esp.getEntity1_index() != null))
 			{
-				if (JavaScriptUtils.containsScript(esp.getEntity1()))
-				{
-					e.setEntity1((String)getValueFromScript(esp.getEntity1(), field, index));
-				}
-				else
-				{
-					e.setEntity1(getFormattedTextFromField(esp.getEntity1()));
-				}
-				if ((null == e.getEntity1()) && (null == esp.getCreationCriteriaScript())) {
-					// Specified this, so going to insist on it
-					return null;
-				}
-				
 				// Association.entity1_index
 				if (esp.getEntity1_index() != null)
 				{
@@ -1490,44 +1757,109 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						String s = getFormattedTextFromField(esp.getEntity1_index());
+						if ((iterator != null) && (esp.getEntity1_index().startsWith("$metadata.") || esp.getEntity1_index().startsWith("${metadata."))) {
+							if (_context.isStandalone()) { // (minor message, while debugging only)
+								_context.getHarvestStatus().logMessage("Warning: in entity1_index, using global $metadata when iterating", true);
+							}
+						}
+						String s = getFormattedTextFromField(esp.getEntity1_index(), field);
 						if (null != s) e.setEntity1_index(s.toLowerCase());
 					}
-					if ((null == e.getEntity1_index()) && (null == esp.getCreationCriteriaScript())) {
-						// Specified this, so going to insist on it
-						return null;
-					}
-				}
-				else if (!bDontResolveToIndices)
-				{
-					// Try using the entity.gazateer_index
-					for (EntityPojo entity : f.getEntities())
-					{
-						if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity1()))
-						{
-							e.setEntity1_index(entity.getIndex());
-							break;
+					if (null != e.getEntity1_index()) { // Convert to entity1
+						int nTypeIndex = e.getEntity1_index().lastIndexOf('/');
+						if (nTypeIndex > 0) {
+							e.setEntity1(e.getEntity1_index().substring(0, nTypeIndex));
+							if (!entityMap.contains(e.getEntity1_index())) { // Needs to correlate with an entity
+								StringBuffer error =  new StringBuffer("Failed to correlate entity1_index with: ").append(esp.getEntity1_index());
+								if (_context.isStandalone()) {
+									error.append(" using ").append(e.getEntity1_index());									
+								}
+								_context.getHarvestStatus().logMessage(error.toString(), true);
+								e.setEntity1_index(null);							
+							}//TESTED (INF1360_test_source.json:test8)
+						}
+						else { // index must be malformed
+							StringBuffer error =  new StringBuffer("Malformed entity1_index with: ").append(esp.getEntity1_index());
+							if (_context.isStandalone()) {
+								error.append(" using ").append(e.getEntity1_index());									
+							}
+							_context.getHarvestStatus().logMessage(error.toString(), true);
+							e.setEntity1_index(null);
 						}
 					}
-				}
-			}
-			
-			// Association.entity2
-			if (esp.getEntity2() != null)
-			{
-				if (JavaScriptUtils.containsScript(esp.getEntity2()))
-				{
-					e.setEntity2((String)getValueFromScript(esp.getEntity2(), field, index));
-				}
-				else
-				{
-					e.setEntity2(getFormattedTextFromField(esp.getEntity2()));
-				}
-				if ((null == e.getEntity2()) && (null == esp.getCreationCriteriaScript())) {
-					// Specified this, so going to insist on it
+				}//TESTED (see INF1360_test_source.json:test2)
+				
+				// entity1				
+				if (null != esp.getEntity1()) {
+					
+					if (JavaScriptUtils.containsScript(esp.getEntity1()))
+					{
+						e.setEntity1((String)getValueFromScript(esp.getEntity1(), field, index));
+					}
+					else
+					{
+						if ((iterator != null) && (esp.getEntity1().startsWith("$metadata.") || esp.getEntity1().startsWith("${metadata."))) {
+							if (_context.isStandalone()) { // (minor message, while debugging only)
+								_context.getHarvestStatus().logMessage("Warning: in entity1, using global $metadata when iterating", true);
+							}
+						}
+						e.setEntity1(getFormattedTextFromField(esp.getEntity1(), field));
+					}
+					
+					if (!bDontResolveToIndices && (null == e.getEntity1_index()))
+					{
+						// Try using the entity.disambiguated name, this isn't perfect because 2 entities with different
+						// types can have different dnames, but we'll try and then abandon if we get multiple hits
+						int nHits = 0;
+						String matchingIndex = null;
+						for (EntityPojo entity : f.getEntities())
+						{
+							if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity1()))
+							{
+								nHits++;
+								if (1 == nHits) {
+									matchingIndex = entity.getIndex();
+									e.setEntity1_index(entity.getIndex());
+								}
+								else if (!matchingIndex.equals(entity.getIndex())) { // Ambiguous reference so bail out 
+									StringBuffer error =  new StringBuffer("Failed entity1_index disambiguation with: ").append(esp.getEntity1());
+									if (_context.isStandalone()) {
+										error.append(" using ").append(e.getEntity1());									
+									}
+									_context.getHarvestStatus().logMessage(error.toString(), true);
+
+									e.setEntity1_index(null);
+									break;
+								}
+							}
+						} // (end loop across all indices)
+					}//TESTED (success and fail cases, see INF1360_test_source.json:test3)
+					
+				} // (end no entity1_index extracted, entity1 specified)
+				
+				// Quality checks:
+				
+				if ((esp.getEntity1() != null) && (null == e.getEntity1()) && (null == esp.getCreationCriteriaScript())) {
+					// Specified this (entity1), so going to insist on it
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required entity1 from: ").append(esp.getEntity1()).toString(), true);
+					}
 					return null;
 				}
+				if ((esp.getEntity1_index() != null) && (null == e.getEntity1_index()) && (null == esp.getCreationCriteriaScript())) {
+					// Specified this (entity1_index), so going to insist on it
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required entity1_index from: ").append(esp.getEntity1_index()).toString(), true);
+					}
+					return null;
+				}
+				//TESTED INF1360_test_source:test7 (no criteria), test8 (criteria)
 				
+			} // (end entity1)
+			
+			// Assoc.entity2
+			if ((esp.getEntity2() != null) || (esp.getEntity2_index() != null))
+			{
 				// Association.entity2_index
 				if (esp.getEntity2_index() != null)
 				{
@@ -1538,30 +1870,105 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						String s = getFormattedTextFromField(esp.getEntity2_index());
+						if ((iterator != null) && (esp.getEntity2_index().startsWith("$metadata.") || esp.getEntity2_index().startsWith("${metadata."))) {
+							if (_context.isStandalone()) { // (minor message, while debugging only)
+								_context.getHarvestStatus().logMessage("Warning: in entity2_index, using global $metadata when iterating", true);
+							}
+						}
+						String s = getFormattedTextFromField(esp.getEntity2_index(), field);
 						if (null != s) e.setEntity2_index(s.toLowerCase());
 					}
-					if ((null == e.getEntity2_index()) && (null == esp.getCreationCriteriaScript())) {
-						// Specified this, so going to insist on it
-						return null;
-					}
-				}
-				else if (!bDontResolveToIndices)
-				{
-					// Try using the entity.index
-					for (EntityPojo entity : f.getEntities())
-					{
-						if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity2()))
-						{
-							e.setEntity2_index(entity.getIndex());
-							break;
+					if (null != e.getEntity2_index()) { // Convert to entity2
+						int nTypeIndex = e.getEntity2_index().lastIndexOf('/');
+						if (nTypeIndex > 0) {
+							e.setEntity2(e.getEntity2_index().substring(0, nTypeIndex));
+							if (!entityMap.contains(e.getEntity2_index())) { // Needs to correlate with an entity
+								StringBuffer error =  new StringBuffer("Failed to correlate entity2_index with: ").append(esp.getEntity2_index());
+								if (_context.isStandalone()) {
+									error.append(" using ").append(e.getEntity2_index());									
+								}
+								_context.getHarvestStatus().logMessage(error.toString(), true);
+								e.setEntity2_index(null);							
+							}//TESTED (INF1360_test_source.json:test8)
+						}
+						else { // index must be malformed
+							StringBuffer error =  new StringBuffer("Malformed entity2_index with: ").append(esp.getEntity2_index());
+							if (_context.isStandalone()) {
+								error.append(" using ").append(e.getEntity2_index());									
+							}
+							_context.getHarvestStatus().logMessage(error.toString(), true);
+							e.setEntity2_index(null);
 						}
 					}
+				}//TESTED (see INF1360_test_source.json:test2)
+				
+				// entity2				
+				if (null != esp.getEntity2()) {
+					
+					if (JavaScriptUtils.containsScript(esp.getEntity2()))
+					{
+						e.setEntity2((String)getValueFromScript(esp.getEntity2(), field, index));
+					}
+					else
+					{
+						if ((iterator != null) && (esp.getEntity2().startsWith("$metadata.") || esp.getEntity2().startsWith("${metadata."))) {
+							if (_context.isStandalone()) { // (minor message, while debugging only)
+								_context.getHarvestStatus().logMessage("Warning: in entity2, using global $metadata when iterating", true);
+							}
+						}
+						e.setEntity2(getFormattedTextFromField(esp.getEntity2(), field));
+					}
+					
+					if (!bDontResolveToIndices && (null == e.getEntity2_index()))
+					{
+						// Try using the entity.disambiguated name, this isn't perfect because 2 entities with different
+						// types can have different dnames, but we'll try and then abandon if we get multiple hits
+						int nHits = 0;
+						String matchingIndex = null;
+						for (EntityPojo entity : f.getEntities())
+						{
+							if (entity.getDisambiguatedName().equalsIgnoreCase(e.getEntity2()))
+							{
+								nHits++;
+								if (1 == nHits) {
+									matchingIndex = entity.getIndex();
+									e.setEntity2_index(entity.getIndex());
+								}
+								else if (!matchingIndex.equals(entity.getIndex())) { // Ambiguous reference so bail out 
+									StringBuffer error =  new StringBuffer("Failed entity2_index disambiguation with: ").append(esp.getEntity2());
+									if (_context.isStandalone()) {
+										error.append(" using ").append(e.getEntity2());									
+									}
+									_context.getHarvestStatus().logMessage(error.toString(), true);
+									
+									e.setEntity2_index(null);
+									break;
+								}
+							}
+						} // (end loop across all indices)
+					}//TESTED (success and fail cases, see INF1360_test_source.json:test3)
+					
+				} // (end no entity2_index extracted, entity2 specified)
+				
+				// Quality checks:
+				
+				if ((esp.getEntity2() != null) && (null == e.getEntity2()) && (null == esp.getCreationCriteriaScript())) {
+					// Specified this (entity2), so going to insist on it
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required entity2 from: ").append(esp.getEntity2()).toString(), true);
+					}
+					return null;
 				}
-			}
-			
-			// If both entity1_index and entity2_index are null don't add the association
-			if (e.getEntity1_index() == null && e.getEntity2_index() == null) return null;
+				if ((esp.getEntity2_index() != null) && (null == e.getEntity2_index()) && (null == esp.getCreationCriteriaScript())) {
+					// Specified this (entity2_index), so going to insist on it
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required entity2_index from: ").append(esp.getEntity2_index()).toString(), true);
+					}
+					return null;
+				}
+				//TESTED INF1360_test_source:test7 (no criteria), test8 (criteria)
+				
+			} // (end entity2)
 			
 			// Association.verb
 			if (esp.getVerb() != null)
@@ -1572,10 +1979,13 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					e.setVerb(getFormattedTextFromField(esp.getVerb()));
+					e.setVerb(getFormattedTextFromField(esp.getVerb(), field));
 				}
 				if ((null == e.getVerb()) && (null == esp.getCreationCriteriaScript())) {
 					// Specified this, so going to insist on it
+					if (_context.isStandalone()) { // (minor message, while debugging only)
+						_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required verb from: ").append(esp.getVerb()).toString(), true);
+					}
 					return null;
 				}
 			}
@@ -1590,11 +2000,12 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					String s = getFormattedTextFromField(esp.getVerb_category());
+					String s = getFormattedTextFromField(esp.getVerb_category(), field);
 					if (null != s) e.setVerb_category(s.toLowerCase());
 				}
 				if ((null == e.getVerb_category()) && (null == esp.getCreationCriteriaScript())) {
 					// Specified this, so going to insist on it
+					_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required verb_category from: ").append(esp.getVerb_category()).toString(), true);
 					return null;
 				}
 			}
@@ -1609,7 +2020,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					startTimeString = getFormattedTextFromField(esp.getTime_start());
+					startTimeString = getFormattedTextFromField(esp.getTime_start(), field);
 				}
 				if (null != startTimeString) {
 					e.setTime_start(DateUtility.getIsoDateString(startTimeString));
@@ -1627,7 +2038,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					endTimeString = getFormattedTextFromField(esp.getTime_end());
+					endTimeString = getFormattedTextFromField(esp.getTime_end(), field);
 				}
 				if (null != endTimeString) {
 					e.setTime_end(DateUtility.getIsoDateString(endTimeString));
@@ -1637,63 +2048,89 @@ public class StructuredAnalysisHarvester
 			
 			
 			// Entity.geo_index
-			// Note: esp.getGeo_index() is not the index field but the entity field from which to get the gazateer_index value
 			if (esp.getGeo_index() != null)
-			{
-				String entity1 = null;
+			{				
+				String geo_entity = null;
 				if (JavaScriptUtils.containsScript(esp.getGeo_index()))
 				{
-					entity1 = (String)getValueFromScript(esp.getGeo_index(), field, index);
+					geo_entity = (String)getValueFromScript(esp.getGeo_index(), field, index);
 				}
 				else
 				{
-					entity1 = getFormattedTextFromField(esp.getGeo_index());
-				}
-
-				// Get entity.gazateer_index/geotag
-				if (entity1 != null)
-				{
-					for (EntityPojo entity : f.getEntities())
-					{
-						if (entity.getDisambiguatedName().equalsIgnoreCase(entity1))
-						{
-							e.setGeo_index(entity.getIndex());
-							e.setGeotag(entity.getGeotag());
+					if ((iterator != null) && (esp.getGeo_index().startsWith("$metadata.") || esp.getGeo_index().startsWith("${metadata."))) {
+						if (_context.isStandalone()) { // (minor message, while debugging only)
+							_context.getHarvestStatus().logMessage("Warning: in geo_index, using global $metadata when iterating", true);
 						}
 					}
+					geo_entity = getFormattedTextFromField(esp.getGeo_index(), field);
 				}
+				if (null != geo_entity) {
+					geo_entity = geo_entity.toLowerCase();
+					if (geo_entity.lastIndexOf('/') < 0) {
+						StringBuffer error =  new StringBuffer("Malformed entity2_index with: ").append(esp.getGeo_index());
+						if (_context.isStandalone()) {
+							error.append(" using ").append(geo_entity);									
+						}
+						_context.getHarvestStatus().logMessage(error.toString(), true);
+
+						geo_entity = null;
+					}
+					if (!entityMap.contains(geo_entity)) {
+						StringBuffer error =  new StringBuffer("Failed to disambiguate geo_index with: ").append(esp.getGeo_index());
+						if (_context.isStandalone()) {
+							error.append(" using ").append(geo_entity);									
+						}
+						_context.getHarvestStatus().logMessage(error.toString(), true);
+
+						geo_entity = null;						
+					}
+					//TESTED (INF1360_test_source:test4b)
+				}
+				//TESTED (INF1360_test_source:test4, test5, test6)
+				
+				if (null != geo_entity) e.setGeo_index(geo_entity);
+				GeoPojo s1 = geoMap.get(geo_entity); 
+				e.setGeotag(s1);
+				//TESTED (INF1360_test_source:test4)
+				
 				// Allow this to be intrinsically optional
 			}
 			
-			//
+			// Get geo information based on geo tag
 			if (e.getGeotag() == null)
 			{
 				// Extract association geoTag if it exists in the association
 				if (esp.getGeotag() != null)
 				{	
-					e.setGeotag(getEntityGeo(esp.getGeotag(), null));
+					e.setGeotag(getEntityGeo(esp.getGeotag(), null, field));
 				}
-				// Otherwise search geoMap on gazateer_index (entity1_index, entity2_index) for a geoTag
+				// Otherwise search geoMap on index (entity1_index, entity2_index) for a geoTag
 				else
 				{
 					if (e.getEntity1_index() != null || e.getEntity2_index() != null)
 					{
-						if (geoMap.get(e.getEntity1_index()) != null) 
+						GeoPojo s1 = geoMap.get(e.getEntity1_index()); 
+						if (s1 != null) 
 						{
-							e.setGeotag(geoMap.get(e.getEntity1_index()));
+							e.setGeotag(s1);
 							e.setGeo_index(e.getEntity1_index());
 						}
-						else if (geoMap.get(e.getEntity2_index()) != null) 
-						{
-							e.setGeotag(geoMap.get(e.getEntity2_index()));
-							e.setGeo_index(e.getEntity2_index());
+						else {
+							GeoPojo s2 = geoMap.get(e.getEntity2_index()); 
+							if (s2 != null) 
+							{
+								e.setGeotag(s2);
+								e.setGeo_index(e.getEntity2_index());
+							}
 						}
 					}
 				}
 				// Allow this to be intrinsically optional
 			}
 
-
+			// If all the indexes are null don't add the association
+			if (e.getEntity1_index() == null && e.getEntity2_index() == null && e.getGeo_index() == null) return null;
+			
 			// Calculate association type
 			if (bDontResolveToIndices) {
 				e.setAssociation_type("Summary");				
@@ -1713,13 +2150,7 @@ public class StructuredAnalysisHarvester
 				}
 			}
 			
-			// If the AssociationSpecPojo has a creation criteria script check the association for validity
-			if (esp.getCreationCriteriaScript() != null && JavaScriptUtils.containsScript(esp.getCreationCriteriaScript()))
-			{
-				addAssoc = validateAssociationWithScript(esp.getCreationCriteriaScript(), e);	
-			}
-			
-			if (addAssoc) { return e; } else { return null; }
+			return e;
 		}
 		catch (Exception e)
 		{
@@ -1739,39 +2170,84 @@ public class StructuredAnalysisHarvester
 	 */
 	private Object getValueFromScript(String script, String value, String index) 
 	{
+		return getValueFromScript(script, value, index, true);
+	}
+	private Object getValueFromScript(String script, String value, String index, boolean errorOnNull) 
+	{
 		Object retVal = null;
 		try
 		{
 			// Create script object from entity or association JSON
 			if (iterator != null)
 			{
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
 				engine.put("_iterator", iterator);
 	        	engine.eval(JavaScriptUtils.iteratorDocScript);
 			}
 			
 			// Pass value into script as _value so it is accessible
-			if (value != null) { engine.put("_value", value); }
+			if (value != null) { 
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
+				engine.put("_value", value); 
+			}
 			
 			//
-			if (index != null) { engine.put("_index", iteratorIndex); }
+			if (index != null) { 
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
+				engine.put("_index", index); 
+			}
+			else if (iteratorIndex != null) { 
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
+				engine.put("_index", iteratorIndex); 
+			}
 			
 			// $SCRIPT - string contains javacript to pass into the engine
 			// via .eval and then invoke to get a return value of type Object
 			if (script.toLowerCase().startsWith("$script"))
 			{
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
 				engine.eval(JavaScriptUtils.getScript(script));
 				retVal = inv.invokeFunction(JavaScriptUtils.genericFunctionCall);
 			}
 			// $FUNC - string contains the name of a function to call (i.e. getSometing(); )
 			else if (script.toLowerCase().startsWith("$func"))
 			{
+				if (null == engine) {
+					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}
 				retVal = engine.eval(JavaScriptUtils.getScript(script));
+			}
+			if (errorOnNull && (null == retVal) && _context.isStandalone()) { // Display warning:
+				StringBuffer error = new StringBuffer("Failed to get value from: ");
+				error.append("script=").append(script).append("; iterator=").append(iterator.toString()).
+										append("; value=").append(null==value?"null":value).
+										append("; index=").append(index == null?iteratorIndex:index);
+				
+				_context.getHarvestStatus().logMessage(error.toString(), true);
 			}
 		}
 		catch (Exception e)
 		{
 			//e.printStackTrace();
-			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
+			
+			StringBuffer error = HarvestExceptionUtils.createExceptionMessage(e);
+			error.append(": script=").append(script);
+			if (_context.isStandalone()) { //  Standalone mode, provide more details
+				error.append("; iterator=").append(null==iterator?"null":iterator.toString()).
+											append("; value=").append(null==value?"null":value).
+											append("; index=").append(index == null?iteratorIndex:index);
+			}
+			_context.getHarvestStatus().logMessage(error.toString(), true);
 		}
 		return retVal;
 	}
@@ -1803,7 +2279,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					latValue = getStringFromJsonField(d.getLat());
+					latValue = getStringFromJsonField(d.getLat(), null);
 				}
 
 				if (JavaScriptUtils.containsScript(d.getLat()))
@@ -1812,7 +2288,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					lonValue = getStringFromJsonField(d.getLon());
+					lonValue = getStringFromJsonField(d.getLon(), null);
 				}
 			}
 
@@ -1912,7 +2388,7 @@ public class StructuredAnalysisHarvester
 	 * @param gsp
 	 * @return
 	 */
-	private GeoPojo getEntityGeo(GeoSpecPojo gsp, DocumentPojo f)
+	private GeoPojo getEntityGeo(GeoSpecPojo gsp, DocumentPojo f, String field)
 	{
 		try
 		{
@@ -1932,7 +2408,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						latValue = getFormattedTextFromField(gsp.getLat());
+						latValue = getFormattedTextFromField(gsp.getLat(), field);
 					}
 	
 					if (JavaScriptUtils.containsScript(gsp.getLon()))
@@ -1941,7 +2417,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						lonValue = getFormattedTextFromField(gsp.getLon());
+						lonValue = getFormattedTextFromField(gsp.getLon(), field);
 					}
 					
 					if (latValue != null && lonValue != null)
@@ -2052,71 +2528,19 @@ public class StructuredAnalysisHarvester
 	
 	
 	
-	
-	/**
-	 * validateEntityWithScript
-	 * @param script
-	 * @param entity
-	 * @return
-	 */
-	private Boolean validateEntityWithScript(String script, EntityPojo entity)
-	{
-		Boolean retVal = true;
-		try
-		{
-			// Convert entity object to a JSONObject
-			GsonBuilder gb = new GsonBuilder();
-			Gson g = gb.create();
-			JSONObject entityObj = new JSONObject(g.toJson(entity));
-			retVal = executeEntityAssociationValidation(script, entityObj);
-		}
-		catch (Exception e) {}
-		return retVal;
-	}
-	
-	
-	
-	
-	/**
-	 * validateAssociationWithScript
-	 * @param script
-	 * @param entity
-	 * @return
-	 */
-	private Boolean validateAssociationWithScript(String script, AssociationPojo association)
-	{
-		Boolean retVal = true;
-		try
-		{
-			// Convert association object to a JSONObject
-			GsonBuilder gb = new GsonBuilder();
-			Gson g = gb.create();
-			JSONObject assocObj = new JSONObject(g.toJson(association));
-			retVal = executeEntityAssociationValidation(script, assocObj);
-		}
-		catch (Exception e) {}
-		return retVal;
-	}
-	
-	
-	
-	
 	/**
 	 * executeEntityAssociationValidation
 	 * @param s
 	 * @param j
 	 * @return
 	 */
-	private Boolean executeEntityAssociationValidation(String s, JSONObject j)
+	private Boolean executeEntityAssociationValidation(String s, String value, String index)
 	{
 		Boolean retVal = true;
 		try
 		{
-			// Put the entity or association JSON into our engine and parse it into an object
-			engine.put("_iterator", j);
-			engine.eval(JavaScriptUtils.iteratorDocScript);
 			// Run our script that checks whether or not the entity/association should be added
-			retVal = (Boolean) getValueFromScript(s, null, null);
+			retVal = (Boolean) getValueFromScript(s, value, index);
 		}
 		catch (Exception e) 
 		{
@@ -2137,7 +2561,7 @@ public class StructuredAnalysisHarvester
 	 * @param v - origString
 	 * @return String
 	 */
-	private String getFormattedTextFromField(String origString)
+	private String getFormattedTextFromField(String origString, String value)
 	{
 		// Don't bother running the rest of the code if there are no replacements to make (i.e. does not have $)
 		if (!origString.contains("$")) return origString;
@@ -2158,7 +2582,7 @@ public class StructuredAnalysisHarvester
 		   String match = (m.group(1) != null) ? m.group(1): m.group(2);
 		   
 		   // Retrieve the data from the JSON field and append
-		   String sreplace = getStringFromJsonField(match); 
+		   String sreplace = getStringFromJsonField(match, value); 
 		   if (null == sreplace) {
 			   return null;
 		   }
@@ -2180,10 +2604,14 @@ public class StructuredAnalysisHarvester
 	 * @param fieldLocation
 	 * @return Object
 	 */
-	private String getStringFromJsonField(String fieldLocation) 
+	private String getStringFromJsonField(String fieldLocation, String value) 
 	{
 		try
 		{
+			if ((null != value) && (fieldLocation.equalsIgnoreCase("$value") || fieldLocation.equalsIgnoreCase("${value}")))
+			{
+				return value;
+			}			
 			return (String)getValueFromJsonField(fieldLocation);
 		}
 		catch (Exception e)

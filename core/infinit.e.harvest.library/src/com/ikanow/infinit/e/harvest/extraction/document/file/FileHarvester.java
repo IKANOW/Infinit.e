@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.harvest.extraction.document.file;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
@@ -34,8 +35,6 @@ import javax.xml.stream.XMLStreamReader;
 
 import jcifs.smb.NtlmPasswordAuthentication;
 import jcifs.smb.SmbException;
-import jcifs.smb.SmbFile;
-import jcifs.smb.SmbFileInputStream;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
@@ -82,6 +81,9 @@ public class FileHarvester implements HarvesterInterface {
 	private List<DocumentPojo> docsToUpdate = null;
 	private List<DocumentPojo> docsToRemove = null;
 
+	private HashSet<String> sourceUrlsGettingUpdated = null; 
+		// (only need to start filling this if I'm persisting metadata across updates)
+	
 	private HarvestContext _context;
 	
 	/**
@@ -90,27 +92,27 @@ public class FileHarvester implements HarvesterInterface {
 	 */
 	public static byte[] getFile(String fileURL, SourcePojo source ) throws Exception
 	{
-		SmbFile file = null;
+		InfiniteFile file = null;
 		try 
 		{
 			if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 			{
-				file = new SmbFile(source.getUrl());
+				file = new InfiniteFile(source.getUrl());
 			}
 			else
 			{
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
-				file = new SmbFile(source.getUrl(), auth);
+				file = new InfiniteFile(source.getUrl(), auth);
 			}
 			//traverse the smb share
-			SmbFile searchFile = searchFileShare( file, source, 5, fileURL);
+			InfiniteFile searchFile = searchFileShare( file, source, 5, fileURL);
 			
 			if ( searchFile == null )
 				return null;
 			else
 			{
 				//found the file, return the bytes
-				SmbFileInputStream in = new SmbFileInputStream(searchFile);
+				InputStream in = searchFile.getInputStream();
 				ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 				
 				int read;
@@ -130,7 +132,7 @@ public class FileHarvester implements HarvesterInterface {
 	}
 	
 	/**
-	 * Same as the traverse method but returns the smbfile if it finds searchFile
+	 * Same as the traverse method but returns the InfiniteFile if it finds searchFile
 	 * returns null otherwise
 	 * 
 	 * @param f
@@ -141,7 +143,7 @@ public class FileHarvester implements HarvesterInterface {
 	 * @throws SmbException
 	 */
 	
-	private static SmbFile searchFileShare( SmbFile f, SourcePojo source, int depth, String searchFile ) throws SmbException 
+	private static InfiniteFile searchFileShare( InfiniteFile f, SourcePojo source, int depth, String searchFile ) throws Exception 
 	{
 		//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
 		// This is v undesirable and should be fixed once the underlying bug has been fixed
@@ -152,7 +154,7 @@ public class FileHarvester implements HarvesterInterface {
 				return null;
 			}
 	
-			SmbFile[] l;
+			InfiniteFile[] l;
 			try 
 			{
 				l = f.listFiles();
@@ -162,7 +164,7 @@ public class FileHarvester implements HarvesterInterface {
 					// if it is a directory then use recursion to dive into the directory
 					if( l[i].isDirectory() ) 
 					{
-						SmbFile search = searchFileShare( l[i], source, depth - 1, searchFile );
+						InfiniteFile search = searchFileShare( l[i], source, depth - 1, searchFile );
 						if ( search != null )
 							return search;
 					}
@@ -172,7 +174,7 @@ public class FileHarvester implements HarvesterInterface {
 					}
 				}
 			} 
-			catch (SmbException e) 
+			catch (Exception e) 
 			{			
 				if (5 == depth) 
 				{ 
@@ -192,17 +194,17 @@ public class FileHarvester implements HarvesterInterface {
 	 * @throws Exception 
 	 */
 	private List<DocumentPojo> getFiles(SourcePojo source) throws Exception {
-		SmbFile file = null;
+		InfiniteFile file = null;
 		try 
 		{
 			if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 			{
-				file = new SmbFile(source.getUrl());
+				file = new InfiniteFile(source.getUrl());
 			}
 			else
 			{
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
-				file = new SmbFile(source.getUrl(), auth);
+				file = new InfiniteFile(source.getUrl(), auth);
 			}
 			traverse(file, source, maxDepth);
 		} 
@@ -230,7 +232,8 @@ public class FileHarvester implements HarvesterInterface {
 
 	// Process the doc
 	private void processFiles(SourcePojo source) throws Exception {
-		
+
+		sourceUrlsGettingUpdated = new HashSet<String>();
 		LinkedList<String> duplicateSources = new LinkedList<String>(); 		
 		try {			
 			// Process the fileshare
@@ -250,11 +253,25 @@ public class FileHarvester implements HarvesterInterface {
 				try {			
 					duplicateSources.clear();
 					if (null != doc.getSourceUrl()) { 
+						
 						// For XML files we delete everything that already exists (via docsToRemove) and then add new docs
-						docsToAdd.add(doc);					
+						docsToAdd.add(doc);	
+
+						// However still need to check for duplicates so can update entities correctly
+						// (though obviously only if the the sourceUrl is not new...)
+						
+						if (sourceUrlsGettingUpdated.contains(doc.getSourceUrl()))
+						{
+							if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
+								doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)								
+									// (still don't add this to updates because we've added the source URL to the delete list)
+							}
+						}
+						//TESTED
 					}
 					else if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
 						// Other files, if the file already exists then update it (essentially, delete/add)
+						doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
 						docsToUpdate.add(doc);
 					}
 					else {
@@ -277,7 +294,7 @@ public class FileHarvester implements HarvesterInterface {
 		}
 	}
 
-	private void parse( SmbFile f, SourcePojo source ) {
+	private void parse( InfiniteFile f, SourcePojo source ) throws MalformedURLException {
 
 		DocumentPojo doc = null;		
 		//Determine File Extension
@@ -295,6 +312,9 @@ public class FileHarvester implements HarvesterInterface {
 			{
 				DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
 				docRepresentingSrcUrl.setSourceUrl(f.getURL().toString());
+				if (null != sourceUrlsGettingUpdated) {
+					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
+				}
 				if (0 != modDate.getTime()) { // if it ==0 then sourceUrl doesn't exist at all, no need to delete
 					this.docsToRemove.add(docRepresentingSrcUrl);
 						// (can add documents with just source URL, are treated differently in the core libraries)
@@ -327,7 +347,6 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setSource(source.getTitle());
 						doctoAdd.setSourceKey(source.getKey());
 						doctoAdd.setMediaType(source.getMediaType());
-						doctoAdd.setSourceType(source.getExtractType());
 						doctoAdd.setModified(new Date(f.getDate()));
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()){ // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
@@ -345,7 +364,6 @@ public class FileHarvester implements HarvesterInterface {
 						}
 						doctoAdd.setTitle(f.getName().toString());
 						doctoAdd.setPublishedDate(new Date(f.getDate()));
-						doctoAdd.setId(new ObjectId());
 						doctoAdd.setSourceUrl(f.getURL().toString());
 
 						// Always add to files because I'm deleting the source URL
@@ -363,6 +381,10 @@ public class FileHarvester implements HarvesterInterface {
 					errors++;
 					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
 				}
+				catch (Exception e1) {
+					errors++;
+					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);					
+				}
 			}
 		}
 		else //Tika supports Excel,Word,Powerpoint,Visio, & Outlook Documents
@@ -373,12 +395,12 @@ public class FileHarvester implements HarvesterInterface {
 
 				Metadata metadata = null;
 				Tika tika = null;
-				SmbFileInputStream in = null;
+				InputStream in = null;
 				try {
 
 					doc = new DocumentPojo();
 					in = null;
-					in = new SmbFileInputStream(f);
+					in = f.getInputStream();
 					// Create a tika object
 					tika = new Tika();
 					// BUGGERY
@@ -393,7 +415,6 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setSource(source.getTitle());
 					doc.setSourceKey(source.getKey());
 					doc.setMediaType(source.getMediaType());
-					doc.setSourceType(source.getExtractType());
 					String fullText = tika.parseToString(in, metadata);
 					int descCap = 500;
 					doc.setFullText(fullText);
@@ -407,7 +428,6 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setUrl(f.getURL().toString());
 					doc.setTitle(f.getName().toString());
 					doc.setPublishedDate(new Date(f.getDate()));
-					doc.setId(new ObjectId());
 					
 					// If the metadata contains a more plausible date then use that
 					try {
@@ -500,12 +520,12 @@ public class FileHarvester implements HarvesterInterface {
 		} // end XML vs "office" app
 	}
 
-	private void traverse( SmbFile f, SourcePojo source, int depth ) throws SmbException {
+	private void traverse( InfiniteFile f, SourcePojo source, int depth ) throws Exception {
 		if( depth == 0 ) {
 			return;
 		}
 
-		SmbFile[] l;
+		InfiniteFile[] l;
 		try {
 			//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
 			// This is v undesirable and should be fixed once the underlying bug has been fixed
@@ -533,7 +553,7 @@ public class FileHarvester implements HarvesterInterface {
 			}
 			// (End INF-1406 sync bug, see above explanation)
 
-		} catch (SmbException e) {
+		} catch (Exception e) {
 			
 			if (maxDepth == depth) { // Top level error, abandon ship
 				errors++;
@@ -578,7 +598,11 @@ public class FileHarvester implements HarvesterInterface {
 
 	@Override
 	public void executeHarvest(HarvestContext context, SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove) {
+				
 		_context = context;
+		if (_context.isStandalone()) {
+			maxDocsPerCycle = _context.getStandaloneMaxDocs();
+		}
 		try 
 		{
 			//logger.debug("Source: " + source.getUrl());

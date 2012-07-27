@@ -113,7 +113,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert("<%=messageToDisplay %>");
+		alert('<%=messageToDisplay %>');
 	</script>
 <% } %>
 
@@ -384,6 +384,10 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		source.remove("ownerId");
 		source.remove("shah256Hash");
 		source.remove("communityIds");
+		
+		shareTitle = source.getString("title");
+		shareDescription = source.getString("description");
+		
 		return source;
 	}
 	catch (Exception e)

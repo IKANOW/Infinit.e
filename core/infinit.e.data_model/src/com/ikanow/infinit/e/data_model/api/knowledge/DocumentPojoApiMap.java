@@ -18,6 +18,8 @@ package com.ikanow.infinit.e.data_model.api.knowledge;
 import java.lang.reflect.Type;
 import java.util.Map;
 
+import org.bson.types.ObjectId;
+
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
@@ -51,6 +53,13 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			// 1. On the document side: remove the internal index reference, other internal fields
 			doc.setIndex(null);
 			// (locs, months, timeRanges not stored in DB so no need to remove)
+			
+			// 1b. Also on the doc side: switch the update id and _id
+			ObjectId updateId = doc.getUpdateId();
+			if (null != updateId) {
+				doc.setUpdateId(doc.getId()); // (store the old _id mostly for diagnosis)
+				doc.setId(updateId); // this makes the _id field immutable across updates
+			}
 			
 			// Everything else needs to be done on the JSON side:
 			JsonElement je = BaseApiPojo.getDefaultBuilder().create().toJsonTree(doc, typeOfT);
@@ -175,8 +184,41 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			if (null != tmp) {
 				JsonObject tmpMeta = tmp.getAsJsonObject();
 				for (Map.Entry<String, JsonElement> meta: tmpMeta.entrySet()) {
-					doc.addToMetadata(meta.getKey(), meta.getValue());
+					if (meta.getValue().isJsonArray()) {
+						JsonArray array = meta.getValue().getAsJsonArray();
+						Object[] objArray = new Object[array.size()];
+						int i = 0;
+						for (JsonElement arrayObj: array) {
+							if (arrayObj.isJsonPrimitive()) {
+								JsonPrimitive primObj = arrayObj.getAsJsonPrimitive(); 
+								if (primObj.isString()) {
+									objArray[i] = primObj.getAsString();
+								}
+								else if (primObj.isNumber()) {
+									objArray[i] = primObj.getAsNumber();
+								}
+								else { // (shouldn't ever his this?)
+									objArray[i] = primObj.toString(); // (no idea, convert to string)
+								}
+							}
+							else { // Just write the JSON object into the array 
+								objArray[i] = arrayObj;
+							}
+							i++;
+						}
+						doc.addToMetadata(meta.getKey(), objArray);
+					}
+					else { // (this shouldn't happen in practice)
+						doc.addToMetadata(meta.getKey(), meta.getValue());
+					}
 				}
+			}
+			
+			// Finally handle updateId/_id swap
+			ObjectId updateId = doc.getUpdateId();
+			if (null != updateId) {
+				doc.setUpdateId(doc.getId()); // (this is now the immutable _id)
+				doc.setId(updateId); // this points to the _id in the DB
 			}
 			
 			return doc;

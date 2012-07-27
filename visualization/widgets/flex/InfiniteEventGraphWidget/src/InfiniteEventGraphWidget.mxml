@@ -41,10 +41,10 @@
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
-			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
 			import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
@@ -347,6 +347,13 @@
 				}
 			}
 			
+			private function calculateBrightness( currSig:Number, maxSig:Number ):Number
+			{
+				var minBrightness:Number = 200;
+				var maxBrightness:Number = 0;
+				return minBrightness + ( maxBrightness - minBrightness ) * Math.log( 1 + currSig / maxSig ) / Math.log( 2 );
+			}
+			
 			private function changeGraphSelection():void
 			{
 				removeOldGraph();
@@ -412,13 +419,6 @@
 					maxEdgeValue = events[ 0 ].assoc_sig;
 				}
 				
-				var maxIntensity:Number = Math.log( 1 / maxEdgeValue );
-				
-				if ( maxIntensity == 0 )
-					maxIntensity = 1;
-				var intensity:Number;
-				var brightness:Number;
-				
 				var num_events_max:int = evtSlider.value;
 				var egraph:EventGraph = new EventGraph();
 				
@@ -451,6 +451,7 @@
 						}
 						
 					}
+					
 					//we want flow between 1-100
 					var flowRatio:Number = 100 / maxFlow;
 					visibleEvents.removeAll();
@@ -482,12 +483,9 @@
 												//WARNING: this will be 2nd edge here!!!! figure out what to do for collisions like (Obama traveled paris) and (obama attacked paris)
 												var foundnode2ID:String = nodeMap.get( event.entity2_index );
 												lastNodeID = foundnode2ID;
-												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
-												brightness = ( 255 * intensity ) / maxIntensity;
 												
-												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
-													brightness = -150;
-												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												//color = ColorUtil.adjustBrightness( 0x660000, 200 );
+												color = ColorUtil.adjustBrightness( 0x660000, calculateBrightness( event.edgeValue, maxFlow ) );
 												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID, foundnodeID, event.edgeValue * flowRatio, 1, color );
 												
 												if ( event.geo_index != null )
@@ -515,12 +513,7 @@
 												nodeMap.put( event.entity2_index, nodeID );
 												lastNodeID = nodeID + "";
 												egraph.createNode( event.entity2_index, "0", nodeID );
-												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
-												brightness = ( 255 * intensity ) / maxIntensity;
-												
-												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
-													brightness = -150;
-												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												color = ColorUtil.adjustBrightness( 0x660000, calculateBrightness( event.edgeValue, maxFlow ) );
 												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnodeID, nodeID + "", event.edgeValue * flowRatio, 1, color );
 												
 												if ( event.geo_index != null )
@@ -585,12 +578,7 @@
 												//connect new node to this node
 												var foundnode2ID2:String = nodeMap.get( event.entity2_index );
 												lastNodeID = foundnode2ID2;
-												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
-												brightness = ( 255 * intensity ) / maxIntensity;
-												
-												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
-													brightness = -150;
-												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												color = ColorUtil.adjustBrightness( 0x660000, calculateBrightness( event.edgeValue, maxFlow ) );
 												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, foundnode2ID2, nodeID + "", event.edgeValue * flowRatio, 1, color );
 												
 												if ( event.geo_index != null )
@@ -618,12 +606,7 @@
 												nodeMap.put( event.entity2_index, nodeID );
 												lastNodeID = nodeID + "";
 												egraph.createNode( event.entity2_index, "0", nodeID );
-												intensity = ( Math.log( event.edgeValue / maxEdgeValue ) - maxIntensity );
-												brightness = ( 255 * intensity ) / maxIntensity;
-												
-												if ( brightness == Number.POSITIVE_INFINITY || brightness == Number.NEGATIVE_INFINITY || brightness < -150 )
-													brightness = -150;
-												color = ColorUtil.adjustBrightness( 0xFF0000, brightness );
+												color = ColorUtil.adjustBrightness( 0x660000, calculateBrightness( event.edgeValue, maxFlow ) );
 												egraph.createEdge( event.verb_category, event.verb_category + edgeDesc + event.edgeValue, ( nodeID - 1 ) + "", nodeID + "", event.edgeValue * flowRatio, 1, color );
 												
 												if ( event.geo_index != null )
@@ -1045,7 +1028,7 @@
 			<visual:EnhancedVisualGraph id="vgraph"
 				width="100%"
 				height="100%"
-				backgroundColor="#FFFFFF"
+				backgroundColor="#F4F4F4"
 				resize="vgraph.draw(VisualGraph.DF_RESET_LL)"
 				alpha="1"
 				edgeLabelRenderer="actionscript.EdgeLabelTooltipRenderer"

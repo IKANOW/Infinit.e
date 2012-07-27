@@ -113,6 +113,8 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String searchCycle_secs_ = "searchCycle_secs";
 	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
 	final public static String maxDocs_ = "maxDocs";
+	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
+	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
 	
 	// Gets and sets
 	
@@ -378,15 +380,16 @@ public class SourcePojo extends BaseDbPojo {
 	 */
 	public String generateSourceKey()
 	{
-		String s;
+		String s = "";
 		if (null != this.url) {
 			s = this.url.toLowerCase();			
 		}
-		else {
-			s = this.rss.getExtraUrls().get(0).url; // (going to bomb out if any of this doesn't exist anyway)
+		else if ((null != this.rss) && (null != this.rss.getExtraUrls()) && (this.rss.getExtraUrls().size() > 0))
+		{
+			s = this.rss.getExtraUrls().get(0).url; 
 		}
 		int nIndex = s.indexOf('?');
-		final int nMaxLen = 64;
+		final int nMaxLen = 64; // (+24 for the object id, + random other stuff, keeps it in the <100 range)
 		if (nIndex >= 0) {
 			if (nIndex > nMaxLen) {
 				nIndex = nMaxLen; // (ie max length)
@@ -457,6 +460,18 @@ public class SourcePojo extends BaseDbPojo {
 	public Integer getMaxDocs() {
 		return maxDocs;
 	}
+	public void setReachedMaxDocs() {
+		this.reachedMaxDocs = true;
+	}
+	public boolean reachedMaxDocs() {
+		return reachedMaxDocs;
+	}
+	public void setDuplicateExistingUrls(Boolean duplicateExistingUrls) {
+		this.duplicateExistingUrls = duplicateExistingUrls;
+	}
+	public boolean getDuplicateExistingUrls() { // (defaults to true)
+		return duplicateExistingUrls == null ? true : duplicateExistingUrls;
+	}
 
 	///////////////////////////////////////////////////////////////////////////////////
 	
@@ -466,10 +481,4 @@ public class SourcePojo extends BaseDbPojo {
 		// (if set to true, means that the next search cycle won't be applied - otherwise if you only search once per day
 		//  and only process 5K docs/search, it can take a while to build up large repositories)
 	
-	public void setReachedMaxDocs() {
-		this.reachedMaxDocs = true;
-	}
-	public boolean reachedMaxDocs() {
-		return reachedMaxDocs;
-	}
 }

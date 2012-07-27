@@ -96,9 +96,9 @@ public class AlchemyEntityGeoCleanser {
 		
 		// Just get the entity list out to save a few CPU cycles
 		BasicDBObject outFields = new BasicDBObject(); 
-		outFields.append("entities", 1); 
-		outFields.append("url", 1);  // (help with debugging)
-		outFields.append("title", 1); // (help with debugging) 
+		outFields.append(DocumentPojo.entities_, 1); 
+		outFields.append(DocumentPojo.url_, 1);  // (help with debugging)
+		outFields.append(DocumentPojo.title_, 1); // (help with debugging) 
 		
 		DBCursor dbc = null;
 		if (nLimit > 0) {
@@ -121,12 +121,12 @@ public class AlchemyEntityGeoCleanser {
 
 				if (bAlterDB) {
 					
-					BasicDBObject inner0 = new BasicDBObject("entities", 
+					BasicDBObject inner0 = new BasicDBObject(DocumentPojo.entities_, 
 							(DBObject)com.mongodb.util.JSON.parse(new Gson().toJson(docu.getEntities())));
-					BasicDBObject inner1 = new BasicDBObject("$set", inner0);
+					BasicDBObject inner1 = new BasicDBObject(MongoDbManager.set_, inner0);
 					
 					// Overwrite the existing entities list with the new one 
-					_docsDB.update(new BasicDBObject("_id", docu.getId()), inner1);
+					_docsDB.update(new BasicDBObject(DocumentPojo._id_, docu.getId()), inner1);
 					
 				}//TESTED
 			}
@@ -186,7 +186,7 @@ public class AlchemyEntityGeoCleanser {
 		
 		//Debug
 		if (_nDebugLevel >= 2) {
-			System.out.println("+++++++ Feed: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getEntities().size());
+			System.out.println("+++++++ Doc: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getEntities().size());
 		}
 
 // 1] First off, let's find anything location-based and also determine if it's bad or not 
@@ -227,17 +227,17 @@ public class AlchemyEntityGeoCleanser {
 							
 								// OK next step - is it a possible ambiguity:
 								ArrayList<BasicDBObject> x = new ArrayList<BasicDBObject>();
-								BasicDBObject inner0_0 = new BasicDBObject("$not", Pattern.compile("US"));
+								BasicDBObject inner0_0 = new BasicDBObject(MongoDbManager.not_, Pattern.compile("US"));
 								BasicDBObject inner1_0 = new BasicDBObject("country_code", inner0_0);
 								x.add(inner1_0);
 
-								BasicDBObject inner0_1 = new BasicDBObject("$gte", 400000);
+								BasicDBObject inner0_1 = new BasicDBObject(MongoDbManager.gte_, 400000);
 								BasicDBObject inner1_1 = new BasicDBObject("population", inner0_1);
 								x.add(inner1_1);
 
 								BasicDBObject dbo = new BasicDBObject();
 								dbo.append("search_field", sActualName);
-								dbo.append("$or", x);
+								dbo.append(MongoDbManager.or_, x);
 								
 								DBCursor dbc = _georefDB.find(dbo);
 								if (dbc.size() >= 1) { // Problems!
@@ -572,7 +572,7 @@ public class AlchemyEntityGeoCleanser {
 		} // (end loop over candidates)		
 				
 		if ((_nDebugLevel >= 1) && bChangedAnything) {
-			System.out.println("\t(((Feed: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getUrl() + ")))");
+			System.out.println("\t(((Doc: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getUrl() + ")))");
 		}
 		
 		return bChangedAnything;

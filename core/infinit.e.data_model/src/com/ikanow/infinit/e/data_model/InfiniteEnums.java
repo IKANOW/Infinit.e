@@ -45,15 +45,6 @@ public class InfiniteEnums
 	public static final int FULLCLEANSE = 4;
 	
 	
-	public enum ClusterType {
-		harvest,
-		cleanse,
-		frequency
-	}
-	public enum LoaderInstallType {
-		fresh,
-		custom
-	}
 	public enum HarvestEnum {
 		success,
 		success_iteration, // (exceed max docs per harvest)
@@ -64,19 +55,6 @@ public class InfiniteEnums
 	public enum CommitType {
 		insert,
 		update
-	}
-	public enum DatabaseType {
-		db2,
-		mssqlserver,
-		mysql,
-		oracle,
-		sybase
-	}
-	public enum SearchCores {
-		knowledge,
-		groups,
-		people,
-		dimensions
 	}
 	public enum EntityType
 	{
@@ -133,57 +111,6 @@ public class InfiniteEnums
 		tvshow,
 		tvstation,
 		url
-	}
-	
-	/**
-	 * 
-	 * @author cburch
-	 *	This enum contains all the actions that might occur in program that we want to record
-	 * update as necessary.
-	 */
-	public enum EnumAction
-	{
-		ALL,
-		QUERY,
-		QUERYSUGGEST,
-		GROUPSEARCH,
-		GROUPADD,
-		GROUPREMOVE,
-		GROUPJOIN,
-		GROUPLEAVE,
-		GROUPUPDATE,
-		GROUPCREATE,
-		GROUPINFO,
-		PERSONUPDATE,
-		PERSONINFO,
-		PERSONGROUPS,
-		PERSONWPUPDATE,
-		PERSONWPREGISTER,
-		PERSONCREATE,
-		ACTIVITYGROUP,
-		ACTIVITYPERSON,
-		ACTIVITYALL,
-		FEEDINFO,
-		ALIASADD,
-		ALIASAPPROVE,
-		ALIASDECLINE,
-		ALIASPENDING,
-		GAZATEERINFO,
-		SOURCEADD,
-		SOURCEAPPROVE,
-		SOURCEDECLINE,
-		SOURCEINFO,
-		SOURCEGOOD,
-		SOURCEBAD,
-		SOURCEPENDING,
-		UIMODULEINFO,
-		UIMODULESEARCH,
-		UISETUP,
-		UISETUPUPDATE,
-		UIMODULEUSERGET,
-		UIMODULEUSERSAVE,
-		ALIASSEARCH
-		
 	}
 	
 	/**

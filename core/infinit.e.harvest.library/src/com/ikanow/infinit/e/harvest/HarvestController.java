@@ -67,6 +67,7 @@ import com.ikanow.infinit.e.harvest.extraction.document.database.DatabaseHarvest
 import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
+import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
@@ -94,12 +95,23 @@ public class HarvestController implements HarvestContext
 	private HarvestStatus _harvestStatus = new HarvestStatus_Integrated(); // (can either be standalone or integrated, defaults to standalone)
 	public DuplicateManager getDuplicateManager() { return _duplicateManager; }
 	public HarvestStatus getHarvestStatus() { return _harvestStatus; }
+	boolean _bIsStandalone = false;
+	public boolean isStandalone() { return _bIsStandalone; }
 	public void setStandaloneMode(int nMaxDocs) {
+		setStandaloneMode(nMaxDocs, false); // (by default don't dedup, however you may want to test updates)
+	}
+	public void setStandaloneMode(int nMaxDocs, boolean bRealDedup) {
+		_bIsStandalone = true;
 		if (nMaxDocs > 0) {
 			_nMaxDocs = nMaxDocs;
 		}
-		_duplicateManager = new DuplicateManager_Standalone();
+		if (!bRealDedup) {
+			_duplicateManager = new DuplicateManager_Standalone();
+		}
 		_harvestStatus = new HarvestStatus_Standalone();
+	}
+	public int getStandaloneMaxDocs() {
+		return _nMaxDocs;
 	}
 	private long nBetweenFeedDocs_ms = 10000; // (default 10s)
 	
@@ -290,6 +302,12 @@ public class HarvestController implements HarvestContext
 		catch (Exception e) {
 			logger.warn("Can't use Boilerpipe as text extractor: " + e.getMessage());			
 		}
+		try {
+			text_extractor_mappings.put("tika", new TextExtractorTika());
+		}
+		catch (Exception e) {
+			logger.warn("Can't use Tika as text extractor: " + e.getMessage());			
+		}
 		
 		if (null != pm.getDefaultEntityExtractor()) {
 			default_entity_extractor = entity_extractor_mappings.get(pm.getDefaultEntityExtractor().toLowerCase());
@@ -345,6 +363,8 @@ public class HarvestController implements HarvestContext
 			// (^^^ this adds toUpdate to toAdd) 
 		
 		enrichSource(source, toAdd, toUpdate, toRemove);
+		
+		//TODO (INF-1507): Handle case where update doc is rejected by enrich source .... in that case need to not delete the existing document
 		
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
 		LinkedList<DocumentPojo> groupedDups = new LinkedList<DocumentPojo>(); // (ie clones)
@@ -427,7 +447,6 @@ public class HarvestController implements HarvestContext
 							doc.setSource(source.getTitle());
 							doc.setTempSource(source);
 							doc.setMediaType(source.getMediaType());
-							doc.setSourceType(source.getExtractType());
 							doc.setTags(source.getTags());
 							ObjectId sCommunityId = source.getCommunityIds().iterator().next(); // (multiple communities handled below) 
 							String sIndex = new StringBuffer("doc_").append(sCommunityId.toString()).toString();
@@ -540,10 +559,10 @@ public class HarvestController implements HarvestContext
 			}
 		} // (end if no SAH)
 		
-		//Attempt to map entity types to set of ontology types
-		//eventually the plan is to allow extractors to set the ontology_type of
-		//entities to anything found in the opencyc ontology
-		mapEntityToOntology(toAdd);
+		// Finish processing:
+		// Map ontologies:
+		
+		completeDocumentBuilding(toAdd, toUpdate);
 		
 		// Log the number of feeds extracted for the current source
 		if ((toAdd.size() > 0) || (toUpdate.size() > 0) || (toRemove.size() > 0) || (nUrlErrorsThisSource > 0)) {
@@ -571,7 +590,10 @@ public class HarvestController implements HarvestContext
 	// Quick utility to return if entity extraction has been specified by the user
 	
 	public boolean isEntityExtractionRequired(SourcePojo source) {
-		return (((null == source.useExtractor()) && (null != default_entity_extractor)) || (!source.useExtractor().equalsIgnoreCase("none")));		
+		return (((null == source.useExtractor()) && (null != default_entity_extractor)) || (!source.useExtractor().equalsIgnoreCase("none")))
+				||
+				(((null == source.useTextExtractor()) && (null != default_text_extractor)) || (!source.useTextExtractor().equalsIgnoreCase("none")))
+		;		
 	}
 	
 	/**
@@ -596,14 +618,15 @@ public class HarvestController implements HarvestContext
 			}
 			if (currentEntityExtractor == null) // none specified or didn't find it (<-latter is error)
 			{
-				if (null != source.useExtractor()) { // ie specified one but it doesn't exist....
+				if ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")) { 
+					// ie specified one but it doesn't exist....
 					StringBuffer errMsg = new StringBuffer("Skipping source=").append(source.getKey()).append(" no_extractor=").append(source.useExtractor());
 					logger.warn(errMsg.toString());
 					
 					// No point trying this for the rest of the day
 					throw new ExtractorSourceLevelException(errMsg.toString());					
 				}
-				else { // Didn't specify one, just use default:
+				else if (null == source.useExtractor()) { // Didn't specify one, just use default:
 					currentEntityExtractor = default_entity_extractor;
 				}
 			}//TESTED					
@@ -655,13 +678,13 @@ public class HarvestController implements HarvestContext
 			{
 				long nTime_ms = System.currentTimeMillis();
 				DocumentPojo doc = i.next();
-				doc.setTempSource(source); // (so the harvesters have access to doc.getTempSource)
 				boolean bExtractedText = false;
 			
 				// If I've been stopped then just remove all remaining documents
 				// (pick them up next time through)
 				if (bIsKilled) {
 					i.remove();
+					doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 					continue;
 				}
 				
@@ -791,7 +814,12 @@ public class HarvestController implements HarvestContext
 	{
 		if ( null != error)
 		{
-			if ( error instanceof ExtractorSourceLevelException)
+			if ( error instanceof ExtractorDocumentLevelException)
+			{
+				num_error_url.incrementAndGet();
+				nUrlErrorsThisSource++;
+			}
+			else if ( error instanceof ExtractorSourceLevelException)
 			{
 				num_errors_source.incrementAndGet();
 				//We flag the source in mongo and temp disable
@@ -935,7 +963,7 @@ public class HarvestController implements HarvestContext
 	private static DocumentPojo duplicateDocument(DocumentPojo docToReplace, BasicDBObject dbo, String content, boolean bClone) {
 		DocumentPojo newDoc = DocumentPojo.fromDb(dbo, DocumentPojo.class);
 		newDoc.setFullText(content);
-		newDoc.setId(new ObjectId()); // (ie ensure it's unique)
+		newDoc.setId(null); // (ie ensure it's unique)
 		
 		if (bClone) { // Cloned docs have special source key formats (and also need to update their community)
 			ObjectId docCommunity = docToReplace.getCommunityId();
@@ -952,8 +980,19 @@ public class HarvestController implements HarvestContext
 		return newDoc;
 	}//TESTED
 	
-	static public void mapEntityToOntology(List<DocumentPojo> docs)
+	//
+	// Any documents that have got this far are going to get processed
+	//
+	
+	// Processing:
+	//Attempt to map entity types to set of ontology types
+	//eventually the plan is to allow extractors to set the ontology_type of
+	//entities to anything found in the opencyc ontology	
+	
+	static public void completeDocumentBuilding(List<DocumentPojo> docs, List<DocumentPojo> updateDocs)
 	{		
+		// Handle documents to be added
+		// Currently, just set ontology type
 		if ( docs != null )
 		{
 			for ( DocumentPojo doc : docs )
@@ -967,6 +1006,17 @@ public class HarvestController implements HarvestContext
 							entity.setOntology_type(GeoOntologyMapping.mapEntityToOntology(entity.getType()));							
 						}
 					}
+				}
+			}
+		}
+		// Remove any docs from update list that didn't get updated
+		if ( updateDocs != null )
+		{
+			Iterator<DocumentPojo> it = updateDocs.iterator();
+			while (it.hasNext()) {
+				DocumentPojo d = it.next();
+				if (null == d.getTempSource()) { //this doc got deleted
+					it.remove();
 				}
 			}
 		}

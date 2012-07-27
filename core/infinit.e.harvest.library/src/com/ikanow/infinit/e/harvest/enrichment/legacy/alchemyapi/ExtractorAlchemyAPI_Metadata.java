@@ -75,13 +75,9 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	{		
 		// Run through specified extractor need to pull these properties from config file
 		try
-		{			
-			// First off, some logic to check whether there's enough text for it to be worth doing anything:
-			if (partialDoc.getFullText().length() < 16) { // Try and elongate full text
-				partialDoc.setFullText(partialDoc.getTitle() + ": " + partialDoc.getDescription() + ". " + partialDoc.getFullText());
-			}
-			if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging				
-				throw new InfiniteEnums.ExtractorDocumentLevelException();				
+		{
+			if (partialDoc.getFullText().length() < 16) { // (don't waste Extractor call/error logging)
+				return;
 			}
 
 			String json_doc = _alch.TextGetRankedKeywords(partialDoc.getFullText());
@@ -177,7 +173,16 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			//Deserialize json into AlchemyPojo Object			
 			AlchemyPojo sc = new Gson().fromJson(json_doc,AlchemyPojo.class);			
 			//pull fulltext
-			partialDoc.setFullText(sc.text);
+			if (null == sc.text){
+				sc.text = "";
+			}
+			if (sc.text.length() < 32) { // Try and elongate full text if necessary
+				StringBuilder sb = new StringBuilder(partialDoc.getTitle()).append(": ").append(partialDoc.getDescription()).append(". \n").append(sc.text);
+				partialDoc.setFullText(sb.toString());
+			}
+			else {
+				partialDoc.setFullText(sc.text);				
+			}
 			//pull keywords
 			List<EntityPojo> ents = convertKeywordsToEntityPoJo(sc);
 			if (null != partialDoc.getEntities()) {

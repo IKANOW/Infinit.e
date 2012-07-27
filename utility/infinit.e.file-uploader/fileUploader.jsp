@@ -111,7 +111,7 @@ limitations under the License.
 			String description;
 			String mediaType;
 			shareCommunity[] communities;
-			String binaryID;
+			String binaryId;
 
 		}
 
@@ -317,7 +317,8 @@ limitations under the License.
 		String charset = "UTF-8";
 		String url = "";
 
-		try {
+		try 
+		{
 			if (prevId == null)
 				url = API_ROOT + "social/share/add/binary/"
 						+ URLEncoder.encode(title, charset) + "/"
@@ -333,7 +334,8 @@ limitations under the License.
 			connection.setDoOutput(true);
 			connection.setRequestProperty("Accept-Charset", charset);
 			String cookieVal = getBrowserInfiniteCookie(request);
-			if (cookieVal != null) {
+			if (cookieVal != null) 
+			{
 				connection.addRequestProperty("Cookie", "infinitecookie="
 						+ cookieVal);
 				connection.setDoInput(true);
@@ -387,7 +389,8 @@ limitations under the License.
 	}
 
 	private void addRemoveCommunities(String shareId, Set<String> commsToAdd,
-			HttpServletRequest request, HttpServletResponse response) {
+			HttpServletRequest request, HttpServletResponse response) 
+	{
 		personGet.community[] userCommunities = getUserCommunities(request,
 				response);
 
@@ -525,9 +528,11 @@ limitations under the License.
 		String json = stringOfUrl(API_ROOT + "social/share/search/"
 				+ searchCriteria, request, response);
 
-		if (json != null) {
+		if (json != null) 
+		{
 			getShare gs = new Gson().fromJson(json, getShare.class);
-			if (gs != null && gs.data != null) {
+			if (gs != null && gs.data != null) 
+			{
 				for (getShare.shareData info : gs.data) {
 					if ((showAll == false) && (info.owner != null)
 							&& (info.owner.email != null)
@@ -546,12 +551,15 @@ limitations under the License.
 						for (getShare.shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
-						value += delim + owner;
+						value += delim + owner + delim + info.binaryId;
 						toReturn += "<option value=\"" + value
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
-					} else {
-						if (ext.contains("jar") || ext.contains("JAR")) {
+					} 
+					else 
+					{
+						if (ext.contains("jar") || ext.contains("JAR")) 
+						{
 							if ((null != info.mediaType)
 									&& (info.mediaType
 											.equalsIgnoreCase("application/java-archive")
@@ -568,7 +576,7 @@ limitations under the License.
 								for (getShare.shareCommunity scomm : info.communities) {
 									value += scomm._id + ",";
 								}
-								value += delim + owner;
+								value += delim + owner + delim + info.binaryId;
 								toReturn += "<option value=\"" + value
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
@@ -586,7 +594,7 @@ limitations under the License.
 							for (getShare.shareCommunity scomm : info.communities) {
 								value += scomm._id + ",";
 							}
-							value += delim + owner;
+							value += delim + owner + delim + info.binaryId;
 							toReturn += "<option value=\"" + value
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
@@ -676,13 +684,15 @@ h2
 
 <body onload="populate()">
 <%
-	if (API_ROOT == null) {
+	if (API_ROOT == null) 
+	{
 		ServletContext context = session.getServletContext();
 		String realContextPath = context.getRealPath(request
 				.getContextPath());
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("javascript");
-		try { // EC2 Machines
+		try 
+		{ // EC2 Machines
 			FileReader reader = new FileReader(realContextPath
 					+ "/AppConstants.js");
 			engine.eval(reader);
@@ -690,8 +700,11 @@ h2
 			engine.eval("output = getEndPointUrl();");
 			API_ROOT = (String) engine.get("output");
 			SHARE_ROOT = API_ROOT + "share/get/";
-		} catch (Exception je) {
-			try { ////////////Windows + Tomcat
+		} 
+		catch (Exception je) 
+		{
+			try 
+			{ ////////////Windows + Tomcat
 				FileReader reader = new FileReader(realContextPath
 						+ "\\..\\AppConstants.js");
 				engine.eval(reader);
@@ -699,9 +712,15 @@ h2
 				engine.eval("output = getEndPointUrl();");
 				API_ROOT = (String) engine.get("output");
 				SHARE_ROOT = API_ROOT + "share/get/";
-			} catch (Exception e) {
+			} 
+			catch (Exception e) 
+			{
 				System.err.println(e.toString());
 			}
+		}
+		if (null == API_ROOT) { 
+			// Default to localhost
+			API_ROOT = "http://localhost:8080/api/";
 		}
 
 		if (API_ROOT.contains("localhost"))
@@ -710,27 +729,33 @@ h2
 			localCookie = false;
 	}
 	Boolean isLoggedIn = isLoggedIn(request, response);
-	if (isLoggedIn == null) {
+	if (isLoggedIn == null) 
+	{
 		out.println("The Infinit.e API cannot be reached.");
 		out.println(API_ROOT);
 	}
 
-	else if (isLoggedIn == true) {
+	else if (isLoggedIn == true) 
+	{
 		showAll = (request.getParameter("sudo") != null);
 		DEBUG_MODE = (request.getParameter("debug") != null);
 		communityList = generateCommunityList(request, response);
 
-		if (request.getParameter("logout") != null) {
+		if (request.getParameter("logout") != null) 
+		{
 			logOut(request, response);
 			out.println("<div style=\" text-align: center;\">");
 			out.println("<meta http-equiv=\"refresh\" content=\"0\">");
 			out.println("</div>");
-		} else {
+		} 
+		else 
+		{
 
 			out.println("<div style=\" text-align: center;\">");
 			String contentType = request.getContentType();
 			if ((contentType != null)
-					&& (contentType.indexOf("multipart/form-data") >= 0)) {
+					&& (contentType.indexOf("multipart/form-data") >= 0)) 
+			{
 
 				//		Create a new file upload handler
 				ServletFileUpload upload = new ServletFileUpload(
@@ -742,20 +767,29 @@ h2
 				byte[] iconBytes = null;
 				String iconDS = null;
 				Set<String> communities = new HashSet<String>();
-				while (iter.hasNext()) {
+				boolean isFileSet = false;
+				while (iter.hasNext()) 
+				{
 					FileItemStream item = iter.next();
 					String name = item.getFieldName();
 					InputStream stream = item.openStream();
-					if (item.isFormField()) {
-						if (name.equalsIgnoreCase("communities")) {
+					if (item.isFormField()) 
+					{
+						if (name.equalsIgnoreCase("communities")) 
+						{
 							communities.add(Streams.asString(stream));
-						} else
-							request.setAttribute(name,
-									Streams.asString(stream));
+						} 
+						else
+							request.setAttribute(name, Streams.asString(stream));
 
 						//out.println("<b>" + name + ":</b>" + request.getAttribute(name).toString()+"</br>");
-					} else {
-						if (name.equalsIgnoreCase("file")) {
+					} 
+					else 
+					{
+						if (name.equalsIgnoreCase("file")) 
+						{
+							if ( !item.getName().equals(""))
+								isFileSet = true;
 							fileDS = item.getContentType();
 							fileBytes = IOUtils.toByteArray(stream);
 
@@ -788,36 +822,47 @@ h2
 
 				}
 				////////////////////////////////////Update Community Info////////////////////////////////
-				else if (null == fileBytes) {
-					String shareId = request.getAttribute("DBId")
-							.toString();
+				else if (null == fileBytes) 
+				{
+					String shareId = request.getAttribute("DBId").toString();
 					if (shareId != null && shareId != "")
-						addRemoveCommunities(shareId, communities,
-								request, response);
-				} else {
-
+						addRemoveCommunities(shareId, communities, request, response);					
+				} 
+				else 
+				{
 					//////////////////////////////////////////////////////////////////////////////////
 
-					Boolean newUpload = (request.getAttribute("DBId")
-							.toString().length() == 0);
+					Boolean newUpload = (request.getAttribute("DBId").toString().length() == 0);
 
 					///////////////////////////////// SWF Manip  /////////////////////////////////
 					String fileUrl = "";
 					String fileId = "";
-
+					String bin = request.getAttribute("binary").toString();			
+					
 					if (request.getAttribute("title") != null
 							&& request.getAttribute("description") != null
-							&& fileBytes != null) {
-						if (newUpload) {
+							&& fileBytes != null) 
+					{
+						if (newUpload) 
+						{
 							fileId = AddToShare(fileBytes, fileDS,
 									request.getAttribute("title")
 											.toString(),
 									request.getAttribute("description")
 											.toString(), communities,
 									request, response);
-						} else {
-							fileId = request.getAttribute("DBId")
-									.toString();
+						} 
+						else if ( bin.equals("null") || !isFileSet ) //if not a binary file or file was not changed
+						{						
+							String shareId = request.getAttribute("DBId").toString();
+							fileId = shareId;
+							if (shareId != null && shareId != "")
+								addRemoveCommunities(shareId, communities, request, response);							
+							out.println("File was not set or was a JSON share, just updated communities.");
+						}
+						else
+						{
+							fileId = request.getAttribute("DBId").toString();
 							UpdateToShare(fileBytes, fileDS, request
 									.getAttribute("title").toString(),
 									request.getAttribute("description")
@@ -825,9 +870,12 @@ h2
 									communities, request, response);
 						}
 
-						if (fileId.contains("Failed")) {
+						if (fileId.contains("Failed")) 
+						{
 							out.println(fileId);
-						} else {
+						} 
+						else 
+						{
 							fileUrl = SHARE_ROOT + fileId;
 							if (newUpload)
 								out.println("You have successfully added a file to the share, its location is: "
@@ -836,7 +884,9 @@ h2
 								out.println("You have successfully updated a file on the share, its location is: "
 										+ fileUrl);
 						}
-					} else {
+					} 
+					else 
+					{
 						fileUrl = null;
 						out.println("Error: Not enough information provided for file Upload");
 					}
@@ -845,7 +895,9 @@ h2
 
 					out.println("</div>");
 				}
-			} else {
+			} 
+			else 
+			{
 			}
 %>
 	
@@ -887,6 +939,7 @@ h2
 		url_row = document.getElementById('url_row');
 		dropdown = document.getElementById("upload_info");
 		list = dropdown.options[dropdown.selectedIndex].value;
+		binary = document.getElementById("binary");
 		
 		if (list == "new")
 		{
@@ -902,6 +955,7 @@ h2
 			owner_text.style.display = 'none';
 			deleteButton.style.visibility = 'hidden';
 			clearCommList();
+			binary.value = "";
 			return;
 		}
 		//_id, created, title, description
@@ -914,7 +968,7 @@ h2
 		res_url = split[4];
 		communities = split[5];
 		res_owner = split[6];
-
+		res_binary = split[7];		
 		
 		title.value = res_title;
 		description.value = res_description;
@@ -927,7 +981,8 @@ h2
 		owner.style.display = '';
 		owner_text.style.display = '';
 		url_row.style.display = '';
-		highlightComms(communities);
+		highlightComms(communities);		
+		binary.value = res_binary;
 	}
 		function validate_fields()
 		{
@@ -1017,7 +1072,7 @@ h2
 	                  </tr>
 	                  <tr>
 	                    <td>File:</td>
-	                    <td><input type="file" name="file" id="file" /><!--<input type="text" name="file_url" id="file_url" size="32" style="display:none;" /><input type="checkbox" id="file_check" name="file_check" onchange="useUrl()" style="display:none;" /> <span id="file_provide" name="file_provide" style="display:none;" > Use Existing File </span>--></td>
+	                    <td><input type="file" name="file" id="file" /></td>
 	                  </tr>
 	                  <tr id="url_row" style="display:none">
 	                  	<td>Share URL:</td>
@@ -1031,6 +1086,7 @@ h2
 					<input type="hidden" name="created" id="created" />
 					<input type="hidden" name="DBId" id="DBId" />
 					<input type="hidden" name="fileUrl" id="fileUrl" />
+					<input type="hidden" name="binary" id="binary" />
 					 <%
 					 	if (showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");

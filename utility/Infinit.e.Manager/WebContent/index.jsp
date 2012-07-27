@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1"%>
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1" session="false" %>
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%
@@ -33,7 +33,7 @@ limitations under the License.
 			if (action.equals("logout")) 
 			{
 				logOut(request, response);
-				out.println( "<meta http-equiv=\"refresh\" content=\"0\">" );
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
 			}
 		}
 		catch (Exception e)
@@ -65,14 +65,38 @@ limitations under the License.
 	else
 	{
 %>
-<table class="standardTable" cellpadding="5" cellspacing="1" width="100%" >
+	<table class="standardTable" cellpadding="5" cellspacing="1" width="100%" >
 	<tr>
-		<td>
-		
-		
+		<td width="100%" bgcolor="#ffffff">
+			<br />
+			<br />
+			
+			<center>
+			<table class="standardTable" cellpadding="5" cellspacing="1" width="50%">
+				<tr>
+					<td>&nbsp</td>
+				</tr>
+				<tr>
+					<td bgcolor="white">
+						<ul>
+							<li><b><a href="people.jsp" title="Add/Edit Users">People</a></b> - Add/Edit Users</li>
+							<li><b><a href="communities.jsp" title="Add/Edit Users">Communities</a></b> - Add/Edit Communities and Membership</li>
+							<li><b><a href="sources.jsp" title="Add/Edit Users">Sources</a></b> - Add/Edit Sources</li>
+						</ul>
+					</td>
+				</tr>
+			</table>
+			</center>
+
+			<br />
+			<br />
+			<br />
+			<br />
+			<br />
+			<br />
 		</td>
 	<tr>
-</table>
+	</table>
 <%
 	}
 %>

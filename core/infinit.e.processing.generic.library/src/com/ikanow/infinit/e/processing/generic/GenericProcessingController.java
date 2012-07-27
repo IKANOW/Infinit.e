@@ -70,6 +70,7 @@ public class GenericProcessingController {
 			// Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey}
 			BasicDBObject compIndex = new BasicDBObject(DocumentPojo.url_, 1);
 			compIndex.put(DocumentPojo.sourceKey_, 1);
+			DbManager.getDocument().getMetadata().ensureIndex(DocumentPojo.updateId_);
 			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceKey_, 1)); // (this is also needed standalone)
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.title_, 1));
@@ -93,6 +94,9 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
 			// Compound index lets me access {type, communities._id}, {type} efficiently 
 			DbManager.getSocial().getShare().ensureIndex(new BasicDBObject("type", 1), new BasicDBObject("communities._id", 1));
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobidS", 1));
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobtitle", 1));
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("waitingOn", 1));
 		}
 		catch (Exception e)  {
 			e.printStackTrace();
@@ -212,6 +216,8 @@ public class GenericProcessingController {
 	
 	public void processDocuments(int harvestType, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate_subsetOfAdd, List<DocumentPojo> toDelete)
 	{
+		PropertiesManager props = new PropertiesManager();
+		
 		// Note: toAdd = toAdd(old) + toUpdate
 		// Need to treat updates as follows:
 		// - Delete (inc children, eg events) but get fields to keep (currently _id, created; in the future comments etc)
@@ -231,27 +237,39 @@ public class GenericProcessingController {
 		// 4. (Scheduled for efficiency) Synchronize with index [after this, queries can find them - so (2) must have happened]
 			// (Syncronization currently "corrupts" the entities so needs to be run last)
 
-		AggregationManager perSourceAggregation = new AggregationManager();
+		AggregationManager perSourceAggregation = null;
+		
+		if (!props.getAggregationDisabled()) {
+			perSourceAggregation = new AggregationManager();
+		}
 		
 		// 1+2]
-		perSourceAggregation.doAggregation(toAdd, toDelete);
-		perSourceAggregation.createOrUpdateFeatureEntries();
+		if (null != perSourceAggregation) {
+			perSourceAggregation.doAggregation(toAdd, toDelete);
+			perSourceAggregation.createOrUpdateFeatureEntries();
+		}
 		
 		// Save feeds to feeds collection in MongoDb
 		// (second field determines if content gets saved)
-		perSourceAggregation.applyAggregationToDocs(toAdd);
-			// (First save aggregated statistics back to the docs' entity/event instances)
+		if (null != perSourceAggregation) {
+			perSourceAggregation.applyAggregationToDocs(toAdd);
+				// (First save aggregated statistics back to the docs' entity/event instances)
+		}
 		storeFeeds(toAdd, (harvestType != InfiniteEnums.DATABASE));
 
 		// Then finish aggregation:
 		
-		// 3]  
-		perSourceAggregation.runScheduledDocumentUpdates();
-		
-		// 4] This needs to happen last because it "corrupts" the entities and events
-		perSourceAggregation.runScheduledSynchronization();
+		if (null != perSourceAggregation) {
+			// 3]  
+			perSourceAggregation.runScheduledDocumentUpdates();
+			
+			// 4] This needs to happen last because it "corrupts" the entities and events
+			perSourceAggregation.runScheduledSynchronization();
+		}
 		
 	}//TESTED (by eye - logic is v simple)
+	
+	//TOTEST
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	//

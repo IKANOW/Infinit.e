@@ -1,0 +1,258 @@
+{
+// TEST SOURCE
+"source":
+{
+    "communityIds": ["4c927585d591d31d7b37097a"],
+    "description": "Source for unit testing SAH changes for INF-1360",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "mediaType": "Test",
+    "rss": {"extraUrls": [{
+        "fullText": "entity1_type1 entity1_type2 entity2_type1",
+        "title": "test 1 for SAH",
+        "url": "http://test.sah/fullText1.html"
+    }]},
+    "structuredAnalysis": {
+        "associations": [
+            {
+                "entity1": "Type2",
+                "entity2": "Type1",
+                "iterateOver": "entity1/entity2",
+                "verb": "test1",
+                "verb_category": "test1"
+            },
+            {
+                "entity1_index": "$SCRIPT( return _value + '/Type1';)",
+                "entity2": "test string",
+                "iterateOver": "test_type1",
+                "verb": "test2",
+                "verb_category": "test2"
+            },
+            {
+                "entity1": "$SCRIPT( return _value;)",
+                "entity2": "test string",
+                "iterateOver": "test_type1",
+                "verb": "test3",
+                "verb_category": "test3"
+            },
+            {
+                "entity2": "test string",
+                "geo_index": "$SCRIPT( return _value + '/Type1';)",
+                "iterateOver": "test_type1",
+                "verb": "test4",
+                "verb_category": "test4"
+            },
+            {
+                "entity2": "Should generate only 1 entity",
+                "geo_index": "$SCRIPT( return _value + '/Type2';)",
+                "iterateOver": "test_type1",
+                "verb": "test4b",
+                "verb_category": "test4b"
+            },
+            {
+                "entity1": "Type2",
+                "geo_index": "Type1",
+                "iterateOver": "entity1/geo_index",
+                "verb": "test5",
+                "verb_category": "test5"
+            },
+            {
+                "entity2": "this should generate no entities",
+                "geo_index": "$SCRIPT( return _value;)",
+                "iterateOver": "test_type1",
+                "verb": "test6",
+                "verb_category": "test6"
+            },
+            {
+                "entity1_index": "$SCRIPT( return _value;)",
+                "entity2": "this should generate no entities",
+                "iterateOver": "test_type1",
+                "verb": "test7",
+                "verb_category": "test7"
+            },
+            {
+                "creationCriteriaScript": "$SCRIPT( return true; )",
+                "entity1_index": "$SCRIPT( return _value;)",
+                "entity2": "should generate 1 association because of criteria",
+                "entity2_index": "$SCRIPT( return _value + '/Type2';)",
+                "iterateOver": "test_type1",
+                "verb": "test8",
+                "verb_category": "test8"
+            }
+        ],
+        "entities": [
+            {
+                "dimension": "What",
+                "disambiguated_name": "$SCRIPT( return _value; )",
+                "geotag": {
+                    "lat": "10",
+                    "lon": "10"
+                },
+                "iterateOver": "test_type1",
+                "type": "Type1"
+            },
+            {
+                "dimension": "What",
+                "disambiguated_name": "$SCRIPT( return _value; )",
+                "iterateOver": "test_type2",
+                "type": "Type2"
+            }
+        ],
+        "scriptEngine": "javascript"
+    },
+    "tags": ["test"],
+    "title": "AAAA SAH INF-360 test code",
+    "unstructuredAnalysis": {"meta": [
+        {
+            "context": "All",
+            "fieldName": "test_type1",
+            "groupNum": 1,
+            "script": "([a-z0-9]+)_type1",
+            "scriptlang": "regex"
+        },
+        {
+            "context": "All",
+            "fieldName": "test_type2",
+            "groupNum": 1,
+            "script": "([a-z0-9]+)_type2",
+            "scriptlang": "regex"
+        }
+    ]},
+    "useExtractor": "none",
+    "useTextExtractor": "none"
+},
+"results":
+{
+    "associations": [
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity1",
+                         "entity1_index": "entity1/type2",
+                         "entity2": "entity1",
+                         "entity2_index": "entity1/type1",
+                         "geo_index": "entity1/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test1",
+                         "verb_category": "test1"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity1",
+                         "entity1_index": "entity1/type2",
+                         "entity2": "entity2",
+                         "entity2_index": "entity2/type1",
+                         "geo_index": "entity2/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test1",
+                         "verb_category": "test1"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity1",
+                         "entity1_index": "entity1/type1",
+                         "entity2": "test string",
+                         "geo_index": "entity1/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test2",
+                         "verb_category": "test2"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity2",
+                         "entity1_index": "entity2/type1",
+                         "entity2": "test string",
+                         "geo_index": "entity2/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test2",
+                         "verb_category": "test2"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity2",
+                         "entity1_index": "entity2/type1",
+                         "entity2": "test string",
+                         "geo_index": "entity2/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test3",
+                         "verb_category": "test3"
+                     },
+                     {
+                         "assoc_type": "Summary",
+                         "entity2": "test string",
+                         "geo_index": "entity1/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test4",
+                         "verb_category": "test4"
+                     },
+                     {
+                         "assoc_type": "Summary",
+                         "entity2": "test string",
+                         "geo_index": "entity2/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test4",
+                         "verb_category": "test4"
+                     },
+                     {
+                         "assoc_type": "Summary",
+                         "entity2": "Should generate only 1 entity",
+                         "geo_index": "entity1/type2",
+                         "verb": "test4b",
+                         "verb_category": "test4b"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity1",
+                         "entity1_index": "entity1/type2",
+                         "geo_index": "entity1/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test5",
+                         "verb_category": "test5"
+                     },
+                     {
+                         "assoc_type": "Event",
+                         "entity1": "entity1",
+                         "entity1_index": "entity1/type2",
+                         "geo_index": "entity1/type1",
+                         "geotag": {
+                             "lat": 10,
+                             "lon": 10
+                         },
+                         "verb": "test5",
+                         "verb_category": "test5"
+                     },
+                     {
+                         "assoc_type": "Summary",
+                         "entity2": "entity1",
+                         "entity2_index": "entity1/type2",
+                         "verb": "test8",
+                         "verb_category": "test8"
+                     }
+                 ]
+}
+}

@@ -23,8 +23,6 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import org.apache.log4j.Logger;
 
-import com.ikanow.infinit.e.data_model.InfiniteEnums.DatabaseType;
-
 /**
  * Class used to perform JDBC Connections and Queries for Database Crawling and Indexing
  * 
@@ -308,26 +306,24 @@ public class RdbmsManager {
 	 * @param databaseName
 	 * @return
 	 */
-	public String getConnectionString(DatabaseType databaseType, String driver, String hostname, String port, String databaseName) {
+	public String getConnectionString(String databaseType, String hostname, String port, String databaseName) {
 		// DB2 - jdbc:db2://server:port/database
 		// MySQL - jdbc:mysql://host:port/database
 		// Oracle - jdbc:oracle:thin:@//host:port/service
 		// SQL Server - jdbc:jtds:sqlserver://host:port/database
 		// Sybase - jdbc:jtds:sybase://host:port/database
 		
-		switch (databaseType)
-		{
-			case oracle:
-				return "jdbc:" + driver + ":@//" + hostname + ":" + port + "/" + databaseName;
-			default:
-				if ((hostname.length() > 0) && (port.length() > 0)) {
-					return "jdbc:" + driver + "://" + hostname + ":" + port + "/" + databaseName;
-				}
-				else {
-					return "jdbc:" + driver + ":" + databaseName;					
-				}
+		if (databaseType.equalsIgnoreCase("oracle")) {
+			return "jdbc:" + databaseType + ":@//" + hostname + ":" + port + "/" + databaseName;			
+		}
+		else {
+			if ((hostname.length() > 0) && (port.length() > 0)) {
+				return "jdbc:" + databaseType + "://" + hostname + ":" + port + "/" + databaseName;
+			}
+			else {
+				return "jdbc:" + databaseType + ":" + databaseName;					
+			}			
 		}
 	}
 		
 }
-

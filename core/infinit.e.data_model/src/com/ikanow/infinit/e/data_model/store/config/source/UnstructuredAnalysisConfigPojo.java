@@ -64,8 +64,24 @@ public class UnstructuredAnalysisConfigPojo
 			this.script = script;
 			this.scriptlang = scriptlang;
 		}
+		public metaField(String fieldName, Context context, String script, String scriptlang, String flags)
+		{
+			this.fieldName = fieldName;
+			this.context = context;
+			this.script = script;
+			this.scriptlang = scriptlang;
+			this.flags = flags;
+		}
 	}
 	
+	public void AddMetaField(String fieldName, Context context, String script, String scriptlang, String flags)
+	{
+		if (null == meta)
+			meta = new ArrayList<metaField>();
+			
+		meta.add(new metaField(fieldName, context, script, scriptlang, flags));
+	}
+
 	public void AddMetaField(String fieldName, Context context, String script, String scriptlang)
 	{
 		if (null == meta)

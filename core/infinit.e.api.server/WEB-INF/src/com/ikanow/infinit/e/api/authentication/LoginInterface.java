@@ -240,7 +240,9 @@ public class LoginInterface extends ServerResource
 		 }
 		 else if ( action.equals("keepalive"))
 		 {
-			 cookieLookup = RESTTools.cookieLookup(cookie);
+			 if (null != cookie) {
+				 cookieLookup = RESTTools.cookieLookup(cookie);
+			 }
 			 if (null != cookieLookup) {
 				 rp = new LoginHandler().keepAlive(cookieLookup);
 			 }

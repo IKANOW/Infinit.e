@@ -124,7 +124,7 @@
 		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
 			<manifest>
 				<attribute name="Built-By" value="${user.name}"/>
-				<attribute name="Class-Path" value=". ${libs.jar.bundled}"/>
+				<attribute name="Class-Path" value=". "/>
 				<attribute name="Specification-Title" value="${specification.title}"/>
 				<attribute name="Specification-Version" value="${specification.version}"/>
 				<attribute name="Implementation-Title" value="${implementation.title}"/>
@@ -136,8 +136,29 @@
 				<include name="**/QueryDecayScript.class" />
 			</fileset>	
 		</jar>
-		
 		<copy file="${dir.build.jar}/querydecayscript.jar" tofile="${dir.dist}/querydecayscript.jar"/>		
+		
+		<!-- Bundled Jar for custom processing -->
+		<jar destFile="${dir.dist}/infinit.e.query.library.jar"   filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". "/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}">
+				<!-- Just include classes required for querying -->
+				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />
+				<include name="com/ikanow/infinit/e/api/utils/*.class" />
+			</fileset>
+			<!-- No libraries, they should all be present in the classpath already -->
+		</jar>
+		
 	</target>
 	
 	<!-- =================================

@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="infinit.e.manager"
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	basedir="."
+	default="war">
+	<property name="dir.src"
+		value="src" />
+	<property name="dir.lib"
+		value="WebContent/WEB-INF/lib" />
+	<property name="dir.war"
+		value="war" />
+	<property name="dir.jar"
+		value="jar" />
+	<property name="dir.build"
+		value="build" />
+	<property name="dir.build.classes"
+		value="${dir.build}/classes" />
+	<property name="dir.dist"
+		value="dist" />
+	<property name="target"
+		value="1.6" />
+	<property name="source"
+		value="1.6" />
+	<property name="debuglevel"
+		value="source,lines,vars" />
+	<property name="manifest.name"
+		value="com/ikanow/infinit/e" />
+
+	<path id="infinit.e.manager.classpath">
+		<pathelement location="${dir.build.classes}" />
+		<fileset dir="${dir.lib}">
+			<include name="**/*.jar" />
+		</fileset>
+	</path>
+
+	<!-- =================================
+			 target: clean
+	================================= -->
+	<target name="clean"
+		description="Removing the all generated files.">
+		<delete dir="${dir.build}" />
+		<delete dir="${dir.dist}" />
+	</target>
+
+	<!-- =================================
+		 target: prepare
+	================================= -->
+	<target name="prepare"
+		depends="clean">
+		<mkdir dir="${dir.build}" />
+	</target>
+
+
+	<!-- =================================
+	  target: resolve
+	  use apache ivy to pull in dependencies
+	 ================================= -->
+	<target name="resolve"
+		depends="prepare"
+		description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+
+	<!-- =================================
+	  target: compile
+	  compile the source code using javac
+	================================= -->
+	<target name="compile"
+		depends="resolve"
+		description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}" />
+		<javac 
+			debug="true"
+			debuglevel="${debuglevel}"
+			destdir="${dir.build.classes}"
+			includeantruntime="false"
+			source="${source}"
+			srcdir="${dir.src}"
+			target="${target}">
+			<classpath refid="infinit.e.manager.classpath" />
+		</javac>
+	</target>
+
+	<!-- =================================
+				 target: jar
+		================================= -->
+	<target name="jar"
+		depends="compile"
+		description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+		<mkdir dir="${dir.dist}" />
+	</target>
+
+	<!-- =================================
+	target: war
+	create the war file
+	================================= -->
+
+	<!-- Version number for standalone ZIP only, the WAR gets tagged inside the search engine RPM -->
+	<property name="bamboo.majorBuild"
+		value="localBuild" />
+	<property name="bamboo.minorBuild"
+		value="0" />
+	<property name="bamboo.custom.svn.revision.number"
+		value="0" />
+	<property name="infinite_version"
+		value="${bamboo.majorBuild}.${bamboo.minorBuild}" />
+	<property name="infinite_release"
+		value="${bamboo.custom.svn.revision.number}" />
+
+	<target name="war"
+		depends="jar"
+		description="Generates ${ant.project.name}.war file in to the 'dist' directory.">
+		<war 
+			destfile="dist/${ant.project.name}.war"
+			webxml="WebContent/WEB-INF/web.xml">
+			<classes dir="${dir.build.classes}" />
+			<lib 
+				dir="${dir.lib}"
+				includes="**/*.jar" />
+			<fileset dir="WebContent" />
+		</war>
+	</target>
+
+</project>

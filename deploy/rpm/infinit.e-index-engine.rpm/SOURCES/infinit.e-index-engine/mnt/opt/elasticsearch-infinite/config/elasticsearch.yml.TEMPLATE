@@ -14,7 +14,7 @@ discovery:
 cloud:	
   aws.access_key: AWS_KEY
   aws.secret_key: SECRET_KEY
-boostrap:
+bootstrap:
   mlockall: BOOTSTRAP_MLOCKALL
 script.native.decayscript.type:
   com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory

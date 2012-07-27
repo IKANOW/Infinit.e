@@ -401,6 +401,7 @@ public class SourceHandler
 					// - If harvest completely unspecified, delete everything but num records
 					// - If harvest specified, and there exists an existing harvest block then ignore
 					// - If harvest specified, and the harvest has previously been deleted, then copy (except num records)
+					// - Extra ... if new status object has harvested unset, then unset that
 					if ((null == source.getHarvestStatus()) && (null != oldSource.getHarvestStatus())) { 
 						// request to unset the harvest status altogether
 						source.setHarvestStatus(new SourceHarvestStatusPojo()); // new harvest status
@@ -413,6 +414,10 @@ public class SourceHandler
 							// (null != source.getHarvestStatus()) else would be in the clause above
 					}
 					else if (null != oldSource.getHarvestStatus()) {
+						// Unset the harvested time to queue a new harvest cycle
+						if ((null != source.getHarvestStatus()) && (null == source.getHarvestStatus().getHarvested())) {
+							oldSource.getHarvestStatus().setHarvested(null);
+						}
 						source.setHarvestStatus(oldSource.getHarvestStatus());
 					}
 					//(else oldSource.getHarvestStatus is null, just retain the updated version)
@@ -917,7 +922,7 @@ public class SourceHandler
 	 * @param userIdStr
 	 * @return
 	 */
-	public ResponsePojo testSource(String sourceJson, int nNumDocsToReturn, boolean bReturnFullText, String userIdStr) 
+	public ResponsePojo testSource(String sourceJson, int nNumDocsToReturn, boolean bReturnFullText, boolean bRealDedup, String userIdStr) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		try 
@@ -935,9 +940,14 @@ public class SourceHandler
 			if (source.getCommunityIds().isEmpty()) {
 				source.addToCommunityIds(new ObjectId(userIdStr)); // (ie user's personal community, always has same _id - not that it matters)
 			}
+			if (bRealDedup) { // Want to test update code, so ignore update cycle
+				if (null != source.getRssConfig()) {
+					source.getRssConfig().setUpdateCycle_secs(1); // always update
+				}
+			}
 			
 			HarvestController harvester = new HarvestController();
-			harvester.setStandaloneMode(nNumDocsToReturn);
+			harvester.setStandaloneMode(nNumDocsToReturn, bRealDedup);
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toUpdate = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toRemove = new LinkedList<DocumentPojo>();
@@ -979,7 +989,7 @@ public class SourceHandler
 		{
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Test Source",false,"error testing source"));			
+			rp.setResponse(new ResponseObject("Test Source",false,"error testing source: " + e.getMessage()));			
 		}
 		return rp;
 	}
@@ -1107,10 +1117,8 @@ public class SourceHandler
 				"URL: " + source.getUrl() + "<br/>" + 
 				"</p>" +
 				"<p>Please click on the Approve or Reject links below to complete the approval process: </p>" +
-				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/true" +
-					c.getId().toString() + "/\">Approve new Source</a></li>" +
-				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/false" +
-					c.getId().toString() + "/\">Reject new Source</a></li>";							
+				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/true\">Approve new Source</a></li>" +
+				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/false\">Reject new Source</a></li>";							
 			
 			// Send
 			new SendMail(new PropertiesManager().getAdminEmailAddress(), sendTo.toString(), subject, body).send("text/html");	

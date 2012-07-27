@@ -3,8 +3,9 @@
 #
 export JAVA_HOME=/usr/java/latest
 # For large memory systems, increase the memory available to the system
-export JAVA_OPTS="" && [[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && \
-	JAVA_OPTS="-Xms4120m -Xmx4120m -Xmn2048m"
+export JAVA_OPTS="-Xms1024m -Xmx1024m -Xmn256m" && \
+		[[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && \
+			JAVA_OPTS="-Xms2048m -Xmx2048m -Xmn512m"
 export CATALINA_OPTS="$JAVA_OPTS"
 #(^^^ >10GB system)
 export JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dorg.apache.tomcat.util.buf.UDecoder.ALLOW_ENCODED_SLASH=true"

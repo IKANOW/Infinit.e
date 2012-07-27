@@ -15,10 +15,13 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.server;
 
+import javax.servlet.ServletContext;
+
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
 import org.restlet.Application;  
+import org.restlet.Context;
 import org.restlet.Restlet;  
 import org.restlet.resource.ServerResource;
 import org.restlet.routing.Router;
@@ -37,21 +40,35 @@ import com.ikanow.infinit.e.data_model.Globals;
 
 public class EmbeddedRestletApp extends Application 
 {
+	public static void intializeInfiniteConfig(Context restContext, ServletContext servletContext) {
+		
+		if (Globals.Identity.IDENTITY_NONE == Globals.getIdentity()) {
+			
+			Globals.setIdentity(Globals.Identity.IDENTITY_API);
+			String configpath = null;
+			// First try override from system
+			if (null == (configpath = (String) System.getProperties().get("INFINITE_CONFIG_HOME"))) { 
+				if (null != restContext) {
+					configpath = restContext.getParameters().getFirstValue("configpath");
+				}
+				else {
+					configpath = (String) servletContext.getInitParameter("configpath");
+				}
+			}
+	    	if(configpath != null) {
+	    		Globals.overrideConfigLocation(configpath);
+	    	}
+		}
+	}	
+	
     /** 
      * Creates a root Restlet that will receive all incoming calls. 
      */  
     @Override  
     public Restlet createRoot() { 
-		Globals.setIdentity(Globals.Identity.IDENTITY_API);
-		String configpath = null;
-		// First try override from system
-		if (null == (configpath = (String) System.getProperties().get("INFINITE_CONFIG_HOME"))) { 
-			configpath = getContext().getParameters().getFirstValue("configpath");
-			// Then get override from build.xml
-		}
-    	if(configpath != null) {
-    		Globals.overrideConfigLocation(configpath);
-    	}
+    	
+    	intializeInfiniteConfig(getContext(), null);
+    	
     	PropertyConfigurator.configure(Globals.getLogPropertiesLocation());
     	
     	Logger logger = Logger.getLogger(EmbeddedRestletApp.class);
@@ -137,14 +154,28 @@ public class EmbeddedRestletApp extends Application
         router.attach("/knowledge/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
         router.attach("/knowledge/mapreduce/getresults/{jobid}", CustomInterface.class);
         router.attach("/knowledge/mapreduce/getjobs", CustomInterface.class);
-        router.attach("/knowledge/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
+        //Remove this for security reasons, can access other collections from within reduce
+        //router.attach("/knowledge/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
         //VO NAMING
-        attach(router, "/custom/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
-        attach(router, "/custom/mapreduce/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
+        // Map reduce:
+        attach(router, "/custom/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
         attach(router, "/custom/mapreduce/removejob/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getresults/{jobid}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/getjobs/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getjobs", CustomInterface.class);
-        attach(router, "/custom/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
+        // Saved queries:
+        attach(router, "/custom/savedquery/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{timeToRun}/{frequencyToRun}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
+        attach(router, "/custom/savedquery/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}{timeToRun}/{frequencyToRun}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
+        attach(router, "/custom/savedquery/removejob/{jobid}", CustomInterface.class);
+        attach(router, "/custom/savedquery/getresults/{jobid}", CustomInterface.class);
+        attach(router, "/custom/savedquery/getjobs/{jobid}", CustomInterface.class);
+        attach(router, "/custom/savedquery/getjobs", CustomInterface.class);        
+        // These two for backwards compatibility for a while:
+        attach(router, "/custom/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}", CustomInterface.class);
+        //Remove this for security reasons, can access other collections from within reduce
+        //attach(router, "/custom/mapreduce/{inputcollection}/{map}/{reduce}/{query}", CustomInterface.class);          
               
 // SEARCHES:
         //BETA NAMING
@@ -158,7 +189,8 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/knowledge/feature/geoSuggest/{term}/{communityids}", SearchInterface.class); //UNTESTED
         attach(router, "/knowledge/feature/entitySuggest/{term}/{communityids}",SearchInterface.class);
         attach(router, "/knowledge/feature/aliasSuggest/{field}/{term}/{communityids}",SearchInterface.class);        
-        attach(router, "/knowledge/document/get/{feedid}", DocumentInterface.class);  
+        attach(router, "/knowledge/document/get/{docid}", DocumentInterface.class);  
+        attach(router, "/knowledge/document/get/{sourcekey}/{url}", DocumentInterface.class);  
         attach(router, "/knowledge/document/query/{communityids}",QueryInterface.class);    
         attach(router, "/knowledge/feature/eventSuggest/{ent1}/{verb}/{ent2}/{field}/{communityids}",SearchInterface.class);
         	// (This is obsolete but leave in for another couple of releases)

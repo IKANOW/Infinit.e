@@ -159,46 +159,76 @@ public class FeedHarvester implements HarvesterInterface
 	// Get the syndicated feed using rome
 	private SyndFeed getFeed(SourcePojo source) 
 	{
-		// Check to see if the feed requires authentication
-		if (source.getAuthentication() != null) //requires auth
-		{
-			try 
+		for (int i = 0; i < 2; ++i) { // Will have 2 goes in case of failure
+			// Check to see if the feed requires authentication
+			if (source.getAuthentication() != null) //requires auth
 			{
-				FeedFetcher feedFetcher = new HttpClientFeedFetcher(null, authenticateFeed(source.getAuthentication()));
-				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
-					feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+				try 
+				{
+					FeedFetcher feedFetcher = new HttpClientFeedFetcher(null, authenticateFeed(source.getAuthentication()));
+					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+						feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+					}
+					return feedFetcher.retrieveFeed(new URL(source.getUrl()));
+				} 
+				catch (Exception e) {
+					if (1 == i) { // else just try again
+						handleRssError(e, source);
+					}
 				}
-				return feedFetcher.retrieveFeed(new URL(source.getUrl()));
-			} 
-			catch (Exception e) {
-				// Log Execption message
-				_context.getHarvestStatus().update(source,new Date(),HarvestEnum.error,e.getMessage(), true, false);
-				// If an exception occurs log the error
-				logger.error("Exception Message: " + e.getMessage(), e);
 			}
-		}
-		else //does not require auth
-		{
-			try 
+			else //does not require auth
 			{
-				FeedFetcherCache feedInfoCache = HashMapFeedInfoCache.getInstance();
-				FeedFetcher feedFetcher = new HttpURLFeedFetcher(feedInfoCache);
-				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
-					feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+				try 
+				{
+					FeedFetcherCache feedInfoCache = HashMapFeedInfoCache.getInstance();
+					FeedFetcher feedFetcher = new HttpURLFeedFetcher(feedInfoCache);
+					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+						feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+					}
+					return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(source.getUrl())));
+				} 
+				catch (Exception e) 
+				{
+					if (1 == i) { // else just try again
+						handleRssError(e, source);
+					}
 				}
-				return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(source.getUrl())));
-			} 
-			catch (Exception e) 
-			{
-				// Log Execption message
-				_context.getHarvestStatus().update(source,new Date(),HarvestEnum.error,e.getMessage(), true, false);
-				// If an exception occurs log the error
-				logger.error("Exception Message: feed=" + source.getUrl() + " error=" + e.getMessage(), e);
 			}
-		}
+			
+			// If still here, must have errored so sleep before trying again
+			try { Thread.sleep(10000); } catch (InterruptedException e) {}
+			
+		} // (end get 2 goes)
 		return null;
 	}
 
+	// Utility for RSS extraction
+	
+	private void handleRssError(Exception e, SourcePojo source) {
+		// Error handling:
+		// - If it's a 500 or 502 or 503 or 504 then just log and carry on
+		// - Otherwise, if you get the same message twice in succession then error out
+		boolean bSuspendSource = false;
+		String sNewMessage = e.getMessage();
+		if (null != sNewMessage) {
+			if (sNewMessage.matches(".*50[0234].*")) {
+				// Do nothing, this is just a temporary error
+			}
+			else if (null != source.getHarvestStatus()) {
+				String sOldMessage = source.getHarvestStatus().getHarvest_message();
+				if ((null != sOldMessage) && sOldMessage.equals(sNewMessage)) {
+					bSuspendSource = true;
+				}
+			}
+		}
+		_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, sNewMessage, bSuspendSource, false);
+		
+		// If an exception occurs log the error
+		logger.error("Exception Message: " + e.getMessage(), e);		
+	}
+	//TESTED (temp error ignore, allow 2 identical errors before failing)
+	
 	// Process the feed
 	private void processFeed(SourcePojo source) throws Exception {
 		// Process the feed
@@ -359,12 +389,6 @@ public class FeedHarvester implements HarvesterInterface
 						this.nTmpHttpErrors++;
 						continue;
 					}
-					if (url.endsWith(".pdf") || url.endsWith(".mp3"))  
-					{ 
-						// There are bound to be other cases, but it's too difficult to do positive selection on HTML
-						// (so just handle known error cases)
-						continue; // (just keep ignoring, no harm done)
-					}
 
 					// Also save the title and description:
 					String title = "";
@@ -397,6 +421,7 @@ public class FeedHarvester implements HarvesterInterface
 							}
 							nCount++;
 						}
+						
 						if (!duplicate) {
 							possDups.add(entry);						
 						}
@@ -437,8 +462,6 @@ public class FeedHarvester implements HarvesterInterface
 						continue;
 					}
 
-					logger.debug("	Doc : " + url + " : " + title);
-					
 					try {					
 						DuplicateManager qr = _context.getDuplicateManager();
 						if (null != entry.getDescription()) {
@@ -451,13 +474,17 @@ public class FeedHarvester implements HarvesterInterface
 						if (duplicate && (null != source.getRssConfig()) && (null != source.getRssConfig().getUpdateCycle_secs())) { 
 							// Check modified times...
 							Date dupModDate = qr.getLastDuplicateModifiedTime();
-							if (null != dupModDate) {
+							ObjectId dupId = qr.getLastDuplicateId();
+							
+							if ((null != dupModDate) && (null != dupId)) {
 								if (dupModDate.getTime() + source.getRssConfig().getUpdateCycle_secs()*1000 < nNow) {
+									
 									DocumentPojo doc = buildDocument(entry, source, duplicateSources);
 									if ((nSyndEntries > nRealSyndEntries) && (null != entry.getSource())) {
 										// (Use dummy TitleEx to create a "fake" full text block)
 										doc.setFullText(entry.getSource().getDescription());
 									}
+									doc.setUpdateId(dupId); // (set _id to document I'm going to overwrite) 
 									this.docsToUpdate.add(doc);
 									
 									if ((this.docsToAdd.size() + this.docsToUpdate.size()) >= nMaxDocs) {
@@ -508,7 +535,6 @@ public class FeedHarvester implements HarvesterInterface
 		// create the feed pojo
 		DocumentPojo doc = new DocumentPojo();
 
-		doc.setId(new ObjectId());
 		doc.setUrl(tmpURL);
 		doc.setCreated(new Date());
 		doc.setModified(new Date());

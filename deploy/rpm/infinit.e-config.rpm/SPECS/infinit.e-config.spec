@@ -52,6 +52,9 @@ Infinit.e system configuration
 		iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 80 -j REDIRECT --to-port 8080
 		iptables -A OUTPUT -t nat -p tcp -d localhost --dport 80 -j REDIRECT --to-port 8080
 		iptables -A OUTPUT -t nat -p tcp -d `hostname` --dport 80 -j REDIRECT --to-port 8080
+		iptables -A PREROUTING -t nat -i eth0 -p tcp --dport 443 -j REDIRECT --to-port 8443
+		iptables -A OUTPUT -t nat -p tcp -d localhost --dport 443 -j REDIRECT --to-port 8443
+		iptables -A OUTPUT -t nat -p tcp -d `hostname` --dport 443 -j REDIRECT --to-port 8443
 		service iptables save
 	fi
 	
@@ -173,7 +176,6 @@ Infinit.e system configuration
 %config /mnt/opt/infinite-home/config/log4j.api.properties
 %config /mnt/opt/infinite-home/config/log4j.service.properties
 %config /mnt/opt/infinite-home/config/event_schema.xml
-#%config /mnt/opt/infinite-home/licenses/NOTICE.txt
 %config /mnt/opt/infinite-home/licenses/ThirdPartyNotices_Appliance.pdf
 
 /mnt/opt/infinite-home/scripts/AlchemyLimitExceededAlert.python
@@ -194,3 +196,6 @@ Infinit.e system configuration
 %config %attr(600,root,root) /root/.s3cfg
 %config %attr(600,root,root) /root/.awssecret
 %config %attr(755,root,root) /usr/bin/aws
+
+# system config
+%attr(-,root,root) /etc/logrotate.d/mail

@@ -61,6 +61,7 @@ public class SourceInterface extends ServerResource
 	private String urlStr = null;
 	private int nNumDocsToReturn = 10; // (used for test source)
 	private boolean bReturnFullText = false; // (used for test source)
+	private boolean bRealDedup = false; // (used for test source)
 	
 	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(SourceInterface.class);	
@@ -180,6 +181,10 @@ public class SourceInterface extends ServerResource
 					 if ((null != returnFullText) && ((returnFullText.equalsIgnoreCase("true")) || (returnFullText.equals("1")))) {
 						 bReturnFullText = true;
 					 }
+					 String testUpdates = queryOptions.get("testUpdates");
+					 if ((null != testUpdates) && ((testUpdates.equalsIgnoreCase("true")) || (testUpdates.equals("1")))) {
+						 bRealDedup = true;
+					 }
 					action = "testSource";
 				}
 			}
@@ -254,7 +259,7 @@ public class SourceInterface extends ServerResource
 						 }
 						 else if ( action.equals("testSource") )
 						 {
-							 rp = this.source.testSource(json, nNumDocsToReturn, bReturnFullText, cookieLookup);
+							 rp = this.source.testSource(json, nNumDocsToReturn, bReturnFullText, bRealDedup, cookieLookup);
 						 }
 						 else if ( action.equals("add") )
 						 {

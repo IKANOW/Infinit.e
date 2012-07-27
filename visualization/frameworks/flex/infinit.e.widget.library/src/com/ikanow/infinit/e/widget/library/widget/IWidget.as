@@ -28,7 +28,7 @@
  */
 package com.ikanow.infinit.e.widget.library.widget
 {
-	import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import flash.utils.ByteArray;
 	import mx.collections.ArrayCollection;
 	import org.alivepdf.pdf.PDF;

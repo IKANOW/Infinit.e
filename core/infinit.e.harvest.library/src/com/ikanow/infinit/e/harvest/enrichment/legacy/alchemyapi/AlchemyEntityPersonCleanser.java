@@ -89,8 +89,9 @@ public class AlchemyEntityPersonCleanser {
 		
 		// Just get the entity list out to save a few CPU cycles
 		BasicDBObject outFields = new BasicDBObject(); 
-		outFields.append("entities", 1); 
-		outFields.append("title", 1); // (help with debugging) 
+		outFields.append(DocumentPojo.entities_, 1); 
+		outFields.append(DocumentPojo.url_, 1); // (help with debugging) 
+		outFields.append(DocumentPojo.title_, 1); // (help with debugging) 
 		
 		DBCursor dbc = null;
 		if (nLimit > 0) {
@@ -113,12 +114,12 @@ public class AlchemyEntityPersonCleanser {
 
 				if (bAlterDB) {
 					
-					BasicDBObject inner0 = new BasicDBObject("entities", 
+					BasicDBObject inner0 = new BasicDBObject(DocumentPojo.entities_, 
 							(DBObject)com.mongodb.util.JSON.parse(new Gson().toJson(docu.getEntities())));
-					BasicDBObject inner1 = new BasicDBObject("$set", inner0);
+					BasicDBObject inner1 = new BasicDBObject(MongoDbManager.set_, inner0);
 					
 					// Overwrite the existing entities list with the new one 
-					docsDB.update(new BasicDBObject("_id", docu.getId()), inner1);
+					docsDB.update(new BasicDBObject(DocumentPojo._id_, docu.getId()), inner1);
 					
 				}//TESTED: checked on "Feed: Japan's Three Elections / 4c92863751cc2e59d612000b / 30"
 			}
@@ -350,7 +351,7 @@ public class AlchemyEntityPersonCleanser {
 		
 		//Debug
 		if (_nDebugLevel >= 2) {
-			System.out.println("+++++++ Feed: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getEntities().size());
+			System.out.println("+++++++ Doc: " + doc.getTitle() + " / " + doc.getId() + " / " + doc.getEntities().size());
 		}
 		
 		List<EntityInfo> oneWordEntities = new LinkedList<EntityInfo>();

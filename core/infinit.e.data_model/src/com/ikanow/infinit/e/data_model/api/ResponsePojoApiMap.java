@@ -118,17 +118,29 @@ public class ResponsePojoApiMap implements BasePojoApiMap<ResponsePojo> {
 			
 			if (null != stats) { // It's a query, need to fix a bunch of other params
 				evtTimeline = responseObj.get("eventsTimeline");
+				responseObj.remove("eventsTimeline");
 				facets = responseObj.get("facets");
+				responseObj.remove("facets");
 				times = responseObj.get("times");
+				responseObj.remove("times");
 				entities = responseObj.get("entities");
+				responseObj.remove("entities");
 				events = responseObj.get("events");
+				responseObj.remove("events");
 				facts = responseObj.get("facts");
+				responseObj.remove("facts");
 				summaries = responseObj.get("summaries");
+				responseObj.remove("summaries");
 				sources = responseObj.get("sources");
+				responseObj.remove("sources");
 				sourceMetaTags = responseObj.get("sourceMetatags");
+				responseObj.remove("sourceMetatags");
 				sourceMetaTypes = responseObj.get("sourceMetaTypes");
+				responseObj.remove("sourceMetaTypes");
 				moments = responseObj.get("moments");
+				responseObj.remove("moments");
 				other = responseObj.get("other");
+				responseObj.remove("other");
 			}
 			
 			// End: all the query-only types

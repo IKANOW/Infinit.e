@@ -21,6 +21,8 @@ package com.ikanow.infinit.e.harvest.extraction.document;
 import java.util.Date;
 import java.util.List;
 
+import org.bson.types.ObjectId;
+
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 
 /**
@@ -94,4 +96,8 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	public Date getLastDuplicateModifiedTime() { // (returns an hour ago)
 		return new Date(new Date().getTime() - 3600);
 	}
+	public ObjectId getLastDuplicateId() {
+		return null;
+	}
+
 }

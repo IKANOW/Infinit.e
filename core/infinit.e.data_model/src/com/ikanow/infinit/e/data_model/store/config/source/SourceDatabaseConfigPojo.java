@@ -15,40 +15,40 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.config.source;
 
-import com.ikanow.infinit.e.data_model.InfiniteEnums.DatabaseType;
-
 /**
  * Primary object used to specify the properties for connecting to a database
  * @author cmorgan
  */
 public class SourceDatabaseConfigPojo 
 {	
-	private DatabaseType databaseType = null;	// Type of the database, DB2, Oracle, MySQL, MS SQL Server, or Sybase
+	private String databaseType = null;			// Type of the database, eg DB2, Oracle, MySQL, MS SQL Server, or Sybase
 	private String hostname = null; 			// Name of the server where the database resides, fully qualified domain name
 	private String port = null; 				// Port number on which the database resides and for JDBC to use
 	private String databaseName = null; 		// The name given to the database
 	private String query = null; 				// SQL query to be performed to fully load the data
-	private String deltaQuery = null; 			// SQL query used to update the records based on time element changes
+	private String deltaQuery = null; 			// SQL query used to create new records 
+	private String updateQuery = null; 			// SQL query used to update existing records
 	private String deleteQuery = null; 			// SQL query used to update the index with recently deleted records from database environment
 	private String primaryKey = null; 			// Primary key field, used for mapping db element to system
 	private String primaryKeyValue = null; 		// Primary key value, only used when placing in the feed record
 	private String title = null; 				// Record title field, used for field display purposes
 	private String snippet = null; 				// Record snippet field, used for field display purposes
-	private String publishedDate = null;		// Field to map to feed's publishedDate field
+	private String publishedDate = null;		// Field to map to doc's publishedDate field
+	private String modifiedDate = null;			// Field to map to doc's modified time, and is used for fine-grained updating, if present
 	private Boolean preserveCase = null;		// If true, uses the column case in the metadata, else converts to lower case
 	
 	/**
 	 * Get the type of the database
 	 * @return
 	 */
-	public DatabaseType getDatabaseType() {
+	public String getDatabaseType() {
 		return databaseType;
 	}
 	/**
 	 * Set the database type
 	 * @param databaseType
 	 */
-	public void setDatabaseType(DatabaseType databaseType) {
+	public void setDatabaseType(String databaseType) {
 		this.databaseType = databaseType;
 	}
 	/**
@@ -215,5 +215,17 @@ public class SourceDatabaseConfigPojo
 	}
 	public boolean getPreserveCase() {
 		return (preserveCase == null)?false:preserveCase;
+	}
+	public String getUpdateQuery() {
+		return updateQuery;
+	}
+	public void setUpdateQuery(String updateQuery) {
+		this.updateQuery = updateQuery;
+	}
+	public String getModifiedDate() {
+		return modifiedDate;
+	}
+	public void setModifiedDate(String modifiedDate) {
+		this.modifiedDate = modifiedDate;
 	}
 }

@@ -21,6 +21,16 @@ start()
 	MONGO_IP=$(infdb my_ip)
 	echo "My IP: $MONGO_IP"
 
+	# Allow configurable OPLOGSIZE
+	OPLOGSIZE="20480"
+	if [ -f "/opt/infinite-install/config/infinite.configuration.properties" ]; then
+		TMP=`grep "^db.oplog=" /opt/infinite-install/config/infinite.configuration.properties | sed s/"^[^=]*="// | sed s/"^\s*"// | sed s/"\s*$"//`
+		if [ "$TMP" != "" ]; then
+			OPLOGSIZE="$TMP"
+			echo "Overriding OPLOGSIZE: $OPLOGSIZE"
+		fi	
+	fi
+
 	################################ Config Server Setup #######################################
 	echo "Beginning mongo_infinite start"
 	
@@ -136,7 +146,7 @@ start()
 				fi
 				
 				##Oplog should be 20480MB, if it is smaller, it's for debugging purposes
-				runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.rs$x.log --port $port --logappend --dbpath /data/rs$x --shardsvr --rest --fork --nojournal --oplogSize 20480" >/dev/null 2>&1
+				runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.rs$x.log --port $port --logappend --dbpath /data/rs$x --shardsvr --rest --fork --nojournal --oplogSize $OPLOGSIZE" >/dev/null 2>&1
 				
 				members=$(infdb all_members_of_set $x)
 				num_members=$( echo $members | wc -w )
@@ -273,7 +283,7 @@ EOF
 								#connect to a mongoS instance and inform it of the shard
 								mongo <<EOF
 use admin
-db.runCommand({addShard:"replica_set$x/$this_ip:$port"});
+db.runCommand({"addShard":"replica_set$x/$this_ip:$port"});
 exit
 EOF
 >/dev/null

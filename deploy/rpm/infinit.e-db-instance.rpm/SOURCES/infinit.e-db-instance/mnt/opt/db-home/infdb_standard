@@ -72,7 +72,7 @@ EOF
 		;;
 		kill_db_force)
 			mongo <<EOF admin --port $2
-db.shutdownServer({force:true})
+db.shutdownServer({"force":true})
 exit
 EOF
 		;;

@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1"%>
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1" session="false"%>
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%!
@@ -49,10 +49,17 @@ limitations under the License.
 	if (isLoggedIn) 
 	{	
 		// Capture value in the left handed table filter field
-		if (request.getParameter("listFilter") != null) listFilter = request.getParameter("listFilter");
-		if (request.getParameter("listFilter") == null)
+		if (request.getParameter("listFilter") != null) 
 		{
-			if (request.getParameter("listFilterStr") != null) listFilter = request.getParameter("listFilterStr");
+			listFilter = request.getParameter("listFilter");
+		}
+		else if (request.getParameter("listFilterStr") != null) 
+		{
+			listFilter = request.getParameter("listFilterStr");
+		}
+		else
+		{
+			listFilter = "";
 		}
 		
 		// Determine which action to perform on postback/request
@@ -184,7 +191,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert("<%=messageToDisplay %>");
+		alert('<%=messageToDisplay %>');
 	</script>
 <% 
 	} 
@@ -215,7 +222,7 @@ limitations under the License.
 				<td align="right"><input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="30" value="<%=listFilter %>"/><button name="filterList" 
+					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
 					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
 			</tr>
 			<tr>
@@ -536,8 +543,8 @@ private void clearForm()
 // listItems -
 private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
-	StringBuffer shares = new StringBuffer();
-	Map<String, String[]> listOfShares = getListOfAllShares(request, response);
+	/* StringBuffer shares = new StringBuffer();
+	Map<String, String> listOfShares = getListOfAllShares(request, response);
 	
 	if (listOfShares.size() > 0)
 	{
@@ -626,7 +633,9 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		shares.append("No shares were retrieved");
 	}
 
-	return shares.toString();
+	return shares.toString(); */
+	
+	return null;
 }
 
 

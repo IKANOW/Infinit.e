@@ -50,14 +50,18 @@ EOF
 		;;
 		kill_db_force)
 			mongo <<EOF admin --port $2
-db.shutdownServer({force:true})
+db.shutdownServer({"force":true})
 exit
 EOF
 		;;
 		is_config)
 			is_mongos=$(aws dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
 			if [ "$is_mongos" != "" ]; then
-				echo true
+				if echo "$is_mongos" | grep -q "$this_instance"; then
+					echo true
+				else
+					echo false
+				fi
 			else
 				echo false
 			fi

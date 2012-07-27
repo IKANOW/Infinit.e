@@ -33,9 +33,12 @@ public class StructuredAnalysisConfigPojo
 	private String scriptEngine = null;
 	private String script = null;
 	private String[] scriptFiles = null;
+	private String onUpdateScript = null;
 	private List<EntitySpecPojo> entities = null;
 	private List<AssociationSpecPojo> associations = null;
-	private GeoSpecPojo docGeo = null; 
+	private GeoSpecPojo docGeo = null;
+	private String rejectDocCriteria = null;
+	private String metadataFields = null;
 		
 	/**
 	 * @return the title
@@ -181,6 +184,36 @@ public class StructuredAnalysisConfigPojo
 	
 
 	
+	public void setRejectDocCriteria(String rejectDocCriteria) {
+		this.rejectDocCriteria = rejectDocCriteria;
+	}
+	public String getRejectDocCriteria() {
+		return rejectDocCriteria;
+	}
+
+
+
+
+	public void setOnUpdateScript(String onUpdateScript) {
+		this.onUpdateScript = onUpdateScript;
+	}
+	public String getOnUpdateScript() {
+		return onUpdateScript;
+	}
+
+
+
+
+	public void setMetadataFields(String metadataFields) {
+		this.metadataFields = metadataFields;
+	}
+	public String getMetadataFields() {
+		return metadataFields;
+	}
+
+
+
+
 	/**
 	 * EntitySpecPojo
 	 * Based on EntityPojo, used as a template by the StructuredAnalysisHarvester to
@@ -198,8 +231,10 @@ public class StructuredAnalysisConfigPojo
 		private String frequency = null;
 		private GeoSpecPojo geotag = null;
 		private String ontology_type = null;
-		private Boolean useDocGeo = false;
+		private Boolean useDocGeo = null;
 		private String creationCriteriaScript = null;
+		private String linkdata = null; // Returns space-separated URLs
+		private String sentiment = null;
 		
 		// One entity can be broken out into one or more entities use 
 		// an embedded list of EntitySpecPojos
@@ -315,8 +350,8 @@ public class StructuredAnalysisConfigPojo
 		/**
 		 * @return the useDocGeo
 		 */
-		public Boolean getUseDocGeo() {
-			return useDocGeo;
+		public boolean getUseDocGeo() {
+			return useDocGeo == null ? false : useDocGeo;
 		}
 
 		/**
@@ -354,6 +389,18 @@ public class StructuredAnalysisConfigPojo
 		 */
 		public String getOntology_type() {
 			return ontology_type;
+		}
+		public String getLinkdata() {
+			return linkdata;
+		}
+		public void setLinkdata(String linkdata) {
+			this.linkdata = linkdata;
+		}
+		public String getSentiment() {
+			return sentiment;
+		}
+		public void setSentiment(String sentiment) {
+			this.sentiment = sentiment;
 		}
 	}
 	

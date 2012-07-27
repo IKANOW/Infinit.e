@@ -13,6 +13,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
+/**
+ * <p>Infinit.e</p>
+ *
+ * <p>Copyright (c) 2011 IKANOW, llc.</p>
+ * <p>http://www.ikanow.com</p> 
+ *
+ * <p>NOTICE:  IKANOW permits you to use this this file in accordance with the terms of the license agreement 
+ * accompanying it.  For information about the licensing and copyright of this Plug-In please contact IKANOW, llc. 
+ * at support&#64;ikanow.com.</p>
+ *
+ * <p>http://www.ikanow.com/terms-conditions/</p>
+ * 
+ */
 package com.ikanow.infinit.e.widget.library.utility
 {
 	import flash.external.ExternalInterface;

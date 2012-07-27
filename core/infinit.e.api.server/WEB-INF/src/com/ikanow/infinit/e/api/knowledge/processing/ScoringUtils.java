@@ -955,6 +955,13 @@ public class ScoringUtils
 				f.put(DocumentPojo.score_, qsf.totalScore);
 	
 				BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
+
+				// Handle update ids vs normal ids:
+				ObjectId updateId = (ObjectId) f.get(DocumentPojo.updateId_);
+				if (null != updateId) { // swap the 2...
+					f.put(DocumentPojo.updateId_, f.get(DocumentPojo._id_));
+					f.put(DocumentPojo._id_, updateId);
+				}
 				
 				// Check if entities enabled				
 				if ((null != l) && (!_s0_bGeoEnts && !_s0_bNonGeoEnts)) {

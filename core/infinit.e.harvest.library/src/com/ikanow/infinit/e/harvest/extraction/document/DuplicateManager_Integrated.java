@@ -26,10 +26,14 @@ import java.util.List;
 import java.util.Set;
 import java.util.TreeSet;
 
+import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
+
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -41,6 +45,8 @@ import com.mongodb.DBObject;
  */
 public class DuplicateManager_Integrated implements DuplicateManager {
 
+	private static final Logger logger = Logger.getLogger(DuplicateManager_Integrated.class);	
+	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 // DUPLICATION LOGIC
@@ -55,6 +61,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	private Set<String> _sameConfigurationSources = null;
 	private Set<String> _differentConfigurationSources = null;
+	private Set<String> _sameCommunitySources = null;
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -64,6 +71,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	public void resetForNewSource() {
 		_sameConfigurationSources = null;
 		_differentConfigurationSources = null;
+		_sameCommunitySources = null;
 	}
 
 	/**
@@ -110,6 +118,10 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		return duplicationLogic(query, source, duplicateSources);
 	}	
 
+	public ObjectId getLastDuplicateId() {
+		return _duplicateId;
+	}
+	
 	public Date getLastDuplicateModifiedTime() {
 		return _modifiedTimeOfActualDuplicate;
 	}
@@ -136,16 +148,32 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.sourceUrl_, sourceUrl);
 		addSourceKeyToQueries(query, sourceKey);
+		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
-		int count = collection.find(query).limit(1).count();
+		DBCursor dbc = collection.find(query, fields).limit(1);
+			// (this should be very fast since sourceUrl is indexed ... order doesn't matter as all docs should have the same modified)
 
-		if ( count == 0 ) { //if there is no record, return true
+		if ( dbc.count() == 0 ) { //if there is no record, return true
 			ret = true;
 			modifiedDate.setTime(0);
 		}
-		else{
-			query.put(DocumentPojo.modified_, new BasicDBObject(MongoDbManager.ne_, modifiedDate));
-			ret = !(collection.find(query).limit(1).count() == 0);
+		else{ // (all docs should have same modified, though this is ~ time ordered anyway)
+			
+			BasicDBObject dbo = (BasicDBObject) dbc.iterator().next();
+			Date oldModified = (Date) dbo.get(DocumentPojo.modified_);
+			
+			ret = (modifiedDate.getTime() != oldModified.getTime()); // ie if different -> true -> update docs from sourceUrl
+			
+			if (ret) { //TODO (INF-1520): temporary log for debugging purposes...
+				logger.info("File update: " + sourceUrl + ": new=" + modifiedDate.getTime() + ", old=" + oldModified.getTime());
+				//TODO (INF-1520): temp fix attempt?!
+//				long time1 = modifiedDate.getTime()/10000; // (they only need to be within 10s of each other
+//				long time2 =  oldModified.getTime()/10000;
+//				if (time1 == time2) {
+//					logger.info("(Temp workaround, vetoed file update)");
+//					ret = false;
+//				}
+			}
 		}
 		return ret;
 	}	
@@ -178,8 +206,14 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		duplicateSources.clear();
 		String parentSourceKey = null;
 		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUpdateCycle_secs())) {
-			parentSourceKey = source.getKey(); // (so can saved modified time for later analysis)
-		}//TESTED
+			//RSS and there's a means of updating
+			parentSourceKey = source.getKey(); // (so can saved modified time and update id)
+		}
+		else if (null != source.getFileConfig()) {
+			// File and we're processing XML, normally >1 /file (else just waste some CPU cycles anyway)
+			parentSourceKey = source.getKey(); // (as above)			
+		}//TESTEDx2
+		// TODO (INF-1300): (Leave databases alone until update functionality is implemented, then check if is enabled)
 		
 		LinkedList<String> possibleDups = getCandidateDuplicates(query, parentSourceKey);
 		if (!possibleDups.isEmpty()) {
@@ -203,16 +237,18 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	// Utility function to take DB query and return key information from matching documents
 	
 	private Date _modifiedTimeOfActualDuplicate = null; // (if we have a pure 1-1 duplicate, store its modified time)
+	private ObjectId _duplicateId = null; //  (if we have a pure 1-1 duplicate, store its _id)
 	
 	private LinkedList<String> getCandidateDuplicates(BasicDBObject query, String parentSourceKey) {
 		_modifiedTimeOfActualDuplicate = null;
+		_duplicateId = null;
 		LinkedList<String> returnVal = new LinkedList<String>(); 
 		
 		DBCollection collection = DbManager.getDocument().getMetadata();
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.sourceKey_, 1);
-		fields.put(DocumentPojo._id_, 0);
 		if (null != parentSourceKey) {
 			fields.put(DocumentPojo.modified_, 1);
+			fields.put(DocumentPojo.updateId_, 1);
 		}//TESTED
 		DBCursor dbc = collection.find(query, fields);
 		
@@ -225,9 +261,13 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 					sourceKey = sourceKey.substring(0, nCompositeSourceKey);
 				}//TESTED
 				returnVal.add(sourceKey);
-			}
+			}			
 			if ((null != parentSourceKey) && (parentSourceKey.equalsIgnoreCase(sourceKey))) {
 				_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);
+				_duplicateId = (ObjectId) dbo.get(DocumentPojo.updateId_);
+				if (null == _duplicateId) { // first time, use the _id
+					_duplicateId = (ObjectId) dbo.get(DocumentPojo._id_);
+				}
 			}//TESTED
 		}
 		return returnVal;
@@ -235,22 +275,34 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	// Utility function to return one source containing a document for which this is a duplicate
 	// Returns null if there isn't one
-	// Updates _sameConfigurationSources, _differentConfigurationSources
+	// Updates _sameConfigurationSources, _differentConfigurationSources, _sameCommunitySources
 		
 	private String isFunctionalDuplicate(SourcePojo source, LinkedList<String> candidateSourceKeys) {
 		// (Ensure everything's set up)
 		if (null == _sameConfigurationSources) {
 			_sameConfigurationSources = new TreeSet<String>();
 			_differentConfigurationSources = new TreeSet<String>();				
+			_sameCommunitySources = new TreeSet<String>();
 		}
 		if (null == source.getShah256Hash()) {
 			source.generateShah256Hash();
 		}
+		
 		// See if we've cached something:
 		String returnVal = null;
 		Iterator<String> it = candidateSourceKeys.iterator(); 
 		while (it.hasNext()) {
 			String sourceKey = it.next();
+			
+			if (!source.getDuplicateExistingUrls()) {
+				// Check _sameCommunitySources: ignore+carry on if sourceKey isn't in here, else 
+				// return sourceKey, which will treat as a non-update duplicate (non update because 
+				// the update params only set if it was an update duplicate)
+				if (_sameCommunitySources.contains(sourceKey)) {
+					return source.getKey(); // (ie return fake source key that will cause above logic to occur)
+				}
+			}//TESTED
+			
 			if (sourceKey.equalsIgnoreCase(source.getKey())) {
 				return sourceKey; // (the calling function will then treat it as a duplicate)
 			}
@@ -261,6 +313,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 				it.remove(); // (don't need to check this source out)
 			}
 		}//TESTED
+		boolean bMatchedInCommunity = false; // (duplication logic below)
 		if ((null == returnVal) && !candidateSourceKeys.isEmpty()) {
 			
 			// Need to query the DB for this source...			
@@ -268,10 +321,27 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			query.put(SourcePojo.key_, new BasicDBObject(MongoDbManager.in_, candidateSourceKeys.toArray()));
 			BasicDBObject fields = new BasicDBObject(SourcePojo._id_, 0);
 			fields.put(SourcePojo.key_, 1);
+			if (!source.getDuplicateExistingUrls()) {
+				fields.put(SourcePojo.communityIds_, 1);				
+			}
 			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);
 			while (dbc.hasNext()) {
 				BasicDBObject dbo = (BasicDBObject) dbc.next();
 				String sSourceKey = dbo.getString(SourcePojo.key_);
+				
+				// DON'T DEDUP LOGIC:
+				if (!source.getDuplicateExistingUrls()) { 
+					BasicDBList communities = (BasicDBList) dbo.get(SourcePojo.communityIds_);
+					for (Object communityIdObj: communities) {
+						ObjectId communityId = (ObjectId) communityIdObj;
+						if (source.getCommunityIds().contains(communityId)) { // Not allowed to duplicate off this
+							_sameCommunitySources.add(sSourceKey);
+							bMatchedInCommunity = true;
+						}
+					}
+				}//(end "don't duplicate existing URLs logic")
+				//TESTED (same community and different communities)
+				
 				if (null != sSourceKey) {
 					_sameConfigurationSources.add(sSourceKey);
 					returnVal = sSourceKey; // (overwrite prev value, doesn't matter since this property is obv transitive)
@@ -284,7 +354,12 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 				}
 			}			
 		}//TESTED
-		return returnVal;
+		if (bMatchedInCommunity) {
+			return source.getKey(); // (ie return fake source key that will cause above logic to occur)
+		}
+		else {
+			return returnVal;
+		}
 		
 	}//TESTED (created different types of duplicate, put print statements in, tested by hand)
 

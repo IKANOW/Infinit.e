@@ -19,6 +19,12 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 import java.net.URL;
 
+import javax.script.ScriptEngine;
+import javax.script.ScriptException;
+
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
+
 /**
  * JavaScriptUtils
  * @author cvitter
@@ -28,8 +34,14 @@ public class JavaScriptUtils
 	// initScript - used to pass document in to the script engine
 	public static String initScript = "var _doc = eval('(' + document + ')'); \n";
 	
+	// initScript - used to pass document in to the script engine
+	public static String initOnUpdateScript = "var _old_doc = eval('(' + old_document + ')'); \n";
+	
 	// scripts to pass entity and event json objects into javascript methods
 	public static String iteratorDocScript = "var _iterator = eval('(' + _iterator + ')'); \n";
+	
+	// scripts to pass entity and event json objects into javascript methods
+	public static String iteratorMetaScript = "var _metadata = eval('(' + _metadata + ')'); \n";
 	
 	// genericFunctionCall - all functions passed in via $SCRIPT get the following name
 	public static String genericFunctionCall = "getValue";
@@ -113,4 +125,94 @@ public class JavaScriptUtils
 		return javaScript.toString();
 	}
 
+	// Generate a script to convert the native JS objects into something
+	// we can parse (NativeObject and NativeArrays can't be handled at the "user level" annoyingly)
+
+	public static String generateParsingScript() {
+		StringBuffer sbSub1 = new StringBuffer();
+		sbSub1.append("function s1(el) {").append('\n');
+		sbSub1.append("if (el == null) {}").append('\n');
+		sbSub1.append("else if (el instanceof Array) {").append('\n');
+		sbSub1.append("s2(el, 1);").append('\n');
+		sbSub1.append("}").append('\n');
+		sbSub1.append("else if (typeof el == 'object') {").append('\n');
+		sbSub1.append("outList.add(s3(el));").append('\n');
+		sbSub1.append("}").append('\n');
+		sbSub1.append("else {").append('\n');
+		sbSub1.append("outList.add(el.toString());").append('\n');
+		sbSub1.append("}").append('\n');
+		sbSub1.append("}").append('\n');
+
+		StringBuffer sbSub2 = new StringBuffer();
+		sbSub2.append("function s2(el, master_list) {").append('\n');
+		sbSub2.append(
+				"var list = (1 == master_list)?outList:listFactory.clone();")
+				.append('\n');
+		sbSub2.append("for (var i = 0; i < el.length; ++i) {").append('\n');
+		sbSub2.append("var subel = el[i];").append('\n');
+		sbSub2.append("if (subel == null) {}").append('\n');
+		sbSub2.append("else if (subel instanceof Array) {").append('\n');
+		sbSub2.append("list.add(s2(subel, 0));").append('\n');
+		sbSub2.append("}").append('\n');
+		sbSub2.append("else if (typeof subel == 'object') {").append('\n');
+		sbSub2.append("list.add(s3(subel));").append('\n');
+		sbSub2.append("}").append('\n');
+		sbSub2.append("else {").append('\n');
+		sbSub2.append("list.add(subel.toString());").append('\n');
+		sbSub2.append("}").append('\n');
+		sbSub2.append("}").append('\n');
+		sbSub2.append("return list; }").append('\n');
+
+		StringBuffer sbSub3 = new StringBuffer();
+		sbSub3.append("function s3(el) {").append('\n');
+		sbSub3.append("el.constructor.toString();").append("\n"); // Will crash out if is too complex
+		sbSub3.append("var currObj = objFactory.clone()").append('\n');
+		sbSub3.append("for (var prop in el) {").append('\n');
+		sbSub3.append("var subel = el[prop];").append('\n');
+		sbSub3.append("if (subel == null) {}").append('\n');
+		sbSub3.append("else if (subel instanceof Array) {").append('\n');
+		sbSub3.append("currObj.put(prop, s2(subel, 0));").append('\n');
+		sbSub3.append("}").append('\n');
+		sbSub3.append("else if (typeof subel == 'object') {").append('\n');
+		sbSub3.append("currObj.put(prop, s3(subel));").append('\n');
+		sbSub3.append("}").append('\n');
+		sbSub3.append("else {").append('\n');
+		sbSub3.append("currObj.put(prop, subel.toString());").append('\n');
+		sbSub3.append("}").append('\n');
+		sbSub3.append("}").append('\n');
+		sbSub3.append("return currObj; }").append('\n');
+
+		StringBuffer sbMain = new StringBuffer();
+		sbMain.append(sbSub1);
+		sbMain.append(sbSub2);
+		sbMain.append(sbSub3);
+
+		return sbMain.toString();
+	}// TESTED (including null values, converts to string)
+
+	// Convert a native JS complex object into a JSON-like map
+	
+	public static BasicDBList parseNativeJsObject(Object returnVal, ScriptEngine engine) throws ScriptException
+	{		
+		try {
+			engine.put("output", returnVal);
+			
+			BasicDBObject objFactory = new BasicDBObject();
+			BasicDBList listFactory = new BasicDBList();
+			BasicDBList outList = new BasicDBList();
+			engine.put("objFactory", objFactory);
+			engine.put("listFactory", listFactory);
+			engine.put("outList", outList);
+	
+			engine.eval("s1(output);");
+
+			return outList;
+		}
+		catch (Exception e) {
+			throw new RuntimeException("1 Cannot parse return non-JSON object: " + 
+										returnVal.getClass().toString() + ":" + returnVal.toString() + 
+										"; if embedding JAVA, considering using eg \"X = '' + X\" to convert back to native JS strings.");
+		}
+	}
+	
 }

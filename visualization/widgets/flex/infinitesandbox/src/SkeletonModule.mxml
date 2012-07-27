@@ -36,7 +36,7 @@
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
-			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			import mx.collections.ArrayCollection;

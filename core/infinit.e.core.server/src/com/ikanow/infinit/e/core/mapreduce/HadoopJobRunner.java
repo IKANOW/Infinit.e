@@ -29,18 +29,25 @@ import java.net.InetSocketAddress;
 import java.net.URL;
 import java.net.URLConnection;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
+import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobStatus;
+import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -48,12 +55,25 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.api.knowledge.QueryHandler;
+import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.api.ApiManager;
+import com.ikanow.infinit.e.data_model.api.ResponsePojo;
+import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo.SCHEDULE_FREQUENCY;
+import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.gridfs.GridFSDBFile;
@@ -61,12 +81,24 @@ import com.mongodb.gridfs.GridFSDBFile;
 
 public class HadoopJobRunner
 {
+	private static Logger _logger = Logger.getLogger(HadoopJobRunner.class);
 	private com.ikanow.infinit.e.processing.custom.utils.PropertiesManager prop_custom = new com.ikanow.infinit.e.processing.custom.utils.PropertiesManager();
 	private com.ikanow.infinit.e.data_model.utils.PropertiesManager prop_general = new com.ikanow.infinit.e.data_model.utils.PropertiesManager();
+	final long MS_IN_DAY = 86400000;
+	final long SECONDS_60 = 60000;
+	
+	private boolean bHadoopEnabled = true;
 	
 	public HadoopJobRunner()
 	{
-		
+		try {
+			@SuppressWarnings("unused")
+			JobClient jc = new JobClient(getJobClientConnection(), new Configuration());
+		}
+		catch (Exception e) { // Hadoop doesn't work
+			System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
+			bHadoopEnabled = false;
+		}		
 	}
 	
 	public void runScheduledJobs()
@@ -76,33 +108,134 @@ public class HadoopJobRunner
 		while ( job != null )
 		{
 			//Run each job				
-			System.out.println("Running job: " + job.jarURL);
 			runJob(job);
 			//try to get another available job
 			job = getJobsToRun();
 		}
 	}
 	
+	private List<ObjectId> getUserCommunities(ObjectId submitterId) {
+		// Set up the query
+		PersonPojo personQuery = new PersonPojo();
+		personQuery.set_id(submitterId);
+		
+		BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getPerson().findOne(personQuery.toDb());
+		PersonPojo person = PersonPojo.fromDb(dbo, PersonPojo.class);
+		
+		if (null == person) {
+			throw new RuntimeException("User no longer exists?");
+		}
+		if ((null == person.getCommunities()) || person.getCommunities().isEmpty()) {
+			throw new RuntimeException("Corrupt user, no community access?");
+		}
+		ArrayList<ObjectId> retVal = new ArrayList<ObjectId>(person.getCommunities().size());
+		for (PersonCommunityPojo personInfo: person.getCommunities()) {
+			retVal.add(personInfo.get_id());
+		}
+		return retVal;
+	}
+	
 	private void runJob(CustomMapReduceJobPojo job)
 	{
+		long time_start_setup = new Date().getTime();
+		long time_setup = 0;
 		try
 		{
-			shardOutputCollection(job.outputCollection);
+			shardOutputCollection(job);
+			
+			// This may be a saved query, if so handle that separately
+			if (null == job.jarURL) {
+				runSavedQuery(job);
+				return;
+			}
+			
+			List<ObjectId> communityIds = getUserCommunities(job.submitterID);
+			
 			//get the jar file
-			String tempJarURL = downloadJarFile(job.jarURL, job.communityIds);		
+			job.tempJarLocation = downloadJarFile(job.jarURL, communityIds);		
 			//add job to hadoop
-			String jobid = runHadoopJob(job, tempJarURL);
-			//write jobid back to lookup
-			String[] jobParts = jobid.split("_");
-			String jobS = jobParts[1];
-			int jobN = Integer.parseInt( jobParts[2] );	
-			updateJobPojo(job._id, jobS, jobN, job.tempConfigXMLLocation, tempJarURL);
+			String jobid = runHadoopJob(job, job.tempJarLocation);
+			if ( jobid != null && !jobid.startsWith("Error") )
+			{
+				time_setup = new Date().getTime() - time_start_setup;
+				_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=true job_hadoop_id=" + jobid);
+				//write jobid back to lookup
+				String[] jobParts = jobid.split("_");
+				String jobS = jobParts[1];
+				int jobN = Integer.parseInt( jobParts[2] );	
+				updateJobPojo(job._id, jobS, jobN, job.tempConfigXMLLocation, job.tempJarLocation);
+			}
+			else
+			{
+				time_setup = new Date().getTime() - time_start_setup;
+				_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=false");
+				//job failed, send off the error message
+				setJobComplete(job, true, true, -1, -1, jobid);
+			}
 		}
 		catch(Exception ex)
-		{
-			System.out.println("Failed to run scheduled job\nException: ");
-			ex.printStackTrace();
+		{			
+			//job failed, send off the error message
+			time_setup = new Date().getTime() - time_start_setup;
+			_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=false job_setup_message=" + HarvestExceptionUtils.createExceptionMessage(ex) );
+			setJobComplete(job, true, true, -1, -1, ex.getMessage());
 		}
+	}
+
+	//
+	// Instead of running a MR job, this will just execute the specified saved query
+	//
+	
+	private void runSavedQuery(CustomMapReduceJobPojo savedQuery) {
+				
+		// Run saved query:
+		
+		QueryHandler queryHandler = new QueryHandler();
+		
+		// Create query object
+		
+		ResponsePojo rp = null;
+		StringBuffer errorString = new StringBuffer("Saved query error");
+		try {
+			AdvancedQueryPojo query = QueryHandler.createQueryPojo(savedQuery.query);
+			StringBuffer communityIdStrList = new StringBuffer();
+			for (ObjectId commId: savedQuery.communityIds) {
+				if (communityIdStrList.length() > 0) {
+					communityIdStrList.append(',');
+				}
+				communityIdStrList.append(commId.toString());
+			}
+			rp = queryHandler.doQuery(savedQuery.submitterID.toString(), query, communityIdStrList.toString(), errorString);
+		} catch (Exception e) {
+			errorString.append(": " + e.getMessage());
+		}
+		if ((null == rp) || (null == rp.getResponse())) { // (this is likely some sort of internal error)
+			if (null == rp) {
+				rp = new ResponsePojo();
+			}
+			rp.setResponse(new ResponseObject("Query", false, "Unknown error"));
+		}
+		if (!rp.getResponse().isSuccess()) {
+			setJobComplete(savedQuery, true, true, -1, -1, errorString.append('/').append(rp.getResponse().getMessage()).toString());
+			return;
+		}
+	
+		try {		
+			// Write to the temp output collection:
+		
+			DBCollection dbTemp =  DbManager.getCollection("custommr", savedQuery.outputCollectionTemp);
+			BasicDBObject outObj = new BasicDBObject();
+			outObj.put("_id", new Date()); // (this gets renamed to "key")
+			outObj.put("value", com.mongodb.util.JSON.parse(BaseDbPojo.getDefaultBuilder().create().toJson(rp)));
+			dbTemp.save(outObj);
+		}
+		catch (Exception e) { // Any sort of error, just make sure we set the job to complete			
+			setJobComplete(savedQuery, true, true, 1, 1, e.getMessage());							
+			return;
+		}
+		// Update job status
+		
+		setJobComplete(savedQuery, true, false, 1, 1, ApiManager.mapToApi(rp.getStats(), null));							
 	}
 	
 	/**
@@ -112,15 +245,24 @@ public class HadoopJobRunner
 	 * 
 	 * @param outputCollection
 	 */
-	private void shardOutputCollection(String outputCollection) 
+	private void shardOutputCollection(CustomMapReduceJobPojo job) 
 	{
-		System.out.println("Sharding output collection on _id");
 		//enable sharding for the custommr db incase it hasn't been
 		DbManager.getDB("admin").command(new BasicDBObject("enablesharding", "custommr"));
 		//enable sharding for the output collection
-		BasicDBObject command = new BasicDBObject("shardcollection", "custommr." + outputCollection);
-		command.append("key", new BasicDBObject("_id", 1));
-		DbManager.getDB("admin").command(command);		
+		if ( job.outputCollection != null )
+		{
+			BasicDBObject command = new BasicDBObject("shardcollection", "custommr." + job.outputCollection);
+			command.append("key", new BasicDBObject("_id", 1));
+			DbManager.getDB("admin").command(command);
+		}
+		//enable sharding on temp output collection
+		if ( job.outputCollectionTemp != null )
+		{
+			BasicDBObject command1 = new BasicDBObject("shardcollection", "custommr." + job.outputCollectionTemp);
+			command1.append("key", new BasicDBObject("_id", 1));
+			DbManager.getDB("admin").command(command1);
+		}
 	}
 
 	/**
@@ -137,7 +279,6 @@ public class HadoopJobRunner
 		String shareStringOLD = "$infinite/share/get/";
 		String shareStringNEW = "$infinite/social/share/get/";
 		String tempFileName = assignNewJarLocation();
-		System.out.println("Downloading jar: " + jarURL + " and saving at: " + tempFileName);
 		OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
 		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW))
 		{
@@ -151,11 +292,13 @@ public class HadoopJobRunner
 			{
 				shareid = jarURL.substring(shareStringNEW.length());
 			}
-			System.out.println("Getting shareid: " + shareid);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(shareid));
-			query.put("communities._id", new BasicDBObject("$in", communityIds));
+			query.put("communities._id", new BasicDBObject(MongoDbManager.in_, communityIds));
 
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
+			if (null == share) {
+				throw new RuntimeException("Can't find JAR file or insufficient permissions");
+			}
 			if ( share.getBinaryId() != null )
 			{			
 				GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
@@ -182,13 +325,11 @@ public class HadoopJobRunner
 			in.close();
 		}
 		out.close();
-		System.out.println("Done downloading");
 		return tempFileName;
 	}
 
 	private void updateJobPojo(ObjectId _id, String jobids, int jobidn, String xmlLocation, String jarLocation)
 	{
-		System.out.println("Updating job pojo");
 		try
 		{			
 			BasicDBObject set = new BasicDBObject();
@@ -196,7 +337,8 @@ public class HadoopJobRunner
 			set.append("jobidN", jobidn);
 			set.append("tempConfigXMLLocation", xmlLocation);
 			set.append("tempJarLocation",jarLocation);
-			BasicDBObject updateObject = new BasicDBObject("$set",set);
+			set.append("errorMessage", null);
+			BasicDBObject updateObject = new BasicDBObject(MongoDbManager.set_,set);
 			DbManager.getCustom().getLookup().update(new BasicDBObject("_id", _id), updateObject);		
 		}
 		catch (Exception ex)
@@ -208,16 +350,14 @@ public class HadoopJobRunner
 	private String runHadoopJob(CustomMapReduceJobPojo job, String jar)
 	{
 		String jobid = null;
-		job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job.outputCollection,job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, job.query, job.communityIds, job.isCustomTable, job.outputKey, job.outputValue);
 		try
 		{				
-			System.out.println("Setting up Hadoop job");
+			job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, job.query, job.communityIds, job.isCustomTable, job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", prop_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
 			for (String s : commands )
 				command += s + " ";
-			System.out.println("Running command: " + command);
 			Process pr = rt.exec(commands);
 			
 			//Once we start running the command attach to stderr to
@@ -225,12 +365,15 @@ public class HadoopJobRunner
 			InputStream in = pr.getErrorStream();			
 			InputStreamReader is = new InputStreamReader(in);
 			BufferedReader br = new BufferedReader(is);
+			StringBuilder output = new StringBuilder();
 	        String line = null;
 
-	        boolean bGotJobId = false;
-	        
-	        while (!bGotJobId && (line = br.readLine()) != null) 
-	        {
+	        long startTime = new Date().getTime();
+	        boolean bGotJobId = false;	        
+	        //while we haven't found the id, there are still lines to read, and it hasn't been more than 60 seconds
+	        while (!bGotJobId && (line = br.readLine()) != null && (new Date().getTime() - startTime) < SECONDS_60 ) 
+	        {	        	
+	        	output.append(line);
 	        	int getJobIdIndex = -1;  
 	        	String searchstring = "INFO mapred.JobClient: Running job: ";
 	        	if ((getJobIdIndex = line.indexOf(searchstring)) >= 0) 
@@ -239,14 +382,22 @@ public class HadoopJobRunner
 	        		jobid = line.substring(getJobIdIndex + searchstring.length()).trim();
 	        		bGotJobId = true;
 	        	}
-	        }       
+	        }    
+	        
+	        //60 seconds passed and we never found the id
+	        if ( !bGotJobId )
+	        {
+	        	_logger.info("job_start_timeout_error_title=" + job.jobtitle + " job_start_timeout_error_id=" + job._id.toString() + " job_start_timeout_error_message=" + output.toString());
+	        	//if we never found the id mark it as errored out
+	        	return "Error:\n" + output.toString();
+	        }
 		}
 		catch (Exception ex)
 		{
 			//had an error running command
 			//probably log error to the job so we stop trying to run it
-			System.out.println("bombs away");
-			ex.printStackTrace();
+			_logger.info("job_start_timeout_error_title=" + job.jobtitle + " job_start_timeout_error_id=" + job._id.toString() + " job_start_timeout_error_message=" + HarvestExceptionUtils.createExceptionMessage(ex));
+			jobid = "Error:\n" + ex.getMessage(); // (means this gets displayed)			
 		}
 		return jobid;
 	}
@@ -257,84 +408,121 @@ public class HadoopJobRunner
 	 * 
 	 * @param input
 	 * @param output
+	 * @throws IOException 
 	 */
-	private String createConfigXML(String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputKey, String outputValue)
+	private String createConfigXML( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputKey, String outputValue, String tempOutputCollection, String arguments) throws IOException
 	{		
 		//outputValue = "org.apache.hadoop.io.DoubleWritable";
 		//outputKey = "org.apache.hadoop.io.Text";
-		output = "custommr." + output;
+		output = "custommr." + tempOutputCollection;
 
 		//add communities to query if this is not a custom table
 		if ( !isCustomTable )
 		{
-			if ( query.equals("") )
-			{
-				query = "{";
+			// Start with the old query:
+			BasicDBObject oldQueryObj = null;
+			if (query.startsWith("{")) {
+				oldQueryObj = (BasicDBObject) com.mongodb.util.JSON.parse(query);
 			}
-			else
-			{
-				query = query.substring(0, query.lastIndexOf("}")) + ", ";
+			else {
+				oldQueryObj = new BasicDBObject();
 			}
-			String commQuery = "\"communityId\": {\"$in\": [";		
-			for ( ObjectId oid : communityIds)
-				commQuery += "{ \"$oid\":\""+oid.toString()+"\"}, ";
-			commQuery = commQuery.substring(0, commQuery.length()-2);
-			commQuery += "]}";
-			query += commQuery + "}";
+			
+			// Community Ids aren't indexed in the metadata collection, but source keys are, so we need to transform to that
+			BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
+			BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
+			DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields);
+			HashSet<String> sourceKeys = new HashSet<String>();
+			while (dbc.hasNext()) {
+				DBObject dbo = dbc.next();
+				String sourceKey = (String) dbo.get(SourcePojo.key_);
+				if (null != sourceKey) {
+					sourceKeys.add(sourceKey);
+				}
+			}
+			if (sourceKeys.isEmpty()) { // query returns empty
+				throw new RuntimeException("Communities contain no sources");
+			}
+			BasicDBObject newQueryClauseObj = new BasicDBObject(DbManager.in_, sourceKeys);
+			// Now combine the queries...
+			Object conflictClauseObj = (Object) oldQueryObj.remove(DocumentPojo.sourceKey_);
+			if (null == conflictClauseObj) {
+				oldQueryObj.put(DocumentPojo.sourceKey_, newQueryClauseObj);
+			}
+			else {
+				oldQueryObj.put(DbManager.and_,
+						Arrays.asList(
+								new BasicDBObject(DocumentPojo.sourceKey_, newQueryClauseObj),
+								new BasicDBObject(DocumentPojo.sourceKey_, conflictClauseObj)));
+			}
+			query = oldQueryObj.toString();
 		}
-		
-		System.out.println("Creating XML config file using\n" +
-				"jobname: " + title + "\n" +
-				"mapper: " + mapper + "\n" +
-				"reducer: " + reducer + "\n" +
-				"combiner: " + combiner + "\n" +
-				"query: " + query + "\n" +
-				"outputKey: " + outputKey + "\n" +
-				"outputValue: " + outputValue);
-		
-		try
+		else
 		{
-			if ( configLocation == null )
-				configLocation = assignNewConfigLocation();
-			File configFile = new File(configLocation);
-			FileWriter fstream = new FileWriter(configFile);
-			BufferedWriter out = new BufferedWriter(fstream);
-			String dbserver = prop_general.getDatabaseServer();
-			out.write("<?xml version=\"1.0\"?>\n<configuration>"+
-					"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
-					"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
-					"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>"+
-					"\n\t<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://"+dbserver+"/"+input+"</value></property>"+  
-					"\n\t<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://"+dbserver+"/"+output+"</value>  </property>"+  
-					"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + query + "</value></property>"+
-					"\n\t<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value></value></property>"+
-					"\n\t<property><!-- A JSON sort specification for read [OPTIONAL] --><name>mongo.input.sort</name><value></value></property>"+
-					"\n\t<property><!-- The number of documents to limit to for read [OPTIONAL] --><name>mongo.input.limit</name><value>0</value><!-- 0 == no limit --></property>"+
-					"\n\t<property><!-- The number of documents to skip in read [OPTIONAL] --><!-- TODO - Are we running limit() or skip() first? --><name>mongo.input.skip</name><value>0</value> <!-- 0 == no skip --></property>"+
-					"\n\t<property><!-- Class for the mapper --><name>mongo.job.mapper</name><value>"+ mapper+"</value></property>"+
-					"\n\t<property><!-- Reducer class --><name>mongo.job.reducer</name><value>"+reducer+"</value></property>"+
-					"\n\t<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.mongodb.hadoop.MongoInputFormat</value></property>"+
-					"\n\t<property><!-- OutputFormat Class --><name>mongo.job.output.format</name><value>com.mongodb.hadoop.MongoOutputFormat</value></property>"+
-					"\n\t<property><!-- Output key class for the output format --><name>mongo.job.output.key</name><value>"+outputKey+"</value></property>"+
-					"\n\t<property><!-- Output value class for the output format --><name>mongo.job.output.value</name><value>"+outputValue+"</value></property>"+
-					"\n\t<property><!-- Output key class for the mapper [optional] --><name>mongo.job.mapper.output.key</name><value></value></property>"+
-					"\n\t<property><!-- Output value class for the mapper [optional] --><name>mongo.job.mapper.output.value</name><value></value></property>"+
-					"\n\t<property><!-- Class for the combiner [optional] --><name>mongo.job.combiner</name><value>"+combiner+"</value></property>"+
-					"\n\t<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>"+
-					"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
-					"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
-					"\n</configuration>");
-			out.flush();
-			out.close();
-			fstream.close();
-		}
-		catch (Exception ex)
-		{
-			//error writing xml file
-			System.out.println("Error creating temporarily xml file");
+			//get the custom table
+			input = "custommr." + getCustomCollection(input);
 		}		
+		
+		if ( configLocation == null )
+			configLocation = assignNewConfigLocation();
+		
+		if ( arguments == null )
+			arguments = "";
+		
+		File configFile = new File(configLocation);
+		FileWriter fstream = new FileWriter(configFile);
+		BufferedWriter out = new BufferedWriter(fstream);
+		String dbserver = prop_general.getDatabaseServer();
+		out.write("<?xml version=\"1.0\"?>\n<configuration>"+
+				"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
+				"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
+				"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>"+
+				"\n\t<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://"+dbserver+"/"+input+"</value></property>"+  
+				"\n\t<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://"+dbserver+"/"+output+"</value>  </property>"+  
+				"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + query + "</value></property>"+
+				"\n\t<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value></value></property>"+
+				"\n\t<property><!-- A JSON sort specification for read [OPTIONAL] --><name>mongo.input.sort</name><value></value></property>"+
+				"\n\t<property><!-- The number of documents to limit to for read [OPTIONAL] --><name>mongo.input.limit</name><value>0</value><!-- 0 == no limit --></property>"+
+				"\n\t<property><!-- The number of documents to skip in read [OPTIONAL] --><!-- TODO - Are we running limit() or skip() first? --><name>mongo.input.skip</name><value>0</value> <!-- 0 == no skip --></property>"+
+				"\n\t<property><!-- Class for the mapper --><name>mongo.job.mapper</name><value>"+ mapper+"</value></property>"+
+				"\n\t<property><!-- Reducer class --><name>mongo.job.reducer</name><value>"+reducer+"</value></property>"+
+				"\n\t<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.mongodb.hadoop.MongoInputFormat</value></property>"+
+				"\n\t<property><!-- OutputFormat Class --><name>mongo.job.output.format</name><value>com.mongodb.hadoop.MongoOutputFormat</value></property>"+
+				"\n\t<property><!-- Output key class for the output format --><name>mongo.job.output.key</name><value>"+outputKey+"</value></property>"+
+				"\n\t<property><!-- Output value class for the output format --><name>mongo.job.output.value</name><value>"+outputValue+"</value></property>"+
+				"\n\t<property><!-- Output key class for the mapper [optional] --><name>mongo.job.mapper.output.key</name><value></value></property>"+
+				"\n\t<property><!-- Output value class for the mapper [optional] --><name>mongo.job.mapper.output.value</name><value></value></property>"+
+				"\n\t<property><!-- Class for the combiner [optional] --><name>mongo.job.combiner</name><value>"+combiner+"</value></property>"+
+				"\n\t<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>"+
+				"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
+				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
+				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
+				"\n</configuration>");
+		out.flush();
+		out.close();
+		fstream.close();
+			
 		return configLocation;
 	}	
+	
+	/**
+	 * Returns the current output collection for a certain jobid
+	 * This is usually used when a custom input collection is set for a job because
+	 * the output collection of another job can change regularly.
+	 * 
+	 * @param jobid
+	 * @return
+	 */
+	private String getCustomCollection(String jobid)
+	{
+		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("_id", new ObjectId(jobid)));
+		if ( dbo != null )
+		{
+			CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+			return cmr.outputCollection;
+		}
+		return null;
+	}
 	
 	/**
 	 * Returns a new xml file name following the format
@@ -410,11 +598,46 @@ public class HadoopJobRunner
 		{
 			BasicDBObject query = new BasicDBObject();
 			query.append("jobidS", null);
-			query.append("nextRunTime", new BasicDBObject("$lt", new Date().getTime()));
-			System.out.println("Finding any jobs that need ran after: " + new Date().getTime());
+			query.append("waitingOn", new BasicDBObject(MongoDbManager.size_, 0)); 
+			query.append("nextRunTime", new BasicDBObject(MongoDbManager.lt_, new Date().getTime()));
+			if (!bHadoopEnabled) {
+				// Can only get shared queries:
+				query.append("jarURL", null);
+			}
 			BasicDBObject updates = new BasicDBObject("jobidS", "");
 			updates.append("lastRunTime", new Date());
-			BasicDBObject update = new BasicDBObject("$set", updates);
+			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, updates);
+			DBObject dbo = DbManager.getCustom().getLookup().findAndModify(query, update);
+
+			if ( dbo != null )
+			{		
+				return CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+			}
+		}
+		catch(Exception ex)
+		{
+			//oh noes!
+			ex.printStackTrace();
+		}
+		
+		return null;
+	}
+	
+	private CustomMapReduceJobPojo getJobsToMakeComplete()
+	{
+		try
+		{						
+			BasicDBObject query = new BasicDBObject();
+			BasicDBObject nors[] = new BasicDBObject[2];
+			nors[0] = new BasicDBObject("jobidS", null);
+			nors[1] = new BasicDBObject("jobidS", "CHECKING_COMPLETION");
+			query.put("$nor", Arrays.asList(nors));					
+			BasicDBObject updates = new BasicDBObject("jobidS", "CHECKING_COMPLETION");			
+			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, updates);
+			if (!bHadoopEnabled) {
+				// Can only get shared queries:
+				query.append("jarURL", null);
+			}
 			DBObject dbo = DbManager.getCustom().getLookup().findAndModify(query, update);
 
 			if ( dbo != null )
@@ -436,34 +659,58 @@ public class HadoopJobRunner
 	 */
 	public void updateJobStatus() 
 	{
-		System.out.println("Finding any hadoop jobs and checking status");
+		Map<ObjectId, String> incompleteJobsMap = new HashMap<ObjectId, String>();
 		//get mongo entries that have jobids?
 		try
 		{
-			JobClient jc = null;			
-			DBCursor dbc = DbManager.getCustom().getLookup().find(new BasicDBObject("jobidS", new BasicDBObject("$ne", null)));
-			while (dbc.hasNext())
-			{
-				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbc.next(), CustomMapReduceJobPojo.class);
+			JobClient jc = null;
+			
+			CustomMapReduceJobPojo cmr = getJobsToMakeComplete();
+			while (cmr != null)
+			{		
+				boolean markedComplete = false;
 				//make sure its an actual ID, we now set jobidS to "" when running the job
 				if ( !cmr.jobidS.equals("") )
 				{
-					if (null == jc) {
-						jc = new JobClient(getJobClientConnection(), new Configuration());						
-					}					
-					System.out.println("Checking if job: " + cmr.jobidS + cmr.jobidN + " is complete");
-					//check if job is done, and update if it is	
+					if (null == jc) 
+					{
+						try 
+						{
+							jc = new JobClient(getJobClientConnection(), new Configuration());
+						}
+						catch (Exception e) 
+						{ 
+							// Better delete this, no idea what's going on....						
+							_logger.info("job_update_status_error_title=" + cmr.jobtitle + " job_update_status_error_id=" + cmr._id.toString() + " job_update_status_error_message=Skipping job: " + cmr.jobidS + cmr.jobidN + ", this node does not run mapreduce");							
+							setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error (check configuration in  /opt/hadoop-infinite/mapreduce/hadoop/, jobtracker may be localhost?).");							
+							cmr = getJobsToMakeComplete();
+							continue;
+						}
+					}
+					
+					//check if job is done, and update if it is					
 					JobStatus[] jobs = jc.getAllJobs();
 					for ( JobStatus j : jobs )
 					{
 						if ( j.getJobID().getJtIdentifier().equals(cmr.jobidS) && j.getJobID().getId() == cmr.jobidN )
 						{
-							if ( j.isJobComplete() )
-								setJobComplete(cmr);
+							boolean error = false;
+							markedComplete = j.isJobComplete();
+							String errorMessage = null;
+							if ( JobStatus.FAILED == j.getRunState() )
+							{
+								markedComplete = true;
+								error = true;
+								errorMessage = "Job failed while running, check for errors in the mapper/reducer or that your key/value classes are set up correctly?";
+							}
+							//TODO INF-1553 if markedcomplete is false we need to try to figure out why it crashed
+							//I don't think you can get more specific because you need the callstack of the hadoop process, but we detach from it
+							setJobComplete(cmr, markedComplete, error, j.mapProgress(),j.reduceProgress(), errorMessage);
+							break; // (from mini loop over hadoop jobs, not main loop over infinite tasks)
 						}
-					}
+					}					
 				}
-				else
+				else // this job hasn't been started yet:
 				{
 					//check if its been longer than 5min and mark job as complete (it failed to launch)
 					Date currDate = new Date();
@@ -471,16 +718,32 @@ public class HadoopJobRunner
 					//if its been more than 5 min (5m*60s*1000ms)					
 					if ( currDate.getTime() - lastDate.getTime() > 300000 )
 					{
-						setJobComplete(cmr);
+						markedComplete = true;						
+						setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error.");
 					}
 				}
+				//job was not done, need to set flag back
+				if ( !markedComplete )
+				{
+					incompleteJobsMap.put(cmr._id, cmr.jobidS);
+				}
+				cmr = getJobsToMakeComplete();
 			}	
 		}
 		catch (Exception ex)
 		{
-			ex.printStackTrace();
+			_logger.info("job_error_checking_status_message=" + HarvestExceptionUtils.createExceptionMessage(ex) );			
 		}	
-		System.out.println("Done updating job status");
+		catch (Error err) {
+			// Really really want to get to the next line of code, and clear the status...
+		}
+				
+		//set all incomplete jobs back
+		for (ObjectId id : incompleteJobsMap.keySet())
+		{		
+			BasicDBObject update = new BasicDBObject("jobidS", incompleteJobsMap.get(id));
+			DbManager.getCustom().getLookup().update(new BasicDBObject("_id", id), new BasicDBObject(MongoDbManager.set_, update));
+		}		
 	}
 
 	/**
@@ -493,34 +756,148 @@ public class HadoopJobRunner
 	 * 
 	 * @param cmr
 	 */
-	private void setJobComplete(CustomMapReduceJobPojo cmr) 
+	private void setJobComplete(CustomMapReduceJobPojo cmr, boolean isComplete, boolean isError, float mapProgress, float reduceProgress, String errorMessage) 
 	{		
 		try
-		{
+		{			
 			BasicDBObject updates = new BasicDBObject();
-			updates.append("jobidS", null);
-			updates.append("jobidN",0);
-			long nextRunTime = getNextRunTime(cmr.scheduleFreq,cmr.firstSchedule, cmr.timesRan+1);
-			updates.append("nextRunTime",nextRunTime);
-			updates.append("lastCompletionTime", new Date());
-			updates.append("tempConfigXMLLocation",null);
-			updates.append("tempJarLocation",null);
-			if (null != cmr.tempConfigXMLLocation) {
-				removeTempFile(cmr.tempConfigXMLLocation);
-			}
-			if (null != cmr.tempJarLocation) {
-				removeTempFile(cmr.tempJarLocation);
-			}
 			BasicDBObject update = new BasicDBObject();
-			update.append(MongoDbManager.set_,updates);
-			update.append(MongoDbManager.inc_,new BasicDBObject("timesRan", 1));
-			DbManager.getCustom().getLookup().update(new BasicDBObject("_id",cmr._id),update);			
-			System.out.println("Setting job : " + cmr._id.toString() + " to complete, run again on: " + new Date(nextRunTime).toString());
+			if ( isComplete )
+			{				
+				updates.append("jobidS", null);
+				updates.append("jobidN",0);
+				try 
+				{
+					long nextRunTime = getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime, cmr.timesRan+1);
+					updates.append("nextRunTime",nextRunTime);
+				}
+				catch (Exception e) {} // just carry on, we'll live...
+				
+				updates.append("lastCompletionTime", new Date());
+				updates.append("tempConfigXMLLocation",null);
+				updates.append("tempJarLocation",null);
+				try 
+				{
+					removeTempFile(cmr.tempConfigXMLLocation);
+					removeTempFile(cmr.tempJarLocation);					
+				}
+				catch (Exception e) 
+				{
+					_logger.info("job_error_removing_tempfiles=" + HarvestExceptionUtils.createExceptionMessage(e));
+				} 
+				
+				BasicDBObject incs = new BasicDBObject("timesRan", 1);				
+				//copy depencies to waitingOn
+				updates.append("waitingOn", cmr.jobDependencies);
+				if ( !isError )
+				{
+					updates.append("errorMessage", errorMessage); // (will often be null)
+					moveTempOutput(cmr);
+					//if job was successfully, mark off dependencies
+					removeJobFromChildren(cmr._id);					
+				}
+				else
+				{
+					//failed, just append error message										
+					updates.append("errorMessage", errorMessage);
+					incs.append("timesFailed",1);					
+				}
+				update.append(MongoDbManager.inc_, incs);
+				long runtime = new Date().getTime() - cmr.lastRunTime.getTime();
+				if (null != cmr.jobidS) {
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN);
+				}
+				else {
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError);					
+				}
+			}
+			updates.append("mapProgress", mapProgress);
+			updates.append("reduceProgress", reduceProgress);			
+			update.append(MongoDbManager.set_,updates);				
+			DbManager.getCustom().getLookup().update(new BasicDBObject("_id",cmr._id),update);					
 		}
 		catch (Exception ex)
 		{
-			ex.printStackTrace();
+			_logger.info("job_error_updating_status_title=" + cmr.jobtitle + " job_error_updating_status_id=" + cmr._id.toString() + " job_error_updating_status_message="+HarvestExceptionUtils.createExceptionMessage(ex));
 		}		
+	}
+	
+	/**
+	 * Removes the jobID from the waitingOn field of any of the children
+	 * 
+	 * @param jobID
+	 * @param children
+	 */
+	private void removeJobFromChildren(ObjectId jobID)
+	{
+		BasicDBObject query = new BasicDBObject("waitingOn", jobID);
+		DbManager.getCustom().getLookup().update(query, new BasicDBObject(MongoDbManager.pull_, query), false, true);
+	}	
+	
+	/**
+	 * Moves the output of a job from output_tmp to output and deletes
+	 * the tmp collection.
+	 * 
+	 * @param cmr
+	 */
+	private void moveTempOutput(CustomMapReduceJobPojo cmr)
+	{
+		/**
+		 * Atomic plan:
+		 * If not append, move customlookup pointer to tmp collection, drop old collection.
+		 * If append, set sync flag (find/mod), move results from tmp to old, unset sync flag.
+		 * 
+		 */				
+		if ( (null == cmr.appendResults) || !cmr.appendResults ) //format temp then change lookup pointer to temp collection
+		{
+			//transform all the results into necessary format:
+			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find();
+			while (dbc_tmp.hasNext())
+			{
+				DBObject dbo = dbc_tmp.next();
+				
+				Object key = dbo.get("_id");
+				dbo.put("key", key);
+				dbo.removeField("_id");								
+				DbManager.getCollection("custommr", cmr.outputCollectionTemp).remove(new BasicDBObject("_id", key));
+				DbManager.getCollection("custommr", cmr.outputCollectionTemp).insert(dbo);
+			}
+			BasicDBObject notappendupdates = new BasicDBObject("outputCollection", cmr.outputCollectionTemp);
+			notappendupdates.append("outputCollectionTemp", cmr.outputCollection);
+			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, notappendupdates));						
+			String temp = cmr.outputCollectionTemp;
+			cmr.outputCollectionTemp = cmr.outputCollection;
+			cmr.outputCollection = temp;
+		}
+		else //format temp then dump into old results
+		{
+			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", true)));
+			//move all results		
+			DBCollection dbc = DbManager.getCollection("custommr", cmr.outputCollection);
+			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find();
+			//transform temp results and dump into output collection
+			while ( dbc_tmp.hasNext() )
+			{
+				DBObject dbo = dbc_tmp.next();
+				//transform the dbo to format {_id:ObjectId, key:(prev_id), value:value}
+				Object key = dbo.get("_id");
+				dbo.put("key", key);
+				dbo.removeField("_id");
+				//_id field should be automatically set to objectid when inserting now
+				dbc.insert(dbo);
+			}			
+			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", false)));
+		}
+		//clean up temp output collection so we can use it again
+		DbManager.getCollection("custommr", cmr.outputCollectionTemp).remove(new BasicDBObject());
+		//remove any aged out results
+		if ( (null != cmr.appendAgeOutInDays) && cmr.appendAgeOutInDays > 0 )
+		{
+			//remove any results that have aged out
+			long ageOutMS = (long) (cmr.appendAgeOutInDays*MS_IN_DAY);
+			Date lastAgeOut = new Date(((new Date()).getTime() - ageOutMS));						
+			DbManager.getCollection("custommr", cmr.outputCollection).remove(new BasicDBObject("_id",new BasicDBObject(MongoDbManager.lt_,new ObjectId(lastAgeOut))));
+		}
 	}
 	
 	/**
@@ -530,8 +907,9 @@ public class HadoopJobRunner
 	 */
 	private void removeTempFile(String file)
 	{
-		File f = new File(file);
-		if (null != f) {
+		if ( file != null )
+		{
+			File f = new File(file);
 			f.delete();
 		}
 	}
@@ -545,8 +923,13 @@ public class HadoopJobRunner
 	 * @param iterations
 	 * @return
 	 */
-	private long getNextRunTime(SCHEDULE_FREQUENCY scheduleFreq, Date firstSchedule, int iterations) 
+	private long getNextRunTime(SCHEDULE_FREQUENCY scheduleFreq, Date firstSchedule, long nextRuntime, int iterations) 
 	{
+		if (null == firstSchedule) {
+			firstSchedule = new Date(nextRuntime);
+			iterations = 1; // recover...
+		}
+		
 		if ( scheduleFreq == null || SCHEDULE_FREQUENCY.NONE == scheduleFreq)
 		{
 			return Long.MAX_VALUE;
@@ -633,4 +1016,17 @@ public class HadoopJobRunner
 		int port = Integer.parseInt(parts[1]);		
 		return new InetSocketAddress(hostname, port);
 	}
+	
+	/////////////////////////////////////////////////////////////////////////////
+	
+	// Test code
+	
+	public static void main(String[] args) {
+		
+		Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
+		Globals.overrideConfigLocation(args[0]);
+
+		// Write temp test code here
+	}
+	
 }

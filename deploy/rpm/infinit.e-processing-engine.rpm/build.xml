@@ -62,6 +62,8 @@
 		
 		<copy file="../infinit.e.data_model/dist/infinit.e.data_model.jar" 
 			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.data_model-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.api.server/dist/infinit.e.query.library.jar" 
+			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.query.library-${infinite_version}-${infinite_release}.jar"/>
 		<copy file="../infinit.e.harvest.library/dist/infinit.e.harvest.library.jar" 
 			tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/infinit.e.harvest.library-${infinite_version}-${infinite_release}.jar"/>
 		<copy file="../infinit.e.processing.custom.library/dist/infinit.e.processing.custom.library.jar" 

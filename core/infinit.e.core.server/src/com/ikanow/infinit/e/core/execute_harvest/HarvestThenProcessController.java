@@ -114,11 +114,17 @@ public class HarvestThenProcessController {
 				catch (InterruptedException e3) { }
 			}			        
         }
+        com.ikanow.infinit.e.processing.generic.utils.PropertiesManager aggProps = new com.ikanow.infinit.e.processing.generic.utils.PropertiesManager();
+        boolean bAggDisabled = aggProps.getAggregationDisabled();
         StoreAndIndexManager dataStore = new StoreAndIndexManager();
         boolean bResizedDB = dataStore.resizeDB();
-        AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+        if (!bAggDisabled) {
+        	AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+        }
         dataStore.removeSoftDeletedDocuments();
-        AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+        if (!bAggDisabled) {
+        	AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+        }
         if (bResizedDB) {
         	_logger.info("(resized DB, now " + dataStore.getDatabaseSize() + " documents)");
         }

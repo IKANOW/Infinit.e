@@ -731,6 +731,10 @@ if (API_ROOT == null)
 			System.err.println(e.toString());
 		}
 	}
+	if (null == API_ROOT) { 
+		// Default to localhost
+		API_ROOT = "http://localhost:8080/api/";
+	}
 
 	if (API_ROOT.contains("localhost"))
 		localCookie=true;

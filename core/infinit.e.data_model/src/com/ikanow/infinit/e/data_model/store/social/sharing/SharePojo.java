@@ -32,20 +32,35 @@ public class SharePojo extends BaseDbPojo
 	
 	// Private class fields
 	private ObjectId _id = null;
+	final public static String _id_ = "_id";
 	private Date created = null;
+	final public static String created_ = "created";
 	private Date modified = null;
+	final public static String modified_ = "modified";
 	private ShareOwnerPojo owner = null;
+	final public static String owner_ = "owner";
 	private String type = null;
+	final public static String type_ = "type";
 	private String title = null;
+	final public static String title_ = "title";
 	private String description = null;
+	final public static String description_ = "description";
 	private String mediaType = null;
+	final public static String mediaType_ = "mediaType";
 	private List<String> tags = null;
+	final public static String tags_ = "tags";
 	private String share = null;
+	final public static String share_ = "share";
 	private DocumentLocationPojo documentLocation = null;
+	final public static String documentLocation_ = "documentLocation";
 	private List<ShareCommunityPojo> communities = null;
+	final public static String communities_ = "communities";
 	private byte[] binaryData = null;
+	final public static String binaryData_ = "binaryData";
 	private ObjectId binaryId = null; 
+	final public static String binaryId_ = "binaryId";
 	private ByteArrayOutputStream binaryStream = null;
+	final public static String binaryStream_ = "binaryStream";
 	
 	/**
 	 * @param _id the _id to set
@@ -198,6 +213,8 @@ public class SharePojo extends BaseDbPojo
 	public static class ShareOwnerPojo
 	{
 		private ObjectId _id = null;
+		final public static String _id_ = "_id";
+		final public static String communities_id_ = "communities._id";
 		private String email = null;
 		private String displayName = null;
 		/**

@@ -68,7 +68,8 @@ public class MongoDocumentTxfer {
 		if (bRebuildIndex && (null == sQuery)) { // (else will do them 1-by-1)
 			new GenericProcessingController().InitializeIndex(true, false, false);
 		}
-		else {
+		else { 
+			
 			// Have seen odd transport timeouts on occasion: this should ensure they never happen
 			new GenericProcessingController().InitializeIndex(false, false, false);
 				// (don't delete anything, but do recalc)
@@ -253,11 +254,13 @@ public class MongoDocumentTxfer {
 				Builder localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
 				localSettingsGroupIndex.put("number_of_shards", nShards).put("number_of_replicas", nPreferredReplicas);	
 				String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
-				
-				ElasticSearchManager docIndex = IndexManager.createIndex(indexName, "document_index", false, null, docMapping, localSettingsGroupIndex);
 
-				docIndex.deleteMe();
-				docIndex = IndexManager.createIndex(indexName, "document_index", false, null, docMapping, localSettingsGroupIndex);
+				ElasticSearchManager docIndex = IndexManager.getIndex(indexName, "document_index");
+				if (null != docIndex) {
+					docIndex.deleteMe();
+					docIndex = IndexManager.createIndex(indexName, "document_index", false, null, docMapping, localSettingsGroupIndex);					
+				}
+
 			}
 		}
 	}

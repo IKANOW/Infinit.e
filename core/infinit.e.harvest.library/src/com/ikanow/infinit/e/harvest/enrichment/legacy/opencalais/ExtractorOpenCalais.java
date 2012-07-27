@@ -114,13 +114,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		num_extraction_requests.incrementAndGet();
 		try 
 		{
-			// First off, some logic to check whether there's enough text for it to be worth doing anything:
-			if (null == partialDoc.getFullText() || partialDoc.getFullText().length() < 32) { // Try and elongate full text
-				partialDoc.setFullText(partialDoc.getTitle() + ": " + partialDoc.getDescription() + ". " + partialDoc.getFullText());
-			}
 			if (partialDoc.getFullText().length() < 32) { // Else don't waste Extractor call/error logging
-				throw new InfiniteEnums.ExtractorDocumentLevelException();
-				//return ExtractorErrorEnum.TOOSHORTDATA;
+				return;
 			}	
 			
 			PostMethod method = createPostMethod(partialDoc.getFullText());
@@ -157,15 +152,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
 				{
 					String currNodeName = iterNames.next();
 					JsonNode currNode = iter.next();
-					if ( currNodeName == "doc" ) //this is the info section of calais, get fulltext
-					{
-						//If we wanted full text we can get it here, but its the
-						//same document we sent to the extractor so we do nothing
-						/*JsonNode infoNode = currNode.get("info");
-						JsonNode docText = infoNode.get("document");
-						partialDoc.setFullText(docText.getTextValue());*/
-					}
-					else //we can assume these are the entities/topics
+					if (!currNodeName.equals("doc")) //we can assume these are the entities/topics
 					{
 						String typeGroup = currNode.get("_typeGroup").getTextValue();
 						//check typegroup to see if it is an entity
@@ -317,7 +304,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
         PostMethod method = new PostMethod(CALAIS_URL);
 
         // Set mandatory parameters
-        method.setRequestHeader("x-calais-licenseID", CALAIS_LICENSE);
+        method.setRequestHeader("x-calais-licenseID", CALAIS_LICENSE.trim());
         
         // Set input content type
         method.setRequestHeader("Content-Type", "text/raw; charset=UTF-8");

@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config, infinit.e-index-engine, mongo-10gen
+Requires: tomcat6, infinit.e-config, infinit.e-db-instance
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -39,6 +39,7 @@ Infinit.e harvesting and cleansing services
 	cd $RPM_BUILD_DIR/mnt/opt/infinite-home/lib
 	ln -s -f infinit.e.data_model-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.data_model.jar
 	ln -s -f infinit.e.harvest.library-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.harvest.library.jar
+	ln -s -f infinit.e.query.library-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.query.library.jar
 	ln -s -f infinit.e.processing.custom.library-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.processing.custom.library.jar
 	ln -s -f infinit.e.processing.generic.library-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.processing.generic.library.jar
 	ln -s -f infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.core.server.jar
@@ -119,12 +120,14 @@ Infinit.e harvesting and cleansing services
 %dir /mnt/opt/infinite-home/lib
 /mnt/opt/infinite-home/lib/infinit.e.data_model.jar
 /mnt/opt/infinite-home/lib/infinit.e.harvest.library.jar
+/mnt/opt/infinite-home/lib/infinit.e.query.library.jar
 /mnt/opt/infinite-home/lib/infinit.e.processing.custom.library.jar
 /mnt/opt/infinite-home/lib/infinit.e.processing.generic.library.jar
 /mnt/opt/infinite-home/lib/infinit.e.core.server.jar
 /mnt/opt/infinite-home/lib/infinit.e.mongo-indexer.jar
 /mnt/opt/infinite-home/lib/infinit.e.data_model-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.harvest.library-INFINITE_VERSION-INFINITE_RELEASE.jar
+/mnt/opt/infinite-home/lib/infinit.e.query.library-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.processing.custom.library-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.processing.generic.library-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar

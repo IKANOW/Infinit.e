@@ -130,6 +130,11 @@ public class StoreAndIndexManager {
 		// Store the knowledge in the feeds collection in the harvester db			
 		for ( DocumentPojo f : docs) {
 			
+			// Set an _id before writing it to the datastore,
+			// so the same _id gets written to the index
+			// NOTE WE OVERWRITE ANY TRANSIENT IDS THAT MIGHT HAVE BEEN SET eg BY REMOVE CODE
+			f.setId(new ObjectId());
+			
 			// Check geo-size: need to add to a different index if so, for memory usage reasons
 			if (DocumentPojoIndexMap.hasManyGeos(f)) {
 				f.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
@@ -339,11 +344,16 @@ public class StoreAndIndexManager {
 					DocumentPojo toDel = new DocumentPojo();
 					toDel.setUrl(dbo.getString(DocumentPojo.url_));
 					toDel.setId((ObjectId) dbo.get(DocumentPojo._id_));
+					toDel.setSourceUrl(srcUrl);
 					docs.add(toDel); 
 						// (this "add" is for removing things from the index, and also to keep count)
 					
 					// Actually: Delete the doc:
 					removeFromDatastore_byURL(col, toDel, fields, bDeleteContent);
+					
+					//NOTE: I think we could be significantly more efficient here by just doing an "update" to soft delete
+					// the docs, then using the sourceUrl to remove-by-query from the index ... only downside would be
+					// losing count of deleted docs, you can probably just do a count() efficiently since sourceUrl is indexed?
 				}
 			} catch (Exception e) {
 				// If an exception occurs log the error
@@ -439,7 +449,10 @@ public class StoreAndIndexManager {
 										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
 			
 			col.update(query, softDelete, false, true); // (needs to be multi- even though there's a single element for sharding reasons)
-			deadDoc = (BasicDBObject) col.findOne(query, fields);
+			if ((null == doc.getId()) || (null == doc.getSourceUrl())) { 
+				// (these docs are dummy documents, they already have the _id for deleting from index, created not needed)
+				deadDoc = (BasicDBObject) col.findOne(new BasicDBObject(DocumentPojo.url_, doc.getUrl()), fields);
+			}
 		}
 		else {
 			deadDoc = (BasicDBObject) col.findOne(query, fields);
@@ -545,7 +558,7 @@ public class StoreAndIndexManager {
 		LinkedList<String> tmpDocs = new LinkedList<String>();
 		int nTmpDocs = 0;
 		for ( DocumentPojo doc : docs )
-		{			
+		{	
 			if (null == doc.getId()) { // Normally this will be sourceUrls, eg files pointing to many docs 
 				continue; // (ie can just ignore)
 			}

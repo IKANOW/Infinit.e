@@ -26,10 +26,10 @@ limitations under the License.
 
 	<fx:Script>
 		<![CDATA[
-			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.utility.DateConverter;
 			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
 			import com.ikanow.infinit.e.widget.library.utility.InfiniteIcons;
@@ -2227,7 +2227,7 @@ limitations under the License.
 			<mx:VBox id="repeatvbox"
 				creationPolicy="all"
 				width="100%"
-				backgroundColor="0xFFFFFF"
+				backgroundColor="0xF4F4F4"
 				paddingLeft="20"
 				paddingTop="5"
 				verticalGap="3"
@@ -2282,6 +2282,7 @@ limitations under the License.
 								fontSize="14"
 								paddingLeft="6"
 								mouseWheel="snippet_mouseWheelHandler(event)"
+								contentBackgroundColor="0xF4F4F4"
 								editable="false"
 								visible="{ repeat.currentItem.description.length > 0 ? 'true' : 'false' }">
 							</mx:TextArea>

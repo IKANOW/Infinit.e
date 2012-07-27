@@ -35,6 +35,7 @@ public class SourceSearchFeedConfigPojo {
 	private Integer numPages = 10; // Mandatory if pageChangeRegex is non-null - controls the number of pages deep the search will go
 	private Integer numResultsPerPage = 1; // Mandatory if pageChangeRegex is non-null - controls the number of results per page 
 	private Integer waitTimeBetweenPages_ms = null; // Optional, only used if pageChangeRegex is non-null - controls a wait between successive pages if set
+	private Integer maxDepth = null; // Optional, if spidering out, max depth (defaults to 2 if not specified)
 	
 	// Getters and setters
 	
@@ -85,6 +86,12 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public Integer getWaitTimeBetweenPages_ms() {
 		return waitTimeBetweenPages_ms;
+	}
+	public void setMaxDepth(Integer maxDepth) {
+		this.maxDepth = maxDepth;
+	}
+	public Integer getMaxDepth() {
+		return maxDepth;
 	}
 	
 }

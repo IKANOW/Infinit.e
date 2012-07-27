@@ -24,7 +24,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Also, regulate index size in the event of node failure (fails silently if API not up, which is fine):
 * * * * * root	curl -s 'http://localhost:8080/api/auth/login/ping/ping' > /dev/null
 
-#Sync DB+index every 7 days
+#Sync DB+index every hour
 00 *  * * * root touch /opt/infinite-home/bin/SYNC_FILE
 
 #Reset sources every 24 hours (use script version rather than programmatic version)
@@ -32,8 +32,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 00 00 * * * root /opt/infinite-home/bin/reset_bad_harvest.sh
 
 # Saturday night: big resync! (takes about 30 minutes, only 1 harvester runs it but all stop)
-03 01	 * * 7	 root	service infinite-px-engine stop
-00 02    * * 7   root   /opt/infinite-home/bin/sync_features.sh
+03 01	 * * 7	 root	if [ ! -f /opt/infinite-home/STOP_BATCH_SYNC_FILE ]; then service infinite-px-engine stop; fi
+00 02    * * 7   root   if [ ! -f /opt/infinite-home/STOP_BATCH_SYNC_FILE ]; then /opt/infinite-home/bin/sync_features.sh; fi
 00 05	 * * 7	 root	service infinite-px-engine start
 
 # Sunday afternoon: weekly sources report

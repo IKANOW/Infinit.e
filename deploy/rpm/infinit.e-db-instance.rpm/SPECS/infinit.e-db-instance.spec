@@ -71,10 +71,10 @@ Infinit.e Mongo DB installation and update
 	if [ $1 -eq 1 ]; then
 		chkconfig --add mongo_infinite
 		chkconfig mongo_infinite on
-		chkconfig mongod off
 
 		# (Stop mongodb if it was started by the above install)
 		service mongod stop
+		chkconfig --del mongod
 		
 		rm -rf /data
 		ln -sf /opt/db-home/data/ /data

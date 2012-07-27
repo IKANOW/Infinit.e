@@ -30,6 +30,11 @@ Infinit.e search engine REST API
 # THIS IS AN UPGRADE
 #
 		service tomcat6-interface-engine stop || :
+		
+		#Legacy code: these no longer live in the webapps dir, need to delete any old generated directories...
+		rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server*
+		rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web*
+		rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.manager*
 	fi
 	
 %install
@@ -37,10 +42,10 @@ Infinit.e search engine REST API
 # INSTALL *AND* UPGRADE
 #	
 	# (tomcat6 instance initialization)
-	cd $RPM_BUILD_DIR/mnt/opt/tomcat-infinite/interface-engine/webapps/
+	cd $RPM_BUILD_DIR/mnt/opt/tomcat-infinite/interface-engine/
 	ln -s -f infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.api.server.war
 	ln -s -f infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.web.war
-	ln -s -f infinit.e.source.builder.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.source.builder.web.war
+	ln -s -f infinit.e.manager-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.manager.war
 
 %post
 
@@ -100,7 +105,7 @@ Infinit.e search engine REST API
 	# (Tidy up expanded WAR files)
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/ROOT
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/api
-	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/sourcebuilder
+	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/manager
 
 %postun
 	# (Nothing to do)
@@ -109,14 +114,13 @@ Infinit.e search engine REST API
 #
 # FINAL STEP FOR INSTALLS AND UPGRADES
 #
+	# Create AppConstants.js file
+	sh /mnt/opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh
+	#(App constants file is copied to relevant locations by start code below)
+
 	# Start service
 	service tomcat6-interface-engine start
 	
-	# Create AppConstants.js file
-	sleep 10
-	sh /mnt/opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh
-	cp /mnt/opt/tomcat-infinite/interface-engine/conf/AppConstants.js /mnt/opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
-
 ###########################################################################
 #
 # FILE LISTS
@@ -137,15 +141,15 @@ Infinit.e search engine REST API
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/context.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/logging.properties
-%config /mnt/opt/tomcat-infinite/interface-engine/conf/server.xml
+%config /mnt/opt/tomcat-infinite/interface-engine/templates/server.xml.TEMPLATE
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/tomcat-users.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/web.xml
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server.war
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web.war
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web-INFINITE_VERSION-INFINITE_RELEASE.war
-/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.web.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.manager-INFINITE_VERSION-INFINITE_RELEASE.war
+/mnt/opt/tomcat-infinite/interface-engine/infinit.e.manager.war
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_event_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_entity_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/random_query_generator.sh

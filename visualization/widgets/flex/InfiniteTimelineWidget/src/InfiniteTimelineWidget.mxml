@@ -53,7 +53,7 @@
 	import com.ibm.ilog.elixir.timeline.supportClasses.TickItem;
 	import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
-	import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
 	import com.ikanow.infinit.e.widget.library.utility.DateConverter;

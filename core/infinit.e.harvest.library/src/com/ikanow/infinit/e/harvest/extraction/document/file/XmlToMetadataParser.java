@@ -19,6 +19,8 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
+
+import org.apache.commons.lang.StringEscapeUtils;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -64,14 +66,18 @@ public class XmlToMetadataParser {
 	 * @param levelOneFields the levelOneFields to set
 	 */
 	public void setLevelOneField(List<String> levelOneFields) {
-		this.levelOneFields = levelOneFields;
+		if (null != levelOneFields) {
+			this.levelOneFields = levelOneFields;
+		}
 	}
 
 	/**
 	 * @param ignoreFields the ignoreFields to set
 	 */
 	public void setIgnoreField(List<String> ignoreFields) {
-		this.ignoreFields = ignoreFields;
+		if (null != ignoreFields) {
+			this.ignoreFields = ignoreFields;
+		}
 	}
 
 	/**
@@ -79,6 +85,10 @@ public class XmlToMetadataParser {
 	 * @param json  JSONObject to convert
 	 */
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json)
+	{
+		return convertJsonObjectToLinkedHashMap(json, false);
+	}
+	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json, boolean bHtmlUnescape)
 	{
 		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>();
 		String[] names = JSONObject.getNames(json);
@@ -91,14 +101,19 @@ public class XmlToMetadataParser {
 			JSONArray jarray = null;
 			try {
 				jarray = json.getJSONArray(name);
-				list.put(name, handleJsonArray(jarray));
+				list.put(name, handleJsonArray(jarray, bHtmlUnescape));
 			} catch (JSONException e2) {
 				try {
 					rec = json.getJSONObject(name);
-					list.put(name, convertJsonObjectToLinkedHashMap(rec));
+					list.put(name, convertJsonObjectToLinkedHashMap(rec, bHtmlUnescape));
 				} catch (JSONException e) {
 					try {
-						list.put(name,json.getString(name));
+						if (bHtmlUnescape) {
+							list.put(name,StringEscapeUtils.unescapeHtml(json.getString(name)));
+						}
+						else {
+							list.put(name,json.getString(name));
+						}
 					} catch (JSONException e1) {
 						e1.printStackTrace();
 					}
@@ -112,7 +127,7 @@ public class XmlToMetadataParser {
 		return null;
 	}
 	
-	static private Object[] handleJsonArray(JSONArray jarray)
+	static private Object[] handleJsonArray(JSONArray jarray, boolean bHtmlUnescape)
 	{
 		Object o[] = new Object[jarray.length()];
 		for (int i = 0; i < jarray.length(); i++)
@@ -120,10 +135,15 @@ public class XmlToMetadataParser {
 			JSONObject tem;
 			try {
 				tem = jarray.getJSONObject(i);
-				o[i] = convertJsonObjectToLinkedHashMap(tem);
+				o[i] = convertJsonObjectToLinkedHashMap(tem, bHtmlUnescape);
 			} catch (JSONException e) {
 				try {
-					o[i] = jarray.getString(i);
+					if (bHtmlUnescape) {
+						o[i] = StringEscapeUtils.unescapeHtml(jarray.getString(i));
+					}
+					else {
+						o[i] = jarray.getString(i);						
+					}
 				} catch (JSONException e1) {
 					e1.printStackTrace();
 				}
@@ -164,7 +184,7 @@ public class XmlToMetadataParser {
 					doc = new DocumentPojo();
 					justIgnored = false;
 				}
-				else if (ignoreFields.contains(tagName))
+				else if ((null != ignoreFields) && ignoreFields.contains(tagName))
 				{
 					justIgnored = true;
 				}
@@ -221,7 +241,7 @@ public class XmlToMetadataParser {
 			case (XMLStreamReader.END_ELEMENT):
 			{
 				hitIdentifier = !reader.getLocalName().equalsIgnoreCase(PKElement);
-				if (!ignoreFields.contains(reader.getLocalName())){
+				if ((null != ignoreFields) && !ignoreFields.contains(reader.getLocalName())){
 					if (levelOneFields.contains(reader.getLocalName())) {
 						JSONObject json;
 						try {
@@ -233,7 +253,7 @@ public class XmlToMetadataParser {
 	
 								try {
 									jarray = json.getJSONArray(names);
-									doc.addToMetadata(names, handleJsonArray(jarray));
+									doc.addToMetadata(names, handleJsonArray(jarray, false));
 								} catch (JSONException e) {
 									try {
 										rec = json.getJSONObject(names);

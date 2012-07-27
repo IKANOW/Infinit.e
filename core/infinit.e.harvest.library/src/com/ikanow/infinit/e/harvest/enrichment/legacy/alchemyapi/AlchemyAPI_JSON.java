@@ -293,7 +293,7 @@ public class AlchemyAPI_JSON {
 	{
 	    StringBuilder uri = new StringBuilder();
 	    uri.append(_requestUri).append(callPrefix).append('/').append(callName)
-	       .append('?').append("apikey=").append(this._apiKey).append("&outputMode=json");
+	       .append('?').append("apikey=").append(this._apiKey.trim()).append("&outputMode=json");
 	    uri.append(params.getParameterString());
 	
 	    URL url = new URL(uri.toString());

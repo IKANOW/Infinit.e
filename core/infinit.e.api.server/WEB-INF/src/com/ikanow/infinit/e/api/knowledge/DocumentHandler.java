@@ -62,7 +62,7 @@ public class DocumentHandler
 	 * @param  key	the key definition of the user ( example email@email.com )
 	 * @return      a JSON string representation of the person information on success
 	 */
-	public ResponsePojo getInfo(String userIdStr, String idStr, boolean bReturnFullText, boolean returnRawData) 
+	public ResponsePojo getInfo(String userIdStr, String sourceKey, String idStrOrUrl, boolean bReturnFullText, boolean returnRawData) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -70,15 +70,33 @@ public class DocumentHandler
 		{
 			// Set up the query
 			BasicDBObject query = new BasicDBObject();
-			query.put(DocumentPojo._id_, new ObjectId(idStr));
-				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
+			ObjectId id = null;
+			if (null == sourceKey) {
+				id = new ObjectId(idStrOrUrl);
+				query.put(DocumentPojo._id_, id);				
+			}
+			else {
+				query.put(DocumentPojo.sourceKey_, sourceKey);
+				query.put(DocumentPojo.url_, idStrOrUrl);
+			}
 			query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, RESTTools.getUserCommunities(userIdStr)));
-			
-			DocumentPojo dp = DocumentPojo.fromDb(DbManager.getDocument().getMetadata().findOne(query), DocumentPojo.class);
-			if (null == dp) 
+				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
+			BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
+
+			if ((null == dbo) || ((null != dbo.get(DocumentPojo.sourceKey_)) && 
+									dbo.getString(DocumentPojo.sourceKey_).startsWith("?DEL?")))
 			{
+				if (null != id) { // this might be the update id...					
+					query = new BasicDBObject(DocumentPojo.updateId_, id);
+					dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
+				}
+			}
+			//TESTED (update case, normal case, and intermediate case where both update and original still exist)
+			
+			if (null == dbo) {
 				throw new RuntimeException("Document not found");
 			}
+			DocumentPojo dp = DocumentPojo.fromDb(dbo, DocumentPojo.class);
 			if (bReturnFullText) 
 			{
 				if (null == dp.getFullText()) { // (Some things like database records might have this stored already)

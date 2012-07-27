@@ -235,6 +235,9 @@ public class RESTTools
 			// (<0x30 => is a regex, don't need to validate since check vs person pojos anyway) 
 			return true;
 		}
+		if (RESTTools.adminLookup(userIdStr)) {
+			return true;
+		}
 		
 		String[] communities =  communityIdStrList.split(",");
 		
@@ -247,6 +250,14 @@ public class RESTTools
 			communityObjects[i] = new ObjectId(communities[i]);
 		}
 		
+		// Get object Id for owner test
+		ObjectId userId = null;
+		try {
+			userId = new ObjectId(userIdStr);
+		}
+		catch (Exception e) {
+			userId = new ObjectId("0"); // (dummy user id)
+		}			
 		try
 		{
 			//check in mongo a user is part of these groups		
@@ -259,14 +270,9 @@ public class RESTTools
 					//check to make sure user is a member or is his personal community (communityid and userid will be the same)
 					if ( !cp.getId().equals(new ObjectId(userIdStr))) //this is NOT a personal group so check we are a member
 					{
-						if (!RESTTools.adminLookup(userIdStr)) {
-							if ( !cp.getCommunityStatus().equals("active")) //not an active group
-								return false;
+						if (!userId.equals(cp.getOwnerId())) { // (if you're owner you can always have it)
 							if ( !cp.isMember(new ObjectId(userIdStr)) ) //if user is not a member of this group, return false
 								return false;
-						}
-						else {
-							return true;
 						}
 					}
 				}

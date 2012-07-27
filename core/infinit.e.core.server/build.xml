@@ -25,6 +25,7 @@
 	<property name="dir.dist.opt.bin" value="${dir.dist.opt}/${dir.bin}"/>
 	<property name="dir.dist.opt.lib" value="${dir.dist.opt}/${dir.lib}"/>
 	<property name="infinit.e.harvest.library.location" value="../infinit.e.harvest.library"/>
+	<property name="infinit.e.query.library.location" value="../infinit.e.api.server"/>
 	<property name="infinit.e.processing.custom.library.location" value="../infinit.e.processing.custom.library"/>
 	<property name="infinit.e.processing.generic.library.location" value="../infinit.e.processing.generic.library"/>
 	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
@@ -48,6 +49,9 @@
 	<path id="infinit.e.harvest.library.classpath">
 	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>
 	</path>
+	<path id="infinit.e.query.library.classpath">
+	     <pathelement location="${infinit.e.query.library.location}/dist/infinit.e.query.library.jar"/>
+	</path>
 	<path id="infinit.e.processing.custom.library.classpath">
 	     <pathelement location="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar"/>
 	</path>
@@ -68,6 +72,7 @@
         </fileset>
         <path refid="infinit.e.data_model.classpath"/>
         <path refid="infinit.e.harvest.library.classpath"/>
+        <path refid="infinit.e.query.library.classpath"/>
         <path refid="infinit.e.processing.custom.library.classpath"/>
         <path refid="infinit.e.processing.generic.library.classpath"/>
     	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
@@ -170,7 +175,7 @@
 			<manifest>
 				<attribute name="Built-By" value="${user.name}"/>
 		        <attribute name="Main-Class" value="com.ikanow.infinit.e.core.CoreMain" />
-				<attribute name="Class-Path" value="infinit.e.data_model.jar infinit.e.harvest.library.jar infinit.e.processing.custom.library.jar infinit.e.processing.generic.library.jar ${libs.jar.bundled} ${libs.elasticsearch}"/>
+				<attribute name="Class-Path" value="infinit.e.data_model.jar infinit.e.harvest.library.jar infinit.e.query.library.jar infinit.e.processing.custom.library.jar infinit.e.processing.generic.library.jar ${libs.jar.bundled} ${libs.elasticsearch}"/>
 				<attribute name="Specification-Title" value="${specification.title}"/>
 				<attribute name="Specification-Version" value="${specification.version}"/>
 				<attribute name="Implementation-Title" value="${implementation.title}"/>

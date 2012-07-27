@@ -30,7 +30,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
-	import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import flash.events.Event;

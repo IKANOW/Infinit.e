@@ -45,6 +45,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.api.knowledge.processing.AggregationUtils;
 import com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
@@ -85,7 +86,7 @@ public class QueryHandler {
 	
 // 0] Top level processing
 	
-	public ResponsePojo doQuery(String userIdStr, AdvancedQueryPojo query, String communityIdStrList, String errorString) throws UnknownHostException, MongoException, IOException {
+	public ResponsePojo doQuery(String userIdStr, AdvancedQueryPojo query, String communityIdStrList, StringBuffer errorString) throws UnknownHostException, MongoException, IOException {
 		
 		// (NOTE CAN'T ACCESS "query" UNTIL AFTER 0.1 BECAUSE THAT CAN CHANGE IT) 
 		
@@ -185,7 +186,7 @@ public class QueryHandler {
 				}					
 				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);		
 				if (null == queryObj) { //error parsing logic
-					errorString = "Error parsing logic";
+					errorString.append(": Error parsing logic");
 					return null;
 				}
 			}
@@ -284,7 +285,7 @@ public class QueryHandler {
 			if ((null != query.raw) && (null != query.raw.query)) {
 				// Don't currently support raw query and raw facets because I can't work out how to apply
 				// the override on group/source!
-				errorString = "Not currently allowed raw query and raw facets";
+				errorString.append(": Not currently allowed raw query and raw facets");
 				return null;
 			}
 			else { // Normal code
@@ -2109,6 +2110,30 @@ public class QueryHandler {
 	{
 		ALL,ASSOC,DOC,ENT;
 	}
+	//___________________________________________________________________________________
+
+	// Utility function: create a populated query object (by defaults if necessary)
+	
+	public static AdvancedQueryPojo createQueryPojo(String queryJson) {
+		GsonBuilder gb = new GsonBuilder();
+		gb.registerTypeAdapter(AdvancedQueryPojo.QueryRawPojo.class, new AdvancedQueryPojo.QueryRawPojo.Deserializer());
+		AdvancedQueryPojo query = gb.create().fromJson(queryJson, AdvancedQueryPojo.class);
+		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)
+		if (null == query.input) {
+			query.input = new AdvancedQueryPojo.QueryInputPojo();				
+		}
+		if (null == query.score) {
+			query.score = new AdvancedQueryPojo.QueryScorePojo();				
+		}
+		if (null == query.output) {
+			query.output = new AdvancedQueryPojo.QueryOutputPojo();
+		}		
+		if (null == query.output.docs) { // (Docs are sufficiently important we'll make sure they're always present)
+			query.output.docs = new AdvancedQueryPojo.QueryOutputPojo.DocumentOutputPojo();
+		}
+		return query;
+	}//TESTED
+	
 }
 
 

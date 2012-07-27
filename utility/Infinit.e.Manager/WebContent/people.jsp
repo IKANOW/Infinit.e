@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1"%>
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1" session="false" %>
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%!
@@ -56,10 +56,17 @@ limitations under the License.
 	if (isLoggedIn) 
 	{	
 		// Capture value in the left handed table filter field
-		if (request.getParameter("listFilter") != null) listFilter = request.getParameter("listFilter");
-		if (request.getParameter("listFilter") == null)
+		if (request.getParameter("listFilter") != null) 
 		{
-			if (request.getParameter("listFilterStr") != null) listFilter = request.getParameter("listFilterStr");
+			listFilter = request.getParameter("listFilter");
+		}
+		else if (request.getParameter("listFilterStr") != null) 
+		{
+			listFilter = request.getParameter("listFilterStr");
+		}
+		else
+		{
+			listFilter = "";
 		}
 		
 		// Determine which action to perform on postback/request
@@ -208,7 +215,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert("<%=messageToDisplay %>");
+		alert('<%=messageToDisplay %>');
 	</script>
 <% 
 	} 
@@ -239,7 +246,7 @@ limitations under the License.
 				<td align="right"><input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="30" value="<%=listFilter %>"/><button name="filterList" 
+					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
 					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
 			</tr>
 			<tr>
@@ -554,7 +561,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			lastName = person.getString("lastName");
 			displayName = person.getString("displayName");
 			email = person.getString("email");
-			phone = person.getString("phone");
+			if (person.has("phone")) phone = person.getString("phone");
 			emailReadOnly = "readOnly";
 			
 			// Output user communities
@@ -598,7 +605,10 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 		for (int i = 0; i < communities.length(); i++)
 		{
 			JSONObject c = communities.getJSONObject(i);
-			listOfCommunityNames.add(c.getString("name"));
+			if (c.has("name"))
+			{
+				listOfCommunityNames.add(c.getString("name"));
+			}
 		}
 		Collections.sort( listOfCommunityNames, String.CASE_INSENSITIVE_ORDER );
 		
@@ -610,7 +620,7 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 			for (int i = 0; i < communities.length(); i++)
 			{
 				JSONObject community = communities.getJSONObject(i);
-				if (community.getString("name").equalsIgnoreCase(communityName.toLowerCase()))
+				if (community.has("name") && community.getString("name").equalsIgnoreCase(communityName.toLowerCase()))
 				{
 					// Only show the non-system, non-personal communities
 					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.getString("isSystemCommunity").equalsIgnoreCase("false"))
@@ -664,6 +674,7 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 	}
 	catch (Exception e)
 	{
+		System.out.println(e.getMessage());
 	}
 	communityList.append("</table>");
 	return communityList.toString();

@@ -334,21 +334,11 @@ public class CommunityPojo extends BaseDbPojo
 	 */
 	public boolean isOwner(ObjectId userID) 
 	{
-		if ( isPersonalCommunity )
-			return true; //personal group you are always owner
-		else
-		{
-			for ( CommunityMemberPojo cmp : members)
-			{
-				if ( cmp.get_id().equals(userID) )
-				{
-					if ( cmp.getUserType().equals("owner") )
-						return true;
-					else
-						return false;
-				}
-			}
-			return false; //not a member
+		if ( isPersonalCommunity ) {
+			return userID.equals(_id);
+		}
+		else {
+			return userID.equals(ownerId);
 		}
 	}
 	

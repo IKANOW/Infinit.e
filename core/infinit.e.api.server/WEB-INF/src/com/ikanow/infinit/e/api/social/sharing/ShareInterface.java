@@ -125,7 +125,7 @@ public class ShareInterface extends ServerResource
 			}
 			
 			// Search Shares by Owner, Community, Type
-			else if ( urlStr.contains("/share/search/") )
+			else if ( urlStr.contains("/share/search") )
 			{
 				action = "searchShares";			 
 			}

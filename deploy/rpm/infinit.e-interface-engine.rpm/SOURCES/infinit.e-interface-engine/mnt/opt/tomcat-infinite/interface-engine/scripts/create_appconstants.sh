@@ -14,6 +14,8 @@ function getParam { # $1=param string, $2=file
 PROPERTY_CONFIG_FILE='/opt/infinite-install/config/infinite.configuration.properties'
 CONSTANTS_TEMPLATE='/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.TEMPLATE'
 CONSTANTS_CONF_LOCATION='/opt/tomcat-infinite/interface-engine/conf/AppConstants.js'
+SERVERCONF_TEMPLATE='/opt/tomcat-infinite/interface-engine/templates/server.xml.TEMPLATE'
+SERVERCONF_CONF_LOCATION='/opt/tomcat-infinite/interface-engine/conf/server.xml'
 
 ###########################################################################
 # Get properties from infinite.configuration.properties and create
@@ -29,7 +31,10 @@ FORGOT_PASSWORD_URL=$(getParam		"^ui.forgot.password=" $PROPERTY_CONFIG_FILE)
 LOGOUT_URL=$(getParam				"^ui.logout=" $PROPERTY_CONFIG_FILE)
 	
 cp $CONSTANTS_TEMPLATE $CONSTANTS_CONF_LOCATION
-sed -i "s|END_POINT_URL|$END_POINT_URL|g" $CONSTANTS_CONF_LOCATION
+if [ "$END_POINT_URL" != "" ]; then
+	sed -i "s|END_POINT_URL|$END_POINT_URL|g" $CONSTANTS_CONF_LOCATION
+	#(else set automatically below)
+fi
 sed -i "s|DOMAIN_URL|$DOMAIN_URL|g" $CONSTANTS_CONF_LOCATION
 sed -i "s|GOOGLE_MAPS_API_KEY|$GOOGLE_MAPS_API_KEY|g" $CONSTANTS_CONF_LOCATION
 sed -i "s|ACCESS_TIMEOUT|$ACCESS_TIMEOUT|g" $CONSTANTS_CONF_LOCATION
@@ -51,5 +56,22 @@ if [ "$APP_SAAS" = "true" ]; then
 else
 	sed -i "s|.*app.saas=true.*|//\0|" $CONSTANTS_CONF_LOCATION
 fi
+# If no end point specified then default it to current location:
+sed -i "s|\"END_POINT_URL\"|'http://'+document.location.hostname+'/api/'|" $CONSTANTS_CONF_LOCATION
 
 chown tomcat.tomcat $CONSTANTS_CONF_LOCATION
+
+###########################################################################
+# Get properties from infinite.configuration.properties and create
+# AppConstants.js from AppConstants.js.TEMPLATE
+###########################################################################
+cp $SERVERCONF_TEMPLATE $SERVERCONF_CONF_LOCATION
+
+SSL_PASSPHRASE=$(getParam	"^ssl.passphrase=" $PROPERTY_CONFIG_FILE)
+
+if [ "$SSL_PASSPHRASE" != "" ] && [ -f /usr/share/tomcat6/tomcat.keystore ]; then
+	sed -i "s|SSL_PASSPHRASE|$SSL_PASSPHRASE|" $SERVERCONF_CONF_LOCATION
+	sed -i '/__INF_SSL_ENABLED/d' $SERVERCONF_CONF_LOCATION
+fi
+
+chown tomcat.tomcat $SERVERCONF_CONF_LOCATION

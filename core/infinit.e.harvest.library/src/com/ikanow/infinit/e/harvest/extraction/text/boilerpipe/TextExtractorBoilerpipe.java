@@ -41,7 +41,18 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 			try
 			{
 				URL url = new URL(partialDoc.getUrl());
-				partialDoc.setFullText(ArticleExtractor.INSTANCE.getText(url));				
+				String text = ArticleExtractor.INSTANCE.getText(url);
+				
+				if (null == text){
+					text = "";
+				}
+				if (text.length() < 32) { // Try and elongate full text if necessary
+					StringBuilder sb = new StringBuilder(partialDoc.getTitle()).append(": ").append(partialDoc.getDescription()).append(". \n").append(text);
+					partialDoc.setFullText(sb.toString());
+				}
+				else {
+					partialDoc.setFullText(text);				
+				}
 			}
 			catch (Exception ex)
 			{

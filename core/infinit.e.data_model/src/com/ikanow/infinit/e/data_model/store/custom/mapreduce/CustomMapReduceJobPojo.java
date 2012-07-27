@@ -16,7 +16,9 @@
 package com.ikanow.infinit.e.data_model.store.custom.mapreduce;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 import org.bson.types.ObjectId;
 
@@ -44,6 +46,8 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public SCHEDULE_FREQUENCY scheduleFreq = SCHEDULE_FREQUENCY.NONE;	
 	public Date firstSchedule = null;
 	public int timesRan = 0;
+	public int timesFailed = 0;
+	public String errorMessage = null;
 	public String tempConfigXMLLocation = null;
 	public String tempJarLocation = null;
 	public boolean isCustomTable = false;
@@ -54,6 +58,15 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public String query = "";
 	public String outputKey;
 	public String outputValue;
+	public float mapProgress;
+	public float reduceProgress;
+	public Boolean appendResults; // (defaults to null)
+	public Double appendAgeOutInDays;
+	public Set<ObjectId> jobDependencies = new HashSet<ObjectId>(); //jobs this one depends on to run
+	public Set<ObjectId> waitingOn = new HashSet<ObjectId>(); //jobs until this one can run (temp list)
+	public boolean isUpdatingOutput = false;
+	public String outputCollectionTemp = null;
+	public String arguments = null; //user arguments that can be added and will be sent to the job
 	
 	
 	public enum SCHEDULE_FREQUENCY

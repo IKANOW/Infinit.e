@@ -48,11 +48,44 @@ public class SourceUtils {
 	
     /////////////////////////////////////////////////////////////////////////////////////
     
+    public static boolean checkDbSyncLock() {
+    	DBCursor dbc = DbManager.getFeature().getSyncLock().find();
+    	if (0 == dbc.count()) {
+    		return false; // working fine
+    	}
+    	Date now = new Date();
+    	while (dbc.hasNext()) {
+    		BasicDBObject sync_lock = (BasicDBObject) dbc.next();
+    		Object lastSyncObj = sync_lock.get("last_sync");
+    		if (null != lastSyncObj) {
+    			try {
+    				Date last_sync = (Date) lastSyncObj;
+    				if (last_sync.getTime() + 3600*1000*24 > now.getTime()) {
+    					
+    					return true; // (ie sync object exists and is < 1 day old)
+    				}
+    			}
+    			catch (Exception e) { 
+    				// class cast, do nothing
+    			}
+    		}
+    	} // (end "loop over" 1 object in sync_lock DB)
+    	
+    	return false;
+    }
+    //TESTED (active lock, no lock, old lock)
+    
+    /////////////////////////////////////////////////////////////////////////////////////
+    
 	// Get all sources to be harvested (max 500 per cycle, in order of harvesting so nothing should get lost)
 	
 	public static LinkedList<SourcePojo> getSourcesToWorkOn(String sCommunityOverride, String sSourceId, boolean bSync, boolean bDistributed) {
 		// Add harvest types to the DB
 		com.ikanow.infinit.e.harvest.utils.PropertiesManager props = new com.ikanow.infinit.e.harvest.utils.PropertiesManager();
+		int nMaxSources = 1000;
+		if (!bSync) {
+			nMaxSources = props.getMaxSourcesPerHarvest(); // (normally 0 == no limit)
+		}
 
 		String sTypes = props.getHarvesterTypes();
 		String sType[] = sTypes.split("\\s*,\\s*");
@@ -141,7 +174,7 @@ public class SourceUtils {
 						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesterday)), false, true);				
 			}
 			// (then perform query)
-			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(1000);			
+			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(nMaxSources);			
 			sources = SourcePojo.listFromDb(cur, new TypeToken<LinkedList<SourcePojo>>(){});
 		} 
 		catch (Exception e) 

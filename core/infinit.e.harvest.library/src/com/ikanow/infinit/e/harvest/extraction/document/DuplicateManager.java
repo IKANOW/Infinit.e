@@ -21,6 +21,8 @@ package com.ikanow.infinit.e.harvest.extraction.document;
 import java.util.Date;
 import java.util.List;
 
+import org.bson.types.ObjectId;
+
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 
 /**
@@ -64,6 +66,11 @@ public interface DuplicateManager {
 	 * @return Date (the modified date of the duplicate doc)
 	 */ 
 	Date getLastDuplicateModifiedTime();
+	/**
+	 * If last call to isDuplicate_xxx return true, returns the _id of a pure (1-1) duplicate
+	 *@return ObjectId (the _id of the duplicate doc)
+	 */
+	ObjectId getLastDuplicateId();
 	
 	/**
 	 * Tests to see if duplicates exist based on defined key.

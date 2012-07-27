@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.Properties;
 import org.apache.log4j.Logger;
 
-import com.ikanow.infinit.e.data_model.InfiniteEnums.DatabaseType;
 import com.ikanow.infinit.e.data_model.Globals;
 
 
@@ -96,10 +95,19 @@ public class PropertiesManager {
 	public String getHarvesterTypes() {
 		return this.getProperty("harvester.types");
 	}
+	public int getMaxSourcesPerHarvest() {
+		String s = this.getProperty("harvest.maxsources_perharvest");
+		if (null == s) {
+			return 1000; // (default max limit) 
+		}
+		else {
+			return Integer.parseInt(s);
+		}				
+	}
 	public int getMaxDocsPerSource() {
 		String s = this.getProperty("harvest.maxdocs_persource");
 		if (null == s) {
-			return Integer.MAX_VALUE; // (default: 5 minutes)
+			return Integer.MAX_VALUE; 
 		}
 		else {
 			return Integer.parseInt(s);
@@ -138,7 +146,7 @@ public class PropertiesManager {
 	 * @param databaseType
 	 * @return
 	 */
-	public String getJdbcClass(DatabaseType databaseType) 
+	public String getJdbcClass(String databaseType) 
 	{
 		return this.getProperty("jdbc." + databaseType + ".class");
 	}
@@ -147,7 +155,7 @@ public class PropertiesManager {
 	 * @param databaseType
 	 * @return
 	 */
-	public String getJdbcUrl(DatabaseType databaseType ) {
+	public String getJdbcUrl(String databaseType ) {
 		return this.getProperty("jdbc." + databaseType + ".url");
 	}
 	

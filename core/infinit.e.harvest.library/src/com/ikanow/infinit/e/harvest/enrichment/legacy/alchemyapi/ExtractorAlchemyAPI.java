@@ -26,6 +26,7 @@ import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelException;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
@@ -100,12 +101,8 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		// Run through specified extractor need to pull these properties from config file
 		try
 		{			
-			// First off, some logic to check whether there's enough text for it to be worth doing anything:
-			if (partialDoc.getFullText().length() < 16) { // Try and elongate full text
-				partialDoc.setFullText(partialDoc.getTitle() + ": " + partialDoc.getDescription() + ". " + partialDoc.getFullText());
-			}
-			if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging				
-				throw new InfiniteEnums.ExtractorDocumentLevelException();				
+			if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging			
+				return;
 			}
 			
 			String json_doc = _alch.TextGetRankedNamedEntities(partialDoc.getFullText());
@@ -177,7 +174,17 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			//Deserialize json into AlchemyPojo Object			
 			AlchemyPojo sc = new Gson().fromJson(json_doc,AlchemyPojo.class);			
 			//pull fulltext
-			partialDoc.setFullText(sc.text);
+			//pull fulltext
+			if (null == sc.text){
+				sc.text = "";
+			}
+			if (sc.text.length() < 32) { // Try and elongate full text if necessary
+				StringBuilder sb = new StringBuilder(partialDoc.getTitle()).append(": ").append(partialDoc.getDescription()).append(". \n").append(sc.text);
+				partialDoc.setFullText(sb.toString());
+			}
+			else {
+				partialDoc.setFullText(sc.text);				
+			}
 			//pull entities
 			List<EntityPojo> ents = convertToEntityPoJo(sc);
 			if (null != partialDoc.getEntities()) {
@@ -240,15 +247,15 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @throws ExtractorDocumentLevelException 
 	 */
 	@Override
-	public void extractText(DocumentPojo doc) throws ExtractorDocumentLevelException
+	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException
 	{
 		try
 		{
 			
-			String json_doc = _alch.URLGetText(doc.getUrl());
+			String json_doc = _alch.URLGetText(partialDoc.getUrl());
 			try
 			{
-				checkAlchemyErrors(json_doc, doc.getUrl());
+				checkAlchemyErrors(json_doc, partialDoc.getUrl());
 			}
 			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
 			{
@@ -261,12 +268,22 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			//Deserialize json into AlchemyPojo Object
 			Gson gson = new Gson();
 			AlchemyPojo sc = gson.fromJson(json_doc,AlchemyPojo.class);	
-			doc.setFullText(sc.text);
+			//pull fulltext
+			if (null == sc.text){
+				sc.text = "";
+			}
+			if (sc.text.length() < 32) { // Try and elongate full text if necessary
+				StringBuilder sb = new StringBuilder(partialDoc.getTitle()).append(": ").append(partialDoc.getDescription()).append(". \n").append(sc.text);
+				partialDoc.setFullText(sb.toString());
+			}
+			else {
+				partialDoc.setFullText(sc.text);				
+			}
 		}
 		catch (Exception e)
 		{
 			//Collect info and spit out to log
-			logger.error("Exception Message: doc=" + doc.getUrl() + " error=" +  e.getMessage(), e);
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
 			throw new InfiniteEnums.ExtractorDocumentLevelException();
 		}	
 	}
@@ -307,8 +324,9 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @return
 	 * @throws ExtractorDailyLimitExceededException 
 	 * @throws ExtractorDocumentLevelException 
+	 * @throws ExtractorSourceLevelException 
 	 */
-	private void checkAlchemyErrors(String json_doc, String feed_url) throws ExtractorDailyLimitExceededException, ExtractorDocumentLevelException 
+	private void checkAlchemyErrors(String json_doc, String feed_url) throws ExtractorDailyLimitExceededException, ExtractorDocumentLevelException, ExtractorSourceLevelException 
 	{
 		if ( json_doc.contains("daily-transaction-limit-exceeded") )
 		{
@@ -324,6 +342,11 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		{
 			logger.error("AlchemyAPI cannot retrieve error on url=" + feed_url);
 			throw new InfiniteEnums.ExtractorDocumentLevelException();			
+		}
+		else if ( json_doc.contains("invalid-api-key") )
+		{
+			logger.error("AlchemyAPI invalid API key");
+			throw new InfiniteEnums.ExtractorSourceLevelException("AlchemyAPI invalid API key");						
 		}
 	}
 	

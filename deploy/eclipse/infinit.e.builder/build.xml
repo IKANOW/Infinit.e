@@ -45,7 +45,7 @@
 	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
 	<property name="infinit.e.web.location" value="${basedir}/../infinit.e.web"/>
-	<property name="infinit.e.sourcebuilder.location" value="${basedir}/../infinit.e.source.builder.web"/>
+	<property name="Infinit.e.Manager.location" value="${basedir}/../Infinit.e.Manager"/>
 	<property name="infinit.e-config.rpm.location" value="${basedir}/../infinit.e-config.rpm"/>
 	<property name="infinit.e-index-engine.rpm.location" value="${basedir}/../infinit.e-index-engine.rpm"/>
 	<property name="infinit.e-interface-engine.rpm.location" value="${basedir}/../infinit.e-interface-engine.rpm"/>
@@ -115,8 +115,8 @@
 		<ant antfile="${infinit.e.web.location}/build.xml">
 			<property name="basedir" value="${infinit.e.web.location}"/>
 		</ant>
-		<ant antfile="${infinit.e.sourcebuilder.location}/build.xml">
-			<property name="basedir" value="${infinit.e.sourcebuilder.location}"/>
+		<ant antfile="${Infinit.e.Manager.location}/build.xml">
+			<property name="basedir" value="${Infinit.e.Manager.location}"/>
 		</ant>
 
 		
@@ -150,6 +150,8 @@
 			<fileset dir="${infinit.e-db-instance.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
 		</copy>
 		<exec executable="createrepo">
+			<arg value="-s"/>
+			<arg value="sha"/>
 			<arg value="repo"/>
 		</exec>
 		<zip destfile="infinit.e-install-repo-${infinite_version}-${infinite_release}.zip" basedir="repo"/>

@@ -191,17 +191,21 @@ function start() {
         echo
     fi
     
-    # Copy AppConstants.js from conf (if ROOT doesn't exist, then wait a few moments)
-    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/ROOT/ ]]; then
-    	sleep 5
-    fi
+    # Copy AppConstants.js from conf (if ROOT doesn't exist, then wait up to 30s)
+    for i in 1 2 3 4 5; do
+	    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/ROOT/ ]]; then
+	    	sleep 6
+	    fi
+	done
     if [[ -d /opt/tomcat-infinite/interface-engine/webapps/ROOT/ ]]; then
 	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
 	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
+	else
+		echo "Failed to create AppConstants.js. Check the server config and restart"
 	fi    
-    if [[ -d /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/ ]]; then
-	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/AppConstants.js
-	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/sourcebuilder/AppConstants.js
+    if [[ -d /opt/tomcat-infinite/interface-engine/webapps/manager/ ]]; then
+	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
 	fi    
     return $RETVAL
 }
@@ -283,18 +287,13 @@ case "$1" in
             if [ -d "/proc/${kpid}" ]; then
                 echo "${NAME} (pid ${kpid}) is running..."
                 RETVAL="0"
+	        else
+	            echo "${NAME} is stopped"
+	            RETVAL="3"
             fi
         else
-            pid="$(/usr/bin/pgrep -d , -u ${TOMCAT_USER} -G ${TOMCAT_USER} java)"
-            if [ -z "$pid" ]; then
-#               status ${NAME}
-#               RETVAL="$?"
-                echo "${NAME} is stopped"
-                RETVAL="3"
-            else
-                echo "${NAME} (pid $pid) is running..."
-                RETVAL="0"
-            fi
+            echo "${NAME} is stopped"
+            RETVAL="3"
         fi
         ;;
     version)

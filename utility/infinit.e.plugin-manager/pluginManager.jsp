@@ -35,6 +35,7 @@ limitations under the License.
 	static String taskList = null; // (generated from populateExistingTasks)
 	static String jarList = null; // (generated from populatePreviousJarUploads)
 	static String inputCollectionList = null; // (generated from populateExistingTasks)
+	static String jobDependList = null; // (generated from populateExistingTasks)
 	static CookieManager cm = new CookieManager();
 	static String selectedJson = null; // If want to preserve pages across submit/refresh calls	
 
@@ -111,6 +112,17 @@ limitations under the License.
 		String jobidS;
 		Long jobidN;
 		String submitterID;
+		
+		float mapProgress;
+		float reduceProgress;
+		Boolean appendResults;
+		Double appendAgeOutInDays;
+		String[] jobDependencies;
+		String[] waitingOn;
+		Boolean isUpdatingOutput;
+		String errorMessage;
+		Long timesFailed;
+		String arguments;
 	}
 	static class getJobs
 	{
@@ -238,6 +250,49 @@ limitations under the License.
     	return null;
 	}
 	
+	public static String postUrl(String addr, String userarguments, HttpServletRequest request, HttpServletResponse response)
+	{
+		String charset = "UTF-8";		
+		try
+		{
+			jobPojo postObj = new jobPojo();
+			postObj.arguments = userarguments;
+			
+			//if ( userarguments.equals("") )
+			//	userarguments = "null";
+			String cookieVal = getBrowserInfiniteCookie(request);
+			//CookieHandler.setDefault(cm);
+			URLConnection connection = new URL(addr).openConnection();
+			connection.setDoOutput(true);
+			connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
+			connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
+	        connection.setRequestProperty("Accept-Charset",charset);
+	        connection.setRequestProperty("Content-Type", "application/json" + ";charset=" + charset);
+	        DataOutputStream output = new DataOutputStream(connection.getOutputStream());
+            output.write(new Gson().toJson(postObj).getBytes());
+            DataInputStream dataresponse = new DataInputStream(connection.getInputStream());
+            
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
+            int nRead;
+            byte[] data = new byte[16384];
+            while ((nRead = dataresponse.read(data,0,data.length)) != -1)
+            {
+                buffer.write(data,0,nRead);
+            }
+            
+            String json = buffer.toString();
+            buffer.flush();
+            buffer.close();
+            output.close();
+            dataresponse.close();
+            return json;           
+		}
+		catch(IOException e)
+		{
+			return null;
+		}
+	}
+	
 	public static String stringOfUrl(String addr, HttpServletRequest request, HttpServletResponse response)
 	{
 		if(localCookie)
@@ -332,11 +387,11 @@ limitations under the License.
 		return null;
 	}
 	
-	public String deleteTask(String taskId, HttpServletRequest request, HttpServletResponse response)
+	public String deleteTask(String taskId, boolean removeJar, HttpServletRequest request, HttpServletResponse response)
 	{
 		if (taskId != null)
 		{
-			String json = stringOfUrl(API_ROOT + "custom/mapreduce/removejob/" + taskId, request, response);
+			String json = stringOfUrl(API_ROOT + "custom/mapreduce/removejob/" + taskId +"?removeJar=" + new Boolean(removeJar).toString(), request, response);
 			if (json != null)
 			{
 				jobActionResponse mr = new Gson().fromJson(json, jobActionResponse.class);
@@ -552,6 +607,8 @@ limitations under the License.
 		String searchCriteria = "?type=binary";
 		String json = stringOfUrl(API_ROOT + "social/share/search/" + searchCriteria, request, response);
 		
+		toReturn += "<option value=\"null\">Query only</option>";
+		
 		 if (json != null)
 		{
 			getShare gs = new Gson().fromJson(json, getShare.class);
@@ -575,6 +632,7 @@ limitations under the License.
 		
 		String toReturn1 = ""; // (return val, task list)
 		String toReturn2 = ""; // (bonus val, input collections)
+		String toReturn3 = ""; // (bonus bonus val, tasks with _ids)
 		String json = stringOfUrl(API_ROOT + "custom/mapreduce/getjobs", request, response);
 		selectedJson = null;
 				
@@ -592,10 +650,15 @@ limitations under the License.
 					if ((null != taskTitle) && (info.jobtitle.equals(taskTitle)))
 						selectedJson = value1;
 				}
-				toReturn2 += "<option value=\""+info.jobtitle+"\" >"+info.jobtitle+" Output Collection</option>";
+				if ( !info.jobtitle.equals(taskTitle) )
+				{
+					toReturn2 += "<option value=\""+info._id+"\" >"+info.jobtitle+" Output Collection</option>";				
+					toReturn3 += "<option value=\""+info._id+"\" >"+info.jobtitle+"</option>";
+				}
 			}			
 		}
 		inputCollectionList = toReturn2;
+		jobDependList = toReturn3;
 		return toReturn1;
 	}
 	
@@ -605,6 +668,8 @@ limitations under the License.
 			Long nextruntime, String inputcollection, 
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
+			String appendResults, String ageout,
+			Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		//Create Entry for DB
@@ -613,7 +678,7 @@ limitations under the License.
 		
 		String s = null;
 		if((null == (s = installTask(pluginId, title, description, frequency, nextruntime, inputcollection, currJarUrl, 
-						mapper, combiner, reducer, query, outputKey, outputValue,
+						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, jobdepend, userarguments,
 				communities, request, response))))
 		{
 			return "Task Added/Updated Successfully!";
@@ -638,6 +703,7 @@ limitations under the License.
 			Long nextruntime, String inputcollection, 
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
+			String appendResults, String ageout, Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		String charset = "UTF-8";
@@ -680,16 +746,35 @@ limitations under the License.
 		url += java.net.URLEncoder.encode(query, charset) + "/"; 
 		url += java.net.URLEncoder.encode(inputcollection, charset) + "/";
 		url += outputKey + "/";
-		url += outputValue;
+		url += outputValue + "/";
+		url += appendResults + "/";
+		url += ageout + "/";
+		if (jobdepend.isEmpty()) {
+			url += "null";
+		}
+		n=0;
+		for (String job: jobdepend) {
+			if (n > 0) {
+				url += ',';
+			}
+			n++;
+			url += job;
+		}
 		
 		//DEBUG
-		//System.out.println(url);
+		//System.out.println("arg: " + userarguments);
+		//System.out.println("url: " + url);
 		//if (true) return false;		
 		
-		String json = stringOfUrl(url, request, response);	        
+		//String json = stringOfUrl(url, request, response);
+		String json = postUrl(url,userarguments,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
-        
-        if (resp.response.success)
+             
+        if ( resp == null )
+        {
+        	return "Error making call";
+        }
+        if ( resp.response.success)
         	return null;
         else 
         	return resp.response.message;
@@ -753,6 +838,10 @@ if (API_ROOT == null)
 			System.err.println(e.toString());
 		}
 	}
+	if (null == API_ROOT) { 
+		// Default to localhost
+		API_ROOT = "http://localhost:8080/api/";
+	}
 
 	if (API_ROOT.contains("localhost"))
 		localCookie=true;
@@ -794,6 +883,7 @@ else if (isLoggedIn == true)
 			byte[] fileBytes = null;
 			String fileDS = null;
 			Set<String> communities = new HashSet<String>();
+			Set<String> jobdeps = new HashSet<String>();
 			boolean bContinueAfterFileUpload = true;
 			HashSet<String> classes = null;
 			
@@ -807,6 +897,10 @@ else if (isLoggedIn == true)
 	 		    	if (name.equalsIgnoreCase("communities"))
 	 		    	{
 	 		    		communities.add(Streams.asString(stream));
+	 		    	}
+	 		    	else if (name.equalsIgnoreCase("jobdepend"))
+	 		    	{
+	 		    		jobdeps.add(Streams.asString(stream));
 	 		    	}
 	 		    	else
 	 		    	{
@@ -861,7 +955,10 @@ else if (isLoggedIn == true)
 	 		////////////////////////////////////Delete Task ////////////////////////////////
 	 		if (request.getAttribute("deleteId") != null)
 	 		{
-	 			out.println(deleteTask(request.getAttribute("deleteId").toString(), request, response));
+	 			String jobtitle = request.getAttribute("deletejob").toString();
+	 			String jartitle = request.getAttribute("deletejar").toString();
+	 			boolean removeShare = jobtitle.equals(jartitle);
+	 			out.println(deleteTask(request.getAttribute("deleteId").toString(), removeShare, request, response));
 	 		}//TESTED
 	 		else if (request.getAttribute("refreshId") != null)
 	 		{
@@ -996,6 +1093,10 @@ else if (isLoggedIn == true)
 							request.getAttribute("query").toString(), 
 							request.getAttribute("outputkey").toString(), 
 							request.getAttribute("outputvalue").toString(), 
+							request.getAttribute("appendResults").toString(),
+							request.getAttribute("ageout").toString(),
+							jobdeps,
+							request.getAttribute("userarguments").toString(),
 							communities, request, response));
 					
 					if (title.equals("null"))
@@ -1034,6 +1135,15 @@ else if (isLoggedIn == true)
 			  o.selected = false;
 			}
 		}
+		function clearJobDepList()
+		{
+			mult_deps = document.getElementById('jobdepend');
+			for ( var i = 0, l = mult_deps.options.length, o; i < l; i++ )
+			{
+			  o = mult_deps.options[i];
+			  o.selected = false;
+			}
+		}
 		function highlightComms(commList)
 		{
 			commListStr = JSON.stringify(commList);
@@ -1047,6 +1157,33 @@ else if (isLoggedIn == true)
 			  else  
 			  	o.selected = true;
 			}
+		}
+		function highlightJobDeps(depList)
+		{
+			depListStr = JSON.stringify(depList);
+				// (horrible way of doing it, but easiest way of modding the existing code)
+			mult_deps = document.getElementById('jobdepend');
+			for ( var i = 0, l = mult_deps.options.length, o; i < l; i++ )
+			{
+			  o = mult_deps.options[i];
+			  if(depListStr.indexOf(o.value) == -1)
+				o.selected = false;
+			  else  
+			  	o.selected = true;
+			}
+		}
+		function auto_add_jobdep()
+		{
+			inputcollection = document.getElementById('inputcollection').value;
+			var jobdepend = document.getElementById( 'jobdepend' );
+			for (var i = 0; i < jobdepend.length; i++) {
+		        if (jobdepend[i].value == inputcollection) {
+		        	jobdepend[i].selected = true;
+		        }
+		        else {
+		        	jobdepend[i].selected = false;
+		        }
+		    }			
 		}
 		
 		function populate(selectedJson)
@@ -1062,19 +1199,28 @@ else if (isLoggedIn == true)
 			reducer = document.getElementById('reducer');
 			outputKey = document.getElementById('outputkey');
 			outputValue = document.getElementById('outputvalue');
-			query = document.getElementById('query');			
+			query = document.getElementById('query');	
+			userarguments = document.getElementById('userarguments');
 			file = document.getElementById('file');
 			reusejar_checked = document.getElementById('reusejar_check');
 			jar_url = document.getElementById('jar_url');
 			var select = document.getElementById( 'communities' );
+			appendResults = document.getElementById( 'appendResults' );
+			ageout = document.getElementById( 'ageout' );
+			var jobdepend = document.getElementById( 'jobdepend' );
 
 			// Other misc entries			
 			refreshId = document.getElementById('refreshId');
 			deleteId = document.getElementById('deleteId');
-			deleteButton = document.getElementById('deleteButton');
+			deletejob = document.getElementById('deletejob');
+			deletejar = document.getElementById('deletejar');
+			deleteButton = document.getElementById('deleteButton');			
 			dropdown = document.getElementById("upload_info");			
 			status_form = document.getElementById("status_form");
 			jobstatus = document.getElementById("jobstatus");
+			jobmapstatus = document.getElementById("jobmapstatus");
+			jobredstatus = document.getElementById("jobredstatus");
+			joberror = document.getElementById("joberror");
 			
 			// Hidden entries
 			DBId = document.getElementById('DBId');
@@ -1104,14 +1250,17 @@ else if (isLoggedIn == true)
 				
 				outputKey.value = "com.mongodb.hadoop.io.BSONWritable";
 				outputValue.value = "com.mongodb.hadoop.io.BSONWritable";
-				
+				appendResults.value = "false";
+				ageout.value = "0";
 				query.value = "{}";
-				
+				userarguments.value = "";
 				jar_url.value = "";
 				reusejar_checked.checked = false;
 				
 				DBId.value = "";
 				deleteId.value = "";
+				deletejob.value = "";
+				deletejar.value = "";
 				refreshId.value = "";
 				currJarUrl.value = "";
 				currTitle.value = "";
@@ -1120,6 +1269,7 @@ else if (isLoggedIn == true)
 				
 				useUrlJar();
 				clearCommList();
+				clearJobDepList();
 				return;
 			}
 			else if (json == "copy")
@@ -1130,6 +1280,8 @@ else if (isLoggedIn == true)
 				currJarUrl.value = "";
 				currTitle.value = "";
 				deleteId.value = "";
+				deletejob.value = "";
+				deletejar.value = "";
 				refreshId.value = "";
 				deleteButton.style.visibility = 'hidden';				
 				status_form.style.display = 'none';
@@ -1191,17 +1343,42 @@ else if (isLoggedIn == true)
 			{
 				inputcollection.value = jsonObj.inputCollection;
 			}
-			mapper.value = jsonObj.mapper;
-			combiner.value = jsonObj.combiner;
-			reducer.value = jsonObj.reducer;
+			if ((null != jsonObj.mapper) && (jsonObj.mapper != "")) {
+				mapper.value = jsonObj.mapper;
+			}
+			else {
+				mapper.value = "null";
+			}
+			if ((null != jsonObj.combiner) && (jsonObj.combiner != "")) {
+				combiner.value = jsonObj.combiner;
+			}
+			else {
+				combiner.value = "null";
+			}
+			if ((null != jsonObj.reducer) && (jsonObj.reducer != "")) {
+				reducer.value = jsonObj.reducer;
+			}
+			else {
+				reducer.value = "null";
+			}
 			outputKey.value = jsonObj.outputKey;
 			outputValue.value = jsonObj.outputValue;
+			appendResults.value = jsonObj.appendResults
+			ageout.value = jsonObj.appendAgeOutInDays;
 			query.value = jsonObj.query;
+			userarguments.value = jsonObj.arguments;
+			if ( jsonObj.arguments == null )
+				userarguments.value = "";
 			
 			DBId.value = jsonObj._id;
 			deleteId.value = jsonObj._id;
+			deletejob.value = jsonObj.jobtitle;
+			
 			refreshId.value = jsonObj.jobtitle;
 			
+			if (jsonObj.jarURL == null) {
+				jsonObj.jarURL = "null";
+			}
 			jar_url.value = jsonObj.jarURL;
 			currTitle.value = jsonObj.jobtitle;
 			currJarUrl.value = jsonObj.jarURL;
@@ -1214,10 +1391,14 @@ else if (isLoggedIn == true)
 				var index = text.indexOf(" (");
 				if ((null != index) && (index > 0))
 				{
-					currJarTitle.value = text.substring(0, index);					
+					currJarTitle.value = text.substring(0, index);	
+					deletejar.value = text.substring(0, index);
 				}
 				else 
-					currJarTitle.value = text;					
+				{
+					currJarTitle.value = text;
+					deletejar.value = text;
+				}
 			}//TESTED
 			else 
 			{
@@ -1225,6 +1406,7 @@ else if (isLoggedIn == true)
 			}
 			useUrlJar();
 			highlightComms(jsonObj.communityIds);
+			highlightJobDeps(jsonObj.jobDependencies);
 			
 			// Status		
 			var nRunningDuration_s = 0;
@@ -1238,13 +1420,13 @@ else if (isLoggedIn == true)
 				{
 					jobstatus.value = "Pending";					
 				}
-				else if (0 == jsonObj.timesRan)
+				else if (0 == jsonObj.timesRan && 0 == jsonObj.timesFailed)
 				{
 					jobstatus.value = "Idle (times run: 0)";					
 				}
 				else
 				{
-					jobstatus.value = "Idle (times run: " + jsonObj.timesRan + ", last: " + jsonObj.lastCompletionTime + ")";
+					jobstatus.value = "Idle (times run: " + jsonObj.timesRan + ", times failed: " + jsonObj.timesFailed + ", last: " + jsonObj.lastCompletionTime + ")";
 				}
 			}
 			else if (jsonObj.jobidS == "")
@@ -1264,14 +1446,42 @@ else if (isLoggedIn == true)
 			{
 				if (nRunningDuration_s > 0) 
 				{
-					jobstatus.value = "Running (job id: " + jsonObj.jobidS + ", for " + nRunningDuration_s + "s)";					
+					jobstatus.value = "Running (job id: " + jsonObj.jobidS + "_" + jsonObj.jobidN.toString() + ", for " + nRunningDuration_s + "s)";					
 				}
 				else				
-					jobstatus.value = "Running (job id: " + jsonObj.jobidS + ")";				
+					jobstatus.value = "Running (job id: " + jsonObj.jobidS + "_" + jsonObj.jobidN.toString() + ")";				
 				//TODO (INF-1480): Go get complete % from Hadoop REST call in JSP portion
 			}
 			//TESTED: test all 5 clauses
+			
+			if ( null == jsonObj.mapProgress )
+			{
+				jobmapstatus.value = "0";
+			}
+			else
+			{
+				jobmapstatus.value = Math.round(jsonObj.mapProgress*100.0) + "%";
+			}
+				
+			if ( null == jsonObj.reduceProgress )
+			{
+				jobredstatus.value = "0";
+			}
+			else
+			{
+				jobredstatus.value = Math.round(jsonObj.reduceProgress*100.0) + "%";
+			}
+			
+			if ( null == jsonObj.errorMessage )
+			{
+				joberror.value = "no error";
+			}
+			else
+			{
+				joberror.value = jsonObj.errorMessage;
+			}
 		}
+		
 		function useUrlJar()
 		{
 			file = document.getElementById('file');
@@ -1287,7 +1497,7 @@ else if (isLoggedIn == true)
 				file.style.display = "";
 				jar_url.style.display = "none";
 			}
-		}
+		}		
 		function validate_fields()
 		{			
 			title = document.getElementById('title').value;
@@ -1301,7 +1511,10 @@ else if (isLoggedIn == true)
 			reducer = document.getElementById('reducer').value;
 			outputKey = document.getElementById('outputkey').value;
 			outputValue = document.getElementById('outputvalue').value;
-			query = document.getElementById('query').value;			
+			appendResults = document.getElementById('appendResults').value;
+			ageout = document.getElementById('ageout').value;
+			query = document.getElementById('query').value;	
+			userarguments = document.getElementById('userarguments');
 			file = document.getElementById('file').value;
 			reusejar_checked = document.getElementById('reusejar_check').checked;
 			jar_url = document.getElementById('jar_url').value;
@@ -1340,8 +1553,11 @@ else if (isLoggedIn == true)
 				alert('Please provide a description.');
 				return false;
 			}
-						
-			if (query != "")
+				
+			var queryregex = /^\s*{\s*}\s*$/;
+			//if it does not equal an empty box and does not just equal {}
+			//then test the expression
+			if (query != "" && !queryregex.test(query))
 			{
 				try {
 					eval('(' + query + ')');
@@ -1349,6 +1565,10 @@ else if (isLoggedIn == true)
 				catch (err) {
 					alert('Error parsing query: ' + err.toString())
 				}
+			}
+			else
+			{
+				document.getElementById('query').value = "null";
 			}
 			
 			if ((mapper == "") || (combiner == "") || (reducer == ""))
@@ -1361,6 +1581,8 @@ else if (isLoggedIn == true)
 				alert('Please provide an output key and value.');
 				return false;
 			}
+			
+			
 			
 			if (file == "" && reusejar_checked == false)
 			{
@@ -1411,6 +1633,12 @@ else if (isLoggedIn == true)
 			}
 			//TESTED (all 5 clauses above)
 			
+			var regex2 = /^[0-9]+.?[0-9]*$/;
+			if (!regex2.test(ageout))
+			{				
+				alert('Age out must be a numeric value (Must start with a number, can be a decimal e.g. 0.006)');
+				return false;
+			}
 			return true;
 		}
 		function refreshStatus()
@@ -1439,12 +1667,26 @@ else if (isLoggedIn == true)
 	        		</select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" style="visibility:hidden;" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
+	        		<input type="hidden" name="deletejob" id="deletejob" />
+	        		<input type="hidden" name="deletejar" id="deletejar" />
 	        	</form>
 		        <form id="status_form" name="status_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return refreshStatus();">
 	                <table><tr>
 		                <td>Run status:</td>
 		                <td><input type="text" name="jobstatus" id="jobstatus" readonly="readonly" size="60" /></td>
 			        	<td><input type="submit" name="refresh" id = "refresh" value="Refresh" /></td>
+	                </tr>
+	                <tr>
+	                	<td>Map Progress</td>
+	                	<td><input type="text" name="jobmapstatus" id="jobmapstatus" readonly="readonly" size="60" /></td>
+	                </tr>
+	                <tr>
+	                	<td>Reduce Progress</td>
+	                	<td><input type="text" name="jobredstatus" id="jobredstatus" readonly="readonly" size="60" /></td>
+	                </tr>
+	                <tr>
+	                	<td>Status Message:</td>
+	                	<td><textarea rows="4" cols="44" name="joberror" id="joberror" ></textarea></td>
 	                </tr></table>
 		        	<input type="hidden" name="refreshId" id="refreshId" />
 		        </form>
@@ -1454,7 +1696,7 @@ else if (isLoggedIn == true)
 	                    <td colspan="2" align="center"></td>
 	                  </tr>
 	                  <tr>
-	                    <td>Title:</td>
+	                    <td width="150">Title:</td>
 	                    <td><input type="text" name="title" id="title" size="35" /></td>
 	                  </tr>
 	                  <tr>
@@ -1482,7 +1724,7 @@ else if (isLoggedIn == true)
 	                  <tr>
 	                    <td>Input collection:</td>
 						<td>
-							<select name="inputcollection" id="inputcollection">
+							<select name="inputcollection" id="inputcollection" onchange="auto_add_jobdep()">
 								<option value="DOC_METADATA">Document Metadata Collection</option>
 								<% out.print(inputCollectionList); %>
 							</select>
@@ -1531,6 +1773,31 @@ else if (isLoggedIn == true)
 								<option value="com.mongodb.hadoop.io.BSONWritable">com.mongodb.hadoop.io.BSONWritable</option>
 							</select>
 						</td>
+	                  </tr>
+	                  <tr>
+	                    <td>Append Results:</td>
+						<td>
+							<select name="appendResults" id="appendResults">																
+								<option value="true">true</option>
+								<option value="false">false</option>
+							</select>
+						</td>
+	                  </tr>
+	                  <tr>
+	                    <td>Age out in days:</td>
+	                    <td><input type="text" name="ageout" id="ageout" size="10" /></td>
+	                  </tr>
+	                  <tr>
+	                    <td>Job dependencies:</td>
+						<td>
+							<select name="jobdepend" id="jobdepend" multiple="multiple">
+								<% out.print(jobDependList); %>
+							</select>
+						</td>
+	                  </tr>
+	                  <tr>
+	                    <td>User Arguments:</td>
+	                    <td><textarea rows="4" cols="60" name="userarguments" id="userarguments" ></textarea></td>
 	                  </tr>
 	                  <tr>
 	                    <td>JAR file:</td>

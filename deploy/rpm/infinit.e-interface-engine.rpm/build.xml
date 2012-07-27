@@ -61,11 +61,11 @@
 		<copy file="../infinit.e.flex.client/html-template/AppConstants.js.TEMPLATE" 
 			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.TEMPLATE"/>
 		<copy file="../infinit.e.api.server/dist/infinit.e.api.server.war" 
-			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server-${infinite_version}-${infinite_release}.war"/>
+			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-${infinite_version}-${infinite_release}.war"/>
 		<copy file="../infinit.e.web/dist/infinit.e.web.war" 
-			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web-${infinite_version}-${infinite_release}.war"/>
-		<copy file="../infinit.e.source.builder.web/dist/infinit.e.source.builder.web.war" 
-			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.source.builder.web-${infinite_version}-${infinite_release}.war"/>
+			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/infinit.e.web-${infinite_version}-${infinite_release}.war"/>
+		<copy file="../Infinit.e.Manager/dist/infinit.e.manager.war" 
+			tofile="./SOURCES/infinit.e-interface-engine/mnt/opt/tomcat-infinite/interface-engine/infinit.e.manager-${infinite_version}-${infinite_release}.war"/>
 	</target>
 	
 	<!-- ================================= 

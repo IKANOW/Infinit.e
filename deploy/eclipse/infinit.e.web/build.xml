@@ -9,7 +9,6 @@
 	<property name="dir.dist" value="dist"/>
 	<property name="infinit.e.widget-uploader.location" value="../infinit.e.widget-uploader/"/>
 	<property name="infinit.e.file-uploader.location" value="../infinit.e.file-uploader/"/>
-	<property name="infinit.e.person-manager.location" value="../infinit.e.person-manager/"/>
 	<property name="infinit.e.plugin-manager.location" value="../infinit.e.plugin-manager/"/>
 	<property name="target" value="1.6"/>
 	<property name="source" value="1.6"/>
@@ -105,12 +104,6 @@
 			<fileset dir="${infinit.e.file-uploader.location}/${dir.lib}"/>
 		</copy>
 		<copy file="${infinit.e.file-uploader.location}/fileUploader.jsp" tofile="${dir.build}/fileUploader.jsp"/>
-	
-		<!-- copy over the infinit.e.person-manager -->			
-		<copy todir="${dir.build}/${dir.lib}">
-			<fileset dir="${infinit.e.person-manager.location}/${dir.lib}"/>
-		</copy>
-		<copy file="${infinit.e.person-manager.location}/personManager.jsp" tofile="${dir.build}/personManager.jsp"/>
 	
 		<!-- copy over the infinit.e.plugin-manager -->			
 		<copy todir="${dir.build}/${dir.lib}">

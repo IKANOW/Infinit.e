@@ -70,6 +70,10 @@ public class CoreMain {
     	PropertyConfigurator.configure(com.ikanow.infinit.e.data_model.Globals.getLogPropertiesLocation());
 		
 		if (cliOpts.hasOption("harvest")) {
+			if (SourceUtils.checkDbSyncLock()) {
+				Thread.sleep(10000); // (wait 10s and then try again)
+				System.exit(0);
+			}
 			String communityOverride = null;
 			String sourceDebug = null;
 			if (cliOpts.hasOption("local")) {
@@ -87,6 +91,10 @@ public class CoreMain {
 			new HarvestThenProcessController().startService(SourceUtils.getSourcesToWorkOn(communityOverride, sourceDebug, false, true));
 		}//TESTED
 		else if (cliOpts.hasOption("sync")) {
+			if (SourceUtils.checkDbSyncLock()) {
+				Thread.sleep(10000); // (wait 10s and then try again)
+				System.exit(0);
+			}
 			// Sync command line options:
 			long nTimeOfLastCleanse = 0; // (default)
 			if (cliOpts.hasOption("from")) {

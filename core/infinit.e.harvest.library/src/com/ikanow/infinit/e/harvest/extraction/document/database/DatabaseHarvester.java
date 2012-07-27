@@ -28,11 +28,10 @@ import java.util.List;
 import java.util.Set;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.CommitType;
-import com.ikanow.infinit.e.data_model.InfiniteEnums.DatabaseType;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
-import com.ikanow.infinit.e.data_model.store.config.source.SourceDatabaseConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -90,6 +89,9 @@ public class DatabaseHarvester implements HarvesterInterface
 		docsToUpdate = toUpdate;
 		docsToDelete = toRemove;
 
+		if (_context.isStandalone()) {
+			maxDocsPerCycle = _context.getStandaloneMaxDocs();
+		}
 		try 
 		{
 			processDatabase(source);
@@ -118,10 +120,10 @@ public class DatabaseHarvester implements HarvesterInterface
 		rdbms = new RdbmsManager();
 
 		// Get the type of database to access from the source object
-		DatabaseType dt = source.getDatabaseConfig().getDatabaseType();	
+		String dt = source.getDatabaseConfig().getDatabaseType();	
 		
 		// Create the jdbcUrl connection string for the manager
-		jdbcUrl = rdbms.getConnectionString(dt, dt.toString(), 
+		jdbcUrl = rdbms.getConnectionString(dt,  
 				source.getDatabaseConfig().getHostname(), source.getDatabaseConfig().getPort(), 
 				source.getDatabaseConfig().getDatabaseName());
 		rdbms.setUrl(jdbcUrl);
@@ -248,10 +250,6 @@ public class DatabaseHarvester implements HarvesterInterface
 			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + sErr, false, false);
 		}
 		else {
-			if (this.docsToAdd.size() > 0) {
-				System.out.println("First doc = " + docsToAdd.get(0).getId());
-			}
-			
 			// Build the list of docs using the result set from the query
 			boolean bTruncated = addRecords(rdbms.getResultSet(), rdbms.getMetaData(), source);
 			
@@ -298,12 +296,19 @@ public class DatabaseHarvester implements HarvesterInterface
 				 * Check for existing doc by checking the doc.url field which will contain
 				 * the following information for a database record:
 				 * source.url + primary key fields. See example below
-				 * jdbc:mysql://184.72.206.97:3306/washingtondc/987863
+				 * jdbc:mysql://<IP ADDRESS>:3306/washingtondc/987863
 				 */
 				try 
 				{
 					DuplicateManager qr = _context.getDuplicateManager();
-			    	String primaryKey = rs.getString(source.getDatabaseConfig().getPrimaryKey());
+					
+			    	String primaryKey = null;
+			    	if (null != source.getDatabaseConfig().getPrimaryKey()) {
+			    		primaryKey = rs.getString(source.getDatabaseConfig().getPrimaryKey());
+			    	}
+			    	if (null == primaryKey) { // Just pick something unique, to avoid URL collisions
+			    		primaryKey = new ObjectId().toString();
+			    	}
 			    	String docUrl = source.getUrl() + "/" + primaryKey;
 			    	
 					// Check to see if the record has already been added
@@ -320,6 +325,7 @@ public class DatabaseHarvester implements HarvesterInterface
 					else {
 						//TODO (INF-1300): update, I guess need to check if the record has changed?
 						// If not, do nothing; if so, 
+						//newOrUpdatedDoc.setId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
 						//this.docsToUpdate.add(newOrUpdatedDoc);
 					}					
 				} 
@@ -393,7 +399,6 @@ public class DatabaseHarvester implements HarvesterInterface
 			{
 				// create the doc pojo
 				doc = new DocumentPojo();
-				doc.setId(new ObjectId());
 				doc.setUrl(docUrl);
 				doc.setCreated(new Date());				
 			}
@@ -405,45 +410,43 @@ public class DatabaseHarvester implements HarvesterInterface
 			doc.setModified(new Date());
 			
 			// Strip out html if it is present
-			if (rs.getString(source.getDatabaseConfig().getTitle()) != null)
-			{
-				doc.setTitle(rs.getString(source.getDatabaseConfig().getTitle()).replaceAll("\\<.*?\\>", ""));
+			if (null != source.getDatabaseConfig().getTitle()) {
+				if (rs.getString(source.getDatabaseConfig().getTitle()) != null)
+				{
+					doc.setTitle(rs.getString(source.getDatabaseConfig().getTitle()).replaceAll("\\<.*?\\>", ""));
+				}
 			}
 			
-			if (rs.getString(source.getDatabaseConfig().getSnippet()) != null)
-			{
-				doc.setDescription(rs.getString(source.getDatabaseConfig().getSnippet()).replaceAll("\\<.*?\\>", ""));
+			if (null != source.getDatabaseConfig().getSnippet()) {
+				if (rs.getString(source.getDatabaseConfig().getSnippet()) != null)
+				{
+					doc.setDescription(rs.getString(source.getDatabaseConfig().getSnippet()).replaceAll("\\<.*?\\>", ""));
+				}
 			}
 
-			if (rs.getString(source.getDatabaseConfig().getPublishedDate()) != null)
-			{
-				Object d = null;
-				try
+			if (null != source.getDatabaseConfig().getPublishedDate()) {
+				if (rs.getString(source.getDatabaseConfig().getPublishedDate()) != null)
 				{
-					Object o = rs.getDate(source.getDatabaseConfig().getPublishedDate());
-					d = convertJdbcTypes(null, o);
+					Object d = null;
+					try
+					{
+						Object o = rs.getDate(source.getDatabaseConfig().getPublishedDate());
+						d = convertJdbcTypes(null, o);
+					}
+					catch (Exception e)
+					{
+						d = new Date();
+					}
+					doc.setPublishedDate((Date) d);
 				}
-				catch (Exception e)
+				else
 				{
-					d = new Date();
+					doc.setPublishedDate(new Date());
 				}
-				doc.setPublishedDate((Date) d);
 			}
 			else
 			{
 				doc.setPublishedDate(new Date());
-			}
-			
-			// Add database information for primary key information
-			SourceDatabaseConfigPojo db = new SourceDatabaseConfigPojo();
-			if (source.getDatabaseConfig().getPrimaryKey() != null)
-			{
-				db.setPrimaryKey(source.getDatabaseConfig().getPrimaryKey());
-			}
-			
-			if (rs.getString(source.getDatabaseConfig().getPrimaryKey()) != null)
-			{
-				db.setPrimaryKeyValue(rs.getString(source.getDatabaseConfig().getPrimaryKey()));
 			}
 			
 	        // Create a list of metadata to be added to the doc
@@ -517,27 +520,19 @@ public class DatabaseHarvester implements HarvesterInterface
 	 * @param 	d 			- Date
 	 * @return 			 	- String
 	 */
-	private static String getDatabaseDateString(DatabaseType dt, Date d)
+	private static String getDatabaseDateString(String dt, Date d)
 	{
-		// t.string () = yyyy-mm-dd hh:mm:ss
-		java.sql.Timestamp t = new Timestamp(d.getTime());
-		
-		switch (dt)
-		{
-			case db2:
-				return t.toString();
-			case mssqlserver:
-				return t.toString();
-			case mysql:
-				// yyyy-MM-dd HH:mm:ss
-				return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(d);
-			case oracle:
-				// dd-MMM-yyyy HH:mm:ss
-				return new SimpleDateFormat("dd-MMM-yyyy HH:mm:ss").format(d);
-			case sybase:
-				return t.toString();
-			default:
-				return t.toString();
+		if (dt.equalsIgnoreCase("mysql")) {
+			// yyyy-MM-dd HH:mm:ss
+			return new SimpleDateFormat("yyyy-MM-dd HH:mm:ss").format(d);			
+		}
+		else if (dt.equalsIgnoreCase("oracle")) {
+			// dd-MMM-yyyy HH:mm:ss
+			return new SimpleDateFormat("dd-MMM-yyyy HH:mm:ss").format(d);			
+		}
+		else {
+			java.sql.Timestamp t = new Timestamp(d.getTime());
+			return t.toString();			
 		}
 	}
 	

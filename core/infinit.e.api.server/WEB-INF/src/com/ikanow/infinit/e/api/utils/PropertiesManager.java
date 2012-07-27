@@ -126,4 +126,14 @@ public class PropertiesManager {
 	public String getUrlRoot() {		
 		return this.getProperty("url.root");
 	}
+	
+	// REMOTE ACCESS CONTROLS (defaults to everything)
+	
+	public String getRemoteAccessAllow() {
+		return this.getProperty("remote.access.allow");
+	}
+	public String getRemoteAccessDeny() {
+		return this.getProperty("remote.access.deny");
+	}
+	
 }

@@ -51,8 +51,8 @@ limitations under the License.
 	if (API_ROOT == null)
 	{
 		URL baseUrl = new URL(request.getScheme(), request.getServerName(), request.getServerPort(), "");
-		ServletContext context = session.getServletContext();
-		String realContextPath = context.getRealPath(request.getContextPath());
+		/* ServletContext context = session.getServletContext();
+		String realContextPath = context.getRealPath(request.getContextPath()); */
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("javascript");		
 		String appConstantFile = null;
@@ -85,8 +85,8 @@ limitations under the License.
 				//System.out.println("Exception: " + je.getMessage());
 				try 
 				{
-					in =  new FileInputStream (realContextPath + "\\..\\AppConstants.js");
-					appConstantFile = IOUtils.toString( in );
+					//in =  new FileInputStream (realContextPath + "\\..\\AppConstants.js");
+					//appConstantFile = IOUtils.toString( in );
 				}
 				catch (Exception e)
 				{
@@ -105,6 +105,10 @@ limitations under the License.
 		catch (Exception e)
 		{
 			//System.out.println("Exception: " + e.getMessage());
+		}
+		if (null == API_ROOT) { 
+			// Default to localhost
+			API_ROOT = "http://localhost:8080/api/";
 		}
 		
 		if (API_ROOT.contains("localhost")) { localCookie=true; }
@@ -452,9 +456,14 @@ limitations under the License.
 	
 	
 	// deleteSource
-	private String deleteSource(String sourceId, String communityId, HttpServletRequest request, HttpServletResponse response)
+	private String deleteSource(String sourceId, boolean bDocsOnly, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
-		return callRestfulApi("config/source/delete/" + sourceId + "/" + communityId, request, response);
+		if (bDocsOnly) {
+			return callRestfulApi("config/source/delete/docs/" + sourceId + "/" + communityId, request, response);
+		}
+		else {
+			return callRestfulApi("config/source/delete/" + sourceId + "/" + communityId, request, response);
+		}
 	}
 	
 	
@@ -642,7 +651,15 @@ limitations under the License.
 					for (int i = 0; i < members.length(); i++) 
 					{
 						JSONObject member = members.getJSONObject(i);
-						allPeople.put( member.getString("displayName"), member.getString("_id") );
+						if (member.has("displayName"))
+						{
+							allPeople.put( member.getString("displayName"), member.getString("_id") );
+						}
+						else
+						{
+							allPeople.put( member.getString("_id"), member.getString("_id") );
+						}
+							
 					}
 				}
 			}
@@ -671,7 +688,14 @@ limitations under the License.
 					for (int i = 0; i < members.length(); i++) 
 					{
 						JSONObject member = members.getJSONObject(i);
-						allPeople.put( member.getString("displayName"), member.getString("_id") );
+						if (member.has("displayName"))
+						{
+							allPeople.put( member.getString("displayName"), member.getString("_id") );
+						}
+						else
+						{
+							allPeople.put( member.getString("_id"), member.getString("_id") );
+						}
 					}
 				}
 			}
@@ -722,7 +746,7 @@ limitations under the License.
 				for (int i = 0; i < communities.length(); i++) 
 				{
 					JSONObject community = communities.getJSONObject(i);
-					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false"))
+					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.has("name"))
 					{
 						allCommunities.put( community.getString("name"), community.getString("_id") );
 					}
@@ -731,7 +755,7 @@ limitations under the License.
 		}
 		catch (Exception e)
 		{
-			//System.out.println(e.getMessage());
+			System.out.println(e.getMessage());
 		}
 		return allCommunities;
 	}

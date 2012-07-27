@@ -9,7 +9,7 @@ BACKUP_DIR=$DB_HOME/data
 # s3.url = 
 SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
 S3_URL=`grep "^s3.url=" $SERVICE_PROPERTY_FILE | sed s/'s3.url='// | sed s/' '//g`
-S3_URL="mongodb.$S3_URL"
+S3_URL="mongo.$S3_URL"
 
 ################################################################################
 # $1 arg = port to access MongoDB on
@@ -30,20 +30,21 @@ else
 fi
 
 ################################################################################
-#
-################################################################################
-mongo $mongos_ip <<EOF
-use config
-db.settings.update( { _id: "balancer" }, { $set : { stopped: true } } , true );
-while( db.locks.findOne({_id: "balancer"}).state ) { print("waiting..."); sleep(1000); }
-exit
-EOF
-
-################################################################################
 # Only run this script if I'm the master (since there can be 0+ slaves)
 ################################################################################
 
 if mongo localhost:$MONGO_PORT --eval "a = db.isMaster(); print(tojson(a)); " | grep -q '"ismaster" : true'; then
+
+	################################################################################
+	# Stop balancer
+	################################################################################
+	mongo $mongos_ip <<EOF
+use config
+db.settings.update( { "_id": "balancer" }, { "$set" : { "stopped": true } } , true );
+while( db.locks.findOne({ "_id": "balancer" }).state ) { print("waiting..."); sleep(1000); }
+exit
+EOF
+
 	echo "Backup Infinit.e DB Started `date`" >> $DB_HOME/bak.log
 
 	echo "Remove the existing backup directory $DB_HOME/db to make room for todays if it exists"
@@ -66,7 +67,7 @@ if mongo localhost:$MONGO_PORT --eval "a = db.isMaster(); print(tojson(a)); " | 
     	s3cmd -f put $DB_HOME/db_backup_`hostname`_`date +%d`.tgz s3://$S3_URL
     	mv $DB_HOME/db_backup_`hostname`_`date +%d`.tgz $DB_HOME/db_backup_`hostname`_most_recent.tgz
     	s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent.tgz s3://$S3_URL
-	if
+	fi
 	
 	# Tidy up:
 	rm -rf $DB_HOME/db
@@ -74,9 +75,18 @@ if mongo localhost:$MONGO_PORT --eval "a = db.isMaster(); print(tojson(a)); " | 
 	################################################################################
 	# Weekly, do a transfer to a remote backup location S3 vs non
 	################################################################################
-    if [ `date +%w` -eq 0 && "$S3_URL" != "" ]; then 
+    if [ `date +%w` -eq 0 ] && [ "$S3_URL" != "" ]; then 
             s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent.tgz s3://backup.$S3_URL/db_backup_`hostname`_`date +%Y%m%d`.tgz
     fi
+	
+	################################################################################
+	# Restart balancer
+	################################################################################
+	mongo $mongos_ip <<EOF
+use config
+db.settings.update( { "_id": "balancer" }, { "$set" : { "stopped": false } } , true );
+exit
+EOF
 		
 	echo "Finished making the backup for `date`"  >> $DB_HOME/bak.log
 fi

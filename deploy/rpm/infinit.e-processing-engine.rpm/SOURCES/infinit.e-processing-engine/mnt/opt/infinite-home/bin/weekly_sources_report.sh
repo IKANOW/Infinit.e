@@ -5,8 +5,8 @@ MONGODB=
 SERVERADDR=`/sbin/ifconfig | grep -o "addr:[0-9.]*" | grep -v "127.0.0.1"`
 
 SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
-FROMUSER=`grep "^log.files.mail.from=" $API_PROPERTY_FILE | sed s/'log.files.mail.from='// | sed s/' '//g`
-TOUSER=`grep "^log.files.mail.to=" $API_PROPERTY_FILE | sed s/'log.files.mail.to='// | sed s/' '//g`
+FROMUSER=`grep "^log.files.mail.from=" $SERVICE_PROPERTY_FILE | sed s/'log.files.mail.from='// | sed s/' '//g`
+TOUSER=`grep "^log.files.mail.to=" $SERVICE_PROPERTY_FILE | sed s/'log.files.mail.to='// | sed s/' '//g`
 
 IS_MASTER=$(curl -s http://localhost:9200/_cluster/nodes/_local |\
  				grep -q `curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$"` \
@@ -28,7 +28,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 		
 			#First off, ensure everyone has an "error_reported" field:
 	                /usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-	                'db.sources.update({error_reported:{$exists:false}},{$set:{error_reported:false}}, false, true)' 
+	                'db.source.update({error_reported:{$exists:false}},{$set:{error_reported:false}}, false, true)' 
 	
 			#Then, first show all new problem sources
 	
@@ -37,12 +37,12 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "" >> /tmp/email.txt
 		
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.find({error_reported:false, $or:[{"harvest.harvest_status":"error"},{isApproved:false}]},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
+			'db.source.find({error_reported:false, $or:[{"harvest.harvest_status":"error"},{isApproved:false}]},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
 				>> /tmp/email.txt
 	
 			#(Update these)
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.update({error_reported:false, $or:[{"harvest.harvest_status":"error"},{isApproved:false}]},{$set:{error_reported:true}}, false, true);' 
+			'db.source.update({error_reported:false, $or:[{"harvest.harvest_status":"error"},{isApproved:false}]},{$set:{error_reported:true}}, false, true);' 
 	
 			#Then, fixed sources:
 	
@@ -51,12 +51,12 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "" >> /tmp/email.txt
 		
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.find({error_reported:true,"harvest.harvest_status":"success",isApproved:true},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
+			'db.source.find({error_reported:true,"harvest.harvest_status":"success",isApproved:true},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
 				>> /tmp/email.txt
 	
 			#(Update these)
 	                /usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-	                'db.sources.update({error_reported:true,"harvest.harvest_status":"success",isApproved:true},{$set:{error_reported:false}}, false, true)' 
+	                'db.source.update({error_reported:true,"harvest.harvest_status":"success",isApproved:true},{$set:{error_reported:false}}, false, true)' 
 	
 			#Then, all the other sources
 		
@@ -69,7 +69,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "" >> /tmp/email.txt
 		
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.find({"harvest.harvest_status":"error",isApproved:true},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
+			'db.source.find({"harvest.harvest_status":"error",isApproved:true},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
 				>> /tmp/email.txt
 	
 			echo "" >> /tmp/email.txt
@@ -77,7 +77,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "" >> /tmp/email.txt
 			
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.find({"harvest.harvest_status":"error",isApproved:false},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
+			'db.source.find({"harvest.harvest_status":"error",isApproved:false},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
 				>> /tmp/email.txt
 	
 			echo "" >> /tmp/email.txt
@@ -85,7 +85,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "" >> /tmp/email.txt
 	
 			/usr/bin/mongo --quiet $MONGODB:$MONGODP/ingest --eval \
-			'db.sources.find({"harvest.harvest_status":"success",isApproved:false},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
+			'db.source.find({"harvest.harvest_status":"success",isApproved:false},{_id:0,url:1,"harvest.harvest_message":1}).forEach(printjson);' \
 				>> /tmp/email.txt
 				
 			sendmail $TOUSER < /tmp/email.txt

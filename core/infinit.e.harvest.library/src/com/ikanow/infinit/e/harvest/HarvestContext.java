@@ -21,4 +21,6 @@ import com.ikanow.infinit.e.harvest.extraction.document.HarvestStatus;
 public interface HarvestContext {
 	DuplicateManager getDuplicateManager();
 	HarvestStatus getHarvestStatus();
+	boolean isStandalone();
+	int getStandaloneMaxDocs();
 }

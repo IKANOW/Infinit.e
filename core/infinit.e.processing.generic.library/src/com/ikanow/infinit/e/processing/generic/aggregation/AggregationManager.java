@@ -38,7 +38,6 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
-import com.ikanow.infinit.e.processing.generic.utils.AssociationUtils;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -124,7 +123,6 @@ public class AggregationManager {
 					continue;
 				}
 				// Calc index (this is not remotely unique, of course, but good enough for now...):
-				AssociationUtils.convertEventPojoToLowerCase(evt);
 				String sEventFeatureIndex = AssociationAggregationUtils.getEventFeatureIndex(evt);
 				evt.setIndex(sEventFeatureIndex); //(temp save for applyAggregationToDocs below)
 				

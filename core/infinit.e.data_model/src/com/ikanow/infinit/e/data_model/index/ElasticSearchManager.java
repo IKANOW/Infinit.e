@@ -44,6 +44,7 @@ import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder
 import org.elasticsearch.client.action.get.GetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
+import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -670,30 +671,62 @@ public class ElasticSearchManager {
 		
 		if (null != settings) { // Need to create the index
 			
-			try {
-				CreateIndexRequest cir = new CreateIndexRequest(_sIndexName);
-				String sCachePolicy = properties.getElasticCachePolicy();
-				if (null != sCachePolicy) {
-					settings.put("index.cache.field.type", sCachePolicy);
+			for (int i = 0; i < 10; i++) { // retry up to 10 times if NoNodeAvailableException found
+				try {
+					CreateIndexRequest cir = new CreateIndexRequest(_sIndexName);
+					String sCachePolicy = properties.getElasticCachePolicy();
+					if (null != sCachePolicy) {
+						settings.put("index.cache.field.type", sCachePolicy);
+					}
+					if (null != sMapping) {
+						cir.mapping(_sIndexType, sMapping);
+					}
+					cir.settings(settings.build());
+					_elasticClient.admin().indices().create(cir).actionGet();
+				
+					//(Wait for above operation to be completed)
+					_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+					break;
 				}
-				if (null != sMapping) {
-					cir.mapping(_sIndexType, sMapping);
+				catch (NoNodeAvailableException e) {
+					// Strange NoNodeAvailableException error I see intermittently on t1.micro
+					// Sleep and try again I guess?
+					if (9 == i) {
+						throw new RuntimeException("elasticsearch.NoNodeAvailableException1: " + _sIndexName + "/" + _clusterName + "/" + hostAndPort);
+					}
+					try {
+						Thread.sleep(1500);
+					}
+					catch (Exception e2) {} // (ignore)					
 				}
-				cir.settings(settings.build());
-				_elasticClient.admin().indices().create(cir).actionGet();
-			
-				//(Wait for above operation to be completed)
-				_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
-			}
-			catch (Exception e) {
-				// Fine, index probably just exists
-			}
+				catch (Exception e) {
+					// Fine, index probably just exists
+					break;
+				}
+			} // (end retry loop)
 			
 		} //TESTED - normal NOT clustered
 		
 		// Either check index exists or wait for above operation to be completed
 		
-		_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+		for (int i = 0; i < 10; i++) { // retry up to 10 times if NoNodeAvailableException found
+			try {
+				_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+				break;
+			}
+			catch (NoNodeAvailableException e) {
+				// Strange NoNodeAvailableException error I see intermittently on t1.micro
+				// Sleep and try again I guess?
+				if (9 == i) {
+					throw new RuntimeException("elasticsearch.NoNodeAvailableException2: " + _sIndexName + "/" + _clusterName + "/" + hostAndPort);
+				}
+				try {
+					Thread.sleep(1500);
+				}
+				catch (Exception e2) {} // (ignore)					
+			}
+		} // (end retry loop)
+			
 		//TESTED - throws a horrible slow exception, but does fail
 		
 	// 3. Sort out replication, if necessary 

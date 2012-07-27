@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1"%>
+<%@ page language="java" contentType="text/html; charset=ISO-8859-1" pageEncoding="ISO-8859-1" session="false" %>
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%!
@@ -55,6 +55,8 @@ limitations under the License.
 	String communityIdSelect = "";
 	String getFullText = "";
 	String getFullTextChecked = "";
+	String getTestUpdateLogic = "";
+	String getTestUpdateLogicChecked = "";
 	String numberOfDocuments = "";
 %>
 
@@ -65,10 +67,17 @@ limitations under the License.
 	if (isLoggedIn) 
 	{	
 		// Capture value in the left handed table filter field
-		if (request.getParameter("listFilter") != null) listFilter = request.getParameter("listFilter");
-		if (request.getParameter("listFilter") == null)
+		if (request.getParameter("listFilter") != null) 
 		{
-			if (request.getParameter("listFilterStr") != null) listFilter = request.getParameter("listFilterStr");
+			listFilter = request.getParameter("listFilter");
+		}
+		else if (request.getParameter("listFilterStr") != null) 
+		{
+			listFilter = request.getParameter("listFilterStr");
+		}
+		else
+		{
+			listFilter = "";
 		}
 		
 		// Determine which action to perform on postback/request
@@ -84,11 +93,18 @@ limitations under the License.
 		if (request.getParameter("saveSource") != null) action = "saveSource";
 		if (request.getParameter("saveSourceAsTemplate") != null) action = "saveSourceAsTemplate";
 		if (request.getParameter("publishSource") != null) action = "publishSource";
+		if (request.getParameter("deleteDocs") != null) action = "deleteDocs";
 		if (request.getParameter("newSource") != null) action = "newSource";
 		
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
-		if (request.getParameter("page") != null) currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
-		else currentPage = 1;
+		if (request.getParameter("page") != null) 
+		{
+			currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
+		}
+		else
+		{
+			currentPage = 1;
+		}
 		
 		try
 		{
@@ -107,6 +123,8 @@ limitations under the License.
 			numberOfDocuments = (request.getParameter("numOfDocs") != null) ? request.getParameter("numOfDocs") : "10";
 			getFullText = (request.getParameter("fullText") != null) ? "true" : "false";
 			getFullTextChecked = (getFullText.equalsIgnoreCase("true")) ? "CHECKED" : "";
+			getTestUpdateLogic = (request.getParameter("testUpdateLogic") != null) ? "true" : "false";
+			getTestUpdateLogicChecked = (getTestUpdateLogic.equalsIgnoreCase("true")) ? "CHECKED" : "";
 			
 			Boolean redirect = false;
 			
@@ -141,7 +159,16 @@ limitations under the License.
 			else if (action.equals("delete")) 
 			{
 				deleteShare(shareid, request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp\">");
+				String listFilterString = "";
+				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+			}
+			else if (action.equals("deletesource")) 
+			{
+				deleteSourceObject(sourceid, false, request, response);
+				String listFilterString = "";
+				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
 			}
 			else if (action.equals("filterlist")) 
 			{
@@ -166,7 +193,16 @@ limitations under the License.
 			else if (action.equals("publishSource")) 
 			{
 				publishSource(request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp\">");
+				String listFilterString = "";
+				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+			}
+			else if (action.equals("deleteDocs")) 
+			{
+				deleteSourceObject(sourceid, true, request, response);
+				String listFilterString = "";
+				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
 			}
 			else if (action.equals("newSource")) 
 			{
@@ -209,7 +245,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert("<%=messageToDisplay %>");
+		alert('<%=messageToDisplay %>');
 	</script>
 <% } %>
 
@@ -254,7 +290,7 @@ limitations under the License.
 				<td align="right"><input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="30" value="<%=listFilter %>"/><button name="filterList" 
+					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
 					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
 			</tr>
 			<tr>
@@ -274,6 +310,27 @@ limitations under the License.
 			<tr>
 				<td colspan="2" bgcolor="white">
 					<table class="standardSubTable" cellpadding="3" cellspacing="1" width="100%" >
+<% if (!shareid.equalsIgnoreCase("")) { %>
+						<tr>
+							<td bgcolor="white" width="30%">Source Functions:</td>
+							<td bgcolor="white" width="70%">
+
+								<button name="testSource" value="testSource">Test Source</button>
+								<button name="saveSource" value="saveSource">Save Source</button>
+								<button name="saveSourceAsTemplate" value="saveSourceAsTemplate">Save Source as Template</button>
+								
+								<button name="publishSource" value="publishSource"
+									onclick="if (confirm('Are you sure you want to publish this source?'))  return true; return false;"
+									>Publish Source</button>
+									
+<% if ((null != sourceid) && !sourceid.equalsIgnoreCase("")) { %>
+								<button name="deleteDocs" value="deleteDocs" 
+									onclick="if (confirm('Are you sure you want to delete all documents for this source?')) return true; return false;"
+									>Delete docs</button>
+<% } %>
+							</td>		
+						</tr>
+<% } %>
 						<tr>
 							<td bgcolor="white" width="30%">Share ID:</td>
 							<td bgcolor="white" width="70%">
@@ -310,6 +367,7 @@ limitations under the License.
 								Full Text: <input type="checkbox" name="fullText" value="true" <%=getFullTextChecked %>/>
 								Number of Documents: <input type="text" id="numOfDocs" name="numOfDocs" value="<%=numberOfDocuments %>"
 									size="3" title="Maximum of 10" />
+								Update Test Mode: <input type="checkbox" name="testUpdateLogic" value="true" <%=getTestUpdateLogicChecked %>/>							
 							</td>		
 						</tr>
 						<tr>
@@ -325,17 +383,6 @@ limitations under the License.
 							<td bgcolor="white" width="30%">Modified:</td>
 							<td bgcolor="white" width="70%"><%=shareModified%></td>		
 						</tr>
-						<tr>
-							<td bgcolor="white" width="30%">&nbsp;</td>
-							<td bgcolor="white" width="70%">
-<% if (!shareid.equalsIgnoreCase("")) { %>
-								<button name="testSource" value="testSource">Test Source</button>
-								<button name="saveSource" value="saveSource">Save Source</button>
-								<button name="saveSourceAsTemplate" value="saveSourceAsTemplate">Save Source as Template</button>
-								<button name="publishSource" value="publishSource">Publish Source</button>
-<% } %>
-							</td>		
-						</tr>
 					</table>
 					
 				</td>
@@ -346,6 +393,7 @@ limitations under the License.
 		
 	<tr>
 	</table>
+	<input type="hidden" name="sourceid" id="sourceid" value="<%=sourceid%>"/>
 	</form>
 <% } %>
 
@@ -588,8 +636,21 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			
 			// Copy fields to the edit source form
 			sourceJson = source.toString(4); // Formatted with indents for display
-			shareTitle = data.getString("title");
-			shareDescription = data.getString("description");
+			if (source.has("_id")) {
+				sourceid = source.getString("_id");
+			}
+			if (source.has("title")) {
+				shareTitle = data.getString("title");
+			}
+			if ((null == shareTitle) || shareTitle.isEmpty()) {
+				shareTitle = source.getString("title");				
+			}
+			if (source.has("description")) {
+				shareDescription = data.getString("description");
+			}
+			if ((null == shareDescription) || shareDescription.isEmpty()) {
+				shareDescription = source.getString("description");				
+			}
 			shareType = data.getString("type");
 			if (shareType.equalsIgnoreCase("source"))
 			{
@@ -846,8 +907,7 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 	{
 		numDocs = 10;
 	}
-	
-	String apiAddress = "config/source/test?returnFullText=" + getFullText + "&numReturn=" + String.valueOf(numDocs);
+	String apiAddress = "config/source/test?returnFullText=" + getFullText + "&numReturn=" + String.valueOf(numDocs) + "&testUpdates=" + getTestUpdateLogic;
 	harvesterOutput = "";
 	messageToDisplay = "";
 	
@@ -886,6 +946,38 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 		messageToDisplay = "Error: " + e.getMessage() + " " + e.getStackTrace().toString();
 	}
 } // TESTED
+
+
+// deleteSourceObject -
+private void deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletRequest request, HttpServletResponse response)
+{
+	if (sourceId != null && sourceId != "") 
+	{
+		try 
+		{
+			JSONObject sourceResponse = new JSONObject( getSource(sourceId, request, response) );
+			JSONObject source = new JSONObject( sourceResponse.getString("data") );
+			JSONArray com = source.getJSONArray("communityIds");
+			String tempCommunityId = com.getString(0);
+					
+			JSONObject JSONresponse = new JSONObject(deleteSource(sourceId, bDocsOnly, tempCommunityId, 
+					request, response)).getJSONObject("response");
+			
+			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
+			{
+				messageToDisplay = "Success: " + JSONresponse.getString("message");
+			}
+			else
+			{
+				messageToDisplay = "Error: " + JSONresponse.getString("message");
+			}
+		}
+		catch (Exception e)
+		{
+			messageToDisplay = "Error: " + e.getMessage() + " " + e.getStackTrace().toString();
+		}
+	}
+}
 
 
 

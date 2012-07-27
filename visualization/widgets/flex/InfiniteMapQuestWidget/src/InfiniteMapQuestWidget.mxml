@@ -29,7 +29,7 @@
 			import com.ikanow.infinit.e.components.InfininiteRollover;
 			import com.ikanow.infinit.e.components.InfiniteRolloverWindow;
 			import com.ikanow.infinit.e.components.RolloverWindow;
-			import com.ikanow.infinit.e.widget.library.data.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			import com.mapquest.DistanceUnits;
@@ -1253,7 +1253,7 @@
 				{
 					_needRecenter = false;
 					
-					if ( widgetOptions != null )
+					if ( widgetOptions != null && widgetOptions.centerLat != null && widgetOptions.centerLng != null && widgetOptions.zoomLevel != null )
 					{
 						_map.setCenter( new LatLng( widgetOptions.centerLat, widgetOptions.centerLng ), widgetOptions.zoomLevel );
 						widgetOptions = null;
