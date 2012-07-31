@@ -153,6 +153,12 @@
 
 	<Context docBase="../infinit.e.manager.war" path="/manager" reloadable="true" />
 	
+	<Context docBase="../infinit.e.manager.war" path="/internal" reloadable="true">
+            <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
+            	<!-- (allows X-F-F support) -->
+            <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="127\.0\.0\.1,0:0:0:0:0:0:0:1"/> 
+				<!-- (internal IP addresses only) -->
+    </Context>
       </Host>
     </Engine>
   </Service>

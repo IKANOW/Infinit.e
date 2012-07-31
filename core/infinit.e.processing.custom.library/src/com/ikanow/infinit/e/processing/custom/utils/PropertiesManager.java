@@ -131,6 +131,17 @@ public class PropertiesManager {
 		}
 	}
 	
+	public int getHadoopMaxConcurrent()
+	{
+		try
+		{
+			return Integer.valueOf(this.getProperty("hadoop.max_concurrent"));
+		}
+		catch (Exception ex)
+		{
+			return Integer.MAX_VALUE;
+		}
+	}
 }
 
 

@@ -93,7 +93,8 @@ public class ElasticSearchManager {
 			else {
 				toReturn = new ElasticSearchManager(sIndexName, sIndexName, true, hostAndPort, null, null);
 			}
-			_indexes.put(sIndexName, toReturn);			
+			_indexes.put(sIndexName, toReturn);	
+			_reverseIndexes.put(toReturn.toString(), sIndexName);			
 		}				
 		return toReturn;
 	}//TESTED
@@ -123,6 +124,7 @@ public class ElasticSearchManager {
 				childToReturn = new ElasticSearchManager(_sIndexName, sIndexName, _elasticClient, null);				
 			}
 			_childIndexes.put(sIndexName, childToReturn);
+			_reverseIndexes.put(childToReturn.toString(), sIndexName);
 		}
 		return childToReturn;
 	}//TESTED
@@ -151,6 +153,26 @@ public class ElasticSearchManager {
 		}
 		return true;
 	}
+	
+	///////////////////////////////////////////////////////////////////////////////////////
+	
+	public synchronized void closeIndex() {
+		_elasticClient.close();
+		String myName = _reverseIndexes.get(this.toString());
+		if (null != myName) {
+			ElasticSearchManager isItMe = _indexes.get(myName);
+			if (isItMe == this) {
+				_indexes.remove(myName);
+			}
+			if (null != _childIndexes) {
+				isItMe = _childIndexes.get(myName);
+				if (isItMe == this) {
+					_indexes.remove(myName);
+				}
+			}
+		}
+	}
+	//TESTED (not child indexes)
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 
@@ -478,6 +500,8 @@ public class ElasticSearchManager {
 			toReturn = new ElasticSearchManager(sIndexName, sIndexType, !bJoinCluster, hostAndPort, indexSettings, sMapping);
 			
 			_indexes.put(sIndexName, toReturn);
+			_reverseIndexes.put(toReturn.toString(), sIndexName);
+
 			return toReturn;
 		}
 		else { // This way, lets you know if you're trying to overwrite an existing index, just use getIndex
@@ -507,6 +531,7 @@ public class ElasticSearchManager {
 			
 			toReturn = new ElasticSearchManager(_sIndexName, sChildIndex, _elasticClient, sMapping);
 			_childIndexes.put(sChildIndex, toReturn);
+			_reverseIndexes.put(toReturn.toString(), sChildIndex);
 		}
 		return toReturn;
 	}
@@ -585,6 +610,7 @@ public class ElasticSearchManager {
 	// Static state
 	
 	private static Map<String, ElasticSearchManager> _indexes = new HashMap<String, ElasticSearchManager>();
+	private static Map<String, String> _reverseIndexes = new HashMap<String, String>();
 	private static String _clusterName = null;
 	private static String _defaultClusterName = "infinite-cluster";
 	public static void setDefaultClusterName(String defaultClusterName) { _defaultClusterName = defaultClusterName; }

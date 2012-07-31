@@ -78,6 +78,7 @@ app.alchemy.postproc=ALCHEMY_POSTPROC_VAL
 #####################################################
 # Hadoop config path
 hadoop.configpath=HADOOP_DIR
+hadoop.max_concurrent=HADOOP_MAX_CONCURRENT
 
 #####################################################
 # JDBC Drives Supported by Infinit.e

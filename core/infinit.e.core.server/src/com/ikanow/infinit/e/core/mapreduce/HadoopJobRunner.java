@@ -107,11 +107,49 @@ public class HadoopJobRunner
 		CustomMapReduceJobPojo job = getJobsToRun();
 		while ( job != null )
 		{
-			//Run each job				
-			runJob(job);
+			if ( dependenciesNotStartingSoon(job) )
+			{
+				//Run each job				
+				runJob(job);
+			}
 			//try to get another available job
 			job = getJobsToRun();
 		}
+	}
+	
+	/**
+	 * Checks if any dependent jobs are running or are about to, resets this job to 1 min
+	 * in the future if any are.  (This prevents a user from manually starting job A, 
+	 * then job B if job A had completed previously, thus job B will have no dependencies).
+	 * 
+	 * @param cmr
+	 * @return
+	 */
+	private boolean dependenciesNotStartingSoon(CustomMapReduceJobPojo cmr )
+	{
+		boolean dependencyRunning = false;
+		
+		try
+		{
+			BasicDBObject query = new BasicDBObject("_id", new BasicDBObject(MongoDbManager.in_, cmr.jobDependencies.toArray()));
+			query.put("nextRunTime", new BasicDBObject( MongoDbManager.lt_, new Date().getTime()));
+			if ( DbManager.getCustom().getLookup().find(query).size() > 0 )
+			{
+				dependencyRunning = true;
+				//reset this job to 1min in future
+				long MS_TO_RESCHEDULE_JOB = 1000*60*1; //ms*s*min
+				BasicDBObject updates = new BasicDBObject("nextRunTime", new Date().getTime() + MS_TO_RESCHEDULE_JOB);
+				updates.put("jobidS", null);	
+				updates.put("errorMessage", "Waiting on a job dependency to finish before starting.");
+				DbManager.getCustom().getLookup().update(new BasicDBObject("_id", cmr._id),new BasicDBObject(MongoDbManager.set_, updates));
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.info("job_error_checking_dependencies=" + HarvestExceptionUtils.createExceptionMessage(ex) );
+		}
+		
+		return !dependencyRunning;
 	}
 	
 	private List<ObjectId> getUserCommunities(ObjectId submitterId) {
@@ -596,6 +634,18 @@ public class HadoopJobRunner
 	{
 		try
 		{
+			// First off, check the number of running jobs - don't exceed the max
+			// (see to run into memory problems if this isn't limited?)
+			int nMaxConcurrent = prop_custom.getHadoopMaxConcurrent();
+			if (Integer.MAX_VALUE != nMaxConcurrent) {
+				BasicDBObject maxQuery = new BasicDBObject("jobidS", new BasicDBObject(DbManager.ne_, null));
+				int nCurrRunningJobs = (int) DbManager.getCustom().getLookup().count(maxQuery);
+				if (nCurrRunningJobs >= nMaxConcurrent) {
+					return null;
+				}
+			}
+			//TESTED
+			
 			BasicDBObject query = new BasicDBObject();
 			query.append("jobidS", null);
 			query.append("waitingOn", new BasicDBObject(MongoDbManager.size_, 0)); 
@@ -607,7 +657,7 @@ public class HadoopJobRunner
 			BasicDBObject updates = new BasicDBObject("jobidS", "");
 			updates.append("lastRunTime", new Date());
 			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, updates);
-			DBObject dbo = DbManager.getCustom().getLookup().findAndModify(query, update);
+			DBObject dbo = DbManager.getCustom().getLookup().findAndModify(query,null,null,false,update,true,false);
 
 			if ( dbo != null )
 			{		
@@ -690,10 +740,12 @@ public class HadoopJobRunner
 					
 					//check if job is done, and update if it is					
 					JobStatus[] jobs = jc.getAllJobs();
+					boolean bFound = false;
 					for ( JobStatus j : jobs )
 					{
 						if ( j.getJobID().getJtIdentifier().equals(cmr.jobidS) && j.getJobID().getId() == cmr.jobidN )
 						{
+							bFound = true;
 							boolean error = false;
 							markedComplete = j.isJobComplete();
 							String errorMessage = null;
@@ -703,12 +755,21 @@ public class HadoopJobRunner
 								error = true;
 								errorMessage = "Job failed while running, check for errors in the mapper/reducer or that your key/value classes are set up correctly?";
 							}
-							//TODO INF-1553 if markedcomplete is false we need to try to figure out why it crashed
-							//I don't think you can get more specific because you need the callstack of the hadoop process, but we detach from it
 							setJobComplete(cmr, markedComplete, error, j.mapProgress(),j.reduceProgress(), errorMessage);
 							break; // (from mini loop over hadoop jobs, not main loop over infinite tasks)
 						}
 					}					
+					if (!bFound) { // Possible error
+						//check if its been longer than 5min and mark job as complete (it failed to launch)
+						Date currDate = new Date();
+						Date lastDate = cmr.lastRunTime;
+						//if its been more than 5 min (5m*60s*1000ms)					
+						if ( currDate.getTime() - lastDate.getTime() > 300000 )
+						{
+							markedComplete = true;						
+							setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error #2.");
+						}
+					}
 				}
 				else // this job hasn't been started yet:
 				{
@@ -719,7 +780,7 @@ public class HadoopJobRunner
 					if ( currDate.getTime() - lastDate.getTime() > 300000 )
 					{
 						markedComplete = true;						
-						setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error.");
+						setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error #1.");
 					}
 				}
 				//job was not done, need to set flag back
@@ -804,10 +865,13 @@ public class HadoopJobRunner
 				}
 				update.append(MongoDbManager.inc_, incs);
 				long runtime = new Date().getTime() - cmr.lastRunTime.getTime();
-				if (null != cmr.jobidS) {
+				
+				if (null != cmr.jobidS) 
+				{
 					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN);
 				}
-				else {
+				else 
+				{
 					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError);					
 				}
 			}
@@ -847,11 +911,11 @@ public class HadoopJobRunner
 		 * If not append, move customlookup pointer to tmp collection, drop old collection.
 		 * If append, set sync flag (find/mod), move results from tmp to old, unset sync flag.
 		 * 
-		 */				
+		 */						
 		if ( (null == cmr.appendResults) || !cmr.appendResults ) //format temp then change lookup pointer to temp collection
 		{
 			//transform all the results into necessary format:
-			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find();
+			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null));
 			while (dbc_tmp.hasNext())
 			{
 				DBObject dbo = dbc_tmp.next();
@@ -874,7 +938,7 @@ public class HadoopJobRunner
 			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", true)));
 			//move all results		
 			DBCollection dbc = DbManager.getCollection("custommr", cmr.outputCollection);
-			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find();
+			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null));
 			//transform temp results and dump into output collection
 			while ( dbc_tmp.hasNext() )
 			{

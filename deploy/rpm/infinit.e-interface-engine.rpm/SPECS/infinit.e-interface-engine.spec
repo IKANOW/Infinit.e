@@ -106,6 +106,7 @@ Infinit.e search engine REST API
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/ROOT
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/api
 	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/manager
+	rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/internal
 
 %postun
 	# (Nothing to do)
@@ -142,6 +143,7 @@ Infinit.e search engine REST API
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/context.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/logging.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/templates/server.xml.TEMPLATE
+%config /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/tomcat-users.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/web.xml
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war

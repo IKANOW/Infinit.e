@@ -1,0 +1,30 @@
+function getEndPointUrl() {
+	url = "http://localhost:8080/api/";
+	return url;
+}
+
+function getDomainUrl() {
+	domainURL = ""; // Non-cloud
+	return domainURL;
+}
+
+function getForgottenPasswordUrl() { 
+	forgotUrl = "";
+	return forgotUrl;
+}
+
+function getDomainLogoutUrl() {
+	logoutURL = ""; 
+	return logoutURL;
+
+}
+
+// Note tidied to the domain, so need to regenerate when goes onto a new server
+function getMapLicenseKey() {
+	url = "dummy";
+	return url;
+}
+
+function getTimeoutSeconds() {
+	return 1800;
+}

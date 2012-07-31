@@ -10,12 +10,16 @@ function getParam { # $1=param string, $2=file
 }
 
 function setParam { # $1=variable name, $2 variable value, $3=file
-	if [ "$2" = "" ]; then
-		# Just sub out parameter:
-		sed -i "s|.*$1.*|#\0|" $3
-	else
-		sed  -i "s|$1|$2|g" $3
-	fi
+        if [ "$2" = "" ]; then
+                # Just sub out parameter:
+                sed -i "s|.*$1.*|#\0|" $3
+        else
+                if `echo $2 | grep -v -q -F '|'`; then
+                        sed  -i "s|$1|$2|g" $3
+                elif `echo $2 | grep -v -q -F '%'`; then
+                        sed  -i "s%$1%$2%g" $3
+                fi
+        fi
 }
 
 ###########################################################################
@@ -98,6 +102,7 @@ else
 	ALCHEMY_POSTPROC_VAL=$(getParam 			"^app.alchemy.postproc=" $PROPERTY_CONFIG_FILE)
 	
 	HADOOP_DIR=$(getParam 						"^hadoop.configpath=" $PROPERTY_CONFIG_FILE)
+	HADOOP_MAX_CONCURRENT=$(getParam 			"^hadoop.max_concurrent=" $PROPERTY_CONFIG_FILE)
 	
 	###########################################################################
 	# 
@@ -158,6 +163,7 @@ else
 	setParam ALCHEMY_POSTPROC_VAL "$ALCHEMY_POSTPROC_VAL" $SERVICE_PROPERTY_FILE
 	
 	setParam HADOOP_DIR "$HADOOP_DIR" $SERVICE_PROPERTY_FILE
+	setParam HADOOP_MAX_CONCURRENT "$HADOOP_MAX_CONCURRENT" $SERVICE_PROPERTY_FILE
 	
 	chown tomcat.tomcat $SERVICE_PROPERTY_FILE
 	################### End infinite.service.properties ###########################

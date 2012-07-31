@@ -52,6 +52,20 @@ Infinit.e harvesting and cleansing services
 	if [ $1 -eq 1 ]; then
 		ln -s /usr/share/java/elasticsearch/lib/ /mnt/opt/infinite-home/lib/es-libs 
 	fi
+	
+#
+# INSTALL *AND* UPGRADE
+#	
+	# Increase tomcat limits
+	if [ -d /etc/security ]; then
+		if [ -f /etc/security/limits.conf ]; then
+			sed -i /"^tomcat.*"/d /etc/security/limits.conf
+		fi
+		
+		echo "tomcat    soft    nofile          65536" >> /etc/security/limits.conf
+		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
+	fi
+
 #
 # INSTALL *AND* UPGRADE
 #	

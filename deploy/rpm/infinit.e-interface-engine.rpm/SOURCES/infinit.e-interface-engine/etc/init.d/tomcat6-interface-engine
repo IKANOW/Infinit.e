@@ -196,6 +196,12 @@ function start() {
 	    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/ROOT/ ]]; then
 	    	sleep 6
 	    fi
+	    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/manager/ ]]; then
+	    	sleep 6
+	    fi
+	    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/internal/ ]]; then
+	    	sleep 6
+	    fi
 	done
     if [[ -d /opt/tomcat-infinite/interface-engine/webapps/ROOT/ ]]; then
 	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/ROOT/AppConstants.js
@@ -206,6 +212,10 @@ function start() {
     if [[ -d /opt/tomcat-infinite/interface-engine/webapps/manager/ ]]; then
 	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
 	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+	fi    
+    if [[ -d /opt/tomcat-infinite/interface-engine/webapps/internal/ ]]; then
+	    cp /opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
+	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
 	fi    
     return $RETVAL
 }

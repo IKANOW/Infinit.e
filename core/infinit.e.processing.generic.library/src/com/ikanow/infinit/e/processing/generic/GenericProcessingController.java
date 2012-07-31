@@ -195,6 +195,7 @@ public class GenericProcessingController {
 						docIndex.deleteMe();
 						docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
 					}
+					docIndex.closeIndex();
 				}
 				else {
 					// Just create an alias, so that queries work arbitrarily:

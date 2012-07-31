@@ -51,19 +51,15 @@ limitations under the License.
 	if (API_ROOT == null)
 	{
 		URL baseUrl = new URL(request.getScheme(), request.getServerName(), request.getServerPort(), "");
-		/* ServletContext context = session.getServletContext();
-		String realContextPath = context.getRealPath(request.getContextPath()); */
 		ScriptEngineManager manager = new ScriptEngineManager();
 		ScriptEngine engine = manager.getEngineByName("javascript");		
 		String appConstantFile = null;
 
 		InputStream in = null;
-		// First try and get file from http://baseurl/AppConstants.js
-		// This is the default behavior that should work for all normal deployments
+		// Use file from local deployment always
 		try
 		{
-			URL url = new URL(baseUrl.toString() + "/AppConstants.js");
-			in = url.openStream();
+			in =  new FileInputStream (application.getRealPath("/") + "AppConstants.js");
 			appConstantFile = IOUtils.toString( in );
 		}
 		catch (Exception e)
@@ -71,29 +67,6 @@ limitations under the License.
 			//System.out.println("Exception: " + e.getMessage());
 		}
 		
-		// If we failed to get the AppContants.js file above then this is likely
-		// a development deployment and we need to get the file from the local folder
-		if (appConstantFile == null)
-		{
-			try
-			{
-				in =  new FileInputStream (application.getRealPath("/") + "AppConstants.js");
-				appConstantFile = IOUtils.toString( in );
-			}
-			catch (Exception je)
-			{
-				//System.out.println("Exception: " + je.getMessage());
-				try 
-				{
-					//in =  new FileInputStream (realContextPath + "\\..\\AppConstants.js");
-					//appConstantFile = IOUtils.toString( in );
-				}
-				catch (Exception e)
-				{
-					//System.out.println("Exception: " + e.getMessage());
-				}
-			}
-		}
 
 		// Eval the file as JavaScript through or JS engine and call getEndPointUrl
 		try
