@@ -357,11 +357,13 @@ stop()
 			infdb kill_db_force $port >/dev/null 2>&1
 			echo "Tried multiple times, MongoD on port $port would not stop, force closed it"
 		fi
+		# Always remove lock regardless
+		rm -f /data/rs$x/mongod.lock
 		
 		if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
-		echo "Stopping Aribiter"
-		infdb kill_db $arbport >/dev/null 2>&1
-	fi
+			echo "Stopping Aribiter"
+			infdb kill_db $arbport >/dev/null 2>&1
+		fi
 	done
 
 	################################ Config Server Kill #######################################
@@ -381,6 +383,8 @@ stop()
 				echo "Tried multiple times, Mongo Config would not stop"
 			fi
 		fi
+		# Always remove lock regardless
+		rm -f /data/configdb/mongod.lock
 	fi
 
 	############################### MongoS Server Kill #####################################
