@@ -54,6 +54,7 @@ import com.ikanow.infinit.e.data_model.store.social.person.PersonLinkPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
+import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
@@ -355,8 +356,27 @@ public class CommunityHandler
 				c.setCommunityUserAttribute(getDefaultCommunityUserAttributes());
 				
 				// Insert new community document in the community collection
+				DBObject commObj = c.toDb();
+
+				// Create the index form of the community:
+				try {
+					GenericProcessingController.createCommunityDocIndex(c.getId().toString(), c.getParentId(), c.getIsPersonalCommunity(), c.getIsSystemCommunity(), false);
+				}
+				catch (Exception e) { // Can't create community
+					rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of index failure: " + e.getMessage()));
+					return rp;
+				}
+				//TESTED
 				
-				DbManager.getSocial().getCommunity().save(c.toDb());
+				DbManager.getSocial().getCommunity().save(commObj);				
+				
+				// If a child, update the parent:
+				if (null != c.getParentId()) {
+					BasicDBObject updateQuery = new BasicDBObject("_id", c.getParentId());
+					BasicDBObject updateUpdate = new BasicDBObject(DbManager.addToSet_, new BasicDBObject("children", c.getId()));
+					DbManager.getSocial().getCommunity().update(updateQuery, updateUpdate, false, true);
+				}
+				//TESTED
 				
 				// Update the new community record to add the owner to the list of members
 				rp = addCommunityMember(userId, oId.toStringMongod(), name, ownerIdStr, ownerEmail, ownerDisplayName, "owner", "active");
@@ -414,6 +434,12 @@ public class CommunityHandler
 						{
 							if (cp.getCommunityStatus().equals("disabled")) { // Delete for good, this is going to be ugly...
 								
+								if ((null != cp.getChildren()) && !cp.getChildren().isEmpty()) {
+									rp.setResponse(new ResponseObject("Delete community", false, "Undeleted sub-communities exist, please delete them first"));
+									return rp;
+								}
+								//TESTED
+								
 								// 1] Remove from all shares (delete shares if that leaves them orphaned)
 								
 								BasicDBObject deleteQuery1 = new BasicDBObject(ShareOwnerPojo.communities_id_, communityId);
@@ -454,6 +480,18 @@ public class CommunityHandler
 								// 4] Finally delete the object itself
 								
 								DbManager.getSocial().getCommunity().remove(new BasicDBObject("_id", communityId));
+								
+								// Remove from index:
+								GenericProcessingController.deleteCommunityDocIndex(communityId.toString(), cp.getParentId(), false);
+								//TESTED
+								
+								// 5] Finally finally remove from parent communities
+								if (null != cp.getParentId()) {
+									BasicDBObject updateQuery = new BasicDBObject("_id", cp.getParentId());
+									BasicDBObject updateUpdate = new BasicDBObject(DbManager.pull_, new BasicDBObject("children", cp.getId()));
+									DbManager.getSocial().getCommunity().update(updateQuery, updateUpdate, false, true);									
+								}
+								//TESTED
 								
 								rp.setResponse(new ResponseObject("Delete community", true, "Community deleted forever."));
 							}
@@ -1089,11 +1127,11 @@ public class CommunityHandler
 				if (null != updateCommunity.getTags()) {
 					cp.setTags(updateCommunity.getTags());					
 				}
-				if ((null != updateCommunity.getCommunityAttributes() && updateCommunity.getCommunityAttributes().isEmpty()))
+				if ((null != updateCommunity.getCommunityAttributes() && !updateCommunity.getCommunityAttributes().isEmpty()))
 				{
 					cp.setCommunityAttributes(updateCommunity.getCommunityAttributes());					
 				}
-				if ((null != updateCommunity.getCommunityUserAttribute() && updateCommunity.getCommunityUserAttribute().isEmpty()))
+				if ((null != updateCommunity.getCommunityUserAttribute() && !updateCommunity.getCommunityUserAttribute().isEmpty()))
 				{
 					cp.setCommunityUserAttribute(updateCommunity.getCommunityUserAttribute());					
 				}
@@ -1528,6 +1566,13 @@ public class CommunityHandler
 			commUserAttributes.put("publishCommentsPublicly", new CommunityUserAttributePojo("boolean","false",true));
 			selfCommunity.setCommunityUserAttribute(commUserAttributes);
 			selfCommunity.setNumberOfMembers(0);
+			
+			// Create the index form of the community:
+			try {
+				GenericProcessingController.createCommunityDocIndex(selfCommunity.getId().toString(), null, true, false, false);
+				//TESTED
+			}
+			catch (Exception e) {} // Do nothing, will have to update the user to stop bad things from happening on query though
 			
 			//write community to db
 			DbManager.getSocial().getCommunity().insert(selfCommunity.toDb());

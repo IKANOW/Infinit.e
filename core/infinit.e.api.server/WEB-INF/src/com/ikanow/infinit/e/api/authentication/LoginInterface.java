@@ -109,7 +109,7 @@ public class LoginInterface extends ServerResource
 						 multi = false; // (not allowed except for admin)
 					 }
 					 
-					 CookieSetting cookieId = createSessionCookie(authuser.getProfileId(), true);
+					 CookieSetting cookieId = createSessionCookie(authuser.getProfileId(), true, response.getServerInfo().getPort());
 					 if (null != cookieId) {
 						 
 						 Series<CookieSetting> cooks = response.getCookieSettings();				 
@@ -188,12 +188,12 @@ public class LoginInterface extends ServerResource
 			 action ="logout";
 			 
 			 Series<CookieSetting> cooks = response.getCookieSettings();				 
-			 cooks.add(createSessionCookie(null, false));
+			 cooks.add(createSessionCookie(null, false, response.getServerInfo().getPort()));
 			 response.setCookieSettings(cooks);
 		 }		 
 	}
 	
-	private CookieSetting createSessionCookie(ObjectId user, boolean bSet)
+	private CookieSetting createSessionCookie(ObjectId user, boolean bSet, int nClientPort)
 	{
 		//Create a new objectId to map this cookie to a userid
 		String set = null;
@@ -213,6 +213,10 @@ public class LoginInterface extends ServerResource
 		{
 			cs = new CookieSetting("infinitecookie",set);
 			cs.setPath("/");
+			cs.setAccessRestricted(true);
+			if ((443 == nClientPort) || (8443 == nClientPort)) {
+				cs.setSecure(true);
+			}
 		}
 		catch (Exception ex)
 		{

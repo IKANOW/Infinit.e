@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.data_model.store.config.source;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * UnstructuredAnalysisPojo
@@ -34,6 +35,7 @@ public class UnstructuredAnalysisConfigPojo
 	
 	private List<metaField> meta = null;	
 	private List<SimpleTextCleanserPojo> simpleTextCleanser = null;
+	private Map<String,String> caches = null;
 	
 	public static class metaField{
 		
@@ -156,5 +158,12 @@ public class UnstructuredAnalysisConfigPojo
 
 	public String getFooterRegExFlags() {
 		return footerRegExFlags;
+	}
+	
+	public void setCaches(Map<String,String> caches) {
+		this.caches = caches;
+	}
+	public Map<String,String> getCaches() {
+		return caches;
 	}
 }

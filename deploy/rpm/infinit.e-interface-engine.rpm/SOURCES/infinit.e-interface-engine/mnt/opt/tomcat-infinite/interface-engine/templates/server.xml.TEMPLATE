@@ -145,15 +145,15 @@
         -->
 
     <!-- Search Engine webapp -->
-    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true">
+    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true" useHttpOnly="true">
             <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
             	<!-- (allows X-F-F support) -->
     </Context>
-	<Context docBase="../infinit.e.web.war" path="" reloadable="true"/>
+	<Context docBase="../infinit.e.web.war" path="" reloadable="true" useHttpOnly="true"/>
 
-	<Context docBase="../infinit.e.manager.war" path="/manager" reloadable="true" />
+	<Context docBase="../infinit.e.manager.war" path="/manager" reloadable="true" useHttpOnly="true"/>
 	
-	<Context docBase="../infinit.e.manager.war" path="/internal" reloadable="true">
+	<Context docBase="../infinit.e.manager.war" path="/internal" reloadable="true" useHttpOnly="true">
             <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
             	<!-- (allows X-F-F support) -->
             <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="127\.0\.0\.1,0:0:0:0:0:0:0:1"/> 

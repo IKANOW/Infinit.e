@@ -13,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
+<%@page import="com.google.gson.JsonParser"%>
 <%@page import="java.net.FileNameMap"%>
 <%@page import="java.net.URLConnection"%>
 
@@ -79,7 +80,32 @@ limitations under the License.
 		public data data;
 
 	}
+	static class shareOwner {
+		String _id;
+		String email;
+		String displayName;
+	}
 
+	static class shareCommunity {
+		String _id;
+		String name;
+		String comment;
+	}
+
+	static class shareData {
+		String _id;
+		String created;
+		String modified;
+		shareOwner owner;
+		String type;
+		String title;
+		String description;
+		String mediaType;
+		shareCommunity[] communities;
+		String binaryId;
+
+	}
+	
 	static class getShare {
 		static class shareResponse {
 			String action;
@@ -88,33 +114,6 @@ limitations under the License.
 			int time;
 
 		}
-
-		static class shareOwner {
-			String _id;
-			String email;
-			String displayName;
-		}
-
-		static class shareCommunity {
-			String _id;
-			String name;
-			String comment;
-		}
-
-		static class shareData {
-			String _id;
-			String created;
-			String modified;
-			shareOwner owner;
-			String type;
-			String title;
-			String description;
-			String mediaType;
-			shareCommunity[] communities;
-			String binaryId;
-
-		}
-
 		public shareResponse response;
 		public shareData[] data;
 
@@ -142,6 +141,19 @@ limitations under the License.
 		}
 
 		public loginData response;
+	}
+	
+	static class jsonResponse {
+		static class moduleResponse {
+			public String action;
+			public Boolean success;
+			public String message;
+			public int time;
+
+		}
+		
+		public moduleResponse response;
+		public shareData data;
 	}
 
 	static class modResponse {
@@ -176,12 +188,17 @@ limitations under the License.
 	}
 
 	public static void setBrowserInfiniteCookie(HttpServletResponse response,
-			String value) {
-		//System.out.println("Set Browser Cookie to " + value);
-		Cookie cookie = new Cookie("infinitecookie", value);
-		cookie.setPath("/");
-		response.addCookie(cookie);
-	}
+			String value, int nServerPort) {
+        String params = null;
+        if ((443 == nServerPort) || (8443 == nServerPort)) {
+                params="; path=/; HttpOnly; Secure";
+        }
+        else {
+                params="; path=/; HttpOnly";
+        }
+        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
+        	// (all this is needed in order to support HTTP only cookies)
+	} // TESTED
 
 	public static String getBrowserInfiniteCookie(HttpServletRequest request) {
 		Cookie[] cookieJar = request.getCookies();
@@ -238,7 +255,7 @@ limitations under the License.
 			IOUtils.copy(urlConnection.getInputStream(), output);
 			String newCookie = getConnectionInfiniteCookie(urlConnection);
 			if (newCookie != null && response != null) {
-				setBrowserInfiniteCookie(response, newCookie);
+				setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
 			}
 
 			String toReturn = output.toString();
@@ -302,31 +319,49 @@ limitations under the License.
 		return null;
 	}
 
-	private String AddToShare(byte[] bytes, String mimeType, String title,
-			String description, Set<String> communities,
-			HttpServletRequest request, HttpServletResponse response) {
-		return UpdateToShare(bytes, mimeType, title, description, null,
-				communities, request, response);
-	}
-
 	//uploads a new widget's bytes and returns it's shareID if successful. If a share
 	//ID is provided, then it updates the widget containing that shareID
 	private String UpdateToShare(byte[] bytes, String mimeType, String title,
-			String description, String prevId, Set<String> communities,
+			String description, String prevId, Set<String> communities, boolean isJson, 
+			String type, boolean newShare,
 			HttpServletRequest request, HttpServletResponse response) {
 		String charset = "UTF-8";
 		String url = "";
-
 		try 
 		{
-			if (prevId == null)
-				url = API_ROOT + "social/share/add/binary/"
-						+ URLEncoder.encode(title, charset) + "/"
-						+ URLEncoder.encode(description, charset) + "/";
+			if ( isJson )
+			{
+				//first check if bytes are actually json
+				try
+				{					
+					new JsonParser().parse(new String(bytes));
+				}
+				catch (Exception ex)
+				{
+					return "Failed, file was not valid JSON";
+				}
+				if (newShare)
+					url = API_ROOT + "social/share/add/json/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+				else
+					url = API_ROOT + "social/share/update/json/" + prevId + "/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+			}
 			else
-				url = API_ROOT + "social/share/update/binary/" + prevId + "/"
-						+ URLEncoder.encode(title, charset) + "/"
-						+ URLEncoder.encode(description, charset) + "/";
+			{
+				if (newShare)
+					url = API_ROOT + "social/share/add/binary/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+				else
+					url = API_ROOT + "social/share/update/binary/" + prevId + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+			}
 
 			if (localCookie)
 				CookieHandler.setDefault(cm);
@@ -361,27 +396,54 @@ limitations under the License.
 			String json = buffer.toString();
 			String newCookie = getConnectionInfiniteCookie(connection);
 			if (newCookie != null && response != null) {
-				setBrowserInfiniteCookie(response, newCookie);
+				setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
 			}
 			buffer.flush();
 			buffer.close();
 			output.close();
 			responseStream.close();
-
-			modResponse mr = new Gson().fromJson(json, modResponse.class);
-			if (mr == null) {
-				return "Failed: " + json;
-			}
-			if (mr.response.success == true) {
-				if (prevId != null && mr.data == null) {
-					addRemoveCommunities(prevId, communities, request, response);
-					return prevId;
+			
+			if ( isJson )
+			{
+				jsonResponse jr = new Gson().fromJson(json, jsonResponse.class);
+				if (jr == null) 
+				{
+					return "Failed: " + json;
 				}
-				addRemoveCommunities(mr.data, communities, request, response);
-				return mr.data; //When a new upload, mr.data contains the ShareID for the upload
-			} else {
-				return "Upload Failed: " + mr.response.message;
+				if (jr.response.success == true) 
+				{
+					if ( jr.data != null && jr.data._id != null )
+					{
+						addRemoveCommunities(jr.data._id, communities, request, response);
+						return jr.data._id; //When a new upload, mr.data contains the ShareID for the upload
+					}
+				} 
+				return "Upload Failed: " + jr.response.message;				
 			}
+			else
+			{
+				modResponse mr = new Gson().fromJson(json, modResponse.class);
+				if (mr == null) {
+					return "Failed: " + json;
+				}
+				if (mr.response.success == true) 
+				{
+					if (prevId != null && mr.data == null) 
+					{
+						addRemoveCommunities(prevId, communities, request, response);
+						return prevId;
+					}
+					else
+					{
+						addRemoveCommunities(mr.data, communities, request, response);
+						return mr.data; //When a new upload, mr.data contains the ShareID for the upload
+					}
+				} 
+				else 
+				{
+					return "Upload Failed: " + mr.response.message;
+				}
+			}			
 		} catch (IOException e) {
 			e.printStackTrace();
 			return "Upload Failed: " + e.getMessage();
@@ -533,7 +595,7 @@ limitations under the License.
 			getShare gs = new Gson().fromJson(json, getShare.class);
 			if (gs != null && gs.data != null) 
 			{
-				for (getShare.shareData info : gs.data) {
+				for (shareData info : gs.data) {
 					if ((showAll == false) && (info.owner != null)
 							&& (info.owner.email != null)
 							&& !user.equalsIgnoreCase(info.owner.email)) {
@@ -548,10 +610,10 @@ limitations under the License.
 						String value = info._id + delim + info.created + delim
 								+ info.title + delim + info.description + delim
 								+ SHARE_ROOT + info._id + delim;
-						for (getShare.shareCommunity scomm : info.communities) {
+						for (shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
-						value += delim + owner + delim + info.binaryId;
+						value += delim + owner + delim + info.binaryId + delim + info.type;
 						toReturn += "<option value=\"" + value
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
@@ -573,10 +635,10 @@ limitations under the License.
 										+ delim + info.title + delim
 										+ info.description + delim + SHARE_ROOT
 										+ info._id + delim;
-								for (getShare.shareCommunity scomm : info.communities) {
+								for (shareCommunity scomm : info.communities) {
 									value += scomm._id + ",";
 								}
-								value += delim + owner + delim + info.binaryId;
+								value += delim + owner + delim + info.binaryId + delim + info.type;
 								toReturn += "<option value=\"" + value
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
@@ -591,10 +653,10 @@ limitations under the License.
 									+ delim + info.title + delim
 									+ info.description + delim + SHARE_ROOT
 									+ info._id + delim;
-							for (getShare.shareCommunity scomm : info.communities) {
+							for (shareCommunity scomm : info.communities) {
 								value += scomm._id + ",";
 							}
-							value += delim + owner + delim + info.binaryId;
+							value += delim + owner + delim + info.binaryId + delim + info.type;
 							toReturn += "<option value=\"" + value
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
@@ -624,7 +686,7 @@ limitations under the License.
 			if (gs != null && gs.data != null) {
 				Set<String> set = new TreeSet<String>(
 						String.CASE_INSENSITIVE_ORDER);
-				for (getShare.shareData info : gs.data) {
+				for (shareData info : gs.data) {
 					if ((showAll == false) && (info.owner != null)
 							&& (info.owner.email != null)
 							&& !user.equalsIgnoreCase(info.owner.email)) {
@@ -810,7 +872,7 @@ h2
 						}
 					}
 				}
-
+				
 				////////////////////////////////////Delete Share ////////////////////////////////
 				if (request.getAttribute("deleteId") != null) {
 					String fileId = request.getAttribute("deleteId")
@@ -834,39 +896,38 @@ h2
 					Boolean newUpload = (request.getAttribute("DBId").toString().length() == 0);
 
 					///////////////////////////////// SWF Manip  /////////////////////////////////
+					String shareId = request.getAttribute("DBId").toString();
 					String fileUrl = "";
 					String fileId = "";
-					String bin = request.getAttribute("binary").toString();			
-					
+					String bin = request.getAttribute("binary").toString();		
 					if (request.getAttribute("title") != null
 							&& request.getAttribute("description") != null
 							&& fileBytes != null) 
-					{
-						if (newUpload) 
-						{
-							fileId = AddToShare(fileBytes, fileDS,
-									request.getAttribute("title")
-											.toString(),
-									request.getAttribute("description")
-											.toString(), communities,
-									request, response);
-						} 
-						else if ( bin.equals("null") || !isFileSet ) //if not a binary file or file was not changed
-						{						
-							String shareId = request.getAttribute("DBId").toString();
+					{						
+						if ( !isFileSet ) //if not a binary file or file was not changed
+						{												
 							fileId = shareId;
 							if (shareId != null && shareId != "")
 								addRemoveCommunities(shareId, communities, request, response);							
-							out.println("File was not set or was a JSON share, just updated communities.");
+							out.println("File was not set, just updated communities.");
 						}
-						else
+						else if ( bin.equals("null")) //is a json file, make sure its okay and upload it
 						{
-							fileId = request.getAttribute("DBId").toString();
-							UpdateToShare(fileBytes, fileDS, request
+							fileId = UpdateToShare(fileBytes, fileDS, request
 									.getAttribute("title").toString(),
 									request.getAttribute("description")
-											.toString(), fileId,
-									communities, request, response);
+											.toString(), shareId,
+									communities, true, request.getAttribute("type")
+									.toString(), newUpload, request, response);
+						}
+						else //is a binary, do normal
+						{
+							fileId = UpdateToShare(fileBytes, fileDS, request
+									.getAttribute("title").toString(),
+									request.getAttribute("description")
+											.toString(), shareId,
+									communities, false, request.getAttribute("type")
+									.toString(), newUpload, request, response);
 						}
 
 						if (fileId.contains("Failed")) 
@@ -924,7 +985,8 @@ h2
 		}
 	function populate()
 	{
-
+		typerow = document.getElementById('typerow');
+		type = document.getElementById('type');
 		title = document.getElementById('title');
 		description = document.getElementById('description');
 		file = document.getElementById('file');
@@ -944,11 +1006,13 @@ h2
 		{
 			title.value = "";
 			description.value = "";
+			type.value = "binary";
 			created.value = "";
 			DBId.value = "";
 			deleteId.value = "";
 			share_url.value = "";
 			owner.value = "";
+			typerow.style.display = 'none';
 			url_row.style.display = 'none';
 			owner.style.display = 'none';
 			owner_text.style.display = 'none';
@@ -957,6 +1021,27 @@ h2
 			binary.value = "";
 			return;
 		}
+		
+		if ( list == "newJSON")
+		{
+			title.value = "";
+			description.value = "";
+			type.value = "";
+			created.value = "";
+			DBId.value = "";
+			deleteId.value = "";
+			share_url.value = "";
+			owner.value = "";
+			typerow.style.display = '';
+			url_row.style.display = 'none';
+			owner.style.display = 'none';
+			owner_text.style.display = 'none';
+			deleteButton.style.visibility = 'hidden';
+			clearCommList();
+			binary.value = "null";
+			return;
+		}
+		
 		//_id, created, title, description
 		split = list.split("$$$");
 		
@@ -968,26 +1053,38 @@ h2
 		communities = split[5];
 		res_owner = split[6];
 		res_binary = split[7];		
+		res_type = split[8];			
 		
+		if ( res_binary == "null" )
+		{
+			typerow.style.display = '';
+		}
+		else
+		{
+			typerow.style.display = 'none';
+		}
 		title.value = res_title;
 		description.value = res_description;
 		created.value = res_created;
 		DBId.value = res_id;
 		deleteId.value = res_id;
 		share_url.value = res_url;
-		owner.value = res_owner;
+		owner.value = res_owner;		
 		deleteButton.style.visibility = '';
 		owner.style.display = '';
 		owner_text.style.display = '';
 		url_row.style.display = '';
 		highlightComms(communities);		
 		binary.value = res_binary;
+		type.value = res_type;
 	}
 		function validate_fields()
 		{
 			title = document.getElementById('title').value;
 			description = document.getElementById('description').value;
 			file = document.getElementById('file').value;
+			binary = document.getElementById("binary").value;
+			type = document.getElementById("type").value;
 			//share_url = document.getElementById('share_url').value;
 			//file_url = document.getElementById('file_url').value;
 			//file_check = document.getElementById('file_check').checked;
@@ -1002,6 +1099,12 @@ h2
 				alert('Please provide a description.');
 				return false;
 			}
+			if ( binary == "null" && type == "")
+			{
+				alert('Please provide a type.');
+				return false;
+			}
+			
 			
 		}
 		function confirmDelete()
@@ -1033,7 +1136,7 @@ h2
 					 %>	        		
 	        	</form>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
-	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New File</option> <%
+	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New File</option><option value="newJSON">Upload New JSON</option> <%
  	out.print(populatePreviousUploads(request, response));
  %></select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" style="visibility:hidden;" value="Delete" />
@@ -1056,6 +1159,10 @@ h2
 	                  <tr>
 	                    <td>Description:</td>
 	                    <td><textarea rows="4" cols="30" name="description" id="description" ></textarea></td>
+	                  </tr>
+	                  <tr id="typerow">
+	                    <td>Type:</td>
+	                    <td><input type="text" name="type" id="type" size="39" /></td>
 	                  </tr>
 	                  <tr>
 	                  	<td>Communities:</td>

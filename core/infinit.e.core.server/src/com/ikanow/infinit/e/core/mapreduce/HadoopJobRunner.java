@@ -72,6 +72,7 @@ import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -219,6 +220,59 @@ public class HadoopJobRunner
 			setJobComplete(job, true, true, -1, -1, ex.getMessage());
 		}
 	}
+	
+	/**
+	 * Takes the query argument from a CustomMapReduceJobPojo
+	 * and returns either the query or post processing part
+	 * 
+	 * @param query
+	 * @param wantQuery
+	 * @return
+	 */
+	private String getQueryOrProcessing(String query, boolean wantQuery)
+	{
+		if ( query.equals("") || query.equals("null") || query == null )
+			query = "{}";
+		DBObject dbo = (DBObject) com.mongodb.util.JSON.parse(query);
+		try
+		{
+			BasicDBList dbl = (BasicDBList)dbo;
+			//is a list
+			if ( wantQuery )
+			{
+				return dbl.get(0).toString();
+			}
+			else
+			{
+				if ( dbl.size() > 1 )
+					return dbl.get(1).toString();
+				else
+					return null;
+			}
+		}
+		catch (Exception ex)
+		{
+			try
+			{				
+				//is just a an object
+				if ( wantQuery )
+				{
+					return dbo.toString();
+				}
+				else 
+				{
+					return null;
+				}
+			}
+			catch (Exception e)
+			{
+				if ( wantQuery )
+					return "{}";
+				else
+					return null;
+			}
+		}
+	}
 
 	//
 	// Instead of running a MR job, this will just execute the specified saved query
@@ -234,21 +288,28 @@ public class HadoopJobRunner
 		
 		ResponsePojo rp = null;
 		StringBuffer errorString = new StringBuffer("Saved query error");
-		try {
-			AdvancedQueryPojo query = QueryHandler.createQueryPojo(savedQuery.query);
+		try 
+		{
+			String queryString = getQueryOrProcessing(savedQuery.query,true);			
+			AdvancedQueryPojo query = QueryHandler.createQueryPojo(queryString);
 			StringBuffer communityIdStrList = new StringBuffer();
-			for (ObjectId commId: savedQuery.communityIds) {
-				if (communityIdStrList.length() > 0) {
+			for (ObjectId commId: savedQuery.communityIds) 
+			{
+				if (communityIdStrList.length() > 0) 
+				{
 					communityIdStrList.append(',');
 				}
 				communityIdStrList.append(commId.toString());
 			}
 			rp = queryHandler.doQuery(savedQuery.submitterID.toString(), query, communityIdStrList.toString(), errorString);
-		} catch (Exception e) {
+		} 
+		catch (Exception e) 
+		{
 			errorString.append(": " + e.getMessage());
 		}
 		if ((null == rp) || (null == rp.getResponse())) { // (this is likely some sort of internal error)
-			if (null == rp) {
+			if (null == rp) 
+			{
 				rp = new ResponsePojo();
 			}
 			rp.setResponse(new ResponseObject("Query", false, "Unknown error"));
@@ -390,7 +451,7 @@ public class HadoopJobRunner
 		String jobid = null;
 		try
 		{				
-			job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, job.query, job.communityIds, job.isCustomTable, job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
+			job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.isCustomTable, job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", prop_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
@@ -468,31 +529,35 @@ public class HadoopJobRunner
 			
 			// Community Ids aren't indexed in the metadata collection, but source keys are, so we need to transform to that
 			BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
-			BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
-			DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields);
-			HashSet<String> sourceKeys = new HashSet<String>();
-			while (dbc.hasNext()) {
-				DBObject dbo = dbc.next();
-				String sourceKey = (String) dbo.get(SourcePojo.key_);
-				if (null != sourceKey) {
-					sourceKeys.add(sourceKey);
+			if (oldQueryObj.containsField(DocumentPojo.sourceKey_)) {
+				// Source Key specified by user, stick communityIds check in for security
+				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
+			}
+			else { // Source key not specified by user, transform communities->sourcekeys
+				BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
+				DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields);
+				if (dbc.count() > 500) {
+					// (too many source keys let's keep the query size sensible...)
+					oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));					
 				}
-			}
-			if (sourceKeys.isEmpty()) { // query returns empty
-				throw new RuntimeException("Communities contain no sources");
-			}
-			BasicDBObject newQueryClauseObj = new BasicDBObject(DbManager.in_, sourceKeys);
-			// Now combine the queries...
-			Object conflictClauseObj = (Object) oldQueryObj.remove(DocumentPojo.sourceKey_);
-			if (null == conflictClauseObj) {
-				oldQueryObj.put(DocumentPojo.sourceKey_, newQueryClauseObj);
-			}
-			else {
-				oldQueryObj.put(DbManager.and_,
-						Arrays.asList(
-								new BasicDBObject(DocumentPojo.sourceKey_, newQueryClauseObj),
-								new BasicDBObject(DocumentPojo.sourceKey_, conflictClauseObj)));
-			}
+				else {
+					HashSet<String> sourceKeys = new HashSet<String>();
+					while (dbc.hasNext()) {
+						DBObject dbo = dbc.next();
+						String sourceKey = (String) dbo.get(SourcePojo.key_);
+						if (null != sourceKey) {
+							sourceKeys.add(sourceKey);
+						}
+					}
+					if (sourceKeys.isEmpty()) { // query returns empty
+						throw new RuntimeException("Communities contain no sources");
+					}
+					BasicDBObject newQueryClauseObj = new BasicDBObject(DbManager.in_, sourceKeys);
+					// Now combine the queries...
+					oldQueryObj.put(DocumentPojo.sourceKey_, newQueryClauseObj);
+
+				} // (end if too many source keys across the communities)
+			}//(end if need to break source keys down into communities)
 			query = oldQueryObj.toString();
 		}
 		else
@@ -524,7 +589,7 @@ public class HadoopJobRunner
 				"\n\t<property><!-- The number of documents to skip in read [OPTIONAL] --><!-- TODO - Are we running limit() or skip() first? --><name>mongo.input.skip</name><value>0</value> <!-- 0 == no skip --></property>"+
 				"\n\t<property><!-- Class for the mapper --><name>mongo.job.mapper</name><value>"+ mapper+"</value></property>"+
 				"\n\t<property><!-- Reducer class --><name>mongo.job.reducer</name><value>"+reducer+"</value></property>"+
-				"\n\t<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.mongodb.hadoop.MongoInputFormat</value></property>"+
+				"\n\t<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat</value></property>"+
 				"\n\t<property><!-- OutputFormat Class --><name>mongo.job.output.format</name><value>com.mongodb.hadoop.MongoOutputFormat</value></property>"+
 				"\n\t<property><!-- Output key class for the output format --><name>mongo.job.output.key</name><value>"+outputKey+"</value></property>"+
 				"\n\t<property><!-- Output value class for the output format --><name>mongo.job.output.value</name><value>"+outputValue+"</value></property>"+
@@ -535,6 +600,8 @@ public class HadoopJobRunner
 				"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
 				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
+				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>8</value></property>"+
+				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>12500</value></property>"+
 				"\n</configuration>");
 		out.flush();
 		out.close();
@@ -830,6 +897,15 @@ public class HadoopJobRunner
 				try 
 				{
 					long nextRunTime = getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime, cmr.timesRan+1);
+					//if next run time reschedules to run before now, keep rescheduling until its later
+					//the server could have been turned off for days and would try to rerun all jobs once a day
+					while ( nextRunTime < new Date().getTime() )
+					{
+						Date firstSchedule = new Date(nextRunTime);
+						cmr.firstSchedule = firstSchedule;
+						updates.append("firstSchedule", firstSchedule);
+						nextRunTime = getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime, cmr.timesRan+1);
+					}
 					updates.append("nextRunTime",nextRunTime);
 				}
 				catch (Exception e) {} // just carry on, we'll live...
@@ -911,21 +987,67 @@ public class HadoopJobRunner
 		 * If not append, move customlookup pointer to tmp collection, drop old collection.
 		 * If append, set sync flag (find/mod), move results from tmp to old, unset sync flag.
 		 * 
-		 */						
+		 */	
+		//step1 build out any of the post proc arguments
+		DBObject postProcObject = null;
+		boolean limitAllData = true;
+		boolean hasSort = false;
+		int limit = 0;
+		BasicDBObject sort = new BasicDBObject();
+		try
+		{
+			postProcObject = (DBObject) com.mongodb.util.JSON.parse(getQueryOrProcessing(cmr.query, false));
+			if ( postProcObject != null )
+			{
+				if ( postProcObject.containsField("limitAllData") )
+				{
+					limitAllData = (Boolean) postProcObject.get("limitAllData");
+				}
+				if ( postProcObject.containsField("limit") )
+				{
+					limit = (Integer) postProcObject.get("limit");
+					if ( postProcObject.containsField("sortField"))
+					{
+						String sfield = (String) postProcObject.get("sortField");
+						int sortDir = 1;
+						if ( postProcObject.containsField("sortDirection"))
+						{
+							sortDir = (Integer)postProcObject.get("sortDirection");
+						}					
+						sort.put(sfield, sortDir);
+						hasSort = true;
+					}
+					else if ( limit > 0 )
+					{
+						//set a default sort because the user posted a limit
+						sort.put("_id", -1);
+						hasSort = true;
+					}
+				}
+			}
+		}
+		catch (Exception ex)
+		{
+			_logger.info("job_error_post_proc_title=" + cmr.jobtitle + " job_error_post_proc_id=" + cmr._id.toString() + " job_error_post_proc_message="+HarvestExceptionUtils.createExceptionMessage(ex));
+		}
+		
+		
+		//step 2a if not appending results then work on temp collection and swap to main
 		if ( (null == cmr.appendResults) || !cmr.appendResults ) //format temp then change lookup pointer to temp collection
 		{
-			//transform all the results into necessary format:
-			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null));
+			//transform all the results into necessary format:			
+			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null)).sort(sort).limit(limit);
 			while (dbc_tmp.hasNext())
 			{
-				DBObject dbo = dbc_tmp.next();
-				
+				DBObject dbo = dbc_tmp.next();				
 				Object key = dbo.get("_id");
 				dbo.put("key", key);
 				dbo.removeField("_id");								
-				DbManager.getCollection("custommr", cmr.outputCollectionTemp).remove(new BasicDBObject("_id", key));
 				DbManager.getCollection("custommr", cmr.outputCollectionTemp).insert(dbo);
-			}
+			}					
+			DbManager.getCollection("custommr", cmr.outputCollectionTemp).remove(new BasicDBObject("key", null));
+			
+			//swap the output collections
 			BasicDBObject notappendupdates = new BasicDBObject("outputCollection", cmr.outputCollectionTemp);
 			notappendupdates.append("outputCollectionTemp", cmr.outputCollection);
 			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, notappendupdates));						
@@ -933,12 +1055,30 @@ public class HadoopJobRunner
 			cmr.outputCollectionTemp = cmr.outputCollection;
 			cmr.outputCollection = temp;
 		}
-		else //format temp then dump into old results
+		else //step 2b if appending results then drop modified results in output collection
 		{
 			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", true)));
-			//move all results		
+			//remove any aged out results
+			if ( (null != cmr.appendAgeOutInDays) && cmr.appendAgeOutInDays > 0 )
+			{
+				//remove any results that have aged out
+				long ageOutMS = (long) (cmr.appendAgeOutInDays*MS_IN_DAY);
+				Date lastAgeOut = new Date(((new Date()).getTime() - ageOutMS));						
+				DbManager.getCollection("custommr", cmr.outputCollection).remove(new BasicDBObject("_id",new BasicDBObject(MongoDbManager.lt_,new ObjectId(lastAgeOut))));
+			}
+			DBCursor dbc_tmp;
+			if ( !limitAllData )
+			{				
+				//sort and limit the temp data set because we only want to process it
+				dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null)).sort(sort).limit(limit);
+				limit = 0; //reset limit so we get everything in a few steps (we only want to limit the new data)
+			}
+			else
+			{
+				dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null));
+			}
+			
 			DBCollection dbc = DbManager.getCollection("custommr", cmr.outputCollection);
-			DBCursor dbc_tmp = DbManager.getCollection("custommr", cmr.outputCollectionTemp).find(new BasicDBObject("key", null));
 			//transform temp results and dump into output collection
 			while ( dbc_tmp.hasNext() )
 			{
@@ -950,19 +1090,29 @@ public class HadoopJobRunner
 				//_id field should be automatically set to objectid when inserting now
 				dbc.insert(dbo);
 			}			
+			//if there is a sort, we need to apply it to all the data now
+			if ( hasSort )
+			{
+				ObjectId OID = new ObjectId();
+				BasicDBObject query = new BasicDBObject("_id", new BasicDBObject(MongoDbManager.lt_, OID));
+				//find everything inserted before now and sort/limit the data
+				DBCursor dbc_sort = dbc.find(query).sort(sort).limit(limit);
+				while ( dbc_sort.hasNext() )
+				{
+					//reinsert the data into db (it should be in sorted order naturally now)
+					DBObject dbo = dbc_sort.next();
+					dbo.removeField("_id");
+					dbc.insert(dbo);
+				}
+				//remove everything inserted before we reorganized everything (should leave only the new results in natural order)
+				dbc.remove(query);
+			}
 			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject("_id", cmr._id), new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", false)));
 		}
-		//clean up temp output collection so we can use it again
+		//step3 clean up temp output collection so we can use it again
 		DbManager.getCollection("custommr", cmr.outputCollectionTemp).remove(new BasicDBObject());
-		//remove any aged out results
-		if ( (null != cmr.appendAgeOutInDays) && cmr.appendAgeOutInDays > 0 )
-		{
-			//remove any results that have aged out
-			long ageOutMS = (long) (cmr.appendAgeOutInDays*MS_IN_DAY);
-			Date lastAgeOut = new Date(((new Date()).getTime() - ageOutMS));						
-			DbManager.getCollection("custommr", cmr.outputCollection).remove(new BasicDBObject("_id",new BasicDBObject(MongoDbManager.lt_,new ObjectId(lastAgeOut))));
-		}
-	}
+		
+	}		
 	
 	/**
 	 * Removes the config file that is not being used anymore.

@@ -113,6 +113,7 @@ public class MongoDbConnection {
 	 * @throws MongoException 
 	 * @throws UnknownHostException 
 	 */
+	@SuppressWarnings("deprecation")
 	public MongoDbConnection(PropertiesManager properties) throws UnknownHostException, MongoException {
 		this.server = properties.getDatabaseServer();
 		this.port = properties.getDatabasePort();

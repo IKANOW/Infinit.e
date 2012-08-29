@@ -42,10 +42,15 @@ limitations under the License.
 	String accountType = "";
 	String phone = "";
 	String email = "";
-	String emailReadOnly = "readOnly";
+	String oldemail = "";
+	String accounttype = "";
 	String listOfCommunities = "";
 	String password = "";
 	String passwordConfirmation = "";
+	// No way of knowing if I'm admin, so leave as visible for now, later change to:
+	//String accountTypeHidden = "style=\"display:none;\"";
+	String accountTypeHidden = "";
+	
 		
 %>
 
@@ -113,8 +118,10 @@ limitations under the License.
 			displayName = (request.getParameter("displayName") != null) ? request.getParameter("displayName") : "";
 			phone = (request.getParameter("phone") != null) ? request.getParameter("phone") : "";
 			email = (request.getParameter("email") != null) ? request.getParameter("email") : "";
+			oldemail = (request.getParameter("oldemail") != null) ? request.getParameter("oldemail") : "";
 			passwordConfirmation = (request.getParameter("passwordConfirmation") != null) ? request.getParameter("passwordConfirmation") : "";
 			password = (request.getParameter("password") != null) ? request.getParameter("password") : "";
+			accounttype = (request.getParameter("accounttype") != null) ? request.getParameter("accounttype") : "";
 			
 			Boolean redirect = false;
 			
@@ -271,6 +278,16 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="70%"><%=accountStatus %></td>
 					</tr>
 					<tr>
+						<td bgcolor="#ffffff" width="30%">Account Type (Admin Only):</td>
+						<td bgcolor="#ffffff" width="70%">
+							<select name="accounttype" id="accounttype" <%=accountTypeHidden %>>
+								<option value="Unknown">Unknown</option>
+								<option value="admin">Admin</option>
+								<option value="user">User</option>
+							</select>
+						</td>							
+					</tr>
+					<tr>
 						<td bgcolor="#ffffff" width="30%">Account Id:</td>
 						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="personid" name="personid" value="<%=visiblePersonId %>" size="50" /></td>
 					</tr>
@@ -292,7 +309,7 @@ limitations under the License.
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Email Address (User Name):</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" <%=emailReadOnly %> id="email" name="email" value="<%=email%>" size="75" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" id="email" name="email" value="<%=email%>" size="75" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Password:</td>
@@ -312,14 +329,21 @@ limitations under the License.
 <%
 	if (personid.length() > 0) {
 %>
-							<button name="saveAccount" value="saveAccount">Save User Account</button>
-							<button name="updatePassword" value="updatePassword">Update Password</button>
+							<button name="saveAccount" value="saveAccount"
+									onclick="if (confirm('Are you sure you want to change these account details?'))  return true; return false;"
+							>Save User Account</button>
+							
+							<button name="updatePassword" value="updatePassword"
+									onclick="if (confirm('Are you sure you want to update this password?'))  return true; return false;"
+							>Update Password</button>
 <%
 	}
 	else
 	{
 %>
-							<button name="createAccount" value="createAccount">Create User Account</button>	
+							<button name="createAccount" value="createAccount"
+									onclick="if (confirm('Are you sure you want to create this user account?'))  return true; return false;"
+							>Create User Account</button>	
 <%
 	}
 %>
@@ -335,6 +359,7 @@ limitations under the License.
 		
 	<tr>
 	</table>
+	<input type="hidden" name="oldemail" id="oldemail" value="<%=email%>"/>
 	</form>
 <%
 	}
@@ -357,7 +382,6 @@ private boolean validateFormFields()
 	if (firstName.length() < 1) al.add("First Name");
 	if (lastName.length() < 1) al.add("Last Name");
 	if (email.length() < 1) al.add("Email");
-	if (phone.length() < 1) al.add("Phone");
 	if (al.size() > 0)
 	{
 		isValid = false;
@@ -404,8 +428,14 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		}
 		
 		String accountType = "";
-		if (isNewAccount) { accountType = ", \"accountType\" : \"user\""; }
+		if (!accounttype.equalsIgnoreCase("unknown")) {
+			accountType = ", \"accountType\" : \""+accounttype+"\"";
+		}
+		else if (isNewAccount) { accountType = ", \"accountType\" : \"user\""; }
 		
+		if (null == phone) {
+			phone = "";
+		}
 		String userJson = "" +
 		"{" + 
 		"    \"user\": " +
@@ -416,7 +446,7 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		"            \"phone\" : \"" + phone + "\", " +
 		"            \"email\" : [ \"" + email + "\" ] " +
 		"        }," +
-		"    \"auth\" : { \"username\" : \"" + email + "\" " + accountType + newPassword + " } " +
+		"    \"auth\" : { \"username\" : \"" + oldemail + "\" " + accountType + newPassword + " } " +
 		"}";
 		
 		JSONObject actionResponse = null;
@@ -553,20 +583,21 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			
 			// Get person from API
 			JSONObject personResponse = new JSONObject( getPerson(id, request, response) );
-			JSONObject person = personResponse.getJSONObject("data");
-			String status = person.getString("accountStatus").substring(0,1).toUpperCase() + person.getString("accountStatus").substring(1);
-			accountStatus =  status;
-			visiblePersonId = id;
-			firstName = person.getString("firstName");
-			lastName = person.getString("lastName");
-			displayName = person.getString("displayName");
-			email = person.getString("email");
-			if (person.has("phone")) phone = person.getString("phone");
-			emailReadOnly = "readOnly";
-			
-			// Output user communities
-			JSONArray communities = person.getJSONArray("communities");
-			listOfCommunities = getListOfCommunities(communities, request, response);
+			if (personResponse.has("data")) { // (otherwise trying to get someone else's info but aren't admin...)
+				JSONObject person = personResponse.getJSONObject("data");
+				String status = person.getString("accountStatus").substring(0,1).toUpperCase() + person.getString("accountStatus").substring(1);
+				accountStatus =  status;
+				visiblePersonId = id;
+				firstName = person.getString("firstName");
+				lastName = person.getString("lastName");
+				displayName = person.getString("displayName");
+				email = person.getString("email");
+				if (person.has("phone")) phone = person.getString("phone");
+				
+				// Output user communities
+				JSONArray communities = person.getJSONArray("communities");
+				listOfCommunities = getListOfCommunities(communities, request, response);
+			}
 		} 
 		catch (Exception e) 
 		{
@@ -692,7 +723,7 @@ private void clearForm()
 	lastName = "";
 	displayName = "";
 	email = "";
-	emailReadOnly = "";
+	oldemail = "";
 	phone = "";
 	password = "";
 	passwordConfirmation = "";

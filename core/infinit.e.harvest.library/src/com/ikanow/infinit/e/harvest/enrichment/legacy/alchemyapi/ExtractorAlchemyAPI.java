@@ -49,6 +49,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	// Post processing to clean up people and geo entities
 	AlchemyEntityPersonCleanser postProcPerson = null;
 	AlchemyEntityGeoCleanser postProcGeo = null;
+	private boolean _bConceptExtraction = false;
 
 	/**
 	 * Construtor, adds capabilities of Alchemy to hashmap
@@ -75,6 +76,15 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 				postProcGeo = new AlchemyEntityGeoCleanser();
 				postProcGeo.initialize();
 			} 
+			
+			Boolean bSentimentEnabled = properties.getExtractionCapabilityEnabled(getName(), "sentiment");
+			if (null != bSentimentEnabled) { // (ie defaults to true)
+				_alch.setSentimentEnabled(bSentimentEnabled);
+			}			
+			Boolean bConceptsEnabled = properties.getExtractionCapabilityEnabled(getName(), "concepts");
+			if (null != bConceptsEnabled) { // (ie defaults to true)
+				_bConceptExtraction = bConceptsEnabled;
+			}			
 		}		
 		catch (Exception e) {
 			postProcPerson = null; // (just don't do post processing)
@@ -94,31 +104,39 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @param partialDoc The feedpojo before extraction with fulltext field to extract on
 	 * @return The feedpojo after extraction with entities, events, and full metadata
 	 * @throws ExtractorDocumentLevelException 
+	 * @throws ExtractorDailyLimitExceededException 
 	 */
 	@Override
-	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException 
+	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException 
 	{		
 		// Run through specified extractor need to pull these properties from config file
+		if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging			
+			return;
+		}
+		
+		String json_doc = null;
+			
 		try
-		{			
-			if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging			
-				return;
-			}
-			
-			String json_doc = _alch.TextGetRankedNamedEntities(partialDoc.getFullText());
-			try
-			{
-				checkAlchemyErrors(json_doc, partialDoc.getUrl());
-			}
-			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
-			{
-				throw ex;
-			}
-			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
-			{
-				throw ex;
-			}
-			
+		{
+			json_doc = _alch.TextGetRankedNamedEntities(partialDoc.getFullText());
+			checkAlchemyErrors(json_doc, partialDoc.getUrl());
+		}
+		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
+		{
+			throw ex;
+		}
+		catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
+		{
+			throw ex;
+		}
+		catch ( Exception e ) 
+		{
+			//Collect info and spit out to log
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
+			throw new InfiniteEnums.ExtractorDocumentLevelException();
+		}
+
+		try {
 			//Deserialize json into AlchemyPojo Object
 			Gson gson = new Gson();
 			AlchemyPojo sc = gson.fromJson(json_doc,AlchemyPojo.class);
@@ -138,8 +156,12 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		{
 			//Collect info and spit out to log
 			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
-			throw new InfiniteEnums.ExtractorDocumentLevelException();
+			throw new InfiniteEnums.ExtractorDocumentLevelException();			
 		}	
+		// Then get concepts:
+		if (_bConceptExtraction) {
+			doConcepts(partialDoc);
+		}
 	}
 
 
@@ -153,24 +175,32 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @throws ExtractorDocumentLevelException 
 	 */
 	@Override
-	public void extractEntitiesAndText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException 
+	public void extractEntitiesAndText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
 		// Run through specified extractor need to pull these properties from config file
+		String json_doc = null;
 		try
-		{			
-			String json_doc = _alch.URLGetRankedNamedEntities(partialDoc.getUrl());
-			try
-			{
-				checkAlchemyErrors(json_doc, partialDoc.getUrl());
-			}
-			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
-			{
-				throw ex;
-			}
-			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
-			{
-				throw ex;
-			}
+		{
+			json_doc = _alch.URLGetRankedNamedEntities(partialDoc.getUrl());
+			checkAlchemyErrors(json_doc, partialDoc.getUrl());
+		}
+		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
+		{
+			throw ex;
+		}
+		catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
+		{
+			throw ex;
+		}
+		catch (Exception e)
+		{
+			//Collect info and spit out to log
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
+			throw new InfiniteEnums.ExtractorDocumentLevelException();
+		}	
+		
+		try
+		{	
 			//Deserialize json into AlchemyPojo Object			
 			AlchemyPojo sc = new Gson().fromJson(json_doc,AlchemyPojo.class);			
 			//pull fulltext
@@ -204,6 +234,10 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
 			throw new InfiniteEnums.ExtractorDocumentLevelException();
 		}	
+		// Then get concepts:
+		if (_bConceptExtraction) {
+			doConcepts(partialDoc);
+		}
 	}
 
 	private void postProcessEntities(DocumentPojo doc) {
@@ -247,24 +281,31 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @throws ExtractorDocumentLevelException 
 	 */
 	@Override
-	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException
+	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
+		String json_doc = null;
 		try
 		{
-			
-			String json_doc = _alch.URLGetText(partialDoc.getUrl());
-			try
-			{
-				checkAlchemyErrors(json_doc, partialDoc.getUrl());
-			}
-			catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
-			{
-				throw ex;
-			}
-			catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
-			{
-				throw ex;
-			}
+			json_doc = _alch.URLGetText(partialDoc.getUrl());
+			checkAlchemyErrors(json_doc, partialDoc.getUrl());
+		}
+		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
+		{
+			throw ex;
+		}
+		catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
+		{
+			throw ex;
+		}
+		catch (Exception e)
+		{
+			//Collect info and spit out to log
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
+			throw new InfiniteEnums.ExtractorDocumentLevelException();
+		}
+		
+		try
+		{			
 			//Deserialize json into AlchemyPojo Object
 			Gson gson = new Gson();
 			AlchemyPojo sc = gson.fromJson(json_doc,AlchemyPojo.class);	
@@ -286,12 +327,57 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
 			throw new InfiniteEnums.ExtractorDocumentLevelException();
 		}	
+		// Then get concepts:
+		if (_bConceptExtraction) {
+			doConcepts(partialDoc);
+		}
 	}
 	
 	//_______________________________________________________________________
 	//______________________________UTILIY FUNCTIONS_______________________
 	//_______________________________________________________________________
 	
+	// Utility function for concept extraction
+	
+	public void doConcepts(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException {
+		if ((null != partialDoc.getMetadata()) && partialDoc.getMetadata().containsKey("AlchemyAPI_concepts")) {
+			return;
+		}		
+		String json_doc = null;
+		try
+		{
+			json_doc = _alch.TextGetRankedConcepts(partialDoc.getFullText());
+			checkAlchemyErrors(json_doc, partialDoc.getUrl());
+		}
+		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
+		{
+			throw ex;
+		}
+		catch ( InfiniteEnums.ExtractorDailyLimitExceededException ex )
+		{
+			throw ex;
+		}
+		catch (Exception e) {
+			//Collect info and spit out to log
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
+			throw new InfiniteEnums.ExtractorDocumentLevelException();			
+		}
+		try {
+			// Turn concepts into metadata:
+			Gson gson = new Gson();
+			AlchemyPojo sc = gson.fromJson(json_doc,AlchemyPojo.class);
+			if (null != sc.concepts) {
+				partialDoc.addToMetadata("AlchemyAPI_concepts", sc.concepts.toArray(new AlchemyConceptPojo[sc.concepts.size()]));
+			}
+		}		
+		catch (Exception e)
+		{
+			//Collect info and spit out to log
+			logger.error("Exception Message: doc=" + partialDoc.getUrl() + " error=" +  e.getMessage(), e);
+			throw new InfiniteEnums.ExtractorDocumentLevelException();
+		}	
+	}
+
 	/**
 	 * Converts the json return from alchemy into a list
 	 * of entitypojo objects.
@@ -325,7 +411,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	 * @throws ExtractorDailyLimitExceededException 
 	 * @throws ExtractorDocumentLevelException 
 	 * @throws ExtractorSourceLevelException 
-	 */
+	 */	
 	private void checkAlchemyErrors(String json_doc, String feed_url) throws ExtractorDailyLimitExceededException, ExtractorDocumentLevelException, ExtractorSourceLevelException 
 	{
 		if ( json_doc.contains("daily-transaction-limit-exceeded") )

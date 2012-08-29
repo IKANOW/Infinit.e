@@ -119,4 +119,30 @@ public class AssociationPojoIndexMap implements BasePojoIndexMap<AssociationPojo
 		RootProperties properties = new RootProperties();
 	}
 	
+	////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////
+	
+	// Utility function (how it should have worked in the serializer probably)
+	public static String serialize(AssociationPojo evt) {
+		StringBuffer sb = new StringBuffer(evt.getAssociation_type()).append('\n');
+		if (null != evt.getEntity1_index()) {
+			sb.append(evt.getEntity1_index());
+		}
+		sb.append('\n');
+		if (null != evt.getVerb_category()) {
+			sb.append(evt.getVerb_category());
+			//(don't count this towards link analysis usage)
+		}
+		sb.append('\n');
+		if (null != evt.getEntity2_index()) {
+			sb.append(evt.getEntity2_index());
+		}
+		sb.append('\n');
+		if (null != evt.getGeo_index()) { // (don't count this)
+			sb.append(evt.getGeo_index());
+		}
+		return sb.toString();
+	}
+	//TESTED (by eye)
+	
 }//TESTED (see MongoDocumentTxfer)

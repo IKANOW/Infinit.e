@@ -157,49 +157,59 @@ public class FeedHarvester implements HarvesterInterface
 	}
 
 	// Get the syndicated feed using rome
-	private SyndFeed getFeed(SourcePojo source) 
+	private SyndFeed getFeed(SourcePojo source, String url) 
 	{
-		for (int i = 0; i < 2; ++i) { // Will have 2 goes in case of failure
-			// Check to see if the feed requires authentication
-			if (source.getAuthentication() != null) //requires auth
-			{
-				try 
+		synchronized(FeedHarvester.class) { // (workaround for ROME concurrency issues: http://www.jdom.org/pipermail/jdom-interest/2008-December/016252.html)
+
+			if (null == url) {
+				url = source.getUrl();
+			}
+			for (int i = 0; i < 2; ++i) { // Will have 2 goes in case of failure
+				// Check to see if the feed requires authentication
+				if (source.getAuthentication() != null) //requires auth
 				{
-					FeedFetcher feedFetcher = new HttpClientFeedFetcher(null, authenticateFeed(source.getAuthentication()));
-					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
-						feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
-					}
-					return feedFetcher.retrieveFeed(new URL(source.getUrl()));
-				} 
-				catch (Exception e) {
-					if (1 == i) { // else just try again
-						handleRssError(e, source);
+					try 
+					{
+						FeedFetcher feedFetcher = new HttpClientFeedFetcher(null, authenticateFeed(source.getAuthentication()));
+						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+							feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+						}
+						return feedFetcher.retrieveFeed(new URL(url));
+					} 
+					catch (Exception e) {
+						if (1 == i) { // else just try again
+							if (null == url) { // can only error on primary RSS, makes life simpler
+								handleRssError(e, source);
+							}
+						}
 					}
 				}
-			}
-			else //does not require auth
-			{
-				try 
+				else //does not require auth
 				{
-					FeedFetcherCache feedInfoCache = HashMapFeedInfoCache.getInstance();
-					FeedFetcher feedFetcher = new HttpURLFeedFetcher(feedInfoCache);
-					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
-						feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
-					}
-					return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(source.getUrl())));
-				} 
-				catch (Exception e) 
-				{
-					if (1 == i) { // else just try again
-						handleRssError(e, source);
+					try 
+					{
+						FeedFetcherCache feedInfoCache = HashMapFeedInfoCache.getInstance();
+						FeedFetcher feedFetcher = new HttpURLFeedFetcher(feedInfoCache);
+						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+							feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
+						}
+						return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(url)));
+					} 
+					catch (Exception e) 
+					{
+						if (1 == i) { // else just try again
+							if (null == url) { // can only error on primary RSS, makes life simpler
+								handleRssError(e, source);
+							}
+						}
 					}
 				}
-			}
-			
-			// If still here, must have errored so sleep before trying again
-			try { Thread.sleep(10000); } catch (InterruptedException e) {}
-			
-		} // (end get 2 goes)
+				
+				// If still here, must have errored so sleep before trying again
+				try { Thread.sleep(10000); } catch (InterruptedException e) {}
+				
+			} // (end get 2 goes)
+		}
 		return null;
 	}
 
@@ -232,13 +242,16 @@ public class FeedHarvester implements HarvesterInterface
 	// Process the feed
 	private void processFeed(SourcePojo source) throws Exception {
 		// Process the feed
-		SyndFeed feed = null;
+		LinkedList<SyndFeed> feeds = new LinkedList<SyndFeed>();
 		boolean bExtraUrls = ( null == source.getUrl() );
 		
 		if ((null != source.getUrl()) && ((null == source.getRssConfig())||(null == source.getRssConfig().getSearchConfig()))) {
 			// (if the second clause is false, the URL is a search query, will process differently, inside buildFeedList)
 			
-			feed = getFeed(source);
+			SyndFeed feed = getFeed(source, null);
+			if (null != feed) {
+				feeds.add(feed);
+			}			
 		}
 		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
 		{
@@ -246,8 +259,20 @@ public class FeedHarvester implements HarvesterInterface
 			searchEngineSubsystem.generateFeedFromSearch(source, _context);
 			bExtraUrls = true;
 		}//TESTED
+		
+		if ((null != source.getRssConfig())&&(null != source.getRssConfig().getExtraUrls())&&(null == source.getRssConfig().getSearchConfig())) { 
+			// Some of these might be RSS feeds, check if title==null
+			for (ExtraUrlPojo url: source.getRssConfig().getExtraUrls()) {
+				if ((null == url.title) && (null != url.url)) {
+					SyndFeed feed = getFeed(source, url.url);
+					if (null != feed) {
+						feeds.add(feed);
+					}					
+				}
+			}
+		}//TESTED
 
-		if ( ( feed != null ) || bExtraUrls ) // (second case: also have extra URLs)
+		if ( !feeds.isEmpty() || bExtraUrls ) // (second case: also have extra URLs)
 		{
 			// Error handling, part 1:
 			this.nTmpHttpErrors = 0;
@@ -255,7 +280,7 @@ public class FeedHarvester implements HarvesterInterface
 
 			// Extract the feed and place into the pojo
 			try {
-				buildFeedList(feed, source);
+				buildFeedList(feeds, source);
 			}
 			catch (Exception e) {
 				// Propagate upwards:
@@ -291,7 +316,7 @@ public class FeedHarvester implements HarvesterInterface
 
 	// Build the feed list
 	@SuppressWarnings("unchecked")
-	private void buildFeedList(SyndFeed syndFeed, SourcePojo source) 
+	private void buildFeedList(LinkedList<SyndFeed> syndFeeds, SourcePojo source) 
 	{
 		// If there's a max number of sources to get per harvest, configure that here:
 		long nWaitTime_ms = props.getWebCrawlWaitTime();
@@ -315,17 +340,33 @@ public class FeedHarvester implements HarvesterInterface
 		
 		// Add extra docs
 		List<SyndEntry> tmpList = null;
+		boolean bCreatedAggregateList = false;
 		int nRealSyndEntries = 0;
-		if (null == syndFeed) {
-			tmpList = new LinkedList<SyndEntry>();
+		
+		for (SyndFeed feed: syndFeeds) {
+			if (0 == nRealSyndEntries) {
+				tmpList = feed.getEntries();
+			}
+			else if (!bCreatedAggregateList) {
+				bCreatedAggregateList = true;
+				tmpList = new LinkedList<SyndEntry>(tmpList);
+				tmpList.addAll(feed.getEntries());
+			}
+			else {
+				tmpList.addAll(feed.getEntries());
+			}
+			nRealSyndEntries += feed.getEntries().size();
 		}
-		else {
-			tmpList = syndFeed.getEntries();
-			nRealSyndEntries = tmpList.size();
+		if (null == tmpList) {
+			tmpList = new LinkedList<SyndEntry>();			
 		}
+		//TESTED
 		
 		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getExtraUrls())) {
 			for (ExtraUrlPojo extraUrl: source.getRssConfig().getExtraUrls()) {
+				if (null == extraUrl.title) {
+					continue; // (this is an RSS feed not a URL)
+				}//TESTED
 				SyndEntryImpl synd = new SyndEntryImpl();
 				synd.setLink(extraUrl.url);
 				if (null != extraUrl.description) {
@@ -552,7 +593,7 @@ public class FeedHarvester implements HarvesterInterface
 		}
 
 		// Clone from an existing source if we can:
-		if (!duplicateSources.isEmpty()) {
+		if (!duplicateSources.isEmpty() && (null == doc.getUpdateId())) { // (can't duplicate updating document)
 			doc.setDuplicateFrom(duplicateSources.getFirst());
 		}
 		

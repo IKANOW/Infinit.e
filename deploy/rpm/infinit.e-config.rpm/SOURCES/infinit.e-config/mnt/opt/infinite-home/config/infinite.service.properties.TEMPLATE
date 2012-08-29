@@ -51,6 +51,7 @@ harvest.maxsources_perharvest=HARVESTER_MAXSOURCES_HARVEST
 harvest.threads=HARVESTER_THREADS
 harvest.distribution.batch.harvest=HARVESTER_BATCH
 harvest.disable_aggregation=HARVEST_DISABLE_AGGREGATION
+store.maxcontent=STORE_MAXCONTENT
 
 #####################################################
 #Mail Server Settings

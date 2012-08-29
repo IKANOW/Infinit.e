@@ -23,7 +23,6 @@ import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 
-import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.util.MongoTool;
@@ -74,7 +73,7 @@ public class SourceSumXML extends MongoTool
 
     public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable> 
     {
-        private final IntWritable result = new IntWritable();
+        private final IntWritable result = new IntWritable();    	
 
         public void reduce( Text key, Iterable<IntWritable> values, Context context )
                 throws IOException, InterruptedException

@@ -17,13 +17,17 @@ package com.ikanow.infinit.e.data_model.index.document;
 
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Map;
+import java.util.Set;
 import java.util.Map.Entry;
 import java.util.TreeSet;
+import java.util.regex.Pattern;
 
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 
@@ -36,6 +40,7 @@ import com.google.gson.JsonSerializer;
 import com.ikanow.infinit.e.data_model.index.BaseIndexPojo;
 import com.ikanow.infinit.e.data_model.index.BasePojoIndexMap;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchPojos;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
@@ -62,10 +67,28 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 	
 	public static boolean hasManyGeos(DocumentPojo doc) {
 		
+		// Filter, if applied
+		SourcePojo.SourceSearchIndexFilter filter = null;
+		if (null != doc.getTempSource()) filter = doc.getTempSource().getSearchIndexFilter();
+		
 		doc.setLocs(new TreeSet<String>()); // (TreeSet not HashSet to use Comparable)
 		
 		if (null != doc.getDocGeo()) {
-			doc.getLocs().add(new StringBuffer("p#").append(GeoHashUtils.encode(doc.getDocGeo().lat, doc.getDocGeo().lon)).toString());	
+			
+			boolean bAddDocGeoToFilter = true; // (support indexing filter)
+			if ((null != filter) && (null != filter.fieldList)) {
+				if (filter.fieldList.startsWith("-") && filter.fieldList.contains(DocumentPojo.docGeo_)) {
+					bAddDocGeoToFilter = false;
+				}
+				else if (!filter.fieldList.contains(DocumentPojo.docGeo_)) {
+					bAddDocGeoToFilter = false;					
+				}
+			}
+			//TESTED: positively in, positively out, and not mentioned
+			
+			if (bAddDocGeoToFilter) {
+				doc.getLocs().add(new StringBuffer("p#").append(GeoHashUtils.encode(doc.getDocGeo().lat, doc.getDocGeo().lon)).toString());
+			}
 		}
 
 		// Write local geo - from entities
@@ -74,6 +97,30 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 		{
 			if (null != ent.getGeotag()) 
 			{
+				// Apply index filter, if it exists:
+				if (null != filter) {
+					Pattern whichRegex = null;
+					String whichPattern = null;
+					if (null != filter.entityGeoFilterRegex) {
+						whichRegex = filter.entityGeoFilterRegex;
+						whichPattern = filter.entityGeoFilter;
+					}
+					else {
+						whichRegex = filter.entityFilterRegex;
+						whichPattern = filter.entityFilter;								
+					} // (end which regex to pick)
+					if (null != whichRegex) {
+						if (whichPattern.startsWith("-")) {
+							if (whichRegex.matcher(ent.getIndex()).find()) {
+								continue;
+							}
+						}
+						else if (!whichRegex.matcher(ent.getIndex()).find()) {
+							continue;
+						}					
+					} // (end if regex exists)
+				}//TESTED (positive and negative geo and normal entities)
+								
 				if ((null != ent.getGeotag().lat) && (null != ent.getGeotag().lon)) 
 				{
 					if ((ent.getGeotag().lat >= -90.0) && (ent.getGeotag().lon >= -180.0) && (ent.getGeotag().lat <= 90.0) && (ent.getGeotag().lon <= 180.0)) 
@@ -96,6 +143,32 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 		{
 			if (null != evt.getGeotag()) 
 			{
+				// Apply association index filter, if it exists
+				if (null != filter) {
+					Pattern whichRegex = null;
+					String whichPattern = null;
+					if (null != filter.assocGeoFilterRegex) {
+						whichRegex = filter.assocGeoFilterRegex;
+						whichPattern = filter.assocGeoFilter;
+					}
+					else {
+						whichRegex = filter.assocFilterRegex;
+						whichPattern = filter.assocFilter;								
+					} // (end which regex to pick)
+					if (null != whichRegex) {
+						if (whichPattern.startsWith("-")) {
+							if (whichRegex.matcher(AssociationPojoIndexMap.serialize(evt)).find()) {
+								continue;
+							}
+						}
+						else if (!whichRegex.matcher(AssociationPojoIndexMap.serialize(evt)).find()) {
+							continue;
+						}
+						
+					} // (end if regex exists)
+				}//(end if filter exists)
+				//TESTED: only by cut and paste from normal association filtering below
+				
 				if ( null != evt.getGeotag().lat && null != evt.getGeotag().lon)
 				{ // (post sync - or entity didn't have a loc)
 					if ((evt.getGeotag().lat >= -90.0) && (evt.getGeotag().lon >= -180.0) && (evt.getGeotag().lat <= 90.0) && (evt.getGeotag().lon <= 180.0)) 
@@ -125,88 +198,128 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 	}
 	protected static class DocumentPojoSerializer implements JsonSerializer<DocumentPojo> 
 	{
-		@Override
-		public JsonElement serialize(DocumentPojo doc, Type typeOfT, JsonSerializationContext context)
-		{
-			synchronizeWithIndex(doc);
-				// (does most of the transformations - the default index pojo does the rest)
-			
-			// GSON transformation:
-			JsonElement jo = new EntityPojoIndexMap().extendBuilder( 
-								new AssociationPojoIndexMap().extendBuilder(
-										BaseIndexPojo.getDefaultBuilder())).
-								create().toJsonTree(doc, typeOfT);	
-
-			// Convert object names in metadata
-			if ((null != doc.getMetadata()) && !doc.getMetadata().isEmpty()) {
-				if (jo.isJsonObject()) {
-					JsonElement metadata = jo.getAsJsonObject().get("metadata");
-					if (null != metadata) {
-						enforceTypeNamingPolicy(metadata, 0);
-					}
-				}
-			}
-			
-			return jo;
-		}		
 		// Utility function for serialization
 		
 		private static void synchronizeWithIndex(DocumentPojo doc) 
 		{
+			// Filter, if applied
+			SourcePojo.SourceSearchIndexFilter filter = null;
+			if (null != doc.getTempSource()) filter = doc.getTempSource().getSearchIndexFilter();
+			
 			doc.setIndex(null); // (this is the index to which we're about to store the feed, so obviously redundant by this point)
 
-			if (null == doc.getLocs()) { // (should always have been filled in by hasMayGeos)
+			if (null == doc.getLocs()) { // (should always have been filled in by hasManyGeos)
 				hasManyGeos(doc);
 			}
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 
-			if (null != doc.getAssociations()) for (AssociationPojo evt: doc.getAssociations()) 
-			{
-				try 
-				{
-					// Add event date ranges month by month (eg for histograms)
-					if (null != evt.getTime_start()) {
-						Date d1 = sdf.parse(evt.getTime_start());
-						if (null == doc.getMonths()) {
-							doc.setMonths(new TreeSet<Integer>());
-						}
-
-						if (null == evt.getTime_end()) {
-							Calendar c = Calendar.getInstance();
-							c.setTime(d1);
-							doc.getMonths().add(c.get(Calendar.YEAR)*100 + c.get(Calendar.MONTH)+1);
-
-						}
-						else {
-							Date d2 = sdf.parse(evt.getTime_end());
-							Calendar c = Calendar.getInstance();
-							c.setTime(d1);
-
-							int nStartYr = c.get(Calendar.YEAR);
-							int nStartMo = c.get(Calendar.MONTH)+1;
-							c.setTime(d2);
-							int nEndYr = c.get(Calendar.YEAR);
-							int nEndMo = c.get(Calendar.MONTH)+1;
-
-							if (nStartYr == nEndYr) {
-								for (int i = nStartMo; i <= nEndMo; ++i) {
-									doc.getMonths().add(nStartYr*100 + i);
-								}
-							}
-							else if ((nStartYr + 1) == nEndYr) {
-								for (int i = nStartMo; i <= 12; ++i) {
-									doc.getMonths().add(nStartYr*100 + i);
-								}
-								for (int i = 1; i <= nEndMo; ++i) {
-									doc.getMonths().add(nEndYr*100 + i);
-								}							
-							}
-							// (else too long a period, ignore)
-						}
+			// If the entity list exists then filter it
+			if (null != filter) {
+				Iterator<EntityPojo> it = doc.getEntities().iterator();
+				while (it.hasNext()) {
+					EntityPojo ent = it.next();
+					Pattern whichRegex = null;
+					String whichPattern = null;
+					if (null != ent.getGeotag() && (null != filter.entityGeoFilterRegex)) {
+						whichRegex = filter.entityGeoFilterRegex;
+						whichPattern = filter.entityGeoFilter;
 					}
-				}//TESTED (single date range, within yr, spanning yrs, > 1yr span) 
-				catch (Exception e) {} // Parsing error, carry on... 
-
+					else {
+						whichRegex = filter.entityFilterRegex;
+						whichPattern = filter.entityFilter;								
+					} // (end which regex to pick)
+					if (null != whichRegex) {
+						if (whichPattern.startsWith("-")) {
+							if (whichRegex.matcher(ent.getIndex()).find()) {
+								it.remove();
+								continue;
+							}
+						}
+						else if (!whichRegex.matcher(ent.getIndex()).find()) {
+							it.remove();
+							continue;
+						}					
+					} // (end if regex exists)
+				}//TESTED positive and negative geo and normal entities
+			} // (end if filter entities out)
+			
+			if (null != doc.getAssociations()) {
+				Iterator<AssociationPojo> it = doc.getAssociations().iterator();
+				while (it.hasNext()) {
+					AssociationPojo evt = it.next();
+					try 
+					{
+						// Apply association index filter, if it exists
+						if (null != filter) {
+							Pattern whichRegex = null;
+							String whichPattern = null;
+							if ((null != evt.getGeotag()) && (null != filter.assocGeoFilterRegex)) {
+								whichRegex = filter.assocGeoFilterRegex;
+								whichPattern = filter.assocGeoFilter;
+							}
+							else {
+								whichRegex = filter.assocFilterRegex;
+								whichPattern = filter.assocFilter;								
+							} // (end which regex to pick)
+							if (null != whichRegex) {
+								if (whichPattern.startsWith("-")) {
+									if (whichRegex.matcher(AssociationPojoIndexMap.serialize(evt)).find()) {
+										it.remove();
+										continue;
+									}
+								}
+								else if (!whichRegex.matcher(AssociationPojoIndexMap.serialize(evt)).find()) {
+									it.remove();
+									continue;
+								}
+								
+							} // (end if regex exists)
+						}
+						//TESTED: positive and negative associations, normal only (geo from cut and paste from entities)
+						
+						// Add event date ranges month by month (eg for histograms)
+						if (null != evt.getTime_start()) {
+							Date d1 = sdf.parse(evt.getTime_start());
+							if (null == doc.getMonths()) {
+								doc.setMonths(new TreeSet<Integer>());
+							}
+	
+							if (null == evt.getTime_end()) {
+								Calendar c = Calendar.getInstance();
+								c.setTime(d1);
+								doc.getMonths().add(c.get(Calendar.YEAR)*100 + c.get(Calendar.MONTH)+1);
+	
+							}
+							else {
+								Date d2 = sdf.parse(evt.getTime_end());
+								Calendar c = Calendar.getInstance();
+								c.setTime(d1);
+	
+								int nStartYr = c.get(Calendar.YEAR);
+								int nStartMo = c.get(Calendar.MONTH)+1;
+								c.setTime(d2);
+								int nEndYr = c.get(Calendar.YEAR);
+								int nEndMo = c.get(Calendar.MONTH)+1;
+	
+								if (nStartYr == nEndYr) {
+									for (int i = nStartMo; i <= nEndMo; ++i) {
+										doc.getMonths().add(nStartYr*100 + i);
+									}
+								}
+								else if ((nStartYr + 1) == nEndYr) {
+									for (int i = nStartMo; i <= 12; ++i) {
+										doc.getMonths().add(nStartYr*100 + i);
+									}
+									for (int i = 1; i <= nEndMo; ++i) {
+										doc.getMonths().add(nEndYr*100 + i);
+									}							
+								}
+								// (else too long a period, ignore)
+							}
+						}
+					}//TESTED (single date range, within yr, spanning yrs, > 1yr span) 
+					catch (Exception e) {} // Parsing error, carry on... 
+				} // (End loop over associations)
 			}//TESTED
 
 			// modified: Don't index 
@@ -222,10 +335,133 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 				doc.setSourceKey(doc.getSourceKey().substring(0, nMultiCommunityDoc));
 			}
 			
+			// If filter specified for metadata then remove unwanted fields
+			if ((null != filter) && (null != filter.metadataFieldList) && (null != doc.getMetadata())) {
+				String metaFields = filter.metadataFieldList;
+				boolean bInclude = true;
+				if (metaFields.startsWith("+")) {
+					metaFields = metaFields.substring(1);
+				}
+				else if (metaFields.startsWith("-")) {
+					metaFields = metaFields.substring(1);
+					bInclude = false;
+				}
+				String[] metaFieldArray = metaFields.split("\\s*,\\s*");
+				if (bInclude) {
+					Set<String> metaFieldSet = new HashSet<String>();
+					metaFieldSet.addAll(Arrays.asList(metaFieldArray));
+					Iterator<Entry<String,  Object[]>> metaField = doc.getMetadata().entrySet().iterator();
+					while (metaField.hasNext()) {
+						Entry<String,  Object[]> metaFieldIt = metaField.next();
+						if (!metaFieldSet.contains(metaFieldIt.getKey())) {
+							metaField.remove();
+						}
+					}
+				} 
+				else { // exclude case, easier
+					for (String metaField: metaFieldArray) {
+						doc.getMetadata().remove(metaField);
+					}
+				} // (end include vs exclude)
+				
+				//TESTED: (copy/paste from Structured Analysis Handler) by eye: positive, negative, default metadata
+			} // (end if filter specified)
+			
 		}//TESTED (see above clauses): see MongoDocumentTxfer test cases 
 		
+		////////////////////////////////////////////////////////////////////////////////
+		
+		// Actual serialization:
+		
+		@Override
+		public JsonElement serialize(DocumentPojo doc, Type typeOfT, JsonSerializationContext context)
+		{
+			synchronizeWithIndex(doc);
+				// (does most of the transformations - the default index pojo does the rest)
+			
+			// GSON transformation:
+			JsonElement je = new EntityPojoIndexMap().extendBuilder( 
+								new AssociationPojoIndexMap().extendBuilder(
+										BaseIndexPojo.getDefaultBuilder())).
+								create().toJsonTree(doc, typeOfT);	
+
+			// Convert object names in metadata
+			if ((null != doc.getMetadata()) && !doc.getMetadata().isEmpty()) {
+				if (je.isJsonObject()) {
+					JsonElement metadata = je.getAsJsonObject().get("metadata");
+					if (null != metadata) {
+						enforceTypeNamingPolicy(metadata, 0);
+					}
+				}
+			}
+			
+			// Filter, if applied
+			SourcePojo.SourceSearchIndexFilter filter = null;
+			if (null != doc.getTempSource()) filter = doc.getTempSource().getSearchIndexFilter();
+			
+			// If filter specified for metadata then remove unwanted fields
+			if ((null != filter) && (null != filter.fieldList)) {
+				String docFields = filter.fieldList;
+				boolean bInclude = true;
+				if (docFields.startsWith("+")) {
+					docFields = docFields.substring(1);
+				}
+				else if (docFields.startsWith("-")) {
+					docFields = docFields.substring(1);
+					bInclude = false;
+				}
+				String[] docFieldArray = docFields.split("\\s*,\\s*");
+				if (bInclude) {
+					Set<String> docFieldSet = new HashSet<String>();
+					docFieldSet.addAll(Arrays.asList(docFieldArray));
+					// If entity/association/metadata specified, then leave them in by default
+					if ((null != filter.entityFilter) || (null != filter.entityGeoFilter)) {
+						docFieldSet.add(DocumentPojo.entities_);
+					}
+					if ((null != filter.assocFilter) || (null != filter.assocGeoFilter)) {
+						docFieldSet.add(DocumentPojo.associations_);
+					}
+					if (null != filter.metadataFieldList) {
+						docFieldSet.add(DocumentPojo.metadata_);						
+					}
+					Iterator<Entry<String,  JsonElement>> docField = je.getAsJsonObject().entrySet().iterator();
+					while (docField.hasNext()) {
+						Entry<String,  JsonElement> docFieldIt = docField.next();
+						String docFieldEl = docFieldIt.getKey();
+						
+						if (docFieldEl.equals(DocumentPojo.fullText_) || docFieldEl.equals(DocumentPojo.description_)
+								|| docFieldEl.equals(DocumentPojo.tags_) || docFieldEl.equals(DocumentPojo.docGeo_)
+								|| docFieldEl.equals(DocumentPojo.metadata_) || docFieldEl.equals(DocumentPojo.entities_)
+								|| docFieldEl.equals(DocumentPojo.associations_))								
+						{
+							if (!docFieldSet.contains(docFieldIt.getKey())) {
+								docField.remove();
+							}
+						} // (if this field is allowed to be delete)
+					}
+				} 
+				else { // exclude case, easier
+					for (String docField: docFieldArray) {
+						if (docField.equals(DocumentPojo.fullText_) || docField.equals(DocumentPojo.description_)
+								|| docField.equals(DocumentPojo.tags_) || docField.equals(DocumentPojo.docGeo_)
+								|| docField.equals(DocumentPojo.metadata_) || docField.equals(DocumentPojo.entities_)
+								|| docField.equals(DocumentPojo.associations_))								
+						{
+							if (je.getAsJsonObject().has(docField)) {
+								je.getAsJsonObject().remove(docField);
+							}
+						} // (end if field that is allowed to be deleted)
+					}
+				} // (end include vs exclude)
+				//TESTED: positive and negative filter, can't filter "obligatory fields"
+			} // (end if filter specified)
+			
+			return je;
+		}		
 	}
 
+	//TODO (INF-1566): TOTEST still: tags, MongoDocumentTxfer::rebuildIndex, AssociationPojoIndexMap (print out string plz)
+	
 	////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////
 

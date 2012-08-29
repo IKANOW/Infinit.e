@@ -27,6 +27,8 @@ import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
+import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
@@ -153,11 +155,61 @@ public class ElasticSearchManager {
 		}
 		return true;
 	}
+	//TESTED
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	
+	static public boolean pingIndex(String indexName) {		
+		return pingIndex(indexName, null);
+	}
+	static public boolean pingIndex(String indexName, String hostAndPort) {
+		PropertiesManager properties = new PropertiesManager();
+		if (null == hostAndPort) { // Set from properties if needed
+			hostAndPort = properties.getElasticUrl();			
+		}
+		if (null == _clusterName) { // Set from properties if needed
+			try {
+				_clusterName = properties.getElasticCluster();
+				if (null == _clusterName) {
+					_clusterName = _defaultClusterName;
+				}
+			}
+			catch (Exception e) {
+				_clusterName = _defaultClusterName;				
+			}
+		}
+		
+		String sHostname = null;
+		String sPort = null;
+		
+		String[] hostPort = hostAndPort.split("[:/]");
+		sHostname = hostPort[0];
+		sPort = hostPort[1];
+
+		Builder globalSettings = ImmutableSettings.settingsBuilder();
+		Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+		TransportClient tmp = new TransportClient(snode);
+		Client client = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+		
+		try {
+			IndicesExistsResponse ier = client.admin().indices().exists(new IndicesExistsRequest(indexName)).actionGet();
+			if (!ier.exists()) {
+				return false;
+			}
+			client.admin().cluster().health(new ClusterHealthRequest(indexName).waitForYellowStatus()).actionGet();
+		}
+		catch (Exception e) { // Index not alive...
+			return false;
+		}
+		return true;
+	}
+	//TESTED
+	
+	///////////////////////////////////////////////////////////////////////////////////////
+	
+	// (elastic client has forever persistence, this code just tidies up maps)
+	
 	public synchronized void closeIndex() {
-		_elasticClient.close();
 		String myName = _reverseIndexes.get(this.toString());
 		if (null != myName) {
 			ElasticSearchManager isItMe = _indexes.get(myName);
@@ -621,7 +673,7 @@ public class ElasticSearchManager {
 	
 	// Per index state
 	
-	private Client _elasticClient = null;
+	private static Client _elasticClient = null;
 	private String _sIndexName = null;
 	private String _sIndexType = null;
 	private String _multiIndex[] = null;
@@ -660,7 +712,9 @@ public class ElasticSearchManager {
 			
 		if (_bLocalMode) {
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().local(true);
-			_elasticClient = nBuilder.node().client();
+			if (null == _elasticClient) {
+				_elasticClient = nBuilder.node().client();
+			}
 		}
 		else if (bRemote) {
 			
@@ -677,7 +731,9 @@ public class ElasticSearchManager {
 			Builder globalSettings = ImmutableSettings.settingsBuilder();
 			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
 			TransportClient tmp = new TransportClient(snode);
-			_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+			if (null == _elasticClient) {
+				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+			}
 			
 		} //TESTED
 		else { // Create a "no data" cluster 
@@ -687,7 +743,9 @@ public class ElasticSearchManager {
 
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
 			nBuilder.data(false); // Don't store your own data
-			_elasticClient = nBuilder.build().start().client();				
+			if (null == _elasticClient) {
+				_elasticClient = nBuilder.build().start().client();
+			}
 		}//TOTEST
 		
 		_sIndexName = sIndexName;	
@@ -830,7 +888,9 @@ public class ElasticSearchManager {
 			
 		if (_bLocalMode) {
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().local(true);
-			_elasticClient = nBuilder.node().client();
+			if (null == _elasticClient) {
+				_elasticClient = nBuilder.node().client();
+			}
 		}
 		else if (bRemote) {
 			
@@ -847,7 +907,9 @@ public class ElasticSearchManager {
 			Builder globalSettings = ImmutableSettings.settingsBuilder();
 			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
 			TransportClient tmp = new TransportClient(snode);
-			_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+			if (null == _elasticClient) {
+				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+			}
 			
 		} //TESTED
 		else { // Create a "no data" cluster 
@@ -857,7 +919,9 @@ public class ElasticSearchManager {
 
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
 			nBuilder.data(false); // Don't store your own data
-			_elasticClient = nBuilder.build().start().client();				
+			if (null == _elasticClient) {
+				_elasticClient = nBuilder.build().start().client();
+			}
 		}//TOTEST
 		
 	// 2. Just store the index information 	

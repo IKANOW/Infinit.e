@@ -66,6 +66,7 @@ public class CustomInterface extends ServerResource
 	private String jobsToDependOn = null;
 	private String json = null;
 	private boolean shouldRemoveJar = false;
+	private int limit = 0;
 	private CustomMapReduceJobPojo jsonPojo = new CustomMapReduceJobPojo();
 	
 	private CustomHandler customhandler = new CustomHandler();
@@ -87,6 +88,18 @@ public class CustomInterface extends ServerResource
 		 if ((null != removeJar) && ( (removeJar.equals("1")) || (removeJar.equalsIgnoreCase("true")) )) 
 		 {
 			 shouldRemoveJar = true;			 
+		 }
+		 String limitString = queryOptions.get("limit");
+		 if ((null != limitString))
+		 {
+			 try
+			 {
+				 limit = Integer.parseInt(limitString);
+			 }
+			 catch (Exception ex)
+			 {
+				 limit = 0;
+			 }
 		 }
 		 
 		 //Method.POST
@@ -252,7 +265,7 @@ public class CustomInterface extends ServerResource
 			 {
 				 if ( action.equals("getresults") )
 				 {
-					 rp = this.customhandler.getJobResults(cookieLookup, jobid); 
+					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit); 
 				 }
 				 else if ( action.equals("schedule"))
 				 {

@@ -72,6 +72,14 @@
 		<name>arguments</name>
 		<value>Anything you want available to your mapper or reducer</value>
 	</property>
+	<property>
+		<name>max.splits</name>
+		<value>8</value>
+	</property>
+	<property>
+		<name>max.docs.per.split</name>
+		<value>12500</value>
+	</property>
 
 	<!-- DEBUG PARAMETERS -->
 	<!-- CURRENTLY, LEAVE THESE ALONE: THEY'RE NOT IN USE -->
@@ -120,7 +128,7 @@
 	<property>
 		<!-- InputFormat Class -->
 		<name>mongo.job.input.format</name>
-		<value>com.mongodb.hadoop.MongoInputFormat</value>
+		<value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat</value>
 	</property>
 	<property>
 		<!-- OutputFormat Class -->

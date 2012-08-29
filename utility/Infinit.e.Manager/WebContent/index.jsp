@@ -83,6 +83,14 @@ limitations under the License.
 							<li><b><a href="communities.jsp" title="Add/Edit Users">Communities</a></b> - Add/Edit Communities and Membership</li>
 							<li><b><a href="sources.jsp" title="Add/Edit Users">Sources</a></b> - Add/Edit Sources</li>
 						</ul>
+						<ul>
+							<li><b><a href="fileUploader.jsp" title="Add/Edit Users" target="_blank">File Uploader</a></b> - Add/Edit Files or JSON</li>
+							<li><b><a href="widgetUploader.jsp" title="Add/Edit Users" target="_blank">Widget Uploader</a></b> - Add/Edit Widgets</li>
+							<li><b><a href="pluginManager.jsp" title="Add/Edit Users" target="_blank">Plugin Manager</a></b> - Add/Edit Hadoop Plugins</li>						
+						</ul>
+						<ul>
+							<li><b><a href="chrome.html" title="Install Chrome Source Extension" target="_blank">Infinit.e Chrome Extension</a></b> - Create Sources from Chrome</li>
+						</ul>
 					</td>
 				</tr>
 			</table>

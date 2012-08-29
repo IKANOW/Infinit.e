@@ -202,12 +202,18 @@ limitations under the License.
 		public shareData[] data;
 		
 	}
-	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
-	{
-		Cookie cookie = new Cookie ("infinitecookie",value);
-		cookie.setPath("/");
-		response.addCookie(cookie);
-	}
+	public static void setBrowserInfiniteCookie(HttpServletResponse response,
+			String value, int nServerPort) {
+        String params = null;
+        if ((443 == nServerPort) || (8443 == nServerPort)) {
+                params="; path=/; HttpOnly; Secure";
+        }
+        else {
+                params="; path=/; HttpOnly";
+        }
+        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
+        	// (all this is needed in order to support HTTP only cookies)
+	} // TESTED
 	
 	public static String getBrowserInfiniteCookie(HttpServletRequest request)
 	{
@@ -319,7 +325,7 @@ limitations under the License.
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
         	
         	if (DEBUG_MODE)
@@ -454,7 +460,7 @@ limitations under the License.
             String newCookie = getConnectionInfiniteCookie(connection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
             buffer.flush();
             buffer.close();
@@ -650,11 +656,8 @@ limitations under the License.
 					if ((null != taskTitle) && (info.jobtitle.equals(taskTitle)))
 						selectedJson = value1;
 				}
-				if ( !info.jobtitle.equals(taskTitle) )
-				{
-					toReturn2 += "<option value=\""+info._id+"\" >"+info.jobtitle+" Output Collection</option>";				
-					toReturn3 += "<option value=\""+info._id+"\" >"+info.jobtitle+"</option>";
-				}
+				toReturn2 += "<option value=\""+info._id+"\" >"+info.jobtitle+" Output Collection</option>";				
+				toReturn3 += "<option value=\""+info._id+"\" >"+info.jobtitle+"</option>";
 			}			
 		}
 		inputCollectionList = toReturn2;
@@ -1506,6 +1509,7 @@ else if (isLoggedIn == true)
 			frequency = document.getElementById('frequency').value;
 				// (no need to validate since it comes from a drop down)
 			inputcollection = document.getElementById('inputcollection').value;
+			dependencies = document.getElementById('jobdepend').value;
 			mapper = document.getElementById('mapper').value;
 			combiner = document.getElementById('combiner').value;
 			reducer = document.getElementById('reducer').value;
@@ -1553,7 +1557,7 @@ else if (isLoggedIn == true)
 				alert('Please provide a description.');
 				return false;
 			}
-				
+			
 			var queryregex = /^\s*{\s*}\s*$/;
 			//if it does not equal an empty box and does not just equal {}
 			//then test the expression

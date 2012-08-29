@@ -194,12 +194,18 @@ limitations under the License.
 		public shareData data;
 		
 	}
-	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
-	{
-		Cookie cookie = new Cookie ("infinitecookie",value);
-		cookie.setPath("/");
-		response.addCookie(cookie);
-	}
+	public static void setBrowserInfiniteCookie(HttpServletResponse response,
+			String value, int nServerPort) {
+        String params = null;
+        if ((443 == nServerPort) || (8443 == nServerPort)) {
+                params="; path=/; HttpOnly; Secure";
+        }
+        else {
+                params="; path=/; HttpOnly";
+        }
+        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
+        	// (all this is needed in order to support HTTP only cookies)
+	} // TESTED
 	
 	public static String getBrowserInfiniteCookie(HttpServletRequest request)
 	{
@@ -268,7 +274,7 @@ limitations under the License.
         	String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
         	
         	if (DEBUG_MODE)
@@ -404,7 +410,7 @@ limitations under the License.
             String newCookie = getConnectionInfiniteCookie(connection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
             buffer.flush();
             buffer.close();
@@ -661,7 +667,7 @@ limitations under the License.
 	        String newCookie = getConnectionInfiniteCookie(connection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
 	        
 	        widgetToDBResponse resp = new Gson().fromJson(buffer.toString(), widgetToDBResponse.class);

@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -23,6 +23,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 	import flash.events.MouseEvent;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.resources.IResourceManager;
 	import mx.resources.ResourceManager;
 	import assets.EmbeddedAssets;
@@ -39,7 +40,9 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		
 		public static const PROFILE_INDEX:int = 0;
 		
-		public static const LOGOUT_INDEX:int = 1;
+		public static const MANAGER_INDEX:int = 1;
+		
+		public static const LOGOUT_INDEX:int = 2;
 		
 		//======================================
 		// private static properties 
@@ -52,6 +55,8 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		private static const HISTORY_ID:String = NavigationConstants.DASHBOARD_HEADER_HISTORY_ID;
 		
 		private static const PROFILE_ID:String = NavigationConstants.DASHBOARD_HEADER_PROFILE_ID;
+		
+		private static const MANAGER_ID:String = NavigationConstants.DASHBOARD_HEADER_MANAGER_ID;
 		
 		private static const LOGOUT_ID:String = NavigationConstants.DASHBOARD_HEADER_LOGOUT_ID;
 		
@@ -141,7 +146,6 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		override public function resetItemsToDefault( itemType:String ):void
 		{
 			super.resetItemsToDefault( itemType );
-			
 			model.reset();
 		}
 		
@@ -216,6 +220,14 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 			// logout
 			navigationItem = new NavigationItem();
 			navigationItem.navigatorId = navigatorId;
+			navigationItem.id = MANAGER_ID;
+			navigationItem.type = NavigationItemTypes.ACTION;
+			navigationItem.label = resourceManager.getString( 'infinite', 'header.launchManager' );
+			navActions.addItem( navigationItem );
+			
+			// logout
+			navigationItem = new NavigationItem();
+			navigationItem.navigatorId = navigatorId;
 			navigationItem.id = LOGOUT_ID;
 			navigationItem.type = NavigationItemTypes.ACTION;
 			navigationItem.label = resourceManager.getString( 'infinite', 'header.logOut' );
@@ -278,6 +290,11 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 				{
 					resetItemsToDefault( NavigationItemTypes.ALL );
 					super.navigate( navigationItem );
+					break;
+				}
+				case MANAGER_ID:
+				{
+					// (do nothing, handled directly by the callback to avoid pop-up security issues)
 					break;
 				}
 				case LOGOUT_ID:

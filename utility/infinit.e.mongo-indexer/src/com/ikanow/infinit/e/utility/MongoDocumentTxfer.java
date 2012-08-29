@@ -32,7 +32,6 @@ import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 
 import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
-import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -40,6 +39,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
+import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -110,6 +110,9 @@ public class MongoDocumentTxfer {
 	
 	private void doTransfer(BasicDBObject query, int nSkip, int nLimit) throws IOException
 	{		
+		PropertiesManager pm = new PropertiesManager();
+		int nMaxContentSize_bytes = pm.getMaxContentSize();
+		
 		// Initialize the DB:
 		
 		DBCollection docsDB = DbManager.getDocument().getMetadata();
@@ -124,7 +127,9 @@ public class MongoDocumentTxfer {
 		if (null == query) {
 			query = new BasicDBObject();			
 		}
-		query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		if (null != query.get(null != DocumentPojo.sourceKey_)) {
+			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		}
 		
 		//Debug:
 		DBCursor dbc = null;
@@ -159,8 +164,9 @@ public class MongoDocumentTxfer {
 			//System.out.println("Getting content..." + feed.getTitle() + " / " + feed.getUrl());
 			
 			// Get the content:
-			if (StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {				
-				BasicDBObject contentQ = new BasicDBObject("url", doc.getUrl());
+			if ((0 != nMaxContentSize_bytes) && StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl()))
+			{
+				BasicDBObject contentQ = new BasicDBObject(DocumentPojo.url_, doc.getUrl());
 				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
 				if (null != dboContent) {
 					byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				
@@ -182,32 +188,31 @@ public class MongoDocumentTxfer {
 			
 			// Get tags, if necessary:
 			// Always overwrite tags - one of the reasons we might choose to migrate
-			//if (null == feed.getTags()) (OLD CODE SEE ABOVE) 
-			{
-				SourcePojo src = _sourceCache.get(doc.getSourceKey());
-				if (null == src) {
-					BasicDBObject srcDbo = (BasicDBObject) sourcesDB.findOne(new BasicDBObject("key", doc.getSourceKey()));
-					if (null != srcDbo) {
-						src = SourcePojo.fromDb(srcDbo, SourcePojo.class);
-						
-						_sourceCache.put(doc.getSourceKey(), src);
-					}
+			// Also may need source in order to support source index filtering
+			SourcePojo src = _sourceCache.get(doc.getSourceKey());
+			if (null == src) {
+				BasicDBObject srcDbo = (BasicDBObject) sourcesDB.findOne(new BasicDBObject(SourcePojo.key_, doc.getSourceKey()));
+				if (null != srcDbo) {
+					src = SourcePojo.fromDb(srcDbo, SourcePojo.class);
+					
+					_sourceCache.put(doc.getSourceKey(), src);
+					doc.setTempSource(src); // (needed for source index filtering)
 				}
-				if (null != src) {
-					if (null != src.getTags()) {
-						Set<String> tagsTidied = new TreeSet<String>();
-						for (String s: src.getTags()) {
-							String ss = s.trim().toLowerCase();
-							tagsTidied.add(ss);
-						}
-						
-						// May also want to write this back to the DB:
-						if ((null == doc.getTags()) || (doc.getTags().size() != tagsTidied.size())) {
-							docsDB.update(new BasicDBObject("_id", doc.getId()), 
-									new BasicDBObject("$set", new BasicDBObject("tags", tagsTidied)));
-						}
-						doc.setTags(tagsTidied);
+			}
+			if (null != src) {
+				if (null != src.getTags()) {
+					Set<String> tagsTidied = new TreeSet<String>();
+					for (String s: src.getTags()) {
+						String ss = s.trim().toLowerCase();
+						tagsTidied.add(ss);
 					}
+					
+					// May also want to write this back to the DB:
+					if ((null == doc.getTags()) || (doc.getTags().size() != tagsTidied.size())) {
+						docsDB.update(new BasicDBObject(DocumentPojo._id_, doc.getId()), 
+								new BasicDBObject(DbManager.set_, new BasicDBObject(DocumentPojo.tags_, tagsTidied)));
+					}
+					doc.setTags(tagsTidied);
 				}
 			}
 
@@ -234,36 +239,20 @@ public class MongoDocumentTxfer {
 	//___________________________________________________________________________________________________
 	
 	// Utility function for the above, rebuilds an index
-	// Code taken from generic processing controller, so need to keep in sync
 	
 	private void rebuildIndex(String indexName) {
+		
 		if (indexName.startsWith("doc_")) { // Else not eligible...
-			String communityId = indexName.substring(4); // (Remove "doc_", just left with community ID)
-			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(communityId)));
-			if (null != dbo) {
-				boolean bSystemGroup = dbo.getBoolean("isSystemCommunity", false);
-				boolean bPersonalGroup = dbo.getBoolean("isPersonalCommunity", false);
-									
-				int nShards = bPersonalGroup? 2 : 5 ; // (would like 1 for personal group, but that would then be treated as data local, probably undesirable)
-				if (bSystemGroup) { // Biggest
-					nShards = 10;
-				}
-				int nPreferredReplicas = 2;
-				
-				// Then create an index with this name:
-				Builder localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
-				localSettingsGroupIndex.put("number_of_shards", nShards).put("number_of_replicas", nPreferredReplicas);	
-				String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
-
-				ElasticSearchManager docIndex = IndexManager.getIndex(indexName, "document_index");
-				if (null != docIndex) {
-					docIndex.deleteMe();
-					docIndex = IndexManager.createIndex(indexName, "document_index", false, null, docMapping, localSettingsGroupIndex);					
-				}
-
+			try {
+				ObjectId communityId = new ObjectId(indexName.substring(4));
+				GenericProcessingController.recreateCommunityDocIndex_unknownFields(communityId, true);
+			}
+			catch (Exception e) { // I guess this wasn't a valid community?!
+				e.printStackTrace();
 			}
 		}
 	}
+	//TESTED (by hand, it's a straight call of tested GPC code anyway)
 	
 	//___________________________________________________________________________________________________
 	

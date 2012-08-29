@@ -97,6 +97,10 @@ public class UnstructuredAnalysisHarvester {
 	// Ensure we don't get long list of duplicates for commonly occurring words
 	private HashSet<String> regexDuplicates = null;
 	private HtmlCleaner cleaner = null;
+	
+	//if the sah already init'd an engine we'll just use it
+	private ScriptEngine _sahEngine = null; 
+	
 	/**
 	 * Default Constructor
 	 */
@@ -203,7 +207,7 @@ public class UnstructuredAnalysisHarvester {
 				// ^^^ (end slight hack to get raw text to the UAH for RSS feeds)
 
 				try {
-					processBody(d, meta, true);
+					processBody(d, meta, true, source, uap);
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("processBody1: " + e.getMessage(), true);
 					logger.error("processBody1: " + e.getMessage(), e);
@@ -219,15 +223,15 @@ public class UnstructuredAnalysisHarvester {
 				}
 
 				try {
-					processHeader(headerPattern, d, meta);
-					processFooter(footerPattern, d, meta);
+					processHeader(headerPattern, d, meta, source, uap);
+					processFooter(footerPattern, d, meta, source, uap);
 					
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("header/footerPattern: " + e.getMessage(), true);
 					logger.error("header/footerPattern: " + e.getMessage(), e);
 				}
 				try {
-					processBody(d, meta, false);
+					processBody(d, meta, false, source, uap);
 					
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
@@ -360,7 +364,7 @@ public class UnstructuredAnalysisHarvester {
 				savedUap = uap;
 			}
 			try {
-				processBody(doc, meta, true);
+				processBody(doc, meta, true, source, uap);
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("processBody1: " + e.getMessage(), true);
@@ -375,15 +379,15 @@ public class UnstructuredAnalysisHarvester {
 				logger.error("cleanseText: " + e.getMessage(), e);
 			}
 			try {
-				processHeader(headerPattern, doc, meta);
-				processFooter(footerPattern, doc, meta);
+				processHeader(headerPattern, doc, meta, source, uap);
+				processFooter(footerPattern, doc, meta, source, uap);
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("header/footerPattern: " + e.getMessage(), true);
 				logger.error("header/footerPattern: " + e.getMessage(), e);
 			}
 			try {
-				processBody(doc, meta, false);
+				processBody(doc, meta, false, source, uap);
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
@@ -415,7 +419,7 @@ public class UnstructuredAnalysisHarvester {
 	 * @param f
 	 * @param meta
 	 */
-	private void processHeader(Pattern headerPattern, DocumentPojo f, List<metaField> meta)
+	private void processHeader(Pattern headerPattern, DocumentPojo f, List<metaField> meta, SourcePojo source, UnstructuredAnalysisConfigPojo uap)
 	{
 		if (headerPattern != null) {
 			Matcher headerMatcher = headerPattern.matcher(f.getFullText());
@@ -433,7 +437,7 @@ public class UnstructuredAnalysisHarvester {
 			if (null != headerText && null != meta) {
 				for (metaField m : meta) {
 					if (m.context == Context.Header || m.context == Context.All) {
-						this.processMeta(f, m, headerText);
+						this.processMeta(f, m, headerText, source, uap);
 					}
 				}
 			}
@@ -447,7 +451,7 @@ public class UnstructuredAnalysisHarvester {
 	 * @param f
 	 * @param meta
 	 */
-	private void processFooter(Pattern footerPattern, DocumentPojo f, List<metaField> meta)
+	private void processFooter(Pattern footerPattern, DocumentPojo f, List<metaField> meta, SourcePojo source, UnstructuredAnalysisConfigPojo uap)
 	{
 
 		if (footerPattern != null) {
@@ -466,7 +470,7 @@ public class UnstructuredAnalysisHarvester {
 			if (null != footerText && null != meta) {
 				for (metaField m : meta) {
 					if (m.context == Context.Footer || m.context == Context.All) {
-						this.processMeta(f, m, footerText);
+						this.processMeta(f, m, footerText, source, uap);
 					}
 				}
 			}
@@ -479,7 +483,7 @@ public class UnstructuredAnalysisHarvester {
 	 * @param f
 	 * @param meta
 	 */
-	private void processBody(DocumentPojo f, List<metaField> meta, boolean bPreCleansing)
+	private void processBody(DocumentPojo f, List<metaField> meta, boolean bPreCleansing, SourcePojo source, UnstructuredAnalysisConfigPojo uap)
 	{
 		if (null != meta) {
 			for (metaField m : meta) {
@@ -490,7 +494,7 @@ public class UnstructuredAnalysisHarvester {
 						toProcess = f.getDescription();
 
 					if (null != toProcess) {
-						this.processMeta(f, m, toProcess);
+						this.processMeta(f, m, toProcess, source, uap);
 					}
 				}
 			}
@@ -500,7 +504,7 @@ public class UnstructuredAnalysisHarvester {
 	/**
 	 * processMeta - handle an individual field
 	 */
-	private void processMeta(DocumentPojo f, metaField m, String text) {
+	private void processMeta(DocumentPojo f, metaField m, String text, SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 
 		if ((null == m.scriptlang) || m.scriptlang.equalsIgnoreCase("regex")) {
 
@@ -539,25 +543,57 @@ public class UnstructuredAnalysisHarvester {
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("processMeta1: " + e.getMessage(), true);
 			}
-		} else if (m.scriptlang.equalsIgnoreCase("javascript")) {
-
+		} 
+		else if (m.scriptlang.equalsIgnoreCase("javascript")) 
+		{
 			if (null == f.getMetadata()) {
 				f.setMetadata(new LinkedHashMap<String, Object[]>());
 			}
-			if (null == factory) {
-				factory = new ScriptEngineManager();
-				engine = factory.getEngineByName("JavaScript");
-				if (null == parsingScript) {
-					parsingScript = JavaScriptUtils.generateParsingScript();
+			//set the script engine up if necessary
+			if ( null == engine )
+			{
+				//use the passed in sah one if possible
+				if ( null != this.get_sahEngine())
+				{
+					engine = this.get_sahEngine();
 				}
-				try {
-					engine.eval(parsingScript);
-				} catch (ScriptException e) { // Just do nothing and log
-					e.printStackTrace();
-					logger.error(e.getMessage());
+				else if (null == factory)  //otherwise create our own
+				{
+					factory = new ScriptEngineManager();
+					engine = factory.getEngineByName("JavaScript");		
+					//grab any json cache and make it available to the engine
+					try
+					{
+						if (null != uap.getCaches()) {
+							CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
+						}
+					}
+					catch (Exception ex)
+					{
+						_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+						logger.error("JSONcache: " + ex.getMessage(), ex);
+					}
+				}
+				//once engine is created, do some initialization
+				if ( null != engine )
+				{
+					if (null == parsingScript) 
+					{
+						parsingScript = JavaScriptUtils.generateParsingScript();
+					}
+					try 
+					{
+						engine.eval(parsingScript);
+					} 
+					catch (ScriptException e) { // Just do nothing and log
+						e.printStackTrace();
+						logger.error(e.getMessage());
+					}
 				}
 			}
-			try {
+			
+			try 
+			{
 				// Javascript: the user passes in 
 				Object[] currField = f.getMetadata().get(m.fieldName);
 				if (null == m.flags) {
@@ -1020,5 +1056,13 @@ public class UnstructuredAnalysisHarvester {
 			props.setTranslateSpecialEntities(true);
 			props.setTransResCharsToNCR(true);	
 		}		
+	}
+
+	public void set_sahEngine(ScriptEngine _sahEngine) {
+		this._sahEngine = _sahEngine;
+	}
+
+	public ScriptEngine get_sahEngine() {
+		return _sahEngine;
 	}	
 }

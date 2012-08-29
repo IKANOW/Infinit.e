@@ -183,6 +183,15 @@ public class PropertiesManager {
 			return Integer.parseInt(s.toLowerCase());
 		}
 	}
+	
+	public Boolean getExtractionCapabilityEnabled(String name, String function) {  
+		String s = this.getProperty("app."+ name.toLowerCase() +"."+ function.toLowerCase());
+		if (null == s) {
+			return null;
+		}
+		return (s.equals("1") || s.equalsIgnoreCase("true"));
+	}
+	
 	// Generic other extractors (can't configure, need UIMA framework for that)
 	// Will be a list of classes that need to be on the JAR classpath
 	

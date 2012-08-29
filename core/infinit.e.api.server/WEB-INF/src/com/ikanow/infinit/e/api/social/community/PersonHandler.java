@@ -41,6 +41,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
+import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -257,6 +258,8 @@ public class PersonHandler
 				wpa.setAccountType("user");
 			}
 			ap.setAccountType(wpa.getAccountType());
+				// to create an account you must be admin, so this is fine....
+			
 			ap.setWPUserID(wpa.getWPUserID());		
 				
 			DateFormat df = new SimpleDateFormat("MMM dd, yyyy kk:mm:ss aa");
@@ -328,7 +331,7 @@ public class PersonHandler
 	public ResponsePojo updateWPUser(String wpuser, String wpauth, String wpsetup, String personIdStr) 
 	{
 		ResponsePojo rp = new ResponsePojo();
-		
+				
 		boolean bNeedToUpdateCommunities = false;
 		
 		WordPressUserPojo wpu = null;
@@ -360,8 +363,15 @@ public class PersonHandler
 						rp.setResponse(new ResponseObject("WP Update User",false,"Need to specify WPUserID (or email address if not integrated via WordPress)"));
 						return rp;
 					}
-					else {
-						personQuery.setEmail(wpu.getEmail().get(0));
+					else {	// If authentication username is set, use that because it means that we're trying to change 
+							// the email (and we're an admin user) 
+						
+						if (null != wpa.getUsername()) { // I may be changing someone's name
+							personQuery.setEmail(wpa.getUsername());
+						}
+						else { // I'm not changing anybody's name
+							personQuery.setEmail(wpu.getEmail().get(0));
+						}
 					}
 				}
 				else {
@@ -459,7 +469,9 @@ public class PersonHandler
 				ap.setPassword(wpa.getPassword());
 			}
 			if (null != wpa.getAccountType()) {
-				ap.setAccountType(wpa.getAccountType());
+				if (null == personIdStr) { // (this means you're admin and hence can upgrade users to admins)
+					ap.setAccountType(wpa.getAccountType());
+				}
 			}
 			// (can't change WPUserId obv)
 			
@@ -482,6 +494,12 @@ public class PersonHandler
 				DbManager.getSocial().getCommunity().update(query, new BasicDBObject("$set", update), false, true);
 					// (don't upsert, many times)
 			}//TOTEST
+			
+			// Just recreate personal community if necessary (means if something goes wrong can always just update user...)
+			if (null != pp.get_id()) {
+				GenericProcessingController.createCommunityDocIndex(pp.get_id().toString(), null, true, false, false);
+			}
+			//TESTED
 			
 			rp.setResponse(new ResponseObject("WP Update User",true,"User Updated Successfully"));
 		}
@@ -537,7 +555,11 @@ public class PersonHandler
 		}
 		catch (Exception e) { 
 			// We're past the point of no return so just carry on...
-		}		
+		}
+		
+		// Remove from index:
+		GenericProcessingController.deleteCommunityDocIndex(pp.get_id().toString(), null, true);
+		//TESTED
 		
 		// Remove from all (other) communities 
 		try {

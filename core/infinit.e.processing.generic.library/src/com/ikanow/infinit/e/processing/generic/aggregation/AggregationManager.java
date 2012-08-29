@@ -38,6 +38,7 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -430,6 +431,10 @@ public class AggregationManager {
 	public static void updateEntitiesFromDeletedDocuments(String uuid) 
 	{		
 		try {
+			PropertiesManager props = new PropertiesManager();
+			if (props.getAggregationDisabled()) { // (no need to do this)
+				return;
+			}		
 			// Load string resource
 			
 			InputStream in = EntityAggregationUtils.class.getResourceAsStream("AggregationUtils_scriptlets.xml");
@@ -477,63 +482,71 @@ public class AggregationManager {
 	public static void updateDocEntitiesFromDeletedDocuments(String uuid) 
 	{
 		String outCollection = new StringBuilder(uuid).append("_AggregationUtils").toString();
-		
-		DBCollection outColl = DbManager.getDB("doc_metadata").getCollection(outCollection);
-		
-		DBCursor dbc = outColl.find();
-		for (DBObject dbo: dbc) {
-			BasicDBObject entityEl = (BasicDBObject) dbo;
-			BasicDBObject entityVal = (BasicDBObject) entityEl.get("value");
-			
-			long nDocDecrement = entityVal.getLong("dc");
-			long nFreqDecrement = entityVal.getLong("f");
-			long nCurrFreq = entityVal.getLong("tf");
-			long nCurrDocCount = entityVal.getLong("tdc");
-			
-			// (These are by construction the lowest values so this will provide some defence against going -ve)
-			if (nDocDecrement > nCurrDocCount) {
-				nDocDecrement = nCurrDocCount;
+		try {			
+			PropertiesManager props = new PropertiesManager();
+			if (props.getAggregationDisabled()) { // (no need to do this)
+				return;
 			}
-			if (nFreqDecrement > nCurrFreq) {
-				nFreqDecrement = nCurrFreq;
-			}
+			DBCollection outColl = DbManager.getDB("doc_metadata").getCollection(outCollection);
 			
-			BasicDBObject entityId = (BasicDBObject) entityEl.get("_id");
-			ObjectId commId = (ObjectId) entityId.get("comm");
-			String index = (String) entityId.get("index");
-			
-			BasicDBObject updateQuery = new BasicDBObject(EntityFeaturePojo.index_, index);
-			updateQuery.put(EntityFeaturePojo.communityId_, commId);
-			BasicDBObject entityUpdate1 = new BasicDBObject(EntityFeaturePojo.doccount_, -nDocDecrement);
-			entityUpdate1.put(EntityFeaturePojo.totalfreq_, -nFreqDecrement);
-			BasicDBObject entityUpdate = new BasicDBObject(DbManager.inc_, entityUpdate1);
-			
-			if (_diagnosticMode) {
-				System.out.println("UPDATE FEATURE DATABASE: " + updateQuery.toString() + "/" + entityUpdate.toString());
-			}
-			else {
-				DbManager.getFeature().getEntity().update(updateQuery, entityUpdate);
-					// (can be a single query because the query is on index, the shard)
-			}
-			//TESTED
-			
-			if ((nDocDecrement < nCurrDocCount) && (nDocDecrement*10 > nCurrDocCount)) {
-				// ie there are some documents left
-				// and the doc count has shifted by more than 10%
-				BasicDBObject updateQuery2 = new BasicDBObject(EntityPojo.docQuery_index_, index);
-				updateQuery2.put(DocumentPojo.communityId_, commId);
-				BasicDBObject entityUpdate2_1 = new BasicDBObject(EntityPojo.docUpdate_doccount_, nCurrDocCount - nDocDecrement);
-				entityUpdate2_1.put(EntityPojo.docUpdate_totalfrequency_, nCurrFreq - nFreqDecrement);
-				BasicDBObject entityUpdate2 = new BasicDBObject(DbManager.set_, entityUpdate2_1);
-
+			DBCursor dbc = outColl.find();
+			for (DBObject dbo: dbc) {
+				BasicDBObject entityEl = (BasicDBObject) dbo;
+				BasicDBObject entityVal = (BasicDBObject) entityEl.get("value");
+				
+				long nDocDecrement = entityVal.getLong("dc");
+				long nFreqDecrement = entityVal.getLong("f");
+				long nCurrFreq = entityVal.getLong("tf");
+				long nCurrDocCount = entityVal.getLong("tdc");
+				
+				// (These are by construction the lowest values so this will provide some defence against going -ve)
+				if (nDocDecrement > nCurrDocCount) {
+					nDocDecrement = nCurrDocCount;
+				}
+				if (nFreqDecrement > nCurrFreq) {
+					nFreqDecrement = nCurrFreq;
+				}
+				
+				BasicDBObject entityId = (BasicDBObject) entityEl.get("_id");
+				ObjectId commId = (ObjectId) entityId.get("comm");
+				String index = (String) entityId.get("index");
+				
+				BasicDBObject updateQuery = new BasicDBObject(EntityFeaturePojo.index_, index);
+				updateQuery.put(EntityFeaturePojo.communityId_, commId);
+				BasicDBObject entityUpdate1 = new BasicDBObject(EntityFeaturePojo.doccount_, -nDocDecrement);
+				entityUpdate1.put(EntityFeaturePojo.totalfreq_, -nFreqDecrement);
+				BasicDBObject entityUpdate = new BasicDBObject(DbManager.inc_, entityUpdate1);
+				
 				if (_diagnosticMode) {
-					System.out.println("UPDATE DOC DATABASE: " + updateQuery2.toString() + "/" + entityUpdate2.toString());
+					System.out.println("UPDATE FEATURE DATABASE: " + updateQuery.toString() + "/" + entityUpdate.toString());
 				}
 				else {
-					DbManager.getDocument().getMetadata().update(updateQuery2, entityUpdate2, false, true);						
+					DbManager.getFeature().getEntity().update(updateQuery, entityUpdate);
+						// (can be a single query because the query is on index, the shard)
 				}
-			}
-		}//TESTED (including when to update logic above) 
+				//TESTED
+				
+				if ((nDocDecrement < nCurrDocCount) && (nDocDecrement*10 > nCurrDocCount)) {
+					// ie there are some documents left
+					// and the doc count has shifted by more than 10%
+					BasicDBObject updateQuery2 = new BasicDBObject(EntityPojo.docQuery_index_, index);
+					updateQuery2.put(DocumentPojo.communityId_, commId);
+					BasicDBObject entityUpdate2_1 = new BasicDBObject(EntityPojo.docUpdate_doccount_, nCurrDocCount - nDocDecrement);
+					entityUpdate2_1.put(EntityPojo.docUpdate_totalfrequency_, nCurrFreq - nFreqDecrement);
+					BasicDBObject entityUpdate2 = new BasicDBObject(DbManager.set_, entityUpdate2_1);
+	
+					if (_diagnosticMode) {
+						System.out.println("UPDATE DOC DATABASE: " + updateQuery2.toString() + "/" + entityUpdate2.toString());
+					}
+					else {
+						DbManager.getDocument().getMetadata().update(updateQuery2, entityUpdate2, false, true);						
+					}
+				}
+			}//TESTED (including when to update logic above)
+		}
+		catch(Exception e) {
+			e.printStackTrace();
+		}
 		
 		// Tidy up
 		DbManager.getDB("doc_metadata").getCollection(outCollection).drop();

@@ -55,7 +55,7 @@ public class CustomHandler
 	 * @param jobid
 	 * @return
 	 */
-	public ResponsePojo getJobResults(String userid, String jobid ) 
+	public ResponsePojo getJobResults(String userid, String jobid, int limit ) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		
@@ -85,13 +85,17 @@ public class CustomHandler
 					if ( cmr.lastCompletionTime != null )
 					{
 						//return the results
-						//DBObject resultDBO = DbManager.getCollection("custommr", cmr.outputCollection).findOne();
-						DBCursor resultCursor = DbManager.getCollection("custommr", cmr.outputCollection).find();
+						DBCursor resultCursor = null;
+						if (limit > 0) {
+							resultCursor = DbManager.getCollection("custommr", cmr.outputCollection).find().sort(new BasicDBObject("_id",1)).limit(limit);
+						}
+						else {
+							resultCursor = DbManager.getCollection("custommr", cmr.outputCollection).find();
+						}
 						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
 						CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
 						cmrr.lastCompletionTime = cmr.lastCompletionTime;
 						cmrr.results = resultCursor.toArray();
-						//cmrr.results = resultDBO.toString();
 						rp.setData(cmrr);																								
 					}
 					else

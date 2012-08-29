@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -20,6 +20,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 	import com.ikanow.infinit.e.shared.event.SessionEvent;
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+	import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
 	import com.ikanow.infinit.e.shared.model.constant.types.NavigationItemTypes;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryDimensionTypes;
 	import com.ikanow.infinit.e.shared.model.constant.types.QuerySuggestionTypes;
@@ -28,9 +29,14 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 	import com.ikanow.infinit.e.shared.model.vo.User;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import flash.events.Event;
+	import flash.net.URLRequest;
+	import flash.net.navigateToURL;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
+	import mx.controls.AdvancedDataGrid;
+	import mx.controls.Alert;
 	import mx.olap.QueryError;
 	import mx.resources.ResourceManager;
 	
@@ -148,6 +154,15 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		public function hideSuggestionsList():void
 		{
 			showSuggestions = false;
+		}
+		
+		/**
+		 * LaunchManager
+		 */
+		public function launchManager():void
+		{
+			var urlRequest:URLRequest = new URLRequest( ServiceUtil.getManagerUrl() );
+			navigateToURL( urlRequest, ServiceConstants.BLANK_URL );
 		}
 		
 		/**

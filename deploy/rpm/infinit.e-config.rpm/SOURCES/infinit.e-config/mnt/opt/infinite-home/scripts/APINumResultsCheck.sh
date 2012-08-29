@@ -20,6 +20,10 @@ SEARCHTERMS_RAW=`grep "^api.search.test.terms=" $API_PROPERTY_FILE | sed s/'api.
         # (need to allow spaces here)
 SEARCHTERMS=($SEARCHTERMS_RAW)
 NUMSEARCHTERMS=${#SEARCHTERMS[@]}
+if [ "$NUMSEARCHTERMS" == "-1" ];
+	#Don't want to perform active monitoring
+	exit
+fi
 
 ################################################################################
 #  No URL Specified, Exit Out
@@ -32,7 +36,10 @@ fi
 ################################################################################
 # Access - Setup username and password
 if [ -z $USERNAME ]; then
-        USERNAME="test_user@ikanow.com"
+        USERNAME=`grep "^test.user.email=" /opt/infinite-install/config/infinite.configuration.properties | sed s/[^=]*=//`
+		if [ -z $USERNAME ]; then
+	        USERNAME="test_user@ikanow.com"
+		fi
         USERPASS=`grep "^test.user.password=" /opt/infinite-install/config/infinite.configuration.properties | sed s/[^=]*=//`
 fi
 PASSWORD=$(echo -n $USERPASS  | sha256sum | xxd -r -p | base64|sed s/[/]/'%2F'/g|sed s/[=]/'%3D'/g|sed s/[+]/'%2B'/g)

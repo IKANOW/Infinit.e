@@ -13,7 +13,6 @@
 	<classpathentry kind="lib" path="WEB-INF/lib/jackson-xml-databind-0.6.0.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/JavaAPIforKml.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/log4j-1.2.16.jar"/>
-	<classpathentry kind="lib" path="WEB-INF/lib/mongo-2.6.5.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/org.restlet.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/stax2-api-3.1.1.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/woodstox-core-asl-4.1.1.jar"/>
@@ -26,5 +25,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
 	<classpathentry kind="lib" path="/infinit.e.harvest.library/standalone_libs/mysql-connector-java-5.1.15-bin.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/tika-app-1.0.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/mongo-2.7.2.jar"/>
 	<classpathentry kind="output" path="WEB-INF/classes"/>
 </classpath>

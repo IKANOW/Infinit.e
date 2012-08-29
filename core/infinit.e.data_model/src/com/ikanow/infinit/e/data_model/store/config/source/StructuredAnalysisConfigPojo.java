@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.store.config.source;
 
 import java.util.List;
+import java.util.Map;
 
 /**
  * StructuredAnalysisPojo
@@ -39,6 +40,7 @@ public class StructuredAnalysisConfigPojo
 	private GeoSpecPojo docGeo = null;
 	private String rejectDocCriteria = null;
 	private String metadataFields = null;
+	private Map<String,String> caches = null;
 		
 	/**
 	 * @return the title
@@ -209,6 +211,16 @@ public class StructuredAnalysisConfigPojo
 	}
 	public String getMetadataFields() {
 		return metadataFields;
+	}
+
+
+
+
+	public void setCaches(Map<String,String> caches) {
+		this.caches = caches;
+	}
+	public Map<String,String> getCaches() {
+		return caches;
 	}
 
 

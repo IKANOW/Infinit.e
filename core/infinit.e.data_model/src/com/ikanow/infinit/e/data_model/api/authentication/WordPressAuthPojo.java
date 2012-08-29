@@ -20,8 +20,8 @@ import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 public class WordPressAuthPojo extends BaseApiPojo
 {
 	private String WPUserID = null; // (optional)
-	@SuppressWarnings("unused")
-	private String username = null; // (ignored, WordPressUserPojo.email[0] always used - retained for backwards compatibility)
+	private String username = null; // (usually ignored, WordPressUserPojo.email[0] always used - retained for backwards compatibility and special case below)
+									// (Special case: for admins to change their username, must specify this as the old username, WordPressUserPojo as the new one)
 	private String password = null; // (mandatory)
 	private String accountType = null; // (optional, defaults to "user")
 	private String created = null; // (optional)
@@ -56,5 +56,11 @@ public class WordPressAuthPojo extends BaseApiPojo
 	}
 	public String getModified() {
 		return modified;
+	}
+	public void setUsername(String username) {
+		this.username = username;
+	}
+	public String getUsername() {
+		return username;
 	}
 }

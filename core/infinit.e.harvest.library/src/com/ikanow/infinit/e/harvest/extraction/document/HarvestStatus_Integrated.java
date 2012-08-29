@@ -91,9 +91,11 @@ public class HarvestStatus_Integrated implements HarvestStatus {
 			update.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, sourceToUpdate.getHarvestStatus().getHarvest_message());
 		}
 		if (bTempDisable) {
-			update.put(SourcePojo.harvestBadSource_, true);
+			sourceToUpdate.setHarvestBadSource(true);
+			update.put(SourcePojo.harvestBadSource_, true);			
 		}
 		if (bPermDisable) {
+			sourceToUpdate.setApproved(false);
 			update.put(SourcePojo.isApproved_, false);
 		}
 		DBCollection sourceDb = DbManager.getIngest().getSource();

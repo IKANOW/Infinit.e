@@ -210,8 +210,13 @@ function start() {
 		echo "Failed to create AppConstants.js. Check the server config and restart"
 	fi    
     if [[ -d /opt/tomcat-infinite/interface-engine/webapps/manager/ ]]; then
-	    cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
-	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+    	if [ -f /opt/infinite-install/config/AppConstants.js.MANAGER ]; then
+	    	cp /opt/infinite-install/config/AppConstants.js.MANAGER /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+	    	chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+    	else
+	    	cp /opt/tomcat-infinite/interface-engine/conf/AppConstants.js /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+	    	chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/manager/AppConstants.js
+	    fi
 	fi    
     if [[ -d /opt/tomcat-infinite/interface-engine/webapps/internal/ ]]; then
 	    cp /opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js

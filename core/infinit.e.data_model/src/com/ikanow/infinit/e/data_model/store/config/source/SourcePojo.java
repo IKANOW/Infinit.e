@@ -22,6 +22,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import org.bson.types.ObjectId;
 
@@ -115,6 +116,23 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String maxDocs_ = "maxDocs";
 	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
 	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
+
+	public static class SourceSearchIndexFilter {
+		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String assocFilter = null; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String entityGeoFilter = null; // (regex applied to entity indexes if the entity has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String assocGeoFilter = null; // (regex applied to new-line separated association indexes if the association has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String fieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String metadataFieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		
+		// temp:
+		public transient Pattern entityFilterRegex;
+		public transient Pattern assocFilterRegex;
+		public transient Pattern entityGeoFilterRegex;
+		public transient Pattern assocGeoFilterRegex;
+	}
+	private SourceSearchIndexFilter searchIndexFilter = null; // Optional, allows the source builder to configure which fields are searchable
+	final public static String searchIndexFilter_ = "searchIndexFilter";
 	
 	// Gets and sets
 	
@@ -472,13 +490,59 @@ public class SourcePojo extends BaseDbPojo {
 	public boolean getDuplicateExistingUrls() { // (defaults to true)
 		return duplicateExistingUrls == null ? true : duplicateExistingUrls;
 	}
-
+	public SourceSearchIndexFilter getSearchIndexFilter() {
+		initSearchIndexFilter(searchIndexFilter);
+		return searchIndexFilter;
+	}
+	public void setSearchIndexFilter(SourceSearchIndexFilter searchIndexFilter) {
+		this.searchIndexFilter = searchIndexFilter;
+	}
 	///////////////////////////////////////////////////////////////////////////////////
 	
 	// Transient state (implementation details)
 	
 	transient private boolean reachedMaxDocs = false;
-		// (if set to true, means that the next search cycle won't be applied - otherwise if you only search once per day
-		//  and only process 5K docs/search, it can take a while to build up large repositories)
+	// (if set to true, means that the next search cycle won't be applied - otherwise if you only search once per day
+	//  and only process 5K docs/search, it can take a while to build up large repositories)
+
+	// Build some regexes:
 	
+	public static void initSearchIndexFilter(SourceSearchIndexFilter searchIndexFilter) {
+		if (null != searchIndexFilter) { // Initialize regex
+			if ((null != searchIndexFilter.assocFilter) && (null == searchIndexFilter.assocFilterRegex)) {
+				if (searchIndexFilter.assocFilter.startsWith("+") || searchIndexFilter.assocFilter.startsWith("-")) {
+					searchIndexFilter.assocFilterRegex = Pattern.compile(searchIndexFilter.assocFilter.substring(1), Pattern.CASE_INSENSITIVE|Pattern.DOTALL|Pattern.MULTILINE);
+				}
+				else {
+					searchIndexFilter.assocFilterRegex = Pattern.compile(searchIndexFilter.assocFilter, Pattern.CASE_INSENSITIVE|Pattern.DOTALL|Pattern.MULTILINE);					
+				}
+			}
+			if ((null != searchIndexFilter.assocGeoFilter) && (null == searchIndexFilter.assocGeoFilterRegex)) {
+				if (searchIndexFilter.assocGeoFilter.startsWith("+") || searchIndexFilter.assocGeoFilter.startsWith("-")) {
+					searchIndexFilter.assocGeoFilterRegex = Pattern.compile(searchIndexFilter.assocGeoFilter.substring(1), Pattern.CASE_INSENSITIVE|Pattern.DOTALL|Pattern.MULTILINE);
+				}
+				else {
+					searchIndexFilter.assocGeoFilterRegex = Pattern.compile(searchIndexFilter.assocGeoFilter, Pattern.CASE_INSENSITIVE|Pattern.DOTALL|Pattern.MULTILINE);					
+				}
+			}
+			if ((null != searchIndexFilter.entityFilter) && (null == searchIndexFilter.entityFilterRegex)) {
+				if (searchIndexFilter.entityFilter.startsWith("+") || searchIndexFilter.entityFilter.startsWith("-")) {
+					searchIndexFilter.entityFilterRegex = Pattern.compile(searchIndexFilter.entityFilter.substring(1), Pattern.CASE_INSENSITIVE);
+				}
+				else {
+					searchIndexFilter.entityFilterRegex = Pattern.compile(searchIndexFilter.entityFilter, Pattern.CASE_INSENSITIVE);					
+				}
+			}
+			if ((null != searchIndexFilter.entityGeoFilter) && (null == searchIndexFilter.entityGeoFilterRegex)) {
+				if (searchIndexFilter.entityGeoFilter.startsWith("+") || searchIndexFilter.entityGeoFilter.startsWith("-")) {
+					searchIndexFilter.entityGeoFilterRegex = Pattern.compile(searchIndexFilter.entityGeoFilter.substring(1), Pattern.CASE_INSENSITIVE);
+				}
+				else {
+					searchIndexFilter.entityGeoFilterRegex = Pattern.compile(searchIndexFilter.entityGeoFilter, Pattern.CASE_INSENSITIVE);					
+				}
+			}
+		} // (end if search filter specified)
+	}//(end initialize search filter)
+
+	//TESTED
 }

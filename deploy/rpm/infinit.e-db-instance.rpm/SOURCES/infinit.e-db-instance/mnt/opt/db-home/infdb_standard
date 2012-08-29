@@ -47,7 +47,13 @@ case "$1" in
 			toReturn=""
 			SAVEIFS=$IFS
 			IFS=";"
-			rset=1
+			# (if config servers are specified then start from 1/27108 (27107 is mongos)
+			#  else start from 27107)
+			if [ -z "$CONFIG_SERVERS" ]; then
+				rset=0
+			else
+				rset=1
+			fi
 			for sets in $REPLICA_SETS
 			do
 				if [ $(echo $sets | grep -o "$my_ip" | wc -l) -ge 1 ]; then
@@ -94,8 +100,12 @@ EOF
 		;;
 		
 		is_mongos)
-			# For non-EC2 deployments, just always start a mongos
-			echo true
+			# For non-EC2 deployments, just always start a mongos (unless config not specified)
+			if [ -z "$CONFIG_SERVERS" ]; then
+				echo false
+			else
+				echo true
+			fi
 		;;
 		
 		all_configs_running)
@@ -141,7 +151,11 @@ EOF
                 toReturn=""
                 SAVEIFS=$IFS
                 IFS=";"
-                rset=1
+				if [ -z "$CONFIG_SERVERS" ]; then
+    	            rset=0
+				else
+    	            rset=1
+    	        fi
                 for sets in $REPLICA_SETS
                 do
                     if [ $rset == $2 ]; then
@@ -161,7 +175,11 @@ EOF
 				port=$((27017+$2))
 				SAVEIFS=$IFS
 				IFS=";"
-                rset=1
+				if [ -z "$CONFIG_SERVERS" ]; then
+    	            rset=0
+				else
+    	            rset=1
+    	        fi
 				for sets in $REPLICA_SETS
 				do
 					if [ $rset == $2 ]; then

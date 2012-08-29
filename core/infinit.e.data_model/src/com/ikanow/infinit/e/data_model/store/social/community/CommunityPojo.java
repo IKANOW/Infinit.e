@@ -63,6 +63,7 @@ public class CommunityPojo extends BaseDbPojo
 	private String ownerDisplayName = null;
 	private int numberOfMembers = 0;
 	private Set<CommunityMemberPojo> members = null;
+	private Set<ObjectId> children = null;
 
 	public enum communityStatusEnum
 	{
@@ -528,5 +529,13 @@ public class CommunityPojo extends BaseDbPojo
 		cap.setRequesterId(requesterId);
 		cap.setType(requestType);		
 		return cap;
+	}
+
+	public void setChildren(Set<ObjectId> children) {
+		this.children = children;
+	}
+
+	public Set<ObjectId> getChildren() {
+		return children;
 	}
 }

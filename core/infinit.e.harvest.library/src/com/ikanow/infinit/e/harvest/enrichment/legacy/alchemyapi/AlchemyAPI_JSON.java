@@ -47,6 +47,9 @@ public class AlchemyAPI_JSON {
 	public static long getExtractRequests() { return nGetExtractRequests; }    
 	public static void transactionLimitExceeded() { nGetTextRequests--; }
     
+	private boolean sentimentEnabled = true;
+	public void setSentimentEnabled(boolean b) { sentimentEnabled = b; }
+	
  // Initialize the Logger
 	private static final Logger logger = Logger.getLogger(AlchemyAPI_JSON.class);
 	
@@ -141,7 +144,9 @@ public class AlchemyAPI_JSON {
         params.setUrl(url);
         params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
         params.setShowSourceText(true);
-        params.setCustomParameters("sentiment", "1");
+        if (sentimentEnabled) {
+        	params.setCustomParameters("sentiment", "1");
+        }
 
         return POST("URLGetRankedNamedEntities", "url", params);
     }
@@ -162,7 +167,9 @@ public class AlchemyAPI_JSON {
 	
 		params.setText(text);
 		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
-        params.setCustomParameters("sentiment", "1");
+        if (sentimentEnabled) {
+        	params.setCustomParameters("sentiment", "1");
+        }
 	
 		nGetExtractRequests++;		
 		return POST("TextGetRankedNamedEntities", "text", params);
@@ -205,7 +212,9 @@ public class AlchemyAPI_JSON {
 	
 		params.setText(text);
 		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
-        params.setCustomParameters("sentiment", "1");
+        if (sentimentEnabled) {
+        	params.setCustomParameters("sentiment", "1");
+        }
         // Default is normal, not sure which is best
         //params.setCustomParameters("keywordExtractMode", "strict");
 	
@@ -225,7 +234,9 @@ public class AlchemyAPI_JSON {
 		params.setUrl(url);
 		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
 		params.setShowSourceText(true);
-		params.setCustomParameters("sentiment", "1");
+        if (sentimentEnabled) {
+        	params.setCustomParameters("sentiment", "1");
+        }
 
 		return POST("URLGetRankedKeywords", "url", params);
 	}

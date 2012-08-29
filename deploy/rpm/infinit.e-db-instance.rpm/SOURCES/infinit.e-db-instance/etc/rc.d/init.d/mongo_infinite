@@ -69,7 +69,7 @@ start()
 	############################### MongoS Server Setup #####################################
 	config_string=""
 	
-	if [[ $(infdb is_mongos) == "true" || $(infdb is_dbinstance) == "true" ]]; then 
+	if [ "$(infdb is_mongos)" == "true" ]; then 
 		counter=0
 		sleep_count=0
 		
@@ -100,7 +100,6 @@ start()
 				return 0;
 			fi
 		done
-		
 		
 		sleep_count=0
 		while [ "$(infdb all_configs_running)" != true ]; do
@@ -151,17 +150,19 @@ start()
 				members=$(infdb all_members_of_set $x)
 				num_members=$( echo $members | wc -w )
 					
-				sleep_count=0
-				while [ "$(infdb mongo_running 27017 2>&1)" != "true" ]; do
-					echo -e "Waiting for local mongoS to start."
-					sleep 20
-					
-					sleep_count=$(($sleep_count+1))
-					if [ $sleep_count -gt 30 ]; then
-						echo "Ten minutes has passed and we could not connect to mongoS...exiting"
-						return 0;
-					fi
-				done
+				if [ "$(infdb is_mongos)" == "true" ]; then 
+					sleep_count=0
+					while [ "$(infdb mongo_running 27017 2>&1)" != "true" ]; do
+						echo -e "Waiting for local mongoS to start."
+						sleep 20
+						
+						sleep_count=$(($sleep_count+1))
+						if [ $sleep_count -gt 30 ]; then
+							echo "Ten minutes has passed and we could not connect to mongoS...exiting"
+							return 0;
+						fi
+					done
+				fi
 					
 					
 					
@@ -279,14 +280,16 @@ EOF
 								echo "Waiting 1 minute for configuration to come online"
 								sleep 60
 								
-								echo "Adding Shard (will error if shard as already been added successfully)"							
-								#connect to a mongoS instance and inform it of the shard
-								mongo <<EOF
+								if [ "$(infdb is_mongos)" == "true" ]; then 
+									echo "Adding Shard (will error if shard as already been added successfully)"							
+									#connect to a mongoS instance and inform it of the shard
+									mongo <<EOF
 use admin
 db.runCommand({"addShard":"replica_set$x/$this_ip:$port"});
 exit
 EOF
 >/dev/null
+								fi
 								
 							fi
 					fi
@@ -295,11 +298,13 @@ EOF
 					#
 					# Restart the MongoS now that the replica server is up	
 					
-					echo "Restarting MongoS now we have at least one good replica server"
-					
-					infdb kill_db 27017 > /dev/null
-					sleep 5
-					runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
+					if [ "$(infdb is_mongos)" == "true" ]; then
+						echo "Restarting MongoS now we have at least one good replica server"
+						
+						infdb kill_db 27017 > /dev/null
+						sleep 5
+						runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
+					fi
 					
 			else
 				echo "Mongo Already Running On Port $port.... Skipping"
@@ -388,7 +393,7 @@ stop()
 	fi
 
 	############################### MongoS Server Kill #####################################
-	if [[ $(infdb is_mongos) == "true" || $(infdb is_dbinstance) == "true" ]]; then  
+	if [ "$(infdb is_mongos)" == "true" ]; then  
 		echo "Stopping MongoS"
 		infdb kill_db 27017 >/dev/null 2>&1
 		count=0

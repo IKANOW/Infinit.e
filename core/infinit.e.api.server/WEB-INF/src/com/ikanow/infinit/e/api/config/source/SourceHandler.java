@@ -52,6 +52,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPoj
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.mongodb.BasicDBObject;
@@ -162,6 +163,13 @@ public class SourceHandler
 			String sourcetags, String mediatype, String communityIdStr, String userIdStr) 
 	{
 		ResponsePojo rp = new ResponsePojo();
+		
+		if (userIdStr.equals(communityIdStr)) { // Don't allow personal sources
+			rp.setResponse(new ResponseObject("Source", false, "No longer allowed to create sources in personal communities"));
+			return rp;			
+		}
+		//(TESTED - cut and paste from saveSource)
+		
 		try 
 		{
 			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
@@ -189,6 +197,16 @@ public class SourceHandler
 			// Add the new source to the harvester.sources collection
 			try
 			{
+				// Need to double check that the community has an index (for legacy reasons):
+				if (null == DbManager.getIngest().getSource().findOne(new BasicDBObject(SourcePojo.communityIds_, 
+						new BasicDBObject(MongoDbManager.in_, newSource.getCommunityIds()))))
+				{
+					for (ObjectId id: newSource.getCommunityIds()) {
+						GenericProcessingController.recreateCommunityDocIndex_unknownFields(id, false);
+					}
+				}
+				//TESTED (cut and paste from saveSource)
+				
 				DbManager.getIngest().getSource().save(newSource.toDb());
 				String awaitingApproval = (isApproved) ? "" : " Awaiting approval by the community owner or moderators.";
 				
@@ -237,7 +255,13 @@ public class SourceHandler
 	public ResponsePojo saveSource(String sourceString, String ownerIdStr, String communityIdStr)
 	{
 		ResponsePojo rp = new ResponsePojo();
-	
+		
+		if (ownerIdStr.equals(communityIdStr)) { // Don't allow personal sources
+			rp.setResponse(new ResponseObject("Source", false, "No longer allowed to create sources in personal communities"));
+			return rp;			
+		}
+		//TESTED
+		
 		try {
 			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, ownerIdStr);
@@ -311,6 +335,16 @@ public class SourceHandler
 				// Add the new source to the harvester.sources collection
 				try
 				{
+					// Need to double check that the community has an index (for legacy reasons):
+					if (null == DbManager.getIngest().getSource().findOne(new BasicDBObject(SourcePojo.communityIds_, 
+							new BasicDBObject(MongoDbManager.in_, source.getCommunityIds()))))
+					{
+						for (ObjectId id: source.getCommunityIds()) {
+							GenericProcessingController.recreateCommunityDocIndex_unknownFields(id, false);
+						}
+					}
+					//TESTED
+					
 					DbManager.getIngest().getSource().save(source.toDb());
 					if (isUniqueSource(source, communityIdSet))
 					{
@@ -1038,17 +1072,33 @@ public class SourceHandler
 	private String validateSourceKey(ObjectId id, String key)
 	{
 		///////////////////////////////////////////////////////////////////////
-		// If the source.key value is not unique we need to make it
-		// unique, this is being done in an arbitrary way by tacking on a 
-		// number to the end of the key value: keyvalue.n
-		int counter = 1;
+		// Keep appending random numbers to the string until we get a unique
+		// match
+		
+		int counter = 0;
+		java.util.Random random = new java.util.Random(new Date().getTime());
+		
+		StringBuffer sb = new StringBuffer(key).append('.');
+		key = sb.toString();
+		int nBaseLen = sb.length();
+		
 		while (!hasUniqueSourceKey(id, key))
 		{
-			key = key + "." + counter;
 			counter++;
+			if (0 == (counter % 50)) { // every 50 times another term to the expression
+				sb.append('.');
+				nBaseLen = sb.length();
+			}//(TESTED)
+			
+			sb.setLength(nBaseLen);
+			sb.append(random.nextInt(10000));
+
+			key = sb.toString();
 		}
-		return key;
+		//(TESTED)
+		return sb.toString();
 	}
+	//TESTED
 	
 	
 	

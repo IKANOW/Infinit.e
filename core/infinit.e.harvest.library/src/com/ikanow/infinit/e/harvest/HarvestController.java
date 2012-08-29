@@ -53,6 +53,7 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
+import com.ikanow.infinit.e.harvest.enrichment.legacy.TextRankExtractor;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI_Metadata;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.opencalais.ExtractorOpenCalais;
@@ -284,6 +285,12 @@ public class HarvestController implements HarvestContext
 		catch (Exception e) {
 			logger.warn("Can't use OpenCalais as entity extractor: " + e.getMessage());			
 		}
+		try {
+			entity_extractor_mappings.put("textrank", new TextRankExtractor());
+		}
+		catch (Exception e) {
+			logger.warn("Can't use textrank as entity extractor: " + e.getMessage());			
+		}
 		
 		try {
 			ExtractorAlchemyAPI both = new ExtractorAlchemyAPI();
@@ -364,8 +371,6 @@ public class HarvestController implements HarvestContext
 		
 		enrichSource(source, toAdd, toUpdate, toRemove);
 		
-		//TODO (INF-1507): Handle case where update doc is rejected by enrich source .... in that case need to not delete the existing document
-		
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
 		LinkedList<DocumentPojo> groupedDups = new LinkedList<DocumentPojo>(); // (ie clones)
 		DocumentPojo masterDoc = null; // (just looking for simple pointer matching here)
@@ -432,7 +437,7 @@ public class HarvestController implements HarvestContext
 							}
 							// Handle cloning on "duplicate docs" from different sources
 							boolean bDuplicated = false; 
-							if (null != doc.getDuplicateFrom()) {
+							if (null != doc.getDuplicateFrom() && (null == doc.getUpdateId())) {
 								DocumentPojo newDoc = enrichDocByDuplicating(doc);
 									// (Note this is compatible with the cloning case whose logic is below:
 									//  this document gets fully populated here then added to dup list (with dupFrom==null), with a set of slaves
@@ -442,6 +447,9 @@ public class HarvestController implements HarvestContext
 									doc = newDoc;
 									bDuplicated = true;
 								}
+							}
+							else { // if the update id is non-null then ignore the above logic
+								doc.setDuplicateFrom(null);
 							}
 							// Copy over material from source pojo:
 							doc.setSource(source.getTitle());
@@ -737,6 +745,14 @@ public class HarvestController implements HarvestContext
 						i.remove();
 						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 						
+						// Source error, ignore all other documents
+						while (i.hasNext()) {
+							doc = i.next();
+							doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+							i.remove();
+						}
+						//TESTED
+						
 						throw e; // (ie stop processing this source)
 					}//TESTED
 					catch (Exception e) { // Anything except daily limit exceeded, expect it to be ExtractorDocumentLevelException
@@ -839,13 +855,8 @@ public class HarvestController implements HarvestContext
 			}//TESTED
 			else if ( error instanceof ExtractorDailyLimitExceededException)
 			{
-				try 
-				{				
-					//Does using thread this way sleep current thread (if we are threading
-					//the harvest process, may need to change this if it does global thread)
-					Thread.sleep(60000); // (sleep for 10 minutes just to reduce the load on extractor a bit - increased val to reflect threading)
-				}
-				catch (Exception e) {}
+				//We flag the source in mongo and temp disable
+				_harvestStatus.update(source, new Date(), HarvestEnum.success, "Extractor daily limit error.", true, false);				
 			}//TESTED
 		}
 	}//TESTED (just that the instanceofs work)

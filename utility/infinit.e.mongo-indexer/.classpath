@@ -5,10 +5,10 @@
 	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/jline-0.9.94.jar"/>
 	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/jna-3.2.7.jar"/>
 	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/sigar/sigar-1.6.4.jar"/>
+	<classpathentry kind="lib" path="lib/mongo-2.7.2.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
 	<classpathentry kind="lib" path="lib/gson-1.6.jar"/>
-	<classpathentry kind="lib" path="lib/mongo-2.6.5.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
 	<classpathentry kind="output" path="bin"/>

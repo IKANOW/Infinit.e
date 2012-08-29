@@ -143,6 +143,19 @@ public class StructuredAnalysisHarvester
 			GsonBuilder gb = new GsonBuilder();
 			Gson g = gb.create();
 			
+			//grab any json cache and make it available to the engine
+			try
+			{
+				if (null != s.getCaches()) {
+					CacheUtils.addJSONCachesToEngine(s.getCaches(), engine, source.getCommunityIds(), _context);
+				}
+			}
+			catch (Exception ex)
+			{
+				_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+				logger.error("JSONcache: " + ex.getMessage(), ex);
+			}
+			
 			// Iterate over each doc in docs, create entity and association pojo objects
 			// to add to the feed using the source entity and association spec pojos
 			Iterator<DocumentPojo> it = docs.iterator();
@@ -279,15 +292,20 @@ public class StructuredAnalysisHarvester
 					// (Either with the UAH, or with the entity extractor)
 					try {
 						boolean bMetadataChanged = false;
-						if (null != this.unstructuredHandler) {
-							try {
+						if (null != this.unstructuredHandler) 
+						{
+							try 
+							{
+								this.unstructuredHandler.set_sahEngine(engine);
 								bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
 							}
 							catch (Exception e) {
-								contextController.handleExtractError(e, source); //handle extractor error if need be				
+								contextController.handleExtractError(e, source); //handle extractor error if need be		
+								
 								it.remove(); // remove the document from the list...
 								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
-								continue;
+								
+								// (Note: this can't be source level error, so carry on harvesting - unlike below)								
 							}
 						}	
 						if (contextController.isEntityExtractionRequired(source))
@@ -304,7 +322,21 @@ public class StructuredAnalysisHarvester
 								contextController.handleExtractError(e, source); //handle extractor error if need be				
 								it.remove(); // remove the document from the list...
 								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
-								continue;
+								
+								if (source.isHarvestBadSource())
+								{
+									// Source error, ignore all other documents
+									while (it.hasNext()) {
+										f = it.next();
+										f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+										it.remove();
+									}
+									break;
+								}
+								else {
+									continue;
+								}
+								//TESTED
 							}
 						}
 						if (bMetadataChanged) {
@@ -575,12 +607,11 @@ public class StructuredAnalysisHarvester
 				{
 					document = null;
 				}
-			}
-		}		
+			} // (end loop over documents)
+		} // (end if SAH specified)	
 		return docs;
 	}
-	
-	
+
 	/**
 	 * getEntities(EntitySpecPojo e, DocumentPojo f)
 	 * 
@@ -2308,7 +2339,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						city = d.getCity();
+						city = getFormattedTextFromField(d.getCity(), null);
 					}
 
 					g.setCity(city);
@@ -2323,7 +2354,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						region = d.getStateProvince();
+						region = getFormattedTextFromField(d.getStateProvince(), null);
 					}
 
 					g.setRegion(region);
@@ -2338,7 +2369,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						country = d.getCountry();
+						country = getFormattedTextFromField(d.getCountry(), null);
 					}
 
 					g.setCountry(country);
@@ -2353,7 +2384,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						countryCode = d.getCountryCode();
+						countryCode = getFormattedTextFromField(d.getCountryCode(), null);
 					}
 
 					g.setCountry_code(countryCode);
@@ -2442,7 +2473,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							city = gsp.getCity();
+							city = getFormattedTextFromField(gsp.getCity(), null);
 						}
 
 						gfp.setCity(city);
@@ -2457,7 +2488,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							region = gsp.getStateProvince();
+							region = getFormattedTextFromField(gsp.getStateProvince(), null);
 						}
 
 						gfp.setRegion(region);
@@ -2472,7 +2503,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							country = gsp.getCountry();
+							country = getFormattedTextFromField(gsp.getCountry(), null);
 						}
 
 						gfp.setCountry(country);
@@ -2487,7 +2518,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							countryCode = gsp.getCountryCode();
+							countryCode = getFormattedTextFromField(gsp.getCountryCode(), null);
 						}
 
 						gfp.setCountry_code(countryCode);

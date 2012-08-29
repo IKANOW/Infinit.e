@@ -165,7 +165,8 @@ public class StoreAndIndexManager {
 			
 			for ( DocumentPojo doc : docs )
 			{
-				if ((null != doc.getFullText()) && !doc.getFullText().isEmpty() && docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
+				if ((0 != nMaxContentLen_bytes) && (null != doc.getFullText()) && !doc.getFullText().isEmpty() && docHasExternalContent(doc.getUrl(), doc.getSourceUrl()))
+				{
 					try
 					{
 						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getFullText(), nMaxContentLen_bytes);

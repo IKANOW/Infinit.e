@@ -219,7 +219,7 @@ limitations under the License.
 			String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
 			return output.toString();
 		} 
@@ -262,7 +262,7 @@ limitations under the License.
 			String newCookie = getConnectionInfiniteCookie(connection);
         	if (newCookie != null && response != null)
         	{
-        		setBrowserInfiniteCookie(response, newCookie);
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
         	}
 		}
 		catch (Exception e)
@@ -273,12 +273,17 @@ limitations under the License.
 	} // TESTED
 	
 	
-	// setBrowserInfiniteCookie
-	public static void setBrowserInfiniteCookie(HttpServletResponse response, String value)
-	{
-		Cookie cookie = new Cookie ("infinitecookie",value);
-		cookie.setPath("/");
-		response.addCookie(cookie);
+	public static void setBrowserInfiniteCookie(HttpServletResponse response,
+			String value, int nServerPort) {
+        String params = null;
+        if ((443 == nServerPort) || (8443 == nServerPort)) {
+                params="; path=/; HttpOnly; Secure";
+        }
+        else {
+                params="; path=/; HttpOnly";
+        }
+        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
+        	// (all this is needed in order to support HTTP only cookies)
 	} // TESTED
 	
 	
