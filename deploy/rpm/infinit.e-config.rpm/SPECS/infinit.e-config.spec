@@ -154,7 +154,7 @@ Infinit.e system configuration
 	echo "ES USE_AWS = $USE_AWS"
 	# Only run if this is an EC2 backed install
 	if [ "$USE_AWS" = "1" ]; then	
-		echo "Set EC2 Cluster Name and Cluster Name in properties file"
+		echo "Set EC2 Cluster Name and Cluster Name in properties file (again!)"
 		sh /opt/infinite-home/scripts/set_cluster.sh
 	fi
 

@@ -496,7 +496,12 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 				ent.setDisambiguatedName(ent.getActual_name());
 			}
 			//Calculate Dimension based on ent type
-			ent.setDimension(DimensionUtility.getDimensionByType(ent.getType()));
+			try {
+				ent.setDimension(DimensionUtility.getDimensionByType(ent.getType()));
+			}
+			catch (java.lang.IllegalArgumentException e) {
+				ent.setDimension(EntityPojo.Dimension.What);									
+			}
 			return ent;
 		}
 		catch (Exception ex)

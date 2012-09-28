@@ -163,7 +163,12 @@ public class ExtractorOpenCalais implements IEntityExtractor
 								EntityPojo ep = new EntityPojo();
 								//get what fields we can					
 								ep.setType(currNode.get("_type").getTextValue());
-								ep.setDimension(DimensionUtility.getDimensionByType(ep.getType()));
+								try {
+									ep.setDimension(DimensionUtility.getDimensionByType(ep.getType()));
+								}
+								catch (java.lang.IllegalArgumentException e) {
+									ep.setDimension(EntityPojo.Dimension.What);									
+								}
 								String name = "";
 								JsonNode nameNode = null;
 								try
@@ -244,14 +249,15 @@ public class ExtractorOpenCalais implements IEntityExtractor
 					partialDoc.setAssociations(events);
 				}
 			}
-			else 
+			else // Error back from OC, presumably the input doc is malformed/too long
 			{
 				throw new InfiniteEnums.ExtractorDocumentLevelException();
 			}
 		} 
 		catch (Exception e)
-		{			
-			e.printStackTrace();
+		{		
+			//DEBUG
+			//e.printStackTrace();
 			//there was an error, so we return null instead
 			throw new InfiniteEnums.ExtractorDocumentLevelException();
 		}

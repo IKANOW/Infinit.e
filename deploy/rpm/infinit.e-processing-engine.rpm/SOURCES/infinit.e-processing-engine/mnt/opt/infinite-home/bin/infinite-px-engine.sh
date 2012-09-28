@@ -5,7 +5,8 @@ RESET_FILE="/opt/infinite-home/bin/RESET_FILE"
 SYNC_FILE="/opt/infinite-home/bin/SYNC_FILE"
 STOP_FILE="/opt/infinite-home/bin/STOPFILE"
 ALLSTOP_FILE="/opt/infinite-home/bin/ALLSTOPFILE"
-EXTRA_JAVA_ARGS=" -Xms2048m -Xmx2048m -Xmn512m -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -classpath infinit.e.harvest.library.jar:*:infinit.e.core.server.jar"
+SECURITY_POLICY="/opt/infinite-home/bin/security.policy"
+EXTRA_JAVA_ARGS=" -Xms2048m -Xmx2048m -Xmn512m -Djava.security.policy=$SECURITY_POLICY -Dcom.sun.management.jmxremote -Dsun.net.client.defaultConnectTimeout=30000 -Dsun.net.client.defaultReadTimeout=30000 -classpath infinit.e.harvest.library.jar:*:infinit.e.core.server.jar"
 
 if [ -f $ALLSTOP_FILE ] && [ -z "$1" ]; then
 	exit 0

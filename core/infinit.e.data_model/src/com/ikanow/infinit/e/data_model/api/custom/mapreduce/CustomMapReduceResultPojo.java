@@ -29,4 +29,7 @@ public class CustomMapReduceResultPojo  extends BaseApiPojo
 	
 	public Date lastCompletionTime = null;
 	public Object results = null;
+	
+	public static String lastCompletionTime_ = "lastCompletionTime";
+	public static String results_ = "results";
 }

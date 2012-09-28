@@ -1,0 +1,43 @@
+{
+    "communityIds": ["4e551b9a36e77d6e6bd881eb"],
+    "description": "test source while adding json cache",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": false,
+    "mediaType": "Social",
+    "rss": {"extraUrls": [{
+        "description": "some page",
+        "title": "Lifehacker: Hackintosh",
+        "url": "http://lifehacker.com/5941272/the-always-up+to+date-guide-to-upgrading-your-hackintosh"
+    }]},
+    "tags": ["burch"],
+    "title": "burch cache test",
+    "useExtractor": "AlchemyAPI-metadata",
+	"unstructuredAnalysis":{
+		"scriptEngine":"JavaScript",
+		"caches": {
+            "testcache": "50290af3cd30ecb8453d004f"
+        },
+		"meta":[
+		{
+			"fieldName":"test",
+			"context":"All",
+			"script":"var test = _cache[\"testcache\"].test; test;",
+			"scriptlang":"javascript"			
+		}
+		]
+	},
+	"structuredAnalysis": {
+        "scriptEngine": "JavaScript",
+        "caches": {
+            "testcache": "50290af3cd30ecb8453d004f"
+        },
+        "entities": [
+            {
+                "disambiguated_name": "$SCRIPT( return _cache[\"testcache\"].test; )",
+                "type": "Person"
+            }
+        ]
+    }
+}

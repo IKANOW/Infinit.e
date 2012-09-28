@@ -303,7 +303,10 @@ public class FileHarvester implements HarvesterInterface {
 		String extension = fileName.substring(mid+1,fileName.length()); 
 
 		//Checked to save processing time
-		Date modDate = new Date(f.getDate());
+		long fileTimestamp = (f.getDate()/1000)*1000;
+			// (ensure truncated to seconds, since some operation somewhere hear does this...)
+		
+		Date modDate = new Date(fileTimestamp);
 		//XML Data gets placed into MetaData
 		if (extension.equalsIgnoreCase("xml"))
 		{
@@ -347,7 +350,7 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setSource(source.getTitle());
 						doctoAdd.setSourceKey(source.getKey());
 						doctoAdd.setMediaType(source.getMediaType());
-						doctoAdd.setModified(new Date(f.getDate()));
+						doctoAdd.setModified(new Date(fileTimestamp));
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()){ // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
 							if (null == doctoAdd.getMetadata()) { // Pathological - always set by parseDocument()
@@ -363,7 +366,7 @@ public class FileHarvester implements HarvesterInterface {
 							}
 						}
 						doctoAdd.setTitle(f.getName().toString());
-						doctoAdd.setPublishedDate(new Date(f.getDate()));
+						doctoAdd.setPublishedDate(new Date(fileTimestamp));
 						doctoAdd.setSourceUrl(f.getURL().toString());
 
 						// Always add to files because I'm deleting the source URL
@@ -423,11 +426,11 @@ public class FileHarvester implements HarvesterInterface {
 						descCap = fullText.length();
 					}
 					doc.setDescription(fullText.substring(0,descCap));
-					doc.setModified(new Date(f.getDate()));
+					doc.setModified(new Date(fileTimestamp));
 					doc.setCreated(new Date());
 					doc.setUrl(f.getURL().toString());
 					doc.setTitle(f.getName().toString());
-					doc.setPublishedDate(new Date(f.getDate()));
+					doc.setPublishedDate(new Date(fileTimestamp));
 					
 					// If the metadata contains a more plausible date then use that
 					try {

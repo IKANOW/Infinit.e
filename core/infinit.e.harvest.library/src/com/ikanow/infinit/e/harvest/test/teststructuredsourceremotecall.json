@@ -1,0 +1,26 @@
+{
+    "communityIds": ["4e551b9a36e77d6e6bd881eb"],
+    "description": "test source while adding json cache",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": false,
+    "mediaType": "Social",
+    "rss": {"extraUrls": [{
+        "description": "some page",
+        "title": "Shut Up Show: Cyclades",
+        "url": "http://www.shutupshow.com/post/25427629524/review-cyclades-hades"
+    }]},
+    "tags": ["burch"],
+    "title": "burch cache test",
+    "useExtractor": "AlchemyAPI-metadata",
+	"structuredAnalysis": {
+	 "entities": [
+	 {
+                "disambiguated_name": "$SCRIPT( importPackage(java.net);importPackage(java.util);importPackage(java.io);importPackage(java.lang); importPackage(net.sf.json); importPackage(net.sf.json.JSONSerializer); var myURL = new java.net.URL('http://localhost:8184/auth/login/ping/ping'); var urlConnect = myURL.openConnection(); var retVal = urlConnect.getInputStream(); var is = new InputStreamReader(retVal);var sb = new StringBuilder();var br = new BufferedReader(is);var read = br.readLine();while ( read != null ) { sb.append(read); read = br.readLine(); }var json = sb.toString();	retVal.close(); json='TEST_ENTITY'; return json;		 )",
+                "type": "URL"
+            }
+	 ],
+	 "scriptEngine": "JavaScript"
+	}
+}

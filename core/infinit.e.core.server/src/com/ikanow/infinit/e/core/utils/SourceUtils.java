@@ -162,7 +162,7 @@ public class SourceUtils {
 			}
 			// (first off, set the harvest/sync date for any sources that don't have it set,
 			//  needed because sort doesn't return records without the sorting field) 
-			Date yesterday = new Date(new Date().getTime() - 24*3600*1000);
+			Date yesterday = new Date(new Date().getTime() - 365*24*3600*1000);
 			if (bSync) {
 				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.exists_, false));
 				DbManager.getIngest().getSource().update(adminUpdateQuery,
@@ -230,7 +230,12 @@ public class SourceUtils {
 						if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
 								> now.getTime())
 						{
-							continue; // (too soon since the last harvest...)
+							if ((HarvestEnum.in_progress != candidate.getHarvestStatus().getHarvest_status()) && (null != candidate.getHarvestStatus().getHarvest_status()))
+							{
+								//(^^ last test, if it's in_progress then it died recently (or hasn't started) so go ahead and harvest anyway) 
+								
+								continue; // (too soon since the last harvest...)
+							}
 						}
 					}
 				}//TESTED

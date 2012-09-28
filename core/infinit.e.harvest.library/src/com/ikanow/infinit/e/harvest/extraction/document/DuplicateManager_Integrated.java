@@ -45,6 +45,7 @@ import com.mongodb.DBObject;
  */
 public class DuplicateManager_Integrated implements DuplicateManager {
 
+	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(DuplicateManager_Integrated.class);	
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -162,18 +163,10 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			BasicDBObject dbo = (BasicDBObject) dbc.iterator().next();
 			Date oldModified = (Date) dbo.get(DocumentPojo.modified_);
 			
-			ret = (modifiedDate.getTime() != oldModified.getTime()); // ie if different -> true -> update docs from sourceUrl
-			
-			if (ret) { //TODO (INF-1520): temporary log for debugging purposes...
-				logger.info("File update: " + sourceUrl + ": new=" + modifiedDate.getTime() + ", old=" + oldModified.getTime());
-				//TODO (INF-1520): temp fix attempt?!
-//				long time1 = modifiedDate.getTime()/10000; // (they only need to be within 10s of each other
-//				long time2 =  oldModified.getTime()/10000;
-//				if (time1 == time2) {
-//					logger.info("(Temp workaround, vetoed file update)");
-//					ret = false;
-//				}
-			}
+			ret = ((modifiedDate.getTime()/1000) != (oldModified.getTime()/1000)); // ie if different -> true -> update docs from sourceUrl
+				// ^^ note granularity seems only to be guaranteed to 1s somewhere in the system (not sure where)
+				// (this is just backwards compatible for a deployment where this has happened for some % -probably 100- of the docs
+				//  once an RPM >=5955 is deployed this will no longer be necessary)
 		}
 		return ret;
 	}	

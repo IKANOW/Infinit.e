@@ -20,9 +20,12 @@ package com.ikanow.infinit.e.data_model.store.document;
 
 import java.lang.reflect.Type;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
 
@@ -30,11 +33,14 @@ import org.apache.commons.lang.ArrayUtils;
 import org.bson.types.ObjectId;
 
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
@@ -520,7 +526,84 @@ public class DocumentPojo extends BaseDbPojo {
 	// Base overrides:
 
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
-		return gp.registerTypeAdapter(DocumentPojo.class, new DocumentPojoDeserializer());
+		return gp.registerTypeAdapter(DocumentPojo.class, new DocumentPojoDeserializer()).
+				registerTypeAdapter(DocumentPojo.class, new DocumentPojoSerializer());
+	}
+	protected static class DocumentPojoSerializer implements JsonSerializer<DocumentPojo> 
+	{
+		@Override
+		public JsonElement serialize(DocumentPojo doc, Type typeOfT, JsonSerializationContext context)
+		{
+			// GSON transformation:
+			JsonElement je = DocumentPojo.getDefaultBuilder().create().toJsonTree(doc, typeOfT);	
+
+			// Convert object names in metadata
+			if ((null != doc.getMetadata()) && !doc.getMetadata().isEmpty()) {
+				if (je.isJsonObject()) {
+					JsonElement metadata = je.getAsJsonObject().get("metadata");
+					if (null != metadata) {
+						enforceTypeNamingPolicy(metadata, 0);
+					}
+				}
+			}
+			return je;
+		}		
+		//////////////////////////////////////////////////////////////////////////////////////////
+		
+		// Utility function for encoding "."s and "%"s (also duplicate in index)
+		
+		private static boolean enforceTypeNamingPolicy(JsonElement je, int nDepth) {
+			
+			if (je.isJsonPrimitive()) {
+				return false; // Done
+			}
+			else if (je.isJsonArray()) {
+				JsonArray ja = je.getAsJsonArray();
+				if (0 == ja.size()) {
+					return false; // No idea, carry on
+				}
+				JsonElement jaje = ja.get(0);
+				return enforceTypeNamingPolicy(jaje, nDepth + 1); // keep going until you find primitive/object
+			}
+			else if (je.isJsonObject()) {
+				JsonObject jo = je.getAsJsonObject();
+				// Nested variables:
+				Iterator<Entry<String, JsonElement>> it = jo.entrySet().iterator();
+				Map<String, JsonElement> toFixList = null;
+				while (it.hasNext()) {
+					boolean bFix = false;
+					Entry<String, JsonElement> el = it.next();
+					String currKey = el.getKey();
+					
+					if ((currKey.indexOf('.') >= 0) || (currKey.indexOf('%') >= 0)) {
+						it.remove();
+						currKey = currKey.replace("%", "%25").replace(".", "%2e");
+						bFix = true;
+					}				
+					if (null == el.getValue()) {
+						if (!bFix) it.remove(); // nice easy case, just get rid of it (if bFix, it's already removed)
+						bFix = false;
+					}
+					else {
+						enforceTypeNamingPolicy(el.getValue(), nDepth + 1);
+					}
+					if (bFix) {
+						if (null == toFixList) {
+							toFixList = new HashMap<String, JsonElement>();
+						}
+						toFixList.put(currKey, el.getValue());					
+					}
+				} // (end loop over params)	
+				if (null != toFixList) {
+					for (Entry<String, JsonElement> el: toFixList.entrySet()) {
+						jo.add(el.getKey(), el.getValue());
+					}
+				}
+				return true; // (in any case, I get renamed by calling parent)
+			}
+			return false;
+		}
+		//TESTED (see DOC_META in test/TestCode)
 	}
 	protected static class DocumentPojoDeserializer implements JsonDeserializer<DocumentPojo> 
 	{

@@ -598,9 +598,11 @@ public class HarvestController implements HarvestContext
 	// Quick utility to return if entity extraction has been specified by the user
 	
 	public boolean isEntityExtractionRequired(SourcePojo source) {
-		return (((null == source.useExtractor()) && (null != default_entity_extractor)) || (!source.useExtractor().equalsIgnoreCase("none")))
+		return (((null == source.useExtractor()) && (null != default_entity_extractor)) 
+					|| ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")))
 				||
-				(((null == source.useTextExtractor()) && (null != default_text_extractor)) || (!source.useTextExtractor().equalsIgnoreCase("none")))
+				(((null == source.useTextExtractor()) && (null != default_text_extractor)) 
+					|| ((null != source.useTextExtractor()) && !source.useTextExtractor().equalsIgnoreCase("none")))
 		;		
 	}
 	

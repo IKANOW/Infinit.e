@@ -199,7 +199,7 @@ public class PersonHandler
 			personQuery.setWPUserID(wpu.getWPUserID()); // (can be null, that's fine)						
 			DBObject dboperson = DbManager.getSocial().getPerson().findOne(personQuery.toDb());
 			if (null != dboperson) {
-				rp.setResponse(new ResponseObject("WP Register User",false,"User already exists, either WPUserId or first email (if WPUserId not specified) must be unique"));
+				rp.setResponse(new ResponseObject("WP Register User",false,"User already exists, both WPUserId and first email must be unique"));
 				return rp;				
 			}//TESTED (2e)
 		}		
@@ -209,7 +209,7 @@ public class PersonHandler
 		personQuery.setEmail(pp.getEmail());
 		DBObject dboperson = DbManager.getSocial().getPerson().findOne(personQuery.toDb());
 		if (null != dboperson) {
-			rp.setResponse(new ResponseObject("WP Register User",false,"User already exists, either WPUserId or first email (if WPUserId not specified) must be unique"));
+			rp.setResponse(new ResponseObject("WP Register User",false,"User already exists, both WPUserId and first email must be unique"));
 			return rp;				
 		}//TESTED (2f)
 		

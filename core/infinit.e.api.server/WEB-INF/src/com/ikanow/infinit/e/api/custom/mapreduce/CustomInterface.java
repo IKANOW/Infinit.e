@@ -215,7 +215,52 @@ public class CustomInterface extends ServerResource
 					 {
 						 json = URLDecoder.decode(json, "UTF-8");
 						 //convert json to mrpojo
-						 jsonPojo = ApiManager.mapFromApi(json, CustomMapReduceJobPojo.class, new CustomMapReduceJobPojoApiMap(null));						 
+						 jsonPojo = ApiManager.mapFromApi(json, CustomMapReduceJobPojo.class, new CustomMapReduceJobPojoApiMap(null));
+						 
+						 // Overwrite command line args (quick and easy way to get POST working)
+						 // communityIds and jobDependencies still have to be specified at the command line
+						 if (null != jsonPojo.scheduleFreq) {
+							 freqSched = jsonPojo.scheduleFreq.toString();
+						 }
+						 if (Long.MAX_VALUE != jsonPojo.nextRunTime) {
+							 nextRunTime = Long.toString(jsonPojo.nextRunTime);
+						 }
+						 if (null != jsonPojo.jarURL) {
+							 jarURL = jsonPojo.jarURL;
+						 }
+						 if (null != jsonPojo.mapper) {
+							 mapperClass = jsonPojo.mapper;
+						 }
+						 if (null != jsonPojo.combiner) {
+							 combinerClass = jsonPojo.combiner;
+						 }
+						 if (null != jsonPojo.reducer) {
+							 reducerClass = jsonPojo.reducer;
+						 }
+						 if (null != jsonPojo.query) {
+							 query = jsonPojo.query;
+						 }
+						 if (null != jsonPojo.jobtitle) {
+							 title = jsonPojo.jobtitle;
+						 }
+						 if (null != jsonPojo.jobdesc) {
+							 desc = jsonPojo.jobdesc;
+						 }
+						 if (null != jsonPojo.inputCollection) {
+							 inputColl = jsonPojo.inputCollection;
+						 }
+						 if (null != jsonPojo.outputKey) {
+							 outputKey = jsonPojo.outputKey;
+						 }
+						 if (null != jsonPojo.outputValue) {
+							 outputValue = jsonPojo.outputValue;
+						 }
+						 if (null != jsonPojo.appendResults) {
+							 appendResults = Boolean.toString(jsonPojo.appendResults);
+						 }
+						 if (null != jsonPojo.appendAgeOutInDays) {
+							 ageOutInDays = Double.toString(jsonPojo.appendAgeOutInDays);
+						 }
 					 }
 				 }
 				 catch (UnsupportedEncodingException e) 
@@ -273,7 +318,7 @@ public class CustomInterface extends ServerResource
 				 }
 				 else if ( action.equals("update") )
 				 {
-					 rp = this.customhandler.updateJob(cookieLookup, jobid, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments);
+					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments);
 				 }
 				 else if ( action.equals("getjobs"))
 				 {

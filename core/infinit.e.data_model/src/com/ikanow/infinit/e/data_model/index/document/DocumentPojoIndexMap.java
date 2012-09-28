@@ -516,7 +516,11 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			public RootProperties properties = new RootProperties();
 	
 			// Default templates for metadata:
-			public ElasticSearchPojos.DynamicTemplateList dynamic_templates[] = ElasticSearchPojos.DynamicTemplateList.generateDefaultTemplates(); 
+			public ElasticSearchPojos.DynamicTemplateList dynamic_templates[] = ElasticSearchPojos.DynamicTemplateList.generateDefaultTemplates();
+			
+			// Turn number/date detection off for metadata:
+			public Boolean date_detection = false;
+			public Boolean numeric_detection = false;
 		}
 		public RootObject document_index = new RootObject();
 	}
@@ -524,6 +528,7 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 	//////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Utility function for parsing native GSON to rename object fieldnames by appending "__obj"
+	// and encoding "."s and "%"s (needed for the DB, duplicated here sigh)
 	
 	private static boolean enforceTypeNamingPolicy(JsonElement je, int nDepth) {
 		
@@ -545,26 +550,39 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			StringBuffer newName = null;
 			Map<String, JsonElement> toFixList = null;
 			while (it.hasNext()) {
+				boolean bFix = false;
 				Entry<String, JsonElement> el = it.next();
+				String currKey = el.getKey();
+				
+				if ((currKey.indexOf('.') >= 0) || (currKey.indexOf('%') >= 0)) {
+					it.remove();
+					currKey = currKey.replace("%", "%25").replace(".", "%2e");
+					bFix = true;
+				}				
 				if (null == el.getValue()) {
-					it.remove(); // nice easy case, just get rid of it
+					if (!bFix) it.remove(); // nice easy case, just get rid of it (if bFix, it's already removed)
+					bFix = false;
 				}
 				else if (enforceTypeNamingPolicy(el.getValue(), nDepth + 1)) { // rename!
-					if (el.getKey().indexOf("__") < 0) { // unless it's an es type
-						it.remove();
+					if (currKey.indexOf("__") < 0) { // unless it's an es type
+						if (!bFix) it.remove();  // (if bFix, it's already removed)
 						if (null == newName) {
 							newName = new StringBuffer();
 						}
 						else {
 							newName.setLength(0);
 						}
-						if (null == toFixList) {
-							toFixList = new HashMap<String, JsonElement>();
-						}
-						toFixList.put(newName.append(el.getKey()).append("__obj").toString(), el.getValue());
+						currKey = newName.append(currKey).append("__obj").toString();
+						bFix = true;
+					}	
+				} // (end check if need to rename)
+				if (bFix) {
+					if (null == toFixList) {
+						toFixList = new HashMap<String, JsonElement>();
 					}
+					toFixList.put(currKey, el.getValue());					
 				}
-			}		
+			} // (end loop over params)	
 			if (null != toFixList) {
 				for (Entry<String, JsonElement> el: toFixList.entrySet()) {
 					jo.add(el.getKey(), el.getValue());

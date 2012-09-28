@@ -1479,7 +1479,7 @@ public class CommunityHandler
 			BasicDBObject query = new BasicDBObject("_id", new ObjectId(communityIdStr));
 			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getCommunity().findOne(query);
 			
-			if (dbo.size() > 0)
+			if ((null != dbo) && !dbo.isEmpty())
 			{
 				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);
 				if (community.getIsPersonalCommunity() && communityIdStr.equals(personIdStr))

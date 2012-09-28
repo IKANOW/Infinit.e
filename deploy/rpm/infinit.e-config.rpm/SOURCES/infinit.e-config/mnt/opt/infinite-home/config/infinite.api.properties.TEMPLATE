@@ -37,6 +37,7 @@ harvester.types=HARVESTER_TYPES
 harvest.feed.wait=HARVEST_FEED_WAIT
 harvest.feed.useragent=HARVESTER_USERAGENT
 harvest.maxdocs_persource=HARVESTER_MAXDOCS_SOURCE
+harvest.security=HARVESTER_SECURITY
 
 #####################################################
 #Mail Server Settings

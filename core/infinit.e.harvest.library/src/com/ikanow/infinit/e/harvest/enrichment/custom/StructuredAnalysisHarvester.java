@@ -94,6 +94,7 @@ public class StructuredAnalysisHarvester
 	// 
 	private ScriptEngineManager factory = null;
 	private ScriptEngine engine = null;
+	private JavascriptSecurityManager securityManager = null;
 	private Invocable inv = null;
 	private static String parsingScript = null;
 	private boolean bInitializedParsingScript = false; // (needs to be done once per source)
@@ -115,7 +116,7 @@ public class StructuredAnalysisHarvester
 			// Add the document (JSONObject) to the engine
 			if (null != engine) {
 		        engine.put("document", document);
-	        	engine.eval(JavaScriptUtils.initScript);
+		        securityManager.eval(engine, JavaScriptUtils.initScript);
 			}
 		}
 	}
@@ -132,6 +133,9 @@ public class StructuredAnalysisHarvester
 			// the type of script specified in StructuredAnalysisPojo.scriptEngine
 			if (s.getScriptEngine() != null)
 			{
+				//set up the security manager
+				securityManager = new JavascriptSecurityManager();			
+				
 				factory = new ScriptEngineManager();
 				if ((null == s.getScriptEngine()) || s.getScriptEngine().equalsIgnoreCase("javascript")) {
 					s.setScriptEngine("JavaScript"); // (sigh case sensitive)
@@ -183,14 +187,14 @@ public class StructuredAnalysisHarvester
 				        try 
 				        {
 				        	// Eval script passed in s.script
-				        	if (script != null) engine.eval(script);
+				        	if (script != null) securityManager.eval(engine, script);
 				        	
 				        	// Retrieve and eval script files in s.scriptFiles
 				        	if (scriptFiles != null)
 				        	{
 				        		for (String file : scriptFiles)
 				        		{
-				        			engine.eval(JavaScriptUtils.getJavaScriptFile(file));
+				        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
 				        		}
 				        	}
 						} 
@@ -297,6 +301,7 @@ public class StructuredAnalysisHarvester
 							try 
 							{
 								this.unstructuredHandler.set_sahEngine(engine);
+								this.unstructuredHandler.set_sahSecurity(securityManager);
 								bMetadataChanged = this.unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
 							}
 							catch (Exception e) {
@@ -305,7 +310,8 @@ public class StructuredAnalysisHarvester
 								it.remove(); // remove the document from the list...
 								f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 								
-								// (Note: this can't be source level error, so carry on harvesting - unlike below)								
+								// (Note: this can't be source level error, so carry on harvesting - unlike below)
+								continue;
 							}
 						}	
 						if (contextController.isEntityExtractionRequired(source))
@@ -365,14 +371,14 @@ public class StructuredAnalysisHarvester
 									parsingScript = JavaScriptUtils.generateParsingScript();
 								}					
 								if (!bInitializedParsingScript) {
-									engine.eval(parsingScript);
+									securityManager.eval(engine, parsingScript);
 									bInitializedParsingScript = true;
 								}
 								DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
 						        engine.put("old_document", new JSONObject(g.toJson(doc)));
 						        try {
-						        	engine.eval(JavaScriptUtils.initOnUpdateScript);
-						        	Object returnVal = engine.eval(s.getOnUpdateScript());
+						        	securityManager.eval(engine,JavaScriptUtils.initOnUpdateScript);
+						        	Object returnVal = securityManager.eval(engine, s.getOnUpdateScript());
 									BasicDBList outList = JavaScriptUtils.parseNativeJsObject(returnVal, engine);												
 									f.addToMetadata("_PERSISTENT_", outList.toArray());
 						        }
@@ -1002,7 +1008,12 @@ public class StructuredAnalysisHarvester
 				}
 			}
 			if (null == dimension) {
-				e.setDimension(DimensionUtility.getDimensionByType(type));
+				try {
+					e.setDimension(DimensionUtility.getDimensionByType(type));
+				}
+				catch (java.lang.IllegalArgumentException ex) {
+					e.setDimension(EntityPojo.Dimension.What);									
+				}
 			}
 			else {
 				EntityPojo.Dimension enumDimension = EntityPojo.Dimension.valueOf(dimension);
@@ -2215,7 +2226,7 @@ public class StructuredAnalysisHarvester
 					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
 				}
 				engine.put("_iterator", iterator);
-	        	engine.eval(JavaScriptUtils.iteratorDocScript);
+				securityManager.eval(engine, JavaScriptUtils.iteratorDocScript);
 			}
 			
 			// Pass value into script as _value so it is accessible
@@ -2246,9 +2257,16 @@ public class StructuredAnalysisHarvester
 			{
 				if (null == engine) {
 					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
+				}				
+				securityManager.eval(engine, JavaScriptUtils.getScript(script));
+				//must turn the security back on when invoking calls
+				securityManager.setJavascriptFlag(true);
+				try {
+					retVal = inv.invokeFunction(JavaScriptUtils.genericFunctionCall);
 				}
-				engine.eval(JavaScriptUtils.getScript(script));
-				retVal = inv.invokeFunction(JavaScriptUtils.genericFunctionCall);
+				finally {
+					securityManager.setJavascriptFlag(false);
+				}
 			}
 			// $FUNC - string contains the name of a function to call (i.e. getSometing(); )
 			else if (script.toLowerCase().startsWith("$func"))
@@ -2256,7 +2274,7 @@ public class StructuredAnalysisHarvester
 				if (null == engine) {
 					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
 				}
-				retVal = engine.eval(JavaScriptUtils.getScript(script));
+				retVal = securityManager.eval(engine, JavaScriptUtils.getScript(script));
 			}
 			if (errorOnNull && (null == retVal) && _context.isStandalone()) { // Display warning:
 				StringBuffer error = new StringBuffer("Failed to get value from: ");

@@ -23,6 +23,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 01 00    * * *   root	if [ -d /opt/tomcat-infinite/index-engine/logs ]; then find /opt/tomcat-infinite/index-engine/logs -mtime +30 -a -name "*.log" | xargs rm -f; fi 
 02 00    * * *   root	if [ -d /opt/tomcat-infinite/interface-engine/logs ]; then find /opt/tomcat-infinite/interface-engine/logs -mtime +30 -a -name "*.log" | xargs rm -f; fi
 03 00    * * *   root	if [ -d /var/log/elasticsearch ]; then find /var/log/elasticsearch -mtime +30 -a -name "*.log.*" | xargs rm -f; fi
+04 00    * * *   root   if [ -d /var/log/hadoop/ ]; then find /var/log/hadoop/ -mtime +10 -a -name "*log*" | xargs rm -f; fi
 
 # Report if the Alchemy Limit has been reached by checking hourly
 00 *     * * *   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/AlchemyLimitExceededAlert.python; fi

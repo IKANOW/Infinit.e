@@ -20,6 +20,7 @@ import javax.servlet.ServletContext;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
+import org.apache.log4j.xml.DOMConfigurator;
 import org.restlet.Application;  
 import org.restlet.Context;
 import org.restlet.Restlet;  
@@ -69,8 +70,14 @@ public class EmbeddedRestletApp extends Application
     	
     	intializeInfiniteConfig(getContext(), null);
     	
-    	PropertyConfigurator.configure(Globals.getLogPropertiesLocation());
-    	
+		java.io.File file = new java.io.File(Globals.getLogPropertiesLocation() + ".xml");
+		if (file.exists()) {
+    		DOMConfigurator.configure(Globals.getLogPropertiesLocation() + ".xml");
+		}
+		else {
+    		PropertyConfigurator.configure(Globals.getLogPropertiesLocation());
+		}
+		
     	Logger logger = Logger.getLogger(EmbeddedRestletApp.class);
    
     	if (logger.getEffectiveLevel() != Level.DEBUG)
@@ -160,6 +167,8 @@ public class EmbeddedRestletApp extends Application
         // Map reduce:
         attach(router, "/custom/mapreduce/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
         attach(router, "/custom/mapreduce/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}/{jarURL}/{timeToRun}/{frequencyToRun}/{mapperClass}/{reducerClass}/{combinerClass}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
+        attach(router, "/custom/mapreduce/schedulejob/{communityIds}/{jobsToDependOn}", CustomInterface.class); // (POST version)
+        attach(router, "/custom/mapreduce/updatejob/{jobid}/{communityIds}/{jobsToDependOn}", CustomInterface.class); // (POST version)
         attach(router, "/custom/mapreduce/removejob/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getresults/{jobid}", CustomInterface.class);
         attach(router, "/custom/mapreduce/getjobs/{jobid}", CustomInterface.class);
@@ -167,6 +176,8 @@ public class EmbeddedRestletApp extends Application
         // Saved queries:
         attach(router, "/custom/savedquery/schedulejob/{jobtitle}/{jobdesc}/{communityIds}/{timeToRun}/{frequencyToRun}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
         attach(router, "/custom/savedquery/updatejob/{jobid}/{jobtitle}/{jobdesc}/{communityIds}{timeToRun}/{frequencyToRun}/{query}/{inputcollection}/{outputKey}/{outputValue}/{appendResults}/{ageOutInDays}/{jobsToDependOn}", CustomInterface.class);
+        attach(router, "/custom/savedquery/schedulejob/{communityIds}/{jobsToDependOn}", CustomInterface.class); // (POST version)
+        attach(router, "/custom/savedquery/updatejob/{jobid}/{communityIds}/{jobsToDependOn}", CustomInterface.class); // (POST version)
         attach(router, "/custom/savedquery/removejob/{jobid}", CustomInterface.class);
         attach(router, "/custom/savedquery/getresults/{jobid}", CustomInterface.class);
         attach(router, "/custom/savedquery/getjobs/{jobid}", CustomInterface.class);

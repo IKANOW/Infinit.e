@@ -86,6 +86,8 @@ public class DimensionUtility {
 			case televisionstation:
 				dimension = Dimension.Who;
 				break;
+			case date:
+				dimension = Dimension.When;
 			default:
 				dimension = Dimension.What;
 				break;

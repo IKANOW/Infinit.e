@@ -305,6 +305,8 @@ public class HadoopJobRunner
 		} 
 		catch (Exception e) 
 		{
+			//DEBUG
+			e.printStackTrace();
 			errorString.append(": " + e.getMessage());
 		}
 		if ((null == rp) || (null == rp.getResponse())) { // (this is likely some sort of internal error)
@@ -410,6 +412,10 @@ public class HadoopJobRunner
 		}
 		else
 		{
+			if (jarURL.startsWith("$infinite")) {
+				jarURL = jarURL.replace("$infinite", "http://localhost:8080");
+			}
+			
 			//download jar from external site
 			URL url = new URL(jarURL);
 			
@@ -941,14 +947,15 @@ public class HadoopJobRunner
 				}
 				update.append(MongoDbManager.inc_, incs);
 				long runtime = new Date().getTime() - cmr.lastRunTime.getTime();
+				long timeFromSchedule = cmr.lastRunTime.getTime() - cmr.nextRunTime;
 				
 				if (null != cmr.jobidS) 
 				{
-					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN);
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN);
 				}
 				else 
 				{
-					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_completion_success=" + !isError);					
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError);					
 				}
 			}
 			updates.append("mapProgress", mapProgress);

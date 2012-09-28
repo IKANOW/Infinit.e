@@ -65,6 +65,7 @@ public class InfiniteEnums
 		continent,
 		country,
 		currency,
+		date,
 		drug,
 		emailaddress,
 		entertainmentaward,

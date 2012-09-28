@@ -6,7 +6,6 @@ export JAVA_HOME=/usr/java/latest
 export JAVA_OPTS="-Xms1024m -Xmx1024m -Xmn256m" && \
 		[[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && \
 			JAVA_OPTS="-Xms2048m -Xmx2048m -Xmn512m"
-export CATALINA_OPTS="$JAVA_OPTS"
 #(^^^ >10GB system)
 export JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dorg.apache.tomcat.util.buf.UDecoder.ALLOW_ENCODED_SLASH=true"
 
@@ -17,3 +16,4 @@ export CATALINA_TMPDIR=/tmp
 # Shouldn't be necessary, but appears to be:
 export TOMCAT_CFG=/etc/sysconfig/tomcat6-interface-engine
 export CATALINA_PID=/var/run/tomcat6-interface-engine.pid
+export CATALINA_OPTS="$JAVA_OPTS -Djava.security.policy=$CATALINA_BASE/conf/catalina.policy"

@@ -54,8 +54,8 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public Date lastRunTime = null;
 	public String mapper;
 	public String reducer;
-	public String combiner = "";
-	public String query = "";
+	public String combiner;
+	public String query;
 	public String outputKey;
 	public String outputValue;
 	public float mapProgress;

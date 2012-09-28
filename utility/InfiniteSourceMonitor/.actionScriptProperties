@@ -12,7 +12,9 @@
     </libraryPath>
     <sourceAttachmentPath/>
   </compiler>
-  <applications/>
+  <applications>
+    <application path="InfiniteSourceMonitor.mxml"/>
+  </applications>
   <modules/>
   <buildCSSFiles/>
 </actionScriptProperties>

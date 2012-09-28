@@ -16,7 +16,7 @@
 package com.ikanow.infinit.e.data_model.api.knowledge;
 
 import java.lang.reflect.Type;
-import java.util.Map;
+import java.util.Map.Entry;
 
 import org.bson.types.ObjectId;
 
@@ -183,35 +183,13 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			// ...And add metadata back again...
 			if (null != tmp) {
 				JsonObject tmpMeta = tmp.getAsJsonObject();
-				for (Map.Entry<String, JsonElement> meta: tmpMeta.entrySet()) {
-					if (meta.getValue().isJsonArray()) {
-						JsonArray array = meta.getValue().getAsJsonArray();
-						Object[] objArray = new Object[array.size()];
-						int i = 0;
-						for (JsonElement arrayObj: array) {
-							if (arrayObj.isJsonPrimitive()) {
-								JsonPrimitive primObj = arrayObj.getAsJsonPrimitive(); 
-								if (primObj.isString()) {
-									objArray[i] = primObj.getAsString();
-								}
-								else if (primObj.isNumber()) {
-									objArray[i] = primObj.getAsNumber();
-								}
-								else { // (shouldn't ever his this?)
-									objArray[i] = primObj.toString(); // (no idea, convert to string)
-								}
-							}
-							else { // Just write the JSON object into the array 
-								objArray[i] = arrayObj;
-							}
-							i++;
-						}
-						doc.addToMetadata(meta.getKey(), objArray);
-					}
-					else { // (this shouldn't happen in practice)
-						doc.addToMetadata(meta.getKey(), meta.getValue());
-					}
-				}
+				for (Entry<String, JsonElement> entry: tmpMeta.entrySet()) {
+					// Very slow, better to do something like "http://stackoverflow.com/questions/5699323/using-json-with-mongodb"
+					// (or in fact MongoDbUtil)
+					// (note the only high performance use of documents with metadata enabled bypasses the data_model, so not a big problem at the moment)
+					doc.addToMetadata(entry.getKey(), 
+							((BasicDBList)com.mongodb.util.JSON.parse(entry.getValue().toString())).toArray());
+				}				
 			}
 			
 			// Finally handle updateId/_id swap

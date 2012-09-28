@@ -139,6 +139,16 @@ public class PropertiesManager {
 		return s;
 	}
 	
+	public boolean getHarvestSecurity() 
+	{
+		String s = this.getProperty("harvest.security");
+		if ((null == s) || s.isEmpty())
+		{
+			return false;
+		}
+		return (s.equals("1") || s.equalsIgnoreCase("true"));
+	}
+	
 // DB class names for DbHarvester
 	
 	/**

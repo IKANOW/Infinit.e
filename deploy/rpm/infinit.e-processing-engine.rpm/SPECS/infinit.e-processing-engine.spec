@@ -124,6 +124,7 @@ Infinit.e harvesting and cleansing services
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/sync_features.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/weekly_sources_report.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reset_bad_harvest.sh
+%config /mnt/opt/infinite-home/bin/security.policy
 %dir /mnt/opt/infinite-home/db-scripts
 /mnt/opt/infinite-home/db-scripts/calc_freq_counts.js
 /mnt/opt/infinite-home/db-scripts/reset_bad_harvest.js

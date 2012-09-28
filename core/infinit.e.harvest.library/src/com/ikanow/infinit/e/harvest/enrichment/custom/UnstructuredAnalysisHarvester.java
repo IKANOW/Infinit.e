@@ -100,6 +100,7 @@ public class UnstructuredAnalysisHarvester {
 	
 	//if the sah already init'd an engine we'll just use it
 	private ScriptEngine _sahEngine = null; 
+	private JavascriptSecurityManager securityManager = null;
 	
 	/**
 	 * Default Constructor
@@ -559,6 +560,9 @@ public class UnstructuredAnalysisHarvester {
 				}
 				else if (null == factory)  //otherwise create our own
 				{
+					//set up the security manager
+					securityManager = new JavascriptSecurityManager();	
+					
 					factory = new ScriptEngineManager();
 					engine = factory.getEngineByName("JavaScript");		
 					//grab any json cache and make it available to the engine
@@ -583,7 +587,7 @@ public class UnstructuredAnalysisHarvester {
 					}
 					try 
 					{
-						engine.eval(parsingScript);
+						securityManager.eval(engine, parsingScript);						
 					} 
 					catch (ScriptException e) { // Just do nothing and log
 						e.printStackTrace();
@@ -612,14 +616,14 @@ public class UnstructuredAnalysisHarvester {
 						Gson g = gb.create();	
 						JSONObject document = new JSONObject(g.toJson(f));
 				        engine.put("document", document);
-			        	engine.eval(JavaScriptUtils.initScript);						
+				        securityManager.eval(engine, JavaScriptUtils.initScript);			        						
 					}
 					if (m.flags.contains("m")) { // metadata
 						GsonBuilder gb = new GsonBuilder();
 						Gson g = gb.create();	
 						JSONObject iterator = new JSONObject(g.toJson(f.getMetadata()));
 						engine.put("_metadata", iterator);
-			        	engine.eval(JavaScriptUtils.iteratorMetaScript);
+						securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
 					}
 				}//(end flags processing)
 				
@@ -630,11 +634,11 @@ public class UnstructuredAnalysisHarvester {
 					Gson g = gb.create();	
 					JSONArray iterator = new JSONArray(g.toJson(currField));
 					engine.put("_iterator", iterator);
-		        	engine.eval(JavaScriptUtils.iteratorDocScript);
+					securityManager.eval(engine, JavaScriptUtils.iteratorDocScript);		        	
 				}
 				//TESTED (handling of flags, and replacing of existing fields, including when field is null but specified)
-			
-				Object returnVal = engine.eval(m.script);
+
+				Object returnVal = securityManager.eval(engine, m.script);
 
 				if (null != returnVal) {
 					if (returnVal instanceof String) { // The only easy case
@@ -1064,5 +1068,12 @@ public class UnstructuredAnalysisHarvester {
 
 	public ScriptEngine get_sahEngine() {
 		return _sahEngine;
+	}	
+	public void set_sahSecurity(JavascriptSecurityManager _securityManager) {
+		this.securityManager = _securityManager;
+	}
+
+	public JavascriptSecurityManager get_sahSecurity() {
+		return securityManager;
 	}	
 }

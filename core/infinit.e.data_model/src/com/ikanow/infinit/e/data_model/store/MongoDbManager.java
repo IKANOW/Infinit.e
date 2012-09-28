@@ -28,7 +28,7 @@ public class MongoDbManager {
 
 	// MongoDB commands:
 	public static final String regex_ = "$regex"; 
-	public static final String exists_ = "exists"; 
+	public static final String exists_ = "$exists"; 
 	public static final String and_ = "$and"; 
 	public static final String not_ = "$not"; 
 	public static final String or_ = "$or"; 

@@ -15,7 +15,10 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.text.boilerpipe;
 
+import java.io.InputStream;
 import java.net.URL;
+import java.net.URLConnection;
+import java.util.Scanner;
 
 import org.apache.log4j.Logger;
 
@@ -40,9 +43,39 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 		{
 			try
 			{
-				URL url = new URL(partialDoc.getUrl());
-				String text = ArticleExtractor.INSTANCE.getText(url);
-				
+				String text = null;
+				try {					
+					if ((null == partialDoc.getFullText()) || (0 == partialDoc.getFullText().length()))
+					{
+						URL url = new URL(partialDoc.getUrl());
+						URLConnection urlConnect = url.openConnection();
+						if ((null != partialDoc.getTempSource()) && 
+								(null != partialDoc.getTempSource().getRssConfig()) && 
+									(null != partialDoc.getTempSource().getRssConfig().getUserAgent()))
+						{
+							urlConnect.setRequestProperty("User-Agent", partialDoc.getTempSource().getRssConfig().getUserAgent());
+						}// TESTED
+						
+						InputStream urlStream = null;
+						try {
+							urlStream = urlConnect.getInputStream();
+						}
+						catch (Exception e) { // Try one more time, this time exception out all the way
+							urlStream = urlConnect.getInputStream();					 
+						}
+						text = new Scanner(urlStream).useDelimiter("\\A").next();
+						partialDoc.setFullText(text);
+					}
+					if (partialDoc.getFullText().length() < 2097152) { //2MB max
+						text = ArticleExtractor.INSTANCE.getText(partialDoc.getFullText());	
+					}
+					else {
+						throw new RuntimeException("Document is too large for boilerpipe.");						
+					}
+				}
+				catch (Error e) { // probably memory related
+					throw new RuntimeException("Document is too large for boilerpipe.");
+				}
 				if (null == text){
 					text = "";
 				}
@@ -56,6 +89,9 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 			}
 			catch (Exception ex)
 			{
+				/**/
+				ex.printStackTrace();
+				
 				logger.error("Boilerpipe extract error=" + ex.getMessage());
 				throw new InfiniteEnums.ExtractorDocumentLevelException();
 			}			

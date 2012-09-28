@@ -84,6 +84,7 @@ else
 	HARVESTER_MAXDOCS_SOURCE=$(getParam 		"^harvest.maxdocs_persource=" $PROPERTY_CONFIG_FILE)
 	HARVESTER_MAXSOURCES_HARVEST=$(getParam 	"^harvest.maxsources_perharvest=" $PROPERTY_CONFIG_FILE)
 	HARVESTER_THREADS=$(getParam 				"^harvest.threads=" $PROPERTY_CONFIG_FILE)
+	HARVESTER_SECURITY=$(getParam 				"^harvest.security=" $PROPERTY_CONFIG_FILE)
 	HARVESTER_BATCH=$(getParam 					"^harvest.distribution.batch.harvest=" $PROPERTY_CONFIG_FILE)
 	HARVEST_DISABLE_AGGREGATION=$(getParam 		"^harvest.disable_aggregation=" $PROPERTY_CONFIG_FILE)
 	STORE_MAXCONTENT=$(getParam 				"^store.maxcontent=" $PROPERTY_CONFIG_FILE)
@@ -148,6 +149,7 @@ else
 	setParam HARVESTER_MAXDOCS_SOURCE "$HARVESTER_MAXDOCS_SOURCE" $SERVICE_PROPERTY_FILE
 	setParam HARVESTER_MAXSOURCES_HARVEST "$HARVESTER_MAXSOURCES_HARVEST" $SERVICE_PROPERTY_FILE
 	setParam HARVESTER_THREADS "$HARVESTER_THREADS" $SERVICE_PROPERTY_FILE
+	setParam HARVESTER_SECURITY "$HARVESTER_SECURITY" $SERVICE_PROPERTY_FILE
 	setParam HARVESTER_BATCH "$HARVESTER_BATCH" $SERVICE_PROPERTY_FILE
 	setParam HARVEST_DISABLE_AGGREGATION "$HARVEST_DISABLE_AGGREGATION" $SERVICE_PROPERTY_FILE
 	setParam STORE_MAXCONTENT "$STORE_MAXCONTENT" $SERVICE_PROPERTY_FILE
@@ -192,6 +194,7 @@ else
 	setParam HARVEST_FEED_WAIT "$HARVEST_FEED_WAIT" $API_PROPERTY_FILE
 	setParam HARVESTER_USERAGENT "$HARVESTER_USERAGENT" $API_PROPERTY_FILE
 	setParam HARVESTER_MAXDOCS_SOURCE "$HARVESTER_MAXDOCS_SOURCE" $API_PROPERTY_FILE
+	setParam HARVESTER_SECURITY "$HARVESTER_SECURITY" $API_PROPERTY_FILE
 
 	setParam MAIL_SERVER "$MAIL_SERVER" $API_PROPERTY_FILE
 	setParam MAIL_USERNAME "$MAIL_USERNAME" $API_PROPERTY_FILE
@@ -234,4 +237,11 @@ $AWS_SECRET_KEY"
 		setParam SECRET_KEY "$AWS_SECRET_KEY" $S3CFG_FILE
 		chown tomcat.tomcat $S3CFG_FILE
 	fi
+fi
+
+###########################################################################
+# Finally: set cluster for AWS installs (harmless duplicate call when called from infinit.e-config RPM)
+if [ "$USE_AWS" = "1" ]; then	
+	echo "Set EC2 Cluster Name and Cluster Name in properties file"
+	sh /opt/infinite-home/scripts/set_cluster.sh
 fi

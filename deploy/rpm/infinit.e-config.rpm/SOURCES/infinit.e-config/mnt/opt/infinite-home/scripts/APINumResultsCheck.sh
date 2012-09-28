@@ -85,7 +85,7 @@ echo "RANDOM WORD: $WORD"
 
 ################################################################################
 #  Issue search request
-$HTTPGET_LOG "http://$INFINITE_URL/$SEARCH/${GROUP}?qt[0].etext=$WORD"
+$HTTPGET_LOG "http://$INFINITE_URL/$SEARCH/${GROUP}?qt[0].etext=$WORD&output.docs.metadata=false"
 
 ################################################################################
 #  Search Number of Entries

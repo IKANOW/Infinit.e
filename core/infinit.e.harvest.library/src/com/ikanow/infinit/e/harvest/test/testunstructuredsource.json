@@ -1,0 +1,27 @@
+{
+    "communityIds": ["4e551b9a36e77d6e6bd881eb"],
+    "description": "test source while adding json cache",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": false,
+    "mediaType": "Social",
+    "rss": {"extraUrls": [{
+        "description": "some page",
+        "title": "Shut Up Show: Cyclades",
+        "url": "http://www.shutupshow.com/post/25427629524/review-cyclades-hades"
+    }]},
+    "tags": ["burch"],
+    "title": "burch cache test",
+    "useExtractor": "AlchemyAPI-metadata",
+	"unstructuredAnalysis":{
+		"meta":[
+		{
+			"fieldName":"test",
+			"context":"All",
+			"script":"var test = 'TEST_ENTITY'; test;",
+			"scriptlang":"javascript"			
+		}
+		]
+	}
+}

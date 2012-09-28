@@ -49,6 +49,7 @@ harvest.source.mintime.ms=HARVESTER_MINTIME_SOURCE_MS
 harvest.maxdocs_persource=HARVESTER_MAXDOCS_SOURCE
 harvest.maxsources_perharvest=HARVESTER_MAXSOURCES_HARVEST
 harvest.threads=HARVESTER_THREADS
+harvest.security=HARVESTER_SECURITY
 harvest.distribution.batch.harvest=HARVESTER_BATCH
 harvest.disable_aggregation=HARVEST_DISABLE_AGGREGATION
 store.maxcontent=STORE_MAXCONTENT

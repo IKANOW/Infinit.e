@@ -223,7 +223,7 @@ public class CustomHandler
 					cmr.jobtitle = title;
 					cmr.jobdesc = desc;
 					cmr.inputCollection = inputCollection;//getInputCollection(inputColl);
-					if (jarURL.equals("null")) {
+					if ((null == jarURL) || jarURL.equals("null")) {
 						cmr.jarURL = null;
 					}
 					else {
@@ -240,14 +240,30 @@ public class CustomHandler
 					cmr.firstSchedule = new Date(nextRun);					
 					cmr.nextRunTime = nextRun;
 					cmr.scheduleFreq = SCHEDULE_FREQUENCY.valueOf(schedFreq);
-					cmr.mapper = mapperClass;
-					cmr.reducer = reducerClass;
-					cmr.outputKey = outputKey;
-					cmr.outputValue = outputValue;
-					if ( !combinerClass.equals("null"))
+					if ( (null != mapperClass) && !mapperClass.equals("null"))
+						cmr.mapper = mapperClass;
+					else
+						cmr.mapper = "null";
+					if ( (null != reducerClass) && !reducerClass.equals("null"))
+						cmr.reducer = reducerClass;
+					else
+						cmr.reducer = "null";
+					if ( (null != combinerClass) &&  !combinerClass.equals("null"))
 						cmr.combiner = combinerClass;
-					if ( !query.equals("null"))
+					else
+						cmr.combiner = "null";
+					if ( (null != outputKey) && !outputKey.equals("null"))
+						cmr.outputKey = outputKey;
+					else
+						cmr.outputKey = "com.mongodb.hadoop.io.BSONWritable";
+					if ( (null != outputValue) && !outputValue.equals("null"))
+						cmr.outputValue = outputValue;
+					else
+						cmr.outputValue = "com.mongodb.hadoop.io.BSONWritable";
+					if ( (null != query) && !query.equals("null"))
 						cmr.query = query;
+					else
+						cmr.query = "{}";
 					
 					boolean append = false;
 					double ageOut = 0.0;
@@ -269,7 +285,7 @@ public class CustomHandler
 						cmr.arguments = null;
 					
 					//try to work out dependencies, error out if they fail
-					if ( !jobsToDependOn.equals("null"))
+					if ( (null != jobsToDependOn) && !jobsToDependOn.equals("null"))
 					{
 						try
 						{
@@ -355,7 +371,7 @@ public class CustomHandler
 					return rp;
 				}
 				//check each variable to see if its needs/can be updated
-				if ( !communityIds.equals("null") )
+				if ( (null != communityIds) && !communityIds.equals("null") )
 				{
 					List<ObjectId> commids = new ArrayList<ObjectId>(); 
 					for ( String s : communityIds.split(","))
@@ -372,7 +388,7 @@ public class CustomHandler
 						return rp;
 					}
 				}
-				if ( !inputColl.equals("null"))
+				if ( (null != inputColl) && !inputColl.equals("null"))
 				{
 					//make sure user can use the input collection
 					String inputCollection = getStandardInputCollection(inputColl);			
@@ -397,7 +413,7 @@ public class CustomHandler
 				}
 				try 
 				{
-					if ( !title.equals("null"))
+					if ( (null != title) && !title.equals("null"))
 					{
 						cmr.jobtitle = title;
 						//make sure the new title hasn't been used before
@@ -408,50 +424,50 @@ public class CustomHandler
 							return rp;
 						}
 					}
-					if ( !desc.equals("null"))
+					if ( (null != desc) && !desc.equals("null"))
 					{
 						cmr.jobdesc = desc;
 					}
-					if ( !jarURL.equals("null"))
+					if ( (null != jarURL) && !jarURL.equals("null"))
 					{
 						cmr.jarURL = jarURL;
 					}
-					if ( !nextRunTime.equals("null"))
+					if ( (null != nextRunTime) && !nextRunTime.equals("null"))
 					{
 						cmr.nextRunTime = Long.parseLong(nextRunTime);
 						cmr.firstSchedule = new Date(cmr.nextRunTime);
 						cmr.timesRan = 0;
 						cmr.timesFailed = 0;
 					}
-					if ( !schedFreq.equals("null"))
+					if ( (null != schedFreq) && !schedFreq.equals("null"))
 					{
 						cmr.scheduleFreq = SCHEDULE_FREQUENCY.valueOf(schedFreq);
 					}
-					if ( !mapperClass.equals("null"))
+					if ( (null != mapperClass) && !mapperClass.equals("null"))
 					{
 						cmr.mapper = mapperClass;
 					}
-					if ( !reducerClass.equals("null"))
+					if ( (null != reducerClass) && !reducerClass.equals("null"))
 					{
 						cmr.reducer = reducerClass;
 					}
-					if ( !combinerClass.equals("null"))
+					if ( (null != combinerClass) && !combinerClass.equals("null"))
 					{
 						cmr.combiner = combinerClass;
 					}
-					if ( !query.equals("null"))
+					if ( (null != query) && !query.equals("null"))
 					{
 						cmr.query = query;
 					}
-					if ( !outputKey.equals("null"))
+					if ( (null != outputKey) && !outputKey.equals("null"))
 					{
 						cmr.outputKey = outputKey;
 					}
-					if ( !outputValue.equals("null"))
+					if ( (null != outputValue) && !outputValue.equals("null"))
 					{
 						cmr.outputValue = outputValue;
 					}
-					if ( !appendResults.equals("null"))
+					if ( (null != appendResults) && !appendResults.equals("null"))
 					{
 						try
 						{
@@ -462,7 +478,7 @@ public class CustomHandler
 							cmr.appendResults = false;
 						}
 					}
-					if ( !ageOutInDays.equals("null"))
+					if ( (null != ageOutInDays) && !ageOutInDays.equals("null"))
 					{
 						try
 						{
@@ -475,7 +491,7 @@ public class CustomHandler
 					}
 					
 					//try to work out dependencies, error out if they fail
-					if ( !jobsToDependOn.equals("null"))
+					if ( (null != jobsToDependOn) && !jobsToDependOn.equals("null"))
 					{
 						try
 						{
