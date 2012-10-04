@@ -28,7 +28,7 @@
 	<property name="implementation.vendor" value="${vendor}"/>
 	
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
-	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
+	<property name="infinit.e.elasticsearch.driver.location" value="../../utility/infinit.e.elasticsearch.driver"/>
 	<path id="infinit.e.data_model.classpath">
 	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
 	</path>
