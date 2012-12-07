@@ -1,0 +1,238 @@
+/* CSS file */
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+@namespace ilog "http://www.ilog.com/2007/ilog/flex";
+@namespace chartClasses "mx.charts.chartClasses.*";
+
+s|global
+{
+	content-background-alpha: 1.0;
+	font-family: infiniteDefaultFont;
+}
+
+s|Application
+{
+	backgroundColor: #373d44;
+	fontFamily : infiniteDefaultFont;
+	borderStyle: solid;
+	borderVisible: true;
+}
+
+s|Button
+{
+	fontSize   : 14pt;
+	fontFamily : infiniteDefaultFont;	
+}
+
+s|CheckBox
+{
+	fontFamily : infiniteDefaultFont;
+}
+
+s|DataGrid
+{
+	fontFamily : infiniteDefaultFont;
+}
+
+mx|DateField
+{
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	fontFamily: infiniteNonCFFFont;
+}
+
+s|DropDownList
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 12;
+	fontWeight: bold;
+	color: #FFFFFF;
+	shadowColor: #373C3F;
+	cornerRadius: 6;
+	selectionColor: #878D8F;
+	rollOverColor: #575C60;
+	textSelectedColor: #FFFFFF;
+	textRollOverColor: #FFFFFF;
+	contentBackgroundColor: #383F45;
+}
+
+s|Label
+{
+	fontSize   : 14pt;
+	fontFamily : infiniteDefaultFont;	
+}
+
+s|RichEditableText
+{
+	fontSize   : 14pt;
+	fontFamily : infiniteDefaultFont;	
+	focusedTextSelectionColor: #000000;
+}
+
+s|TextInput
+{
+	fontSize   : 14pt;
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontWeight: bold;
+	focusThickness: 3;
+}
+
+mx|ToolTip
+{
+	fontSize   : 12pt;
+	color      : #ffffff;
+	backgroundColor: #464A4D;	
+	fontFamily : infiniteNonCFFFont;
+	backgroundAlpha: 1.0;
+	fontWeight: bold;
+}
+
+mx|Alert
+{
+	modalTransparency: .3;
+	modalTransparencyColor: #000000;
+	fontFamily : infiniteNonCFFFont;
+	fontStyle: bold;
+}
+mx|DataTip
+{
+	fontSize   : 12pt;
+	color      : #ffffff;
+	backgroundColor: #000000;
+	fontFamily : infiniteNonCFFFont;
+	fontWeight: bold;
+}
+mx|LinkButton
+{
+	fontSize   : 14pt;
+	font-family: infiniteNonCFFFont;
+}
+mx|Panel
+{
+	font-family: infiniteNonCFFFont;
+}
+mx|Menu
+{
+	contentBackgroundAlpha: 1.0;
+	font-family: infiniteNonCFFFont;
+}
+mx|TextArea
+{
+	paddingTop: 4;
+	fontSize   : 14pt;
+	font-family: infiniteNonCFFFont;
+}
+mx|Label
+{
+	fontSize   : 14pt;
+	font-family: infiniteNonCFFFont;
+}
+mx|MenuBar
+{
+	fontSize   : 14pt;
+	font-family: infiniteNonCFFFont;
+}
+ilog|RadarChart
+{
+	font-family: infiniteNonCFFFont;
+}
+ilog|ColumnChart3D
+{
+	font-family: infiniteNonCFFFont;
+}
+mx|Legend
+{
+	font-family: infiniteNonCFFFont;
+}
+mx|ComboBox
+{
+	fontSize   : 14pt;
+	font-family: infiniteNonCFFFont;
+}
+chartClasses|DataTip
+{
+	font-family: infiniteNonCFFFont;
+}
+mx|DataGridItemRenderer
+{
+	font-family: infiniteNonCFFFont;
+}
+
+.lightGrey
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.workspacesWidgetHeaderLabel
+{
+	fontSize   : 14pt;
+	color      : #777777;	
+	shadowColor: #FFFFFF;
+	fontFamily : infiniteDefaultFont;
+}
+
+.workspacesWidgetHeaderLabelBlack
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #FFFFFF;
+	fontFamily : infiniteDefaultFont;
+}
+/*===================================
+Spark (embedAsCFF = true)
+===================================*/
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro.ttf");
+	fontFamily: infiniteDefaultFont;
+	embedAsCFF: true;
+}
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro-Bold.ttf");
+	fontFamily: infiniteDefaultFont;
+	fontWeight: bold;
+	embedAsCFF: true;
+}
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro-Italic.ttf");
+	fontFamily: infiniteDefaultFont;
+	fontStyle: italic;
+	embedAsCFF: true;
+}
+
+/*===================================
+MX (embedAsCFF = false)
+===================================*/
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro.ttf");
+	fontFamily: infiniteNonCFFFont;
+	embedAsCFF: false;
+}
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro-Bold.ttf");
+	fontFamily: infiniteNonCFFFont;
+	fontWeight: bold;
+	embedAsCFF: false;
+}
+
+@font-face 
+{
+	src:url("../fonts/MyriadWebPro-Italic.ttf");
+	fontFamily: infiniteNonCFFFont;
+	fontStyle: italic;
+	embedAsCFF: false;
+}

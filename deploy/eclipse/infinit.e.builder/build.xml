@@ -39,6 +39,7 @@
 	<property name="InfiniteDocBrowserWidget.location" value="${basedir}/../InfiniteDocBrowserWidget"/>
 	<property name="InfiniteEventGraphWidget.location" value="${basedir}/../InfiniteEventGraphWidget"/>
 	<property name="InfiniteMapQuestWidget.location" value="${basedir}/../InfiniteMapQuestWidget"/>
+	<property name="InfiniteQueryMetricsWidget.location" value="${basedir}/../InfiniteQueryMetricsWidget"/>
 	<property name="InfiniteSentimentWidget.location" value="${basedir}/../InfiniteSentimentWidget"/>
 	<property name="InfiniteSignificanceWidget.location" value="${basedir}/../InfiniteSignificanceWidget"/>
 	<property name="InfiniteTimelineEventWidget.location" value="${basedir}/../InfiniteTimelineEventWidget"/>
@@ -96,6 +97,9 @@
 		</ant>
 		<ant antfile="${InfiniteMapQuestWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteMapQuestWidget.location}"/>
+		</ant>
+		<ant antfile="${InfiniteQueryMetricsWidget.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteQueryMetricsWidget.location}"/>
 		</ant>
 		<ant antfile="${InfiniteSentimentWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteSentimentWidget.location}"/>

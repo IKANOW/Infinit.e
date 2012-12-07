@@ -16,6 +16,7 @@
 	<property name="InfiniteDocBrowserWidget.location" value="../InfiniteDocBrowserWidget/"/>
 	<property name="InfiniteEventGraphWidget.location" value="../InfiniteEventGraphWidget/"/>
 	<property name="InfiniteMapQuestWidget.location" value="../InfiniteMapQuestWidget/"/>
+	<property name="InfiniteQueryMetricsWidget.location" value="../InfiniteQueryMetricsWidget/"/>
 	<property name="InfiniteSentimentWidget.location" value="../InfiniteSentimentWidget/"/>
 	<property name="InfiniteSignificanceWidget.location" value="../InfiniteSignificanceWidget/"/>
 	<property name="InfiniteTimelineEventWidget.location" value="../InfiniteTimelineEventWidget/"/>
@@ -55,6 +56,12 @@
 		<mkdir dir="${dir.build}/InfiniteMapWidget"/>
 		<copy todir="${dir.build}/InfiniteMapWidget/">
 			<fileset dir="${InfiniteMapQuestWidget.location}/dist"/>
+		</copy>
+
+		<!-- Copy the InfiniteQueryMetricsWidget -->
+		<mkdir dir="${dir.build}/InfiniteQueryMetricsWidget"/>
+		<copy todir="${dir.build}/InfiniteQueryMetricsWidget/">
+			<fileset dir="${InfiniteQueryMetricsWidget.location}/dist"/>
 		</copy>
 
 		<!-- Copy the InfiniteSentimentWidget -->
