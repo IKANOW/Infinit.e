@@ -35,51 +35,13 @@ public class CommunityMemberPojo extends BaseDbPojo {
 	private ObjectId _id = null;
 	private String email = null;
 	private String displayName = null;
-	private String userType = null; // memberUserType  
+	private String userType = null; // memberUserType: "Member", "Content_Publisher", "Moderator", "Owner"
 	private String userStatus = null; // memberUserStatus
 	private List<String> languages = null;
 	private Set<CommunityMemberUserAttributePojo> userAttributes = null;
 	private Set<CommunityMemberContactPojo> contacts = null;
 	private Set<CommunityMemberLinkPojo> links = null;
-	
-	
-	
-	public enum memberUserType {
-		OWNER {
-		    public String toString() {
-		        return "owner";
-		    }
-		},
-		MODERATOR {
-		    public String toString() {
-		        return "moderator";
-		    }
-		},
-		USER {
-		    public String toString() {
-		        return "user";
-		    }
-		}
-	}
-	
-	public enum memberUserStatus {
-		ACTIVE {
-		    public String toString() {
-		        return "active";
-		    }
-		},
-		DISABLED {
-		    public String toString() {
-		        return "disabled";
-		    }
-		},
-		PENDING {
-		    public String toString() {
-		        return "pending";
-		    }
-		}
-	}
-		
+			
 	/**
 	 * @param _id the _id to set
 	 */

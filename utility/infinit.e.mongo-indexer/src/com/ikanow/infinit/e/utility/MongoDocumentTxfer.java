@@ -57,7 +57,7 @@ public class MongoDocumentTxfer {
 	 * @throws NumberFormatException 
 	 * @throws IOException 
 	 */
-	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, int nSkip, int nLimit) throws NumberFormatException, MongoException, IOException {
+	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, boolean bVerifyIndex, int nSkip, int nLimit) throws NumberFormatException, MongoException, IOException {
 		
 		// Command line processing
 		com.ikanow.infinit.e.data_model.Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
@@ -71,12 +71,16 @@ public class MongoDocumentTxfer {
 		else { 
 			
 			// Have seen odd transport timeouts on occasion: this should ensure they never happen
-			new GenericProcessingController().InitializeIndex(false, false, false);
+			new GenericProcessingController().InitializeIndex(false, false, false, bVerifyIndex);
 				// (don't delete anything, but do recalc)
 			
 			if (bRebuildIndex) {
 				bRebuildIndexOnFly = true;
 			}
+		}
+		if (bVerifyIndex && (0 == nLimit) && (null == sQuery)) {
+			// Index verifcation with nothing else to do
+			return;
 		}
 		MongoDocumentTxfer txferManager = new MongoDocumentTxfer(bRebuildIndexOnFly);
 		

@@ -29,15 +29,17 @@ public class CheckMapReduceJobs {
 		com.ikanow.infinit.e.data_model.Globals.overrideConfigLocation(configloc);
 		
 		int flags = 0;
+		String jobOverride = null;
 		if ( args.length > 1 )
 			flags = Integer.parseInt(args[1]);
-		
+		if ( args.length > 2 )
+			jobOverride = args[2];
 		
 		HadoopJobRunner hdr = new HadoopJobRunner();
 		//run any jobs that are ready
 		if ( (flags & 1) == 1 )
 		{			
-			hdr.runScheduledJobs();
+			hdr.runScheduledJobs(jobOverride);
 		}
 		
 		//check status on any jobs that were running

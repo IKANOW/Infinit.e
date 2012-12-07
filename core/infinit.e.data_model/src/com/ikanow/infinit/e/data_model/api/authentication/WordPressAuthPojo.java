@@ -27,6 +27,8 @@ public class WordPressAuthPojo extends BaseApiPojo
 	private String created = null; // (optional)
 	private String modified = null; // (optional)
 	
+	private String apiKey = null; // (optional, allows API key access if enabled)
+	
 	public void setWPUserID(String wPUserID) {
 		WPUserID = wPUserID;
 	}
@@ -62,5 +64,11 @@ public class WordPressAuthPojo extends BaseApiPojo
 	}
 	public String getUsername() {
 		return username;
+	}
+	public void setApiKey(String apiKey) {
+		this.apiKey = apiKey;
+	}
+	public String getApiKey() {
+		return apiKey;
 	}
 }

@@ -34,12 +34,14 @@ import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
 
 import com.ikanow.infinit.e.api.knowledge.QueryHandler;
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.mongodb.BasicDBObject;
 
@@ -50,7 +52,8 @@ public class AggregationUtils {
 	
 	// OUTPUT PARSING - TOP LEVEL
 	
-	public static void loadAggregationResults(ResponsePojo rp, Map<String, Facet> facets, AggregationOutputPojo aggOutParams, ScoringUtils scoreStats)
+	public static void loadAggregationResults(ResponsePojo rp, Map<String, Facet> facets, AggregationOutputPojo aggOutParams, 
+												ScoringUtils scoreStats, AliasLookupTable aliasLookup)
 	{
 		for (Map.Entry<String, Facet> facet: facets.entrySet()) {
 			
@@ -87,11 +90,11 @@ public class AggregationUtils {
 			
 			if (facet.getKey().equals("events")) {
 				TermsFacet eventsFacet = (TermsFacet)facet.getValue();
-				rp.setEvents(parseEventAggregationOutput("Event", eventsFacet, scoreStats));
+				rp.setEvents(parseEventAggregationOutput("Event", eventsFacet, scoreStats, aliasLookup));
 			}					
 			if (facet.getKey().equals("facts")) {
 				TermsFacet factsFacet = (TermsFacet)facet.getValue();
-				rp.setFacts(parseEventAggregationOutput("Fact", factsFacet, scoreStats));
+				rp.setFacts(parseEventAggregationOutput("Fact", factsFacet, scoreStats, aliasLookup));
 			}					
 			//TESTED x2
 			
@@ -270,7 +273,9 @@ public class AggregationUtils {
 	
 	private static Pattern eventIndexParser = Pattern.compile("([^|]+/[^/|]+)?\\|([^|]+)?\\|([^|]+/[^|/]+)?\\|(.+)?");
 	
-	private static List<BasicDBObject> parseEventAggregationOutput(String sEventOrFact, TermsFacet facet, ScoringUtils scoreStats) {
+	private static List<BasicDBObject> parseEventAggregationOutput(String sEventOrFact, TermsFacet facet, 
+																	ScoringUtils scoreStats, AliasLookupTable aliasLookup)
+	{
 		ArrayList<BasicDBObject> facetList = new ArrayList<BasicDBObject>(facet.entries().size());
 		
 		//TEST CASES:
@@ -295,13 +300,19 @@ public class AggregationUtils {
 				BasicDBObject json = new BasicDBObject();				
 				json.put(AssociationPojo.assoc_type_, sEventOrFact);
 				String sEnt1_index = m.group(1);
-				if (null != sEnt1_index) json.put(AssociationPojo.entity1_index_, sEnt1_index.replaceAll("%7C", "|"));
+				if (null != sEnt1_index) {
+					sEnt1_index = sEnt1_index.replaceAll("%7C", "|");
+				}
 				String sVerbCat = m.group(2);
 				if (null != sVerbCat) json.put(AssociationPojo.verb_category_, sVerbCat.replaceAll("%7C", "|"));
 				String sEnt2_index = m.group(3);
-				if (null != sEnt2_index) json.put(AssociationPojo.entity2_index_, sEnt2_index.replaceAll("%7C", "|"));
+				if (null != sEnt2_index) {
+					sEnt2_index = sEnt2_index.replaceAll("%7C", "|");
+				}
 				String sGeoIndex = m.group(4);
-				if (null != sGeoIndex) json.put(AssociationPojo.geo_index_, sGeoIndex.replaceAll("%7C", "|"));
+				if (null != sGeoIndex) {
+					sGeoIndex = sGeoIndex.replaceAll("%7C", "|");
+				}
 				json.put(AssociationPojo.doccount_, facetEl.getCount());				
 				
 				// Add significance if possible
@@ -312,6 +323,35 @@ public class AggregationUtils {
 					//json.put("geo_sig", 0.0);
 					// Mandatory:
 					json.put(AssociationPojo.assoc_sig_, 0.0);
+				}				
+				
+				// Now write the last few values (adjusted for aliases if necessary) into the JSON object
+				if (null != sEnt1_index) {
+					if (null != aliasLookup) {
+						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt1_index);
+						if (null != alias) {
+							sEnt1_index = alias.getIndex();
+						}
+					}					
+					json.put(AssociationPojo.entity1_index_, sEnt1_index);
+				}
+				if (null != sEnt2_index) {
+					if (null != aliasLookup) {
+						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt2_index);
+						if (null != alias) {
+							sEnt2_index = alias.getIndex();
+						}						
+					}					
+					json.put(AssociationPojo.entity2_index_, sEnt2_index);					
+				}
+				if (null != sGeoIndex) {
+					if (null != aliasLookup) {
+						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sGeoIndex);
+						if (null != alias) {
+							sGeoIndex = alias.getIndex();
+						}						
+					}					
+					json.put(AssociationPojo.geo_index_, sGeoIndex);										
 				}				
 				facetList.add(json);
 			}

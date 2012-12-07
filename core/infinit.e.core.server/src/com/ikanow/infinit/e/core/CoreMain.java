@@ -23,6 +23,7 @@ import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.log4j.PropertyConfigurator;
+import org.apache.log4j.xml.DOMConfigurator;
 
 import com.ikanow.infinit.e.core.execute_harvest.HarvestThenProcessController;
 import com.ikanow.infinit.e.core.execute_synchronization.SynchronizationController;
@@ -57,6 +58,7 @@ public class CoreMain {
 		// Custom specifc
 		allOps.addOption("p", "custom", false, "Run custom processing server");
 		allOps.addOption("d", "dummy", true, "Use to keep temp unwanted options on the command line");
+		allOps.addOption("j", "jobtitle", true, "(for debug: run a single job)");
 		
 		CommandLine cliOpts = cliParser.parse(allOps, args);
 		
@@ -67,7 +69,13 @@ public class CoreMain {
 			Globals.overrideConfigLocation(configOverride);
 		}
     	//Set up logging
-    	PropertyConfigurator.configure(com.ikanow.infinit.e.data_model.Globals.getLogPropertiesLocation());
+		java.io.File file = new java.io.File(com.ikanow.infinit.e.data_model.Globals.getLogPropertiesLocation() + ".xml");
+		if (file.exists()) {
+    		DOMConfigurator.configure(com.ikanow.infinit.e.data_model.Globals.getLogPropertiesLocation() + ".xml");
+		}
+		else {
+    		PropertyConfigurator.configure(Globals.getLogPropertiesLocation());
+		}
 		
 		if (cliOpts.hasOption("harvest")) {
 			if (SourceUtils.checkDbSyncLock()) {
@@ -121,8 +129,12 @@ public class CoreMain {
 		}//TESTED
 		else if (cliOpts.hasOption("custom")) 
 		{
+			String jobOverride = null;
+			if (cliOpts.hasOption("jobtitle")) {
+				jobOverride = (String) cliOpts.getOptionValue("jobtitle");
+			}
 			HadoopJobRunner hjr = new HadoopJobRunner();
-			hjr.runScheduledJobs();
+			hjr.runScheduledJobs(jobOverride);
 			hjr.updateJobStatus();
 		}
 		else {

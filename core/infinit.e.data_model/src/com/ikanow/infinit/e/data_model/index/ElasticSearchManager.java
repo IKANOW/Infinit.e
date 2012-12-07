@@ -188,10 +188,13 @@ public class ElasticSearchManager {
 
 		Builder globalSettings = ImmutableSettings.settingsBuilder();
 		Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-		TransportClient tmp = new TransportClient(snode);
-		Client client = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
 		
+		Client client = null;
+		TransportClient tmp = null;
 		try {
+			tmp = new TransportClient(snode);
+			client = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+		
 			IndicesExistsResponse ier = client.admin().indices().exists(new IndicesExistsRequest(indexName)).actionGet();
 			if (!ier.exists()) {
 				return false;
@@ -200,6 +203,14 @@ public class ElasticSearchManager {
 		}
 		catch (Exception e) { // Index not alive...
 			return false;
+		}
+		finally {
+			if (null != client) {
+				client.close(); // (will also close tmp)
+			}
+			else if (null != tmp) {
+				tmp.close();
+			}
 		}
 		return true;
 	}
@@ -718,32 +729,32 @@ public class ElasticSearchManager {
 		}
 		else if (bRemote) {
 			
-			String sHostname = null;
-			String sPort = null;
-			
-			if (null == hostAndPort) {
-				hostAndPort = new PropertiesManager().getElasticUrl();
-			}		
-			String[] hostPort = hostAndPort.split("[:/]");
-			sHostname = hostPort[0];
-			sPort = hostPort[1];
-
-			Builder globalSettings = ImmutableSettings.settingsBuilder();
-			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-			TransportClient tmp = new TransportClient(snode);
 			if (null == _elasticClient) {
+				String sHostname = null;
+				String sPort = null;
+				
+				if (null == hostAndPort) {
+					hostAndPort = new PropertiesManager().getElasticUrl();
+				}		
+				String[] hostPort = hostAndPort.split("[:/]");
+				sHostname = hostPort[0];
+				sPort = hostPort[1];
+
+				Builder globalSettings = ImmutableSettings.settingsBuilder();
+				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+				TransportClient tmp = new TransportClient(snode);
 				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
 			}
 			
 		} //TESTED
 		else { // Create a "no data" cluster 
 			
-			Builder globalSettings = ImmutableSettings.settingsBuilder();
-			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-
-			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
-			nBuilder.data(false); // Don't store your own data
 			if (null == _elasticClient) {
+				Builder globalSettings = ImmutableSettings.settingsBuilder();
+				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+	
+				NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
+				nBuilder.data(false); // Don't store your own data
 				_elasticClient = nBuilder.build().start().client();
 			}
 		}//TOTEST
@@ -894,32 +905,32 @@ public class ElasticSearchManager {
 		}
 		else if (bRemote) {
 			
-			String sHostname = null;
-			String sPort = null;
-			
-			if (null == hostAndPort) {
-				hostAndPort = new PropertiesManager().getElasticUrl();
-			}		
-			String[] hostPort = hostAndPort.split("[:/]");
-			sHostname = hostPort[0];
-			sPort = hostPort[1];
-
-			Builder globalSettings = ImmutableSettings.settingsBuilder();
-			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-			TransportClient tmp = new TransportClient(snode);
 			if (null == _elasticClient) {
+				String sHostname = null;
+				String sPort = null;
+				
+				if (null == hostAndPort) {
+					hostAndPort = new PropertiesManager().getElasticUrl();
+				}		
+				String[] hostPort = hostAndPort.split("[:/]");
+				sHostname = hostPort[0];
+				sPort = hostPort[1];
+	
+				Builder globalSettings = ImmutableSettings.settingsBuilder();
+				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+				TransportClient tmp = new TransportClient(snode);
 				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
 			}
 			
 		} //TESTED
 		else { // Create a "no data" cluster 
 			
-			Builder globalSettings = ImmutableSettings.settingsBuilder();
-			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-
-			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
-			nBuilder.data(false); // Don't store your own data
 			if (null == _elasticClient) {
+				Builder globalSettings = ImmutableSettings.settingsBuilder();
+				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+	
+				NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
+				nBuilder.data(false); // Don't store your own data
 				_elasticClient = nBuilder.build().start().client();
 			}
 		}//TOTEST

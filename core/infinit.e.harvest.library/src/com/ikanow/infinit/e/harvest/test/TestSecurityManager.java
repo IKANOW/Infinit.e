@@ -55,8 +55,8 @@ public class TestSecurityManager
 	@Test
 	public void testJAVASCRIPTFileAccess()
 	{
-		//TODO we dont block local file access anymore, so this will fail because it makes it through
-		String file = "src/com/ikanow/infinit/e/harvest/test/testread.txt";		
+		//String file = "src/com/ikanow/infinit/e/harvest/test/testread.txt";
+		String file = "C:/Users/Burch/Desktop/w4.txt";
 		String ret = null;
 		
 		engine.put("url", file);	

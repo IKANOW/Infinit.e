@@ -29,9 +29,11 @@ public class UnstructuredAnalysisConfigPojo
 	}
 		
 	private String headerRegEx = null;  // (optional specifies a regex to find the header of a document)
-	private String headerRexExFlags = null; // (very optional, allows fields to be specified for the above regex)
+	private String headerRegExFlags = null; // (very optional, allows fields to be specified for the above regex)
 	private String footerRegEx = null; // (optional specifies a regex to find the footer of a document)
 	private String footerRegExFlags = null;  // (very optional, allows fields to be specified for the above regex)
+	private String script = null;
+	private String[] scriptFiles = null;
 	
 	private List<metaField> meta = null;	
 	private List<SimpleTextCleanserPojo> simpleTextCleanser = null;
@@ -144,12 +146,12 @@ public class UnstructuredAnalysisConfigPojo
 		return simpleTextCleanser;
 	}
 
-	public void setHeaderRexExFields(String headerRexExFields) {
-		this.headerRexExFlags = headerRexExFields;
+	public void setHeaderRegExFields(String headerRexExFields) {
+		this.headerRegExFlags = headerRexExFields;
 	}
 
-	public String getHeaderRexExFlags() {
-		return headerRexExFlags;
+	public String getHeaderRegExFlags() {
+		return headerRegExFlags;
 	}
 
 	public void setFooterRegExFlags(String footerRegExFields) {
@@ -165,5 +167,21 @@ public class UnstructuredAnalysisConfigPojo
 	}
 	public Map<String,String> getCaches() {
 		return caches;
+	}
+
+	public String getScript() {
+		return script;
+	}
+
+	public void setScript(String script) {
+		this.script = script;
+	}
+
+	public String[] getScriptFiles() {
+		return scriptFiles;
+	}
+
+	public void setScriptFiles(String[] scriptFiles) {
+		this.scriptFiles = scriptFiles;
 	}
 }

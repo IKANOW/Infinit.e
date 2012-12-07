@@ -33,6 +33,7 @@
 	<property name="infinit.e.api.server.location" value="${basedir}/../infinit.e.api.server"/>
 	<property name="infinit.e.core.server.location" value="${basedir}/../infinit.e.core.server"/>
 	<property name="infinit.e.mongo-indexer.location" value="${basedir}/../infinit.e.mongo-indexer"/>
+	<property name="infinit.e.hadoop.prototyping_engine.location" value="${basedir}/../infinit.e.hadoop.prototyping_engine"/>
 	
 	<property name="infinit.e.flex.location" value="${basedir}/../infinit.e.flex.client"/>
 	<property name="InfiniteDocBrowserWidget.location" value="${basedir}/../InfiniteDocBrowserWidget"/>
@@ -78,6 +79,9 @@
 		</ant>
 		<ant antfile="${infinit.e.mongo-indexer.location}/build.xml">
 			<property name="basedir" value="${infinit.e.mongo-indexer.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.hadoop.prototyping_engine.location}/build.xml">
+			<property name="basedir" value="${infinit.e.hadoop.prototyping_engine.location}"/>
 		</ant>
 		<ant antfile="${infinit.e.flex.location}/build/build.xml">
 			<property name="basedir" value="${infinit.e.flex.location}"/>

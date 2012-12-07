@@ -115,6 +115,9 @@ public class ShareHandler
 	 * @param limit
 	 * @return
 	 */
+	
+	//TODO (): be able to specify not returning content? 
+	
 	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin)
 	{
 		ResponsePojo rp = new ResponsePojo();
@@ -278,7 +281,8 @@ public class ShareHandler
 		return rp;
 	}
 	
-	
+	//TODO (): have ability to enforce uniqueness on title/type
+	//TODO (): for updates, have the ability to fail if document has changed in meantime...
 	
 	/**
 	 * addShare
@@ -477,6 +481,9 @@ public class ShareHandler
 				// Check ... am I the owner?
 				ObjectId ownerId = new ObjectId(ownerIdStr);
 				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin
+					
+					//TODO () what about moderator?? plus elsewhere probably....
+					
 					if (!RESTTools.adminLookup(ownerIdStr)) {
 						rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
 						return rp;

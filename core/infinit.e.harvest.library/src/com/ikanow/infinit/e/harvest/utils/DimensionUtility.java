@@ -23,7 +23,13 @@ public class DimensionUtility {
 
 	public static EntityPojo.Dimension getDimensionByType(String type)
 	{
-		EntityType et = EntityType.valueOf(type.toLowerCase());
+		EntityType et = null;
+		try {
+			et = EntityType.valueOf(type.toLowerCase());
+		}
+		catch (Exception e) {
+			return Dimension.What;
+		}
 		EntityPojo.Dimension dimension = null;
 		switch (et)
 		{

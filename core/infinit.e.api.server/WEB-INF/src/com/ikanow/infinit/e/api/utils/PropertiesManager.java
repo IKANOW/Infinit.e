@@ -136,4 +136,13 @@ public class PropertiesManager {
 		return this.getProperty("remote.access.deny");
 	}
 	
+	// AGGREGATION ACCURACY-PERFORMANCE TRADE-OFFS: none (don't allow aggregations), degraded (not supported - always for entities), max (use facets)
+	public String getAggregationAccuracy() {
+		String s =  this.getProperty("aggregation.accuracy");
+		if (null == s) {
+			s = "full";
+		}
+		return s;
+	}
+	
 }

@@ -34,6 +34,7 @@ public class CookiePojo extends BaseDbPojo
 	private ObjectId cookieId = null;
 	private Date startDate = null;
 	private Date lastActivity = null;
+	private String apiKey = null;
 	
 	public void set_id(ObjectId _id) {
 		this._id = _id;
@@ -70,6 +71,12 @@ public class CookiePojo extends BaseDbPojo
 	}
 	public void updateActivity() {
 		this.lastActivity = new Date();
+	}
+	public void setApiKey(String apiKey) {
+		this.apiKey = apiKey;
+	}
+	public String getApiKey() {
+		return apiKey;
 	}
 	
 }

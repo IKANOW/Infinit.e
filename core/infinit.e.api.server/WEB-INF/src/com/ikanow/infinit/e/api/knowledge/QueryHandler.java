@@ -46,10 +46,13 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasManager;
 import com.ikanow.infinit.e.api.knowledge.processing.AggregationUtils;
 import com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
+import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SimpleBooleanParser;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
@@ -63,6 +66,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.mongodb.BasicDBObject;
@@ -82,11 +86,22 @@ public class QueryHandler {
 	
 	public QueryHandler() {}
 	
+	// Query cache (re-created per request, but there's some static things in here for performance):
+	private AliasLookupTable _aliasLookup = null;
+	
+	private static PropertiesManager _properties = null;
+	private String _aggregationAccuracy = "full"; 
+	
 ////////////////////////////////////////////////////////////////////////
 	
 // 0] Top level processing
 	
 	public ResponsePojo doQuery(String userIdStr, AdvancedQueryPojo query, String communityIdStrList, StringBuffer errorString) throws UnknownHostException, MongoException, IOException {
+
+		if (null == _properties) {
+			_properties = new PropertiesManager();
+		}
+		_aggregationAccuracy = _properties.getAggregationAccuracy();
 		
 		// (NOTE CAN'T ACCESS "query" UNTIL AFTER 0.1 BECAUSE THAT CAN CHANGE IT) 
 		
@@ -99,6 +114,15 @@ public class QueryHandler {
 		
 		//(timing)
 		long nQuerySetupTime = System.currentTimeMillis();
+		
+		// Intialize alias if so required:
+		if ((null == query.expandAlias) || query.expandAlias) {
+			AliasManager aliasManager = AliasManager.getAliasManager();
+			if (null != aliasManager) {
+				_aliasLookup = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null);
+			}
+		}
+		// (end initialize index)
 		
 		// Create a multi-index to check against all relevant shards:
 		StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.globalDocumentIndex_);
@@ -267,6 +291,11 @@ public class QueryHandler {
 
 		// Add proximity scoring:
 		if (nRecordsToGet > 0) {
+			if (!_aggregationAccuracy.equals("full")) {
+				if (null != query.score) {
+					query.score.geoProx = null; // (still allow time-based prox)
+				}
+			}
 			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score);				
 		}// (else not worth the effort)
 								
@@ -294,6 +323,16 @@ public class QueryHandler {
 		}
 		else { // Apply various aggregation (=="facet") outputs to searchSettings
 			boolean bSpecialCase = (null != query.raw) && (null != query.raw.query);
+			
+			if (!_aggregationAccuracy.equals("full")) {
+				if (null != query.output.aggregation) {
+					query.output.aggregation.eventsNumReturn = null;
+					query.output.aggregation.factsNumReturn = null;
+					query.output.aggregation.geoNumReturn = null;
+					// (allow time aggregation)
+					// (allow source aggregation)
+				}
+			}
 			AggregationUtils.parseOutputAggregation(query.output.aggregation, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
 		}
 		//TESTED x2			
@@ -366,7 +405,8 @@ public class QueryHandler {
 				standaloneEvents = new LinkedList<BasicDBObject>();
 			}				
 
-			scoreStats = new ScoringUtils(); 
+			scoreStats = new ScoringUtils();
+			scoreStats.setAliasLookupTable(_aliasLookup);
 			docs = scoreStats.calcTFIDFAndFilter(DbManager.getDocument().getMetadata(), 
 														docs0, query.score, query.output, stats, 
 															nRecordsToSkip, nRecordsToOutput, 
@@ -405,7 +445,8 @@ public class QueryHandler {
 			if (0.0 == query.score.sigWeight) {
 				scoreStats = null; // (don't calculate event/fact aggregated significance if it's not wanted)
 			}
-			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats);
+			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup);
+			//TODO: TOTEST... alias code...
 			
 		} // (end facets not overwritten)			
 		
@@ -709,7 +750,7 @@ public class QueryHandler {
 			}
 			sQueryTerm.append('(');
 			
-			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.associations_, this.parseEventTerm(qt.assoc, sQueryTerm));
+			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.associations_, this.parseAssociationTerm(qt.assoc, sQueryTerm));
 			if (null != termQ) {
 				if (null == term) {
 					term = termQ;
@@ -796,19 +837,32 @@ public class QueryHandler {
 			
 			// Just leave this fixed for entity expansion since we don't really support events anyway
 			// we'll have to sort this out later
+			BoolQueryBuilder termBoolQ = null;
 			if ((null != qt.entityOpt) && qt.entityOpt.expandAlias) {
 				// Alias expansion code
 				// Easy bit:
-				 BoolQueryBuilder termBoolQ = QueryBuilders.boolQuery().should(QueryBuilders.termQuery(sFieldName, qt.entity));
+				 termBoolQ = QueryBuilders.boolQuery().should(QueryBuilders.termQuery(sFieldName, qt.entity));
 				// Interesting bit:
 				if (null != _tmpAliasMap) {
 					String[] terms = _tmpAliasMap.get(qt.entity).toArray(new String[0]);
 					if ((null != terms) && (terms.length > 0)) {
 						termQ = termBoolQ.should(QueryBuilders.termsQuery(EntityPojo.actual_name_, terms));
-						sQueryTerm.append(" OR entities.actual_name:$aliases");
+						sQueryTerm.append(" OR actual_name:$aliases");
 					}
 				}
 			}//TESTED logic3a,b,f
+			
+			if (null != _aliasLookup) {
+				EntityFeaturePojo masterAlias = _aliasLookup.doLookupFromIndex(qt.entity);
+				if (null != masterAlias) {
+					if (null == termBoolQ) {
+						termBoolQ = QueryBuilders.boolQuery();
+					}
+					sQueryTerm.append(" OR index:$manual_aliases");
+					termBoolQ = termBoolQ.should(QueryBuilders.termQuery(sFieldName, qt.entity));
+					termQ = termBoolQ.should(QueryBuilders.termsQuery(EntityPojo.index_, masterAlias.getAlias().toArray()));
+				}
+			}
 			
 			if (null == termQ) {
 				termQ = QueryBuilders.termQuery(sFieldName, qt.entity);				
@@ -1142,55 +1196,55 @@ public class QueryHandler {
 	
 	// 1.2.3] Event term parsing - this one is pretty complex
 	
-	BaseQueryBuilder parseEventTerm(AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo event, StringBuffer sQueryTerm )
+	BaseQueryBuilder parseAssociationTerm(AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo assoc, StringBuffer sQueryTerm )
 	{
 		boolean bFirstTerm = true;
 		BoolQueryBuilder query = QueryBuilders.boolQuery();	
 		sQueryTerm.append("association:(");
 		int nTerms = 0;
 		
-		if (null != event.entity1) {
+		if (null != assoc.entity1) {
 			bFirstTerm = false;
 			sQueryTerm.append("(");			
-			this.parseEventSubTerm(event.entity1, sQueryTerm, query, AssociationPojo.entity1_, AssociationPojo.entity1_index_);
+			this.parseAssociationSubTerm(assoc.entity1, sQueryTerm, query, AssociationPojo.entity1_, AssociationPojo.entity1_index_);
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TESTED
-		if (null != event.entity2) {
+		if (null != assoc.entity2) {
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(");
-			this.parseEventSubTerm(event.entity2, sQueryTerm, query, AssociationPojo.entity2_, AssociationPojo.entity2_index_);
+			this.parseAssociationSubTerm(assoc.entity2, sQueryTerm, query, AssociationPojo.entity2_, AssociationPojo.entity2_index_);
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TESTED
-		if (null != event.verb) {
+		if (null != assoc.verb) {
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
 			}
 			bFirstTerm = false;
-			sQueryTerm.append("(verb,verb_category:").append(event.verb).append(")");
+			sQueryTerm.append("(verb,verb_category:").append(assoc.verb).append(")");
 			
-			query.must(QueryBuilders.boolQuery().should(QueryBuilders.queryString(event.verb).field(AssociationPojo.verb_)).
-													should(QueryBuilders.queryString(event.verb).field(AssociationPojo.verb_category_)));
+			query.must(QueryBuilders.boolQuery().should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.verb_)).
+													should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.verb_category_)));
 			
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TESTED
-		if (null != event.geo) 
+		if (null != assoc.geo) 
 		{
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(");
-			query.must(this.parseGeoTerm(event.geo, sQueryTerm, GeoParseField.ASSOC));
+			query.must(this.parseGeoTerm(assoc.geo, sQueryTerm, GeoParseField.ASSOC));
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TOTEST
-		if (null != event.time) 
+		if (null != assoc.time) 
 		{
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
@@ -1202,30 +1256,30 @@ public class QueryHandler {
 			// (Note time_start and time_end don't exist inside the document object)
 			StringBuffer sbDummy = new StringBuffer();
 			BoolQueryBuilder combo2 = QueryBuilders.boolQuery();
-			combo2.should(this.parseDateTerm(event.time, sQueryTerm, AssociationPojo.time_start_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.time_start_));
 			sQueryTerm.append(") OR/CONTAINS (");
-			combo2.should(this.parseDateTerm(event.time, sQueryTerm, AssociationPojo.time_end_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.time_end_));
 			// (complex bit, start must be < and end must be >)
 			BoolQueryBuilder combo3 = QueryBuilders.boolQuery();
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo event1 = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo event2 = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
 			sQueryTerm.append("))");
 			event1.min = "0";
-			event1.max = event.time.min;
-			event1.min = event.time.max;
+			event1.max = assoc.time.min;
+			event1.min = assoc.time.max;
 			event1.max = "999900"; // (ie the end of time, sort of!)
 			combo3.must(this.parseDateTerm(event1, sbDummy, AssociationPojo.time_start_));
 			combo3.must(this.parseDateTerm(event2, sbDummy, AssociationPojo.time_end_));
 			query.must(combo2).must(combo3);
 			nTerms++;
 		}//TOTEST
-		if (null != event.type) {
+		if (null != assoc.type) {
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
 			}
 			bFirstTerm = false;
-			sQueryTerm.append("(event_type:").append(event.type).append(")");
-			query.must(QueryBuilders.termQuery(AssociationPojo.assoc_type_, event.type));
+			sQueryTerm.append("(event_type:").append(assoc.type).append(")");
+			query.must(QueryBuilders.termQuery(AssociationPojo.assoc_type_, assoc.type));
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TOTEST
@@ -1236,7 +1290,7 @@ public class QueryHandler {
 	} //TESTED/TOTEST (see above)
 	
 	// 1.2.3.2] Event term parsing utility
-	void parseEventSubTerm(AdvancedQueryPojo.QueryTermPojo entity, StringBuffer sQueryTerm, BoolQueryBuilder combo, 
+	void parseAssociationSubTerm(AdvancedQueryPojo.QueryTermPojo entity, StringBuffer sQueryTerm, BoolQueryBuilder combo, 
 			String sFieldName, String sIndexName)
 	{
 		boolean bFirstTerm = true;

@@ -53,6 +53,7 @@ public class MongoIndexerMain {
 			allOps.addOption("l", "limit", true, "Caps the number of records to act upon");
 			allOps.addOption("s", "skip", true, "The record at which to start (not in delete mode)");
 			allOps.addOption("r", "rebuild", false, "Rebuild the index before transferring");
+			allOps.addOption("v", "verify", false, "Verifies the document indexes all exist");
 	
 			CommandLine cliOpts = cliParser.parse(allOps, args);
 			
@@ -62,6 +63,7 @@ public class MongoIndexerMain {
 			String query = null;
 			boolean bDelete = false;
 			boolean bRebuildIndex = false;
+			boolean bVerifyIndex = false;
 			int nLimit = 0;
 			int nSkip = 0;
 			if (cliOpts.hasOption("config")) {
@@ -94,8 +96,13 @@ public class MongoIndexerMain {
 			if (cliOpts.hasOption("rebuild")) {
 				bRebuildIndex = true;
 			}
-			if ((0 == args.length) || ((null == query)&&(0 == nLimit))) {
-				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
+			if (cliOpts.hasOption("verify")) {
+				if (cliOpts.hasOption("doc") && !bRebuildIndex) {
+					bVerifyIndex = true; // (doc only)
+				}
+			}
+			if ((0 == args.length) || ((null == query)&&(0 == nLimit)&&!bVerifyIndex)) {
+				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--verify] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
 				if (args.length > 0) {
 					System.out.println("(Note you must either specify a limit or a query - the query can be {} to get all records)");
 				}
@@ -105,7 +112,7 @@ public class MongoIndexerMain {
 			// Invoke appropriate manager to perform processing
 			
 			if (cliOpts.hasOption("doc")) {
-				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);
+				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, nSkip, nLimit);
 			}
 			else if (cliOpts.hasOption("assoc")||cliOpts.hasOption("association")) {
 				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);			

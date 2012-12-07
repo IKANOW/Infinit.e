@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<project default="create_run_jar" name="Create Runnable Jar for Project infinit.e.hadoop.prototyping_engine" basedir=".">
+    <!--this file was created by Eclipse Runnable JAR Export Wizard-->
+    <!--ANT 1.7 is required                                        -->
+    <target name="create_run_jar">
+        <jar destfile="infinit.e.hadoop.prototyping_engine.jar" filesetmanifest="mergewithoutmain">
+            <manifest>
+                <attribute name="Main-Class" value="com.ikanow.infinit.e.utility.hadoop.HadoopPrototypingTool"/>
+                <attribute name="Class-Path" value="."/>
+            </manifest>
+            <fileset dir="bin"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/hadoop-core-0.20.2-cdh3u2.jar"/>
+            <fileset dir="lib"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/mongo-2.7.2.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/mongo-hadoop-core.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/infinit.e.data_model-v0.1-5776.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/commons-cli-1.2.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/commons-httpclient-3.1.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/commons-logging-1.1.1.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/jackson-core-asl-1.8.1.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/jackson-mapper-asl-1.8.1.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="lib/jackson-xc-1.8.1.jar"/>
+        </jar>
+    </target>
+</project>

@@ -27,6 +27,7 @@ import java.util.Map;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_Associations.StandaloneEventHashAggregator;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_MultiCommunity.Community_EntityExtensions;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
@@ -38,6 +39,7 @@ import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -47,6 +49,11 @@ import com.mongodb.DBObject;
 public class ScoringUtils 
 {	
 	private static final Logger logger = Logger.getLogger(ScoringUtils.class);
+	
+	private AliasLookupTable _aliasLookup = null;
+	public void setAliasLookupTable(AliasLookupTable aliasLookup) {
+		_aliasLookup = aliasLookup;
+	}
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 // 
@@ -102,11 +109,14 @@ public class ScoringUtils
 	};
 	static class EntSigHolder implements Comparable<EntSigHolder> {
 		
-		EntSigHolder(long nTotalDocCount, ScoringUtils_MultiCommunity multiCommunityHandler) {
+		EntSigHolder(String index, long nTotalDocCount, ScoringUtils_MultiCommunity multiCommunityHandler) {
+			this.index = index; // (used for aliasing only)
 			this.nTotalDocCount = nTotalDocCount;
-			multiCommunityHandler.initializeEntity(this);			
+			if (null != multiCommunityHandler) {
+				multiCommunityHandler.initializeEntity(this);
+			}
 		}
-		
+		public String index = null; // (only used for aliasing)
 		public long nDocCountInQuerySubset = 0; // total number of matching docs in retrieved data
 		public double datasetSignificance = 0.0; // calculated weighted avg of doc significances (ie TF*standalone)
 		public double standaloneSignificance = 0.0; // the IDF term of the significance
@@ -141,6 +151,10 @@ public class ScoringUtils
 		// New code to handle significance approximation for pan-community queries
 		// (see "additional functionality #1)
 		Community_EntityExtensions community;
+		
+		// For aliasing:
+		public EntSigHolder masterAliasSH = null;
+		public EntityFeaturePojo aliasInfo = null;
 	};
 
 // Top level state ("s0" for "stage 0") 
@@ -180,7 +194,6 @@ public class ScoringUtils
 														LinkedList<BasicDBObject> entityReturn,
 														LinkedList<BasicDBObject> standaloneEventsReturn)
 	{
-		nToClientLimit += nStart; // (need to create bigger prio list if skipping through data)
 		_s0_multiCommunityHandler = new ScoringUtils_MultiCommunity(communityIds);
 		
 // Utility classes
@@ -341,6 +354,7 @@ public class ScoringUtils
 	long _s1_nSumDocLength = 0; // (the sum of the number of entities in all docs in received matching (sub-)dataset)
 	HashMap<String, EntSigHolder> _s1_entitiesInDataset; // (map of entities to various stats)
 	ArrayList<TempDocBucket> _s1_noEntityBuckets; // (docs with no entities)
+	HashMap<String, EntSigHolder> _s1_aliasSummary = null; // (for aggregating entities by their alias)	
 		
 	// Logic:
 	
@@ -468,9 +482,39 @@ public class ScoringUtils
 					// Retrieve entity (create/initialzie if necessary)
 					EntSigHolder shp = _s1_entitiesInDataset.get(entity_index);
 					if (null == shp) {							
-						shp = new EntSigHolder(ntotaldoccount, _s0_multiCommunityHandler);
+						shp = new EntSigHolder(entity_index, ntotaldoccount, _s0_multiCommunityHandler);						
 						_s1_entitiesInDataset.put(entity_index, shp);
+						
+						// Stage 1a alias handling: set up infrastructure, calculate doc overlap
+						if (null != _aliasLookup) {
+							stage1_initAlias(shp);
+						}
+						// end Stage 1a alias handling
 					}			
+					// Stage 1b alias handling: calculate document counts (taking overlaps into account)
+					if (null != shp.masterAliasSH) {
+						// Counts:
+						shp.masterAliasSH.nEntsInContainingDocs++; 
+							// docs including overlaps
+						shp.masterAliasSH.avgFreqOverQuerySubset += freq;
+
+						// Keep track of overlaps:
+						if (f != shp.masterAliasSH.unusedDbo) {
+							shp.masterAliasSH.unusedDbo = f;
+								// (note this is only used in stage 1, alias.unusedDbo is re-used differently in stage 3/4)
+							shp.masterAliasSH.nDocCountInQuerySubset++;
+								// non-overlapping docs ie < shp.nDocCountInQuerySubset
+						}
+						
+						// Sentiment:
+						shp.masterAliasSH.positiveSentiment += shp.positiveSentiment;
+						shp.masterAliasSH.negativeSentiment += shp.negativeSentiment;
+						if (null != sentiment) {
+							shp.masterAliasSH.nTotalSentimentValues++;
+						}
+						
+					}//TESTED
+					// end Stage 1b
 					
 					// Pan-community logic (this needs to be before the entity object is updated)
 					if (_s0_multiCommunityHandler.isActive()) {
@@ -574,8 +618,12 @@ public class ScoringUtils
 		_s2_dApproxAverageDocumentSig = 0.0; // (user to normalize vs the relevance) 
 		double avgFreqPerEntity = _s1_sumFreqInQuerySubset/_s1_nSumDocLength; // (needed to approx an average IDF)
 
+		// Pre-calculate a few dividors used in the loop below: 
+		double s0_nQuerySubsetDocCountInv = 1.0/(double)_s0_nQuerySubsetDocCount;
+		double s0_nQuerySetDocCountInv = 1.0/(double)_s0_nQuerySetDocCount;
 		
 		for (EntSigHolder shp: _s1_entitiesInDataset.values()) {
+						
 			if (shp.nDocCountInQuerySubset < nHistBins) {							
 				nCountHistogram[(int)shp.nDocCountInQuerySubset]++;
 			}
@@ -645,8 +693,8 @@ public class ScoringUtils
 			}//TESTED (vs entire dataset) 
 			
 			// Use an "estimated query coverage" (instead of the exact one over the subset)
-			shp.queryCoverage = (100.0*(estEntityDocCountInQuery/_s0_nQuerySetDocCount));
-			shp.avgFreqOverQuerySubset /= _s0_nQuerySubsetDocCount;
+			shp.queryCoverage = (100.0*(estEntityDocCountInQuery*s0_nQuerySetDocCountInv));
+			shp.avgFreqOverQuerySubset *= s0_nQuerySubsetDocCountInv;
 				
 			double dApproxAvgIdfTerm = avgFreqPerEntity/
 											(avgFreqPerEntity + 0.5 + 
@@ -654,10 +702,33 @@ public class ScoringUtils
 				//^^^ this nasty term is the approximate average IDF for this entity
 			
 			_s2_dApproxAverageDocumentSig += shp.decayedDocCountInQuerySubset*shp.standaloneSignificance*dApproxAvgIdfTerm;
-			
-		}//TESTED (by eye for a 114 document query and a 646 document query) 
 
-		_s2_dApproxAverageDocumentSig *= (1.0/_s0_nQuerySubsetDocCount); 
+			// Stage 2 alias processing: calc pythag significance, store first/last values ready for S3
+			if (null != shp.masterAliasSH) {
+				if (null == shp.masterAliasSH.index) {
+					shp.masterAliasSH.index = shp.index; // (used so I know I'm the first alias in the global list)
+					shp.masterAliasSH.avgFreqOverQuerySubset *= s0_nQuerySubsetDocCountInv;
+						// (can't do query coverage yet, we're still summing over the adjusted total doc counts)
+					
+					// pre-calculate and store an overlap scalor to apply to query coverage 
+					shp.masterAliasSH.decayedDocCountInQuerySubset = (double)shp.masterAliasSH.nDocCountInQuerySubset/
+																		(double)shp.masterAliasSH.nEntsInContainingDocs;
+
+				}//TESTED
+				shp.masterAliasSH.queryCoverage += shp.queryCoverage*shp.masterAliasSH.decayedDocCountInQuerySubset;
+					// (my not-very-good estimate sort-of-adjusted for overlap)
+				
+				shp.masterAliasSH.standaloneSignificance += shp.standaloneSignificance*shp.standaloneSignificance;
+					// (combine using pythag, like I do elsewhere for an easy approximation)
+				shp.masterAliasSH.masterAliasSH = shp; // (used so I know I'm the last alias in the global list)
+				
+			}//TESTED
+			// end stage 2 alias processing
+			
+		}//(end stage 2 loop over entities)
+		//TESTED (by eye for a 114 document query and a 646 document query) 
+
+		_s2_dApproxAverageDocumentSig *= s0_nQuerySubsetDocCountInv; 
 			//(divide by nSumDocLength to get avg entity significance, multiple by avg doc length = nSumDocLength/nQuerySubsetDocCount to get avg doc sig)
 					
 		// Intention is now to do some false positive reduction
@@ -688,7 +759,7 @@ public class ScoringUtils
 		//TESTED				
 				
 	}
-	
+
 /////////////////////////////////////////////////////////////	
 	
 // 3] stage3_calculateTFTerms()
@@ -747,23 +818,33 @@ public class ScoringUtils
 		int n1Down = 0; // (ensures where scores are equal documents are added last, should make a small difference to performance)
 		
 		for (EntSigHolder shp: _s1_entitiesInDataset.values()) {
+			//(NOTE: important that we loop over this in the same order as we looped over it in stage 2)
 
+			// Stage 3a alias processing:
+			if (null != shp.masterAliasSH) {
+				if (shp.index == shp.masterAliasSH.index) { // First instance of this alias set...
+					shp.masterAliasSH.standaloneSignificance = Math.sqrt(shp.masterAliasSH.standaloneSignificance);
+					// OK now all the stats are up-to-date
+				}
+			}//TESTED
+			// end Stage 3a alias processing:
+			
 			//(IDF component calculated above)
 			
 			// Now calculate the term frequencies
 			
 			for (TempEntityInDocBucket entBucket : shp.entityInstances) {
 				
-				double tf_idf_sig = (entBucket.freq / 
-					(entBucket.freq+0.5 + 1.5*((entBucket.doc.nDocLength+0.01)*invAvgLength)))
-						*shp.standaloneSignificance;
+				double tf_idf = (entBucket.freq / 
+						(entBucket.freq+0.5 + 1.5*((entBucket.doc.nDocLength+0.01)*invAvgLength)));
 				
 				if (shp.nDocCountInQuerySubset <= _s2_nMush1Index) {
-					tf_idf_sig *= 0.33;
+					tf_idf *= 0.33;
 				}
 				else if (shp.nDocCountInQuerySubset <= _s2_nMush2Index) {
-					tf_idf_sig *= 0.66;							
+					tf_idf *= 0.66;							
 				}
+				double tf_idf_sig = tf_idf*shp.standaloneSignificance;
 				//TESTED
 
 				// Insert significance, unfortunately need to do this spuriously for low prio cases
@@ -781,6 +862,21 @@ public class ScoringUtils
 				entBucket.doc.aggSignificance += tf_idf_sig;
 				shp.datasetSignificance += tf_idf_sig/(double)shp.nDocCountInQuerySubset;
 
+				// Stage 3b alias processing: update dataset significance
+				if (null != shp.masterAliasSH) {
+					
+					double alias_tf_idf_sig = tf_idf*shp.masterAliasSH.standaloneSignificance;												
+						// (standaloneSig's calculation was finished at the start of this loop)
+					
+					if (alias_tf_idf_sig > shp.masterAliasSH.maxDocSig) {
+						shp.masterAliasSH.maxDocSig = alias_tf_idf_sig;
+					}					
+					shp.masterAliasSH.datasetSignificance += alias_tf_idf_sig/(double)shp.masterAliasSH.nDocCountInQuerySubset;
+						// (use the nEntsInContainingDocs because here we do care about the overlap)
+					
+				}//TESTED
+				// end Stage 3b alias processing
+				
 				entBucket.doc.nLeftToProcess--;
 				if (0 == entBucket.doc.nLeftToProcess) {
 
@@ -845,12 +941,32 @@ public class ScoringUtils
 			//TESTED
 			
 			// Insert entities into the output priority queue
+			// NOTE LOCAL SHP CANNOT BE USED AFTER THE FOLLOWING CLAUSE
 			
 			if (_s0_nNumEntsReturn > 0) {
+				
+				// Stage 3c alias processing:
+				if ((null != shp.masterAliasSH) && (shp.masterAliasSH.masterAliasSH != shp)) {					
+					continue; // (only promote the last of the aliased entities)
+				}//TESTED
+				else if (null != shp.masterAliasSH) { // (use aggregated aliased version if present)
+					
+					shp.masterAliasSH.unusedDbo = shp.unusedDbo;
+						// (overwriting this, which is fine since it's not used after stage 1)
+					shp.masterAliasSH.index = shp.index; // (just so I know what the index of this entity is) 
+					// (overwriting this, which is fine since it's not used after the first ent of the alias group in this stage)
+					
+					shp.masterAliasSH.entityInstances = shp.entityInstances;
+						// (the only 2 fields that are needed but weren't present)
+					shp = shp.masterAliasSH;					
+				}//TESTED
+				// end stage 3c of alias processing
+				
 				if (_s3_pqEnt.size() < _s0_nNumEntsReturn) {						
 					_s3_pqEnt.add(shp);						
 				}
 				if ((_s3_pqEnt.size() >= _s0_nNumEntsReturn) && (_s0_nNumEntsReturn > 0)) {
+					
 					EntSigHolder qsf = _s3_pqEnt.element();
 					if (shp.datasetSignificance > qsf.datasetSignificance) {
 						_s3_pqEnt.remove();
@@ -858,6 +974,8 @@ public class ScoringUtils
 					}
 				}				
 			}//TESTED
+			
+			// (NOTE LOCAL SHP CANNOT BE USED FROM HERE - IE NO MORE CODE IN THIS LOOP!)	
 			
 		} // (end loop over entities)
 
@@ -1047,7 +1165,8 @@ public class ScoringUtils
 					f.removeField(DocumentPojo.metadata_);
 				} //TESTED
 				
-				if (null != l) {		
+				if (null != l) {
+					
 					for(Iterator<?> e0 = l.iterator(); e0.hasNext();){
 						BasicDBObject e = (BasicDBObject)e0.next();
 						
@@ -1058,8 +1177,12 @@ public class ScoringUtils
 							}
 						}
 						
-						// Output filter
-						if (null != _s0_entityTypeFilter) {
+						//TODO (INF-1203): need to integrate entity type filter with aliases
+						// while remaining mostly efficient (eg mark doc as containing aliases, choose
+						// order? Ditto for associations) 
+						
+						// Output filter 
+						if (null != _s0_entityTypeFilter) {							
 							String entType = e.getString(EntityPojo.type_);
 							if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
 								e0.remove();
@@ -1071,7 +1194,22 @@ public class ScoringUtils
 						if (null == entity_index) continue;
 	
 						EntSigHolder shp = (EntSigHolder)_s1_entitiesInDataset.get(entity_index);
+						
 						if (null != shp) {
+							// Stage 4x: alias processing, just overwrite 
+							// (note don't delete "duplicate entities", hard-to-be-globally-consistent
+							//  and will potentially throw data away which might be undesirable)
+							if (null != shp.masterAliasSH) {
+								shp = shp.masterAliasSH; // (already has all the aggregated values used below)
+								if (!entity_index.equals(shp.aliasInfo.getIndex())) {
+									e.put(EntityPojo.index_, shp.aliasInfo.getIndex());
+									e.put(EntityPojo.disambiguated_name_, shp.aliasInfo.getDisambiguatedName());
+									e.put(EntityPojo.type_, shp.aliasInfo.getType());
+									e.put(EntityPojo.dimension_, shp.aliasInfo.getDimension());								
+								}
+							}//TESTED
+							// end Stage 4x of alias processing						
+						
 							double dataSig = shp.datasetSignificance;
 							if (Double.isNaN(dataSig)) {
 								e.put(EntityPojo.datasetSignificance_, 0.0);								
@@ -1132,6 +1270,8 @@ public class ScoringUtils
 				if (null == ent) {
 					int nTries = 0;
 					for (TempEntityInDocBucket tefb: qsf.entityInstances) {
+						// (Try to find an entity that wasn't promoted ie can now be re-used
+						//  if we can't find one quite quickly then bail out and we'll pay the cost of cloning it)
 						if (!tefb.doc.bPromoted) {
 							ent = tefb.dbo;
 							break;
@@ -1145,6 +1285,16 @@ public class ScoringUtils
 					}
 				}//TESTED
 				try {
+
+					if (null != qsf.aliasInfo) {
+						if (!qsf.index.equals(qsf.aliasInfo.getIndex())) {
+							ent.put(EntityPojo.index_, qsf.aliasInfo.getIndex());
+							ent.put(EntityPojo.disambiguated_name_, qsf.aliasInfo.getDisambiguatedName());
+							ent.put(EntityPojo.type_, qsf.aliasInfo.getType());
+							ent.put(EntityPojo.dimension_, qsf.aliasInfo.getDimension());								
+						}
+					}//TESTED
+					
 					if (null == ent.get(EntityPojo.datasetSignificance_)) { // Not getting promoted so need to add fields...						
 						if (Double.isNaN(qsf.datasetSignificance)) {
 							ent.put("datasetSignificance", 0.0);								
@@ -1219,5 +1369,31 @@ public class ScoringUtils
 		}
 		return nDocCount;
 	}//TESTED
+
+	// The overall plan is:
+	// S1: identify alias (write helper function based on the code above), calculate overlapping doc count
+	// S2: calc pythag significance, store first/last values ready for S3
+	// S3: first time through, do sqrt bit of pythag, last time through add to PQ
+	// S4: overwrite the entity values with aliased entities where necessary
 	
+	private void stage1_initAlias(EntSigHolder shp) {
+		EntityFeaturePojo alias = _aliasLookup.doLookupFromIndex(shp.index);
+		if (null != alias) { // overwrite index
+			EntSigHolder masterAliasSH = null;
+			if (null == _s1_aliasSummary) {
+				_s1_aliasSummary = new HashMap<String, EntSigHolder>();
+			}
+			else {
+				masterAliasSH = _s1_aliasSummary.get(alias.getIndex());
+			}
+			if (null == masterAliasSH) {
+				masterAliasSH = new EntSigHolder(null, 0, null); //(use ESH as handy collection of req'd vars)
+				_s1_aliasSummary.put(alias.getIndex(), masterAliasSH);							
+			}			
+			shp.masterAliasSH = masterAliasSH;
+			shp.aliasInfo = alias;
+			shp.masterAliasSH.aliasInfo = alias; // (no harm storing this in 2 places)
+		}
+	}//TESTED
+
 }

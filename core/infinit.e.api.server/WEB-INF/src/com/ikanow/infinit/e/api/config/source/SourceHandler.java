@@ -173,7 +173,7 @@ public class SourceHandler
 		try 
 		{
 			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
-			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, userIdStr);
+			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, userIdStr);
 			
 			//create source object
 			SourcePojo newSource = new SourcePojo();
@@ -264,7 +264,7 @@ public class SourceHandler
 		
 		try {
 			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
-			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, ownerIdStr);
+			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, ownerIdStr);
 			
 			///////////////////////////////////////////////////////////////////////
 			// Try parsing the json into a SourcePojo object
@@ -1045,6 +1045,15 @@ public class SourceHandler
 	 * @param ownerIdStr
 	 * @return
 	 */
+	private boolean isOwnerModeratorOrContentPublisherOrSysAdmin(String communityIdStr, String ownerIdStr)
+	{
+		isOwnerOrModerator = CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr);
+		if (!isOwnerOrModerator) {
+			isSysAdmin = RESTTools.adminLookup(ownerIdStr);
+		}
+		boolean isApproved = (isOwnerOrModerator || isSysAdmin) ? true : false;
+		return isApproved;
+	}	
 	private boolean isOwnerModeratorOrSysAdmin(String communityIdStr, String ownerIdStr)
 	{
 		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);

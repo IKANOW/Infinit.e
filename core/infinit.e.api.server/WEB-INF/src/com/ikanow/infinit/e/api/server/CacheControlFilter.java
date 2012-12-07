@@ -16,13 +16,21 @@
 package com.ikanow.infinit.e.api.server;
 
 import javax.servlet.*;
+import javax.servlet.http.Cookie;
 import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletRequestWrapper;
 import javax.servlet.http.HttpServletResponse;
+import javax.servlet.http.HttpServletResponseWrapper;
 
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 
+import java.io.ByteArrayOutputStream;
+import java.io.CharArrayWriter;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.util.Date;
+import java.util.Enumeration;
+import java.util.StringTokenizer;
 import java.util.regex.Pattern;
 
 // This class is only referenced in api.war's web.xml, to append cache-control headers
@@ -30,6 +38,114 @@ import java.util.regex.Pattern;
 
 public class CacheControlFilter implements Filter {
 
+	// Used for JSONP transformation
+	public class CharResponseWrapper extends HttpServletResponseWrapper {
+		private CharArrayWriter output1;
+		private BufferedServletOutputStream output2;
+		@Override
+		public String toString() {
+			if (null != output1) {
+				return output1.toString();
+			}
+			else if (null != output2) {
+				return new String(output2.getBuffer());
+			}
+			return null;
+		}
+		public CharResponseWrapper(HttpServletResponse response){
+			super(response);
+			
+		}
+		@Override
+		public PrintWriter getWriter(){
+			if (null == output1) {
+				output1 = new CharArrayWriter();
+			}
+			return new PrintWriter(output1);
+		}	   
+		@Override
+		public ServletOutputStream getOutputStream() {
+			if (null == output2) {
+				output2 = new BufferedServletOutputStream();
+			}
+			return output2;
+		}
+	}//TESTED (getOutputStream only)
+	public class BufferedServletOutputStream extends ServletOutputStream {
+	    // the actual buffer
+	    private ByteArrayOutputStream bos = new ByteArrayOutputStream( );
+
+	    public byte[] getBuffer( ) {
+	        return this.bos.toByteArray( );
+	    }
+	    public void write(int data) {
+	        this.bos.write(data);
+	    }
+	    public void reset( ) {
+	        this.bos.reset( );
+	    }
+	    public void setBufferSize(int size) {
+	        this.bos = new ByteArrayOutputStream(size);
+	    }
+	}//TESTED
+	
+	// Used for API key transformation
+	public static class ExtendedServletRequest extends HttpServletRequestWrapper {
+
+		String apiKey = null;
+		private Cookie[] cookie = new Cookie[1];
+		public ExtendedServletRequest(HttpServletRequest request) {
+			super(request);
+		}
+		public void setCookie(String apiKey) {
+			this.apiKey = apiKey;
+			cookie[0] = new Cookie("infinitecookie", apiKey);
+		}
+		@Override
+		public Cookie[] getCookies() { 
+			return cookie;
+		}
+
+		@Override
+		public String getHeader(String headerName)
+		{            
+			if (headerName.equalsIgnoreCase("Cookie")) {
+				return "infinitecookie=" + apiKey;
+			}
+			else return super.getHeader(headerName);
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Override
+		public Enumeration getHeaderNames()
+		{            
+			if (null == super.getHeaderNames()) {
+				return new StringTokenizer("Cookie");
+			}
+			else {
+				StringBuffer currHeader = new StringBuffer("Cookie");
+				for (Enumeration e = super.getHeaderNames() ; e.hasMoreElements() ;) {
+					String field = (String) e.nextElement();
+					if (!field.equalsIgnoreCase("Cookie")) {
+						currHeader.append('\n').append(field);
+					}
+				}
+				return new StringTokenizer(currHeader.toString());
+			}//TESTED
+		}
+
+		@SuppressWarnings("rawtypes")
+		@Override
+		public Enumeration getHeaders(String headerName)
+		{            
+			if (headerName.equalsIgnoreCase("Cookie")) {
+				return new StringTokenizer("infinitecookie=" + apiKey);
+			}
+			else return super.getHeaders(headerName);
+		}
+		
+	}//TESTED
+	
     public void doFilter(ServletRequest request, ServletResponse response,
                          FilterChain chain) throws IOException, ServletException {
 
@@ -44,7 +160,51 @@ public class CacheControlFilter implements Filter {
     			resp.sendError(403, "Locally disabled REST call: " + req.getRemoteAddr() + " / " + req.getRequestURI());
     			return;
     		}
-    	}    	
+    	}
+    	
+    	// API key handling:
+    	// (can't call getParameter for POSTs because you can only call it once)
+    	
+    	int nInfiniteApiKey = -1;
+    	String queryString = req.getQueryString();
+    	if ((null != queryString) && ((nInfiniteApiKey = queryString.indexOf("infinite_api_key=")) >= 0))
+    	{
+    		if ((0 == nInfiniteApiKey) || ('&' == queryString.charAt(nInfiniteApiKey - 1))) {
+    			nInfiniteApiKey += 17; // (jumps over attribute size)
+    			int nEndApiKey = queryString.indexOf('&', nInfiniteApiKey + 1);
+    			String apiKey = null;
+    			if (nEndApiKey < 0) {
+    				apiKey = queryString.substring(nInfiniteApiKey);    				
+    			}
+    			else {
+    				apiKey = queryString.substring(nInfiniteApiKey, nEndApiKey);
+    			}    			
+            	ExtendedServletRequest tmpReq = new ExtendedServletRequest(req);
+            	tmpReq.setCookie("api:" + apiKey);
+            	request = tmpReq;
+    		}
+    	}//TESTED
+
+    	// JSONP parsing...
+    	
+    	String jsonpCallbackStr = null;
+    	int nJsonpCallback = -1;
+    	HttpServletResponse actualResponse = resp;
+    	if ((null != queryString) && ((nJsonpCallback = queryString.indexOf("jsonp=")) >= 0))
+    	{
+    		if ((0 == nJsonpCallback) || ('&' == queryString.charAt(nJsonpCallback - 1))) {
+    			nJsonpCallback += 6; // (jumps over attribute size)
+    			int nEndJsonp = queryString.indexOf('&', nJsonpCallback + 1);
+    			if (nEndJsonp < 0) {
+    				jsonpCallbackStr = queryString.substring(nJsonpCallback);    				
+    			}
+    			else {
+    				jsonpCallbackStr = queryString.substring(nJsonpCallback, nEndJsonp);
+    			}
+    			response = new CharResponseWrapper(resp);
+    		}
+    		
+    	}//TESTED	
     	
         resp.setHeader("Expires", "0");
         resp.setHeader("Last-Modified", new Date().toString());
@@ -52,6 +212,17 @@ public class CacheControlFilter implements Filter {
         resp.setHeader("Pragma", "no-cache");
 
         chain.doFilter(request, response);
+        
+        if (null != jsonpCallbackStr) {
+        	String json = ((CharResponseWrapper)response).toString();
+        	actualResponse.setHeader("Content-Type", "application/javascript");
+        	actualResponse.setContentLength(jsonpCallbackStr.length() + json.length() + 3);
+        	actualResponse.getWriter().write(jsonpCallbackStr);
+        	actualResponse.getWriter().write("(");
+        	actualResponse.getWriter().write(json);
+        	actualResponse.getWriter().write(");");
+        	actualResponse.getWriter().flush();
+        }//TESTED
     }
 
     public void destroy() {

@@ -46,6 +46,7 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	private Date created = null;
 	private Date modified = null;
 	private String WPUserID = null;
+	private String apiKey = null;
 	
 	/** 
 	  * Get the id
@@ -158,6 +159,12 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	}
 	public String getWPUserID() {
 		return WPUserID;
+	}
+	public void setApiKey(String apiKey) {
+		this.apiKey = apiKey;
+	}
+	public String getApiKey() {
+		return apiKey;
 	}
 	
 }

@@ -185,13 +185,14 @@ public class PropertiesManager {
 	 */
 	
 	public int getAlchemyPostProcessingSetting() {
-		String s = this.getProperty("app.alchemy.postproc");
+		String s = this.getProperty("app.alchemyapi.postproc"); 
 		if (null == s) {
-			return 0;
+			s = this.getProperty("app.alchemy.postproc"); // (backwards compatible)
+			if (null == s) {
+				return 0;
+			}
 		}
-		else {
-			return Integer.parseInt(s.toLowerCase());
-		}
+		return Integer.parseInt(s.toLowerCase());
 	}
 	
 	public Boolean getExtractionCapabilityEnabled(String name, String function) {  

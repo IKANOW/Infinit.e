@@ -58,7 +58,9 @@ fi
 CONNECTOR_PORT="${CONNECTOR_PORT:-8080}"
 
 # Path to the tomcat launch script
-TOMCAT_SCRIPT="/usr/sbin/tomcat6"
+#(this doesn't work with later versions, just use the older version, which is fine as far as I can tell)
+#(overridden in the sysconfig file sourced above)
+TOMCAT_SCRIPT="${TOMCAT_SCRIPT:-/usr/sbin/tomcat6}"
 
 # Tomcat program name
 TOMCAT_PROG="${NAME}"

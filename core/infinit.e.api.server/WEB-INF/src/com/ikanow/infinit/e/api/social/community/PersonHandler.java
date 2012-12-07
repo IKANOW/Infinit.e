@@ -289,6 +289,7 @@ public class PersonHandler
 			else {
 				ap.setModified(df.parse(wpa.getModified()));				
 			}
+			ap.setApiKey(wpa.getApiKey());
 			
 			//Step 5 Save all of these objects to the DB
 			DbManager.getSocial().getPerson().insert(pp.toDb());
@@ -310,6 +311,17 @@ public class PersonHandler
 			}								
 			rp.setResponse(new ResponseObject("WP Register User",true,"User Registered Successfully"));
 			rp.setData(ap, new AuthenticationPojoApiMap());
+			
+			// OK we're all good, finally for API key users create a persistent cookie:
+			if (null != ap.getApiKey()) {
+				CookiePojo cp = new CookiePojo();
+				cp.set_id(profileId);
+				cp.setCookieId(cp.get_id());
+				cp.setApiKey(wpa.getApiKey());
+				cp.setStartDate(ap.getCreated());
+				cp.setProfileId(profileId);
+				DbManager.getSocial().getCookies().save(cp.toDb());
+			}//TOTEST
 		}
 		catch (Exception ex )
 		{
@@ -478,6 +490,28 @@ public class PersonHandler
 			//Handle dates (just update modified times)
 			pp.setModified(new Date());
 			ap.setModified(new Date());
+			
+			if ((null != wpa.getApiKey()) && (0 == wpa.getApiKey().length()) && (null != ap.getApiKey()))			
+			{
+				// Delete existing API key
+				CookiePojo removeMe = new CookiePojo();
+				removeMe.setApiKey(ap.getApiKey());
+				ap.setApiKey(null);				
+				DbManager.getSocial().getCookies().remove(removeMe.toDb());
+			}
+			else if (null != wpa.getApiKey()) {
+				// Change or create API key
+				ap.setApiKey(wpa.getApiKey());
+				CookiePojo cp = new CookiePojo();
+				cp.set_id(ap.getProfileId());
+				cp.setCookieId(cp.get_id());
+				cp.setApiKey(wpa.getApiKey());
+				cp.setStartDate(ap.getCreated());
+				cp.setProfileId(ap.getProfileId());
+				DbManager.getSocial().getCookies().save(cp.toDb());								
+			}
+			//TOTEST
+			//else if api key is null then leave alone, assume hasn't changed
 			
 			//update old entries
 			DbManager.getSocial().getPerson().update(new BasicDBObject("_id", pp.get_id()), pp.toDb());

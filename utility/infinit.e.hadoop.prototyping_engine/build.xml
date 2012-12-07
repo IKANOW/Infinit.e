@@ -1,25 +1,145 @@
-<?xml version="1.0" encoding="UTF-8" standalone="no"?>
-<project default="create_run_jar" name="Create Runnable Jar for Project infinit.e.hadoop.prototyping_engine">
-    <!--this file was created by Eclipse Runnable JAR Export Wizard-->
-    <!--ANT 1.7 is required                                        -->
-    <target name="create_run_jar">
-        <jar destfile="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/infinit.e.hadoop.prototyping_engine.jar" filesetmanifest="mergewithoutmain">
-            <manifest>
-                <attribute name="Main-Class" value="com.ikanow.infinit.e.utility.hadoop.HadoopPrototypingTool"/>
-                <attribute name="Class-Path" value="."/>
-            </manifest>
-            <fileset dir="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/bin"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/hadoop-core-0.20.2-cdh3u2.jar"/>
-            <fileset dir="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/mongo-2.7.2.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/mongo-hadoop-core.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/infinit.e.data_model-v0.1-5776.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/commons-cli-1.2.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/commons-httpclient-3.1.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/commons-logging-1.1.1.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/jackson-core-asl-1.8.1.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/jackson-mapper-asl-1.8.1.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="C:/Users/acp/workspace-ikanow-v0/infinit.e.hadoop.prototyping_engine/lib/jackson-xc-1.8.1.jar"/>
-        </jar>
-    </target>
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.hadoop.prototyping_engine" default="dist" basedir=".">
+
+	<property name="dir.src" value="src"/>
+	<property name="dir.src.test" value="test" />
+	<property name="dir.lib" value="lib"/>
+	<property name="dir.build" value="build"/>
+	<property name="dir.build.classes" value="${dir.build}/classes"/>
+	<property name="dir.build.test.classes" value="${dir.build}/test-classes"/>
+	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
+	<property name="dir.build.jar" value="${dir.build}/jar"/>
+	<property name="dir.dist" value="dist"/>
+	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
+	
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	
+	<property name="debuglevel" value="source,lines,vars"/>	
+	<property name="test.pattern" value="**/**Test.java" />		
+	
+	<property name="manifest.name" value="com/ikanow/infinit/e"/>
+	<property name="specification.title" value="infinit.e generic javascript Hadoop engine"/>
+	<property name="specification.version" value="0.25"/>
+	<property name="specification.vendor" value="${vendor}"/>
+	<property name="implementation.title" value="com.ikanow.infinit.e"/>
+	<property name="implementation.version" value="build${build.number}"/>
+	<property name="implementation.vendor" value="${vendor}"/>
+
+		
+    <path id="infinit.e.hadoop.prototyping_engine.classpath">
+        <pathelement location="${dir.build.classes}"/>
+    	
+    	<fileset dir="lib">
+        	<include name="**/*.jar"/>
+        </fileset>
+
+	</path>
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.dist}"/>
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="./ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+	
+	
+	<!-- ================================= 
+	  target: compile  
+	  compile the source code using javac            
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}"/>
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+			<classpath refid="infinit.e.hadoop.prototyping_engine.classpath"/>
+			</javac>
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	<!-- No tests  for the moment
+	-->
+		
+	<!-- =================================
+			target: test
+	==================================-->
+	<!-- No tests  for the moment
+	-->
+	
+	<!-- ================================= 
+			     target: jar              
+		================================= -->
+	<target name="jar" depends="compile" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+		<mkdir dir="${dir.build.jar}"/>
+
+		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
+		<pathconvert property="libs.jar.bundled" pathsep=" ">
+			<mapper>
+				<chainedmapper>
+				<!-- remove absolute path -->
+				<flattenmapper />
+				<!-- add lib/ prefix -->
+				<globmapper from="*" to="*" />
+				  </chainedmapper>
+			</mapper>
+			<path>
+			  <!-- Get a list of all the excluded files, add manually to classpath -->
+			  <fileset dir="${dir.lib}" includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar RangeMap.jar"/>
+			</path>
+		</pathconvert>
+
+		<!-- Copy XML resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.js,**/*.json,**/*.xml,**/*.properties,**/*.txt,**/*.ico" />
+		</copy>		
+		
+		<!-- Bundled Jar for processing.custom with required libraries -->
+		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". ${libs.jar.bundled}"/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}"/>
+
+	  		<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions or RangeMap.jar -->
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="RangeMap.jar jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar"/>
+		</jar>
+	</target>
+	
+	<!-- ================================= 
+			     target: dist              
+		================================= -->
+	<target name="dist" depends="jar" description="Create binary distribution">
+		  <!-- contains the jars -->
+		  <mkdir dir="${dir.dist}" />
+		
+		  <!-- copy the bundled jars into the bundled directory -->
+		  <copy file="${dir.build.jar}/${ant.project.name}.jar" tofile="${dir.dist}/${ant.project.name}.jar"/>
+	</target>
 </project>

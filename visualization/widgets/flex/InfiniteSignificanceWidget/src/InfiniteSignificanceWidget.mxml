@@ -445,6 +445,19 @@
 			}
 			
 			/**
+			 * function to add entities to the query
+			 *
+			 * @param event The MouseEvent received when the add to query button is pressed
+			 */
+			private function createExternalSearch( event:MouseEvent ):void
+			{
+				var urlComp:String = encodeURIComponent( '"' + entityToSend.selectedItem.entity.disambiguated_name + '"' );
+				var externalUrl:String = ExternalInterface.call( 'getSearchUrl', urlComp );
+				var url:URLRequest = new URLRequest( externalUrl );
+				navigateToURL( url, '_blank' );
+			}
+			
+			/**
 			 * function to render the tool tip to display information about the entity being hovered over
 			 *
 			 * @param data The data for the given entity being hovered over
@@ -954,7 +967,6 @@
 				queryTerms.addItem( newTerm );
 				_context.setCurrentQuery( query, "qt" );
 			}
-			
 			/**
 			 * function to load data for each series
 			 *
@@ -1030,6 +1042,15 @@
 			<components:WidgetPlusButton id="addToQueryButton"
 				toolTip="Add to Query"
 				click="send2Query(event)" />
+
+			<!-- External search button -->
+			<components:WidgetHeaderButton id="doExternalSearchButton"
+				height="100%"
+				label="{ ExternalInterface.call( 'getSearchProvider' ) }"
+				toolTip="Perform external search on the selected entity"
+				includeInLayout="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }"
+				click="createExternalSearch(event)"
+				visible="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }" />
 
 			<!-- Sort Options Drop Down List -->
 			<components:WidgetDropDownList id="sortOptions"

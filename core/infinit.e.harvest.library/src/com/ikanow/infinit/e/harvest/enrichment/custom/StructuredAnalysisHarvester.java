@@ -2171,7 +2171,12 @@ public class StructuredAnalysisHarvester
 			}
 
 			// If all the indexes are null don't add the association
-			if (e.getEntity1_index() == null && e.getEntity2_index() == null && e.getGeo_index() == null) return null;
+			if (e.getEntity1_index() == null && e.getEntity2_index() == null && e.getGeo_index() == null) {
+				if (bDontResolveToIndices  && _context.isStandalone()) { // (minor message, while debugging only)
+					_context.getHarvestStatus().logMessage("Warning: for summaries, at least one entity must be manually specified as an index", true);
+				}
+				return null;
+			}
 			
 			// Calculate association type
 			if (bDontResolveToIndices) {
@@ -2278,7 +2283,7 @@ public class StructuredAnalysisHarvester
 			}
 			if (errorOnNull && (null == retVal) && _context.isStandalone()) { // Display warning:
 				StringBuffer error = new StringBuffer("Failed to get value from: ");
-				error.append("script=").append(script).append("; iterator=").append(iterator.toString()).
+				error.append("script=").append(script).append("; iterator=").append(null==iterator?"null":iterator.toString()).
 										append("; value=").append(null==value?"null":value).
 										append("; index=").append(index == null?iteratorIndex:index);
 				
@@ -2287,7 +2292,9 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception e)
 		{
-			//e.printStackTrace();
+			/**///
+			//TODO (INF-1820):			
+			e.printStackTrace();
 			
 			StringBuffer error = HarvestExceptionUtils.createExceptionMessage(e);
 			error.append(": script=").append(script);

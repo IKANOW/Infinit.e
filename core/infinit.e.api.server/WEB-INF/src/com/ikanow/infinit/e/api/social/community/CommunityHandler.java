@@ -1469,7 +1469,15 @@ public class CommunityHandler
 	 * @param personIdStr
 	 * @return
 	 */
+	public static boolean isOwnerOrModeratorOrContentPublisher(String communityIdStr, String personIdStr) 
+	{
+		return  isOwnerOrModerator(communityIdStr, personIdStr, true);
+	}
 	public static boolean isOwnerOrModerator(String communityIdStr, String personIdStr) 
+	{
+		return  isOwnerOrModerator(communityIdStr, personIdStr, false);
+	}
+	private static boolean isOwnerOrModerator(String communityIdStr, String personIdStr, boolean bAllowContentPublisher) 
 	{	
 		boolean isOwnerOrModerator = false;
 		
@@ -1496,6 +1504,8 @@ public class CommunityHandler
 					for (CommunityMemberPojo c : members)
 					{
 						if (c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("moderator"))
+							isOwnerOrModerator = true;
+						else if (bAllowContentPublisher && c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("content_publisher"))
 							isOwnerOrModerator = true;
 					}
 				}

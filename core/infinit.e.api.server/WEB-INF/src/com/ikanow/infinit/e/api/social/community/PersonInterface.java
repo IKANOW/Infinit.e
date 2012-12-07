@@ -82,7 +82,7 @@ public class PersonInterface extends ServerResource
 		 {
 			 if ( urlStr.contains("/person/register") ) {
 				 needCookie = false;
-				 action = "register";				 
+				 action = "register";			
 			 }
 			 else if ( urlStr.contains("/person/update") ) {
 				 needCookie = false;
@@ -138,7 +138,8 @@ public class PersonInterface extends ServerResource
 					 WordPressUserPojo user = new WordPressUserPojo();
 					 WordPressAuthPojo auth = new WordPressAuthPojo();
 					 user.setWPUserID(wpuser); // (this is ignored if a normal user is logged in)
-					 user.setEmail(Arrays.asList(wpauth));
+					 String[] emails = wpauth.split("\\s*,\\s*");
+					 user.setEmail(Arrays.asList(emails));
 					 wpuser = user.toApi();
 					 wpauth = auth.toApi();
 				 }
@@ -160,7 +161,6 @@ public class PersonInterface extends ServerResource
 	@Post
 	public Representation post(Representation entity)   
 	{
-
 		if (Method.POST == getRequest().getMethod()) 
 		{
 			try {

@@ -43,6 +43,7 @@ import org.w3c.dom.NodeList;
 
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
@@ -53,6 +54,8 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 
 public class ExtractorOpenCalais implements IEntityExtractor 
 {	
@@ -74,6 +77,12 @@ public class ExtractorOpenCalais implements IEntityExtractor
     private static AtomicLong num_extraction_collisions = new AtomicLong(0);
     private static AtomicLong num_extraction_requests = new AtomicLong(0);
 	
+    private boolean bAddRawEventsToMetadata = false;
+    
+	//_______________________________________________________________________
+	//_____________________________INITIALIZATION________________
+	//_______________________________________________________________________
+
 	public ExtractorOpenCalais()
 	{		
 		PropertiesManager props = new PropertiesManager();
@@ -94,7 +103,45 @@ public class ExtractorOpenCalais implements IEntityExtractor
 			}
 		}
 	}
+	// Configuration: override global configuration on a per source basis
 	
+	private boolean configured = false;
+	
+	private void configure(SourcePojo source)
+	{
+		if (configured) {
+			return;
+		}
+		configured = true;
+		
+		// SOURCE OVERRIDE
+		
+		Boolean bWriteMetadata = null;
+		
+		if ((null != source) && (null != source.getExtractorOptions())) {
+			try {
+				bWriteMetadata = Boolean.parseBoolean(source.getExtractorOptions().get("app.opencalais.store_raw_events"));
+			}
+			catch (Exception e){}
+		}
+		
+		// DEFAULT CONFIGURATION
+		
+		PropertiesManager properties = new PropertiesManager();
+		
+		try {
+			if (null == bWriteMetadata) { // (ie not per source)
+				bWriteMetadata = properties.getExtractionCapabilityEnabled(getName(), "store_raw_events");			
+			}
+		}
+		catch (Exception e) {}
+
+		// ACTUALLY DO CONFIGURATION
+		
+		if (null != bWriteMetadata) {
+			bAddRawEventsToMetadata = bWriteMetadata;
+		}
+	}	
 	//_______________________________________________________________________
 	//_____________________________ENTITY EXTRACTOR FUNCTIONS________________
 	//_______________________________________________________________________
@@ -111,6 +158,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	@Override
 	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException 
 	{
+		configure(partialDoc.getTempSource());
+		
 		num_extraction_requests.incrementAndGet();
 		try 
 		{
@@ -148,6 +197,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
 				Iterator<JsonNode> iter = root.getElements();
 				Iterator<String> iterNames = root.getFieldNames();
 				List<JsonNode> eventNodes = new ArrayList<JsonNode>();
+				BasicDBList rawEventObjects = null;
 				while ( iter.hasNext() )
 				{
 					String currNodeName = iterNames.next();
@@ -183,7 +233,6 @@ public class ExtractorOpenCalais implements IEntityExtractor
 									logger.error(ex.getMessage(),ex);
 								}
 								ep.setActual_name(name);
-								ep.setDisambiguatedName(name);
 								ep.setRelevance(Double.parseDouble(currNode.get("relevance").getValueAsText()));
 								ep.setFrequency((long)currNode.get("instances").size());
 								//attempt to get resolutions if they exist
@@ -205,7 +254,10 @@ public class ExtractorOpenCalais implements IEntityExtractor
 										gp.lon = Double.parseDouble(lon);
 										ep.setGeotag(gp);
 									}	
-								}														
+								}
+								else {
+									ep.setDisambiguatedName(name); // use actual name)									
+								}
 								entityNameMap.put(currNodeName.toLowerCase(), ep);
 								entities.add(ep);
 							}
@@ -221,8 +273,12 @@ public class ExtractorOpenCalais implements IEntityExtractor
 					}					
 				}
 				//handle events
+				if (bAddRawEventsToMetadata) {
+					// For now just re-process these into DB objects since we know that works...
+					rawEventObjects = new BasicDBList();
+				}
 				for ( JsonNode eventNode : eventNodes )
-				{
+				{					
 					AssociationPojo event = parseEvent(eventNode);
 					//remove useless events (an event is useless if it only has a verb (guessing currently)
 					if ( null != event )
@@ -233,6 +289,34 @@ public class ExtractorOpenCalais implements IEntityExtractor
 							events.add(event);
 						}
 					}
+					if (bAddRawEventsToMetadata) {
+						BasicDBObject eventDbo = (BasicDBObject) com.mongodb.util.JSON.parse(eventNode.toString());
+						if (null != eventDbo) {
+							BasicDBObject transformObj = new BasicDBObject();
+							for (Map.Entry<String, Object> entries: eventDbo.entrySet()) {
+								if (entries.getValue() instanceof String) {
+									String val = (String) entries.getValue();
+									EntityPojo transformVal = findMappedEntityName(val);
+									if (null != transformVal) {
+										transformObj.put(entries.getKey(), transformVal.getIndex());										
+										transformObj.put(entries.getKey() + "__hash", val);										
+									}
+									else {
+										transformObj.put(entries.getKey(), val);										
+									}
+								}
+								else {
+									transformObj.put(entries.getKey(), entries.getValue());
+								}
+							}
+							
+							// (add to another list, which will get written to metadata)
+							rawEventObjects.add(transformObj);
+						}
+					}
+				}
+				if (bAddRawEventsToMetadata) {
+					partialDoc.addToMetadata("OpenCalaisEvents", rawEventObjects.toArray());
 				}
 				if (null != partialDoc.getEntities()) {
 					partialDoc.getEntities().addAll(entities);
@@ -251,15 +335,16 @@ public class ExtractorOpenCalais implements IEntityExtractor
 			}
 			else // Error back from OC, presumably the input doc is malformed/too long
 			{
-				throw new InfiniteEnums.ExtractorDocumentLevelException();
+				throw new InfiniteEnums.ExtractorDocumentLevelException(Integer.toString(responseCode));
 			}
 		} 
 		catch (Exception e)
 		{		
 			//DEBUG
 			//e.printStackTrace();
+			logger.debug("OpenCalais", e);
 			//there was an error, so we return null instead
-			throw new InfiniteEnums.ExtractorDocumentLevelException();
+			throw new InfiniteEnums.ExtractorDocumentLevelException(e.getMessage());
 		}
 	}
 

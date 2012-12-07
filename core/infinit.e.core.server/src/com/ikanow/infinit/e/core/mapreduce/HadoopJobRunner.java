@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.core.mapreduce;
 import java.io.BufferedOutputStream;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
+import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.FileWriter;
@@ -25,8 +26,11 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
+import java.io.StringWriter;
+import java.io.Writer;
 import java.net.InetSocketAddress;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.net.URLConnection;
 
 import java.util.ArrayList;
@@ -47,6 +51,11 @@ import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobStatus;
+import org.apache.hadoop.mapreduce.InputFormat;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.OutputFormat;
+import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.w3c.dom.Document;
@@ -89,32 +98,62 @@ public class HadoopJobRunner
 	final long SECONDS_60 = 60000;
 	
 	private boolean bHadoopEnabled = true;
+	private boolean bLocalMode = false;
 	
 	public HadoopJobRunner()
 	{
+		bLocalMode = prop_custom.getHadoopLocalMode();
 		try {
 			@SuppressWarnings("unused")
 			JobClient jc = new JobClient(getJobClientConnection(), new Configuration());
+			if (bLocalMode) {
+				System.out.println("Will run hadoop locally (infrastructure appears to exist).");				
+			}
 		}
 		catch (Exception e) { // Hadoop doesn't work
-			System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
+			if (bLocalMode) {
+				System.out.println("Will run hadoop locally (no infrastructure).");				
+			}
+			else {
+				System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
+			}
 			bHadoopEnabled = false;
 		}		
 	}
 	
-	public void runScheduledJobs()
+	public void runScheduledJobs(String jobOverride)
 	{				
 		//check mongo for jobs needing ran
-		CustomMapReduceJobPojo job = getJobsToRun();
-		while ( job != null )
-		{
-			if ( dependenciesNotStartingSoon(job) )
-			{
-				//Run each job				
+		
+		CustomMapReduceJobPojo job = null;
+		if (null != jobOverride) {
+			job = CustomMapReduceJobPojo.fromDb(
+					MongoDbManager.getCustom().getLookup().findOne(new BasicDBObject("jobtitle", jobOverride)),
+					CustomMapReduceJobPojo.class);
+			
+			if (null != job) {
+				job.lastRunTime = new Date();
+				job.nextRunTime = job.lastRunTime.getTime();
+				if (!bLocalMode) { 
+					// Need to store the times or they just get lost between here and the job completion check  
+					MongoDbManager.getCustom().getLookup().save(job.toDb());
+						// (not that efficient, but this is essentially a DB call so whatever)
+				}
 				runJob(job);
 			}
-			//try to get another available job
+		}
+		else {
 			job = getJobsToRun();
+			while ( job != null )
+			{
+				if ( dependenciesNotStartingSoon(job) )
+				{
+					//Run each job				
+					runJob(job);
+				}
+				//try to get another available job
+				job = getJobsToRun();
+			}
 		}
 	}
 	
@@ -189,12 +228,19 @@ public class HadoopJobRunner
 			}
 			
 			List<ObjectId> communityIds = getUserCommunities(job.submitterID);
-			
-			//get the jar file
 			job.tempJarLocation = downloadJarFile(job.jarURL, communityIds);		
+			
+			//OLD "COMMAND LINE: CODE
 			//add job to hadoop
+			//String jobid = runHadoopJob_commandLine(job, job.tempJarLocation);
+			
+			// Programmatic code:
 			String jobid = runHadoopJob(job, job.tempJarLocation);
-			if ( jobid != null && !jobid.startsWith("Error") )
+			
+			if ( jobid.equals("local_done")) { // (run locally)
+				setJobComplete(job, true, false, -1, -1, null);				
+			}
+			else if ( jobid != null && !jobid.startsWith("Error") )
 			{
 				time_setup = new Date().getTime() - time_start_setup;
 				_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=true job_hadoop_id=" + jobid);
@@ -207,7 +253,7 @@ public class HadoopJobRunner
 			else
 			{
 				time_setup = new Date().getTime() - time_start_setup;
-				_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=false");
+				_logger.info("job_setup_title=" + job.jobtitle + " job_setup_id=" + job._id.toString() + " job_setup_time=" + time_setup + " job_setup_success=false  job_setup_message=" + jobid);
 				//job failed, send off the error message
 				setJobComplete(job, true, true, -1, -1, jobid);
 			}
@@ -415,6 +461,12 @@ public class HadoopJobRunner
 			if (jarURL.startsWith("$infinite")) {
 				jarURL = jarURL.replace("$infinite", "http://localhost:8080");
 			}
+			else if (jarURL.startsWith("file://")) {
+				// Can't access the file system, except for this one nominated file:
+				if (!jarURL.equals("file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar")) {
+					throw new RuntimeException("Can't find JAR file or insufficient permissions");
+				}
+			}
 			
 			//download jar from external site
 			URL url = new URL(jarURL);
@@ -452,12 +504,100 @@ public class HadoopJobRunner
 		}
 	}
 	
-	private String runHadoopJob(CustomMapReduceJobPojo job, String jar)
+	@SuppressWarnings({ "unchecked", "rawtypes" })
+	private String runHadoopJob(CustomMapReduceJobPojo job, String tempJarLocation) throws IOException, SAXException, ParserConfigurationException
+	{
+		StringWriter xml = new StringWriter();
+		createConfigXML(xml, job.jobtitle,job.inputCollection, job.isCustomTable, job._id.toString(), job.outputCollectionTemp, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.outputKey, job.outputValue,job.arguments);
+		
+		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
+
+		URLClassLoader child = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, savedClassLoader);			
+		Thread.currentThread().setContextClassLoader(child);
+		
+		// Now load the XML into a configuration object: 
+		Configuration config = new Configuration();
+		
+		try {
+			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder dBuilder = dbFactory.newDocumentBuilder();
+			Document doc = dBuilder.parse(new ByteArrayInputStream(xml.toString().getBytes()));
+			NodeList nList = doc.getElementsByTagName("property");
+			
+			for (int temp = 0; temp < nList.getLength(); temp++) {			 
+				Node nNode = nList.item(temp);
+				if (nNode.getNodeType() == Node.ELEMENT_NODE) {				   
+					Element eElement = (Element) nNode;	
+					String name = getTagValue("name", eElement);
+					String value = getTagValue("value", eElement);
+					if ((null != name) && (null != value)) {
+						config.set(name, value);
+					}
+				}
+			}
+		}
+		catch (Exception e) {
+			throw new IOException(e.getMessage());
+		}
+		
+		// Now run the JAR file
+		try {
+
+			config.setBoolean("mapred.used.genericoptionsparser", true); // (just stops an annoying warning from appearing)
+			if (bLocalMode) {
+				config.set("mapred.job.tracker", "local");
+				config.set("fs.default.name", "local");							
+			}
+			else {
+				String trackerUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+				String fsUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
+				config.set("mapred.job.tracker", trackerUrl);
+				config.set("fs.default.name", fsUrl);				
+			}
+						
+			Job hj = new Job( config );
+			
+			Class<?> classToLoad = Class.forName (job.mapper, true, child);			
+			hj.setJarByClass(classToLoad);
+			hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
+			hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.mongodb.hadoop.MongoOutputFormat", true, child));
+			hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
+			hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
+			if (null != job.combiner) {
+				hj.setCombinerClass((Class<? extends Reducer>) Class.forName (job.combiner, true, child));
+			}
+			hj.setOutputKeyClass(Class.forName (job.outputKey, true, child));
+			hj.setOutputValueClass(Class.forName (job.outputValue, true, child));
+			
+			hj.setJobName(job.jobtitle);
+
+			if (bLocalMode) {
+				hj.waitForCompletion(false);
+				return "local_done";
+			}
+			else {
+				hj.submit();
+				String jobId = hj.getJobID().toString();
+				return jobId;
+			}			
+		}
+		catch (Exception e) {
+			
+			Thread.currentThread().setContextClassLoader(savedClassLoader);
+			return "Error: " + HarvestExceptionUtils.createExceptionMessage(e);
+		}
+		finally {
+			Thread.currentThread().setContextClassLoader(savedClassLoader);
+		}
+	}
+	
+	@SuppressWarnings("unused")
+	private String runHadoopJob_commandLine(CustomMapReduceJobPojo job, String jar)
 	{
 		String jobid = null;
 		try
 		{				
-			job.tempConfigXMLLocation = createConfigXML(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.isCustomTable, job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
+			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.isCustomTable, job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", prop_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
@@ -515,10 +655,24 @@ public class HadoopJobRunner
 	 * @param output
 	 * @throws IOException 
 	 */
-	private String createConfigXML( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputKey, String outputValue, String tempOutputCollection, String arguments) throws IOException
+	private String createConfigXML_commandLine( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputKey, String outputValue, String tempOutputCollection, String arguments) throws IOException
 	{		
-		//outputValue = "org.apache.hadoop.io.DoubleWritable";
-		//outputKey = "org.apache.hadoop.io.Text";
+		
+		if ( configLocation == null )
+			configLocation = assignNewConfigLocation();
+		
+		File configFile = new File(configLocation);
+		FileWriter fstream = new FileWriter(configFile);
+		BufferedWriter out = new BufferedWriter(fstream);
+		createConfigXML(out, title, input, isCustomTable, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments);
+		fstream.close();
+			
+		return configLocation;
+	}	
+	
+	private void createConfigXML( Writer out, String title, String input, boolean isCustomTable, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments) throws IOException
+	{
+		String dbserver = prop_general.getDatabaseServer();
 		output = "custommr." + tempOutputCollection;
 
 		//add communities to query if this is not a custom table
@@ -571,17 +725,9 @@ public class HadoopJobRunner
 			//get the custom table
 			input = "custommr." + getCustomCollection(input);
 		}		
-		
-		if ( configLocation == null )
-			configLocation = assignNewConfigLocation();
-		
 		if ( arguments == null )
 			arguments = "";
 		
-		File configFile = new File(configLocation);
-		FileWriter fstream = new FileWriter(configFile);
-		BufferedWriter out = new BufferedWriter(fstream);
-		String dbserver = prop_general.getDatabaseServer();
 		out.write("<?xml version=\"1.0\"?>\n<configuration>"+
 				"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
 				"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
@@ -607,14 +753,11 @@ public class HadoopJobRunner
 				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>8</value></property>"+
-				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>12500</value></property>"+
-				"\n</configuration>");
+				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>12500</value></property>"+				
+				"\n</configuration>");		
 		out.flush();
 		out.close();
-		fstream.close();
-			
-		return configLocation;
-	}	
+	}
 	
 	/**
 	 * Returns the current output collection for a certain jobid
@@ -723,7 +866,7 @@ public class HadoopJobRunner
 			query.append("jobidS", null);
 			query.append("waitingOn", new BasicDBObject(MongoDbManager.size_, 0)); 
 			query.append("nextRunTime", new BasicDBObject(MongoDbManager.lt_, new Date().getTime()));
-			if (!bHadoopEnabled) {
+			if (!bHadoopEnabled && !bLocalMode) {
 				// Can only get shared queries:
 				query.append("jarURL", null);
 			}
@@ -751,9 +894,10 @@ public class HadoopJobRunner
 		try
 		{						
 			BasicDBObject query = new BasicDBObject();
-			BasicDBObject nors[] = new BasicDBObject[2];
+			BasicDBObject nors[] = new BasicDBObject[3];
 			nors[0] = new BasicDBObject("jobidS", null);
 			nors[1] = new BasicDBObject("jobidS", "CHECKING_COMPLETION");
+			nors[2] = new BasicDBObject("jobidS", "");
 			query.put("$nor", Arrays.asList(nors));					
 			BasicDBObject updates = new BasicDBObject("jobidS", "CHECKING_COMPLETION");			
 			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, updates);
@@ -1122,20 +1266,6 @@ public class HadoopJobRunner
 	}		
 	
 	/**
-	 * Removes the config file that is not being used anymore.
-	 * 
-	 * @param file
-	 */
-	private void removeTempFile(String file)
-	{
-		if ( file != null )
-		{
-			File f = new File(file);
-			f.delete();
-		}
-	}
-
-	/**
 	 * Uses a map reduce jobs schedule frequency to determine when the next
 	 * map reduce job should be ran.
 	 * 
@@ -1173,6 +1303,52 @@ public class HadoopJobRunner
 		return cal.getTimeInMillis();
 	}
 	
+	/**
+	 * Calls the XML Parser to grab the job client address and opens a connection to
+	 * the server.  The parameters must be in the hadoopconfig/mapred-site.xml file
+	 * under the property "mapred.job.tracker"
+	 * 
+	 * @return Connection to the job client
+	 * @throws SAXException
+	 * @throws IOException
+	 * @throws ParserConfigurationException
+	 */
+	private InetSocketAddress getJobClientConnection() throws SAXException, IOException, ParserConfigurationException
+	{
+		String jobclientAddress = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+		String[] parts = jobclientAddress.split(":");
+		String hostname = parts[0];
+		int port = Integer.parseInt(parts[1]);		
+		return new InetSocketAddress(hostname, port);
+	}
+	
+//////////////////////////////////////////////////////////////////////////////////////////////////
+
+	// Utilities
+
+	private static String getTagValue(String sTag, Element eElement) {
+		NodeList nlList = eElement.getElementsByTagName(sTag).item(0).getChildNodes();		 
+		Node nValue = (Node) nlList.item(0);
+		if (null != nValue) {
+			return nValue.getNodeValue();
+		}
+		else {
+			return null;
+		}
+	}
+	/**
+	 * Removes the config file that is not being used anymore.
+	 * 
+	 * @param file
+	 */
+	private void removeTempFile(String file)
+	{
+		if ( file != null )
+		{
+			File f = new File(file);
+			f.delete();
+		}
+	}
 	/**
 	 * Parses a given xml file and returns the requested value of propertyName.
 	 * The XML is expected to be in a format: <configuration><property><name>some.prop.name</name><value>some.value</value></property></configuration>
@@ -1219,26 +1395,7 @@ public class HadoopJobRunner
         return null;
 	}
 	
-	/**
-	 * Calls the XML Parser to grab the job client address and opens a connection to
-	 * the server.  The parameters must be in the hadoopconfig/mapred-site.xml file
-	 * under the property "mapred.job.tracker"
-	 * 
-	 * @return Connection to the job client
-	 * @throws SAXException
-	 * @throws IOException
-	 * @throws ParserConfigurationException
-	 */
-	private InetSocketAddress getJobClientConnection() throws SAXException, IOException, ParserConfigurationException
-	{
-		String jobclientAddress = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
-		String[] parts = jobclientAddress.split(":");
-		String hostname = parts[0];
-		int port = Integer.parseInt(parts[1]);		
-		return new InetSocketAddress(hostname, port);
-	}
-	
-	/////////////////////////////////////////////////////////////////////////////
+/////////////////////////////////////////////////////////////////////////////
 	
 	// Test code
 	
@@ -1248,6 +1405,5 @@ public class HadoopJobRunner
 		Globals.overrideConfigLocation(args[0]);
 
 		// Write temp test code here
-	}
-	
+	}	
 }

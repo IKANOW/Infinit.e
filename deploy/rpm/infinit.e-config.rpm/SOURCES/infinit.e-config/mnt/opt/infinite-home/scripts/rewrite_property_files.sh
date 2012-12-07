@@ -105,6 +105,7 @@ else
 	
 	HADOOP_DIR=$(getParam 						"^hadoop.configpath=" $PROPERTY_CONFIG_FILE)
 	HADOOP_MAX_CONCURRENT=$(getParam 			"^hadoop.max_concurrent=" $PROPERTY_CONFIG_FILE)
+	HADOOP_LOCALMODE=$(getParam		 			"^hadoop.local_mode=" $PROPERTY_CONFIG_FILE)
 	
 	###########################################################################
 	# 
@@ -168,6 +169,7 @@ else
 	
 	setParam HADOOP_DIR "$HADOOP_DIR" $SERVICE_PROPERTY_FILE
 	setParam HADOOP_MAX_CONCURRENT "$HADOOP_MAX_CONCURRENT" $SERVICE_PROPERTY_FILE
+	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $SERVICE_PROPERTY_FILE
 	
 	chown tomcat.tomcat $SERVICE_PROPERTY_FILE
 	################### End infinite.service.properties ###########################

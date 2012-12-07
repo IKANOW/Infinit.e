@@ -49,6 +49,27 @@
 		<metatype>Event</metatype>
 	</event>
 	<event>
+		<eventtype>armedattack</eventtype>
+		<entity1column>attacker</entity1column>
+		<verbcolumn>attacktype</verbcolumn>
+		<verbcategory>armed attack</verbcategory>
+		<entity2column>attacked</entity2column>
+		<locationcolumn>location</locationcolumn>
+		<timecolumnstart>date</timecolumnstart>
+		<timecolumnend>datestring</timecolumnend>
+		<metatype>Event</metatype>
+	</event>
+	<event>
+		<eventtype>armspurchasesale</eventtype>
+		<entity1column>organizationarmspurchaser</entity1column>
+		<verbcategory>arms purchase sale</verbcategory>
+		<entity2column>armsseller</entity2column>
+		<locationcolumn>location</locationcolumn>
+		<timecolumnstart>date</timecolumnstart>
+		<timecolumnend>datestring</timecolumnend>
+		<metatype>Event</metatype>
+	</event>
+	<event>
 		<eventtype>arrest</eventtype>
 		<entity1column>person</entity1column>
 		<verbcolumn>charge</verbcolumn>
@@ -96,6 +117,16 @@
 		<metatype>Event</metatype>
 	</event>
 	<event>
+		<eventtype>candidateposition</eventtype>
+		<entity1column>candidate</entity1column>
+		<verbcolumn>status</verbcolumn>
+		<verbcategory>candidate position</verbcategory>
+		<entity2column>positionaspirational</entity2column>
+		<timecolumnstart>date</timecolumnstart>
+		<timecolumnend>datestring</timecolumnend>
+		<metatype>Fact</metatype>
+	</event>
+	<event>
 		<eventtype>companyaccountingchange</eventtype>
 		<entity1column>company</entity1column>
 		<verbcolumn>status</verbcolumn>
@@ -135,7 +166,7 @@
 		<timecolumnend>year</timecolumnend>
 		<metatype>Event</metatype>
 	</event>
-	
+
 	<event>
 		<eventtype>companyearningsguidance</eventtype>
 		<entity1column>company</entity1column>
@@ -322,7 +353,7 @@
 		<timecolumnstart>date</timecolumnstart>
 		<timecolumnend>datestring</timecolumnend>
 		<metatype>Event</metatype>
-	</event>	
+	</event>
 	<event>
 		<eventtype>contactdetails</eventtype>
 		<entity1column>contactentity</entity1column>
@@ -333,7 +364,7 @@
 		<timecolumnend>datestring</timecolumnend>
 		<locationcolumn>location</locationcolumn>
 		<metatype>Fact</metatype>
-	</event>	
+	</event>
 	<event>
 		<eventtype>conviction</eventtype>
 		<entity1column>person</entity1column>
@@ -426,7 +457,7 @@
 		<eventtype>equityfinancing</eventtype>
 		<entity1column>company</entity1column>
 		<verbcolumn>status</verbcolumn>
-		<verbcategory>equity financing</verbcategory>		
+		<verbcategory>equity financing</verbcategory>
 		<entity2column>currency</entity2column>
 		<timecolumnstart>date</timecolumnstart>
 		<timecolumnend>datestring</timecolumnend>
@@ -462,7 +493,7 @@
 		<eventtype>indeceschanges</eventtype>
 		<entity1column>company</entity1column>
 		<verbcolumn>changetype</verbcolumn>
-		<verbcategory>indeces changes</verbcategory>		
+		<verbcategory>indeces changes</verbcategory>
 		<entity2column>marketindex</entity2column>
 		<timecolumnstart>date</timecolumnstart>
 		<timecolumnend>datestring</timecolumnend>
@@ -512,6 +543,17 @@
 		<entity1column>company</entity1column>
 		<verbcolumn>status</verbcolumn>
 		<verbcategory>merger</verbcategory>
+		<timecolumnstart>date</timecolumnstart>
+		<timecolumnend>datestring</timecolumnend>
+		<metatype>Event</metatype>
+	</event>
+	<event>
+		<eventtype>militaryaction</eventtype>
+		<entity1column>military</entity1column>
+		<verbcolumn>action</verbcolumn>
+		<verbcategory>military action</verbcategory>
+		<entity2column>purpose</entity2column>
+		<locationcolumn>location</locationcolumn>
 		<timecolumnstart>date</timecolumnstart>
 		<timecolumnend>datestring</timecolumnend>
 		<metatype>Event</metatype>
@@ -574,7 +616,7 @@
 		<entity2column>age</entity2column>
 		<locationcolumn>birthplace</locationcolumn>
 		<metatype>Fact</metatype>
-	</event>	
+	</event>
 	<event>
 		<eventtype>personcareer</eventtype>
 		<entity1column>person</entity1column>
@@ -608,6 +650,22 @@
 		<metatype>Fact</metatype>
 	</event>
 	<event>
+		<eventtype>personlocation</eventtype>
+		<entity1column>person</entity1column>
+		<verbcategory>person location</verbcategory>
+		<locationcolumn>location</locationcolumn>
+		<metatype>Fact</metatype>
+	</event>
+	<event>
+		<eventtype>personparty</eventtype>
+		<entity1column>person</entity1column>
+		<verbcategory>person party</verbcategory>
+		<entity2column>party</entity2column>
+		<timecolumnstart>date</timecolumnstart>
+		<timecolumnend>datestring</timecolumnend>
+		<metatype>Fact</metatype>
+	</event>
+	<event>
 		<eventtype>personrelation</eventtype>
 		<entity1column>person</entity1column>
 		<verbcolumn>personrelationtype</verbcolumn>
@@ -638,7 +696,7 @@
 		<entity1column>politicalentity1</entity1column>
 		<verbcolumn>politicalreltionshiptype</verbcolumn>
 		<verbcategory>political relationship</verbcategory>
-		<entity2column>politicalentity2</entity2column>		
+		<entity2column>politicalentity2</entity2column>
 		<metatype>Fact</metatype>
 	</event>
 	<event>

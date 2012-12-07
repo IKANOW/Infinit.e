@@ -83,6 +83,7 @@ public class SourceUtils {
 		// Add harvest types to the DB
 		com.ikanow.infinit.e.harvest.utils.PropertiesManager props = new com.ikanow.infinit.e.harvest.utils.PropertiesManager();
 		int nMaxSources = 1000;
+		
 		if (!bSync) {
 			nMaxSources = props.getMaxSourcesPerHarvest(); // (normally 0 == no limit)
 		}
@@ -105,12 +106,16 @@ public class SourceUtils {
 				Date now = new Date();
 				query = generateNotInProgressClause(now, bSync);
 					// (just don't waste time on things currently being harvested)
-
+				
 				// Also need to ignore any sources that have just been synced by a different node... 
 				if (bSync) {
 					Date recentlySynced = new Date(now.getTime() - 1800*1000); //(ie not synced within 1/2 hour)
 					query.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.lt_, recentlySynced));
 						// (will know synced exists because we set it below - the sort doesn't work without its being set for all records)
+				}
+				else { // for harvest, try to take into account the effect of search cycles
+					//TODO (INF-1784): This appeared to kill the DB cluster?!
+					addSearchCycleClause(query, now);
 				}
 			}
 			else {
@@ -162,16 +167,17 @@ public class SourceUtils {
 			}
 			// (first off, set the harvest/sync date for any sources that don't have it set,
 			//  needed because sort doesn't return records without the sorting field) 
-			Date yesterday = new Date(new Date().getTime() - 365*24*3600*1000);
+			Date yesteryear = new Date(new Date().getTime() - 365L*24L*3600L*1000L);
+				// (NOTE this time being >=1 yr is depended upon by applications, so you don't get to change it. Ever)
 			if (bSync) {
 				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.exists_, false));
 				DbManager.getIngest().getSource().update(adminUpdateQuery,
-						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, yesterday)), false, true);
+						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, yesteryear)), false, true);
 			}
 			else {
 				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_harvested_, new BasicDBObject(MongoDbManager.exists_, false));
 				DbManager.getIngest().getSource().update(adminUpdateQuery,
-						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesterday)), false, true);				
+						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesteryear)), false, true);				
 			}
 			// (then perform query)
 			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(nMaxSources);			
@@ -206,12 +212,16 @@ public class SourceUtils {
 			
 			BasicDBObject query = generateNotInProgressClause(now, bSync);
 			SourcePojo candidate = uncheckedSources.pop(); 
+			
 			if ((null != sSourceType) && !candidate.getExtractType().equalsIgnoreCase(sSourceType)) {
 				continue;
 			}
 			HarvestEnum candidateStatus = null;
 			if (null != candidate.getHarvestStatus()) {
 				candidateStatus = candidate.getHarvestStatus().getHarvest_status();
+			}
+			if (bSync && (null == candidateStatus)) { // Don't sync unharvested sources, obviously!
+				continue;
 			}
 			if ((HarvestEnum.success_iteration != candidateStatus) || 
 					((null != candidate.getSearchCycle_secs()) && (candidate.getSearchCycle_secs() < 0)))
@@ -305,6 +315,17 @@ public class SourceUtils {
 		BasicDBObject clause = new BasicDBObject(MongoDbManager.or_, Arrays.asList(subclause1, subclause2, subclause3, subclause4));
 		return clause;
 	}//TESTED
+	
+	//TODO (INF-1784): Problem clause? Maybe caused cluster to go down?!
+	private static void addSearchCycleClause(BasicDBObject currQuery, Date now) {
+		BasicDBObject subclause1 = new BasicDBObject(SourcePojo.searchCycle_secs_, new BasicDBObject(MongoDbManager.exists_, false));
+		StringBuffer js = new StringBuffer();
+		js.append("(null == this.harvest) || (null == this.harvest.harvested) || (null == this.searchCycle_secs) || ((this.harvest.harvested.getTime() + 1000*this.searchCycle_secs) <= ");
+		js.append(now.getTime());
+		js.append(")");
+		BasicDBObject subclause2 = new BasicDBObject(MongoDbManager.where_, js.toString());
+		currQuery.append(MongoDbManager.or_, Arrays.asList(subclause1, subclause2));
+	}//TESTED (by hand/eye)
 	
 	public static void checkSourcesHaveHashes(String sCommunityOverride, String sSourceDebug) {
 		

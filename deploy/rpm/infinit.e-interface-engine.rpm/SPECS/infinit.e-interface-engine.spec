@@ -131,6 +131,7 @@ Infinit.e search engine REST API
 %defattr(-,tomcat,tomcat)
 %config %attr(755,root,root) /etc/init.d/tomcat6-interface-engine
 %dir /mnt/opt/tomcat-infinite/
+%config %attr(755,root,root) /mnt/opt/tomcat-infinite/tomcat6
 %dir /mnt/opt/tomcat-infinite/interface-engine
 %dir /mnt/opt/tomcat-infinite/interface-engine/conf
 %dir /mnt/opt/tomcat-infinite/interface-engine/logs

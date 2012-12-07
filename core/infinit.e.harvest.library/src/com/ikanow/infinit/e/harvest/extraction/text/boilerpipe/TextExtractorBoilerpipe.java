@@ -63,7 +63,7 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						catch (Exception e) { // Try one more time, this time exception out all the way
 							urlStream = urlConnect.getInputStream();					 
 						}
-						text = new Scanner(urlStream).useDelimiter("\\A").next();
+						text = new Scanner(urlStream, "UTF-8").useDelimiter("\\A").next();
 						partialDoc.setFullText(text);
 					}
 					if (partialDoc.getFullText().length() < 2097152) { //2MB max

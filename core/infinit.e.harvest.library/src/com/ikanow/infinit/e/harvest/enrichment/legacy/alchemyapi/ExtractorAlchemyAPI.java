@@ -30,6 +30,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelExcepti
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
@@ -51,6 +52,10 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	AlchemyEntityGeoCleanser postProcGeo = null;
 	private boolean _bConceptExtraction = false;
 
+	//_______________________________________________________________________
+	//_____________________________INITIALIZATION________________
+	//_______________________________________________________________________
+
 	/**
 	 * Construtor, adds capabilities of Alchemy to hashmap
 	 */
@@ -63,33 +68,104 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.SentimentExtraction, "true");
 		
-		// Alchemy configuration:
+		// configuration done when the first document is received for this source
+	}
+	
+	// Configuration: override global configuration on a per source basis
+	
+	private boolean configured = false;
+	
+	private void configure(SourcePojo source)
+	{
+		if (configured) {
+			return;
+		}
+		configured = true;
+		
+		// SOURCE OVERRIDE
+		
+		int nPostProc = -1;
+		Boolean bSentimentEnabled = null;
+		Boolean bConceptsEnabled = null;
+		
+		if ((null != source) && (null != source.getExtractorOptions())) {
+			try {
+				nPostProc = Integer.parseInt(source.getExtractorOptions().get("app.alchemyapi.postproc"));				
+			}
+			catch (Exception e){}
+			
+			try {
+				bSentimentEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi.sentiment"));
+			}
+			catch (Exception e){}
+			try {
+				bConceptsEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi.concepts"));						
+			}
+			catch (Exception e){}
+			
+		}
+		// DEFAULT CONFIGURATION
+		
+		PropertiesManager properties = new PropertiesManager();
+		
+		// 1] POST PROC
+		
+		if (-1 == nPostProc) { // (ie no per source config)
+			try {
+				nPostProc = properties.getAlchemyPostProcessingSetting();				
+			}		
+			catch (Exception e) {
+				nPostProc = -1;
+			} 		
+		}
+		// 2] SENTIMENT
+		
 		try {
-			PropertiesManager properties = new PropertiesManager(); 
-			int n = properties.getAlchemyPostProcessingSetting();
-			
-			if (0 != (1 & n)) {
-				postProcPerson = new AlchemyEntityPersonCleanser();
-				postProcPerson.initialize();
-			} 
-			if (0 != (2 & n)) {
-				postProcGeo = new AlchemyEntityGeoCleanser();
-				postProcGeo.initialize();
-			} 
-			
-			Boolean bSentimentEnabled = properties.getExtractionCapabilityEnabled(getName(), "sentiment");
-			if (null != bSentimentEnabled) { // (ie defaults to true)
-				_alch.setSentimentEnabled(bSentimentEnabled);
-			}			
-			Boolean bConceptsEnabled = properties.getExtractionCapabilityEnabled(getName(), "concepts");
-			if (null != bConceptsEnabled) { // (ie defaults to true)
-				_bConceptExtraction = bConceptsEnabled;
-			}			
-		}		
+			if (null == bSentimentEnabled) { // (ie not per source)
+				bSentimentEnabled = properties.getExtractionCapabilityEnabled(getName(), "sentiment");			
+			}
+		}
+		catch (Exception e) {}
+		
+		// 3] CONCEPTS
+		
+		try {
+			if (null == bConceptsEnabled) { // (ie not per source)
+				bConceptsEnabled = properties.getExtractionCapabilityEnabled(getName(), "concepts");			
+			}
+		}
+		catch (Exception e) {}
+
+		// ACTUALLY DO CONFIG
+		
+		try {
+			if (-1 != nPostProc) { // (ie some configuration enabled)
+				if (0 != (1 & nPostProc)) {
+					postProcPerson = new AlchemyEntityPersonCleanser();
+					postProcPerson.initialize();
+				} 
+				if (0 != (2 & nPostProc)) {
+					postProcGeo = new AlchemyEntityGeoCleanser();
+					postProcGeo.initialize();
+				} 							
+			}
+			else {
+				postProcPerson = null; // (just don't do post processing)
+				postProcGeo = null; // (just don't do post processing)			
+			}
+		}
 		catch (Exception e) {
 			postProcPerson = null; // (just don't do post processing)
-			postProcGeo = null; // (just don't do post processing)
-		} 
+			postProcGeo = null; // (just don't do post processing)						
+		}
+		
+		if (null != bSentimentEnabled) { // (ie defaults to true)
+			_alch.setSentimentEnabled(bSentimentEnabled);
+		}
+		
+		if (null != bConceptsEnabled) { // (ie defaults to true)
+			_bConceptExtraction = bConceptsEnabled;
+		}			
 	}
 	
 	//_______________________________________________________________________
@@ -109,6 +185,8 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	@Override
 	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException 
 	{		
+		configure(partialDoc.getTempSource());
+		
 		// Run through specified extractor need to pull these properties from config file
 		if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging			
 			return;
@@ -177,6 +255,8 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	@Override
 	public void extractEntitiesAndText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
+		configure(partialDoc.getTempSource());
+		
 		// Run through specified extractor need to pull these properties from config file
 		String json_doc = null;
 		try
@@ -283,6 +363,8 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	@Override
 	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
+		configure(partialDoc.getTempSource());
+		
 		String json_doc = null;
 		try
 		{
@@ -339,7 +421,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	
 	// Utility function for concept extraction
 	
-	public void doConcepts(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException {
+	private void doConcepts(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException {
 		if ((null != partialDoc.getMetadata()) && partialDoc.getMetadata().containsKey("AlchemyAPI_concepts")) {
 			return;
 		}		
@@ -438,7 +520,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	
 	// Utility function to convert an Alchemy entity to an Infinite entity
 	
-	public static EntityPojo convertAlchemyEntToEntPojo(AlchemyEntityPojo pojoToConvert)
+	private static EntityPojo convertAlchemyEntToEntPojo(AlchemyEntityPojo pojoToConvert)
 	{
 		try
 		{

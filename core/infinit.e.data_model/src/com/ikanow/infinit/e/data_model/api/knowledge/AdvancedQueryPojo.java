@@ -87,7 +87,8 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 	}
 	public List<QueryTermPojo> qt; // Array of query terms as above
 	public String logic; // The logic to combine these query terms, use Lucene logic with qt[n], n=0,1,2,... or n=1,2,3...
-
+	public Boolean expandAlias; // Optional, defaults to true - if false, manually specified aliases are ignored (automatic aliases still depend on per-entity settings)
+	
 	static public class QueryRawPojo { // Raw query object for power users
 		public QueryRawPojo() {}
 		public QueryRawPojo(String s) { query = s; }

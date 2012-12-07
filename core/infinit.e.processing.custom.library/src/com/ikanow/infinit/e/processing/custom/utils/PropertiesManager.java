@@ -123,7 +123,13 @@ public class PropertiesManager {
 	{
 		try
 		{
-			return this.getProperty("hadoop.configpath");
+			String val = this.getProperty("hadoop.configpath");
+			if (null != val) {
+				return val;
+			}
+			else {
+				return "/opt/hadoop-infinite";				
+			}
 		}
 		catch (Exception ex)
 		{
@@ -142,6 +148,16 @@ public class PropertiesManager {
 			return Integer.MAX_VALUE;
 		}
 	}
+
+	public boolean getHadoopLocalMode()
+	{
+		try
+		{
+			return Boolean.valueOf(this.getProperty("hadoop.local_mode"));
+		}
+		catch (Exception ex)
+		{
+			return false;
+		}
+	}	
 }
-
-

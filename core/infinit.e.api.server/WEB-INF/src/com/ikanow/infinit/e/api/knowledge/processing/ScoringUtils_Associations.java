@@ -372,6 +372,9 @@ class ScoringUtils_Associations {
 		if (null != ent1_index) {
 			EntSigHolder ent = entitySet.get(ent1_index);
 			if (null != ent) {
+				if (null != ent.masterAliasSH) { // (for the 3 indexes, use the aliased version if it exists)
+					ent = ent.masterAliasSH;
+				}
 				assoc.put(AssociationPojo.entity1_sig_, ent.datasetSignificance);
 				dPythag += ent.datasetSignificance*ent.datasetSignificance;
 			}
@@ -379,6 +382,9 @@ class ScoringUtils_Associations {
 		if (null != ent2_index) {
 			EntSigHolder ent = entitySet.get(ent2_index);
 			if (null != ent) {
+				if (null != ent.masterAliasSH) {
+					ent = ent.masterAliasSH;
+				}
 				assoc.put(AssociationPojo.entity2_sig_, ent.datasetSignificance);
 				dPythag += ent.datasetSignificance*ent.datasetSignificance;
 			}
@@ -386,6 +392,9 @@ class ScoringUtils_Associations {
 		if (null != geo_index) {			
 			EntSigHolder ent = entitySet.get(geo_index);
 			if (null != ent) {
+				if (null != ent.masterAliasSH) {
+					ent = ent.masterAliasSH;
+				}
 				assoc.put(AssociationPojo.geo_sig_, ent.datasetSignificance);
 				dPythag += 0.25*ent.datasetSignificance*ent.datasetSignificance;
 			}

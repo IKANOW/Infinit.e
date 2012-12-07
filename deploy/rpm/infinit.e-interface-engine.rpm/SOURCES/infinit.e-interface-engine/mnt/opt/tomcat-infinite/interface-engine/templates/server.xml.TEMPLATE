@@ -68,7 +68,7 @@
     -->
     <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
                connectionTimeout="600000" 
-               redirectPort="8443" />
+               redirectPort="8443" URIEncoding="UTF-8"/>
     <!-- A "Connector" using the shared thread pool-->
     <!--
     <Connector executor="tomcatThreadPool"
@@ -83,7 +83,7 @@
     <!--__INF_SSL_ENABLED
     <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
                maxThreads="150" scheme="https" secure="true"
-               clientAuth="false" sslProtocol="TLS" 
+               clientAuth="false" sslProtocol="TLS" URIEncoding="UTF-8"
                keystorePass="SSL_PASSPHRASE" keystoreFile="/usr/share/tomcat6/tomcat.keystore"
               />
     __INF_SSL_ENABLED-->

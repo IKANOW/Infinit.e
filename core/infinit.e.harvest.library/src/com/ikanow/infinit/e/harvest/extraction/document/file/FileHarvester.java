@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.harvest.extraction.document.file;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.net.MalformedURLException;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
@@ -42,6 +43,7 @@ import org.apache.tika.metadata.Metadata;
 import org.bson.types.ObjectId;
 import org.elasticsearch.common.codec.digest.DigestUtils;
 
+import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo;
@@ -308,7 +310,10 @@ public class FileHarvester implements HarvesterInterface {
 		
 		Date modDate = new Date(fileTimestamp);
 		//XML Data gets placed into MetaData
-		if (extension.equalsIgnoreCase("xml"))
+		
+		boolean bIsXml = false;
+		boolean bIsJson = false;
+		if ((bIsXml = extension.equalsIgnoreCase("xml")) || (bIsJson = extension.equalsIgnoreCase("json")))
 		{
 			//fast check to see if the file has changed before processing (or if it never existed)
 			if(needsUpdated_SourceUrl(modDate, f.getURL().toString(), source.getKey()))
@@ -324,17 +329,35 @@ public class FileHarvester implements HarvesterInterface {
 				}
 				
 				SourceFileConfigPojo fileSystem = source.getFileConfig();
-				XmlToMetadataParser xmlParser = new XmlToMetadataParser(fileSystem.XmlRootLevelValues, 
-						fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, 
-						fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase);
+				XmlToMetadataParser xmlParser = null;
+				JsonToMetadataParser jsonParser = null;
+				String urlType = null;
+				if (bIsXml) {
+					xmlParser = new XmlToMetadataParser(fileSystem.XmlRootLevelValues, 
+										fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, 
+										fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase);
+					urlType = ".xml";
+				}//TESTED
+				else if (bIsJson) {
+					jsonParser = new JsonToMetadataParser(fileSystem.XmlSourceName, fileSystem.XmlRootLevelValues, fileSystem.XmlPrimaryKey, fileSystem.XmlIgnoreValues, maxDocsPerCycle);
+					urlType = ".json";
+				}//TESTED
 				
-				XMLStreamReader xmlStreamReader;
+				List<DocumentPojo> partials = null;
 				try {
-					XMLInputFactory factory = XMLInputFactory.newInstance();
-					factory.setProperty(XMLInputFactory.IS_COALESCING, true);
-					xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
-					List<DocumentPojo> partials = xmlParser.parseDocument(xmlStreamReader);
-					xmlStreamReader.close();
+					if (bIsXml) {
+						XMLStreamReader xmlStreamReader;
+						XMLInputFactory factory = XMLInputFactory.newInstance();
+						factory.setProperty(XMLInputFactory.IS_COALESCING, true);
+						xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
+						partials = xmlParser.parseDocument(xmlStreamReader);
+						xmlStreamReader.close();
+					}//TESTED
+					else if (bIsJson) {
+						JsonReader jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
+						partials = jsonParser.parseDocument(jsonReader);
+						jsonReader.close();
+					}//TESTED
 
 					MessageDigest md5 = null; // (generates unique urls if the user doesn't below)
 					try {
@@ -352,18 +375,23 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setMediaType(source.getMediaType());
 						doctoAdd.setModified(new Date(fileTimestamp));
 						doctoAdd.setCreated(new Date());						
-						if(null == doctoAdd.getUrl()){ // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
-							if (null == doctoAdd.getMetadata()) { // Pathological - always set by parseDocument()
-								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append(".xml").toString());
+						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
+							if ((null == fileSystem.XmlRootLevelValues) || fileSystem.XmlRootLevelValues.isEmpty()) {
+								//TODO (INF-1692): this is no longer the case I think ...
+								// need to work out how to handle the different cases (maybe have null?)
+								doctoAdd.setUrl(f.getURL().toString());
+							}
+							else if (null == doctoAdd.getMetadata()) { // Pathological - always set by parseDocument()
+								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append(urlType).toString());
 							}
 							else {
 								if (null == md5) { // Will never happen, MD5 always exists
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append(".xml").toString());
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append(urlType).toString());
 								}
 								else { // This is the standard call if the XML parser has not been configured to build the URL
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(".xml").toString());								
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(urlType).toString());								
 								}
-							}
+							}//TESTED
 						}
 						doctoAdd.setTitle(f.getName().toString());
 						doctoAdd.setPublishedDate(new Date(fileTimestamp));
@@ -371,7 +399,7 @@ public class FileHarvester implements HarvesterInterface {
 
 						// Always add to files because I'm deleting the source URL
 						files.add(doctoAdd);						
-					}
+					}//TESTED (apart from TOTEST)
 
 				} catch (XMLStreamException e1) {
 					errors++;
@@ -461,6 +489,8 @@ public class FileHarvester implements HarvesterInterface {
 					}
 					catch (Exception e) { // Fine just carry on						
 					}
+					//TESTED
+					
 					// If the metadata contains a geotag then apply that:
 					try {
 						String lat = metadata.get(Metadata.LATITUDE);
@@ -488,6 +518,7 @@ public class FileHarvester implements HarvesterInterface {
 					in.close();
 					in = null;
 
+					//TESTED
 
 				} catch (SmbException e) {
 					errors++;

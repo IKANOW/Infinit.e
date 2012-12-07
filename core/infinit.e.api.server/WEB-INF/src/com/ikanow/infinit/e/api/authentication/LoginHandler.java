@@ -27,7 +27,6 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
-import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
@@ -202,9 +201,11 @@ public class LoginHandler
 			//remove all this userids cookies			
 			try
 			{
-				CookiePojo cookieQuery = new CookiePojo();
-				cookieQuery.setProfileId(new ObjectId(cookieLookup));
-				DbManager.getSocial().getCookies().remove(cookieQuery.toDb());
+				BasicDBObject dbQuery = new BasicDBObject();
+				dbQuery.put("profileId", new ObjectId(cookieLookup));
+				dbQuery.put("apiKey", new BasicDBObject(DbManager.exists_, false));
+					// (because of this 'exists' clause, can't use the ORM)
+				DbManager.getSocial().getCookies().remove(dbQuery);
 			}
 			catch (Exception e )
 			{

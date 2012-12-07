@@ -28,3 +28,11 @@ function getMapLicenseKey() {
 function getTimeoutSeconds() {
 	return ACCESS_TIMEOUT;
 }
+
+function getSearchProvider() {
+	return "Google";
+}
+
+function getSearchUrl(encodedSearchTerms) {
+	return "https://www.google.com/search?hl=en&q=" + encodedSearchTerms;
+}

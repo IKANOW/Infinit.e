@@ -44,6 +44,16 @@ import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexMana
 import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
+
+//DEBUG (alias corruption)
+//import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+//import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+//import org.elasticsearch.action.admin.indices.status.IndexStatus;
+//import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
+//import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
+//import org.elasticsearch.cluster.metadata.AliasMetaData;
+//import org.elasticsearch.common.collect.ImmutableMap;
 
 public class GenericProcessingController {
 
@@ -99,6 +109,7 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
 			// Compound index lets me access {type, communities._id}, {type} efficiently 
 			DbManager.getSocial().getShare().ensureIndex(new BasicDBObject("type", 1), new BasicDBObject("communities._id", 1));
+			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 1));
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobidS", 1));
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobtitle", 1));
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("waitingOn", 1));
@@ -110,8 +121,10 @@ public class GenericProcessingController {
 	}//TESTED (not changed since by-eye test in Beta)
 						
 	// (Note some of the code below is duplicated in MongoDocumentTxfer, so make sure you sync changes)
-	
 	public void InitializeIndex(boolean bDeleteDocs, boolean bDeleteEntityFeature, boolean bDeleteEventFeature) {
+		InitializeIndex(bDeleteDocs, bDeleteEntityFeature, bDeleteEventFeature, false);
+	}	
+	public void InitializeIndex(boolean bDeleteDocs, boolean bDeleteEntityFeature, boolean bDeleteEventFeature, boolean bRebuildDocsIndex) {
 		
 		try { //create elasticsearch indexes
 			
@@ -149,8 +162,16 @@ public class GenericProcessingController {
 			}
 			
 			//DOCS - much more complicated than anything else 
+
+			boolean bPingMainIndexFailed = !ElasticSearchManager.pingIndex(DocumentPojoIndexMap.globalDocumentIndex_); 
+				// (ie if main doc index doesn't exist then always rebuild all indexes)
 			
-			boolean bRebuildDocsIndex = !ElasticSearchManager.pingIndex(DocumentPojoIndexMap.globalDocumentIndex_);			
+			if (bPingMainIndexFailed) { // extra level of robustness... sleep for a minute then double check the index is really missing...
+				try { Thread.sleep(60000); } catch (Exception e) {}
+				bPingMainIndexFailed = !ElasticSearchManager.pingIndex(DocumentPojoIndexMap.globalDocumentIndex_);
+			}
+			bRebuildDocsIndex |= bPingMainIndexFailed;
+			
 			createCommunityDocIndex(DocumentPojoIndexMap.globalDocumentIndex_, null, false, true, bDeleteDocs);
 			createCommunityDocIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_, null, false, false, bDeleteDocs);
 			
@@ -162,22 +183,36 @@ public class GenericProcessingController {
 			// OK, going to have different shards for different communities:
 			// Get a list of all the communities:
 			
-			DBCursor dbc = DbManager.getSocial().getCommunity().find();
+			BasicDBObject query = new BasicDBObject();
+			BasicDBObject fieldsToDrop = new BasicDBObject("members", 0);
+			fieldsToDrop.put("communityAttributes", 0);
+			fieldsToDrop.put("userAttributes", 0);
+			DBCursor dbc = DbManager.getSocial().getCommunity().find(query, fieldsToDrop);
 			
 			if (bRebuildDocsIndex || bDeleteDocs) {
 
-				while (dbc.hasNext()) {
-					BasicDBObject dbo = (BasicDBObject) dbc.next();
-					// OK, going to see if there are any sources with this group id, create a new index if so:
-					// (Don't use CommunityPojo data model here for performance reasons....
-					//  (Also, haven't gotten round to porting CommunityPojo field access to using static fields))
-					ObjectId communityId = (ObjectId) dbo.get("_id");
-					boolean bPersonalGroup = dbo.getBoolean("isPersonalCommunity", false);
-					boolean bSystemGroup = dbo.getBoolean("isSystemCommunity", false);
-					ObjectId parentCommunityId = (ObjectId) dbo.get("parentId");
-					createCommunityDocIndex(communityId.toString(), parentCommunityId, bPersonalGroup, bSystemGroup, bDeleteDocs);
-					
-				}//end loop over sources
+				List<DBObject> tmparray = dbc.toArray(); // (brings the entire thing into memory so don't get cursor timeouts)
+				int i = 0;
+				System.out.println("Initializing " + dbc.size() + " indexes:");
+				for (int j = 0; j < 2; ++j) {
+					for (DBObject dbotmp: tmparray) {
+						if ((++i % 100) == 0) {
+							System.out.println("Initialized " + i + " indexes.");
+						}
+						BasicDBObject dbo = (BasicDBObject) dbotmp;
+						
+						// OK, going to see if there are any sources with this group id, create a new index if so:
+						// (Don't use CommunityPojo data model here for performance reasons....
+						//  (Also, haven't gotten round to porting CommunityPojo field access to using static fields))
+						ObjectId communityId = (ObjectId) dbo.get("_id");
+						boolean bPersonalGroup = dbo.getBoolean("isPersonalCommunity", false);
+						boolean bSystemGroup = dbo.getBoolean("isSystemCommunity", false);
+						ObjectId parentCommunityId = (ObjectId) dbo.get("parentId");
+						
+						createCommunityDocIndex(communityId.toString(), parentCommunityId, bPersonalGroup, bSystemGroup, bDeleteDocs, j==0);
+						
+					}//end loop over communities
+				}// end loop over communities - first time parents only
 			} // (end if need to do big loop over all sources)
 		}
 		catch (Exception e) 
@@ -191,7 +226,16 @@ public class GenericProcessingController {
 	
 	// Utility code for creating community indexes
 	
-	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex)
+	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId,  boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex)
+	{
+		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, false); 
+	}
+	
+	//DEBUG (alias corruption)
+	//private static ImmutableMap<String, ImmutableMap<String, AliasMetaData>> _aliasInfo = null;
+	
+	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, 
+			boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, boolean bParentsOnly)
 	{
 		//create elasticsearch indexes
 		PropertiesManager pm = new PropertiesManager();
@@ -240,9 +284,27 @@ public class GenericProcessingController {
 					docIndex.closeIndex();
 				}
 			}
-			else {
+			else if (!bParentsOnly) {				
 				String sParentGroupIndex = new StringBuffer("doc_").append(new ObjectId(parentCommunityIdStr).toString()).toString();
 				ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
+				
+				//DEBUG (alias corruption)
+//				if (null == _aliasInfo) {
+//					ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
+//					_aliasInfo = clusterState.getState().getMetaData().getAliases();
+//				}
+//				else {
+//					if (_aliasInfo.containsKey(sGroupIndex)) { // has no aliases, we're not good
+//						return;
+//					}
+//					else {
+//						//DEBUG
+//						System.out.println("Alias " + sGroupIndex + " has no aliases (but should)");						
+//						ElasticSearchManager docIndex2 = IndexManager.getIndex(sGroupIndex);
+//						docIndex2.deleteMe();
+//					}
+//				}
+				
 				docIndex.createAlias(sGroupIndex);
 				docIndex.closeIndex();
 				// (do nothing on delete - that will be handled at the parent index level)

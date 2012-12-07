@@ -35,6 +35,7 @@ public class CookieManager
 		//Remove every cookie that has been inactive longer than milliInactive
 		try {
 			BasicDBObject query = new BasicDBObject();
+			query.put("apiKey", new BasicDBObject(DbManager.exists_, false)); // (don't ever delete API keys)
 			query.put("lastActivity", new BasicDBObject("$lt", new Date(inactiveBefore)));
 				// (pojo method doesn't support this type of query)
 			

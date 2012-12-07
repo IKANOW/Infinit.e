@@ -31,13 +31,13 @@ public class InfiniteMongoSplitter
 		//otherwise use the old splitter
 		if ( conf.getMaxDocsPerSplit() > 0 && conf.getMaxSplits() > 0 && ( count < (conf.getMaxSplits()*conf.getMaxDocsPerSplit()) ) )
 		{
-			_logger.info("Calculating splits manually");
+			_logger.debug("Calculating splits manually");
 			int splits_needed = (count/conf.getMaxDocsPerSplit()) + 1;
 			return calculateManualSplits(conf, splits_needed, conf.getMaxDocsPerSplit(), coll);
 		}
 		else
 		{
-			_logger.info("Calculating splits via mongo-hadoop");
+			_logger.debug("Calculating splits via mongo-hadoop");
 			return MongoSplitter.calculateSplits(conf);						
 		}
 	}
@@ -55,7 +55,7 @@ public class InfiniteMongoSplitter
 	private static List<InputSplit> calculateManualSplits(InfiniteMongoConfig conf, int numSplits, int limit, DBCollection coll)
 	{
 		final List<InputSplit> splits = new ArrayList<InputSplit>(numSplits);
-		_logger.info("using a limit of " + limit + " for "+numSplits+" splits");
+		_logger.debug("using a limit of " + limit + " for "+numSplits+" splits");
 		for ( int i = 0; i < numSplits; i++ )
 		{
 			splits.add(new InfiniteMongoInputSplit(conf.getInputURI(), conf.getInputKey(), conf.getQuery(), conf.getFields(), conf.getSort(), limit, i*limit, conf.isNoTimeout()));

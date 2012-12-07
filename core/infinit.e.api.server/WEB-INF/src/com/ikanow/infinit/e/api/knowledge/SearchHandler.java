@@ -39,6 +39,8 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortOrder;
 
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -53,6 +55,7 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 
@@ -78,7 +81,10 @@ public class SearchHandler
 	
 	// SEARCH SUGGEST API call
 	
-	public ResponsePojo getSuggestions(String userIdStr, String term, String communityIdStrList, boolean bIncludeGeo, boolean bIncludeLinkdata) 
+	//TODO (INF-1660): here and for assoc, should enforce doc_count>0? (or should i remove from entity feature when freq hits 0??)
+	// (or both?)
+	
+	public ResponsePojo getSuggestions(String userIdStr, String term, String communityIdStrList, boolean bIncludeGeo, boolean bIncludeLinkdata, boolean bWantNoAlias) 
 	{
 		long nSysTime = System.currentTimeMillis();		
 		
@@ -130,7 +136,33 @@ public class SearchHandler
 		if (bIncludeLinkdata) {
 			searchOptions.addFields(EntityFeaturePojo.linkdata_);			
 		}
-		searchOptions.setSize(20);
+		
+		// Initial alias handling:
+		
+		AliasLookupTable aliasTable = null;
+		HashMap<String, SearchSuggestPojo> aliasResults = null;
+		if (!bWantNoAlias) {
+			AliasManager aliasManager = AliasManager.getAliasManager();
+			if (null != aliasManager) {
+				aliasTable = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null);
+			}
+		}
+		//TESTED
+		
+		// (end initial alias handling)
+		
+		int nDesiredSize = 20;
+		if (null == aliasTable) {		
+			searchOptions.setSize(nDesiredSize); // will forward all 20
+		}
+		else {
+			searchOptions.addFields(EntityFeaturePojo.index_);
+			searchOptions.setSize(3*nDesiredSize); // will forward top 20 after de-aliasing
+			
+			aliasResults = new HashMap<String, SearchSuggestPojo>();
+				// (We use this to ensure we only include each entity once after aliasing)
+		}
+		//TESTED
 		
 		// Perform the search
 
@@ -140,6 +172,7 @@ public class SearchHandler
 		
 		SearchHit[] docs = rsp.getHits().getHits();			
 		DimensionListPojo dimlist = new DimensionListPojo();
+		int nDocsAdded = 0;
 		if (null != docs) 
 		{
 			for (SearchHit hit: docs) 
@@ -148,11 +181,14 @@ public class SearchHandler
 				if (null == shf) { // robustness check, sometimes if the harvester goes wrong this field might be missing
 					continue;
 				}
+				String disname = (String) shf.value();
+				String type = (String) hit.field(EntityFeaturePojo.type_).value();
+				String dimension = (String) hit.field(EntityFeaturePojo.dimension_).value();
+				SearchSuggestPojo sp = new SearchSuggestPojo();				
 				
-				SearchSuggestPojo sp = new SearchSuggestPojo();
-				sp.setValue((String) shf.value());
-				sp.setDimension((String) hit.field(EntityFeaturePojo.dimension_).value());
-				sp.setType((String) hit.field(EntityFeaturePojo.type_).value());
+				sp.setValue(disname);
+				sp.setDimension(dimension);
+				sp.setType(type);
 				if (bIncludeGeo) 
 				{
 					SearchHitField loc = hit.field(EntityFeaturePojo.geotag_);
@@ -166,12 +202,72 @@ public class SearchHandler
 					SearchHitField linkdata = hit.field(EntityFeaturePojo.linkdata_); 
 					if ( linkdata != null )
 						sp.setLinkdata(linkdata.values());
-				}				
+				}								
+				
+				// More alias handling
+				String index = null;
+				if (null != aliasTable) {
+					index = (String) hit.field(EntityFeaturePojo.index_).value();
+					EntityFeaturePojo alias = aliasTable.doLookupFromIndex(index);
+					if (null != alias) { // Found!
+						if ((null != alias.getDisambiguatedName()) && (null != alias.getType())) {
+							// (these need to be present)
+
+							//DEBUG (perf critical)
+							//logger.debug("Alias! Replace " + index + " with " + alias.getIndex());
+							
+							index = alias.getIndex();
+							disname = alias.getDisambiguatedName();
+							type = alias.getType();
+							if (null != alias.getDimension()) {
+								dimension = alias.getDimension().toString();
+							}
+							else { // Guess from type
+								dimension = DimensionUtility.getDimensionByType(type).toString();
+							}
+							// Reset values:
+							sp.setValue(disname);
+							sp.setDimension(dimension);
+							sp.setType(type);
+						}
+					}
+					SearchSuggestPojo existing = aliasResults.get(index);
+					if (null != existing) {
+						
+						//DEBUG (perf critical)
+						//logger.debug("Alias! Remove duplicate " + index);
+						
+						if ((null == existing.getGeotag()) && (null != sp.getGeotag())) {
+							// (if they're both set then sigh just ignore on a first-come-first-served basis)
+							existing.setGeotag(sp.getGeotag());
+							existing.setOntology_type(sp.getOntology_type());
+						}//TESTED
+						if (null != sp.getLinkdata()) { // (here we can just combine the linkdata)
+							if (null == existing.getLinkdata()) {
+								existing.setLinkdata(sp.getLinkdata());
+							}
+							else {
+								existing.getLinkdata().addAll(sp.getLinkdata());
+							}
+						}//TESTED
+						continue; // (ie don't add this guy)
+					}
+					else { // add it
+						aliasResults.put(index, sp);
+					}
+				}
+				//TESTED
+				// end more alias handing								
+				
 				dimlist.addSearchSuggestPojo(sp);
 					// (only adds unique entries, ie handles multiple communities "ok" (only ok
 					//  because it doesn't sum the doccounts across multiple communities, you'd probably
 					//  want to use facets for that, but it doesn't seem worth it, especially since we're
-					//  pretty short on field cache space)				
+					//  pretty short on field cache space)
+				
+				if (++nDocsAdded >= nDesiredSize) { // (can happen in the de-aliasing case)
+					break;
+				}//TESTED
 			}			
 		}
 		rp.setData(dimlist);

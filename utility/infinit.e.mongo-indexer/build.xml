@@ -141,7 +141,7 @@
 		    </path>
 		 </pathconvert>
 		
-		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain">
+		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain" excludes="META-INF/*.SF META-INF/INDEX.LIST">
 			<manifest>
 				<attribute name="Built-By" value="${user.name}"/>
 		        <attribute name="Main-Class" value="com.ikanow.infinit.e.utility.MongoIndexerMain" />
@@ -153,7 +153,7 @@
 				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
 			</manifest>
 			<fileset dir="${dir.build.classes}"/>
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="junit.jar"/>
 		</jar>		
 	</target>
 	

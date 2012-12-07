@@ -40,6 +40,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
 
 public class LoginInterface extends ServerResource 
 {
@@ -104,6 +105,17 @@ public class LoginInterface extends ServerResource
 				 				 
 				 if ( authuser != null )
 				 {
+					 // Since logging-in isn't time critical, we'll ensure that api users have their api cookie at this point...
+					 if (null != authuser.getApiKey()) {
+							CookiePojo cp = new CookiePojo();
+							cp.set_id(authuser.getProfileId());
+							cp.setCookieId(cp.get_id());
+							cp.setApiKey(authuser.getApiKey());
+							cp.setStartDate(authuser.getCreated());
+							cp.setProfileId(authuser.getProfileId());
+							DbManager.getSocial().getCookies().save(cp.toDb());						 
+					 }//TESTED
+					 
 					 if ((authuser.getAccountType() == null) || !authuser.getAccountType().equalsIgnoreCase("admin"))
 					 {
 						 multi = false; // (not allowed except for admin)
@@ -256,7 +268,6 @@ public class LoginInterface extends ServerResource
 		 }
 		 else if ( action.equals("logout"))
 		 {
-			 cookieLookup = RESTTools.cookieLookup(cookie);
 			 cookieLookup = RESTTools.cookieLookup(cookie);
 			 if (null != cookieLookup) {
 				 rp = new LoginHandler().removeCookies(cookieLookup);

@@ -29,10 +29,9 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelExcep
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
-import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
 public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtractor 
@@ -45,6 +44,10 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();		
 	private boolean _bConceptExtraction = false;
 	
+	//_______________________________________________________________________
+	//_____________________________INITIALIZATION________________
+	//_______________________________________________________________________
+
 	/**
 	 * Constructor, adds capabilities of Alchemy to hashmap
 	 */
@@ -55,20 +58,67 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		_capabilities.put(EntityExtractorEnum.Quality, "1");
 		_capabilities.put(EntityExtractorEnum.URLTextExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
-		_capabilities.put(EntityExtractorEnum.SentimentExtraction, "false");
+		_capabilities.put(EntityExtractorEnum.SentimentExtraction, "false");		
+	}
+	
+	// Configuration: override global configuration on a per source basis
+	
+	private boolean configured = false;
+	
+	private void configure(SourcePojo source)
+	{
+		if (configured) {
+			return;
+		}
+		configured = true;
+		
+		// SOURCE OVERRIDE
+		
+		Boolean bSentimentEnabled = null;
+		Boolean bConceptsEnabled = null;
+		
+		if ((null != source) && (null != source.getExtractorOptions())) {
+			try {
+				bSentimentEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi-metadata.sentiment"));
+			}
+			catch (Exception e){}
+			try {
+				bConceptsEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi-metadata.concepts"));						
+			}
+			catch (Exception e){}
+		}
+		
+		// DEFAULT CONFIGURATION
+		
+		PropertiesManager properties = new PropertiesManager();
+		
+		// 2] SENTIMENT
 		
 		try {
-			PropertiesManager properties = new PropertiesManager();
-			Boolean bSentimentEnabled = properties.getExtractionCapabilityEnabled(getName(), "sentiment");
-			if (null != bSentimentEnabled) { // (ie defaults to true)
-				_alch.setSentimentEnabled(bSentimentEnabled);
-			}			
-			Boolean bConceptsEnabled = properties.getExtractionCapabilityEnabled(getName(), "concepts");
-			if (null != bConceptsEnabled) { // (ie defaults to true)
-				_bConceptExtraction = bConceptsEnabled;
-			}			
-		}		
-		catch (Exception e) {} // carry on
+			if (null == bSentimentEnabled) { // (ie not per source)
+				bSentimentEnabled = properties.getExtractionCapabilityEnabled(getName(), "sentiment");			
+			}
+		}
+		catch (Exception e) {}
+		
+		// 3] CONCEPTS
+		
+		try {
+			if (null == bConceptsEnabled) { // (ie not per source)
+				bConceptsEnabled = properties.getExtractionCapabilityEnabled(getName(), "concepts");			
+			}
+		}
+		catch (Exception e) {}
+		
+		// ACTUALLY DO CONFIG
+		
+		if (null != bSentimentEnabled) { // (ie defaults to true)
+			_alch.setSentimentEnabled(bSentimentEnabled);
+		}
+		
+		if (null != bConceptsEnabled) { // (ie defaults to true)
+			_bConceptExtraction = bConceptsEnabled;
+		}			
 	}
 	
 	//_______________________________________________________________________
@@ -87,6 +137,8 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	@Override
 	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{		
+		configure(partialDoc.getTempSource());
+		
 		// Run through specified extractor need to pull these properties from config file
 		if (partialDoc.getFullText().length() < 16) { // (don't waste Extractor call/error logging)
 			return;
@@ -155,6 +207,8 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	@Override
 	public void extractEntitiesAndText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
+		configure(partialDoc.getTempSource());
+		
 		// Run through specified extractor need to pull these properties from config file
 		String json_doc = null;
 			// (gets text also)
@@ -247,11 +301,13 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	 * @throws ExtractorDailyLimitExceededException 
 	 */
 	@Override
-	public void extractText(DocumentPojo doc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
+	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException
 	{
+		configure(partialDoc.getTempSource());
+		
 		// In this case, extractText and extractTextAndEntities are doing the same thing
 		// eg allows for keywords + entities (either from OC or from AA or from any other extractor)
-		extractEntitiesAndText(doc);
+		extractEntitiesAndText(partialDoc);
 	}
 	
 	//_______________________________________________________________________
@@ -260,7 +316,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	
 	// Utility function for concept extraction
 	
-	public void doConcepts(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException {
+	private void doConcepts(DocumentPojo partialDoc) throws ExtractorDocumentLevelException, ExtractorDailyLimitExceededException {
 		if ((null != partialDoc.getMetadata()) && partialDoc.getMetadata().containsKey("AlchemyAPI_concepts")) {
 			return;
 		}
@@ -354,85 +410,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	
 	// Utility function to convert an Alchemy entity to an Infinite entity
 	
-	public static EntityPojo convertAlchemyEntToEntPojo(AlchemyEntityPojo pojoToConvert)
-	{
-		try
-		{
-			EntityPojo ent = new EntityPojo();
-			ent.setActual_name(pojoToConvert.text);
-			ent.setType(pojoToConvert.type);
-			ent.setRelevance(Double.parseDouble(pojoToConvert.relevance));
-			ent.setFrequency(Long.parseLong(pojoToConvert.count));
-			if (null != pojoToConvert.sentiment) {
-				if (null != pojoToConvert.sentiment.score) {
-					ent.setSentiment(Double.parseDouble(pojoToConvert.sentiment.score));
-				}
-				else { // neutral
-					ent.setSentiment(0.0);
-				}
-			}
-			// (else no sentiment present)
-			
-			if ( pojoToConvert.disambiguated != null )
-			{
-				ent.setSemanticLinks(new ArrayList<String>());
-				ent.setDisambiguatedName(pojoToConvert.disambiguated.name);
-				if ( pojoToConvert.disambiguated.geo != null )
-				{
-					GeoPojo geo = new GeoPojo();
-					String[] geocords = pojoToConvert.disambiguated.geo.split(" ");
-					geo.lat = Double.parseDouble(geocords[0]);
-					geo.lon = Double.parseDouble(geocords[1]);
-					ent.setGeotag(geo);
-				}
-				//Add link data if applicable
-				if ( pojoToConvert.disambiguated.census != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.census);
-				if ( pojoToConvert.disambiguated.ciaFactbook != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.ciaFactbook);
-				if ( pojoToConvert.disambiguated.dbpedia != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.dbpedia);
-				if ( pojoToConvert.disambiguated.freebase != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.freebase);
-				if ( pojoToConvert.disambiguated.opencyc != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.opencyc);
-				if ( pojoToConvert.disambiguated.umbel != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.umbel);
-				if ( pojoToConvert.disambiguated.yago != null)
-					ent.getSemanticLinks().add(pojoToConvert.disambiguated.yago);
-				
-				if ( ent.getSemanticLinks().size() == 0)
-					ent.setSemanticLinks(null); //If no links got added, remove the list
-			}
-			else
-			{
-				//sets the disambig name to actual name if
-				//there was no disambig name for this ent
-				//that way all entities have a disambig name
-				ent.setDisambiguatedName(ent.getActual_name());
-			}
-			//Calculate Dimension based on ent type
-			try {
-				ent.setDimension(DimensionUtility.getDimensionByType(ent.getType()));
-			}
-			catch (java.lang.IllegalArgumentException e) {
-				ent.setDimension(EntityPojo.Dimension.What);									
-			}
-			return ent;
-		}
-		catch (Exception ex)
-		{
-			logger.error("Line: [" + ex.getStackTrace()[2].getLineNumber() + "] " + ex.getMessage());
-			ex.printStackTrace();
-			//******************BUGGER***********
-			//LOG ERROR TO A LOG
-		}
-		return null;
-	}
-
-	// Utility function to convert an Alchemy entity to an Infinite entity
-	
-	public static EntityPojo convertAlchemyKeywordToEntPojo(AlchemyKeywordPojo pojoToConvert)
+	private static EntityPojo convertAlchemyKeywordToEntPojo(AlchemyKeywordPojo pojoToConvert)
 	{
 		try
 		{

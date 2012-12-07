@@ -44,6 +44,11 @@ Infinit.e harvesting and cleansing services
 	ln -s -f infinit.e.processing.generic.library-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.processing.generic.library.jar
 	ln -s -f infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.core.server.jar
 	ln -s -f infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.mongo-indexer.jar
+	cd $RPM_BUILD_DIR/mnt/opt/infinite-home/lib/plugins
+	ln -s -f infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.hadoop.prototyping_engine.jar
+
+	# Install Hadoop prototyping engine
+	mongo custommr $RPM_BUILD_DIR/mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js || echo "Mongo not configured, couldn't load Hadoop Prototyping Engine"
 
 %post
 #
@@ -116,6 +121,7 @@ Infinit.e harvesting and cleansing services
 %attr(-,root,root) /etc/cron.d/infinite-px-engine
 %dir /mnt/opt/infinite-home
 %dir /mnt/opt/infinite-home/bin
+%dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
@@ -131,6 +137,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/db-scripts/update_doc_counts.js
 /mnt/opt/infinite-home/db-scripts/rebuild_entity_feature.js
 /mnt/opt/infinite-home/db-scripts/rebuild_assoc_feature.js
+/mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js
 
 %dir /mnt/opt/infinite-home/lib
 /mnt/opt/infinite-home/lib/infinit.e.data_model.jar
@@ -150,3 +157,5 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/lib/jcifs-1.3.17.jar
 /mnt/opt/infinite-home/lib/tika-app-1.0.jar
 /mnt/opt/infinite-home/lib/j-calais-0.2.1-jar-with-dependencies.jar
+/mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar
+/mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar

@@ -106,23 +106,24 @@ public class RESTTools
 			
 			if (!bMulti) { // Otherwise allow multiple cookies for this user
 				//remove any old cookie for this user
-				CookiePojo cookieQuery = new CookiePojo();
-				cookieQuery.setProfileId(userid);
-				DBCursor dbc = cookieColl.find(cookieQuery.toDb());
+				BasicDBObject dbQuery = new BasicDBObject();
+				dbQuery.put("profileId", userid);
+				dbQuery.put("apiKey", new BasicDBObject(DbManager.exists_, false));
+				DBCursor dbc = cookieColl.find(dbQuery);
 				if (bOverride) {
 					while (dbc.hasNext()) {
 						cookieColl.remove(dbc.next());
 					}
-				}
+				}//TESTED
 				else if (dbc.length() > 0) {
 					return null;
-				}
+				}//TESTED
 			}
 			//Find user
 			//create a new entry
 			CookiePojo cp = new CookiePojo();
 			cp.set_id(new ObjectId());
-			cp.setCookieId(new ObjectId());
+			cp.setCookieId(cp.get_id());
 			cp.setLastActivity(new Date());
 			cp.setProfileId(userid);
 			cp.setStartDate(new Date());
@@ -153,34 +154,45 @@ public class RESTTools
 	 */
 	public static String cookieLookup(String cookieIdStr)
 	{
-		if ( null == cookieIdStr)
+		if ((null == cookieIdStr) || cookieIdStr.equalsIgnoreCase("null") || cookieIdStr.isEmpty())
 			return null;
 		try
 		{
 			//remove any old cookie for this user
 			CookiePojo cookieQuery = new CookiePojo();
-			cookieQuery.setCookieId(new ObjectId(cookieIdStr));
+			if (cookieIdStr.startsWith("api:")) {
+				cookieQuery.setApiKey(cookieIdStr.substring(4));
+			}
+			else {
+				cookieQuery.set_id(new ObjectId(cookieIdStr));
+			}
 			BasicDBObject cookieQueryDbo = (BasicDBObject) cookieQuery.toDb();
 			DBObject dbo = DbManager.getSocial().getCookies().findOne(cookieQueryDbo);
 			ObjectId userid = null;
 			if ( dbo != null )
 			{
-				PropertiesManager props = new PropertiesManager();
-				Long timeout_s = props.getApiTimeoutSeconds();
-				long nTimeout_ms = (null == timeout_s)? COOKIE_TIMEOUT : 1000L*timeout_s;
 				CookiePojo cp = CookiePojo.fromDb(dbo, CookiePojo.class);
-				if ( (new Date().getTime() - cp.getLastActivity().getTime()) < nTimeout_ms) 
-				{
-					//less than 15min, update activity time
-					cp.setLastActivity(new Date());
-					DbManager.getSocial().getCookies().update(cookieQueryDbo, cp.toDb());
+				if (null != cp.getApiKey()) {
 					userid = cp.getProfileId();
-				}
-				else
-				{
-					//to late, drop cookie
-					DbManager.getSocial().getCookies().remove(dbo);
-				}
+					// (no activity/timeout)
+				}//TESTED
+				else {
+					PropertiesManager props = new PropertiesManager();
+					Long timeout_s = props.getApiTimeoutSeconds();
+					long nTimeout_ms = (null == timeout_s)? COOKIE_TIMEOUT : 1000L*timeout_s;
+					if ( (new Date().getTime() - cp.getLastActivity().getTime()) < nTimeout_ms) 
+					{
+						//less than 15min, update activity time
+						cp.setLastActivity(new Date());
+						DbManager.getSocial().getCookies().update(cookieQueryDbo, cp.toDb());
+						userid = cp.getProfileId();
+					}
+					else
+					{
+						//to late, drop cookie
+						DbManager.getSocial().getCookies().remove(dbo);
+					}
+				}//TESTED
 			}
 			if (null == userid) {
 				return null;

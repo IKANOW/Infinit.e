@@ -22,6 +22,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+
+import org.apache.commons.codec.binary.Base64;
 import org.apache.log4j.Logger;
 import org.elasticsearch.common.Hex;
 
@@ -30,7 +32,6 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
-import sun.misc.BASE64Encoder;
 
 /**
  * Class used to encrypt and decrypt passwords held in the environment
@@ -59,7 +60,7 @@ public class PasswordEncryption {
 	{	
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(password.getBytes("UTF-8"));		
-		return (new BASE64Encoder()).encode(md.digest());	
+		return Base64.encodeBase64String(md.digest());		
 	}
 	/**
 	 *  Check the password

@@ -48,6 +48,7 @@ public class MongoDbManager {
 	public static final String pushAll_ = "$pushAll"; 
 	public static final String pop_ = "$pop"; 
 	public static final String size_ = "$size";
+	public static final String where_ = "$where";
 	
 	protected MongoDbManager() {}
 	

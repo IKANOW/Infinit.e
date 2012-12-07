@@ -1,0 +1,128 @@
+{
+	"AWSTemplateFormatVersion" : "2010-09-09",
+
+	"Description" : "AWS CloudFormation Infinit.e Base template to be adjusted to support both API and DB nodes. This version installs the RPMs from JIRA.",
+
+	"Parameters" : {
+		
+		"NodeName" : {
+			"Description" : "MANDATORY: The name used to display the node in the EC2 instances list (eg <projectname>-<function>-node. It is recommended that this be given the same name as the stack.",
+			"Type" : "String"
+		},
+		"ClusterName" : {
+			"Description" : "MANDATORY: The name of the cluster within the set of EC2 instances that the node should join",
+			"Type" : "String"
+		},
+		"AvailabilityZone" : {
+			"Description" : "MANDATORY: The availability zone in which to create the node (must be consistent with region from which stack is launched)",
+			"Type" : "String",
+			"Default": "us-east-1b"
+		},
+		"KeyName" : {
+			"Description" : "MANDATORY: Name of an existing EC2 KeyPair to enable SSH access to the instance (eg production, development, etc)",
+			"Type" : "String",
+			"Default" : "default"
+		},
+		"SecurityGroups" : {
+			"Description" : "MANDATORY: Infinit.e EC2 security group: eg production_db, production_api, default etc",
+			"Type" : "String",
+			"Default" : "default"
+		},
+		"ConfigFileS3Path" : {
+			"Description" : "MANDATORY: S3 of the file that controls the configuration of the node within the cluster",
+			"Type" : "String",
+			"Default": "s3://config.MYORG.com/infinite.configuration.properties"
+		},
+		"AwsAccessId" : {
+			"Description" : "MANDATORY: The AWS id (sometimes called access key) allowing access to S3",
+			"NoEcho": "true",
+			"Type" : "String"
+		},
+		"AwsAccessKey" : {
+			"Description" : "MANDATORY: The AWS key (sometimes called secret key) allowing access to S3",
+			"NoEcho": "true",
+			"Type" : "String"
+		},
+		"QuickInstall": {
+			"Description" : "OPTIONAL: Set to '--fast' (default) for quick install, '--slow' to get latest Java/Jpackage/splunk.",			
+			"Type" : "String",
+			"Default" : "--fast",
+			"AllowedValues" : [ "--fast", "--slow" ],
+			"ConstraintDescription" : "Set to '--fast' (default) for quick install, '--slow' to get latest Java/Jpackage/splunk."
+		},
+		"InstanceType" : {
+			"Description" : "OPTIONAL: Infinit.e EC2 instance type: m1.xlarge recommended for operational deployments, m1.large for dev/test deployments or standalone config servers",
+			"Type" : "String",
+			"Default" : "m1.xlarge",
+			"AllowedValues" : [ "m1.large", "m1.xlarge" ],
+			"ConstraintDescription" : "m1.large (dev/test deployments, standalone config servers), m1.xlarge (operational deployments)."
+		}
+	},
+
+	"Resources" : {
+		
+		"Ec2Instance" : {			
+			"Type" : "AWS::EC2::Instance",
+			
+			"Properties" : {
+				
+				"ImageId" : "ami-71954d18",
+				"InstanceType": { "Ref": "InstanceType" },
+				"KeyName": { "Ref": "KeyName" },
+				"SecurityGroups": [ { "Ref": "SecurityGroups" } ],
+				"AvailabilityZone": { "Ref": "AvailabilityZone" },
+				
+				"Tags" : [ { 
+					"Key": "Name", 
+					"Value": { "Ref": "NodeName" } 
+				},
+				{
+					"Key": "cluster-name", 
+					"Value": { "Ref": "ClusterName" } 
+				},
+				{
+					"Key": "index-node", 
+					"Value": "1" 
+				},
+				{
+					"Key": "db_interface", 
+					"Value": "1" 
+				}
+				],
+				
+				"UserData": {
+					"Fn::Base64": {
+						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
+						                   
+							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
+							                   "yum install -y infinit.e-platform.prerequisites.online;",
+							                   
+								           "cd /opt/infinite-install/; ",						                   
+							               	   "sh install.sh apinode ", { "Ref": "QuickInstall" }, ";",
+						                   
+							               "yum install -y infinit.e-hadoop-installer.online;",
+							               
+						                   "cd /opt/infinite-install/config; ",						                   
+							                   "echo ", { "Ref": "AwsAccessId" }, " > s3;", 
+							                   "echo ", { "Ref": "AwsAccessKey" }, " >> s3;",
+							                   "for i in `seq 1 4`; do echo '' >> s3; done;",
+							                   "echo n >> s3; echo y >> s3; echo n >> s3;",
+							                   "s3cmd --configure < s3; rm -f s3;",
+							                   
+							                   "s3cmd get ", { "Ref": "ConfigFileS3Path" }, ";",
+							                   
+							               "yum -y --nogpgcheck install infinit.e-config;",    
+							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
+							               "yum -y --nogpgcheck install infinit.e-index-engine;"    
+							               "yum -y --nogpgcheck install infinit.e-processing-engine;"    
+							               "yum -y --nogpgcheck install infinit.e-interface-engine;",
+						                   
+						                   "sed -i 's/^curl/#curl/' /etc/rc.local;",  
+							               "grep -q 'modprobe capability' /etc/rc.local || echo 'modprobe capability' >> /etc/rc.local"
+					}
+				}
+			}
+		}
+	}
+}

@@ -13,8 +13,8 @@ import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
 public class JavascriptSecurityManager 
 {
-	private AccessControlContext _accessControlContext;	
-	private SocketSecurityManager ssm;
+	private AccessControlContext _accessControlContext;	//not needed, is null always
+	private static SocketSecurityManager ssm;
 	private boolean SECURITY_ACTIVATED = false;
 	
 	public JavascriptSecurityManager()
@@ -22,7 +22,7 @@ public class JavascriptSecurityManager
 		//Check if security config is on/off
 		PropertiesManager pm = new PropertiesManager();
 		SECURITY_ACTIVATED = pm.getHarvestSecurity();
-		if ( SECURITY_ACTIVATED )
+		if ( SECURITY_ACTIVATED && ( null == ssm ) )
 		{
 			ssm = new SocketSecurityManager();
 			System.setSecurityManager(ssm);
@@ -35,12 +35,12 @@ public class JavascriptSecurityManager
 		{
 			//Security ON
 			try
-			{
-				ssm.setJavascriptFlag(true);
+			{				
 				Object retVal = AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
 					@Override
 					public Object run() throws ScriptException
 					{
+						ssm.setJavascriptFlag(true);
 						return engine.eval(reader);
 					}
 				}, _accessControlContext);
@@ -51,6 +51,12 @@ public class JavascriptSecurityManager
 			{			
 				ssm.setJavascriptFlag(false);
 				throw (ScriptException)ex.getException();
+			}
+			catch ( Exception ex2 ) { // (shouldn't ever occur in practice)
+				throw new ScriptException(ex2.getMessage());
+			}
+			finally {
+				ssm.setJavascriptFlag(false);				
 			}
 		}
 		else
@@ -65,13 +71,13 @@ public class JavascriptSecurityManager
 		if ( SECURITY_ACTIVATED )
 		{
 			//Security ON
-			ssm.setJavascriptFlag(true);
 			try
 			{
 				Object retVal = AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
 					@Override
 					public Object run() throws ScriptException
 					{
+						ssm.setJavascriptFlag(true);
 						return engine.eval(script);
 					}
 				}, _accessControlContext);

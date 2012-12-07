@@ -17,6 +17,8 @@ package com.ikanow.infinit.e.data_model.store.document;
 
 import java.util.List;
 
+import com.ikanow.infinit.e.data_model.utils.ContentUtils;
+
 // This is for the entity in the document (FeedPojo), not the standalone GazateerPojo
 
 public class EntityPojo 
@@ -85,8 +87,9 @@ public class EntityPojo
 		return disambiguated_name;
 	}
 	public void setDisambiguatedName(String disambiguous_name) {
-		this.disambiguated_name = disambiguous_name;
-		if ((null == index) && (null != type)) {
+		
+		this.disambiguated_name = ContentUtils.stripDiacritics(disambiguous_name);
+		if (null != type) {
 			this.index = new StringBuffer(disambiguous_name).append('/').append(type).toString().toLowerCase();
 		}
 	}
@@ -94,7 +97,7 @@ public class EntityPojo
 		return index;
 	}
 	public void setIndex(String index) {
-		this.index = index.toLowerCase();
+		this.index = ContentUtils.stripDiacritics(index).toLowerCase();
 	}
 	public String getActual_name() {
 		return actual_name;
@@ -107,7 +110,7 @@ public class EntityPojo
 	}
 	public void setType(String type) {
 		this.type = type;
-		if ((null == index) && (null != disambiguated_name)) {
+		if (null != disambiguated_name) {
 			this.index = new StringBuffer(disambiguated_name).append('/').append(type).toString().toLowerCase();
 		}
 	}

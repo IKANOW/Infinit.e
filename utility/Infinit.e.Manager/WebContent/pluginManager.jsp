@@ -614,6 +614,7 @@ limitations under the License.
 		String json = stringOfUrl(API_ROOT + "social/share/search/" + searchCriteria, request, response);
 		
 		toReturn += "<option value=\"null\">Query only</option>";
+		toReturn += "<option value=\"file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar\">Javascript Prototype Engine</option>";
 		
 		 if (json != null)
 		{
@@ -1656,7 +1657,14 @@ else if (isLoggedIn == true)
 				return true ;
 			else
 				return false ;
-		}		
+		}
+		function showResults()
+		{
+			var title = document.getElementById('title').value;
+			var url = getEndPointUrl() + "custom/mapreduce/getresults/" + title;
+			window.open(url, '_blank');
+			window.focus();			
+		}
 		// -->
 		</script>
 	</script>
@@ -1691,6 +1699,7 @@ else if (isLoggedIn == true)
 	                <tr>
 	                	<td>Status Message:</td>
 	                	<td><textarea rows="4" cols="44" name="joberror" id="joberror" ></textarea></td>
+	                	<td><button onclick="showResults()">Show results</button></td>
 	                </tr></table>
 		        	<input type="hidden" name="refreshId" id="refreshId" />
 		        </form>

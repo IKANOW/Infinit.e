@@ -95,7 +95,7 @@
 			
 			"Properties" : {
 				
-				"ImageId" : "ami-71954d18",
+				"ImageId" : "ami-69a62000",
 				"InstanceType": { "Ref": "InstanceType" },
 				"KeyName": { "Ref": "KeyName" },
 				"SecurityGroups": [ { "Ref": "SecurityGroups" } ],
@@ -131,8 +131,9 @@
 							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
 							                   "yum install -y infinit.e-platform.prerequisites.online;",
 							                   
-							                   "curl -O 'http://s3tools.org/repo/CentOS_5/s3tools.repo';", "yum -y install s3cmd;", 
-
+								           "cd /opt/infinite-install/; ",						                   
+							               	   "sh install.sh dbnode ", { "Ref": "QuickInstall" }, ";",
+						                   
 						                   "cd /opt/infinite-install/config; ",						                   
 							                   "echo ", { "Ref": "AwsAccessId" }, " > s3;", 
 							                   "echo ", { "Ref": "AwsAccessKey" }, " >> s3;",
@@ -142,9 +143,6 @@
 							                   
 							                   "s3cmd get ", { "Ref": "ConfigFileS3Path" }, ";",
 							                   
-							               "cd /opt/infinite-install/; ",						                   
-							               	   "sh install.sh dbnode ", { "Ref": "QuickInstall" }, ";",
-						                   
 							               "yum -y --nogpgcheck install infinit.e-config;",    
 							               "yum -y --nogpgcheck install infinit.e-db-instance;",
 						                   

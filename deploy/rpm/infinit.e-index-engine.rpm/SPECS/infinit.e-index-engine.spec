@@ -37,8 +37,8 @@ Infinit.e index engine using ElasticSearch
 			sed -i /"^elasticsearch.*"/d /etc/security/limits.conf
 		fi
 		
-		echo "elasticsearch    soft    nofile          65536" >> /etc/security/limits.conf
-		echo "elasticsearch    hard    nofile          65536" >> /etc/security/limits.conf
+		echo "elasticsearch    soft    nofile          262144" >> /etc/security/limits.conf
+		echo "elasticsearch    hard    nofile          262144" >> /etc/security/limits.conf
 		echo "elasticsearch    -       memlock         unlimited" >> /etc/security/limits.conf
 	fi
 

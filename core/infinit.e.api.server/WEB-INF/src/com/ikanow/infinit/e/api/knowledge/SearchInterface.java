@@ -46,6 +46,7 @@ public class SearchInterface extends ServerResource
 	private String ent2 = null;
 	private boolean wantGeo = true;
 	private boolean wantLinkdata = false;
+	private boolean wantNoAlias = false;
 	
 	@Override
 	public void doInit() 
@@ -93,6 +94,10 @@ public class SearchInterface extends ServerResource
 		 if ((null != linkdata) && ( (linkdata.equals("1")) || (linkdata.equalsIgnoreCase("true")) )) {
 			 wantLinkdata = true;
 		 }
+		 String noAlias = queryOptions.get("noAlias");
+		 if ((null != noAlias) && ( (noAlias.equals("1")) || (noAlias.equalsIgnoreCase("true")) )) {
+			 wantNoAlias = true;
+		 }
 	}
 	
 	/**
@@ -127,7 +132,7 @@ public class SearchInterface extends ServerResource
 			 {
 				 if ( action.equals("suggest"))
 				 {
-					 rp = this.search.getSuggestions(cookieLookup, term, communityIdStrList, wantGeo, wantLinkdata);
+					 rp = this.search.getSuggestions(cookieLookup, term, communityIdStrList, wantGeo, wantLinkdata, wantNoAlias);
 				 }
 				 else if ( action.equals("suggestassoc"))
 				 {
@@ -139,6 +144,7 @@ public class SearchInterface extends ServerResource
 				 }
 				 else if ( action.equals("alias"))
 				 {
+					 //(OBSOLETE)
 					 rp = this.search.getAliasSuggestions(cookieLookup, term, field, communityIdStrList);
 				 }
 			 }

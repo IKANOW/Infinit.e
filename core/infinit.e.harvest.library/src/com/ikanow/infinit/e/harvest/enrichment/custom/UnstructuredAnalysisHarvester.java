@@ -35,11 +35,21 @@ import java.util.regex.Pattern;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+import javax.xml.xpath.XPath;
+import javax.xml.xpath.XPathConstants;
+import javax.xml.xpath.XPathExpressionException;
+import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.log4j.Logger;
 import org.htmlcleaner.CleanerProperties;
-import org.htmlcleaner.CompactXmlSerializer;
+import org.htmlcleaner.DomSerializer;
 import org.htmlcleaner.HtmlCleaner;
 import org.htmlcleaner.TagNode;
 import org.htmlcleaner.XPatherException;
@@ -47,6 +57,9 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.XML;
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
@@ -143,7 +156,7 @@ public class UnstructuredAnalysisHarvester {
 			List<metaField> meta = uap.getMeta();
 
 			if (headerRegEx != null)
-				headerPattern = createRegex(headerRegEx, uap.getHeaderRexExFlags());
+				headerPattern = createRegex(headerRegEx, uap.getHeaderRegExFlags());
 			if (footerRegEx != null)
 				footerPattern = createRegex(footerRegEx, uap.getFooterRegExFlags());
 
@@ -152,7 +165,7 @@ public class UnstructuredAnalysisHarvester {
 			while (it.hasNext()) {
 				nDocs++;
 				DocumentPojo d = it.next();
-				regexDuplicates = new HashSet<String>();
+ 				regexDuplicates = new HashSet<String>();
 				cleaner = null;
 
 				// For feeds, may need to go get the document text manually,
@@ -193,7 +206,7 @@ public class UnstructuredAnalysisHarvester {
 								urlStream = urlConnect.getInputStream();					 
 							}
 							
-							d.setFullText(new Scanner(urlStream).useDelimiter("\\A").next());
+							d.setFullText(new Scanner(urlStream,"UTF-8").useDelimiter("\\A").next());
 						}
 						bFetchedUrl = true;
 						
@@ -340,7 +353,7 @@ public class UnstructuredAnalysisHarvester {
 						}// TESTED
 						urlStream = urlConnect.getInputStream();					 
 					}
-					doc.setFullText(new Scanner(urlStream).useDelimiter("\\A").next());
+					doc.setFullText(new Scanner(urlStream,"UTF-8").useDelimiter("\\A").next());
 				}
 				bFetchedUrl = true;
 				
@@ -581,6 +594,33 @@ public class UnstructuredAnalysisHarvester {
 				//once engine is created, do some initialization
 				if ( null != engine )
 				{
+					// Script code embedded in source
+					String script = (uap.getScript() != null) ? uap.getScript(): null;
+					
+					// scriptFiles - can contain String[] of script files to import into the engine
+					String[] scriptFiles = (uap.getScriptFiles() != null) ? uap.getScriptFiles(): null;
+					
+			        // Pass scripts into the engine
+			        try 
+			        {
+			        	// Eval script passed in s.script
+			        	if (script != null) securityManager.eval(engine, script);
+			        	
+			        	// Retrieve and eval script files in s.scriptFiles
+			        	if (scriptFiles != null)
+			        	{
+			        		for (String file : scriptFiles)
+			        		{
+			        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
+			        		}
+			        	}
+					} 
+			        catch (ScriptException e) 
+					{
+						this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
+						logger.error("ScriptException: " + e.getMessage(), e);
+					}
+			        
 					if (null == parsingScript) 
 					{
 						parsingScript = JavaScriptUtils.generateParsingScript();
@@ -673,38 +713,42 @@ public class UnstructuredAnalysisHarvester {
 				createHtmlCleanerIfNeeded();
 
 				TagNode node = cleaner.clean(new ByteArrayInputStream(text.getBytes()));
+				
+				//NewCode : Only use html cleaner for cleansing
+				//use JAXP for full Xpath lib
+				Document doc = new DomSerializer(new CleanerProperties()).createDOM(node);
+				
 
 				String xpath = m.script;
-				// (For some reason /html/body will not work but beginning with //body does)
 
 				String extraRegex = extractRegexFromXpath(xpath);
 
 				if (extraRegex != null)
 					xpath = xpath.replace("regex(" + extraRegex + ")", "");
-
-				if (xpath.startsWith("/html/body/")) {
-					xpath = xpath.replace("/html/body/", "//body/");
-				} else if (xpath.startsWith("/html[1]/body[1]/")) {
-					xpath = xpath.replace("/html[1]/body[1]/", "//body/");
-				}
-
-				Object[] data_nodes = node.evaluateXPath(xpath);
-
-				if (data_nodes.length > 0) {
+				
+				XPath xpa = XPathFactory.newInstance().newXPath();
+				NodeList res = (NodeList)xpa.evaluate(xpath, doc, XPathConstants.NODESET);
+				
+				if (res.getLength() > 0)
+				{
 					StringBuffer prefix = new StringBuffer(m.fieldName)
-							.append(':');
+					.append(':');
 					int nFieldNameLen = m.fieldName.length() + 1;
-
-					ArrayList<Object> Llist = new ArrayList<Object>(data_nodes.length);
+					ArrayList<Object> Llist = new ArrayList<Object>(res.getLength());
 					boolean bConvertToObject = ((m.groupNum != null) && (m.groupNum == -1));
-					for (Object o : data_nodes) {
-						TagNode info_node = (TagNode) o;
-						
+					for (int i= 0; i< res.getLength(); i++)
+					{
+						Node info_node = res.item(i);
 						if (bConvertToObject) {
 							// Try to create a JSON object out of this
-							CompactXmlSerializer xmlSerializer = new CompactXmlSerializer(cleaner.getProperties());
 							StringWriter writer = new StringWriter();
-							xmlSerializer.write(info_node, writer, "UTF-8");
+							try {
+								Transformer transformer = TransformerFactory.newInstance().newTransformer();
+								transformer.transform(new DOMSource(info_node), new StreamResult(writer));
+							} catch (TransformerException e1) {
+								continue;
+							}
+
 							try {
 								JSONObject subObj = XML.toJSONObject(writer.toString());
 								if (xpath.endsWith("*"))  { // (can have any number of different names here)
@@ -726,7 +770,7 @@ public class UnstructuredAnalysisHarvester {
 							//TESTED
 						}
 						else { // Treat this as string, either directly or via regex
-							String info = info_node.getText().toString().trim();
+							String info = info_node.getTextContent().trim();
 							if (extraRegex == null || extraRegex.isEmpty()) {
 								prefix.setLength(nFieldNameLen);
 								prefix.append(info);
@@ -772,19 +816,20 @@ public class UnstructuredAnalysisHarvester {
 					}
 				}
 
-			} catch (XPatherException e) {
-				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
-
-				// Just do nothing and log
-				logger.error(e.getMessage());
-				
 			} catch (IOException ioe) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(ioe).toString(), true);
 
 				// Just do nothing and log
 				logger.error(ioe.getMessage());
+			} catch (ParserConfigurationException e1) {
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
+				// Just do nothing and log
+				logger.error(e1.getMessage());
+			} catch (XPathExpressionException e1) {
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
+				// Just do nothing and log
+				logger.error(e1.getMessage());
 			}
-
 		}
 		// (don't currently support other script types)
 	}
@@ -1058,7 +1103,8 @@ public class UnstructuredAnalysisHarvester {
 			props.setOmitComments(true);
 			props.setTreatUnknownTagsAsContent(false);
 			props.setTranslateSpecialEntities(true);
-			props.setTransResCharsToNCR(true);	
+			props.setTransResCharsToNCR(true);
+			props.setNamespacesAware(false);
 		}		
 	}
 

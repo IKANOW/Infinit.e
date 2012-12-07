@@ -401,7 +401,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 					StringBuffer type = new StringBuffer();
 					String typeStr =  person.getString("userType");
 					type.append("<select name='userTypeSelect' id='userTypeSelect'>");
-					String[] typeVals = {"Owner","Moderator","Member"};
+					String[] typeVals = {"Owner","Moderator","Content_Publisher","Member"};
 					for (String s : typeVals)
 					{
 						type.append("<option value='" + s.toLowerCase() + "'");
