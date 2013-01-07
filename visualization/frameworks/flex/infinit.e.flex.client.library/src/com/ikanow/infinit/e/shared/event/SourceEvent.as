@@ -17,7 +17,9 @@ package com.ikanow.infinit.e.shared.event
 {
 	import com.ikanow.infinit.e.shared.event.base.InfiniteEvent;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
+	
 	import flash.events.Event;
+	
 	import mx.collections.ArrayCollection;
 	
 	public class SourceEvent extends InfiniteEvent
@@ -28,6 +30,10 @@ package com.ikanow.infinit.e.shared.event
 		//======================================
 		
 		public static const GET_SOURCES_GOOD:String = "getSourcesGoodEvent";
+		
+		public static const SOURCE_DATA_COPIED:String = "sourceDataCopied";
+		
+		public static const REFRESH_SOURCES:String = "refreshSources";
 		
 		public static const RESET:String = "resetSourcesEvent";
 		

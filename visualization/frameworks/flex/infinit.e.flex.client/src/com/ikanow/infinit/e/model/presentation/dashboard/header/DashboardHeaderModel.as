@@ -30,10 +30,12 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	
 	import flash.events.Event;
 	import flash.net.URLRequest;
 	import flash.net.navigateToURL;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.AdvancedDataGrid;
 	import mx.controls.Alert;
@@ -162,6 +164,15 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		public function launchManager():void
 		{
 			var urlRequest:URLRequest = new URLRequest( ServiceUtil.getManagerUrl() );
+			navigateToURL( urlRequest, ServiceConstants.BLANK_URL );
+		}
+		
+		/**
+		 * SourceMonitor
+		 */
+		public function launchSourceMonitor():void
+		{
+			var urlRequest:URLRequest = new URLRequest( ServiceUtil.getSourceMonitorUrl() );	
 			navigateToURL( urlRequest, ServiceConstants.BLANK_URL );
 		}
 		

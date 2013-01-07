@@ -285,12 +285,12 @@
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Username" />
 								<s:TextInput id="usernameInput"
-									text="cburch@ikanow.com" />
+									text="" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Password" />
 								<s:TextInput id="passwordInput"
-									text="123qweasd"
+									text=""
 									displayAsPassword="true"
 									enter="button1_clickHandler(event)" />
 							</s:HGroup>

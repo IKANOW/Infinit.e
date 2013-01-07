@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
+	alpha.disabledStates="0.5"
+	blendMode="normal">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        	[HostComponent("views.InfTextInput")]
+    	]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			/**
+			 *  @private
+			 */
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				if ( promptDisplay )
+				{
+					promptDisplay.setLayoutBoundsSize( unscaledWidth, unscaledHeight );
+					promptDisplay.setLayoutBoundsPosition( 0, 0 );
+				}
+				
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			}
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="disabled"
+			stateGroups="disabledStates" />
+		<s:State name="normalWithPrompt" />
+		<s:State name="disabledWithPrompt"
+			stateGroups="disabledStates" />
+	</s:states>
+
+	<s:Rect 
+		width="100%"
+		height="100%"
+		radiusX="5"
+		radiusY="5">
+		<s:fill>
+			<s:SolidColor color="0xffffff" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				alpha=".5"
+				angle="45"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- text -->
+	<s:Group width="100%">
+		<s:layout>
+			<s:HorizontalLayout verticalAlign="middle" />
+		</s:layout>
+		<s:RichEditableText id="textDisplay"
+			width="100%"
+			styleName="greyTextLarge"
+			paddingBottom="10"
+			paddingLeft="10"
+			paddingRight="10"
+			paddingTop="13"
+			verticalAlign="middle" />
+	</s:Group>
+
+	<!--- Defines the Label that is used for prompt text. The includeInLayout property is false so the prompt text does not affect measurement. -->
+	<s:Label id="promptDisplay"
+		includeInLayout="false"
+		fontSize="14"
+		paddingLeft="10"
+		paddingTop="2"
+		verticalAlign="middle"
+		includeIn="normalWithPrompt,disabledWithPrompt"
+		maxDisplayedLines="1"
+		mouseChildren="false"
+		mouseEnabled="false" />
+
+</s:SparkSkin>

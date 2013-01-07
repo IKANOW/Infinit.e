@@ -51,6 +51,7 @@ public class FeedHarvester_searchEngineSubsystem {
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		
 		SourceSearchFeedConfigPojo searchConfig = feedConfig.getSearchConfig();
+		String savedProxyOverride = feedConfig.getProxyOverride();
 		if ((null == feedConfig) || (null == searchConfig)) {
 			return;
 		}
@@ -169,6 +170,9 @@ public class FeedHarvester_searchEngineSubsystem {
 					UnstructuredAnalysisConfigPojo dummyUAHconfig = new UnstructuredAnalysisConfigPojo();
 					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.First, feedConfig.getSearchConfig().getScript(), "javascript", "dt");
 					src.setUnstructuredAnalysisConfig(dummyUAHconfig);
+					if (null != searchConfig.getProxyOverride()) {
+						feedConfig.setProxyOverride(searchConfig.getProxyOverride());
+					}
 					if (null != searchConfig.getUserAgent()) {
 						feedConfig.setUserAgent(searchConfig.getUserAgent());
 					}
@@ -268,6 +272,7 @@ public class FeedHarvester_searchEngineSubsystem {
 				src.setUnstructuredAnalysisConfig(savedUAHconfig);
 				feedConfig.setUserAgent(savedUserAgent);
 				feedConfig.setWaitTimeOverride_ms(savedWaitTimeOverride_ms);
+				feedConfig.setProxyOverride(savedProxyOverride);
 			}			
 			if (null == itUrls) {
 				break;		

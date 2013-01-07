@@ -35,6 +35,8 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 
+//TODO (INF-1660): here and for assocs, I think I should delete entities that have doccount==0
+
 public class EntityAggregationUtils {
 
 	private static final Logger logger = Logger.getLogger(EntityAggregationUtils.class);	

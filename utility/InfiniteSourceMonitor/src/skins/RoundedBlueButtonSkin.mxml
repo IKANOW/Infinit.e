@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	minWidth="21"
+	minHeight="21"
+	alpha.disabled="0.5">
+
+	<fx:Metadata>[HostComponent("views.InfButton")]</fx:Metadata>
+
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!-- background -->
+	<s:Rect 
+		width="100%"
+		height="100%"
+		radiusX="15"
+		radiusY="15">
+		<s:fill>
+			<s:SolidColor 
+				color="0xa3bbc5"
+				color.over="0xB5CFD9" />
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0x000000"
+				alpha=".1"
+				angle="225"
+				blurX="2"
+				blurY="2"
+				distance="2"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+
+	<!-- text -->
+	<s:Label id="labelDisplay"
+		bottom="10"
+		horizontalCenter="0"
+		left="10"
+		right="10"
+		textAlign="center"
+		top="10"
+		verticalAlign="middle"
+		verticalCenter="1"
+		maxDisplayedLines="1" />
+
+</s:SparkButtonSkin>

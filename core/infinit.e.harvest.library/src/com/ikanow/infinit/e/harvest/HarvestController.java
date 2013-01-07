@@ -559,7 +559,7 @@ public class HarvestController implements HarvestContext
 			{
 				// Text/Entity Extraction
 				try {
-					extractTextAndEntities(toAdd, source);
+					extractTextAndEntities(toAdd, source, false);
 				}
 				catch (Exception e) {
 					handleExtractError(e, source); //handle extractor error if need be				
@@ -568,6 +568,14 @@ public class HarvestController implements HarvestContext
 		} // (end if no SAH)
 		
 		// Finish processing:
+		// Complete batches
+		if (isEntityExtractionRequired(source))
+		{
+			try {
+				extractTextAndEntities(null, source, true);
+			}
+			catch (Exception e) {}
+		}		
 		// Map ontologies:
 		
 		completeDocumentBuilding(toAdd, toUpdate);
@@ -613,16 +621,16 @@ public class HarvestController implements HarvestContext
 	 * @return Any errors that occured while extracting, null if no error
 	 * @throws ExtractorSourceLevelTransientException 
 	 */
-	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source)
+	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source, boolean bFinalizeBatchOnly)
 		throws ExtractorDocumentLevelException, ExtractorSourceLevelException, 
 				ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException
 	{
+		IEntityExtractor currentEntityExtractor = null;
 		try {
 			int error_on_feed_count = 0, feed_count = 0;
 			
 		// EXTRACTOR SELECTION LOGIC
 			
-			IEntityExtractor currentEntityExtractor = null;
 			if (null != source.useExtractor()) {
 				currentEntityExtractor = entity_extractor_mappings.get(source.useExtractor().toLowerCase());
 			}
@@ -640,6 +648,14 @@ public class HarvestController implements HarvestContext
 					currentEntityExtractor = default_entity_extractor;
 				}
 			}//TESTED					
+			
+			if (bFinalizeBatchOnly) {
+				try {
+					currentEntityExtractor.extractEntities(null);
+				}
+				catch (Exception e) {} // do nothing, eg handle entity extractors that don't handle things well
+				return;
+			}
 			
 			// A teeny bit of complex logic:
 			// toAdd by default use a text extractor
@@ -809,13 +825,12 @@ public class HarvestController implements HarvestContext
 			throw e;
 		}
 		catch (Exception e) { // Misc internal error
-			
 			StringBuffer errMsg = new StringBuffer("Skipping source=").append(source.getKey()).append(" error=").append(e.getMessage());
 			logger.error(errMsg.toString());
 			throw new ExtractorSourceLevelTransientException(errMsg.toString());
 		}//TESTED
 		
-	}//TOTEST (exception handling extensions)
+	}//TESTED
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	

@@ -42,7 +42,7 @@
 			import mx.rpc.events.ResultEvent;
 			import flexlib.mdi.events.MDIWindowEvent;
 			
-			private var API_SERVER:String = "http://localhost:8184/"; 	//api url address of infinite api server
+			private var API_SERVER:String = "http://absolutepin.ikanow.com/api/"; 	//api url address of infinite api server
 			
 			private var COMMUNITYID:String = ""; //community id to search on, gets populated during load
 			
@@ -287,12 +287,12 @@
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Username" />
 								<s:TextInput id="usernameInput"
-									text="john@ikanow.com" />
+									text="" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Password" />
 								<s:TextInput id="passwordInput"
-									text="john"
+									text=""
 									displayAsPassword="true"
 									enter="button1_clickHandler(event)" />
 							</s:HGroup>
@@ -342,8 +342,8 @@
 				horizontalScrollPolicy="off"
 				x="450"
 				y="50"
-				width="400"
-				height="400"
+				width="700"
+				height="700"
 				layout="absolute"
 				horizontalAlign="center"
 				verticalAlign="middle"

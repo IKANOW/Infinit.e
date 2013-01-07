@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.api.knowledge;
 
 import java.lang.reflect.Type;
+import java.util.HashMap;
 import java.util.List;
 
 import com.google.gson.JsonDeserializationContext;
@@ -40,6 +41,7 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 		public String entityType; // (can be left unspecified)
 		
 		static public class EntityOptionPojo { // Options for "entity" types
+			public boolean rawText = false; // If true (!default) adds the disambiguated name and all aliases as an exact text search
 			public boolean expandAlias = false; // If true (!default), adds aliases to the search
 			public boolean expandOntology = false; // If true (!default), adds "useful" generalizations of the entity to the search
 		}
@@ -120,8 +122,15 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 	
 	static public class QueryScorePojo { // Scoring parameters for the query
 		public Integer numAnalyze = 1000; // The number of documents on which to perform processing, default 1000
+		
 		public Double sigWeight = 0.67; // The relative weight to give to query significance (Infinit.e score), default to 0.67
 		public Double relWeight = 0.33; // The relative weight to give to search relevance (standard Lucene score), default to 0.33
+		public HashMap<String, Double> sourceWeights; // highest priority score weightings
+		public HashMap<String, Double> typeWeights; // middle priority score weightings
+		public HashMap<String, Double> tagWeights; // low priority score weightings
+		
+		public Boolean scoreEnts = true; // Whether to include significance scores with entities (allows more efficient doc retrieval when ranked by date/rel)
+		public Boolean adjustAggregateSig; // if true (default automatic) then relevance is used to adjust significance scores for aggregations
 		
 		static public class TimeProxTermPojo { // Scoring based on time
 			public String time = "now"; // The "centre" time, any sensible format is parsed, including "now" (default)
@@ -149,7 +158,7 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 			public Integer numEventsTimelineReturn = 1000; // (number of events to bring back)
 			public Integer skip = 0;
 			public Boolean ents = true;
-			public Boolean geo = true; // (if ents==false, this still brings back entities)
+			public Boolean geo = null; // (by default do whatever "ents" does)
 			public Boolean events = true;
 			public Boolean facts = true;
 			public Boolean summaries = true;

@@ -222,6 +222,12 @@ package com.ikanow.infinit.e.query.model.manager
 		private var setup:Setup;
 		
 		
+		/**
+		 * Variable for first time query runs
+		 */
+		private var firstTime:Boolean = true;
+		
+		
 		//======================================
 		// public methods 
 		//======================================
@@ -518,8 +524,11 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			currentUser = value;
 			
-			if ( setup )
+			if ( setup && firstTime )
+			{
+				firstTime = false;
 				initQueryStrings();
+			}
 		}
 		
 		/**
@@ -619,8 +628,11 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			setup = value;
 			
-			if ( currentUser )
+			if ( currentUser && firstTime )
+			{
+				firstTime = false;
 				initQueryStrings();
+			}
 		}
 		
 		/**
@@ -782,7 +794,9 @@ package com.ikanow.infinit.e.query.model.manager
 			if ( !currentUser && !setup )
 				return;
 			
-			setup.communityIds = QueryUtil.getUserCommunityIdsArrayFromArray( setup.communityIds, currentUser.communities );
+			var communityIds:Array = QueryUtil.getUserCommunityIdsArrayFromArray( setup.communityIds, currentUser.communities );
+			
+			setup.communityIds = communityIds;
 			
 			initRecentQueries();
 			
@@ -792,6 +806,8 @@ package com.ikanow.infinit.e.query.model.manager
 			// create a query string request (also updates aggregationOptions, documentOptions, filterOptions, scoreOptions)
 			var queryString:QueryStringRequest = this.updateQuery( setup.queryString );
 			
+			//if ( communityIds.length > 0 && communityIds[ 0 ] != "" )
+			//{
 			// set the community ids
 			queryString.communityIds = setup.communityIds;
 			
@@ -813,6 +829,7 @@ package com.ikanow.infinit.e.query.model.manager
 			// add the last query string to the recent queries collection
 			recentQueries.addItem( QueryUtil.getTypedQueryString( lastQueryString ) );
 			recentQueries.refresh();
+			//}
 		}
 		
 		/**
@@ -856,6 +873,13 @@ package com.ikanow.infinit.e.query.model.manager
 		{
 			// set the community ids
 			var communtityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			
+			/*if ( communtityIds == "" || communtityIds == null )
+			{
+				Alert.show( "Error: No communities selected, please open the Source Manager and choose a community to search in" );
+			}
+			else
+			{*/
 			queryString.communityIds = communtityIds.split( Constants.STRING_ARRAY_DELIMITER );
 			
 			// set the query term options
@@ -914,6 +938,7 @@ package com.ikanow.infinit.e.query.model.manager
 			// add the last query string to the recent queries collection
 			recentQueries.addItem( QueryUtil.getTypedQueryString( lastQueryString, queryStringType ) );
 			recentQueries.refresh();
+			//}
 		}
 		
 		/**

@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.core.utils;
 
+import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -114,7 +115,6 @@ public class SourceUtils {
 						// (will know synced exists because we set it below - the sort doesn't work without its being set for all records)
 				}
 				else { // for harvest, try to take into account the effect of search cycles
-					//TODO (INF-1784): This appeared to kill the DB cluster?!
 					addSearchCycleClause(query, now);
 				}
 			}
@@ -150,6 +150,9 @@ public class SourceUtils {
 			else {
 				orderBy.put(SourceHarvestStatusPojo.sourceQuery_harvested_, 1);		
 			}
+			//(note although there's a complex query preceding this, it should be using the above index 
+			// anyway so there should be some benefit to this)
+			
 			BasicDBObject fields = new BasicDBObject(); 
 			if (bDistributed) { 
 				// Mainly just _id and extractType, we'll get these for debugging
@@ -162,6 +165,9 @@ public class SourceUtils {
 				if (null == sSourceId) {
 					fields.put(SourcePojo.searchCycle_secs_, 1);
 					fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);
+				}
+				else if (bSync) { // (always get status for sync - need to know if it exists...)
+					fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);					
 				}
 				// (otherwise - effectively overriding this with null for "debug" calls)
 			}
@@ -180,7 +186,8 @@ public class SourceUtils {
 						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesteryear)), false, true);				
 			}
 			// (then perform query)
-			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(nMaxSources);			
+			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(nMaxSources);
+			
 			sources = SourcePojo.listFromDb(cur, new TypeToken<LinkedList<SourcePojo>>(){});
 		} 
 		catch (Exception e) 
@@ -261,6 +268,7 @@ public class SourceUtils {
 			else {
 				modifyClause.put(SourceHarvestStatusPojo.sourceQuery_harvested_, now);
 			}
+			modifyClause.put(SourceHarvestStatusPojo.sourceQuery_lastHarvestedBy_, getHostname());
 			BasicDBObject modify = new BasicDBObject(MongoDbManager.set_, modifyClause);
 			
 			try {
@@ -316,7 +324,7 @@ public class SourceUtils {
 		return clause;
 	}//TESTED
 	
-	//TODO (INF-1784): Problem clause? Maybe caused cluster to go down?!
+	//(NOTE: IF RUN IN CONJUNCTION WITH "ABUSIVE" MAP/REDUCE WILL CAUSE DB HANG)
 	private static void addSearchCycleClause(BasicDBObject currQuery, Date now) {
 		BasicDBObject subclause1 = new BasicDBObject(SourcePojo.searchCycle_secs_, new BasicDBObject(MongoDbManager.exists_, false));
 		StringBuffer js = new StringBuffer();
@@ -544,5 +552,21 @@ public class SourceUtils {
 		}
 		// No need to do anything related to soft deletion, this is all handled when the harvest ends 
 	}//TESTED
+
+	//////////////////////////////////////////////////////
 	
+	// Utility to get harvest name for display purposes
+	
+	private static String _harvestHostname = null;
+	private static String getHostname() {
+		// (just get the hostname once)
+		if (null == _harvestHostname) {
+			try {
+				_harvestHostname = InetAddress.getLocalHost().getHostName();
+			} catch (Exception e) {
+				_harvestHostname = "UNKNOWN";
+			}
+		}		
+		return _harvestHostname;
+	}//TOTEST	
 }

@@ -710,18 +710,6 @@ limitations under the License.
 					var url1:URLRequest = new URLRequest( urlStr );
 					navigateToURL( url1, '_blank' );
 				}
-			/*else if ( null != repeaterItem.metadata )
-			{
-			Alert.show( JSONEncoder.encode( repeaterItem.metadata ), "Metadata fields" );
-			}
-			else if ( null != repeaterItem.description )
-			{
-			Alert.show( repeaterItem.description );
-			}
-			else
-			{
-			Alert.show( "No more information is available." );
-			}*/
 			}
 			
 			/**
@@ -1875,6 +1863,14 @@ limitations under the License.
 					dataSet.addItem( pageData.getItemAt( i ) );
 				}
 			}
+			private function metadataClick( event:Event ):void
+			{
+				var repeaterItem:Object;
+				repeaterItem = event.target.getRepeaterItem();
+				var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=false";
+				var url1:URLRequest = new URLRequest( urlStr );
+				navigateToURL( url1, '_blank' );
+			}
 			
 			// This function handles clicking the "ignore local filter" button:
 			// - If no filter is applied, sets a flag
@@ -2275,13 +2271,38 @@ limitations under the License.
 								mouseChildren="false"
 								useHandCursor="true" />
 
-							<mx:LinkButton id="link"
-								label="{ repeat.currentItem.url.substr( 0, 196 ) }"
-								toolTip="{ repeat.currentItem.url }"
-								color="green"
-								fontSize="14"
-								textAlign="left"
-								click="articleClick(event)" />
+							<mx:HBox 
+								height="100%"
+								width="100%">
+								<mx:LinkButton id="link"
+									label="{ repeat.currentItem.url.substr( 0, 196 ) }"
+									toolTip="{ repeat.currentItem.url }"
+									color="green"
+									fontSize="14"
+									textAlign="left"
+									click="articleClick(event)" />
+								<s:Group>
+									<s:Line 
+										xFrom="0"
+										xTo="0"
+										yFrom="3"
+										yTo="17">
+										<s:stroke>
+											<mx:SolidColorStroke 
+												color="green"
+												weight="2" />
+										</s:stroke>
+									</s:Line>
+								</s:Group>
+								<mx:LinkButton id="link_metadata"
+									label="(metadata)"
+									toolTip="Display the raw JSON from the Infinit.e database"
+									color="green"
+									fontSize="14"
+									textAlign="left"
+									click="metadataClick(event)" />
+							</mx:HBox>
+
 							<mx:TextArea id="snippet"
 								width="100%"
 								height="{ repeat.currentItem.description.length > 0 ? 60 : 0 }"

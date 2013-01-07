@@ -48,34 +48,49 @@ class ScoringUtils_Associations {
 	
 	static class StandaloneEventHashAggregator {
 		@SuppressWarnings("unchecked")
-		StandaloneEventHashAggregator(LinkedList<BasicDBObject> primaryList) {
+		StandaloneEventHashAggregator(LinkedList<BasicDBObject> primaryList, boolean bSimulateAggregation) {
 			store = new HashMap<StandaloneEventHashCode,BasicDBObject>();
 			listBuckets = (LinkedList<BasicDBObject>[])new LinkedList[NUM_BUCKETS]; 
 			tmpList = new LinkedList<BasicDBObject>();
+			this.bSimulateAggregation = bSimulateAggregation;
 		}
 		HashMap<StandaloneEventHashCode,BasicDBObject> store;
 		double dMaxSig = 0; // (max sig observed)
 		boolean bCalcSig = true; // (default)
 		int nPhase0Events = 0; // (count the events from promoted docs - allows some optimization later)
 		int nPhase1Events = 0; // (count the events from once-promoted docs - allows some optimization later)
+		boolean bSimulateAggregation = false; // (if true, generates pure aggregations of events/facts)
 		
 		// Very basic prioritization
-		private static int NUM_BUCKETS = 10;
+		private static final int NUM_BUCKETS = 100;
+		private static final int NUM_BUCKETS_1 = 99;
+		private static final double DNUM_BUCKETS = 100.0;
+		
 		LinkedList<BasicDBObject>[] listBuckets = null; 
 		LinkedList<BasicDBObject> tmpList = null; // (until they're ordered)
 		
 	}//TESTED
 	
 	static class StandaloneEventHashCode { // (used to aggregate standalone events) 
-		StandaloneEventHashCode(BasicDBObject evt_, boolean bIsSummary_, boolean bIsFact_) { 
+		StandaloneEventHashCode(boolean bAggregation_, BasicDBObject evt_, boolean bIsSummary_, boolean bIsFact_) { 
 			evt = new BasicDBObject(evt_);
-			if (!bIsSummary_) {
+			if (bAggregation_) { // Remove loads of things
 				evt.remove(AssociationPojo.entity1_);
-				evt.remove(AssociationPojo.entity2_);
-			}
-			if (bIsFact_) {
+				evt.remove(AssociationPojo.entity2_);				
+				evt.remove(AssociationPojo.verb_);
 				evt.remove(AssociationPojo.time_start_);
-				evt.remove(AssociationPojo.time_end_);				
+				evt.remove(AssociationPojo.time_end_);
+				evt.remove(AssociationPojo.geo_sig_);
+			}//TESTED
+			else {
+				if (!bIsSummary_) {
+					evt.remove(AssociationPojo.entity1_);
+					evt.remove(AssociationPojo.entity2_);
+				}
+				if (bIsFact_) {
+					evt.remove(AssociationPojo.time_start_);
+					evt.remove(AssociationPojo.time_end_);				
+				}
 			}
 			nHashCode = evt.hashCode();
 		}//TESTED (saw facts, events, and summaries aggregate correctly)
@@ -111,7 +126,9 @@ class ScoringUtils_Associations {
 				assoc.put(AssociationPojo.assoc_sig_, Math.sqrt(dAssocSig));
 				
 				double dBucket = dAssocSig/dMaxSig;
-				int nBucket = 9 - (int)(10.0*dBucket) % 10; // (do crazy stuff if dBucket >= 1.0)
+				int nBucket = StandaloneEventHashAggregator.NUM_BUCKETS_1 - 
+								(int)(StandaloneEventHashAggregator.DNUM_BUCKETS*dBucket) 
+									% StandaloneEventHashAggregator.NUM_BUCKETS; // (do crazy stuff if dBucket >= 1.0)
 				
 				LinkedList<BasicDBObject> bucketList = standaloneEventAggregator.listBuckets[nBucket];
 				if (null == bucketList) {
@@ -145,6 +162,16 @@ class ScoringUtils_Associations {
 			
 			if (null != bucket) {
 				for (BasicDBObject dbo: bucket) {
+					if (standaloneEventAggregator.bSimulateAggregation) {
+						dbo = new BasicDBObject(dbo);
+						dbo.remove(AssociationPojo.entity1_);
+						dbo.remove(AssociationPojo.entity2_);				
+						dbo.remove(AssociationPojo.verb_);
+						dbo.remove(AssociationPojo.time_start_);
+						dbo.remove(AssociationPojo.time_end_);
+						dbo.remove(AssociationPojo.geo_sig_);
+					} //TESTED
+
 					standaloneEventList.add(dbo);					
 					nAddedToReturnList++;
 					if (nAddedToReturnList >= nMaxToReturn) {
@@ -165,11 +192,15 @@ class ScoringUtils_Associations {
 	
 	static void addStandaloneEvents(BasicDBObject doc, double dDocSig, int nPhase,
 										StandaloneEventHashAggregator standaloneEventAggregator,
+										boolean bEntTypeFilterPositive, boolean bAssocVerbFilterPositive,
 										HashSet<String> entTypeFilter, HashSet<String> assocVerbFilter,
 										boolean bEvents, boolean bSummaries, boolean bFacts)
-	{
+	{				
+		if (standaloneEventAggregator.bSimulateAggregation) {
+			bSummaries = false;
+		}
 		String sDocIsoPubDate = null;
-		
+	
 		BasicDBList lev = (BasicDBList)(doc.get(DocumentPojo.associations_));
 		if (null != lev) 
 		{
@@ -198,10 +229,16 @@ class ScoringUtils_Associations {
 				
 				// Verb filter
 				if (null != assocVerbFilter) {
-					if (!assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+					if (bAssocVerbFilterPositive) {
+						if (!assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+							bKeep = false;
+						}						
+					}
+					else if (assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
 						bKeep = false;
 					}
-				}						
+				}//TESTED
+
 				if ((null != entTypeFilter) && bKeep) {
 					String entIndex = e.getString(AssociationPojo.entity1_index_);
 					if (null != entIndex) {
@@ -210,10 +247,18 @@ class ScoringUtils_Associations {
 						if (nIndex >= 0) {
 							entType = entIndex.substring(nIndex + 1);
 						}
-						if ((null != entType) && (!entTypeFilter.contains(entType))) {
+						if (bEntTypeFilterPositive) {
+							if ((null != entType) && (!entTypeFilter.contains(entType))) {
+								e0.remove();
+								bKeep = false;
+							}
+						}
+						else if ((null != entType) && (entTypeFilter.contains(entType))) {
 							e0.remove();
 							bKeep = false;
 						}
+						//TESTED
+						
 					}//(end if ent1_index exists)
 					if (bKeep) { // same for ent index 2
 						entIndex = e.getString(AssociationPojo.entity2_index_);
@@ -223,7 +268,13 @@ class ScoringUtils_Associations {
 							if (nIndex >= 0) {
 								entType = entIndex.substring(nIndex + 1);
 							}
-							if ((null != entType) && (!entTypeFilter.contains(entType))) {
+							if (bEntTypeFilterPositive) {
+								if ((null != entType) && (!entTypeFilter.contains(entType))) {
+									e0.remove();
+									bKeep = false;
+								}
+							}
+							else if ((null != entType) && (entTypeFilter.contains(entType))) {
 								e0.remove();
 								bKeep = false;
 							}
@@ -234,44 +285,47 @@ class ScoringUtils_Associations {
 				
 				if (bKeep) 
 				{
-					
-					// Add time from document
-					String time_start = e.getString(AssociationPojo.time_start_);
+					String time_start = null;
 					String time_end = null; // (normally not needed)
-
-					if (null == time_start) 
-					{
-						if (null == sDocIsoPubDate) {
-							// Convert docu pub date to ISO (day granularity):
-							Date pubDate = (Date) doc.get(DocumentPojo.publishedDate_);
-							
-							if (null != pubDate) {
-								SimpleDateFormat f2 = new SimpleDateFormat("yyyy-MM-dd");
-								time_start = f2.format(pubDate);
-							}
-						}
-						else {
-							time_start = sDocIsoPubDate; // (so it doesn't get added again below)
-						}
-					}//TESTED					
-					else 
-					{ // Remove hourly granularity for consistency						
-						time_start = time_start.replaceAll("T.*$", "");
-						time_end = e.getString(AssociationPojo.time_end_);
-						
-						if (null != time_end) {
-							time_end = time_end.replaceAll("T.*$", "");
-						}
-					}//TESTED (with debug code, eg time_start = "1997-07-16T19:20:30+01:00")
-					if (null != time_start) 
-					{ // Ensure it has day granularity, to help with aggregation
-						e.put(AssociationPojo.time_start_, time_start);
-						if (null != time_end) {
-							e.put(AssociationPojo.time_end_, time_end);							
-						}
-					}//TESTED
 					
-					StandaloneEventHashCode evtHolder = new StandaloneEventHashCode(e, bIsSummary, bIsFact);
+					if (!standaloneEventAggregator.bSimulateAggregation) { //else times are discarded						
+						// Add time from document
+						time_start = e.getString(AssociationPojo.time_start_);
+	
+						if (null == time_start) 
+						{
+							if (null == sDocIsoPubDate) {
+								// Convert docu pub date to ISO (day granularity):
+								Date pubDate = (Date) doc.get(DocumentPojo.publishedDate_);
+								
+								if (null != pubDate) {
+									SimpleDateFormat f2 = new SimpleDateFormat("yyyy-MM-dd");
+									time_start = f2.format(pubDate);
+								}
+							}
+							else {
+								time_start = sDocIsoPubDate; // (so it doesn't get added again below)
+							}
+						}//TESTED					
+						else 
+						{ // Remove hourly granularity for consistency						
+							time_start = time_start.replaceAll("T.*$", "");
+							time_end = e.getString(AssociationPojo.time_end_);
+							
+							if (null != time_end) {
+								time_end = time_end.replaceAll("T.*$", "");
+							}
+						}//TESTED (with debug code, eg time_start = "1997-07-16T19:20:30+01:00")
+						if (null != time_start) 
+						{ // Ensure it has day granularity, to help with aggregation
+							e.put(AssociationPojo.time_start_, time_start);
+							if (null != time_end) {
+								e.put(AssociationPojo.time_end_, time_end);							
+							}
+						}//TESTED
+					}//(end if normal standalone mode, not aggregation simulation)
+					
+					StandaloneEventHashCode evtHolder = new StandaloneEventHashCode(standaloneEventAggregator.bSimulateAggregation, e, bIsSummary, bIsFact);
 					BasicDBObject oldEvt = standaloneEventAggregator.store.get(evtHolder);
 
 					if (null == oldEvt) {
@@ -280,8 +334,7 @@ class ScoringUtils_Associations {
 						double dAssocSig = dDocSig*dDocSig;
 						
 						// Weight down summaries slightly (80%), and summaries with missing entities a lot (50%)  
-						String sType = (String) e.get(AssociationPojo.assoc_type_);
-						if ('S' == sType.charAt(0)) {
+						if (bIsSummary) {
 							String sEntity2 = (String) e.get(AssociationPojo.entity2_);
 							if (null == sEntity2) {
 								dAssocSig *= 0.50;							
@@ -322,7 +375,8 @@ class ScoringUtils_Associations {
 							standaloneEventAggregator.dMaxSig = dAssocSig;							
 						}
 						
-						if (bIsFact) {
+						if (bIsFact && !standaloneEventAggregator.bSimulateAggregation)
+						{
 							// For facts, also update the time range:
 							String old_time_start = oldEvt.getString(AssociationPojo.time_start_);
 							String old_time_end = oldEvt.getString(AssociationPojo.time_end_);

@@ -33,6 +33,9 @@ public class TextRankExtractor implements IEntityExtractor {
 	@Override
 	public void extractEntities(DocumentPojo partialDoc)
 	{
+		if (null == partialDoc) {
+			return;
+		}
 		try {
 			
 			processor.get().prepCall(partialDoc.getFullText(), false);			

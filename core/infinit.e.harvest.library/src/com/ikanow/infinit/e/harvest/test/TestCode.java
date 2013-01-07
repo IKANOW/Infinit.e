@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.harvest.test;
 
 import java.io.IOException;
+import java.net.URL;
 import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
@@ -31,6 +32,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.Globals.Identity;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.utils.ProxyManager;
 import com.mongodb.BasicDBObject;
 
 @SuppressWarnings("unused")
@@ -48,6 +50,9 @@ public class TestCode {
 		Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
 		Globals.overrideConfigLocation(args[0]);
 
+		// Check proxy:
+		ProxyManager.getProxy(new URL("http://www.ikanow.com"), null);
+		
 		// TESTING
 		
 		HarvestController harvester = new HarvestController();

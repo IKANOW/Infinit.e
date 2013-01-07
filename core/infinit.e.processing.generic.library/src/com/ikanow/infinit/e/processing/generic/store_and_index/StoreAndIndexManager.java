@@ -227,7 +227,7 @@ public class StoreAndIndexManager {
 			// Add to data store
 			removeFromDatastore_byId(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
 			
-			// removeFromDataStore(), above, adds "url" to the doc
+			// removeFromDataStore(), above, adds "url" and "index" to the doc
 			// (not created since can't be used for update...)
 			this.removeFromSearch(docs);
 			
@@ -317,13 +317,14 @@ public class StoreAndIndexManager {
 	private void removeFromDatastore_byURL(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
 		BasicDBObject fields = new BasicDBObject();
 		fields.put(DocumentPojo.created_, 1);
+		fields.put(DocumentPojo.index_, 1);
 		
 		Set<String> sourceUrlSet = null;
 		// Store the knowledge in the feeds collection in the harvester db
 		Iterator<DocumentPojo> docIt = docs.iterator();
 		while (docIt.hasNext()) {
 			DocumentPojo f = docIt.next();
-
+			
 			if ((null != f.getSourceUrl()) && (null == f.getUrl())) { // special case ... delete all these documents...
 				if (null == sourceUrlSet) {
 					sourceUrlSet = new TreeSet<String>();
@@ -365,6 +366,8 @@ public class StoreAndIndexManager {
 	
 	private void removeFromDatastore_byId(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
 		BasicDBObject fields = new BasicDBObject();
+		fields.put(DocumentPojo.url_, 1);
+		fields.put(DocumentPojo.index_, 1);
 		
 		// Store the knowledge in the feeds collection in the harvester db			
 		for ( DocumentPojo f : docs) {
@@ -400,6 +403,7 @@ public class StoreAndIndexManager {
 		}
 		if (null != deadDoc) {
 			doc.setUrl(deadDoc.getString(DocumentPojo.url_));
+			doc.setIndex(deadDoc.getString(DocumentPojo.index_));
 			
 			if ((null != doc.getUrl()) && bDeleteContent) { // Use URL to determine whether to delete content
 				bDeleteContent =  docHasExternalContent(doc.getUrl(), null);
@@ -461,6 +465,8 @@ public class StoreAndIndexManager {
 		if (null != deadDoc) {
 			doc.setCreated((Date) deadDoc.get(DocumentPojo.created_));
 			doc.setId((ObjectId) deadDoc.get(DocumentPojo._id_));
+			doc.setIndex((String) deadDoc.get(DocumentPojo.index_));
+			
 			if (_diagnosticMode) {
 				System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2): found " + deadDoc.toString());
 			}

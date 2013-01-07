@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:list="com.ikanow.infinit.e.community.view.list.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	width="100%"
+	paddingBottom="7"
+	paddingLeft="7"
+	paddingRight="4"
+	paddingTop="7"
+	creationComplete="creationCompleteHandler(event)">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.community.model.presentation.list.SourceMonitorListModel;
+			import com.ikanow.infinit.e.shared.event.SourceEvent;
+			import com.ikanow.infinit.e.shared.model.vo.Community;
+			
+			import mx.collections.ArrayCollection;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			
+			import spark.events.IndexChangeEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:SourceMonitorListModel;
+			[Bindable]
+			private var sourceInfo:ArrayCollection;
+			
+			protected function creationCompleteHandler(event:FlexEvent):void
+			{
+				if(model != null && model.selectedSource)
+				{
+					sourceInfo = new ArrayCollection();
+					
+					sourceInfo.addItem({title: "Title", name: model.selectedSource.title});
+					sourceInfo.addItem({title: "ID", name: model.selectedSource._id});
+					sourceInfo.addItem({title: "Community", name: model.selectedSource.community});
+					sourceInfo.addItem({title: "Community ID", name: model.selectedSource.communityIds});
+					sourceInfo.addItem({title: "Approved", name: model.selectedSource.isApproved});
+					sourceInfo.addItem({title: "Harvest Status", name: getReadableHarvestStatus(model.selectedSource.harvest.harvest_status)});
+					sourceInfo.addItem({title: "Doc Count", name: model.selectedSource.harvest.doccount});
+					sourceInfo.addItem({title: "Last Harvest Date", name: model.selectedSource.harvest.harvested});
+					sourceInfo.addItem({title: "Harvest Error Message", name: model.selectedSource.harvest.harvest_message});
+				}
+			}
+			
+			/**
+			 * function to get the harvest status
+			 * 
+			 * @param harvestStatus The status of the harvester
+			 */
+			private function getReadableHarvestStatus(harvestStatus:String):String
+			{
+				switch(harvestStatus)
+				{
+					case "in_progress":
+						return "in progress";
+					case "success_iteration":
+						return "in progress";
+					case "null":
+						return "pending";
+				}
+				
+				return harvestStatus;
+			}
+			
+			/**
+			 * function to handle when an item is double clicked
+			 * 
+			 * @param event The MouseEvent receieved
+			 */
+			protected function sourceMonitorListDoubleClickHandler(event:MouseEvent):void
+			{
+				System.setClipboard( sourceMonitorList.selectedItem.name );
+				var eventObj:SourceEvent = new SourceEvent(SourceEvent.SOURCE_DATA_COPIED);
+				dispatchEvent(eventObj);
+			}
+			
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- source monitor info -->
+	<list:SourceMonitorListComponent id="sourceMonitorList"
+		dataProvider="{ sourceInfo }"
+		styleName="titleWindowList"
+		labelField="name"
+		height="100%"
+		horizontalScrollPolicy="off"
+		width="100%"
+		doubleClickEnabled="true"
+		doubleClick="sourceMonitorListDoubleClickHandler(event)"
+		itemRenderer="com.ikanow.infinit.e.community.view.list.SourceMonitorListItemRenderer"/>
+
+</s:VGroup>

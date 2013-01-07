@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-0.18.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jline-0.9.94.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jna-3.2.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/log4j-1.2.16.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-analyzers-3.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-core-3.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-highlighter-3.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-memory-3.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-queries-3.5.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/sigar/sigar-1.6.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/elasticsearch_compatibility.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

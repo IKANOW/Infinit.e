@@ -47,8 +47,14 @@ public class AlchemyAPI_JSON {
 	public static long getExtractRequests() { return nGetExtractRequests; }    
 	public static void transactionLimitExceeded() { nGetTextRequests--; }
     
+	private boolean strict = false;
+	public void setStrict(boolean b) { strict = b; }
+	
 	private boolean sentimentEnabled = true;
 	public void setSentimentEnabled(boolean b) { sentimentEnabled = b; }
+	
+	private Integer nNumKeywords = null;
+	public void setNumKeywords(int n) { nNumKeywords = n; }
 	
  // Initialize the Logger
 	private static final Logger logger = Logger.getLogger(AlchemyAPI_JSON.class);
@@ -214,6 +220,12 @@ public class AlchemyAPI_JSON {
 		params.setOutputMode(AlchemyAPI_NamedEntityParams.OUTPUT_JSON);
         if (sentimentEnabled) {
         	params.setCustomParameters("sentiment", "1");
+        }
+        if (strict) {
+        	params.setCustomParameters("keywordExtractMode", "strict");        	
+        }
+        if (null != nNumKeywords) {
+        	params.setCustomParameters("maxRetrieve", Integer.toString(nNumKeywords));
         }
         // Default is normal, not sure which is best
         //params.setCustomParameters("keywordExtractMode", "strict");

@@ -33,10 +33,41 @@ limitations under the License.
 	// !----------  ----------!
 	String sourceTemplateSelect = "";
 	String selectedSourceTemplate = "";
-	String communityIdSelect = "";	
-	private static String starterSourceString = "{ title: \"Title\", description: \"Description\", url: " +
+	String communityIdSelect = "";
+	
+	private static String starterSourceString_rss = "{ title: \"Title\", description: \"Description\", url: " +
 			"\"http://youraddress.com/news.rss\", isPublic: true, extractType: \"Feed\", mediaType: " +
-			"\"Social\", tags: [ \"tag2\", \"tag1\" ], harvestBadSource: false }";
+			"\"News\", tags: [ \"tag1\" ] }";
+			
+	private static String starterSourceString_web = "{ title: \"Title\", description: \"Description\", rss: { extraUrls: " +
+			"[ { url: \"http://youraddress.com/title.html\", title: \"Page Title\", description: \"Optional\" } ], " +
+			"updateCycle_secs: 86400 }, " +
+			"isPublic: true, extractType: \"Feed\", mediaType: " +
+			"\"News\", tags: [ \"tag1\" ] }";
+			
+	private static String starterSourceString_simpleApi = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"http://youraddress.com/query?out=json\", isPublic: true, extractType: \"Feed\", mediaType: " +
+			"\"Social\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}," +
+			"useTextExtractor: \"none\", unstructuredAnalysis: { meta: [ { context: \"First\" , fieldName: \"json\", scriptlang: \"javascript\", script: \"var json = eval('('+text+')'); json; \" } ] }  }";
+			
+	private static String starterSourceString_complexApi = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"http://youraddress.com/query?out=json\", isPublic: true, extractType: \"Feed\", mediaType: " +
+			"\"Social\", tags: [ \"tag1\" ]," +
+			"rss: { searchConfig: { scriptlang: \"javascript\", script: \"var retval = []; var json = eval('('+text+')'); var example = {url: 'URL', title: 'TITLE', description: 'DESC', publishedDate: 'DATE' }; if (false) example.fullText = 'TEXT'; retval.push(example); retval; \" } } }";
+			
+	private static String starterSourceString_localFile = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"file:///directory1/directory2/\", isPublic: true, extractType: \"File\", mediaType: " +
+			"\"Report\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"} }";
+
+	private static String starterSourceString_fileShare = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"smb://HOST:PORT/share/directory1/\", isPublic: true, extractType: \"File\", mediaType: " +
+			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
+
+	private static String starterSourceString_database = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"jdbc:mysql://DB_HOST:3306/DATABASE\", isPublic: true, extractType: \"Database\", mediaType: " +
+			"\"Record\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}, " +
+			"database: { databaseName: \"DATABASE\", databaseType: \"mysql\", deleteQuery: \"\", deltaQuery: \"select * from TABLE where TIME_FIELD >= (select adddate(curdate(),-7))\", " + 
+			"hostname: \"DB_HOST\", port: \"3306\", primaryKey: \"KEY_FIELD\", publishedDate: \"TIME_FIELD\", query: \"select * from TABLE\", snippet: \"DESC_FIELD\", title: \"TITLE_FIELD\" } }";
 %>
 
 <%
@@ -59,18 +90,46 @@ limitations under the License.
 			// Read in values from the edit form
 			shareid = (request.getParameter("shareid") != null) ? request.getParameter("shareid") : "";
 			communityId = (request.getParameter("Community_ID") != null) ? request.getParameter("Community_ID") : "";
+			shareTitle = "Title";
+			shareDescription = "Description";
 			shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
 			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
 			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
 			
-			if (action.equals("")) 
+			if (action.equals("selectTemplate")) 
 			{
-				sourceJson = new JSONObject(starterSourceString).toString(4);
-			}
-			else if (action.equals("selectTemplate")) 
-			{
-				sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
+				if (selectedSourceTemplate.equals("rss")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_rss).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("web")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_web).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("simpleApi")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_simpleApi).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("complexApi")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_complexApi).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("localFile")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_localFile).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("fileShare")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_fileShare).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("database")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_database).toString(4);
+				}
+				else {
+					sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
+				}
 			}
 			else if (action.equals("saveSource")) 
 			{
@@ -332,7 +391,13 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 {
 	StringBuffer sources = new StringBuffer();
 	sources.append("<select name=\"sourceTemplateSelect\" id=\"sourceTemplateSelect\">");
-	sources.append("<option value=\"\">-- Basic RSS Source Template --</option>");
+	sources.append("<option value=\"rss\">-- Basic RSS Source Template --</option>");
+	sources.append("<option value=\"web\">-- Basic Web Page Source Template --</option>");
+	sources.append("<option value=\"simpleApi\">-- Basic Simple JSON API Source Template --</option>");
+	sources.append("<option value=\"complexApi\">-- Basic Complex JSON API Source Template --</option>");
+	sources.append("<option value=\"localFile\">-- Basic Local File Source Template --</option>");
+	sources.append("<option value=\"fileShare\">-- Basic Fileshare Source Template --</option>");
+	sources.append("<option value=\"database\">-- Basic SQL Database Source Template --</option>");
 	
 	String apiAddress = "social/share/search/?searchby=type&type=source_template";
 	try 

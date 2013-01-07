@@ -160,7 +160,10 @@ public class EntityPojo
 		return sentiment;
 	}
 	public void setSentiment(Double sentiment) {
-		this.sentiment = sentiment;
+		if ((null != sentiment) && (Math.abs(sentiment) <= 1.1)) { // (actually 1.0)
+			// (for some reason seeing the occasional corrupt sentiment from entity extractors, here's a handy central spot to sanity check)
+			this.sentiment = sentiment;
+		}
 	}
 	public void setOntology_type(String ontology_type) {
 		this.ontology_type = ontology_type;

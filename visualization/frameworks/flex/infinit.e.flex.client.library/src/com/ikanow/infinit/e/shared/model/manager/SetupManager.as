@@ -215,20 +215,26 @@ package com.ikanow.infinit.e.shared.model.manager
 			url += Constants.FORWARD_SLASH;
 			
 			// add the selected community ids
-			url += CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			var communityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
 			
-			// update the ui setup
-			var setupEvent:SetupEvent = new SetupEvent( SetupEvent.UPDATE_SETUP );
-			setupEvent.urlParams = url;
-			
-			if ( lastQueryStringRequest )
-				setupEvent.queryString = QueryUtil.getQueryStringObject( lastQueryStringRequest );
-			
-			setupEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'setupService.updateSetup' ) );
-			dispatcher.dispatchEvent( setupEvent );
-			
-			// save the user widgets
-			saveUserWidgets();
+			//skip saving if no comms are selected
+			if ( communityIds != "" && communityIds != null )
+			{
+				url += communityIds;
+				
+				// update the ui setup
+				var setupEvent:SetupEvent = new SetupEvent( SetupEvent.UPDATE_SETUP );
+				setupEvent.urlParams = url;
+				
+				if ( lastQueryStringRequest )
+					setupEvent.queryString = QueryUtil.getQueryStringObject( lastQueryStringRequest );
+				
+				setupEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'setupService.updateSetup' ) );
+				dispatcher.dispatchEvent( setupEvent );
+				
+				// save the user widgets
+				saveUserWidgets();
+			}
 		}
 		
 		public function saveWidgetOptions( shares:ArrayCollection ):void

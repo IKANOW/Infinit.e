@@ -140,6 +140,9 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		// The URL of the manager
 		public static const MANAGER_PAGE:String = "manager/";
+		
+		// The URL of the source monitor
+		public static const SOURCE_MONITOR_PAGE:String = "InfiniteSourceMonitor.html/"
 	}
 }
 

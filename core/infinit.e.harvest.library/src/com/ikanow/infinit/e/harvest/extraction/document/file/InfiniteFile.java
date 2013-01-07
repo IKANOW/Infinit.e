@@ -34,16 +34,22 @@ public class InfiniteFile {
 
 	// Constructors:
 	
-	public InfiniteFile(String url) throws MalformedURLException {
+	public InfiniteFile(String url) throws MalformedURLException, SmbException {
 		if (url.startsWith("file://")) {
 			_localFile = new File(url.substring(7)); // ie "file://", path is relative to ~tomcat I guess
 		}
 		else {
 			_smbFile = new SmbFile(url);
+			if (!_smbFile.exists()) {
+				throw new MalformedURLException(url + " NOT FOUND");
+			}
 		}
 	}
-	public InfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException {
+	public InfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
 		_smbFile = new SmbFile(url, auth);
+		if (!_smbFile.exists()) {
+			throw new MalformedURLException(url + " NOT FOUND");
+		}
 	}
 	public InfiniteFile(SmbFile smbFile) {
 		_smbFile = smbFile;

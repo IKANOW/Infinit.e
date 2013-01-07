@@ -158,6 +158,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	@Override
 	public void extractEntities(DocumentPojo partialDoc) throws ExtractorDocumentLevelException 
 	{
+		if (null == partialDoc) {
+			return;
+		}
 		configure(partialDoc.getTempSource());
 		
 		num_extraction_requests.incrementAndGet();

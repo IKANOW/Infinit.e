@@ -24,7 +24,6 @@ import java.util.Set;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import com.google.common.collect.Lists;
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -42,7 +41,6 @@ import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
-import com.mongodb.MapReduceOutput;
 
 public class CustomHandler 
 {
@@ -63,18 +61,18 @@ public class CustomHandler
 		try
 		{
 			ObjectId jid = new ObjectId(jobid);
-			searchTerms.add(new BasicDBObject("_id",jid));
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
 		}
 		catch (Exception ex)
 		{
 			//oid failed, will only add title
 		}
-		searchTerms.add(new BasicDBObject("jobtitle",jobid));
+		searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,jobid));
 				
 		try 
 		{
 			//find admin entry);
-			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));			
+			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));			
 			if ( dbo != null )
 			{				
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
@@ -87,10 +85,10 @@ public class CustomHandler
 						//return the results
 						DBCursor resultCursor = null;
 						if (limit > 0) {
-							resultCursor = DbManager.getCollection("custommr", cmr.outputCollection).find().sort(new BasicDBObject("_id",1)).limit(limit);
+							resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find().sort(new BasicDBObject("_id",1)).limit(limit);
 						}
 						else {
-							resultCursor = DbManager.getCollection("custommr", cmr.outputCollection).find();
+							resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find();
 						}
 						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
 						CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
@@ -134,8 +132,8 @@ public class CustomHandler
 	{
 		try
 		{			
-			BasicDBObject inQuery = new BasicDBObject("$in", communityIds.toArray());
-			BasicDBObject query = new BasicDBObject("_id",inQuery);
+			BasicDBObject inQuery = new BasicDBObject(DbManager.in_, communityIds.toArray());
+			BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo._id_,inQuery);
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);			
 			while (dbc.hasNext())
 			{
@@ -166,8 +164,8 @@ public class CustomHandler
 		//test each community for membership
 		try
 		{
-			BasicDBObject inQuery = new BasicDBObject("$in", communityIds.toArray());
-			BasicDBObject query = new BasicDBObject("_id",inQuery);
+			BasicDBObject inQuery = new BasicDBObject(DbManager.in_, communityIds.toArray());
+			BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo._id_,inQuery);
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 			while (dbc.hasNext())
 			{
@@ -222,7 +220,7 @@ public class CustomHandler
 					cmr._id = new ObjectId();
 					cmr.jobtitle = title;
 					cmr.jobdesc = desc;
-					cmr.inputCollection = inputCollection;//getInputCollection(inputColl);
+					cmr.inputCollection = inputCollection;
 					if ((null == jarURL) || jarURL.equals("null")) {
 						cmr.jarURL = null;
 					}
@@ -231,6 +229,15 @@ public class CustomHandler
 					}
 					cmr.outputCollection = cmr._id.toString() + "_1";
 					cmr.outputCollectionTemp = cmr._id.toString() + "_2";
+					
+					// Get the output database, based on the size of the collection
+					long nJobs = DbManager.getCustom().getLookup().count();
+					long nDbNum = nJobs / 3000; // (3000 jobs per collection, max is 6000)
+					if (nDbNum > 0) { // else defaults to custommr
+						String dbName = cmr.getOutputDatabase() + Long.toString(nDbNum);
+						cmr.setOutputDatabase(dbName);
+					}
+					
 					cmr.submitterID = new ObjectId(userid);
 					long nextRun = Long.parseLong(nextRunTime);
 					//if this job is set up to run before now, just set the next run time to now
@@ -349,14 +356,14 @@ public class CustomHandler
 		try
 		{
 			ObjectId jid = new ObjectId(jobidortitle);
-			searchTerms.add(new BasicDBObject("_id",jid));
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
 		}
 		catch (Exception ex)
 		{
 			//oid failed, will only add title
 		}
-		searchTerms.add(new BasicDBObject("jobtitle",jobidortitle));
-		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));
+		searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,jobidortitle));
+		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));
 		
 		if ( dbo != null )
 		{
@@ -566,7 +573,7 @@ public class CustomHandler
 		try
 		{
 			ObjectId jid = new ObjectId(inputColl);
-			searchTerms.add(new BasicDBObject("_id",jid));
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
 		}
 		catch (Exception e)
 		{
@@ -577,8 +584,9 @@ public class CustomHandler
 		try 
 		{
 			//find admin entry
-			BasicDBObject query = new BasicDBObject("communityIds",new BasicDBObject("$in",communityIds.toArray()));
-			query.append("$or",searchTerms.toArray());
+			BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo.communityIds_,
+														new BasicDBObject(DbManager.in_,communityIds.toArray()));
+			query.append(DbManager.or_,searchTerms.toArray());
 			DBObject dbo = DbManager.getCustom().getLookup().findOne(query);
 			if ( dbo != null )
 			{
@@ -605,14 +613,16 @@ public class CustomHandler
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
-			DBObject dbo = DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id",new ObjectId(userid)));
+			DBObject dbo = DbManager.getSocial().getPerson().findOne(new BasicDBObject(CustomMapReduceJobPojo._id_,
+																		new ObjectId(userid)));
 			if (dbo != null )
 			{
 				PersonPojo pp = PersonPojo.fromDb(dbo, PersonPojo.class);
 				List<ObjectId> communities = new ArrayList<ObjectId>();
 				for ( PersonCommunityPojo pcp : pp.getCommunities())
 					communities.add(pcp.get_id());
-				BasicDBObject commquery = new BasicDBObject("communityIds", new BasicDBObject(MongoDbManager.in_,communities.toArray()));
+				BasicDBObject commquery = new BasicDBObject(
+						CustomMapReduceJobPojo.communityIds_, new BasicDBObject(MongoDbManager.in_,communities.toArray()));
 				if (null != jobIdOrTitle) {
 					try {
 						if (jobIdOrTitle.contains(",")) {
@@ -621,20 +631,20 @@ public class CustomHandler
 							for (int i = 0; i < jobidstrs.length; ++i) {
 								jobids[i] = new ObjectId(jobidstrs[i]);
 							}
-							commquery.put("_id", new BasicDBObject(MongoDbManager.in_, jobids));
+							commquery.put(CustomMapReduceJobPojo._id_, new BasicDBObject(MongoDbManager.in_, jobids));
 						}
 						else {
 							ObjectId jobid = new ObjectId(jobIdOrTitle);
-							commquery.put("_id", jobid);
+							commquery.put(CustomMapReduceJobPojo._id_, jobid);
 						}
 					}
 					catch (Exception e) { // Must be a jobtitle
 						if (jobIdOrTitle.contains(",")) {
 							String[] jobtitles = jobIdOrTitle.split("\\s*,\\s*");
-							commquery.put("jobtitle", new BasicDBObject(MongoDbManager.in_, jobtitles));
+							commquery.put(CustomMapReduceJobPojo.jobtitle_, new BasicDBObject(MongoDbManager.in_, jobtitles));
 						}
 						else {
-							commquery.put("jobtitle", jobIdOrTitle);
+							commquery.put(CustomMapReduceJobPojo.jobtitle_, jobIdOrTitle);
 						}
 					}
 				}
@@ -661,101 +671,6 @@ public class CustomHandler
 		return rp;
 	}
 
-	public ResponsePojo runMapReduce(String userid, String collection, String map, String reduce, String query)
-	{
-		ResponsePojo rp = new ResponsePojo();
-		try
-		{
-			//get user communities
-			DBObject dboperson = DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id", new ObjectId(userid)));
-			if ( dboperson != null )
-			{
-				PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
-				List<ObjectId> communityIds = new ArrayList<ObjectId>();
-				for ( PersonCommunityPojo pcp : pp.getCommunities() )
-					communityIds.add( pcp.get_id() );
-				
-				DBObject dbQuery = (DBObject) com.mongodb.util.JSON.parse(query);
-				
-				boolean customCol = false;
-				String inputCol = getStandardInputCollection(collection);
-				if ( inputCol == null ) //was not a	standard collection, try custom
-					inputCol = getCustomInputCollection(collection,communityIds);
-				else //was a standard, add community ids to query
-				{
-					dbQuery.put("communityId", new BasicDBObject("$in",communityIds.toArray()));
-					customCol = true;
-				}
-				
-				if (inputCol != null )
-				{
-					if ( customCol )
-					{
-						//get the custom collection name
-						String coll = getCustomCollection(inputCol);
-						if ( coll != null )
-						{
-							//handle using a custom table
-							MapReduceOutput mro = DbManager.getCollection("custommr", coll).mapReduce(map, reduce, "{out: { inline : 1}}", dbQuery);
-							Iterable<DBObject> results = mro.results();
-							List<DBObject> resultList = Lists.newArrayList(results);
-							rp.setResponse(new ResponseObject("Custom Map Reduce Run",true,"Map Reduce ran successfully"));
-							rp.setData(resultList.toString(),null);
-						}
-						else
-						{
-							rp.setResponse(new ResponseObject("Custom Map Reduce Run",false,"Error getting custom input collection"));
-						}
-					}
-					else
-					{
-						//handle using a normal table
-						String[] collString = inputCol.split("\\.");		
-						String db = collString[0];
-						String coll = collString[1];
-						MapReduceOutput mro = DbManager.getCollection(db, coll).mapReduce(map, reduce, "{out: { inline : 1}}", dbQuery);
-						Iterable<DBObject> results = mro.results();
-						List<DBObject> resultList = Lists.newArrayList(results);
-						rp.setResponse(new ResponseObject("Custom Map Reduce Run",true,"Map Reduce ran successfully"));
-						rp.setData(resultList.toString(),null);
-					}
-				}
-				else
-				{
-					rp.setResponse(new ResponseObject("Custom Map Reduce Run",false,"you dont have access to the input collection"));
-				}
-			}
-			else
-			{
-				rp.setResponse(new ResponseObject("Custom Map Reduce Run",false,"user did not exist"));
-			}						
-		}
-		catch (Exception ex)
-		{
-			rp.setResponse(new ResponseObject("Custom Map Reduce Run",false,"error running map reduce"));
-		}
-		return rp;
-	}
-	
-	/**
-	 * Returns the current output collection for a certain jobid
-	 * This is usually used when a custom input collection is set for a job because
-	 * the output collection of another job can change regularly.
-	 * 
-	 * @param jobid
-	 * @return
-	 */
-	private String getCustomCollection(String jobid)
-	{
-		DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("_id", new ObjectId(jobid)));
-		if ( dbo != null )
-		{
-			CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
-			return cmr.outputCollection;
-		}
-		return null;
-	}
-
 	/**
 	 * Attempts to remove the map reduce job as well as results and
 	 * jar file.
@@ -772,18 +687,18 @@ public class CustomHandler
 		try
 		{
 			ObjectId jid = new ObjectId(jobidortitle);
-			searchTerms.add(new BasicDBObject("_id",jid));
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
 		}
 		catch (Exception ex)
 		{
 			//oid failed, will only add title
 		}
-		searchTerms.add(new BasicDBObject("jobtitle",jobidortitle));
+		searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,jobidortitle));
 				
 		try 
 		{
 			//find admin entry);
-			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));			
+			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));			
 			if ( dbo != null )
 			{				
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
@@ -794,9 +709,9 @@ public class CustomHandler
 					if ( cmr.jobidS == null )
 					{
 						//remove results and job
-						DbManager.getCustom().getLookup().remove(new BasicDBObject("_id", cmr._id));
-						DbManager.getCollection("custommr", cmr.outputCollection).drop();
-						DbManager.getCollection("custommr", cmr.outputCollectionTemp).drop();
+						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));
+						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).drop();
+						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
 						//remove jar file if unused elsewhere?
 						if ( removeJar )
 						{
@@ -852,7 +767,7 @@ public class CustomHandler
 		if ( url.startsWith("$infinite") )
 		{
 			//check if the jar is used for any other jobs, remove it if not
-			if ( DbManager.getCustom().getLookup().find(new BasicDBObject("jarURL", url)).count() == 0 )
+			if ( DbManager.getCustom().getLookup().find(new BasicDBObject(CustomMapReduceJobPojo.jarURL_, url)).count() == 0 )
 			{
 				//grab the id
 				String jarid = url.substring( url.lastIndexOf("/") + 1 );
@@ -887,14 +802,14 @@ public class CustomHandler
 			try
 			{
 				ObjectId jid = new ObjectId(dependency);
-				searchTerms.add(new BasicDBObject("_id",jid));
+				searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
 			}
 			catch (Exception ex)
 			{
 				//oid failed, will only add title
 			}
-			searchTerms.add(new BasicDBObject("jobtitle",dependency));
-			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("$or",searchTerms.toArray()));			
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,dependency));
+			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));			
 			if ( dbo != null )
 			{	
 				//job existed, add its id
@@ -910,6 +825,7 @@ public class CustomHandler
 		return dependencies;
 	}
 	
+	// REMOVED THIS BECAUSE THE DATABASES ARE ALL SHARDED
 	/*
 	public ResponsePojo runAggregation(String userid, String key, String cond, String initial, String reduce, String collection) 
 	{

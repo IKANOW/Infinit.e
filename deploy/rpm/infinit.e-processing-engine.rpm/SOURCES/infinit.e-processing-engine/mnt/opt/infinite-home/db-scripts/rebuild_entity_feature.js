@@ -79,6 +79,10 @@ res = db.metadata.mapReduce( m, r, { out: { replace: "tmpCalcFreqCounts" }, quer
 // PHASE 1.POSTFIX: MODIFY EXISTING ENTITY FEATURES
 //
 
+db = db.getMongo().getDB( "feature" );
+db.tmpCalcFreqCounts.drop();
+// (another painful lesson - if this collection exists, it's *really* *really* bad!!)
+
 db = db.getMongo().getDB( "admin" );
 db.getMongo().getDB( "admin" ).runCommand({renameCollection:"doc_metadata.tmpCalcFreqCounts",to:"feature.tmpCalcFreqCounts"});
 

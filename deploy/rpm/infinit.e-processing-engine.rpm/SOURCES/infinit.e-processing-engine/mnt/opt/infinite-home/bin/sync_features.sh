@@ -48,7 +48,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "Completed frequency recalculation" >> $LOGDIR/sync_time.txt
 
 			# (Update per-source document counts)			 
-			/usr/bin/mongo --quiet $MONGODB/config $SCRIPTDIR/update_doc_counts.js
+			/usr/bin/mongo --quiet $MONGODB/ingest $SCRIPTDIR/update_doc_counts.js
             date >> $LOGDIR/sync_time.txt
 			echo "Completed doc counts recalculation" >> $LOGDIR/sync_time.txt
 

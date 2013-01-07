@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	currentState="prompt"
+	horizontalAlign="center"
+	paddingBottom="20"
+	paddingLeft="30"
+	paddingRight="30"
+	preinitialize="/*CommunityRequestNavigator.updateViewStates( this )*/" xmlns:views="views.*">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import events.CommunityEvent;
+			
+			import mx.events.FlexEvent;
+			import mx.utils.StringUtil;
+			
+			import objects.Community;
+			
+			import util.Constants;
+			
+			[Bindable]
+			private var _community:Community;
+			
+			public function set community(community:Community):void
+			{
+				this._community = community;
+			}
+			
+			public function get community():Community
+			{
+				return _community;
+			}
+			
+			protected function cancelOkButton_clickHandler( event:MouseEvent ):void
+			{
+				this.currentState = "prompt";
+				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY_CANCELED );
+				dispatchEvent( communityEvent );
+			}
+			
+			protected function requestButton_clickHandler( event:MouseEvent ):void
+			{
+				var communityEvent:CommunityEvent;
+				
+				if ( currentState == "prompt" )
+				{
+					currentState = "requesting";
+					
+					communityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY );
+					communityEvent.community = community;
+					communityEvent.communityID = community._id;
+					communityEvent.dialogControl = DialogControl.create( false, StringUtil.substitute("Requesting Access to {0}", [ community.name ] ) );
+					dispatchEvent( communityEvent );
+				}
+				else
+				{
+					communityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY_CANCELED );
+					dispatchEvent( communityEvent );
+				}
+			}
+			
+			/**
+			 * function to update the current state of 
+			 * the component
+			 * 
+			 * @param toState The state to transition to 
+			 */
+			public function updateViewState(toState:String):void
+			{
+				this.currentState = toState;
+			}
+			
+			protected function requesting_enterStateHandler( event:FlexEvent ):void
+			{
+				busyIndicator.message = "Requesting Access";
+			}
+			
+			protected function requesting_exitStateHandler( event:FlexEvent ):void
+			{
+				busyIndicator.message = "";
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- States ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:states>
+		<s:State name="prompt" />
+		<s:State name="requesting"
+			enterState="requesting_enterStateHandler(event)"
+			exitState="requesting_exitStateHandler(event)" />
+		<s:State name="approved" />
+		<s:State name="pending" />
+	</s:states>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		gap="20">
+
+		<!-- Request Message -->
+		<views:InfLabel 
+			width="100%"
+			text.prompt="{ StringUtil.substitute('Request access to the {0} community.', [ _community.name ] ) }"
+			text.requesting="{ StringUtil.substitute('Requesting access to the {0} community.', [ _community.name ] ) }"
+			text.approved="{ StringUtil.substitute('The request for access to the {0} community has been approved.', [ _community.name ] ) }"
+			text.pending="{ StringUtil.substitute('The request for access to the {0} community is pending approval.', [ _community.name ] ) }"
+			styleName="whiteLarge"
+			horizontalCenter="0"
+			textAlign="center" />
+
+		<!-- Notify Message -->
+		<views:InfLabel 
+			width="100%"
+			text="Notify the owner of this community?"
+			styleName="whiteLarge"
+			horizontalCenter="0"
+			textAlign="center"
+			includeIn="prompt" />
+
+	</s:VGroup>
+
+	<s:VGroup 
+		width="100%"
+		horizontalAlign="center"
+		gap="10">
+
+		<s:Group id="actionsButtonGroup"
+			width="180"
+			height="34">
+
+			<!-- Request Button -->
+			<views:InfButton id="requestButton"
+				width="100%"
+				height="100%"
+				styleName="roundedBlueButton"
+				label.prompt="SEND REQUEST"
+				label.approved="OK"
+				label.pending="OK"
+				label.requesting=""
+				enabled.requesting="false"
+				click="requestButton_clickHandler(event)" />
+
+			<!-- Requesting Access Feedback Indicator -->
+			<views:BusyIndicatorLabel id="busyIndicator"
+				styleName="loginBusyIndicatorLabel"
+				horizontalCenter="-4"
+				verticalCenter="0"
+				message=""
+				showDropShadow="false" />
+
+		</s:Group>
+
+		<!-- Cancel / Ok Button -->
+		<views:InfButton id="cancelOkButton"
+			styleName="transparentLightGreyButton"
+			label="CANCEL"
+			enabled="false"
+			enabled.prompt="true"
+			click="cancelOkButton_clickHandler(event)"
+			visible="false"
+			visible.prompt="true" />
+
+	</s:VGroup>
+
+</s:VGroup>

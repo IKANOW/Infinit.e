@@ -214,14 +214,22 @@ public class CacheControlFilter implements Filter {
         chain.doFilter(request, response);
         
         if (null != jsonpCallbackStr) {
-        	String json = ((CharResponseWrapper)response).toString();
         	actualResponse.setHeader("Content-Type", "application/javascript");
-        	actualResponse.setContentLength(jsonpCallbackStr.length() + json.length() + 3);
-        	actualResponse.getWriter().write(jsonpCallbackStr);
-        	actualResponse.getWriter().write("(");
-        	actualResponse.getWriter().write(json);
-        	actualResponse.getWriter().write(");");
-        	actualResponse.getWriter().flush();
+        	
+        	// This isn't the fastest, but I think RESTlet uses the writer().write() code
+        	// so it gets written into the string not the output stream so we have to go via
+        	// a string and pay this (possibly xMB) copy penalty
+        	String json = ((CharResponseWrapper)response).toString();
+        	byte[] jsonpBytes = jsonpCallbackStr.getBytes();
+        	byte[] responseBytes = json.getBytes();
+        	
+        	actualResponse.setContentLength(jsonpBytes.length + responseBytes.length + 3);
+        	actualResponse.getOutputStream().write(jsonpBytes);
+        	actualResponse.getOutputStream().write("(".getBytes());
+        	actualResponse.getOutputStream().write(responseBytes);
+        	actualResponse.getOutputStream().write(");".getBytes());
+        	actualResponse.getOutputStream().flush();
+        	
         }//TESTED
     }
 

@@ -42,6 +42,9 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	private Long doccount = null;
 	final public static String doccount_ = "doccount";
 	final public static String sourceQuery_doccount_ = "harvest.doccount";
+	private String lastHarvestedBy = null; // (last hostname to modify this source)
+	final public static String lastHarvestedBy_ = "lastHarvestedBy";
+	final public static String sourceQuery_lastHarvestedBy_ = "harvest.lastHarvestedBy";
 	
 	public Long getDoccount() {
 		return doccount;
@@ -72,5 +75,11 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	}
 	public String getHarvest_message() {
 		return harvest_message;
+	}
+	public void setLastHarvestedBy(String lastHarvestedBy) {
+		this.lastHarvestedBy = lastHarvestedBy;
+	}
+	public String getLastHarvestedBy() {
+		return lastHarvestedBy;
 	}
 }

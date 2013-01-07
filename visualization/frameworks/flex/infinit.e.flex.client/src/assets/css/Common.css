@@ -177,6 +177,11 @@ mx|ScrollBar
 	skinClass : ClassReference("assets.skins.sources.CommunityButtonSkin");
 }
 
+.refreshButton
+{
+	skinClass : ClassReference("assets.skins.sources.RefreshButtonSkin");
+}
+
 .infoButton
 {
 	skinClass : ClassReference("assets.skins.InfoButtonSkin");	
@@ -468,6 +473,14 @@ component|DialogPanel
 {
 	backgroundColor: #5E6367;
 	skinClass : ClassReference("assets.skins.TitleWindowSearchSkin");	
+	cornerRadius: 4;
+	fontSize: 12pt;
+}
+
+.titleWindowSearchArrow
+{
+	backgroundColor: #5E6367;
+	skinClass : ClassReference("assets.skins.TitleWindowSearchSkinArrow");	
 	cornerRadius: 4;
 	fontSize: 12pt;
 }

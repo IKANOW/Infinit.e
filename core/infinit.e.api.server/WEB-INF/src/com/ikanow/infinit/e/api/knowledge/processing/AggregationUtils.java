@@ -47,6 +47,14 @@ import com.mongodb.BasicDBObject;
 
 public class AggregationUtils {
 	
+	// Utilty class:
+	
+	public static class GeoContainer {
+		public Set<GeoAggregationPojo> geotags;
+		public long minCount = 0;
+		public long maxCount = 0;
+	}
+	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -64,21 +72,22 @@ public class AggregationUtils {
 				Set<GeoAggregationPojo> geoCounts = new TreeSet<GeoAggregationPojo>();
 				int nHighestCount = -1;
 				int nLowestCount = Integer.MAX_VALUE;
-				for (TermsFacet.Entry geo: geoFacet.entries()) {
-					if (nHighestCount < 0) { // First time
-						nHighestCount = geo.count();
-					}
-					if (geo.count() < nLowestCount) {
-						nLowestCount = geo.count();
-					}
-										
+				for (TermsFacet.Entry geo: geoFacet.entries()) {										
 					String geohash = geo.term().substring(2);
 					double[] loc =  GeoHashUtils.decode(geohash);
 					GeoAggregationPojo geoObj = new GeoAggregationPojo(loc[0],loc[1]);
 					geoObj.count = geo.count();
 					geoObj.type = GeoOntologyMapping.decodeOntologyCode(geo.term().charAt(0));
-					geoCounts.add(geoObj); 
-					// (There's a failure case here because geohashes can map to the same lat/long - at least they'll be colocated so the GUI can sort it out)
+					geoCounts.add(geoObj);
+					// (note this aggregates geo points whose decoded lat/logns are the same, which can result in slightly fewer records than requested)
+					// (note the aggregation writes the aggregated count into geoObj.count)
+					
+					if (geoObj.count > nHighestCount) { // (the counts can be modified by the add command above)
+						nHighestCount = geo.count();
+					}
+					if (geoObj.count < nLowestCount) {
+						nLowestCount = geo.count();
+					}
 				}
 				rp.setGeo(geoCounts, nHighestCount, nLowestCount);
 			}//(TESTED)
@@ -125,8 +134,6 @@ public class AggregationUtils {
 		
 		// 1.1] Apply "simple specifications" if necessary
 		
-		 //TODO (INF-1230): return a set of facet name vs aggregation term?
-		
 		// Geo
 		
 		if ((null != aggregation) && (null != aggregation.geoNumReturn) && (aggregation.geoNumReturn > 0)) {
@@ -165,22 +172,55 @@ public class AggregationUtils {
 			((null != aggregation) && (null != aggregation.factsNumReturn) && (aggregation.factsNumReturn > 0)))
 		{
 			if (null != entTypeFilterStrings) {
-				entTypeRegex = new StringBuilder("(?:");
+				boolean bNegative = false;
+				if ('-' != entTypeFilterStrings[0].charAt(0)) { // positive filtering
+					entTypeRegex = new StringBuilder("(?:");
+				}
+				else {
+					bNegative = true;
+					entTypeRegex = new StringBuilder("(?!");
+						// (this is a lookahead but will be fine because of the .*/ in front of it)
+				}
 				for (String entType: entTypeFilterStrings) {
-					entTypeRegex.append(".*?/").append(entType.toLowerCase()).append('|');
+					if (bNegative && ('-' == entType.charAt(0))) {
+						entType = entType.substring(1);
+					}
+					entType = entType.replace("|", "%7C");
+					entTypeRegex.append(".*?/").append(Pattern.quote(entType.toLowerCase())).append('|');
+						// (can't match greedily because of the 2nd instance of entity type)
 				}
 				entTypeRegex.setLength(entTypeRegex.length() - 1); // (remove trailing |)
 				entTypeRegex.append(")");
-			}//TESTED
+				if (bNegative) {
+					entTypeRegex.append("[^|]*"); // (now the actual verb, if a -ve lookahead)					
+				}
+				
+			}//TESTED 
 			
 			if (null != assocVerbFilterStrings) {
-				
-				verbCatRegex = new StringBuilder("\\|(?:");
+				boolean bNegative = false;
+				if ('-' != assocVerbFilterStrings[0].charAt(0)) { // positive filtering
+					verbCatRegex = new StringBuilder("\\|(?:");
+				}
+				else {
+					bNegative = true;
+					verbCatRegex = new StringBuilder("\\|(?!");
+						// (this is a lookahead but will be fine because of the "^[^|]*\\" in front of it)
+					
+					// eg say I have -VERB then subject|VERB|object will match because if the 
+				}				
 				for (String assocVerbFilterString: assocVerbFilterStrings) {
-					verbCatRegex.append(assocVerbFilterString).append('|');
+					if (bNegative && ('-' == assocVerbFilterString.charAt(0))) {						
+						assocVerbFilterString = assocVerbFilterString.substring(1);
+					}
+					assocVerbFilterString = assocVerbFilterString.replace("|", "%7C");
+					verbCatRegex.append(Pattern.quote(assocVerbFilterString)).append('|');
 				}
 				verbCatRegex.setLength(verbCatRegex.length() - 1); // (remove trailing |)
 				verbCatRegex.append(")");
+				if (bNegative) {
+					verbCatRegex.append("[^|]*"); // (now the actual verb, if a -ve lookahead)
+				}
 			}//TESTED
 		}
 		//TESTED (all combinations of 1/2 people, 1/2 verbs)			
@@ -197,12 +237,22 @@ public class AggregationUtils {
 			if (null != verbCatRegex) {
 				regex.append(verbCatRegex);
 			}
+			else if (null != entTypeRegex) {
+				regex.append("\\|[^|]*");				
+			}
+			else {
+				regex.append(".*");				
+			}
 			if (null != entTypeRegex) {
 				regex.append("\\|").append(entTypeRegex);				
+				regex.append(".*");
 			}
 			else {
 				regex.append("\\|.*");
 			}
+			//DEBUG
+			//System.out.println("REGEX==" + regex.toString());
+			
 			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 			
 			TermsFacetBuilder fb = FacetBuilders.termsFacet("events").field(AssociationPojo.assoc_index_).size(aggregation.eventsNumReturn).nested(DocumentPojo.associations_);
@@ -288,6 +338,9 @@ public class AggregationUtils {
 
 		int nFacetEl = 0;
 		for (TermsFacet.Entry facetEl: facet.entries()) {
+			//DEBUG
+			//System.out.println("TERM= " + facetEl.getTerm());
+			
 			String term = facetEl.getTerm().substring(sEventOrFact.length() + 1); // (step over "Fact|" or "Event|"
 			//TEST CASES:
 //			if (nFacetEl < terms.size()) {

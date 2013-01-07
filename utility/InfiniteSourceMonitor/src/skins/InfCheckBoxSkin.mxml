@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	alpha.disabledStates="0.5">
+
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("spark.components.CheckBox")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		/* Define the skin elements that should not be colorized.
+		   For button, the graphics are colorized but the label is not. */
+		private static const exclusions:Array = [ "labelDisplay", "check" ];
+		
+		/* Define the symbol fill items that should be colored by the "symbolColor" style. */
+		private static const symbols:Array = [ "checkMarkFill" ];
+		
+		/**
+		 * @private
+		 */
+		override public function get colorizeExclusions():Array
+		{
+			return exclusions;
+		}
+		
+		/**
+		 * @private
+		 */
+		override public function get symbolItems():Array
+		{
+			return symbols
+		}
+		
+		/**
+		 * @private
+		 */
+		override protected function initializationComplete():void
+		{
+			useChromeColor = true;
+			super.initializationComplete();
+		};
+	</fx:Script>
+
+	<fx:Script>
+		<![CDATA[
+			/**
+			 * @private
+			 */
+			private static const focusExclusions:Array = [ "labelDisplay" ];
+			
+			/**
+			 * @private
+			 */
+			override public function get focusSkinExclusions():Array
+			{
+				return focusExclusions;
+			};
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over"
+			stateGroups="overStates" />
+		<s:State name="down"
+			stateGroups="downStates" />
+		<s:State name="disabled"
+			stateGroups="disabledStates" />
+		<s:State name="upAndSelected"
+			stateGroups="selectedStates" />
+		<s:State name="overAndSelected"
+			stateGroups="overStates, selectedStates" />
+		<s:State name="downAndSelected"
+			stateGroups="downStates, selectedStates" />
+		<s:State name="disabledAndSelected"
+			stateGroups="disabledStates, selectedStates" />
+	</s:states>
+
+	<s:Group 
+		width="16"
+		height="16"
+		verticalCenter="0"
+		layoutDirection="ltr">
+
+		<!-- fill -->
+		<s:Rect 
+			bottom="1"
+			left="1"
+			right="1"
+			top="1">
+			<s:fill>
+				<s:LinearGradient rotation="90">
+					<s:GradientEntry 
+						color="0xFFFFFF"
+						color.downStates="0xAAAAAA"
+						color.overStates="0xBBBDBD"
+						alpha="0.85" />
+					<s:GradientEntry 
+						color="0xFFFFFF"
+						color.downStates="0x929496"
+						color.overStates="0x9FA0A1"
+						alpha="0.85" />
+				</s:LinearGradient>
+			</s:fill>
+			<s:filters>
+				<s:DropShadowFilter 
+					color="0x373C3F"
+					alpha=".5"
+					angle="75"
+					blurX="2"
+					blurY="2"
+					distance="2"
+					inner="true" />
+				<s:DropShadowFilter 
+					color="0xcccccc"
+					alpha=".8"
+					angle="270"
+					blurX="1"
+					blurY="1"
+					distance="1"
+					inner="true" />
+			</s:filters>
+		</s:Rect>
+
+		<!-- checkmark -->
+		<!--- The checkmark in the box for this skin. To create a custom check mark, create a custom skin class. -->
+		<s:Path id="check"
+			data="M 9.2 0.1 L 4.05 6.55 L 3.15 5.0 L 0.05 5.0 L 4.6 9.7 L 12.05 0.1 L 9.2 0.1"
+			left="4"
+			top="2"
+			includeIn="selectedStates"
+			itemCreationPolicy="immediate">
+			<s:fill>
+				<!---
+					@private
+					The solid color fill for the CheckBox's checkmark. The default alpha is .9, and the default fill color is 0x000000.
+				-->
+				<s:SolidColor id="checkMarkFill"
+					color="0"
+					alpha="0.8" />
+			</s:fill>
+		</s:Path>
+	</s:Group>
+
+	<!-- Label -->
+	<!--- @copy spark.components.supportClasses.ButtonBase#labelDisplay -->
+	<s:Label id="labelDisplay"
+		bottom="3"
+		left="24"
+		right="0"
+		textAlign="start"
+		top="0"
+		verticalAlign="middle"
+		verticalCenter="0"
+		maxDisplayedLines="1" />
+
+</s:SparkSkin>

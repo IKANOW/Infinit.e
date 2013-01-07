@@ -3,6 +3,7 @@ CONFIG_LOCATION="/opt/infinite-home/config"
 LAST_CLEANSE="0"
 RESET_FILE="/opt/infinite-home/bin/RESET_FILE"
 SYNC_FILE="/opt/infinite-home/bin/SYNC_FILE"
+DONT_SYNC_FILE="/opt/infinite-home/bin/STOP_SYNC_FILE"
 STOP_FILE="/opt/infinite-home/bin/STOPFILE"
 ALLSTOP_FILE="/opt/infinite-home/bin/ALLSTOPFILE"
 SECURITY_POLICY="/opt/infinite-home/bin/security.policy"
@@ -34,10 +35,12 @@ optimize()
 
 sync()
 {
-	echo "Syncing"
-	java ${EXTRA_JAVA_ARGS} com.ikanow.infinit.e.core.CoreMain --sync --from $LAST_CLEANSE --config $CONFIG_LOCATION 
+	if [ ! -f $DONT_SYNC_FILE ]; then 
+		echo "Syncing"
+		java ${EXTRA_JAVA_ARGS} com.ikanow.infinit.e.core.CoreMain --sync --from $LAST_CLEANSE --config $CONFIG_LOCATION 
 
-	LAST_CLEANSE="$(date +%s)"
+		LAST_CLEANSE="$(date +%s)"
+	fi
 	rm -f "$SYNC_FILE"
 }
 

@@ -16,8 +16,10 @@
 package com.ikanow.infinit.e.core.execute_synchronization;
 
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -54,10 +56,13 @@ public class SynchronizationController {
 		//SET LAST SYNC TIME to 1 hour before
 		long time_of_this_cleanse = 0;		
 		if ( 0 != time_of_last_cleanse_secs ) {
-			time_of_this_cleanse = (time_of_last_cleanse_secs*1000 - 3600000); // 3600,000 ms==1hr			
+			time_of_this_cleanse = (time_of_last_cleanse_secs*1000L - 3600000L); // 3600,000 ms==1hr			
+		}
+		else { // Let's do 0 == two days ago, set it to 1 if you really want all time....
+			time_of_this_cleanse = new Date().getTime() - 48L*3600000L;
 		}
 		logger.info("Starting sync process at: " + new Date().toString());
-		logger.info("Syncing: " + sources.size() + " sources from time: " + time_of_this_cleanse);
+		logger.info("Syncing: " + sources.size() + " sources from time: " + new Date(time_of_this_cleanse));
 		
 		int fixes_db = 0;
 		int fixes_search = 0;
@@ -66,8 +71,18 @@ public class SynchronizationController {
         	try {        		
 		        SynchronizationManager syncManager = new SynchronizationManager();
 		        syncManager.setSources(sourceBatch);
-				fixes_db += syncManager.syncDB(time_of_this_cleanse);
-				fixes_search += syncManager.syncSearch(time_of_this_cleanse);
+		        
+		        Set<String> dbCache = new HashSet<String>();
+		        
+		        logger.debug("Syncing: " + sourceBatch.size());
+		        
+				fixes_db += syncManager.syncDB(time_of_this_cleanse, dbCache);
+				
+		        logger.debug("Syncing DB: " + fixes_db);
+				
+				fixes_search += syncManager.syncSearch(time_of_this_cleanse, dbCache);
+				
+		        logger.debug("Syncing Index: " + fixes_search);		        
         	}
         	catch (Exception e) {
         		// Do nothing, the purpose of this try/catch is to ensure that the updateSyncStatus below always gets called
@@ -83,7 +98,8 @@ public class SynchronizationController {
         			SourceUtils.updateSyncStatus(source, HarvestEnum.success);        			
         		}
         	}
-        }
+        	
+        }//end loop over all sources
         StoreAndIndexManager dataStore = new StoreAndIndexManager();
         AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
         dataStore.removeSoftDeletedDocuments();

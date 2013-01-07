@@ -94,20 +94,9 @@ public class FileHarvester implements HarvesterInterface {
 	 */
 	public static byte[] getFile(String fileURL, SourcePojo source ) throws Exception
 	{
-		InfiniteFile file = null;
 		try 
 		{
-			if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
-			{
-				file = new InfiniteFile(source.getUrl());
-			}
-			else
-			{
-				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
-				file = new InfiniteFile(source.getUrl(), auth);
-			}
-			//traverse the smb share
-			InfiniteFile searchFile = searchFileShare( file, source, 5, fileURL);
+			InfiniteFile searchFile = searchFileShare( source, fileURL);
 			
 			if ( searchFile == null )
 				return null;
@@ -145,49 +134,37 @@ public class FileHarvester implements HarvesterInterface {
 	 * @throws SmbException
 	 */
 	
-	private static InfiniteFile searchFileShare( InfiniteFile f, SourcePojo source, int depth, String searchFile ) throws Exception 
+	private static InfiniteFile searchFileShare( SourcePojo source, String searchFile ) throws Exception 
 	{
 		//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
 		// This is v undesirable and should be fixed once the underlying bug has been fixed
 		// (note in practice this is only an issue for multiple threads going to the same domain)
+		InfiniteFile f;
 		synchronized (FileHarvester.class) {
-			if( depth == 0 ) 
-			{
-				return null;
-			}
-	
-			InfiniteFile[] l;
-			try 
-			{
-				l = f.listFiles();
-				for(int i = 0; l != null && i < l.length; i++ ) 
+			try {
+				if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 				{
-					// Check to see if the item is a directory or a file that needs to parsed
-					// if it is a directory then use recursion to dive into the directory
-					if( l[i].isDirectory() ) 
-					{
-						InfiniteFile search = searchFileShare( l[i], source, depth - 1, searchFile );
-						if ( search != null )
-							return search;
-					}
-					else if ( l[i].getURL().toString().equals(searchFile) )
-					{					
-						return l[i];
-					}
+					f = new InfiniteFile(searchFile);
 				}
-			} 
-			catch (Exception e) 
-			{			
-				if (5 == depth) 
-				{ 
-					// Top level error, abandon ship
-					throw e;
+				else
+				{
+					NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
+					f = new InfiniteFile(searchFile, auth);
 				}
-			}
-			return null;
+			}//TESTED
+			catch (Exception e) {
+	
+				int nIndex = searchFile.lastIndexOf("/");
+				searchFile = searchFile.substring(0, nIndex); // (ie not including the /)
+				f = searchFileShare(source, searchFile);
+				if (f.isDirectory()) {
+					throw new MalformedURLException(searchFile + " is directory.");				
+				}
+			}//TESTED
+			return f;
 		}
 		// (End INF-1406 sync bug, see above explanation)
-	}
+	} //TESTED
 	
 	
 	/**
@@ -389,7 +366,7 @@ public class FileHarvester implements HarvesterInterface {
 									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append(urlType).toString());
 								}
 								else { // This is the standard call if the XML parser has not been configured to build the URL
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(urlType).toString());								
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(urlType).toString());
 								}
 							}//TESTED
 						}
@@ -554,6 +531,15 @@ public class FileHarvester implements HarvesterInterface {
 		} // end XML vs "office" app
 	}
 
+	//TODO (INF-1831): this takes far too long and also hogs the file harvest sync
+	// I think best would be to push files into a multimap and then read down the modified
+	// times until one hits a modified that misses
+	// (for success_iteration will need to do something different ... not sure what though?
+	//  need to spot the last file of the success_iteration and then restart logic from there
+	//  but v unclear how to do that... maybe something like step through docs (N:=maxdocs/10? /50?) at a time, check Nth ...
+	//  if the doc isn't there then loop back and try all of them from there until another collision occurs?!
+	//  ugh it would be nice to have sensible iterators in Java.... instead will have to fill another list as I go...)
+	
 	private void traverse( InfiniteFile f, SourcePojo source, int depth ) throws Exception {
 		if( depth == 0 ) {
 			return;

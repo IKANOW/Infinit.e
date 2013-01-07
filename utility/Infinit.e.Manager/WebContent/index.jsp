@@ -81,7 +81,9 @@ limitations under the License.
 						<ul>
 							<li><b><a href="people.jsp" title="Add/Edit Users">People</a></b> - Add/Edit Users</li>
 							<li><b><a href="communities.jsp" title="Add/Edit Users">Communities</a></b> - Add/Edit Communities and Membership</li>
-							<li><b><a href="sources.jsp" title="Add/Edit Users">Sources</a></b> - Add/Edit Sources</li>
+							<li><b><a href="sources.jsp" title="Add/Edit Users">Sources</a></b> - Add/Edit Sources
+								<ul><li><b><a href="../InfiniteSourceMonitor.html" title="Monitor Sources" target="_blank">Source Monitoring</a></b></li></ul>
+							</li>
 						</ul>
 						<ul>
 							<li><b><a href="fileUploader.jsp" title="Add/Edit Users" target="_blank">File Uploader</a></b> - Add/Edit Files or JSON</li>

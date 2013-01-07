@@ -26,6 +26,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.harvest.utils.ProxyManager;
 
 import de.l3s.boilerpipe.extractors.ArticleExtractor;
 
@@ -48,7 +49,13 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 					if ((null == partialDoc.getFullText()) || (0 == partialDoc.getFullText().length()))
 					{
 						URL url = new URL(partialDoc.getUrl());
-						URLConnection urlConnect = url.openConnection();
+						String proxyOverride = null;
+						if ((null != partialDoc.getTempSource()) && 
+								(null != partialDoc.getTempSource().getRssConfig())) 
+						{
+							proxyOverride = partialDoc.getTempSource().getRssConfig().getProxyOverride();
+						}						
+						URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, proxyOverride));
 						if ((null != partialDoc.getTempSource()) && 
 								(null != partialDoc.getTempSource().getRssConfig()) && 
 									(null != partialDoc.getTempSource().getRssConfig().getUserAgent()))
@@ -89,11 +96,8 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 			}
 			catch (Exception ex)
 			{
-				/**/
-				ex.printStackTrace();
-				
-				logger.error("Boilerpipe extract error=" + ex.getMessage());
-				throw new InfiniteEnums.ExtractorDocumentLevelException();
+				logger.error("Boilerpipe extract error=" + ex.getMessage() );
+				throw new InfiniteEnums.ExtractorDocumentLevelException(ex.getMessage());
 			}			
 		}
 	}

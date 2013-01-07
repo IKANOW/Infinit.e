@@ -25,6 +25,8 @@ public class SourceRssConfigPojo {
 	
 	private Integer waitTimeOverride_ms = null; // If specified, overrides the system wait time between consecutive
 	
+	private String proxyOverride = null; // Currently: "direct" to bypass proxy, or a proxy specification "(http|socks)://host:port"
+	
 	private String regexInclude = null;
 	private String regexExclude = null;
 	
@@ -122,5 +124,11 @@ public class SourceRssConfigPojo {
 	}
 	public Integer getUpdateCycle_secs() {
 		return updateCycle_secs;
+	}
+	public void setProxyOverride(String proxyOverride) {
+		this.proxyOverride = proxyOverride;
+	}
+	public String getProxyOverride() {
+		return proxyOverride;
 	}
 }

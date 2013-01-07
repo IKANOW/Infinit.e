@@ -30,5 +30,11 @@ package com.ikanow.infinit.e.shared.model.vo
 		public var harvest_status:String;
 		
 		public var harvest_message:String;
+		
+		public var synced:Date;
+		
+		public var doccount:Number;
+		
+		public var lastHarvestedBy:String;
 	}
 }

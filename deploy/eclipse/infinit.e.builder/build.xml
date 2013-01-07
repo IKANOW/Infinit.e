@@ -25,6 +25,11 @@
 		<fileset dir="${rpm}" includes="**/*"/>
 	</move>
 	
+	<!-- Link elasticsearch to the current highest version -->
+	<move todir="${basedir}/../infinit.e.elasticsearch.driver">
+	    <fileset dir="${basedir}/../infinit.e.elasticsearch.driver_0.19"/>
+	</move>
+	    	
 	<!-- All the dir paths -->
 	<property name="infinit.e.data_model.location" value="${basedir}/../infinit.e.data_model"/>
 	<property name="infinit.e.harvest.library.location" value="${basedir}/../infinit.e.harvest.library"/>

@@ -23,6 +23,7 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeSet;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -32,6 +33,7 @@ import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_Associations.S
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_MultiCommunity.Community_EntityExtensions;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
+import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
@@ -39,6 +41,7 @@ import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -62,31 +65,67 @@ public class ScoringUtils
 // Classes required by the calculation
 	
 	static public class TempDocBucket implements Comparable<TempDocBucket> { // (only needs to be public because of test code)		
-		public long nDocLength = 0; // (number of entities in document)
+		public double docLength = 0; // (number of entities in document, taking frequency into account)
 		public long nLeftToProcess = 0; // (state variable used to determine when a feed's score can be calc'd)
+										// (after it's been used for that, I steal it to be used as pub-date/10-minutes)
 		public BasicDBObject dbo; // (doc object from Mongo)
 		public double totalScore = 0.0; // (combined sig/rel)
 		public double aggSignificance = 0.0; // (sum of sigs of all entities)
 		public double luceneScore = 0.0; // (score from Lucene)
 		public double geoTemporalDecay = 1.0; // (decay based on time and location and query params)
 		public boolean bPromoted = false;
+		public int nLuceneIndex = -1; // (index in the sorted lucene reply)
+		public double manualWeighting = 1.0; // (source-specific weighting)
 		
 		// Deduplication-specific code ... create a simple linked list 
 		public int nTieBreaker; // ensures that elements will tend to get put in at the end of the list, which should improve performance 
 		public String url = null;
 		public TempDocBucket dupList = null; // (linked list starting at the "master" document)
+		public int nEntsInDoc = 0; // (performance shortcut for comparing 2 potentially duplicate docs)
 		
 		// Deduplication and ordering:
 		@Override
 		public int compareTo(TempDocBucket rhs) {
-			double diff = this.totalScore - rhs.totalScore; 
-			if (Math.abs(diff) <= 1.0) {
+			boolean bCloseEnoughToCompare = false;
+			
+			double diff = this.totalScore - rhs.totalScore;
+			
+			if (-1 != nLuceneIndex) { // ie sorting by date
+				if (this.nEntsInDoc == rhs.nEntsInDoc) { // (don't bother comparing unless they have the same number of entities_
+					if (0 == this.nLeftToProcess) {
+						try {
+							this.nLeftToProcess = ((Date) dbo.get(DocumentPojo.publishedDate_)).getTime()/600000; // (down to 10 minutes==10*60*1000)
+						}
+						catch (Exception e) {
+							this.nLeftToProcess = -1; // no date. don't try again
+						}
+					}
+					if (0 == rhs.nLeftToProcess) {					
+						try {
+							rhs.nLeftToProcess = ((Date) rhs.dbo.get(DocumentPojo.publishedDate_)).getTime()/600000; // (down to 10 minutes==10*60*1000)
+						}
+						catch (Exception e) {
+							rhs.nLeftToProcess = -1; // no date. don't try again
+						}
+					}
+					if (rhs.nLeftToProcess == this.nLeftToProcess) { // This now contains the date in seconds...
+						bCloseEnoughToCompare = true;						
+					}
+				}
+			}
+			else { // normal score based sorting:
+				bCloseEnoughToCompare = (Math.abs(diff) <= 1.0) && (this.nEntsInDoc == rhs.nEntsInDoc);
+			}
+			//TESTED (both sort types - by date and by score)
+			
+			if (bCloseEnoughToCompare) {				
+				
 				// Get the url /(hash code since that will then get saved) and check that
 				if (null == this.url) {
 					this.url = dbo.getString(DocumentPojo.url_);
 				}
 				if (null == rhs.url) {
-					rhs.url = dbo.getString(DocumentPojo.url_);
+					rhs.url = rhs.dbo.getString(DocumentPojo.url_);
 				}
 				if (ScoringUtils_MultiCommunity.community_areDuplicates(this, rhs)) {
 					
@@ -94,11 +133,14 @@ public class ScoringUtils
 					rhs.dupList = this; // (add to very simple linked list)
 					return 0;					
 				}
-				else if (0.0 == diff) {
+				else if (0.0 == diff) {					
 					return this.nTieBreaker - rhs.nTieBreaker;
 				}
 				else return Double.compare(this.totalScore, rhs.totalScore); 
 			}
+			else if (0.0 == diff) {					
+				return this.nTieBreaker - rhs.nTieBreaker;
+			}			
 			else return Double.compare(this.totalScore, rhs.totalScore); 
 		}//TESTED (see TestCode#1)
 	};
@@ -117,31 +159,37 @@ public class ScoringUtils
 			}
 		}
 		public String index = null; // (only used for aliasing)
+			// (ALSO USED FOR ALIASES)
+		
 		public long nDocCountInQuerySubset = 0; // total number of matching docs in retrieved data
-		public double datasetSignificance = 0.0; // calculated weighted avg of doc significances (ie TF*standalone)
+		public double datasetSignificance = 0.0; // calculated weighted avg of doc significances (ie TF*standalone)		
 		public double standaloneSignificance = 0.0; // the IDF term of the significance
 		public double queryCoverage = 0.0; // the % of documents in the query subset in which the entity occurs
 		public double avgFreqOverQuerySubset = 0.0; // the average freq over all documents (not just those in which the entity occurs)
+			// (ALSO USED FOR ALIASES)  (ALL FIVE)
 		
 		//Totals - since don't have "ent" any more
 		public long nTotalDocCount = 0; // document count in population
+			// (ALSO USED FOR ALIASES)
 		
 		// To approximate avg significance:
 		public double decayedDocCountInQuerySubset = 0.0; // sigma(doc-count-in-query-subset * geo-temporal decay)
-		public int nEntsInContainingDocs = 0;
+			// (ALSO USED FOR ALIASES)
 		
 		// Some more attempts to avoid going through the DB cursor more than once
 		List<TempEntityInDocBucket> entityInstances = new LinkedList<TempEntityInDocBucket>();
 		
 		// For entity aggregation:
-		
-		public double maxFreq = 0.0;
-		public double maxDocSig = 0.0;
+				
 		public BasicDBObject unusedDbo = null;
+		public double maxDocSig = 0.0;		
+			// (ALSO USED FOR ALIASES) (BOTH)
+		public double maxFreq = 0.0;
 		
 		public long nTotalSentimentValues = 0;
 		public double positiveSentiment = 0.0;
 		public double negativeSentiment = 0.0;
+			// (ALSO USED FOR ALIASES) (ALL THREE)
 		
 		@Override
 		public int compareTo(EntSigHolder rhs) {
@@ -155,17 +203,26 @@ public class ScoringUtils
 		// For aliasing:
 		public EntSigHolder masterAliasSH = null;
 		public EntityFeaturePojo aliasInfo = null;
+			// (ALSO USED FOR ALIASES) (BOTH)
+		
+		// For low accuracy geo
+		public BasicDBObject geotaggedEntity = null;
+		public BasicDBObject geotag = null; // (need both of these for onto type + geotag)
 	};
 
 // Top level state ("s0" for "stage 0") 
 
 	// (Some processing controls)
-	long _s0_nQuerySetDocCount;  // (however many were actually found)
-	int _s0_nQuerySubsetDocCount; // (eg 1000 docus, user limit)
+	long _s0_nQuerySetDocCount;  // (however many were actually found in the Lucene indexes, NOTE not how many are retrieved from DB)
+	int _s0_nQuerySubsetDocCount; // (eg 1000 docus, user limit - ie how many are retrieved from DB)
 	boolean _s0_bNeedToCalcSig; // (whether this function needs to calc sig - eg if only being used for standalone events)
 	double _s0_globalDocCount;
 	
+	double _s0_maxLuceneScoreInv; // (unused)
+	double _s0_avgLuceneScoreInv; // (used for adjust aggregates' statistics)
+	
 	// (Some output controls)
+	boolean _s0_sortingByDate = false;
 	int _s0_nNumEntsReturn;
 	boolean _s0_bNonGeoEnts;
 	boolean _s0_bGeoEnts;
@@ -173,17 +230,39 @@ public class ScoringUtils
 	boolean _s0_bFacts;
 	boolean _s0_bSummaries;
 	boolean _s0_bMetadata;
-	
+
+	// Type/Verb filtering:
 	HashSet<String> _s0_entityTypeFilter = null;
+	boolean _s0_bEntityTypeFilterPositive = true;
 	HashSet<String> _s0_assocVerbFilter = null;
+	boolean _s0_bAssocVerbFilterPositive = true;
 	
-	ScoringUtils_MultiCommunity _s0_multiCommunityHandler;
+	ScoringUtils_MultiCommunity _s0_multiCommunityHandler = null;
 		// (handles approximating significance from multiple communities with various overlaps)
-	StandaloneEventHashAggregator _s0_standaloneEventAggregator;
+	StandaloneEventHashAggregator _s0_standaloneEventAggregator = null;
 		// (handles event scoring)
+	StandaloneEventHashAggregator _s0_lowAccuracyAssociationAggregator_events = null;
+	StandaloneEventHashAggregator _s0_lowAccuracyAssociationAggregator_facts = null;
+		// (workarounds for clusters where the Lucene indexes are too large to do faceting)
+	
+	// TF-params: original suggested values are (0.5, 1.5)
+	private static final double TF_PARAM1 = 0.5;
+	// I think this ranks docs with many entities up too high:
+	// (FYI with (0.5,1.5): for freq==1, doc length==average, then tf term=0.333 (f==2=>0.5); doc length==av*2 => tf=0.222, (f==2=>0.364))
+	//private static final double TF_PARAM2 = 1.5;
+	// The following value has the property that there's a break-even point at ~3x the average number of entities
+	private static final double TF_PARAM2 = 5.5;
+	
+	// Some support for low accuracy geo:
+	LinkedList<EntSigHolder>[] _s3_geoBuckets = null;
+	private static final int _s3_nGEO_BUCKETS = 100;
+	private static final int _s3_nGEO_BUCKETS_1 = 99;
+	private static final double _s3_dGEO_BUCKETS = 100.0;
+	double _s2_maxGeoQueryCoverage = 0.0; 	              
 	
 // Top level logic
 	
+	@SuppressWarnings("unchecked")
 	public List<BasicDBObject> calcTFIDFAndFilter(DBCollection docsDb, DBCursor docs, 
 														AdvancedQueryPojo.QueryScorePojo scoreParams, 
 														AdvancedQueryPojo.QueryOutputPojo outParams,
@@ -191,18 +270,26 @@ public class ScoringUtils
 														long nStart, long nToClientLimit,
 														String[] communityIds,
 														String[] entityTypeFilterStrings, String[] assocVerbFilterStrings,
-														LinkedList<BasicDBObject> entityReturn,
-														LinkedList<BasicDBObject> standaloneEventsReturn)
+														LinkedList<BasicDBObject> standaloneEventsReturn,
+														LinkedList<BasicDBObject> lowAccuracyAggregatedEnts,
+														AggregationUtils.GeoContainer lowAccuracyAggregatedGeo,
+														LinkedList<BasicDBObject> lowAccuracyAggregatedEvents,
+														LinkedList<BasicDBObject> lowAccuracyAggregatedFacts)
 	{
 		_s0_multiCommunityHandler = new ScoringUtils_MultiCommunity(communityIds);
+		
+		_s0_avgLuceneScoreInv = 1.0/(scores.avgScore + 0.01); // (+0.01 for safety in case avgScore is small)
+		_s0_maxLuceneScoreInv = 1.0/(scores.maxScore + 0.01);		
 		
 // Utility classes
 
 // Quick check - do I need to be here at all?		
 		
 		LinkedList<BasicDBObject> returnList = new LinkedList<BasicDBObject>();
-		_s0_bNeedToCalcSig = (null != entityReturn) || 
-									((nToClientLimit > 0) && outParams.docs.enable); 
+		_s0_bNeedToCalcSig = (null != lowAccuracyAggregatedEnts) || 
+						(null != lowAccuracyAggregatedEvents) || (null != lowAccuracyAggregatedFacts) ||
+									(null != lowAccuracyAggregatedGeo) ||
+										((nToClientLimit > 0) && outParams.docs.enable); 
 		
 		if (!_s0_bNeedToCalcSig && (null == standaloneEventsReturn)) {
 			return returnList;
@@ -218,7 +305,7 @@ public class ScoringUtils
 		
 		// Entity aggregation code:
 		_s0_nNumEntsReturn = 0;
-		if (null != entityReturn) {
+		if (null != lowAccuracyAggregatedEnts) {
 			_s0_nNumEntsReturn = outParams.aggregation.entsNumReturn;
 		}
 		_s1_entitiesInDataset = new HashMap<String, EntSigHolder>();
@@ -236,10 +323,14 @@ public class ScoringUtils
 				_s0_bMetadata = false;
 			}
 			if ((null != outParams.docs.ents) && !outParams.docs.ents) {
-				_s0_bNonGeoEnts = false;			
+				_s0_bNonGeoEnts = false;
+				_s0_bGeoEnts = false; // (but can be overridden below)
 			}		
 			if ((null != outParams.docs.geo) && !outParams.docs.geo) {
 				_s0_bGeoEnts = false;			
+			}		
+			else if ((null != outParams.docs.geo) && outParams.docs.geo) {
+				_s0_bGeoEnts = true;			
 			}		
 			if ((null != outParams.docs.events) && !outParams.docs.events) {
 				_s0_bEvents = false;
@@ -253,24 +344,63 @@ public class ScoringUtils
 		} //TESTED		
 		
 		if (null != entityTypeFilterStrings) {
+			
+			if ('-' == entityTypeFilterStrings[0].charAt(0)) {
+				_s0_bEntityTypeFilterPositive = false;
+			}
+			//TESTED (in both entities and associations)
 			_s0_entityTypeFilter = new HashSet<String>();
 			for (String entityType: entityTypeFilterStrings) {
+				if (!_s0_bEntityTypeFilterPositive && ('-' == entityType.charAt(0))) {
+					entityType = entityType.substring(1);
+				}
 				_s0_entityTypeFilter.add(entityType.toLowerCase());
 			}
 		}
 		if (_s0_bEvents || _s0_bFacts || _s0_bSummaries || (null != standaloneEventsReturn)) { // (ie most of the time!)
 			if (null != assocVerbFilterStrings) {
+				if ('-' == assocVerbFilterStrings[0].charAt(0)) {
+					_s0_bAssocVerbFilterPositive = false;
+				}
+				//TESTED
 				_s0_assocVerbFilter = new HashSet<String>();
 				for (String assocVerb: assocVerbFilterStrings) {
+					if (!_s0_bAssocVerbFilterPositive && ('-' == assocVerb.charAt(0))) {
+						assocVerb = assocVerb.substring(1);
+					}
 					_s0_assocVerbFilter.add(assocVerb);
 				}
 			}
 		}
 		//TESTED
 		
-// First loop: just count and store
+		if ((scoreParams.relWeight == 0.0) && (scoreParams.sigWeight == 0.0)) {
+			_s0_sortingByDate = true;
+		}
 		
-		_s0_standaloneEventAggregator = (null != standaloneEventsReturn) ? new StandaloneEventHashAggregator(standaloneEventsReturn) : null;
+// First loop: just count and store		
+		
+		if ((null != standaloneEventsReturn) && (null != outParams.docs) 
+				&& (null != outParams.docs.numEventsTimelineReturn) && (outParams.docs.numEventsTimelineReturn > 0))
+		{
+			_s0_standaloneEventAggregator = new StandaloneEventHashAggregator(standaloneEventsReturn, false);
+		}
+		if ((null != lowAccuracyAggregatedEvents) && (null != outParams.aggregation) 
+				&& (null != outParams.aggregation.eventsNumReturn) && (outParams.aggregation.eventsNumReturn > 0))
+		{
+			_s0_lowAccuracyAssociationAggregator_events = new StandaloneEventHashAggregator(lowAccuracyAggregatedEvents, true);
+		}
+		if ((null != lowAccuracyAggregatedFacts) && (null != outParams.aggregation) 
+				&& (null != outParams.aggregation.factsNumReturn) && (outParams.aggregation.factsNumReturn > 0))
+		{
+			_s0_lowAccuracyAssociationAggregator_facts = new StandaloneEventHashAggregator(lowAccuracyAggregatedFacts, true);
+		}
+		if ((null != lowAccuracyAggregatedGeo) && (null != outParams.aggregation) 
+				&& (null != outParams.aggregation.geoNumReturn) && (outParams.aggregation.geoNumReturn > 0))
+		{
+			// Initialize the buckets
+			_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 
+		}
 		
 		_s0_nQuerySubsetDocCount = docs.size(); // eg (1000 docus, user limit)
 		_s0_nQuerySetDocCount = scores.found;  // however many were actually found
@@ -314,12 +444,23 @@ public class ScoringUtils
 		
 // And then same for entities		
 		
-		this.stage4_prepareEntsForOutput(entityReturn);
+		this.stage4_prepareEntsForOutput(lowAccuracyAggregatedEnts);
 		
 		//Association is mostly done on the fly, but a final tidy up:
 		if (null != standaloneEventsReturn) {
 			ScoringUtils_Associations.finalizeStandaloneEvents(standaloneEventsReturn, _s0_standaloneEventAggregator, outParams.docs.numEventsTimelineReturn);
 		}		
+		if (null != _s0_lowAccuracyAssociationAggregator_events) {
+			ScoringUtils_Associations.finalizeStandaloneEvents(lowAccuracyAggregatedEvents, _s0_lowAccuracyAssociationAggregator_events, outParams.aggregation.eventsNumReturn);			
+		}
+		if (null != _s0_lowAccuracyAssociationAggregator_facts) {
+			ScoringUtils_Associations.finalizeStandaloneEvents(lowAccuracyAggregatedFacts, _s0_lowAccuracyAssociationAggregator_facts, outParams.aggregation.factsNumReturn);			
+		}
+		// Geo is mostly done on the fly, but a final tidy up:
+		if (null != lowAccuracyAggregatedGeo) {
+			finalizeLowAccuracyGeoAggregation(lowAccuracyAggregatedGeo, outParams.aggregation.geoNumReturn);
+				// (outParams.aggregation.geoNumReturn must exist if (null != lowAccuracyAggregatedGeo)) 
+		}
 		return returnList;
 	}
 
@@ -350,8 +491,7 @@ public class ScoringUtils
 
 	// Output:
 	
-	double _s1_sumFreqInQuerySubset = 0; // (the sume of all the frequencies in the received matching (sub-)dataset)
-	long _s1_nSumDocLength = 0; // (the sum of the number of entities in all docs in received matching (sub-)dataset)
+	double _s1_sumFreqInQuerySubset = 0; // (the sum of all the frequencies in the received matching (sub-)dataset)
 	HashMap<String, EntSigHolder> _s1_entitiesInDataset; // (map of entities to various stats)
 	ArrayList<TempDocBucket> _s1_noEntityBuckets; // (docs with no entities)
 	HashMap<String, EntSigHolder> _s1_aliasSummary = null; // (for aggregating entities by their alias)	
@@ -370,8 +510,10 @@ public class ScoringUtils
 			// Simple handling for standalone events
 			if ((null != _s0_standaloneEventAggregator) && !_s0_bNeedToCalcSig) {
 				//if _s0_bNeedToCalcSig then do this elsewhere
-				ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
-			}//TOTEST
+				ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, 
+																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
+																	_s0_bEvents, _s0_bSummaries, _s0_bFacts);
+			}//TESTED
 			
 			if (!_s0_bNeedToCalcSig) {
 				continue;
@@ -399,6 +541,12 @@ public class ScoringUtils
 					}
 				}
 			}//TESTED
+			else if (this._s0_sortingByDate) {
+				StatisticsPojo.Score scoreObj = scores.getScore().get(id);
+				if (null != scoreObj) {
+					docBucket.nLuceneIndex = scoreObj.nIndex;			
+				}				
+			}
 			
 			// Geo temporally adjust score:
 			if ((null != scoreParams.timeProx) && (docBucket.geoTemporalDecay < 0.0)) { // (just covers legacy temporal case where ES not used)
@@ -419,17 +567,31 @@ public class ScoringUtils
 				
 			}//TESTED (note will appear not to work if the created times are wrong, eg bulk db creation)
 					
+			docBucket.manualWeighting = this.getManualScoreWeights(scoreParams, f);
+			
 			BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
 			if (null != l) {
 	
 				long nEntsInDoc = l.size();
 				for(Iterator<?> e0 = l.iterator(); e0.hasNext();){					
 					BasicDBObject e = (BasicDBObject)e0.next();
-	
+
+					BasicDBObject tmpGeotag = null;
+					if (null != _s3_geoBuckets) { // low accuracy geo, need to look for geotag
+						tmpGeotag = (BasicDBObject) e.get(EntityPojo.geotag_);
+					}
+					
 					// Check if entity is in type filter list
 					if (null != _s0_entityTypeFilter) {
 						String entType = e.getString(EntityPojo.type_);
-						if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+						if (_s0_bEntityTypeFilterPositive) {
+							if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+								nEntsInDoc--;
+								continue;
+							}
+						}
+						else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
+							//(negative filter)
 							nEntsInDoc--;
 							continue;
 						}
@@ -494,7 +656,7 @@ public class ScoringUtils
 					// Stage 1b alias handling: calculate document counts (taking overlaps into account)
 					if (null != shp.masterAliasSH) {
 						// Counts:
-						shp.masterAliasSH.nEntsInContainingDocs++; 
+						shp.masterAliasSH.nTotalDocCount++; 
 							// docs including overlaps
 						shp.masterAliasSH.avgFreqOverQuerySubset += freq;
 
@@ -515,7 +677,7 @@ public class ScoringUtils
 						
 					}//TESTED
 					// end Stage 1b
-					
+										
 					// Pan-community logic (this needs to be before the entity object is updated)
 					if (_s0_multiCommunityHandler.isActive()) {
 						_s0_multiCommunityHandler.community_updateCorrelations(shp, ntotaldoccount, entity_index);
@@ -534,19 +696,22 @@ public class ScoringUtils
 					shp.avgFreqOverQuerySubset += freq;
 					shp.nDocCountInQuerySubset++; 
 					shp.decayedDocCountInQuerySubset += docBucket.geoTemporalDecay;
-					shp.nEntsInContainingDocs += nEntsInDoc;
 
 					TempEntityInDocBucket entBucket = new TempEntityInDocBucket();
 					entBucket.dbo = e;
 					entBucket.freq = freq;
 					entBucket.doc = docBucket;
 					shp.entityInstances.add(entBucket);
+					if (null != tmpGeotag) { // (only needed for low accuracy geo aggregation)
+						shp.geotag = tmpGeotag;
+						shp.geotaggedEntity = e; // (ie for onto type)
+					}
 					
 					if (freq > shp.maxFreq) {
 						shp.maxFreq = freq;
 					}
 					// Sentiment:
-					if (null != sentiment) {
+					if ((null != sentiment) && (Math.abs(sentiment) <= 1.1)) { // (actually 1.0)
 						shp.nTotalSentimentValues++;
 						if (sentiment > 0.0) {
 							shp.positiveSentiment += sentiment;
@@ -555,17 +720,20 @@ public class ScoringUtils
 							shp.negativeSentiment += sentiment;							
 						}
 					}
+					else if (null != sentiment) { // corrupt sentiment for some reason?!
+						e.put(EntityPojo.sentiment_, null);
+					}
+					docBucket.docLength += freq;
 					
 				} //(end loop over entities)
 				
-				docBucket.nDocLength = nEntsInDoc;
 				docBucket.nLeftToProcess = nEntsInDoc;
-				_s1_nSumDocLength += nEntsInDoc;
+				docBucket.nEntsInDoc = (int) nEntsInDoc;
 				
 			} // (end if feed has entities)
 	
 			// Handle documents with no entities - can still promote them
-			if (0 == docBucket.nDocLength) {
+			if (0 == docBucket.nLeftToProcess) { // (use this rather than doc length in case all the entities had freq 0)
 				_s1_noEntityBuckets.add(docBucket);				
 			}
 			
@@ -612,18 +780,22 @@ public class ScoringUtils
 		// Other pre-calculated scalors to use in IDF calcs
 		double dScaleFactor1 = (0.5 + (double)_s0_nQuerySetDocCount)/(0.5 + (double)_s0_nQuerySubsetDocCount); // (case 2.1 below)
 		double dHalfScaleFactor2 = 0.5*((0.5 + (double)_s0_nQuerySetDocCount)/(0.5 + _s0_globalDocCount)); // (case 2.2 below)
+				
+		_s2_dApproxAverageDocumentSig = 0.0; // (used to normalize vs the relevance)
 		
-		double invAvgLength = ((double)_s0_nQuerySubsetDocCount/(_s1_nSumDocLength + 0.01));
-		
-		_s2_dApproxAverageDocumentSig = 0.0; // (user to normalize vs the relevance) 
-		double avgFreqPerEntity = _s1_sumFreqInQuerySubset/_s1_nSumDocLength; // (needed to approx an average IDF)
+		// Some TF-related numbers
+		// (no longer needed since we calculate the average TF based on an average entity count, for performance reasons) 
+		//double invAvgLength = ((double)_s0_nQuerySubsetDocCount/(_s1_sumFreqInQuerySubset + 0.01));
 
 		// Pre-calculate a few dividors used in the loop below: 
 		double s0_nQuerySubsetDocCountInv = 1.0/(double)_s0_nQuerySubsetDocCount;
 		double s0_nQuerySetDocCountInv = 1.0/(double)_s0_nQuerySetDocCount;
 		
 		for (EntSigHolder shp: _s1_entitiesInDataset.values()) {
-						
+									
+			double avgFreqPerEntity = shp.avgFreqOverQuerySubset/shp.nDocCountInQuerySubset;
+				// (do this here because can overwrite shp.nDocCountInQuerySubset further below, losing direct link with shp.avgFreq)
+			
 			if (shp.nDocCountInQuerySubset < nHistBins) {							
 				nCountHistogram[(int)shp.nDocCountInQuerySubset]++;
 			}
@@ -695,13 +867,21 @@ public class ScoringUtils
 			// Use an "estimated query coverage" (instead of the exact one over the subset)
 			shp.queryCoverage = (100.0*(estEntityDocCountInQuery*s0_nQuerySetDocCountInv));
 			shp.avgFreqOverQuerySubset *= s0_nQuerySubsetDocCountInv;
-				
-			double dApproxAvgIdfTerm = avgFreqPerEntity/
-											(avgFreqPerEntity + 0.5 + 
-												1.5*invAvgLength*((double)shp.nEntsInContainingDocs/shp.nDocCountInQuerySubset));
-				//^^^ this nasty term is the approximate average IDF for this entity
+
+			if (null != shp.geotaggedEntity) { // (only happens for low accuracy geo aggregation)
+				if (shp.queryCoverage > _s2_maxGeoQueryCoverage) {
+					_s2_maxGeoQueryCoverage = shp.queryCoverage;
+				}
+			}
 			
-			_s2_dApproxAverageDocumentSig += shp.decayedDocCountInQuerySubset*shp.standaloneSignificance*dApproxAvgIdfTerm;
+			double dApproxAvgTfTerm = avgFreqPerEntity/
+											(avgFreqPerEntity + TF_PARAM1 + TF_PARAM2);
+				// (An approximation for the TF for this entity - assume on average that the entity occurs in docs 
+				//  with an average doc length, to avoid an extra loop here or in S1 to calc "avg doc length for docs containing entity)
+				// (We're summing this across all entities anyway, so it's not like it would be a particularly accurate number anyway...)
+			
+			_s2_dApproxAverageDocumentSig += shp.decayedDocCountInQuerySubset*dApproxAvgTfTerm*shp.standaloneSignificance;
+				// (ie an approximation to sum(TF-IDF) across docs
 
 			// Stage 2 alias processing: calc pythag significance, store first/last values ready for S3
 			if (null != shp.masterAliasSH) {
@@ -712,7 +892,7 @@ public class ScoringUtils
 					
 					// pre-calculate and store an overlap scalor to apply to query coverage 
 					shp.masterAliasSH.decayedDocCountInQuerySubset = (double)shp.masterAliasSH.nDocCountInQuerySubset/
-																		(double)shp.masterAliasSH.nEntsInContainingDocs;
+																		(double)shp.masterAliasSH.nTotalDocCount;
 
 				}//TESTED
 				shp.masterAliasSH.queryCoverage += shp.queryCoverage*shp.masterAliasSH.decayedDocCountInQuerySubset;
@@ -728,8 +908,7 @@ public class ScoringUtils
 		}//(end stage 2 loop over entities)
 		//TESTED (by eye for a 114 document query and a 646 document query) 
 
-		_s2_dApproxAverageDocumentSig *= s0_nQuerySubsetDocCountInv; 
-			//(divide by nSumDocLength to get avg entity significance, multiple by avg doc length = nSumDocLength/nQuerySubsetDocCount to get avg doc sig)
+		_s2_dApproxAverageDocumentSig *= s0_nQuerySubsetDocCountInv;		
 					
 		// Intention is now to do some false positive reduction
 		double peak = 0.0;
@@ -814,7 +993,7 @@ public class ScoringUtils
 		// Where dc>dc_in_sset, you don't know how those remaining hits are partitioned between B and C
 		// Use min(|B|*(dc_in_sset/|A|),dc) as one extreme, (dc-dc_in_sset)*|B|/|C| as other
 		
-		double invAvgLength = ((double)_s0_nQuerySubsetDocCount/(_s1_nSumDocLength + 0.01));
+		double invAvgLength = ((double)_s0_nQuerySubsetDocCount/(_s1_sumFreqInQuerySubset + 0.01));
 		int n1Down = 0; // (ensures where scores are equal documents are added last, should make a small difference to performance)
 		
 		for (EntSigHolder shp: _s1_entitiesInDataset.values()) {
@@ -835,16 +1014,16 @@ public class ScoringUtils
 			
 			for (TempEntityInDocBucket entBucket : shp.entityInstances) {
 				
-				double tf_idf = (entBucket.freq / 
-						(entBucket.freq+0.5 + 1.5*((entBucket.doc.nDocLength+0.01)*invAvgLength)));
+				double tf_term = (entBucket.freq / 
+						(entBucket.freq+TF_PARAM1 + TF_PARAM2*((entBucket.doc.docLength+0.01)*invAvgLength)));
 				
 				if (shp.nDocCountInQuerySubset <= _s2_nMush1Index) {
-					tf_idf *= 0.33;
+					tf_term *= 0.33;
 				}
 				else if (shp.nDocCountInQuerySubset <= _s2_nMush2Index) {
-					tf_idf *= 0.66;							
+					tf_term *= 0.66;							
 				}
-				double tf_idf_sig = tf_idf*shp.standaloneSignificance;
+				double tf_idf_sig = tf_term*shp.standaloneSignificance*entBucket.doc.manualWeighting;
 				//TESTED
 
 				// Insert significance, unfortunately need to do this spuriously for low prio cases
@@ -860,41 +1039,68 @@ public class ScoringUtils
 				}
 				
 				entBucket.doc.aggSignificance += tf_idf_sig;
+				
+				// Now we're done incorporating the significance into the document, we're going
+				// to adjust the standalone significance for the relevance of the document
+				// (if enabled - either manually or if the query contains OR statements)
+				if ((null != scoreParams.adjustAggregateSig) && scoreParams.adjustAggregateSig) {
+					tf_idf_sig *= entBucket.doc.luceneScore*_s0_avgLuceneScoreInv;
+				}
+				//TESTED (doc scores stay the same, entity scores adjust)
+				
 				shp.datasetSignificance += tf_idf_sig/(double)shp.nDocCountInQuerySubset;
-
+				
 				// Stage 3b alias processing: update dataset significance
 				if (null != shp.masterAliasSH) {
 					
-					double alias_tf_idf_sig = tf_idf*shp.masterAliasSH.standaloneSignificance;												
+					double alias_tf_idf_sig = tf_term*shp.masterAliasSH.standaloneSignificance*entBucket.doc.manualWeighting;												
 						// (standaloneSig's calculation was finished at the start of this loop)
+					
+					// (adjust for relevance as above)
+					if ((null != scoreParams.adjustAggregateSig) && scoreParams.adjustAggregateSig) {
+						alias_tf_idf_sig *= entBucket.doc.luceneScore*_s0_avgLuceneScoreInv;
+					}		
+					//TESTED
 					
 					if (alias_tf_idf_sig > shp.masterAliasSH.maxDocSig) {
 						shp.masterAliasSH.maxDocSig = alias_tf_idf_sig;
 					}					
 					shp.masterAliasSH.datasetSignificance += alias_tf_idf_sig/(double)shp.masterAliasSH.nDocCountInQuerySubset;
-						// (use the nEntsInContainingDocs because here we do care about the overlap)
+						// (don't use the nEntsInContainingDocs because here we do care about the overlap)
 					
 				}//TESTED
 				// end Stage 3b alias processing
 				
 				entBucket.doc.nLeftToProcess--;
 				if (0 == entBucket.doc.nLeftToProcess) {
-
+					
 					// Final calculation for Infinite significance
 					entBucket.doc.aggSignificance *= entBucket.doc.geoTemporalDecay*_s3_dSigScalingFactor;
 					
 					entBucket.doc.luceneScore *= _s3_dLuceneScalingFactor; // (lucene already geo-temporally) scaled
+					entBucket.doc.luceneScore *= entBucket.doc.manualWeighting; 
+						// (manual weighting applied to both scores, ie to total score, do it separately because of entities)
+					
 					double d = _s3_dScoreScalingFactor*(entBucket.doc.luceneScore + entBucket.doc.aggSignificance);
 					if (Double.isNaN(d)) {
 						d = 0.0;
 					}
-					entBucket.doc.totalScore = d;
+					if (_s0_sortingByDate) {
+						entBucket.doc.totalScore  = (double)-entBucket.doc.nLuceneIndex;
+					}
+					else {
+						entBucket.doc.totalScore = d;
+					}
 					entBucket.doc.nTieBreaker = n1Down--;
 
 					// Completed calculating this feed's score					
 					// Insert into "top 100" list:
 					
-					if (_s3_pqDocs.size() < nToClientLimit) {						
+					if (_s3_pqDocs.size() < nToClientLimit) {
+						
+						//DEBUG
+						//System.out.println(_s3_pqDocs.size() + ", ADD URL=" + entBucket.doc.dbo.getString(DocumentPojo.url_));
+						
 						_s3_pqDocs.add(entBucket.doc);						
 						entBucket.doc.bPromoted = true;
 					}
@@ -912,9 +1118,21 @@ public class ScoringUtils
 
 								// Phase "1": middle ranking (used to be good, not so much any more)
 								if (null != _s0_standaloneEventAggregator) {
-									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
-								}//TOTEST
-							
+									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_standaloneEventAggregator, 
+																					_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																						_s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+								}//TESTED											
+								if (null != _s0_lowAccuracyAssociationAggregator_events) {
+									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_lowAccuracyAssociationAggregator_events, 
+																					_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																						_s0_assocVerbFilter, true, false, false);
+								}//TESTED								
+								if (null != _s0_lowAccuracyAssociationAggregator_facts) {
+									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_lowAccuracyAssociationAggregator_facts, 
+																					_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																						_s0_assocVerbFilter, false, false, true);
+								}//TESTED
+								
 							}//TESTED
 
 						}
@@ -923,8 +1141,20 @@ public class ScoringUtils
 
 							// Phase "2": never any good!
 							if (null != _s0_standaloneEventAggregator) {
-								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
-							}//TOTEST
+								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, 
+																				_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
+																					_s0_bEvents, _s0_bSummaries, _s0_bFacts);
+							}//TESTED
+							if (null != _s0_lowAccuracyAssociationAggregator_events) {
+								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_lowAccuracyAssociationAggregator_events, 
+																				_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																					_s0_assocVerbFilter, true, false, false);
+							}//TESTED								
+							if (null != _s0_lowAccuracyAssociationAggregator_facts) {
+								ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_lowAccuracyAssociationAggregator_facts, 
+																				_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																					_s0_assocVerbFilter, false, false, true);
+							}//TESTED
 						}
 					}
 					else { // Not promoting any documents...
@@ -932,16 +1162,34 @@ public class ScoringUtils
 						
 						// Phase "2": never any good!
 						if (null != _s0_standaloneEventAggregator) {
-							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
-						}//TOTEST
+							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_standaloneEventAggregator, 
+																			_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
+																				_s0_bEvents, _s0_bSummaries, _s0_bFacts);
+						}//TESTED
+						if (null != _s0_lowAccuracyAssociationAggregator_events) {
+							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_lowAccuracyAssociationAggregator_events, 
+																			_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																				_s0_assocVerbFilter, true, false, false);
+						}//TESTED								
+						if (null != _s0_lowAccuracyAssociationAggregator_facts) {
+							ScoringUtils_Associations.addStandaloneEvents(entBucket.doc.dbo, entBucket.doc.aggSignificance, 2, _s0_lowAccuracyAssociationAggregator_facts, 
+																			_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																				_s0_assocVerbFilter, false, false, true);
+						}//TESTED
 					}
 				}//TESTED
 			
 			} // (end loop over entity occurrences in feeds) 			
 			//TESTED
 			
+			// Handle geo:
+			if (null != shp.geotaggedEntity) {
+				loadLowAccuracyGeoBuckets(shp);
+			}
+			
 			// Insert entities into the output priority queue
 			// NOTE LOCAL SHP CANNOT BE USED AFTER THE FOLLOWING CLAUSE
+			// (LOCAL==the object itself isn't changed, so the code above is fine, but the pointer is modified)
 			
 			if (_s0_nNumEntsReturn > 0) {
 				
@@ -988,7 +1236,12 @@ public class ScoringUtils
 				if (Double.isNaN(d)) {
 					d = 0.0;
 				}
-				doc.totalScore = d;
+				if (_s0_sortingByDate) {
+					doc.totalScore = (double)-doc.nLuceneIndex;
+				}
+				else {
+					doc.totalScore = d;					
+				}
 				doc.nTieBreaker = n1Down--;
 				if (_s3_pqDocs.size() < nToClientLimit) {						
 					_s3_pqDocs.add(doc);						
@@ -1033,15 +1286,29 @@ public class ScoringUtils
 		{
 			TempDocBucket qsf = pqIt.next();
 			nDocs++;
-			dBestScore = qsf.totalScore;
+			if (!_s0_sortingByDate) {
+				dBestScore = qsf.totalScore;
+			}
 			dAvgScore += dBestScore;
 			
 			BasicDBObject f = qsf.dbo;
 			
 			// Phase "0" - these are the highest prio events
 			if (null != _s0_standaloneEventAggregator) {
-				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_standaloneEventAggregator, _s0_entityTypeFilter, _s0_assocVerbFilter, _s0_bEvents, _s0_bSummaries, _s0_bFacts);
+				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_standaloneEventAggregator, 
+																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
+																	_s0_bEvents, _s0_bSummaries, _s0_bFacts);
 			}//TOTEST
+			if (null != _s0_lowAccuracyAssociationAggregator_events) {
+				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_lowAccuracyAssociationAggregator_events, 
+																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																	_s0_assocVerbFilter, true, false, false);
+			}//TESTED								
+			if (null != _s0_lowAccuracyAssociationAggregator_facts) {
+				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_lowAccuracyAssociationAggregator_facts, 
+																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
+																	_s0_assocVerbFilter, false, false, true);
+			}//TESTED
 			
 			try {
 				DocumentPojoApiMap.mapToApi(f);
@@ -1070,7 +1337,9 @@ public class ScoringUtils
 				else {
 					f.put(DocumentPojo.queryRelevance_, d);								
 				}
-				f.put(DocumentPojo.score_, qsf.totalScore);
+				if (!_s0_sortingByDate) {
+					f.put(DocumentPojo.score_, qsf.totalScore);
+				}
 	
 				BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
 
@@ -1119,7 +1388,14 @@ public class ScoringUtils
 							}
 							else { // Type matches, now for some more complex logic....
 								if (null != _s0_assocVerbFilter) { // Verb filter
-									if (!_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+
+									if (_s0_bAssocVerbFilterPositive) {
+										if (!_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+											e0.remove();
+											bKeep = false;
+										}										
+									}
+									else if (_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
 										e0.remove();
 										bKeep = false;
 									}
@@ -1132,7 +1408,15 @@ public class ScoringUtils
 										if (nIndex >= 0) {
 											entType = entIndex.substring(nIndex + 1);
 										}
-										if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+										if (_s0_bEntityTypeFilterPositive) {
+											
+											if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+												e0.remove();
+												bKeep = false;
+											}
+										}
+										else if ((null != entType) && (_s0_entityTypeFilter.contains(entType))) {
+											//(-ve filter)
 											e0.remove();
 											bKeep = false;
 										}
@@ -1145,7 +1429,14 @@ public class ScoringUtils
 											if (nIndex >= 0) {
 												entType = entIndex.substring(nIndex + 1);
 											}
-											if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+											if (_s0_bEntityTypeFilterPositive) {
+												if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
+													e0.remove();
+													bKeep = false;
+												}
+											}
+											else if ((null != entType) && (_s0_entityTypeFilter.contains(entType))) {
+												//(-ve filter)
 												e0.remove();
 												bKeep = false;
 											}
@@ -1184,10 +1475,17 @@ public class ScoringUtils
 						// Output filter 
 						if (null != _s0_entityTypeFilter) {							
 							String entType = e.getString(EntityPojo.type_);
-							if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+							if (_s0_bEntityTypeFilterPositive) {
+								if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+									e0.remove();
+									continue;
+								}
+							}
+							else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
+								// (negative filtering)
 								e0.remove();
 								continue;
-							}
+							}							
 						}
 						
 						String entity_index = e.getString(EntityPojo.index_);
@@ -1396,4 +1694,115 @@ public class ScoringUtils
 		}
 	}//TESTED
 
+	private double getManualScoreWeights(AdvancedQueryPojo.QueryScorePojo scoreParams, BasicDBObject doc)
+	{
+		// Highest prio: source key weight
+		if (null != scoreParams.sourceWeights) {			
+			String sourceKey = doc.getString(DocumentPojo.sourceKey_);
+			if (null != sourceKey) {
+				sourceKey = sourceKey.toLowerCase();
+			}
+			Double dWeight = scoreParams.sourceWeights.get(sourceKey);
+			
+			if (null != dWeight) {
+				return dWeight;
+			}
+		}
+		// Middle prio: type
+		if (null != scoreParams.typeWeights) {
+			String mediaType = doc.getString(DocumentPojo.mediaType_);
+			if (null != mediaType) {
+				mediaType = mediaType.toLowerCase();
+			}
+			Double dWeight = scoreParams.typeWeights.get(mediaType);
+			
+			if (null != dWeight) {
+				return dWeight;
+			}			
+		}
+		// Lowest prio: average of tags
+		if (null != scoreParams.tagWeights) {
+			double dScore = 0.0;
+			int nComps = 0;
+			BasicDBList tags = (BasicDBList) doc.get(DocumentPojo.tags_);
+			if (null != tags) {
+				for (Object tagObj: tags) {
+					String tag = (String)tagObj;
+					if (null != tag) {
+						tag = tag.toLowerCase();
+					}
+					Double dWeight = scoreParams.tagWeights.get(tag);
+					if (null != dWeight) {
+						nComps++;
+						dScore += dWeight;
+					}
+				}
+				if (nComps > 0) {
+					return dScore/nComps;
+				}
+			}
+		}
+		return 1.0;
+	}//TESTED (all 3 cases)	
+
+	////////////////////////////////////////////////////////////////////////////
+	
+	// Low accuracy geo aggregation utils:
+	
+	// Code copied from ScoringUtils_Association
+	
+	private void loadLowAccuracyGeoBuckets(EntSigHolder shp) {
+		double dBucket = shp.queryCoverage/(this._s2_maxGeoQueryCoverage + 0.01); // (ensure <1)
+		if (dBucket > 1.0) dBucket = 1.0;
+		
+		int nBucket = _s3_nGEO_BUCKETS_1 - ((int)(_s3_dGEO_BUCKETS*dBucket) % _s3_nGEO_BUCKETS); 
+		
+		LinkedList<EntSigHolder> bucketList = _s3_geoBuckets[nBucket];
+		if (null == bucketList) {
+			bucketList = new LinkedList<EntSigHolder>();
+			_s3_geoBuckets[nBucket] = bucketList;
+		}
+		bucketList.add(shp);		
+	}//TESTED
+	
+	private void finalizeLowAccuracyGeoAggregation(AggregationUtils.GeoContainer geoContainer, long nMaxToReturn) {
+		
+		geoContainer.geotags = new TreeSet<GeoAggregationPojo>();
+		
+		for (LinkedList<EntSigHolder> bucket: _s3_geoBuckets) {
+			
+			if (null != bucket) {
+				for (EntSigHolder shp: bucket) {
+					// Estimated count:
+					
+					try {
+						if (null != shp.geotaggedEntity) { // will always be the case...
+							GeoAggregationPojo geo = new GeoAggregationPojo();
+							
+							geo.lat = shp.geotag.getDouble(GeoPojo.lat_);
+							geo.lon = shp.geotag.getDouble(GeoPojo.lon_);
+							geo.type = shp.geotaggedEntity.getString(EntityPojo.ontology_type_);
+							geo.count = (int)(0.01*shp.queryCoverage*_s0_nQuerySetDocCount);
+								// (query coverage is a %)
+							
+							geoContainer.geotags.add(geo);
+								// (can change geo.count, where aggregation has happened)
+							
+							if (geo.count > geoContainer.maxCount) {
+								geoContainer.maxCount = geo.count;
+							}
+							if (geo.count < geoContainer.minCount) {
+								geoContainer.minCount = geo.count;								
+							}							
+							if (geoContainer.geotags.size() >= nMaxToReturn) {
+								return;
+							}
+						}
+					}
+					catch (Exception e) {} // geotag invalid just carry on
+				}
+			}
+		}		
+	}//TESTED
+	
 }

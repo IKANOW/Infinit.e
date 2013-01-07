@@ -37,6 +37,8 @@ public class SourceSearchFeedConfigPojo {
 	private Integer waitTimeBetweenPages_ms = null; // Optional, only used if pageChangeRegex is non-null - controls a wait between successive pages if set
 	private Integer maxDepth = null; // Optional, if spidering out, max depth (defaults to 2 if not specified)
 	
+	private String proxyOverride = null; // Currently: "direct" to bypass proxy, or a proxy specification "(http|socks)://host:port"
+	
 	// Getters and setters
 	
 	public String getUserAgent() {
@@ -92,6 +94,12 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public Integer getMaxDepth() {
 		return maxDepth;
+	}
+	public void setProxyOverride(String proxyOverride) {
+		this.proxyOverride = proxyOverride;
+	}
+	public String getProxyOverride() {
+		return proxyOverride;
 	}
 	
 }

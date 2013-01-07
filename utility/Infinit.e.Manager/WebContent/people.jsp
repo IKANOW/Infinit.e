@@ -39,7 +39,7 @@ limitations under the License.
 	String lastName = "";
 	String displayName = "";
 	String accountStatus = "";
-	String accountType = "";
+	String apiKey = "";
 	String phone = "";
 	String email = "";
 	String oldemail = "";
@@ -122,6 +122,7 @@ limitations under the License.
 			passwordConfirmation = (request.getParameter("passwordConfirmation") != null) ? request.getParameter("passwordConfirmation") : "";
 			password = (request.getParameter("password") != null) ? request.getParameter("password") : "";
 			accounttype = (request.getParameter("accounttype") != null) ? request.getParameter("accounttype") : "";
+			apiKey = (request.getParameter("apiKey") != null) ? request.getParameter("apiKey") : "";
 			
 			Boolean redirect = false;
 			
@@ -319,6 +320,10 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="30%">Password Confirmation:</td>
 						<td bgcolor="#ffffff" width="70%"><input type="password" id="passwordConfirmation" name="passwordConfirmation" value="<%=passwordConfirmation%>" size="20" /></td>
 					</tr>
+					<tr>
+						<td bgcolor="#ffffff" width="30%">API key:</td>
+						<td bgcolor="#ffffff" width="70%"><input type="password" id="apiKey" name="apiKey" value="" size="20" /></td>
+					</tr>
 					<tr valign="top">
 						<td bgcolor="#ffffff" width="30%">Communities:</td>
 						<td bgcolor="#ffffff" width="70%"><%=listOfCommunities %></td>
@@ -426,6 +431,10 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 				return false;
 			}
 		}
+		String apiKeyJson = "";
+		if (!apiKey.equals("")) {
+			apiKeyJson = ", \"apiKey\" : \""+apiKey+"\"";
+		}
 		
 		String accountType = "";
 		if (!accounttype.equalsIgnoreCase("unknown")) {
@@ -446,7 +455,7 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		"            \"phone\" : \"" + phone + "\", " +
 		"            \"email\" : [ \"" + email + "\" ] " +
 		"        }," +
-		"    \"auth\" : { \"username\" : \"" + oldemail + "\" " + accountType + newPassword + " } " +
+		"    \"auth\" : { \"username\" : \"" + oldemail + "\" " + accountType + newPassword + apiKeyJson + " } " +
 		"}";
 		
 		JSONObject actionResponse = null;

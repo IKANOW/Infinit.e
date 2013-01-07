@@ -94,8 +94,10 @@ public class GeoReference
 				for (int i = 1; i <= 4; i++)
 				{
 					query = getQuery(hasGeoindex, i);
-					result = getGeoReference(geoDb, query, nMaxReturns);
-					if (result.count() > 0) { break; }
+					if (null != query) {
+						result = getGeoReference(geoDb, query, nMaxReturns);
+						if (result.count() > 0) { break; }
+					}
 				}
 			}
 			
@@ -202,6 +204,9 @@ public class GeoReference
 				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 			}
+		}
+		if (query.isEmpty()) {
+			return null;
 		}
 
 		// Only return records with GeoIndex objects

@@ -53,6 +53,7 @@ harvest.security=HARVESTER_SECURITY
 harvest.distribution.batch.harvest=HARVESTER_BATCH
 harvest.disable_aggregation=HARVEST_DISABLE_AGGREGATION
 store.maxcontent=STORE_MAXCONTENT
+harvest.proxy=HARVESTER_PROXY
 
 #####################################################
 #Mail Server Settings

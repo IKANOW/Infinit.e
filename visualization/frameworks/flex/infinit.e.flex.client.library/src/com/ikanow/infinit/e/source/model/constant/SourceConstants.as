@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.source.model.constant
 {
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryOperatorTypes;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
+	
 	import mx.collections.ArrayCollection;
 	import mx.resources.ResourceManager;
 	
@@ -41,6 +42,8 @@ package com.ikanow.infinit.e.source.model.constant
 		public static const FIELD_COMMUNITY:String = "community";
 		
 		public static const FIELD_DESCRIPTION:String = "description";
+		
+		public static const FIELD_STATUS:String = "status";
 		
 		public static const DATA_FIELD:String = "dataField";
 		

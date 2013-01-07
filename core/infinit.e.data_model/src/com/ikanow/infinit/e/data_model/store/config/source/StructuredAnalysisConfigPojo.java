@@ -631,6 +631,8 @@ public class StructuredAnalysisConfigPojo
 		private String country = null;
 		private String countryCode = null;
 		
+		private List<GeoSpecPojo> alternatives = null;
+		
 		/**
 		 * @param lat the lat to set
 		 */
@@ -702,6 +704,12 @@ public class StructuredAnalysisConfigPojo
 		 */
 		public String getCountryCode() {
 			return countryCode;
+		}
+		public void setAlternatives(List<GeoSpecPojo> alternatives) {
+			this.alternatives = alternatives;
+		}
+		public List<GeoSpecPojo> getAlternatives() {
+			return alternatives;
 		}
 	}
 	

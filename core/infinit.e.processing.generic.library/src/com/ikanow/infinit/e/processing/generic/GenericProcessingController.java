@@ -239,11 +239,10 @@ public class GenericProcessingController {
 	{
 		//create elasticsearch indexes
 		PropertiesManager pm = new PropertiesManager();
+		boolean languageNormalization = pm.getNormalizeEncoding();
 		int nPreferredReplicas = pm.getMaxIndexReplicas();
-		String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
 		
-		Builder localSettingsDoc = ImmutableSettings.settingsBuilder();
-		localSettingsDoc.put("number_of_shards", 10).put("number_of_replicas", nPreferredReplicas);	
+		String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
 		
 		String sGroupIndex = null;
 		try {
@@ -269,8 +268,24 @@ public class GenericProcessingController {
 				// Then create an index with this name:
 				Builder localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
 				localSettingsGroupIndex.put("number_of_shards", nShards).put("number_of_replicas", nPreferredReplicas);	
-				
-				ElasticSearchManager docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
+				if (languageNormalization) {
+					localSettingsGroupIndex.put("index.analysis.analyzer.default.tokenizer","standard");
+					localSettingsGroupIndex.putArray("index.analysis.analyzer.default.filter", "icu_normalizer","icu_folding","standard","lowercase","stop");
+				}//TESTED
+
+				ElasticSearchManager docIndex = null;
+				try {
+					docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
+				}
+				catch (RuntimeException e) { // illegal arg exception, probably the language normalization?
+					if (languageNormalization) { // (likely the required plugins have not been installed, just regress back to normal)
+						localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
+						localSettingsGroupIndex.put("number_of_shards", nShards).put("number_of_replicas", nPreferredReplicas);	
+						
+						docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
+					}//TESTED
+					else throw e;
+				}//TOTEST
 				if (bClearIndex) {
 					docIndex.deleteMe();
 					docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);

@@ -67,6 +67,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		public static const DASHBOARD_HEADER_MANAGER_ID:String = DASHBOARD_HEADER_ID + "Manager";
 		
+		public static const DASHBOARD_HEADER_SOURCE_MONITOR_ID:String = DASHBOARD_HEADER_ID + "SourceMonitor";
+		
 		public static const DASHBOARD_HEADER_LOGOUT_ID:String = DASHBOARD_HEADER_ID + "Logout";
 		
 		// workspaces

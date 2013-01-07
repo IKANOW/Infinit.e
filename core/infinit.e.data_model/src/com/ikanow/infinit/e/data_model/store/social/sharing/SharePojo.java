@@ -311,6 +311,7 @@ public class SharePojo extends BaseDbPojo
 	public static class ShareCommunityPojo
 	{
 		private ObjectId _id = null;
+		final public static String shareQuery_id_ = "communities._id";
 		private String name = null;
 		private String comment = null;
 		

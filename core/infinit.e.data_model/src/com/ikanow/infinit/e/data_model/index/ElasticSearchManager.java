@@ -40,6 +40,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.CrossVersionClient;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
@@ -56,6 +57,7 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.query.BaseFilterBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
+import org.elasticsearch.indices.IndexCreationException;
 import org.elasticsearch.node.NodeBuilder;
 
 import com.google.gson.JsonArray;
@@ -299,8 +301,13 @@ public class ElasticSearchManager {
 		try {
 			irb.execute().actionGet();
 		}
-		catch (org.elasticsearch.transport.RemoteTransportException e) {
-			if (!e.contains(org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException.class)) {
+		catch (org.elasticsearch.transport.RemoteTransportException e) {			
+			boolean bDocAlreadyExists = 
+				e.contains(org.elasticsearch.index.engine.DocumentAlreadyExistsEngineException.class) // 0.18
+					||
+				e.contains(org.elasticsearch.index.engine.DocumentAlreadyExistsException.class); // 0.19
+			
+			if (!bDocAlreadyExists) {
 				throw e;
 			}
 			return false;
@@ -655,7 +662,7 @@ public class ElasticSearchManager {
 	// Document indexing/update/deletion
 	// Query
 	
-	public Client getRawClient() { return _elasticClient; }
+	public Client getRawClient() { return _elasticClient.getRawClient(); }
 	public String getIndexName() { return _sIndexName; }
 	
 	// (Will normally just leave as default - note only really supports 1 cluster per process)
@@ -684,7 +691,7 @@ public class ElasticSearchManager {
 	
 	// Per index state
 	
-	private static Client _elasticClient = null;
+	private static CrossVersionClient _elasticClient = null;
 	private String _sIndexName = null;
 	private String _sIndexType = null;
 	private String _multiIndex[] = null;
@@ -724,7 +731,7 @@ public class ElasticSearchManager {
 		if (_bLocalMode) {
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().local(true);
 			if (null == _elasticClient) {
-				_elasticClient = nBuilder.node().client();
+				_elasticClient = new CrossVersionClient(nBuilder.node().client());
 			}
 		}
 		else if (bRemote) {
@@ -743,7 +750,7 @@ public class ElasticSearchManager {
 				Builder globalSettings = ImmutableSettings.settingsBuilder();
 				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
 				TransportClient tmp = new TransportClient(snode);
-				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+				_elasticClient = new CrossVersionClient(tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort))));
 			}
 			
 		} //TESTED
@@ -755,7 +762,7 @@ public class ElasticSearchManager {
 	
 				NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
 				nBuilder.data(false); // Don't store your own data
-				_elasticClient = nBuilder.build().start().client();
+				_elasticClient = new CrossVersionClient(nBuilder.build().start().client());
 			}
 		}//TOTEST
 		
@@ -778,7 +785,7 @@ public class ElasticSearchManager {
 					}
 					cir.settings(settings.build());
 					_elasticClient.admin().indices().create(cir).actionGet();
-				
+					
 					//(Wait for above operation to be completed)
 					_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
 					break;
@@ -793,6 +800,14 @@ public class ElasticSearchManager {
 						Thread.sleep(1500);
 					}
 					catch (Exception e2) {} // (ignore)					
+				}
+				catch (IndexCreationException e) {
+					if (e.getRootCause() instanceof IllegalArgumentException) {
+						// (probably the mapping is invalid)
+						throw new RuntimeException(e.getMessage());
+					}
+					// (probably just exists)
+					break;
 				}
 				catch (Exception e) {
 					// Fine, index probably just exists
@@ -900,7 +915,7 @@ public class ElasticSearchManager {
 		if (_bLocalMode) {
 			NodeBuilder nBuilder = NodeBuilder.nodeBuilder().local(true);
 			if (null == _elasticClient) {
-				_elasticClient = nBuilder.node().client();
+				_elasticClient = new CrossVersionClient(nBuilder.node().client());
 			}
 		}
 		else if (bRemote) {
@@ -919,7 +934,7 @@ public class ElasticSearchManager {
 				Builder globalSettings = ImmutableSettings.settingsBuilder();
 				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
 				TransportClient tmp = new TransportClient(snode);
-				_elasticClient = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
+				_elasticClient = new CrossVersionClient(tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort))));
 			}
 			
 		} //TESTED
@@ -931,7 +946,7 @@ public class ElasticSearchManager {
 	
 				NodeBuilder nBuilder = NodeBuilder.nodeBuilder().settings(snode);
 				nBuilder.data(false); // Don't store your own data
-				_elasticClient = nBuilder.build().start().client();
+				_elasticClient = new CrossVersionClient(nBuilder.build().start().client());
 			}
 		}//TOTEST
 		
@@ -945,7 +960,7 @@ public class ElasticSearchManager {
 	
 	// Create a child
 	
-	private ElasticSearchManager(String sParent, String sChild, Client client, String sMapping) 
+	private ElasticSearchManager(String sParent, String sChild, CrossVersionClient client, String sMapping) 
 	{ 
 		_sIndexName = sParent;
 		_sIndexType = sChild;
@@ -969,7 +984,7 @@ public class ElasticSearchManager {
 	
 	// Create a child of a multi index
 
-	private ElasticSearchManager(String[] sParentIndices, String sChild, Client client, String sMapping) 
+	private ElasticSearchManager(String[] sParentIndices, String sChild, CrossVersionClient client, String sMapping) 
 	{ 
 		_sIndexName = null;
 		_multiIndex = sParentIndices;

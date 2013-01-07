@@ -247,6 +247,9 @@ public class RESTTools
 			// (<0x30 => is a regex, don't need to validate since check vs person pojos anyway) 
 			return true;
 		}
+		if (null == userIdStr) {
+			return false;
+		}
 		if (RESTTools.adminLookup(userIdStr)) {
 			return true;
 		}

@@ -54,10 +54,13 @@
 		<!-- Community List -->
 		<communityList:CommunityListModel />
 		<communityList:CommunityListNavigator />
-
+		
 		<!-- Community Request -->
 		<communityRequest:CommunityRequestModel />
 		<communityRequest:CommunityRequestNavigator />
+		
+		<!-- Source Monitor List -->
+		<communityList:SourceMonitorListModel/>
 
 		<!-- Dashboard -->
 		<dashboard:DashboardModel />

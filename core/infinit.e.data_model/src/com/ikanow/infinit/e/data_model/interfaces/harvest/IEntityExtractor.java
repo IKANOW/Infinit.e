@@ -30,7 +30,9 @@ public interface IEntityExtractor
 	 * text and add entities, events, and other metadata.
 	 * 
 	 * 
-	 * @param partialDoc The DocumentPojo before extraction with fulltext field to extract on
+	 * @param partialDoc The DocumentPojo before extraction with fulltext field to extract on 
+	 * (NOTE: partialDoc is set to null to indicate a source has finished, client implementations SHOULD support this 
+	 *  eg by returning or statelessly throwing an exception if batching is not supported/enabled)
 	 * @return The DocumentPojo after extraction with entities, events, and full metadata
 	 */
 	void extractEntities(DocumentPojo partialDoc) 

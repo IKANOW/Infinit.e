@@ -16,9 +16,9 @@
 package com.ikanow.infinit.e.processing.generic.synchronization;
 
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -41,7 +41,6 @@ import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexMana
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 
 public class SynchronizationManager {
 
@@ -64,8 +63,10 @@ public class SynchronizationManager {
 	 * @param sources list of sources we are syncing
 	 * @return The number of errors fixed (docs deleted)
 	 */
-	public int syncDB(long cleanseStartTime)
+	public int syncDB(long cleanseStartTime, Set<String> dbCache)
 	{
+		dbCache.clear();
+		
 		int fixcount = 0;
 		DBCollection contentDb = DbManager.getDocument().getContent();
 		DBCollection documentDb = DbManager.getDocument().getMetadata();
@@ -84,8 +85,8 @@ public class SynchronizationManager {
 		{	
 			List<DocumentPojo> docs_to_remove = new ArrayList<DocumentPojo>();
 			//FIRST DO ALL NEW FEEDS
-			BasicDBObject query = new BasicDBObject();	
-			query.put(DocumentPojo.created_, new BasicDBObject(MongoDbManager.gt_, new Date(cleanseStartTime))); //time aspect
+			BasicDBObject query = new BasicDBObject();
+			query.put(DocumentPojo._id_, new BasicDBObject(MongoDbManager.gt_, new ObjectId((int)(cleanseStartTime/1000), 0, 0))); // time aspect
 			query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, sourceKeyList) ); //source aspect
 			BasicDBObject queryFields = new BasicDBObject();
 			queryFields.append(DocumentPojo.url_, 1);
@@ -102,7 +103,10 @@ public class SynchronizationManager {
 					return fixcount;
 				}
 								
-				DocumentPojo doc = DocumentPojo.fromDb(cur.next(), DocumentPojo.class);				
+				DocumentPojo doc = DocumentPojo.fromDb(cur.next(), DocumentPojo.class);
+				if (null != doc.getId()) {
+					dbCache.add(doc.getId().toString());
+				}
 				
 				// Get index of doc to check in:
 				String sNewIndex = doc.getIndex();
@@ -149,6 +153,9 @@ public class SynchronizationManager {
 				while (curOLD.hasNext())
 				{
 					DocumentPojo doc = DocumentPojo.fromDb(curOLD.next(), DocumentPojo.class);				
+					if (null != doc.getId()) {
+						dbCache.add(doc.getId().toString());
+					}
 					
 					// Get index of doc to check in:
 					String sNewIndex = doc.getIndex();
@@ -202,13 +209,14 @@ public class SynchronizationManager {
 	 * @param sources list of sources we are syncing
 	 * @return The number of errors fixed (docs deleted)
 	 */
-	public int syncSearch(long cleanseStartTime)
+	public int syncSearch(long cleanseStartTime, Set<String> dbCache)
 	{		
 		int fixcount = 0;
-		DBCollection documentDb = DbManager.getDocument().getMetadata();
 		StoreAndIndexManager storeManager = new StoreAndIndexManager();
 		
-		BasicDBObject queryFields = new BasicDBObject(); // (ie just _id, basically only need to know if it exists)
+		// NO LONGER NEEDED, HAVE CACHE
+		//DBCollection documentDb = DbManager.getDocument().getMetadata();
+		//BasicDBObject queryFields = new BasicDBObject(); // (ie just _id, basically only need to know if it exists)
 		try 
 		{	
 			//get solr entries from last cleanse point	
@@ -258,11 +266,14 @@ public class SynchronizationManager {
 					for (SearchHit hit: docs) 
 					{
 						String idStr = hit.getId();
-						ObjectId id = new ObjectId(idStr);
-						BasicDBObject query = new BasicDBObject(DocumentPojo._id_, id);
-						DBObject dbo = documentDb.findOne(query, queryFields);
-						if ( dbo == null)
+						//OBSOLETED, USE DBCACHE INSTEAD:
+//						ObjectId id = new ObjectId(idStr);
+//						BasicDBObject query = new BasicDBObject(DocumentPojo._id_, id);
+//						DBObject dbo = documentDb.findOne(query, queryFields);
+//						if ( dbo == null)
+						if (!dbCache.contains(idStr)) 
 						{				
+							ObjectId id = new ObjectId(idStr);
 							DocumentPojo doc = new DocumentPojo();
 							doc.setId(id);
 							doc.setIndex(hit.getIndex() + "/document_index");
@@ -273,8 +284,11 @@ public class SynchronizationManager {
 					} // end loop over docs to check
 					
 					nSkip += docs.length;
+				}// until no more hits
+				if (!docs_to_remove.isEmpty()) {
+					storeManager.removeFromSearch(docs_to_remove);
+					docs_to_remove.clear();
 				}
-				storeManager.removeFromSearch(docs_to_remove);
 				
 				//CHECK OLD FEEDS 10 at atime
 				int iteration = 1;
@@ -300,11 +314,14 @@ public class SynchronizationManager {
 					for (SearchHit hit: docsOLD) 				
 					{
 						String idStr = hit.getId();
-						ObjectId id = new ObjectId(idStr);
-						BasicDBObject queryOLD = new BasicDBObject(DocumentPojo._id_, id);
-						DBObject dbo = documentDb.findOne(queryOLD, queryFields);
-						if ( dbo == null)
-						{			
+						//OBSOLETED, USE DBCACHE INSTEAD:
+//						ObjectId id = new ObjectId(idStr);
+//						BasicDBObject queryOLD = new BasicDBObject(DocumentPojo._id_, id);
+//						DBObject dbo = documentDb.findOne(queryOLD, queryFields);
+//						if ( dbo == null)
+						if (!dbCache.contains(idStr)) 
+						{				
+							ObjectId id = new ObjectId(idStr);
 							DocumentPojo doc = new DocumentPojo();
 							doc.setId(id);
 							doc.setIndex(hit.getIndex() + "/document_index");
@@ -314,13 +331,15 @@ public class SynchronizationManager {
 							fixcount++;
 						}
 					}
-					storeManager.removeFromSearch(docs_to_remove);
+					if (!docs_to_remove.isEmpty()) {
+						storeManager.removeFromSearch(docs_to_remove);
+					}
 					
 					if ( oldfixes != rows )
 						removedAll = false;
 				}
 				source_index++;
-			}
+			} // end loop over sources
 		} 
 		catch (Exception e) 
 		{

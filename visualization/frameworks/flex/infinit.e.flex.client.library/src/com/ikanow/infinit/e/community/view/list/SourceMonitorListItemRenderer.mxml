@@ -1,0 +1,123 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="26"
+	rollOut="itemRenderer_rollOutHandler(event)"
+	rollOver="itemRenderer_rollOverHandler(event)">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.source.model.presentation.SourcesModel;
+			
+			import mx.events.ItemClickEvent;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					source = value;
+					setLabelStyle();
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			protected var rendererHovered:Boolean;
+			
+			[Bindable]
+			protected var showLabelDropShadow:Boolean = true;
+			
+			[Bindable]
+			protected var source:Object;
+			
+			protected function itemRenderer_rollOutHandler( event:MouseEvent ):void
+			{
+				rendererHovered = false;
+				setLabelStyle();
+			}
+			
+			protected function itemRenderer_rollOverHandler( event:MouseEvent ):void
+			{
+				rendererHovered = true;
+				setLabelStyle();
+				
+				this.toolTip = "";
+				
+				if ( nameLabel.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setLabelStyle():void
+			{
+				if ( rendererHovered )
+				{
+					titleLabel.setStyle( "styleName", "blackItalic" );
+					nameLabel.setStyle( "styleName", "blackItalic" );
+					showLabelDropShadow = false;
+				}
+				else
+				{
+					titleLabel.setStyle( "styleName", "lightGreyItalic" );
+					nameLabel.setStyle( "styleName", "lightGreyItalic" );
+					showLabelDropShadow = true;
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = source.name;
+			}
+		]]>
+	</fx:Script>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="6"
+		paddingRight="14"
+		paddingTop="1"
+		verticalAlign="middle">
+
+		<!-- Source Title -->
+		<common:InfLabel id="titleLabel"
+			width="100%"
+			text="{ source.title }:"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="{ showLabelDropShadow }" />
+		
+		<!-- Source Info Name-->
+		<common:InfLabel id="nameLabel"
+			width="100%"
+			text="{ source.name }"
+			paddingRight="7"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="{ showLabelDropShadow }" />
+
+	</s:HGroup>
+
+</s:ItemRenderer>

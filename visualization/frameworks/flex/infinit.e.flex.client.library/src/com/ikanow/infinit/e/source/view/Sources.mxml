@@ -16,6 +16,7 @@
 -->
 <component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
 	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
 	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
 	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
 	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
@@ -30,15 +31,24 @@
 
 	<fx:Script>
 		<![CDATA[
+			import com.ikanow.infinit.e.community.model.manager.CommunityManager;
 			import com.ikanow.infinit.e.community.view.Communities;
+			import com.ikanow.infinit.e.community.view.SourceMonitor;
+			import com.ikanow.infinit.e.shared.event.CommunityEvent;
+			import com.ikanow.infinit.e.shared.event.SourceEvent;
+			import com.ikanow.infinit.e.shared.event.UserEvent;
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
 			import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManager;
 			import com.ikanow.infinit.e.shared.model.vo.Source;
+			import com.ikanow.infinit.e.shared.model.vo.User;
 			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelector;
 			import com.ikanow.infinit.e.shared.model.vo.ui.ColumnSelectorItem;
+			import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 			import com.ikanow.infinit.e.shared.util.SourceUtil;
 			import com.ikanow.infinit.e.shared.util.StateUtil;
+			import com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer;
 			import com.ikanow.infinit.e.source.model.constant.SourceConstants;
+			import com.ikanow.infinit.e.source.model.manager.SourceManager;
 			import com.ikanow.infinit.e.source.model.presentation.SourcesModel;
 			import com.ikanow.infinit.e.source.model.presentation.SourcesNavigator;
 			import flash.utils.setTimeout;
@@ -51,18 +61,36 @@
 			import mx.events.StateChangeEvent;
 			import mx.managers.PopUpManager;
 			import mx.managers.PopUpManagerChildList;
+			import mx.resources.ResourceManager;
+			import spark.components.Label;
 			import spark.events.GridSelectionEvent;
 			
 			[Inject]
 			public var widgetManager:WidgetModuleManager;
 			
+			[Inject]
+			public var communityManager:CommunityManager;
+			
+			[Inject]
+			public var sourceManager:SourceManager;
+			
 			[Bindable]
 			[Inject]
 			public var model:SourcesModel;
 			
+			[Dispatcher]
+			public var dispatcher:IEventDispatcher;
+			
 			protected var searchTimer:Timer;
 			
 			protected var communitiesPopup:Communities;
+			
+			protected var sourceMonitorPopup:SourceMonitor;
+			
+			/**
+			 * The current user
+			 */
+			protected var currentUser:User;
 			
 			public function closeCommunitiesPopup( event:Event = null ):void
 			{
@@ -78,6 +106,16 @@
 					//really be moved to when the source dialog gets closed but it is utterly confusing as to when that interaction occurs :(
 					sendUpdatedWidgetOptions();
 				}
+			}
+			
+			/**
+			 * Person Get response from server
+			 * @param value
+			 */
+			[Inject( "userManager.currentUser", bind = "true" )]
+			public function setCurrentUser( value:User ):void
+			{
+				currentUser = value;
 			}
 			
 			protected function active_enterStateHandler( event:FlexEvent ):void
@@ -143,6 +181,14 @@
 					filterTextInput.selectRange( filterTextInput.text.length, filterTextInput.text.length );
 			}
 			
+			protected function handleRefreshSourcesEvent( event:Event ):void
+			{
+				sourceManager.removeEventListener( SourceEvent.REFRESH_SOURCES, handleRefreshSourcesEvent );
+				sourceManager.sendRefreshEvent = false;
+				sourceManager.sources.refresh();
+				refreshingIndicator.visible = false;
+			}
+			
 			protected function initSearchTimer():void
 			{
 				searchTimer = new Timer( 100, 2 );
@@ -159,6 +205,47 @@
 					communitiesPopup.x = p.x - ( communitiesPopup.width / 2 ) + ( communitiesGroup.width / 2 );
 					communitiesPopup.y = p.y + communitiesGroup.height + 2;
 				}
+			}
+			
+			/**
+			 * function to position the source monitor
+			 * popup
+			 *
+			 * @param renderer The current renderer
+			 */
+			protected function positionSourceMonitorPopup( renderer:GridTextItemRenderer ):void
+			{
+				if ( sourceMonitorPopup )
+				{
+					var p:Point = sources.contentToGlobal( new Point( renderer.x, renderer.y ) );
+					sourceMonitorPopup.x = ( p.x - ( sourceMonitorPopup.width ) ) + 10;
+					sourceMonitorPopup.y = p.y - communitiesGroup.height + 2;
+				}
+			}
+			
+			/**
+			 * function to handle when the refresh button is clicked
+			 * so that the sources can be refreshed
+			 *
+			 * @param event The MouseEvent received
+			 */
+			protected function refreshButton_clickHandler( event:MouseEvent ):void
+			{
+				refreshButton.selected = false;
+				refreshingIndicator.visible = true;
+				sourceManager.addEventListener( SourceEvent.REFRESH_SOURCES, handleRefreshSourcesEvent );
+				sourceManager.sendRefreshEvent = true;
+				
+				//First call out to get the user object, will refresh the current communities user is in			
+				var userEvent:UserEvent = new UserEvent( UserEvent.GET_USER );
+				userEvent.userName = currentUser.email;
+				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
+				dispatcher.dispatchEvent( userEvent );
+				
+				//Next call out to the public communities, will list any new public communities below user
+				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
+				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
+				dispatcher.dispatchEvent( communityEvent );
 			}
 			
 			protected function resizeHandler( event:ResizeEvent ):void
@@ -204,6 +291,48 @@
 			protected function sourceCollections_changeHandler():void
 			{
 				model.navigator.navigate( sourceCollections.selectedItem );
+			}
+			
+			protected function sources_mouseOverHandler( event:MouseEvent ):void
+			{
+				if ( event.target is Label && event.target.owner is GridTextItemRenderer )
+				{
+					var statusInfo:GridTextItemRenderer = event.target.owner as GridTextItemRenderer;
+					
+					if ( statusInfo.column.dataField == SourceConstants.FIELD_STATUS )
+					{
+						communityManager.setSelectedSource( statusInfo.columnData as Source );
+						
+						if ( sourceMonitorPopup )
+						{
+							sourceMonitorPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, function mouseHandler( event:MouseEvent ):void
+							{
+							} );
+							PopUpManager.removePopUp( sourceMonitorPopup )
+							sourceMonitorPopup = null;
+							refreshButton.selected = false;
+						}
+						
+						sourceMonitorPopup = PopUpManager.createPopUp( DisplayObject( FlexGlobals.topLevelApplication ), SourceMonitor, false, PopUpManagerChildList.APPLICATION ) as SourceMonitor;
+						sourceMonitorPopup.width += 130
+						sourceMonitorPopup.addEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, function mouseHandler( event:MouseEvent ):void
+						{
+							PopUpManager.removePopUp( sourceMonitorPopup );
+						}, false, 0, true );
+						
+						positionSourceMonitorPopup( statusInfo );
+					}
+					else
+					{
+						if ( sourceMonitorPopup )
+							sourceMonitorPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, function mouseHandler( event:MouseEvent ):void
+							{
+							} );
+						PopUpManager.removePopUp( sourceMonitorPopup )
+						sourceMonitorPopup = null;
+						refreshButton.selected = false;
+					}
+				}
 			}
 			
 			protected function sources_selectionChangeHandler( event:GridSelectionEvent ):void
@@ -274,13 +403,22 @@
 			<s:Spacer width="100%" />
 
 			<!-- Communities Button -->
-			<s:Group id="communitiesGroup">
+			<s:HGroup id="communitiesGroup"
+				verticalAlign="middle">
 				<common:InfToggleButton id="communitiesButton"
 					label="{ resourceManager.getString( 'infinite', 'sources.community' ) }"
 					styleName="communityButton"
-					top="2"
 					click="communitiesButton_clickHandler(event)" />
-			</s:Group>
+				<common:InfToggleButton id="refreshButton"
+					label="{ resourceManager.getString( 'infinite', 'common.refresh' ) }"
+					styleName="refreshButton"
+					width="60"
+					click="refreshButton_clickHandler(event)" />
+				<busyIndicator:BusyIndicatorLabel id="refreshingIndicator"
+					styleName="lightGrey"
+					message="Refreshing..."
+					visible="false" />
+			</s:HGroup>
 
 			<s:Spacer width="100%" />
 
@@ -360,6 +498,7 @@
 				height="100%"
 				horizontalScrollPolicy="off"
 				dataProvider="{ model.sources }"
+				mouseOver="sources_mouseOverHandler(event)"
 				selectAll="model.selectAllSources()"
 				selectNone="model.selectNoneSources()"
 				selectionChange="sources_selectionChangeHandler(event)">
@@ -392,10 +531,16 @@
 							headerText="{ resourceManager.getString( 'infinite', 'sources.type' ) }"
 							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
 							sortCompareFunction="{ SourceUtil.sortCompareMediaType }" />
-						<s:GridColumn 
+						<s:GridColumn id="communityColumn"
 							dataField="{ SourceConstants.FIELD_COMMUNITY }"
 							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
 							headerText="{ resourceManager.getString( 'infinite', 'sources.community' ) }"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareCommunity }" />
+						<s:GridColumn id="statusColumn"
+							dataField="{ SourceConstants.FIELD_STATUS }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText="{ resourceManager.getString( 'infinite', 'sources.status' ) }"
 							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
 							sortCompareFunction="{ SourceUtil.sortCompareCommunity }" />
 					</s:ArrayList>

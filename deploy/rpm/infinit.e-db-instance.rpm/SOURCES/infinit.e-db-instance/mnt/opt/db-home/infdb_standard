@@ -9,6 +9,12 @@ CLUSTER_SUBNET=`grep "^db.cluster.subnet=" $SERVICE_PROPERTY_FILE | sed s/'db.cl
 CONFIG_SERVERS=`grep "^db.config.servers=" $SERVICE_PROPERTY_FILE | sed s/'db.config.servers='// | sed s/' '//g`
 REPLICA_SETS=`grep "^db.replica.sets=" $SERVICE_PROPERTY_FILE | sed s/'db.replica.sets='// | sed s/' '//g`
 
+if [ -z $ELASTIC_SUBNET ]; 
+then
+	echo "Invalid DB setup, check $SERVICE_PROPERTY_FILE for db.cluster.subnet, db.config.servers, db.replica.sets" > /dev/stderr
+	exit 
+fi
+
 my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep -F $CLUSTER_SUBNET)
 
 ################################################################################

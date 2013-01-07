@@ -128,6 +128,25 @@ public class PropertiesManager {
 		}
 		return false;
 	}
+
+	/**
+	 * Checks if icu_normalization should be active for community ES index
+	 * 
+	 * @return false if turned off, true otherwise
+	 */
+	public boolean getNormalizeEncoding() 
+	{
+		String s = this.getProperty("store.normalize_encoding");
+		if (null == s) 
+		{
+			return true;
+		}
+		else if (s.equals("1") || s.equalsIgnoreCase("true")) 
+		{
+			return true;
+		}
+		return false;
+	}
 	
 }
 

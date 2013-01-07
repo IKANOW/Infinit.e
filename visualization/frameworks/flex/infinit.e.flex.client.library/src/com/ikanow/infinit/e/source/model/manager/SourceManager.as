@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.source.model.manager
 {
 	import com.adobe.utils.StringUtil;
+	import com.ikanow.infinit.e.shared.event.SourceEvent;
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
@@ -24,8 +25,10 @@ package com.ikanow.infinit.e.source.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.Source;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import com.ikanow.infinit.e.source.model.constant.SourceConstants;
+	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
+	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	
@@ -68,6 +71,11 @@ package com.ikanow.infinit.e.source.model.manager
 		 * The collection of selected communities
 		 */
 		protected var selectedCommunities:ArrayCollection;
+		
+		/**
+		 * The flag to refresh the sources or not
+		 */
+		public var sendRefreshEvent:Boolean;
 		
 		
 		//======================================
@@ -221,7 +229,9 @@ package com.ikanow.infinit.e.source.model.manager
 				if ( !CollectionUtil.doesCollectionContainItem( sourcesMaster, source ) )
 				{
 					newSources.addItem( source );
-				}
+				}else
+					//update the item just in case it has data changed
+					CollectionUtil.replaceItemById(sourcesMaster, source);
 			}
 			
 			sourcesMaster.addAll( newSources );
@@ -302,6 +312,12 @@ package com.ikanow.infinit.e.source.model.manager
 			// sort by title
 			CollectionUtil.applySort( sourcesNew, [ new SortField( SourceConstants.FIELD_TITLE, true ), new SortField( SourceConstants.FIELD_TAGS_STRING, true ) ] );
 			sources = sourcesNew;
+			
+			if(sendRefreshEvent)
+			{
+				var event:SourceEvent = new SourceEvent(SourceEvent.REFRESH_SOURCES);
+				dispatchEvent(event);
+			}
 		}
 	}
 }

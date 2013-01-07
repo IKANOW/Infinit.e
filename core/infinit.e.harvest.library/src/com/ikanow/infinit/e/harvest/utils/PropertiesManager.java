@@ -149,6 +149,16 @@ public class PropertiesManager {
 		return (s.equals("1") || s.equalsIgnoreCase("true"));
 	}
 	
+	public String getHarvestProxy() 
+	{
+		String s = this.getProperty("harvest.proxy");
+		if ((null == s) || s.isEmpty())
+		{
+			return null;
+		}
+		return s;
+	}
+	
 // DB class names for DbHarvester
 	
 	/**

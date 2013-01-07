@@ -27,6 +27,8 @@ package com.ikanow.infinit.e.query.control
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
+	import mx.resources.ResourceManager;
 	import mx.rpc.events.FaultEvent;
 	import mx.rpc.events.ResultEvent;
 	
@@ -208,7 +210,23 @@ package com.ikanow.infinit.e.query.control
 		 */
 		public function guery( event:QueryEvent ):void
 		{
-			executeServiceCall( "QueryController.guery()", event, queryServiceDelegate.query( event ), guery_resultHandler, defaultFaultHandler );
+			if ( event.communityids == null || event.communityids == "" )
+			{
+				Alert.show( "Error: No communities selected, please open the Source Manager and choose a community to search in" );
+			}
+			else
+			{
+				executeServiceCall( "QueryController.guery()", event, queryServiceDelegate.query( event ), guery_resultHandler, guery_faultHandler );
+			}
+		}
+		
+		/**
+		 * Fault handler for query
+		 * @param event
+		 **/
+		public function guery_faultHandler( event:FaultEvent ):void
+		{
+			Alert.show( "Query Error: refreshing on the SourceManager window can fix this issue sometimes.\n\n" + ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverErrorMessage', [ event.fault.rootCause.text ] ), ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverError' ) );
 		}
 		
 		/**

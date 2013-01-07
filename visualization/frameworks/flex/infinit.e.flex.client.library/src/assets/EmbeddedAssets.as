@@ -66,6 +66,15 @@ package assets
 		[Embed( source = "/assets/images/Nav-Community_DD.png" )]
 		public static const COMMUNITY_ON:Class;
 		
+		[Embed( source = "/assets/images/NAV-Refresh_Off.png" )]
+		public static const REFRESH_OFF:Class;
+		
+		[Embed( source = "/assets/images/NAV-Refresh_On.png" )]
+		public static const REFRESH_ON:Class;
+		
+		[Embed( source = "/assets/images/NAV-Refresh_Hover.png" )]
+		public static const REFRESH_HOVER:Class;
+		
 		[Embed( source = "/assets/images/DkGrey_Stripe.png" )]
 		public static const DK_GREY_STRIPE:Class;
 		

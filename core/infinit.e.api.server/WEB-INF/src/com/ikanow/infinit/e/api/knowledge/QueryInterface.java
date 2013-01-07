@@ -15,10 +15,9 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge;
 
-//TODO (INF-1516): Add new filters to GET interface
-
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Map.Entry;
@@ -207,7 +206,18 @@ public class QueryInterface extends ServerResource
 						}
 						cookieLookup = authuser.getProfileId().toString();
 					}
-				} // end authentication:
+				} // end authentication for RSS
+				
+				// Also, since we're RSS, there's a bunch of output params that we know we don't need:
+				
+				// (output and output.docs are guaranteed to exist)
+				_requestDetails.output.aggregation = null;
+				_requestDetails.output.docs.ents = false;
+				_requestDetails.output.docs.events = false;
+				_requestDetails.output.docs.facts = false;
+				_requestDetails.output.docs.summaries = false;
+				_requestDetails.output.docs.eventsTimeline = false;
+				_requestDetails.output.docs.metadata = false;
 			}
 			
 			// Fail out otherwise perform query
@@ -270,7 +280,7 @@ public class QueryInterface extends ServerResource
 						data = rp.toApi();
 					}
 				}
-			}//TOTEST
+			}//TESTED
 		}
 		catch (Exception e) {
 			e.printStackTrace();
@@ -356,6 +366,12 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.entityOpt.expandAlias = Boolean.parseBoolean(value);
 					}
+					else if (attrName.equals("entityopt.rawtext")) {
+						if (null == qtIndex.entityOpt) {
+							qtIndex.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
+						}
+						qtIndex.entityOpt.rawText = Boolean.parseBoolean(value);
+					}
 					else if (attrName.equals("entityopt.expandontology")) {
 						if (null == qtIndex.entityOpt) {
 							qtIndex.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
@@ -416,169 +432,10 @@ public class QueryInterface extends ServerResource
 						}						
 						qtIndex.geo.ontology_type = value;						
 					}
-					else if (attrName.equals("metadataField")) {
+					else if (attrName.equals("metadatafield")) {
 						qtIndex.metadataField = value;						
 					}
-					//association parsing code:
-					else if (attrName.equals("event.entity1.etext")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity1) {
-							qtIndex.event.entity1 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity1.etext = value;
-					}
-					else if (attrName.equals("event.entity1.ftext")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity1) {
-							qtIndex.event.entity1 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity1.ftext = value;
-					}
-					else if (attrName.equals("event.entity1.entity")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity1) {
-							qtIndex.event.entity1 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity1.entity = value;
-					}
-					else if (attrName.equals("event.entity1.entityValue")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity1) {
-							qtIndex.event.entity1 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity1.entityValue = value;
-					}
-					else if (attrName.equals("event.entity1.entityType")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity1) {
-							qtIndex.event.entity1 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity1.entityType = value;
-					}
-					//(No entity opts supported for the moment)
-					else if (attrName.equals("event.entity2.etext")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity2) {
-							qtIndex.event.entity2 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity2.etext = value;
-					}
-					else if (attrName.equals("event.entity2.ftext")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity2) {
-							qtIndex.event.entity2 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity2.ftext = value;
-					}
-					else if (attrName.equals("event.entity2.entity")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity2) {
-							qtIndex.event.entity2 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity2.entity = value;
-					}
-					else if (attrName.equals("event.entity2.entityValue")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity2) {
-							qtIndex.event.entity2 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity2.entityValue = value;
-					}
-					else if (attrName.equals("event.entity2.entityType")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.entity2) {
-							qtIndex.event.entity2 = new AdvancedQueryPojo.QueryTermPojo();
-						}
-						qtIndex.event.entity2.entityType = value;
-					}
-					//(No entity opts supported for the moment)
-					else if (attrName.equals("event.verb")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						qtIndex.event.verb = value;
-					}
-					else if (attrName.equals("event.type")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						qtIndex.event.type = value;
-					}
-					else if (attrName.equals("event.time.min")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.time) {
-							qtIndex.event.time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
-						}
-						qtIndex.event.time.min = value;
-					}
-					else if (attrName.equals("event.time.max")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.time) {
-							qtIndex.event.time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
-						}
-						qtIndex.event.time.max = value;						
-					}
-					else if (attrName.equals("event.geo.centerll")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.geo) {
-							qtIndex.event.geo = new AdvancedQueryPojo.QueryTermPojo.GeoTermPojo();
-						}						
-						qtIndex.event.geo.centerll = value;						
-					}
-					else if (attrName.equals("event.geo.dist")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.geo) {
-							qtIndex.event.geo = new AdvancedQueryPojo.QueryTermPojo.GeoTermPojo();
-						}						
-						qtIndex.event.geo.dist = value;												
-					}
-					else if (attrName.equals("event.geo.minll")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.geo) {
-							qtIndex.event.geo = new AdvancedQueryPojo.QueryTermPojo.GeoTermPojo();
-						}						
-						qtIndex.event.geo.minll = value;						
-					}
-					else if (attrName.equals("event.geo.maxll")) {
-						if (null == qtIndex.event) {
-							qtIndex.event = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
-						}
-						if (null == qtIndex.event.geo) {
-							qtIndex.event.geo = new AdvancedQueryPojo.QueryTermPojo.GeoTermPojo();
-						}						
-						qtIndex.event.geo.maxll = value;						
-					}
-					//^^^(event have been renamed associations, see below - want to retire the "event" name for V1)
+					//association parsing code: 
 					else if (attrName.equals("assoc.entity1.etext")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
@@ -606,7 +463,7 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity1.entity = value;
 					}
-					else if (attrName.equals("assoc.entity1.entityValue")) {
+					else if (attrName.equals("assoc.entity1.entityvalue")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
 						}
@@ -615,7 +472,7 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity1.entityValue = value;
 					}
-					else if (attrName.equals("assoc.entity1.entityType")) {
+					else if (attrName.equals("assoc.entity1.entitytype")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
 						}
@@ -624,7 +481,18 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity1.entityType = value;
 					}
-					//(No entity opts supported for the moment)
+					else if (attrName.equals("assoc.entity1.entityopt.rawtext")) { // (only supported entity opt)
+						if (null == qtIndex.assoc) {
+							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
+						}
+						if (null == qtIndex.assoc.entity1) {
+							qtIndex.assoc.entity1 = new AdvancedQueryPojo.QueryTermPojo();
+						}
+						if (null == qtIndex.assoc.entity1.entityOpt) {
+							qtIndex.assoc.entity1.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
+						}
+						qtIndex.assoc.entity1.entityOpt.rawText = Boolean.parseBoolean(value);
+					}
 					else if (attrName.equals("assoc.entity2.etext")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
@@ -652,7 +520,7 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity2.entity = value;
 					}
-					else if (attrName.equals("assoc.entity2.entityValue")) {
+					else if (attrName.equals("assoc.entity2.entityvalue")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
 						}
@@ -661,7 +529,7 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity2.entityValue = value;
 					}
-					else if (attrName.equals("assoc.entity2.entityType")) {
+					else if (attrName.equals("assoc.entity2.entitytype")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
 						}
@@ -670,7 +538,18 @@ public class QueryInterface extends ServerResource
 						}
 						qtIndex.assoc.entity2.entityType = value;
 					}
-					//(No entity opts supported for the moment)
+					else if (attrName.equals("assoc.entity2.entityopt.rawtext")) { // (only supported entity opt)
+						if (null == qtIndex.assoc) {
+							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
+						}
+						if (null == qtIndex.assoc.entity2) {
+							qtIndex.assoc.entity2 = new AdvancedQueryPojo.QueryTermPojo();
+						}
+						if (null == qtIndex.assoc.entity2.entityOpt) {
+							qtIndex.assoc.entity2.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
+						}
+						qtIndex.assoc.entity2.entityOpt.rawText = Boolean.parseBoolean(value);
+					}
 					else if (attrName.equals("assoc.verb")) {
 						if (null == qtIndex.assoc) {
 							qtIndex.assoc = new AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo();
@@ -819,6 +698,48 @@ public class QueryInterface extends ServerResource
 				}
 				_requestDetails.score.relWeight = Double.parseDouble(value);								
 			}
+			else if (attrName.equals("score.scoreents")) {
+				if (null == _requestDetails.score) {
+					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
+				}
+				_requestDetails.score.scoreEnts = Boolean.parseBoolean(value);								
+			}
+			else if (attrName.equals("score.adjustaggregatesig")) {
+				if (null == _requestDetails.score) {
+					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
+				}
+				_requestDetails.score.adjustAggregateSig = Boolean.parseBoolean(value);								
+			}
+			else if (attrName.startsWith("score.sourceweights.")) {
+				if (null == _requestDetails.score) {
+					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
+				}
+				if (null == _requestDetails.score.sourceWeights) {
+					_requestDetails.score.sourceWeights = new HashMap<String, Double>();
+				}
+				String key = attrName.substring(20); // len("score.sourceweights"+".")
+				_requestDetails.score.sourceWeights.put(key, Double.parseDouble(value));
+			}
+			else if (attrName.startsWith("score.typeweights.")) {
+				if (null == _requestDetails.score) {
+					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
+				}
+				if (null == _requestDetails.score.typeWeights) {
+					_requestDetails.score.typeWeights = new HashMap<String, Double>();
+				}
+				String key = attrName.substring(18); // len("score.typeweights"+".")
+				_requestDetails.score.typeWeights.put(key, Double.parseDouble(value));
+			}
+			else if (attrName.startsWith("score.tagweights.")) {
+				if (null == _requestDetails.score) {
+					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
+				}
+				if (null == _requestDetails.score.tagWeights) {
+					_requestDetails.score.tagWeights = new HashMap<String, Double>();
+				}
+				String key = attrName.substring(17); // len("score.tagweights"+".")
+				_requestDetails.score.tagWeights.put(key, Double.parseDouble(value));
+			}
 			else if (attrName.equals("score.timeprox.time")) {
 				if (null == _requestDetails.score) {
 					_requestDetails.score = new AdvancedQueryPojo.QueryScorePojo();
@@ -862,7 +783,6 @@ public class QueryInterface extends ServerResource
 				}
 				_requestDetails.output.format = value;
 			}
-			//TODO (INF-475): Test cases for all these
 			else if (attrName.equals("output.docs.enable")) {
 				if (null == _requestDetails.output) {
 					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
@@ -1037,23 +957,23 @@ public class QueryInterface extends ServerResource
 				}
 				_requestDetails.output.aggregation.sourceMetadata = Integer.parseInt(value);				
 			}
-			else if (attrName.equals("output.filter.assocVerbs")) { // comma-separated list 
+			else if (attrName.equals("output.filter.assocverbs")) { // comma-separated list 
 				if (null == _requestDetails.output) {
 					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
 				}
 				if (null == _requestDetails.output.filter) {
 					_requestDetails.output.filter = new AdvancedQueryPojo.QueryOutputPojo.FilterOutputPojo();
 				}
-				_requestDetails.output.filter.assocVerbs = value.toLowerCase().split("\\s*,\\s*");
+				_requestDetails.output.filter.assocVerbs = value.split("\\s*,\\s*");
 			}
-			else if (attrName.equals("output.filter.entityTypes")) { // comma-separated list 
+			else if (attrName.equals("output.filter.entitytypes")) { // comma-separated list 
 				if (null == _requestDetails.output) {
 					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
 				}
 				if (null == _requestDetails.output.filter) {
 					_requestDetails.output.filter = new AdvancedQueryPojo.QueryOutputPojo.FilterOutputPojo();
 				}
-				_requestDetails.output.filter.entityTypes = value.toLowerCase().split("\\s*,\\s*");
+				_requestDetails.output.filter.entityTypes = value.split("\\s*,\\s*");
 			}
 			
 // Generic event aggregation: not implemented (INF-1230)
@@ -1105,6 +1025,8 @@ public class QueryInterface extends ServerResource
 	@SuppressWarnings("unused")
 	private void testUrlParsing()
 	{
+		//TODO (INF-475): 1) now missing lots of test cases, 2) convert this to some JUnit thing
+		
 		String testString = 
 			"qt[0].ftext=\"ftext0\"&qt[0].etext=etext0"+
 			"&qt[1].entityValue=entity1&qt[1].entityType=type1"+
@@ -1155,7 +1077,6 @@ public class QueryInterface extends ServerResource
 			System.out.println(testResults);			
 			System.out.println(refResults);			
 		}
-		//TODO (INF-475): convert this to some JUnit thing
 	}
 	
 } // (end class QueryResource)

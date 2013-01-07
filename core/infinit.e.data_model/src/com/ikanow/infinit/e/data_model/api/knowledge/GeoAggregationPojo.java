@@ -34,21 +34,24 @@ public class GeoAggregationPojo implements Comparable<GeoAggregationPojo> {
 
 	@Override
 	public int compareTo(GeoAggregationPojo that) { 
+		// this is always the object being added
+		// that is always the object in the container
+		
         if (this.lon < that.lon) return -1;
         if (this.lon > that.lon) return +1;
         if (this.lat < that.lat) return -1;
         if (this.lat > that.lat) return +1;
-        // Count, default to 0
-        int this_count = 0;
-        int that_count = 0;
-        if (null != this.count) {
-        	this_count =  this.count;
+        
+        int nCompare = this.type.compareTo(that.type);
+        if (0 != nCompare) {
+        	return nCompare;
+        }        
+        // OK if we get to here, they are the same object
+        // assuming we're adding then increment that.count:
+        if ((null != this.count) && (null != that.count)) {
+        	that.count += this.count;
+        	this.count = that.count; // (so the object I attempted to add is also updated)
         }
-        if (null != that.count) {
-        	that_count =  that.count;
-        }
-        if (this_count < that_count) return -1;
-        if (this_count > that_count) return +1;        
-        return 0;
-	}
+    	return 0;
+	}//TOTEST
 }

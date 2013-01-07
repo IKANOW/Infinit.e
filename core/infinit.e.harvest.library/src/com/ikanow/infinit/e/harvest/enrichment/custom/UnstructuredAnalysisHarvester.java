@@ -67,6 +67,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelExcep
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.Context;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
@@ -77,6 +78,7 @@ import com.ikanow.infinit.e.harvest.extraction.document.file.XmlToMetadataParser
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
+import com.ikanow.infinit.e.harvest.utils.ProxyManager;
 import com.mongodb.BasicDBList;
 
 /**
@@ -174,6 +176,9 @@ public class UnstructuredAnalysisHarvester {
 				// extraction
 				boolean bFetchedUrl = false;
 				if (bGetRawDoc && (null == d.getFullText())) {
+					if (null == source.getRssConfig()) {
+						source.setRssConfig(new SourceRssConfigPojo()); // (makes logic easier down the road)
+					}
 					// (first time through, sleep following a URL/RSS access)
 					if ((1 == nDocs) && (null != source.getUrl())) { // (have already made a call to RSS (or "searchConfig" URL)
 						try {
@@ -193,8 +198,8 @@ public class UnstructuredAnalysisHarvester {
 						}
 						else {
 							URL url = new URL(d.getUrl());
-							URLConnection urlConnect = url.openConnection();
-							if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+							URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
+							if (null != source.getRssConfig().getUserAgent()) {
 								urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
 							}// TESTED
 							
@@ -312,6 +317,9 @@ public class UnstructuredAnalysisHarvester {
 		}
 		boolean bFetchedUrl = false;
 		if (bGetRawDoc) {
+			if (null == source.getRssConfig()) {
+				source.setRssConfig(new SourceRssConfigPojo()); // (makes logic easier down the road)
+			}
 			try {
 				// Workaround for observed twitter bug (first access after the
 				// RSS was gzipped)
@@ -334,10 +342,10 @@ public class UnstructuredAnalysisHarvester {
 					}
 				}
 				else {
-				
+
 					URL url = new URL(doc.getUrl());
-					URLConnection urlConnect = url.openConnection();
-					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
+					URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
+					if (null != source.getRssConfig().getUserAgent()) {
 						urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
 					}// TESTED
 					
@@ -347,7 +355,7 @@ public class UnstructuredAnalysisHarvester {
 					}
 					catch (Exception e) { // Try one more time, this time exception out all the way
 						url = new URL(doc.getUrl());
-						urlConnect = url.openConnection();
+						urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
 						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
 							urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
 						}// TESTED
@@ -640,7 +648,7 @@ public class UnstructuredAnalysisHarvester {
 			{
 				// Javascript: the user passes in 
 				Object[] currField = f.getMetadata().get(m.fieldName);
-				if (null == m.flags) {
+				if ((null == m.flags) || m.flags.isEmpty()) {
 					if (null == currField) {
 						engine.put("text", text);
 						engine.put("_iterator", null);

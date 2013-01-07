@@ -63,6 +63,16 @@ package com.ikanow.infinit.e.shared.util
 		}
 		
 		/**
+		 * Returns the URL of the source monitor
+		 * @param value
+		 * @return String
+		 */
+		public static function getSourceMonitorUrl():String
+		{
+			return BrowserUtil.getBrowserDomain() + Constants.SOURCE_MONITOR_PAGE;
+		}
+		
+		/**
 		 * Returns a string or a "null" string
 		 * @param value
 		 * @return String

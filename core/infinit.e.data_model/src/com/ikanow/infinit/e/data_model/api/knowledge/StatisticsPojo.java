@@ -41,6 +41,7 @@ public class StatisticsPojo extends BaseApiPojo {
 	public static class Score {
 		public double score;
 		public double decay = -1.0;
+		public int nIndex;
 	}
 	
 	private HashMap<ObjectId, Score> scoring = null;
@@ -70,6 +71,7 @@ public class StatisticsPojo extends BaseApiPojo {
 			for(SearchHit hit: elasticHits) {
 				String idStr = hit.getId();
 				Score scoreObj = new Score();
+				scoreObj.nIndex = i;
 				scoreObj.score = (double)hit.getScore();
 			    if (Double.isNaN(scoreObj.score)) {
 			    	scoreObj.score = (double) 0.0;

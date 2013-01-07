@@ -51,16 +51,29 @@ res = db.metadata.mapReduce( m, r, { out: { replace: "tmpCalcFreqCounts" }, quer
 m2 = function() {
     if ((this.entities != null) && (this.communityId != null)) {
 		var commid = this.communityId;
+		var needs_updated = false;
         for (var i = 0; i < this.entities.length; ++i) {
             var entity = this.entities[i];
         		
             db.tmpCalcFreqCounts.find({ "_id": { "index": entity.index, "comm": commid  } }).limit(1).forEach(function(gaz) {
+            		if (!needs_updated) {
+	            		if (Math.abs(entity.doccount - gaz.value.dc) > 0.1*entity.doccount) {
+	            			// (if the value has changed by %10)
+	            			needs_updated = true;
+	            		}
+	            		else if (Math.abs(entity.totalfrequency - gaz.value.tf) > 0.1*entity.totalfrequency) {
+	            			// (if the value has changed by %10)
+	            			needs_updated = true;
+	            		}
+            		}
                     entity.doccount = gaz.value.dc;
                     entity.totalfrequency = gaz.value.tf;
             })
         }
-        emit(this._id, this);
-        emit(this._id, { _id: null }); // (have to emit twice to get into the reduce code which lets me manipulate the DB...)
+        if (needs_updated) {
+	        emit(this._id, this);
+	        emit(this._id, { _id: null }); // (have to emit twice to get into the reduce code which lets me manipulate the DB...)
+        }
    }
 }
 
@@ -91,6 +104,10 @@ db.tmpCalcFreqCounts2.drop();
 //
 // PHASE 1.POSTFIX: MODIFY EXISTING ENTITY FEATURES
 //
+
+db = db.getMongo().getDB( "feature" );
+db.tmpCalcFreqCounts.drop();
+//(another painful lesson - if this collection exists, it's *really* *really* bad!!)
 
 db = db.getMongo().getDB( "admin" );
 db.getMongo().getDB( "admin" ).runCommand({renameCollection:"doc_metadata.tmpCalcFreqCounts",to:"feature.tmpCalcFreqCounts"});

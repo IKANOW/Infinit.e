@@ -133,7 +133,7 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 	
 	/**
 	 * getLogMessages
-	 * Returns a list of up to 5 errors (eg encountered when parsing JavaScrip)t for 
+	 * Returns a list of up to 20 errors (eg encountered when parsing JavaScrip)t for 
 	 * a source, sorted by frequency in ascending order
 	 * @return
 	 */
@@ -155,14 +155,14 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 			// Write the error messages to a Collection<String>
 			Collection<String> messages = mm.values();
 			
-			// Append up to the top five messages to our StringBuffer and return
+			// Append up to the top 20 messages to our StringBuffer and return
 			int messageCount = 1;
 			for (String s : messages)
 			{
 				if (messageCount > 1) messagesString.append('\n');
 				messagesString.append(s);
 				messageCount++;
-				if (messageCount > 5) break;
+				if (messageCount > 20) break;
 			}
 			if (bReset) {
 				_messages.clear();
