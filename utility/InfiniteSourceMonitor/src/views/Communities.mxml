@@ -374,7 +374,7 @@
 				styleName="selectAllIconDropDownList"
 				change="selectOptions_changeHandler()"
 				creationComplete="selectOptions_creationCompleteHandler()"
-				mouseOut="selectOptions.closeDropDown( false )"
+				mouseDownOutside="selectOptions.closeDropDown( false )"
 				mouseOver="selectOptions.openDropDown()"
 				open="selectOptions_openHandler(event)"
 				includeIn="list" />

@@ -826,7 +826,7 @@ public class HarvestController implements HarvestContext
 		}
 		catch (Exception e) { // Misc internal error
 			StringBuffer errMsg = new StringBuffer("Skipping source=").append(source.getKey()).append(" error=").append(e.getMessage());
-			logger.error(errMsg.toString());
+			logger.error(errMsg.toString(), e);
 			throw new ExtractorSourceLevelTransientException(errMsg.toString());
 		}//TESTED
 		

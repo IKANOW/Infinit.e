@@ -294,16 +294,20 @@ public class StructuredAnalysisHarvester
 					try {
 						if (s.getUrl() != null)
 						{
+							String url;
 							if (JavaScriptUtils.containsScript(s.getUrl()))
 							{
-								f.setUrl((String)getValueFromScript(s.getUrl(), null, null));
+								url = (String)getValueFromScript(s.getUrl(), null, null);
 							}
 							else
 							{
-								f.setUrl(getFormattedTextFromField(s.getUrl(), null));
-							}
-							if (null == f.getUrl()) {
+								url = getFormattedTextFromField(s.getUrl(), null);
+							}							
+							if (null == url) {
 								bTryURLLater = true;
+							}
+							else {
+								f.setUrl(url);
 							}
 						}
 					}
@@ -524,13 +528,17 @@ public class StructuredAnalysisHarvester
 						try {
 							if (s.getUrl() != null)
 							{
+								String url = null; 
 								if (JavaScriptUtils.containsScript(s.getUrl()))
 								{
-									f.setUrl((String)getValueFromScript(s.getUrl(), null, null));
+									url = (String)getValueFromScript(s.getUrl(), null, null);
 								}
 								else
 								{
-									f.setUrl(getFormattedTextFromField(s.getUrl(), null));
+									url = getFormattedTextFromField(s.getUrl(), null);
+								}
+								if (null != url) {
+									f.setUrl(url);
 								}
 							}
 						}

@@ -214,13 +214,13 @@
 			 * @param renderer The current renderer
 			 */
 			protected function positionSourceMonitorPopup( renderer:GridTextItemRenderer ):void
-			{
+			{				
 				if ( sourceMonitorPopup )
 				{
 					var p:Point = sources.contentToGlobal( new Point( renderer.x, renderer.y ) );
-					sourceMonitorPopup.x = ( p.x - ( sourceMonitorPopup.width ) ) + 10;
-					sourceMonitorPopup.y = p.y - communitiesGroup.height + 2;
-				}
+					sourceMonitorPopup.x = (p.x - ( sourceMonitorPopup.width)) + 10;
+					sourceMonitorPopup.y = sources.y + 180;
+				}				
 			}
 			
 			/**

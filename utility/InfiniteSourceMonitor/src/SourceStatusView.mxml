@@ -26,6 +26,7 @@ limitations under the License.
 			import events.CommunityEvent;
 			
 			import mx.collections.ArrayCollection;
+			import mx.collections.IList;
 			import mx.collections.Sort;
 			import mx.collections.SortField;
 			import mx.controls.Alert;
@@ -184,6 +185,8 @@ limitations under the License.
 				var data:Object = json.getValue();
 				var sourceItems:ArrayCollection = new ArrayCollection( data.data );
 				
+				var goodSources:ArrayCollection = new ArrayCollection();
+				
 				for each ( var o:Object in sourceItems )
 				{
 					o.communityName = setCommunityName( o.communityIds[ 0 ] );
@@ -211,9 +214,18 @@ limitations under the License.
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
-				}
-				sourceData.addAll( sourceItems );
-				currsourceData.addAll( sourceItems );
+					
+					if(!doesCollectionContainItem(sourceData, o))
+						goodSources.addItem(o);
+					else
+					{
+						replaceItemById(sourceData, o);
+						replaceItemById(currsourceData, o);
+					}
+				}				
+				
+				sourceData.addAll( goodSources );
+				currsourceData.addAll( goodSources ); 
 				
 				checkFilter();
 			}
@@ -230,6 +242,7 @@ limitations under the License.
 				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
 				var data:Object = json.getValue();
 				var sourceItems:ArrayCollection = new ArrayCollection( data.data );
+				var pendingSources:ArrayCollection = new ArrayCollection();
 				
 				for each ( var o:Object in sourceItems )
 				{
@@ -258,9 +271,18 @@ limitations under the License.
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
+					
+					if(!doesCollectionContainItem(sourceData, o))
+						pendingSources.addItem(o);
+					else
+					{
+						replaceItemById(sourceData, o);
+						replaceItemById(currsourceData, o);
+					}
 				}
-				sourceData.addAll( sourceItems );
-				currsourceData.addAll( sourceItems );
+				
+				sourceData.addAll( pendingSources );
+				currsourceData.addAll( pendingSources );
 				
 				checkFilter();
 			}
@@ -587,6 +609,64 @@ limitations under the License.
 					filter_enterHandler(null);
 			}
 			
+			/**
+			 * This method checks to see if one item is in a collection.  The id is used
+			 * to do the matching.
+			 *
+			 * @param collection The collection containing the original item
+			 * @param item The updated item
+			 * @param idField The field used to match the items
+			 * 
+			 * @return If the collection contains the item or not
+			 */
+			public static function doesCollectionContainItem( collection:IList, item:Object, idField:String = "_id" ):Boolean
+			{
+				var currentItem:Object;
+				
+				if ( collection && item )
+				{
+					for ( var i:uint = 0; i < collection.length; i++ )
+					{
+						currentItem = collection.getItemAt( i );
+						
+						if ( currentItem.hasOwnProperty( idField ) && item.hasOwnProperty( idField ) && currentItem[ idField ] == item[ idField ] )
+						{
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+			
+			/**
+			 * This method replaces one item in a collection with an updated version.  The id is used
+			 * to do the matching.
+			 *
+			 * @param collection The collection containing the original item
+			 * @param item The updated item
+			 * @param idField The field used to match the items
+			 */
+			public static function replaceItemById( collection:IList, item:Object, idField:String = "_id" ):void
+			{
+				var currentItem:Object;
+				
+				if ( collection && item )
+				{
+					var len:int = collection.length;
+					
+					for ( var i:uint = 0; i < len; i++ )
+					{
+						currentItem = collection.getItemAt( i );
+						
+						if ( currentItem[ idField ] == item[ idField ] )
+						{
+							collection.setItemAt( item, i );
+							return;
+						}
+					}
+				}
+				return;
+			}
 		]]>
 	</fx:Script>
 	<fx:Declarations>

@@ -37,6 +37,9 @@ public class TextRankExtractor implements IEntityExtractor {
 			return;
 		}
 		try {
+			if (null == partialDoc.getFullText()) {
+				return;
+			}
 			
 			processor.get().prepCall(partialDoc.getFullText(), false);			
 			Collection<MetricVector> results = processor.get().call();

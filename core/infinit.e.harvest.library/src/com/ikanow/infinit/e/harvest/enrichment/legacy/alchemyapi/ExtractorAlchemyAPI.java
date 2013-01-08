@@ -191,6 +191,9 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		configure(partialDoc.getTempSource());
 		
 		// Run through specified extractor need to pull these properties from config file
+		if (null == partialDoc.getFullText()) {
+			return;
+		}
 		if (partialDoc.getFullText().length() < 16) { // Else don't waste Extractor call/error logging			
 			return;
 		}

@@ -195,6 +195,10 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	{		
 		if (null != partialDoc) {
 			configure(partialDoc.getTempSource());
+			
+			if (null == partialDoc.getFullText()) {
+				return;
+			}
 		}
 		if (_nBatchSize > 1) {
 			
@@ -211,7 +215,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 				}
 				_batchText.append('\n');
 				_nCurrBatchedDocs++;
-			}//TOTEST
+			}//TESTED
 			
 			if ((_nCurrBatchedDocs == _nBatchSize) || 
 					((null == partialDoc) && (_nCurrBatchedDocs > 0)))
@@ -235,7 +239,9 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 					handleBatchProcessing(megaDoc, _batchedDocuments);
 				}
 				catch (Exception e) {					
-					throw new ExtractorDocumentLevelException(e.getMessage());
+					String strError = "Exception Message (0): doc=" + megaDoc.getUrl() + " error=" +  e.getMessage();
+					logger.error(strError, e);
+					throw new InfiniteEnums.ExtractorDocumentLevelException(strError);
 				}
 				finally {
 					_alch.setNumKeywords(_nNumKeywords); // (<- probably not necessary)
@@ -246,7 +252,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 					_batchText.setLength(0);
 				}			
 				
-			}//TOTEST
+			}//TESTED
 			
 			return; // (don't do anything until batch size complete)
 		}
@@ -255,6 +261,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		}
 		
 		// Run through specified extractor need to pull these properties from config file
+		// (already checked if this is non-null)
 		if (partialDoc.getFullText().length() < 16) { // (don't waste Extractor call/error logging)
 			return;
 		}
@@ -465,7 +472,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			//Collect info and spit out to log
 			String strError = "Exception Message (5): doc=" + partialDoc.getUrl() + " error=" +  e.getMessage();
 			logger.error(strError, e);
-			throw new InfiniteEnums.ExtractorDocumentLevelException();			
+			throw new InfiniteEnums.ExtractorDocumentLevelException(strError);			
 		}
 		try {
 			// Turn concepts into metadata:

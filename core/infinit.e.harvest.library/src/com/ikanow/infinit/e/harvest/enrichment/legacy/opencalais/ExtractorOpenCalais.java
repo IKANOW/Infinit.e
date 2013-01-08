@@ -166,6 +166,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		num_extraction_requests.incrementAndGet();
 		try 
 		{
+			if (null == partialDoc.getFullText()) {
+				return;
+			}
 			if (partialDoc.getFullText().length() < 32) { // Else don't waste Extractor call/error logging
 				return;
 			}	

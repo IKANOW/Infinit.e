@@ -581,6 +581,10 @@ public class CommunityHandler
 							//verified user, update status
 							if ( cp.updateMemberStatus(personIdStr, userStatus) )
 							{
+								/////////////////////////////////////////////////////////////////////////////////////////////////
+								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+								// Caleb: this means change update to $set
+								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 								rp.setResponse(new ResponseObject("Update member status",true,"Updated member status successfully"));
 							}
@@ -650,7 +654,11 @@ public class CommunityHandler
 						{
 							if ( cmp.get_id().equals(userID) )
 							{
-								cmp.setUserType(userType);			
+								cmp.setUserType(userType);		
+								/////////////////////////////////////////////////////////////////////////////////////////////////
+								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+								// Caleb: this means change update to $set
+								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 								rp.setResponse(new ResponseObject("Update member type",true,"Updated member type successfully"));
 								break;
@@ -711,6 +719,10 @@ public class CommunityHandler
 								PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
 								cp.addMember(pp,true);
 								//write both objects back to db now
+								/////////////////////////////////////////////////////////////////////////////////////////////////
+								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+								// Caleb: this means change update to $set
+								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 															
 								//send email out to owner for approval
@@ -748,6 +760,10 @@ public class CommunityHandler
 								cp.addMember(pp);
 								pp.addCommunity(cp);
 								//write both objects back to db now
+								/////////////////////////////////////////////////////////////////////////////////////////////////
+								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+								// Caleb: this means change update to $set
+								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 								DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 								rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully"));
@@ -804,6 +820,10 @@ public class CommunityHandler
 					cp.removeMember(new ObjectId(personIdStr));
 					pp.removeCommunity(cp);					
 					//write both objects back to db now
+					/////////////////////////////////////////////////////////////////////////////////////////////////
+					// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+					// Caleb: this means change update to $set
+					/////////////////////////////////////////////////////////////////////////////////////////////////
 					DbManager.getSocial().getCommunity().update(query, cp.toDb());
 					DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 					rp.setResponse(new ResponseObject("Leave Community",true,"Left community successfully"));
@@ -886,10 +906,18 @@ public class CommunityHandler
 									// Update community with new member
 									cp.addMember(pp, false); // Member status set to Active
 									cp.setNumberOfMembers(cp.getNumberOfMembers() + 1); // Increment number of members
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
 									
 									// Add community to persons object and save to db
 									pp.addCommunity(cp);
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getPerson().update(new BasicDBObject("_id", pp.get_id()), pp.toDb());
 									
 									rp.setResponse(new ResponseObject("Invite Community",true,"User added to community successfully."));
@@ -897,7 +925,10 @@ public class CommunityHandler
 								else
 								{
 									cp.addMember(pp, true); // Member status set to Pending
-									
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
 									
 									//send email out inviting user
@@ -1012,6 +1043,10 @@ public class CommunityHandler
 							{
 								//if response is false (deny), always just remove user from community							
 								cp.removeMember(new ObjectId(cap.getPersonId()));
+								/////////////////////////////////////////////////////////////////////////////////////////////////
+								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+								// Caleb: this means change update to $set
+								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 							}
 							else
@@ -1023,10 +1058,18 @@ public class CommunityHandler
 								{
 									cp.updateMemberStatus(cap.getPersonId(), "active");
 									cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
 									
 									PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
 									pp.addCommunity(cp);
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 								}
 								else
@@ -1106,6 +1149,7 @@ public class CommunityHandler
 			// Retrieve community we are trying to update from the database
 			BasicDBObject query = new BasicDBObject("_id", new ObjectId(communityIdStr));
 			DBObject dbo = DbManager.getSocial().getCommunity().findOne(query);
+			String originalName = null;
 			
 			if ( dbo != null )
 			{
@@ -1118,7 +1162,9 @@ public class CommunityHandler
 				}
 				// Here are the fields you are allowed to change:
 				// name:
-				if (null != updateCommunity.getName()) {
+				if (null != updateCommunity.getName()) 
+				{
+					originalName = cp.getName();
 					cp.setName(updateCommunity.getName());
 				}
 				if (null != updateCommunity.getDescription()) {
@@ -1152,24 +1198,26 @@ public class CommunityHandler
 						return rp;
 					}
 				}
-				
+								
 				DbManager.getSocial().getCommunity().update(query, cp.toDb());
+				
+				
+				// Community.name
+				// Community name has changed, member records need to be updated to reflect the name change
+				if (originalName != null)
+				{
+					DBObject query_person = new BasicDBObject("communities.name", originalName);
+					DBObject update = new BasicDBObject("$set",new BasicDBObject("communities.$.name", updateCommunity.getName()));					
+					DbManager.getSocial().getPerson().update(query_person, update, false, true);
+				}
 				
 				/////////////////////////////////////////////////////////////////////////////////////////////////
 				// TODO (INF-1214): Make this code more robust to handle changes to the community that need to 
 				// propagate out to other records like Person
+				// caleb note: 1/7 (change this to use $set is what this means, 
+				// including above DbManager.getSocial().getCommunity().update(query, cp.toDb()); )
+				// and the below unwritten communityuserattri
 				/////////////////////////////////////////////////////////////////////////////////////////////////
-				// Community.name
-				// Community name has changed, member records need to be updated to reflect the name change
-				if (!updateCommunity.getName().equalsIgnoreCase(cp.getName()))
-				{
-//					DBObject updateFields = new BasicDBObject();
-//					updateFields.put("communities.$.name", updateCommunity.getName());
-//					DBObject update = new BasicDBObject("$set",updateFields);
-//					DBObject query = new BasicDBObject("communities.name", cp.getName());
-//					DbManager.getSocial().getPerson().update(query, update);
-				}
-				
 				/////////////////////////////////////////////////////////////////////////////////////////////////
 				// Community.communityUserAttribute
 				// If user attributes have changed we might need to update member records...
@@ -1335,6 +1383,10 @@ public class CommunityHandler
 						// Increment number of members by 1
 						community.setNumberOfMembers(community.getNumberOfMembers() + 1);
 
+						/////////////////////////////////////////////////////////////////////////////////////////////////
+						// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+						// Caleb: this means change update to $set
+						/////////////////////////////////////////////////////////////////////////////////////////////////
 						DbManager.getSocial().getCommunity().update(query, community.toDb());
 
 						PersonHandler person = new PersonHandler();
@@ -1426,7 +1478,10 @@ public class CommunityHandler
 
 						community.setNumberOfMembers(community.getNumberOfMembers() - 1);
 
-						//TODO (INF-1214): Here and all other updates, not thread safe						
+						/////////////////////////////////////////////////////////////////////////////////////////////////
+						// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+						// Caleb: this means change update to $set
+						/////////////////////////////////////////////////////////////////////////////////////////////////					
 						DbManager.getSocial().getCommunity().update(query, community.toDb());
 
 						PersonHandler person = new PersonHandler();
@@ -1589,6 +1644,10 @@ public class CommunityHandler
 			//update user to be in this community
 			PersonCommunityPojo pcpSelf = new PersonCommunityPojo(person.get_id(), selfCommunity.getName());
 			person.getCommunities().add(pcpSelf);
+			/////////////////////////////////////////////////////////////////////////////////////////////////
+			// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+			// Caleb: this means change update to $set
+			/////////////////////////////////////////////////////////////////////////////////////////////////
 			DbManager.getSocial().getPerson().update(new BasicDBObject("_id",person.get_id()), person.toDb());
 		}
 		catch (Exception ex)

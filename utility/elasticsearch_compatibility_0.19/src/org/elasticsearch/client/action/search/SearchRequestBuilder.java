@@ -8,6 +8,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 public class SearchRequestBuilder extends org.elasticsearch.action.search.SearchRequestBuilder {
@@ -37,6 +38,9 @@ public class SearchRequestBuilder extends org.elasticsearch.action.search.Search
 	public SearchRequestBuilder addSort(String field, SortOrder order) {
 		return (SearchRequestBuilder) super.addSort(field, order);
 	}
+	public SearchRequestBuilder addSort(SortBuilder sort) {
+		return (SearchRequestBuilder) super.addSort(sort);
+	}
 	public SearchRequestBuilder setFacets(byte[] facets) {
 		return (SearchRequestBuilder) super.setFacets(facets);
 	}
@@ -60,5 +64,11 @@ public class SearchRequestBuilder extends org.elasticsearch.action.search.Search
 	}
 	public SearchRequestBuilder setScroll(TimeValue keepAlive) {
 		return (SearchRequestBuilder) super.setScroll(keepAlive);		
+	}
+	public SearchRequestBuilder addFields(String... fields) {
+		return (SearchRequestBuilder) super.addFields(fields);	
+	}
+	public SearchRequestBuilder addField(String field) {
+		return (SearchRequestBuilder) super.addField(field);	
 	}
 }
