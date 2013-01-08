@@ -1,10 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
-<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
-					xmlns:s="library://ns.adobe.com/flex/spark" 
-					xmlns:mx="library://ns.adobe.com/flex/mx" 
-					focusEnabled="true"
-					clipAndEnableScrolling="true" xmlns:views="views.*">
-	
+<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	focusEnabled="true"
+	clipAndEnableScrolling="true">
+
 	<fx:Script>
 		<![CDATA[
 			import util.ISelectable;
@@ -22,18 +23,21 @@
 			}
 		]]>
 	</fx:Script>
-	
+
 	<views:GradientContainer id="backgroundContainer"
-							 width="100%"
-							 height="100%"
-							 styleName="dataGridSelection"
-							 alpha="0" />
+		width="100%"
+		height="100%"
+		styleName="dataGridSelection"
+		alpha="0" />
 	<s:Scroller 
 		height="100%"
-		width="100%" verticalScrollPolicy="auto"
+		width="100%"
+		verticalScrollPolicy="auto"
 		horizontalScrollPolicy="off">
 		<s:VGroup>
-			<s:Label text="{ data.harvest.harvest_message }" width="100%"/>
+			<s:Label 
+				text="{ data.harvest.harvest_message }"
+				width="100%" />
 		</s:VGroup>
 	</s:Scroller>
 </s:GridItemRenderer>

@@ -100,9 +100,9 @@
 				{
 					model.launchManager();
 				}
-				else if ( event.target is ButtonBarButton && ButtonBarButton( event.target ).itemIndex == DashboardHeaderNavigator.SOURCE_MONITOR_INDEX )
+				else if ( event.target is ButtonBarButton && ButtonBarButton( event.target ).itemIndex == DashboardHeaderNavigator.LOGOUT_INDEX )
 				{
-					model.launchSourceMonitor();
+					model.logout();
 				}
 			}
 			

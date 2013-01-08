@@ -42,9 +42,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		
 		public static const MANAGER_INDEX:int = 1;
 		
-		public static const SOURCE_MONITOR_INDEX = 2;
-		
-		public static const LOGOUT_INDEX:int = 3;
+		public static const LOGOUT_INDEX:int = 2;
 		
 		//======================================
 		// private static properties 

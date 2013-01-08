@@ -15,16 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
-		  xmlns:s="library://ns.adobe.com/flex/spark"
-		  xmlns:mx="library://ns.adobe.com/flex/mx"
-		  creationComplete="vgroup1_creationCompleteHandler(event)" xmlns:views="views.*">
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	creationComplete="vgroup1_creationCompleteHandler(event)">
 	<fx:Script>
 		<![CDATA[
 			import com.adobe.serialization.json.JSONDecoder;
 			import com.adobe.utils.StringUtil;
-			
-			import events.CommunityEvent;
-			
 			import mx.collections.ArrayCollection;
 			import mx.collections.IList;
 			import mx.collections.Sort;
@@ -42,19 +40,15 @@ limitations under the License.
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
 			import mx.utils.ObjectUtil;
-			
-			import objects.Community;
-			import objects.CommunityAttribute;
-			
-			import renderers.GridTextItemRenderer;
-			
 			import spark.components.Button;
 			import spark.components.Label;
 			import spark.events.TextOperationEvent;
-			
+			import events.CommunityEvent;
+			import objects.Community;
+			import objects.CommunityAttribute;
+			import renderers.GridTextItemRenderer;
 			import util.Constants;
 			import util.DateConverter;
-			
 			import views.Communities;
 			
 			private static var ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
@@ -90,10 +84,104 @@ limitations under the License.
 			private var sortLast:String = "";
 			
 			private var communitiesPopup:Communities;
+			
 			private var selectedCommunities:ArrayCollection;
+			
 			[Bindable]
 			private var searchTerm:String;
-			private var count:int = 0; 
+			
+			private var count:int = 0;
+			
+			/**
+			 * This method checks to see if one item is in a collection.  The id is used
+			 * to do the matching.
+			 *
+			 * @param collection The collection containing the original item
+			 * @param item The updated item
+			 * @param idField The field used to match the items
+			 *
+			 * @return If the collection contains the item or not
+			 */
+			public static function doesCollectionContainItem( collection:IList, item:Object, idField:String = "_id" ):Boolean
+			{
+				var currentItem:Object;
+				
+				if ( collection && item )
+				{
+					for ( var i:uint = 0; i < collection.length; i++ )
+					{
+						currentItem = collection.getItemAt( i );
+						
+						if ( currentItem.hasOwnProperty( idField ) && item.hasOwnProperty( idField ) && currentItem[ idField ] == item[ idField ] )
+						{
+							return true;
+						}
+					}
+				}
+				return false;
+			}
+			
+			/**
+			 * This method replaces one item in a collection with an updated version.  The id is used
+			 * to do the matching.
+			 *
+			 * @param collection The collection containing the original item
+			 * @param item The updated item
+			 * @param idField The field used to match the items
+			 */
+			public static function replaceItemById( collection:IList, item:Object, idField:String = "_id" ):void
+			{
+				var currentItem:Object;
+				
+				if ( collection && item )
+				{
+					var len:int = collection.length;
+					
+					for ( var i:uint = 0; i < len; i++ )
+					{
+						currentItem = collection.getItemAt( i );
+						
+						if ( currentItem[ idField ] == item[ idField ] )
+						{
+							collection.setItemAt( item, i );
+							return;
+						}
+					}
+				}
+				return;
+			}
+			
+			/**
+			 * funciton to clear the data in the provider
+			 * for the grid
+			 */
+			public function clearSources():void
+			{
+				sourceData.removeAll();
+				currsourceData.removeAll();
+			}
+			
+			public function closeCommunitiesPopup( event:Event = null ):void
+			{
+				if ( communitiesPopup )
+				{
+					communitiesPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler );
+					communitiesPopup.removeEventListener( CloseEvent.CLOSE, closeCommunitiesPopup );
+					PopUpManager.removePopUp( communitiesPopup );
+					communitiesPopup = null;
+					communitiesButton.selected = false;
+				}
+			}
+			
+			public function loadCommunityData( communityInfo:ArrayCollection ):void
+			{
+				communitiesData = communityInfo;
+			}
+			
+			public function loadSelectedCommunityData( selectedCommunities:ArrayCollection ):void
+			{
+				this.selectedCommunities = selectedCommunities;
+			}
 			
 			public function loadSourceData( communityInfo:ArrayCollection ):void
 			{
@@ -111,14 +199,55 @@ limitations under the License.
 				pendingSourceService.send();
 			}
 			
-			public function loadCommunityData( communityInfo:ArrayCollection ):void
+			protected function communitiesButton_clickHandler( event:MouseEvent ):void
 			{
-				communitiesData = communityInfo;
+				if ( communitiesPopup )
+				{
+					closeCommunitiesPopup();
+				}
+				else
+				{
+					communitiesPopup = PopUpManager.createPopUp( DisplayObject( FlexGlobals.topLevelApplication ), Communities, false, PopUpManagerChildList.APPLICATION ) as Communities;
+					communitiesPopup.setCommunities( communitiesData );
+					communitiesPopup.addEventListener( CommunityEvent.COMMUNITY_JOINED, handleCommunityJoinedEvent );
+					communitiesPopup.addEventListener( CommunityEvent.SELECT_COMMUNITY, handleSelectCommunityEvent );
+					communitiesPopup.addEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler, false, 0, true );
+					communitiesPopup.addEventListener( CloseEvent.CLOSE, closeCommunitiesPopup, false, 0, true );
+					
+					positionCommunitiesPopup();
+				}
 			}
 			
-			public function loadSelectedCommunityData( selectedCommunities:ArrayCollection ):void
+			protected function communitiesPopup_clickOutsideHandler( event:Event ):void
 			{
-				this.selectedCommunities = selectedCommunities;
+				if ( event is MouseEvent && communitiesPopup )
+				{
+					var mouseEvent:MouseEvent = MouseEvent( event );
+					
+					if ( mouseEvent.target != communitiesPopup || mouseEvent.relatedObject == communitiesButton )
+					{
+						return;
+					}
+					
+					if ( !communitiesPopup.hitTestPoint( mouseEvent.stageX, mouseEvent.stageY, true ) )
+					{
+						closeCommunitiesPopup();
+					}
+				}
+			}
+			
+			protected function filterTextInput_clearHandler():void
+			{
+				searchTerm = Constants.BLANK;
+				sourceData.removeAll();
+				currsourceData.removeAll();
+				loadSourceData( selectedCommunities );
+			}
+			
+			protected function filterTextInput_focusInHandler():void
+			{
+				if ( filterInput.text.length > 0 )
+					filterInput.selectRange( filterInput.text.length, filterInput.text.length );
 			}
 			
 			protected function filter_enterHandler( event:TextOperationEvent ):void
@@ -158,20 +287,6 @@ limitations under the License.
 				}
 				currsourceData.sort = sort;
 				currsourceData.refresh();
-			}
-			
-			protected function filterTextInput_clearHandler():void
-			{
-				searchTerm = Constants.BLANK;
-				sourceData.removeAll();
-				currsourceData.removeAll();
-				loadSourceData(selectedCommunities);
-			}
-			
-			protected function filterTextInput_focusInHandler():void
-			{
-				if ( filterInput.text.length > 0 )
-					filterInput.selectRange( filterInput.text.length, filterInput.text.length );
 			}
 			
 			protected function goodSourceService_faultHandler( event:FaultEvent ):void
@@ -215,19 +330,58 @@ limitations under the License.
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
 					
-					if(!doesCollectionContainItem(sourceData, o))
-						goodSources.addItem(o);
+					if ( null != o.harvest.harvest_message )
+					{
+						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;
+						
+						if ( null == truncatedMessageForPerformance )
+						{
+							o.harvest.harvest_message_trunc = "";
+						}
+						else if ( truncatedMessageForPerformance.length > 64 )
+						{
+							o.harvest.harvest_message_trunc = truncatedMessageForPerformance.substr( 0, 64 ) + "...";
+						}
+						else
+						{
+							o.harvest.harvest_message_trunc = truncatedMessageForPerformance;
+						}
+					}
 					else
 					{
-						replaceItemById(sourceData, o);
-						replaceItemById(currsourceData, o);
+						o.harvest.harvest_message_trunc = "";
 					}
-				}				
+					
+					if ( !doesCollectionContainItem( sourceData, o ) )
+						goodSources.addItem( o );
+					else
+					{
+						replaceItemById( sourceData, o );
+						replaceItemById( currsourceData, o );
+					}
+				}
 				
 				sourceData.addAll( goodSources );
-				currsourceData.addAll( goodSources ); 
+				currsourceData.addAll( goodSources );
 				
 				checkFilter();
+			}
+			
+			/**
+			 * function to handle when a community is selected
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleSelectCommunityEvent( event:CommunityEvent ):void
+			{
+				sourceData.removeAll();
+				currsourceData.removeAll();
+				
+				if ( event.selectedCommunities != null && event.selectedCommunities.length > 0 )
+				{
+					selectedCommunities = event.selectedCommunities;
+					loadSourceData( event.selectedCommunities );
+				}
 			}
 			
 			
@@ -272,12 +426,34 @@ limitations under the License.
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
 					
-					if(!doesCollectionContainItem(sourceData, o))
-						pendingSources.addItem(o);
+					if ( null != o.harvest.harvest_message )
+					{
+						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;
+						
+						if ( null == truncatedMessageForPerformance )
+						{
+							o.harvest.harvest_message_trunc = "";
+						}
+						else if ( truncatedMessageForPerformance.length > 64 )
+						{
+							o.harvest.harvest_message_trunc = truncatedMessageForPerformance.substr( 0, 64 ) + "...";
+						}
+						else
+						{
+							o.harvest.harvest_message_trunc = truncatedMessageForPerformance;
+						}
+					}
 					else
 					{
-						replaceItemById(sourceData, o);
-						replaceItemById(currsourceData, o);
+						o.harvest.harvest_message_trunc = "";
+					}
+					
+					if ( !doesCollectionContainItem( sourceData, o ) )
+						pendingSources.addItem( o );
+					else
+					{
+						replaceItemById( sourceData, o );
+						replaceItemById( currsourceData, o );
 					}
 				}
 				
@@ -285,6 +461,29 @@ limitations under the License.
 				currsourceData.addAll( pendingSources );
 				
 				checkFilter();
+			}
+			
+			protected function positionCommunitiesPopup():void
+			{
+				if ( communitiesPopup )
+				{
+					var p:Point = buttonsGroup.contentToGlobal( new Point( communitiesGroup.x, communitiesGroup.y ) );
+					communitiesPopup.x = p.x - ( communitiesPopup.width / 2 ) + ( communitiesGroup.width / 2 );
+					communitiesPopup.y = p.y + communitiesGroup.height + 2;
+				}
+			}
+			
+			/**
+			 * function to handle refreshing of the data
+			 *
+			 * @param event The MouseEvent received
+			 */
+			protected function refreshButton_clickHandler( event:MouseEvent ):void
+			{
+				refreshButton.selected = false;
+				sourceData.removeAll();
+				currsourceData.removeAll();
+				loadSourceData( selectedCommunities );
 			}
 			
 			protected function sort_clickHandler( event:MouseEvent ):void
@@ -345,17 +544,17 @@ limitations under the License.
 			
 			protected function statusDG_itemDoubleClickHandler( event:MouseEvent ):void
 			{
-				if(event.target is Label && (event.target.owner is GridTextItemRenderer || event.target.owner.owner.owner.owner is errorLabelItemRenderer))
+				if ( event.target is Label && ( event.target.owner is GridTextItemRenderer || event.target.owner.owner.owner.owner is errorLabelItemRenderer ) )
 				{
 					var columnInfo:GridTextItemRenderer = event.target.owner as GridTextItemRenderer;
 					var col:GridColumn;
 					
-					if(columnInfo != null)
-					 	col = statusDG.columns.getItemAt(columnInfo.columnIndex) as GridColumn;
+					if ( columnInfo != null )
+						col = statusDG.columns.getItemAt( columnInfo.columnIndex ) as GridColumn;
 					else
 					{
 						var colInfo:errorLabelItemRenderer = event.target.owner.owner.owner.owner as errorLabelItemRenderer;
-						col = statusDG.columns.getItemAt(colInfo.columnIndex) as GridColumn;
+						col = statusDG.columns.getItemAt( colInfo.columnIndex ) as GridColumn;
 					}
 					var colname:Array = col.dataField.split( "." );
 					var obj:Object = statusDG.selectedItem;
@@ -367,7 +566,7 @@ limitations under the License.
 					var selectedData:String = " ";
 					
 					if ( obj != null )
-						selectedData = obj.toString(); 
+						selectedData = obj.toString();
 					System.setClipboard( selectedData );
 					debugLabel.text = "Data cell copied to clipboard.";
 					debugFadeOut.stop();
@@ -395,6 +594,16 @@ limitations under the License.
 			{
 				timer.addEventListener( TimerEvent.TIMER, timer_event );
 				statusDG.addEventListener( ListEvent.ITEM_ROLL_OVER, statusDG_rollOverHandler );
+			}
+			
+			/**
+			 * function to check if a filter has been
+			 * previously applied
+			 */
+			private function checkFilter():void
+			{
+				if ( filterInput.text.length > 0 )
+					filter_enterHandler( null );
 			}
 			
 			private function dateCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
@@ -454,6 +663,11 @@ limitations under the License.
 				return result;
 			}
 			
+			private function handleCommunityJoinedEvent( event:CommunityEvent ):void
+			{
+				dispatchEvent( event );
+			}
+			
 			private function messageCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
 			{
 				var result:int = -1;
@@ -495,316 +709,167 @@ limitations under the License.
 					result *= -1;
 				return result;
 			}
-			
-			public function closeCommunitiesPopup( event:Event = null ):void
-			{
-				if ( communitiesPopup )
-				{
-					communitiesPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler );
-					communitiesPopup.removeEventListener( CloseEvent.CLOSE, closeCommunitiesPopup );
-					PopUpManager.removePopUp( communitiesPopup );
-					communitiesPopup = null;
-					communitiesButton.selected = false;
-				}
-			}
-			
-			protected function communitiesButton_clickHandler( event:MouseEvent ):void
-			{
-				if ( communitiesPopup )
-				{
-					closeCommunitiesPopup();
-				}
-				else
-				{
-					communitiesPopup = PopUpManager.createPopUp( DisplayObject( FlexGlobals.topLevelApplication ), Communities, false, PopUpManagerChildList.APPLICATION ) as Communities;
-					communitiesPopup.setCommunities(communitiesData);
-					communitiesPopup.addEventListener(CommunityEvent.COMMUNITY_JOINED, handleCommunityJoinedEvent);
-					communitiesPopup.addEventListener(CommunityEvent.SELECT_COMMUNITY, handleSelectCommunityEvent);
-					communitiesPopup.addEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, communitiesPopup_clickOutsideHandler, false, 0, true );
-					communitiesPopup.addEventListener( CloseEvent.CLOSE, closeCommunitiesPopup, false, 0, true );
-					
-					positionCommunitiesPopup();
-				}
-			}
-			
-			private function handleCommunityJoinedEvent(event:CommunityEvent):void
-			{
-				dispatchEvent(event);
-			}
-			
-			protected function communitiesPopup_clickOutsideHandler( event:Event ):void
-			{
-				if ( event is MouseEvent && communitiesPopup )
-				{
-					var mouseEvent:MouseEvent = MouseEvent( event );
-					
-					if ( mouseEvent.target != communitiesPopup || mouseEvent.relatedObject == communitiesButton )
-					{
-						return;
-					}
-					
-					if ( !communitiesPopup.hitTestPoint( mouseEvent.stageX, mouseEvent.stageY, true ) )
-					{
-						closeCommunitiesPopup();
-					}
-				}
-			}
-			
-			protected function positionCommunitiesPopup():void
-			{
-				if ( communitiesPopup )
-				{
-					var p:Point = buttonsGroup.contentToGlobal( new Point( communitiesGroup.x, communitiesGroup.y ) );
-					communitiesPopup.x = p.x - ( communitiesPopup.width / 2 ) + ( communitiesGroup.width / 2 );
-					communitiesPopup.y = p.y + communitiesGroup.height + 2;
-				}
-			}
-			
-			/**
-			 * function to handle when a community is selected
-			 * 
-			 * @param event The CommunityEvent received
-			 */
-			protected function handleSelectCommunityEvent(event:CommunityEvent):void
-			{
-				sourceData.removeAll();
-				currsourceData.removeAll();
-				if(event.selectedCommunities != null && event.selectedCommunities.length > 0)
-				{
-					selectedCommunities = event.selectedCommunities;
-					loadSourceData(event.selectedCommunities);
-				}
-			}
-			
-			/**
-			 * function to handle refreshing of the data
-			 * 
-			 * @param event The MouseEvent received
-			 */
-			protected function refreshButton_clickHandler(event:MouseEvent):void
-			{
-				refreshButton.selected = false;
-				sourceData.removeAll();
-				currsourceData.removeAll();
-				loadSourceData(selectedCommunities);
-			}
-			
-			/**
-			 * funciton to clear the data in the provider
-			 * for the grid
-			 */
-			public function clearSources():void
-			{
-				sourceData.removeAll();
-				currsourceData.removeAll();
-			}
-			
-			/**
-			 * function to check if a filter has been 
-			 * previously applied
-			 */
-			private function checkFilter():void
-			{
-				if(filterInput.text.length > 0)
-					filter_enterHandler(null);
-			}
-			
-			/**
-			 * This method checks to see if one item is in a collection.  The id is used
-			 * to do the matching.
-			 *
-			 * @param collection The collection containing the original item
-			 * @param item The updated item
-			 * @param idField The field used to match the items
-			 * 
-			 * @return If the collection contains the item or not
-			 */
-			public static function doesCollectionContainItem( collection:IList, item:Object, idField:String = "_id" ):Boolean
-			{
-				var currentItem:Object;
-				
-				if ( collection && item )
-				{
-					for ( var i:uint = 0; i < collection.length; i++ )
-					{
-						currentItem = collection.getItemAt( i );
-						
-						if ( currentItem.hasOwnProperty( idField ) && item.hasOwnProperty( idField ) && currentItem[ idField ] == item[ idField ] )
-						{
-							return true;
-						}
-					}
-				}
-				return false;
-			}
-			
-			/**
-			 * This method replaces one item in a collection with an updated version.  The id is used
-			 * to do the matching.
-			 *
-			 * @param collection The collection containing the original item
-			 * @param item The updated item
-			 * @param idField The field used to match the items
-			 */
-			public static function replaceItemById( collection:IList, item:Object, idField:String = "_id" ):void
-			{
-				var currentItem:Object;
-				
-				if ( collection && item )
-				{
-					var len:int = collection.length;
-					
-					for ( var i:uint = 0; i < len; i++ )
-					{
-						currentItem = collection.getItemAt( i );
-						
-						if ( currentItem[ idField ] == item[ idField ] )
-						{
-							collection.setItemAt( item, i );
-							return;
-						}
-					}
-				}
-				return;
-			}
 		]]>
 	</fx:Script>
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 		<s:HTTPService id="goodSourceService"
-					   fault="goodSourceService_faultHandler(event)"
-					   result="goodSourceService_resultHandler(event)" />
+			fault="goodSourceService_faultHandler(event)"
+			result="goodSourceService_resultHandler(event)" />
 		<s:HTTPService id="pendingSourceService"
-					   fault="pendingSourceService_faultHandler(event)"
-					   result="pendingSourceService_resultHandler(event)" />
+			fault="pendingSourceService_faultHandler(event)"
+			result="pendingSourceService_resultHandler(event)" />
 		<s:Fade id="debugFadeOut"
-				alphaFrom="1"
-				alphaTo="0"
-				duration="3000" />
+			alphaFrom="1"
+			alphaTo="0"
+			duration="3000" />
 		<s:Fade id="debugFadeIn"
-				alphaFrom="0"
-				alphaTo="1"
-				duration="1000" />
+			alphaFrom="0"
+			alphaTo="1"
+			duration="1000" />
 	</fx:Declarations>
-	
+
 	<s:HGroup id="buttonsGroup"
 		paddingLeft="5"
 		verticalAlign="middle">
 		<views:InfLabel id="title"
-			 text="Search: "
-			 styleName="lightGrey"
-			 left="0"
-			 verticalCenter="2" />
+			text="Search: "
+			styleName="lightGrey"
+			left="0"
+			verticalCenter="2" />
 		<views:FilterTextInput id="filterInput"
 			styleName="filterTextInput"
 			width="220"
 			text="{ searchTerm }"
-			change="filter_enterHandler(event)" 
+			change="filter_enterHandler(event)"
 			clear="filterTextInput_clearHandler()"
 			focusIn="filterTextInput_focusInHandler()"
 			prompt="Filter Sources"
 			resultsFound="{ currsourceData.length != 0 }"
 			showFilterButton="false" />
-		<s:Spacer width="20"/>
+		<s:Spacer width="20" />
 		<s:HGroup id="communitiesGroup">
 			<views:InfToggleButton id="communitiesButton"
-					label="Community"
-					styleName="communityButton"
-					click="communitiesButton_clickHandler(event)" />
+				label="Community"
+				styleName="communityButton"
+				click="communitiesButton_clickHandler(event)" />
 			<views:InfToggleButton id="refreshButton"
-					label="Refresh"
-					styleName="refreshButton"
-					click="refreshButton_clickHandler(event)"
-					width="60"/>
+				label="Refresh"
+				styleName="refreshButton"
+				width="60"
+				click="refreshButton_clickHandler(event)" />
 		</s:HGroup>
-		<s:Spacer width="60" />
+		<s:Spacer width="30" />
+		<views:InfLabel id="theMoreYouKnow"
+			text="(Double click on cell to copy to clipboard)"
+			styleName="lightGrey"
+			left="0"
+			verticalCenter="2" />
+		<s:Spacer width="15" />
 		<views:InfLabel id="debugLabel"
-						width="100%"
-						styleName="lightGrey"
-						left="0"
-						verticalCenter="2"
-						hideEffect="{ debugFadeOut }"
-						showEffect="{ debugFadeIn }"
-						visible="false" />
+			width="100%"
+			styleName="lightGrey"
+			left="0"
+			verticalCenter="2"
+			hideEffect="{ debugFadeOut }"
+			showEffect="{ debugFadeIn }"
+			visible="false" />
 	</s:HGroup>
-	
+
 	<!--itemDoubleClick="statusDG_itemDoubleClickHandler(event)"-->
-	<s:BorderContainer width="100%" height="100%" borderColor="0x000000">
+	<s:BorderContainer 
+		width="100%"
+		height="100%"
+		borderColor="0x000000">
 		<views:InfSelectableDataGrid id="statusDG"
-									 width="100%"
-									 height="100%"
-									 horizontalScrollPolicy="off"
-									 dataProvider="{ currsourceData }"
-									 doubleClickEnabled="true"
-									 doubleClick="statusDG_itemDoubleClickHandler(event)">
+			width="100%"
+			height="100%"
+			horizontalScrollPolicy="off"
+			dataProvider="{ currsourceData }"
+			doubleClickEnabled="true"
+			doubleClick="statusDG_itemDoubleClickHandler(event)">
 			<views:columns>
 				<s:ArrayList>
 					<s:GridColumn 
 						width="70"
 						dataField="statusColor"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Status"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.StatusColorDGItemRenderer"
-						resizable="false"/>
-					<s:GridColumn
+						resizable="false" />
+					<s:GridColumn 
 						width="170"
 						dataField="title"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Title"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
-						itemRenderer="renderers.GridTextItemRenderer"/>
+						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
 						width="170"
 						dataField="_id"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="ID"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
 						width="170"
 						dataField="communityName"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Community"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer" />
-					<s:GridColumn
+					<s:GridColumn 
 						width="170"
 						dataField="communityID"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Community ID"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer" />
-					<s:GridColumn
+					<s:GridColumn 
 						width="100"
 						dataField="isApproved"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Approved"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
 						width="100"
 						dataField="harvest.harvest_status"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Harvest Status"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer"
 						sortCompareFunction="statusCompareFunction" />
-					<s:GridColumn
+					<s:GridColumn 
+						width="100"
+						dataField="harvest.lastHarvestedBy"
+						headerRenderer="renderers.GridTextHeaderRenderer"
+						headerText="Last Harvested By"
+						itemRenderer="renderers.GridTextItemRenderer" />
+					<s:GridColumn 
 						width="90"
 						dataField="harvest.doccount"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Doc Count"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer"
 						sortCompareFunction="docCountCompareFunction" />
 					<s:GridColumn 
 						width="155"
 						dataField="harvest.harvested"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Last Harvest Date"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
 						itemRenderer="renderers.GridTextItemRenderer"
 						sortCompareFunction="dateCompareFunction" />
-					<s:GridColumn
-						dataField="harvest.harvest_message"
+					<s:GridColumn 
+						dataField="harvest.harvest_message_trunc"
 						editable="true"
+						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Harvest Error Message"
-						headerRenderer="renderers.GridTextHeaderRenderer" 
-						itemRenderer="errorLabelItemRenderer"
+						itemRenderer="renderers.GridTextItemRenderer"
 						sortCompareFunction="messageCompareFunction" />
-				</s:ArrayList>	
+					<s:GridColumn 
+						width="0"
+						dataField="harvest.harvest_message"
+						headerRenderer="renderers.GridTextHeaderRenderer"
+						headerText="Harvest Error Message (full string)"
+						itemRenderer="renderers.GridTextItemRenderer"
+						sortCompareFunction="messageCompareFunction"
+						visible="false" />
+				</s:ArrayList>
 			</views:columns>
 		</views:InfSelectableDataGrid>
 	</s:BorderContainer>
