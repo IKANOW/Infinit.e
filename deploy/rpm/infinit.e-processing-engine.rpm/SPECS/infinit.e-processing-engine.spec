@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 0.18.7-5
+Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 0.18.7-8
 License: None
 Group: Infinit.e
 BuildArch: noarch

@@ -20,7 +20,7 @@ SEARCHTERMS_RAW=`grep "^api.search.test.terms=" $API_PROPERTY_FILE | sed s/'api.
         # (need to allow spaces here)
 SEARCHTERMS=($SEARCHTERMS_RAW)
 NUMSEARCHTERMS=${#SEARCHTERMS[@]}
-if [ "$NUMSEARCHTERMS" == "-1" ];
+if [ "$NUMSEARCHTERMS" == "-1" ]; then
 	#Don't want to perform active monitoring
 	exit
 fi

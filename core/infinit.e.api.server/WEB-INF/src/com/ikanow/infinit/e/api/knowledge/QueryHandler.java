@@ -40,6 +40,7 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.CrossVersionQueryBuilders;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -733,12 +734,12 @@ public class QueryHandler {
 			}
 			else { // Normal query
 				if (null != qt.metadataField) { // Metadata only
-					termQ = QueryBuilders.textPhraseQuery(qt.metadataField, qt.etext);
+					termQ = CrossVersionQueryBuilders.matchPhraseQuery(qt.metadataField, qt.etext);
 				}
 				else { // Normal query
 					termQ = QueryBuilders.boolQuery().
-						should(QueryBuilders.textPhraseQuery("_all", qt.etext)).
-						should(QueryBuilders.textPhraseQuery(DocumentPojo.fullText_, qt.etext));
+						should(CrossVersionQueryBuilders.matchPhraseQuery("_all", qt.etext)).
+						should(CrossVersionQueryBuilders.matchPhraseQuery(DocumentPojo.fullText_, qt.etext));
 				}
 			}
 			sQueryTerm.append('(');
@@ -965,7 +966,7 @@ public class QueryHandler {
 					if (null == termBoolQ) {
 						termBoolQ = QueryBuilders.boolQuery();
 					}
-					termQ = termBoolQ = termBoolQ.should(QueryBuilders.textPhraseQuery(nonIndexField, dName));
+					termQ = termBoolQ = termBoolQ.should(CrossVersionQueryBuilders.matchPhraseQuery(nonIndexField, dName));
 					sQueryTerm.append(" OR ").append(nonIndexField).append(":\"").append(dName).append('"');					
 				}//TESTED
 			}
@@ -1002,7 +1003,7 @@ public class QueryHandler {
 								_extraFullTextTerms.add(qtExtra);
 							}
 							else if (null != nonIndexField) {
-								termQ = termBoolQ = termBoolQ.should(QueryBuilders.textPhraseQuery(nonIndexField, dName));
+								termQ = termBoolQ = termBoolQ.should(CrossVersionQueryBuilders.matchPhraseQuery(nonIndexField, dName));
 							}
 						}
 						if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
@@ -1031,7 +1032,7 @@ public class QueryHandler {
 								_extraFullTextTerms.add(qtExtra);
 							}
 							else if (null != nonIndexField) {							
-								termQ = termBoolQ = termBoolQ.should(QueryBuilders.textPhraseQuery(nonIndexField, textAlias));
+								termQ = termBoolQ = termBoolQ.should(CrossVersionQueryBuilders.matchPhraseQuery(nonIndexField, textAlias));
 							}
 						}
 						if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
@@ -1490,7 +1491,7 @@ public class QueryHandler {
 			sQueryTerm.append("(\""); 
 			sQueryTerm.append(entity.etext);			
 			sQueryTerm.append("\")");
-			combo.must(QueryBuilders.textPhraseQuery(sFieldName, entity.etext));
+			combo.must(CrossVersionQueryBuilders.matchPhraseQuery(sFieldName, entity.etext));
 		}
 		if ((null != entity.ftext) && (!entity.ftext.isEmpty())) { //3
 			if (!bFirstTerm) {

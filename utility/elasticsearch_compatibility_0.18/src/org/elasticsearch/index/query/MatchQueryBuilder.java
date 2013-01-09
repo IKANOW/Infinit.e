@@ -7,7 +7,6 @@ public class MatchQueryBuilder extends org.elasticsearch.index.query.TextQueryBu
         PHRASE,
         PHRASE_PREFIX
     }
-	
 	public MatchQueryBuilder(String name, Object text) {
 		super(name, text);
 	}
