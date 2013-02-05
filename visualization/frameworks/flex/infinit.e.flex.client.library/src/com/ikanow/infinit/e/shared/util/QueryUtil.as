@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -31,6 +31,7 @@ package com.ikanow.infinit.e.shared.util
 	import com.ikanow.infinit.e.shared.model.vo.Community;
 	import com.ikanow.infinit.e.shared.model.vo.QueryObject;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputAggregationOptions;
+	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
@@ -721,6 +722,44 @@ package com.ikanow.infinit.e.shared.util
 			options.aggregateSourceMetadata = optionsRaw.hasOwnProperty( QueryConstants.SOURCE_METADATA );
 			options.aggregateSources = optionsRaw.hasOwnProperty( QueryConstants.SOURCES );
 			options.aggregateTimes = optionsRaw.hasOwnProperty( QueryConstants.TIMES_INTERVAL );
+			
+			return options;
+		}
+		
+		/**
+		 * Updates the scoring options based on the values returned in the query string raw object
+		 */
+		public static function setScoringOptions( options:QueryScoreOptions, optionsRaw:Object ):QueryScoreOptions
+		{
+			// 1] enableScoring vs relWeight/sigWeight
+			if ( optionsRaw.hasOwnProperty( QueryConstants.REL_WEIGHT ) && ( options.sigWeight == 0 ) )
+			{
+				var relWeight:int = optionsRaw[ QueryConstants.REL_WEIGHT ] as int;
+				
+				if ( relWeight == 0 )
+				{
+					options.disableScoring();
+				}
+			}
+			
+			// 2] adjustAggregateSig
+			if ( !optionsRaw.hasOwnProperty( QueryConstants.ADJUST_AGGREGATE_SIG ) || ( null == optionsRaw[ QueryConstants.ADJUST_AGGREGATE_SIG ] ) )
+			{
+				options.adjustAggregateSig = 0; // auto
+			}
+			else
+			{
+				var tmp:Boolean = optionsRaw[ QueryConstants.ADJUST_AGGREGATE_SIG ] as Boolean;
+				
+				if ( tmp )
+				{
+					options.adjustAggregateSig = 1; // always
+				}
+				else
+				{
+					options.adjustAggregateSig = 2; // never
+				}
+			}
 			
 			return options;
 		}

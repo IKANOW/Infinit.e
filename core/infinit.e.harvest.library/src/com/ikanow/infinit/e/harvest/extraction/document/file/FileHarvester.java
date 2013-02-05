@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.document.file;
 
+import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -41,7 +42,7 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
 import org.bson.types.ObjectId;
-import org.elasticsearch.common.codec.digest.DigestUtils;
+import org.apache.commons.codec.digest.DigestUtils;
 
 import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
@@ -290,10 +291,18 @@ public class FileHarvester implements HarvesterInterface {
 		
 		boolean bIsXml = false;
 		boolean bIsJson = false;
-		if ((bIsXml = extension.equalsIgnoreCase("xml")) || (bIsJson = extension.equalsIgnoreCase("json")))
+		boolean bIsLineOriented = false;
+		if ((null != source.getFileConfig()) && (null != source.getFileConfig().type)) {
+			extension = source.getFileConfig().type;
+		}
+		bIsXml = extension.equalsIgnoreCase("xml");
+		bIsJson = extension.equalsIgnoreCase("json");
+		bIsLineOriented = extension.endsWith("sv");
+		
+		if (bIsXml || bIsJson || bIsLineOriented)
 		{
 			//fast check to see if the file has changed before processing (or if it never existed)
-			if(needsUpdated_SourceUrl(modDate, f.getURL().toString(), source.getKey()))
+			if(needsUpdated_SourceUrl(modDate, f.getURL().toString(), source))
 			{
 				DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
 				docRepresentingSrcUrl.setSourceUrl(f.getURL().toString());
@@ -308,16 +317,14 @@ public class FileHarvester implements HarvesterInterface {
 				SourceFileConfigPojo fileSystem = source.getFileConfig();
 				XmlToMetadataParser xmlParser = null;
 				JsonToMetadataParser jsonParser = null;
-				String urlType = null;
+				String urlType = extension;
 				if (bIsXml) {
 					xmlParser = new XmlToMetadataParser(fileSystem.XmlRootLevelValues, 
 										fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, 
 										fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase);
-					urlType = ".xml";
 				}//TESTED
 				else if (bIsJson) {
 					jsonParser = new JsonToMetadataParser(fileSystem.XmlSourceName, fileSystem.XmlRootLevelValues, fileSystem.XmlPrimaryKey, fileSystem.XmlIgnoreValues, maxDocsPerCycle);
-					urlType = ".json";
 				}//TESTED
 				
 				List<DocumentPojo> partials = null;
@@ -335,6 +342,22 @@ public class FileHarvester implements HarvesterInterface {
 						partials = jsonParser.parseDocument(jsonReader);
 						jsonReader.close();
 					}//TESTED
+					else if (bIsLineOriented) { // Just generate a document for every line
+						BufferedReader lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
+						String line;
+						partials = new LinkedList<DocumentPojo>();
+						while ((line = lineReader.readLine()) != null) {
+							DocumentPojo newDoc = new DocumentPojo();
+							newDoc.setFullText(line);
+							if (line.length() > 128) {
+								newDoc.setDescription(line.substring(0, 128));
+							}
+							else {
+								newDoc.setDescription(line);
+							}
+							partials.add(newDoc);
+						}
+					}
 
 					MessageDigest md5 = null; // (generates unique urls if the user doesn't below)
 					try {
@@ -353,20 +376,18 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setModified(new Date(fileTimestamp));
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
-							if ((null == fileSystem.XmlRootLevelValues) || fileSystem.XmlRootLevelValues.isEmpty()) {
-								//TODO (INF-1692): this is no longer the case I think ...
-								// need to work out how to handle the different cases (maybe have null?)
+							if (bIsXml && ((null == fileSystem.XmlRootLevelValues) || fileSystem.XmlRootLevelValues.isEmpty())) {
 								doctoAdd.setUrl(f.getURL().toString());
 							}
-							else if (null == doctoAdd.getMetadata()) { // Pathological - always set by parseDocument()
-								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append(urlType).toString());
+							else if (null == doctoAdd.getMetadata()) { // Line oriented case
+								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append('.').append(urlType).toString());
 							}
 							else {
 								if (null == md5) { // Will never happen, MD5 always exists
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append(urlType).toString());
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append('.').append(urlType).toString());
 								}
 								else { // This is the standard call if the XML parser has not been configured to build the URL
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append(urlType).toString());
+									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append('.').append(urlType).toString());
 								}
 							}//TESTED
 						}
@@ -398,7 +419,7 @@ public class FileHarvester implements HarvesterInterface {
 		else //Tika supports Excel,Word,Powerpoint,Visio, & Outlook Documents
 		{
 			// (This dedup tells me if it's an add/update vs ignore - qr.isDuplicate higher up tells me if I need to add or update)
-			if(needsUpdated_Url(modDate, f.getURL().toString(), source.getKey()))
+			if(needsUpdated_Url(modDate, f.getURL().toString(), source))
 			{
 
 				Metadata metadata = null;
@@ -587,11 +608,11 @@ public class FileHarvester implements HarvesterInterface {
 	}
 
 
-	private boolean needsUpdated_SourceUrl(Date mod, String sourceUrl, String sourceKey)
+	private boolean needsUpdated_SourceUrl(Date mod, String sourceUrl, SourcePojo source)
 	{
 		try {					
 			DuplicateManager qr = _context.getDuplicateManager();
-			return qr.needsUpdated_SourceUrl(mod, sourceUrl, sourceKey);
+			return qr.needsUpdated_SourceUrl(mod, sourceUrl, source);
 		} 
 		catch (Exception e) {
 			// Do nothing
@@ -599,12 +620,12 @@ public class FileHarvester implements HarvesterInterface {
 		return false;
 	}
 
-	private boolean needsUpdated_Url(Date mod, String url, String sourceKey)
+	private boolean needsUpdated_Url(Date mod, String url, SourcePojo source)
 	{
 		try {					
 			DuplicateManager qr = _context.getDuplicateManager();
 
-			return qr.needsUpdated_Url(mod, url, sourceKey);
+			return qr.needsUpdated_Url(mod, url, source);
 		} 
 		catch (Exception e) {
 			// Do nothing

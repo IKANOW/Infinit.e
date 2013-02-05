@@ -168,7 +168,18 @@ public class FeedHarvester_searchEngineSubsystem {
 			// Create a custom UAH object to fetch and parse the search results
 			
 					UnstructuredAnalysisConfigPojo dummyUAHconfig = new UnstructuredAnalysisConfigPojo();
-					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.First, feedConfig.getSearchConfig().getScript(), "javascript", "dt");
+					if (null == feedConfig.getSearchConfig().getScriptflags()) { // Set flags if necessary
+						if (null == feedConfig.getSearchConfig().getExtraMeta()) {
+							feedConfig.getSearchConfig().setScriptflags("dt");
+						}
+						else {
+							feedConfig.getSearchConfig().setScriptflags("dtm");							
+						}
+					}
+					if (null != feedConfig.getSearchConfig().getExtraMeta()) {
+						dummyUAHconfig.CopyMeta(feedConfig.getSearchConfig().getExtraMeta());
+					}
+					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.All, feedConfig.getSearchConfig().getScript(), "javascript", feedConfig.getSearchConfig().getScriptflags());
 					src.setUnstructuredAnalysisConfig(dummyUAHconfig);
 					if (null != searchConfig.getProxyOverride()) {
 						feedConfig.setProxyOverride(searchConfig.getProxyOverride());

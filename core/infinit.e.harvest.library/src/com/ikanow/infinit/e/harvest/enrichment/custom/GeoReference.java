@@ -128,6 +128,9 @@ public class GeoReference
 	 * @param attempt
 	 * @return
 	 */
+	//TODO (INF-1864): running this in non-strict mode can cripple the DB since search field might not
+	//be set ... at least need to cache such queries (almost always the US every time!)....
+	
 	private static BasicDBObject getQuery(Boolean hasGeoindex, int attempt)
 	{
 		BasicDBObject query = new BasicDBObject();

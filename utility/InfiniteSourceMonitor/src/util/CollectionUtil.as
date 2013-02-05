@@ -1,30 +1,30 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 package util
 {
-	import util.Constants;
-	import util.ISelectable;
 	import mx.collections.ArrayCollection;
 	import mx.collections.IList;
 	import mx.collections.ListCollectionView;
-	import spark.collections.Sort;
-	import spark.collections.SortField;
 	import mx.logging.ILogger;
 	import mx.logging.Log;
 	import mx.utils.ObjectUtil;
+	import spark.collections.Sort;
+	import spark.collections.SortField;
+	import util.Constants;
+	import util.ISelectable;
 	
 	public class CollectionUtil
 	{

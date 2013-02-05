@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -22,6 +22,7 @@
 	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
 	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
 	currentState="{ model.navigator.currentState }"
+	creationComplete="group1_creationCompleteHandler(event)"
 	hide="hideHandler()"
 	preinitialize="LoginNavigator.updateViewStates( this )"
 	show="showHandler()">
@@ -51,6 +52,17 @@
 			protected function forgotPassword_clickHandler():void
 			{
 				model.forgotPassword( userName.text );
+			}
+			
+			protected function group1_creationCompleteHandler( event:FlexEvent ):void
+			{
+				var logo_url:String = flash.external.ExternalInterface.call( 'getLogoUrl' );
+				
+				if ( logo_url != null && logo_url != "" )
+				{
+					logo.source = logo_url;
+					logo_poweredby.visible = true;
+				}
 			}
 			
 			protected function hideHandler():void
@@ -182,11 +194,23 @@
 		visible.cookie="false">
 
 		<!-- Logo -->
-		<s:BitmapImage 
-			bottom="25"
-			left="100"
-			source="{ EmbeddedAssets.LOGO }" />
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			paddingBottom="25"
+			paddingLeft="100"
+			paddingTop="25">
 
+			<s:Group 
+				width="100%"
+				height="100%">
+
+
+				<s:BitmapImage id="logo"
+					bottom="0"
+					source="{ EmbeddedAssets.LOGO }" />
+			</s:Group>
+		</s:VGroup>
 	</component:GradientContainer>
 
 	<!-- Separator -->
@@ -265,6 +289,12 @@
 					click="login()"
 					mouseEnabled="false"
 					mouseEnabled.login="true" />
+
+				<s:BitmapImage id="logo_poweredby"
+					left="{ loginButton.width + 20 }"
+					verticalAlign="top"
+					source="{ EmbeddedAssets.POWEREDBY }"
+					visible="false" />
 
 				<!-- Authenticating Feedback Indicator -->
 				<busyIndicator:BusyIndicatorLabel id="busyIndicator"

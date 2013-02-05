@@ -39,6 +39,8 @@ public class GeoFeaturePojo extends BaseDbPojo
 	
 	private GeoPojo geoindex = null;
 	
+	private transient String ontology_type = null; // (Not stored in the DB, but assigned by geo-coding logic)
+	
 	//cburch switch geoindex to a geopojo, i dont think we need all this
 //	public static class GeoIndex
 //	{
@@ -367,6 +369,20 @@ public class GeoFeaturePojo extends BaseDbPojo
 		return geoindex;
 	}
 
-
+	public String getOntology_type() {
+		if (null == ontology_type) { // assign		
+			if (null != city) {
+				ontology_type = "city";
+			}
+			else if ((null != region) || (null != region_code)) {
+				ontology_type = "countrysubsidiary";				
+			}
+			else if ((null != country) || (null != country_code)) {
+				ontology_type = "country";
+			}
+			// else leave null, will default to "point"
+		}		
+		return ontology_type;
+	}
 }
 

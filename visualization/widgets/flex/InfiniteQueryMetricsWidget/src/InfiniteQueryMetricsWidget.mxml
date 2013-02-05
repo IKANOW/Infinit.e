@@ -33,12 +33,15 @@
 		<![CDATA[
 			import com.adobe.serialization.json.JSONToken;
 			import com.ikanow.infinit.e.widget.library.data.ResultSet;
+			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
 			import mx.charts.*;
 			import mx.charts.events.*;
 			import mx.charts.renderers.*;
@@ -53,10 +56,15 @@
 			import mx.graphics.IFill;
 			import mx.graphics.SolidColor;
 			import mx.utils.StringUtil;
-			import spark.events.IndexChangeEvent;
 			import org.alivepdf.pdf.PDF;
+			import spark.events.IndexChangeEvent;
+			import spark.events.GridEvent;
 			import system.data.Collection;
 			import system.data.Iterator;
+			import system.data.Map;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
 			
 			//viewstate constants
 			private static const SOURCE_VIEW:int = 0;
@@ -73,113 +81,189 @@
 			private var _widgetOptions:Object = null;
 			
 			//string to display current view
-			[Bindable]
-			private var _currentView:String;
+			private var currentView:int;
+			private var currData:IResultSet;
+			private var currAllData:IResultSet;
+			private var lastDocIdMap:Map = null;
 			
-			//stores details on selected entity or association
-			[Bindable]
-			private var _selectedObjectInfo:String = new String();
-			
+	
 			//arrays collections to store and sort entities
 			[Bindable]
 			private var _topEntitiesArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _topEntityTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allEntitiesArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allEntityTypeArrayList:ArrayCollection = new ArrayCollection();
 			
 			//array collections to store and sort associations
 			[Bindable]
 			private var _topAssociationsArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _topAssociationTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allAssociationsArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allAssociationTypeArrayList:ArrayCollection = new ArrayCollection();
 			
 			//array collections to store and sort sources
 			[Bindable]
 			private var _topSourceTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _topSourceKeyArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allSourceTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _allSourceKeyArrayList:ArrayCollection = new ArrayCollection();
+
 			
 			//array collections to store active lists
 			[Bindable]
 			private var _activeEntityArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _activeAssociationArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _activeEntityTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _activeAssociationTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _activeSourceTypeArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
 			private var _activeSourceKeyArrayList:ArrayCollection = new ArrayCollection();
-			
 			[Bindable]
-			private var _subEntitiesArrayList:ArrayCollection = new ArrayCollection();
-			
+			private var _displayEntitiesArrayList:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			private var _subEntitiesNamesArrayList:ArrayCollection = new ArrayCollection();
-			
+			private var _displayEntitiesNamesArrayList:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			private var _subAssociationsArrayList:ArrayCollection = new ArrayCollection();
-			
+			private var _displayAssociationsArrayList:ArrayCollection = new ArrayCollection();
 			[Bindable]
-			private var _subAssociationsNamesArrayList:ArrayCollection = new ArrayCollection();
+			private var _displayAssociationsNamesArrayList:ArrayCollection = new ArrayCollection();
 			
+			//filter result status variables
+			private var hasFilter:Boolean = false;
+			private var internalFilterUpdate:Boolean = false;
+			// Determines if filtering results are immediately applied:
+			private var ignoreLocalFilter:Boolean = false;
 			//context for API calls
 			private var _context:IWidgetContext;
 			
 			/**
-			 * IWidget interface that fires when a new query is done.
-			 * We can access the data from the query by using our
-			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 * Clears data currently in data structures. Usually called when repopulating data.
+			 * @param none
+			 *
+			 * @returns void
 			 */
-			public function clearOldData():void
+			private function clearAllData():void
+			{
+				clearTopResultsData();
+				clearAllResultsData();
+				clearDisplayData();
+			}
+			
+			/**
+			 * Clears data currently in top results data structures.
+			 * @param none
+			 *
+			 * @returns void
+			 */
+			public function clearTopResultsData():void
 			{
 				_topEntitiesArrayList.removeAll();
 				_topAssociationsArrayList.removeAll();
-				_topEntitiesArrayList.removeAll();
+				_topEntityTypeArrayList.removeAll();
 				_topAssociationTypeArrayList.removeAll();
 				_topSourceTypeArrayList.removeAll();
 				_topSourceKeyArrayList.removeAll();
+			}
+			
+			/**
+			 * Clears data currently in all results data structures.
+			 * @param none
+			 *
+			 * @returns void
+			 */
+			public function clearAllResultsData():void
+			{
 				_allSourceTypeArrayList.removeAll();
 				_allSourceKeyArrayList.removeAll();
 				_allEntityTypeArrayList.removeAll();
 				_allEntitiesArrayList.removeAll();
-				_activeEntityTypeArrayList.removeAll();
-				_activeEntityArrayList.removeAll();
-				_activeAssociationTypeArrayList.removeAll();
-				_activeAssociationArrayList.removeAll();
+				_allAssociationsArrayList.removeAll();
+				_allAssociationTypeArrayList.removeAll();
+			}
+			
+			/**
+			 * Clears data currently in display data
+			 * @param none
+			 *
+			 * @returns void
+			 */
+			private function clearDisplayData():void
+			{
+				//Source Panel
 				_activeSourceTypeArrayList.removeAll();
 				_activeSourceKeyArrayList.removeAll();
-				_selectedObjectInfo = "";
-				_subEntitiesArrayList.removeAll();
-				_subEntitiesNamesArrayList.removeAll();
-				_subAssociationsArrayList.removeAll();
+				
+				//Entities Panel
+				_activeEntityTypeArrayList.removeAll();
+				_activeEntityArrayList.removeAll();
+				_displayEntitiesArrayList.removeAll();
+				_displayEntitiesNamesArrayList.removeAll();
+				
+				//Associations Panel
+				_activeAssociationTypeArrayList.removeAll();
+				_activeAssociationArrayList.removeAll();
+				_displayAssociationsArrayList.removeAll();
+			}
+			
+			/**
+			 * Populates data structures utilized by the widget
+			 * @param none
+			 *
+			 * @returns void
+			 */
+			public function populateLists():void
+			{
+				//clear old data entries
+				clearAllData();
+				//populate top or filtered results 
+				populateTopResultsLists();
+				//populate all results 
+				populateAllResultsLists();
+			}
+			
+			/**
+			 * Populates top results data structures
+			 * @param none
+			 *
+			 * @returns void
+			 */
+			public function populateTopResultsLists():void
+			{
+				populateTopEntityLists( currData.getEntities() );
+				//populate top results associations
+				populateTopAssociationLists( currData.getFacts() );
+				populateTopAssociationLists( currData.getEvents() );
+				//populate top results sources
+				populateTopSourceTypeList( currData.getSourceTypeCounts() );
+				populateTopSourceKeyList( currData.getSourceKeyCounts() );
+			}
+			
+			/**
+			 * Populates all results data structures
+			 *
+			 * @returns void
+			 */
+			public function populateAllResultsLists():void
+			{
+				populateAllEntityLists( currAllData.getEntities() );
+				//populate all results associations
+				populateAllAssociationLists( currAllData.getFacts() );
+				populateAllAssociationLists( currAllData.getEvents() );
+				//populate all results sources
+				populateAllSourceTypeList( currAllData.getSourceTypeCounts() );
+				populateAllSourceKeyList( currAllData.getSourceKeyCounts() );
 			}
 			
 			/**
@@ -213,14 +297,14 @@
 			public function onInit( context:IWidgetContext ):void
 			{
 				_context = context;
-				clearOldData();
+				clearAllData();
 				_activeEntityTypeArrayList = _allEntityTypeArrayList;
 				_activeEntityArrayList = _allEntitiesArrayList;
 				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
 				_activeAssociationArrayList = _allAssociationsArrayList;
 				_activeSourceTypeArrayList = _allSourceTypeArrayList;
 				_activeSourceKeyArrayList = _allSourceKeyArrayList;
-				_currentView = "All Results";
+				currentView = ALL_VIEW;
 			}
 			
 			/**
@@ -247,17 +331,7 @@
 				this.width = newWidth;
 			}
 			
-			/**
-			 * IWidget interface that fires when a new filter is done (including from ourself)
-			 * We can access the data fromt he filter by using our
-			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
-			 */
-			public function onReceiveNewFilter():void
-			{
-				//get filtered logic here
-				//_context.getQuery_FilteredResults().getTopDocuments();
-			}
-			
+
 			/**
 			 * IWidget interface that fires when a new query is done.
 			 * We can access the data from the query by using our
@@ -265,28 +339,130 @@
 			 */
 			public function onReceiveNewQuery():void
 			{
-				//clear old data entries
-				clearOldData();
-				//populate top results entities
-				populateTopEntityLists( _context.getQuery_TopResults().getEntities() );
-				//populate top results associations
-				populateTopAssociationLists( _context.getQuery_TopResults().getFacts() );
-				populateTopAssociationLists( _context.getQuery_TopResults().getEvents() );
-				//populate top results sources
-				//TODO add back
-				populateTopSourceTypeList( _context.getQuery_TopResults().getSourceTypeCounts() );
-				populateTopSourceKeyList( _context.getQuery_TopResults().getSourceKeyCounts() );
-				//populate all results entities
-				populateAllEntityLists( _context.getQuery_AllResults().getEntities() );
-				//populate all results associations
-				populateAllAssociationLists( _context.getQuery_AllResults().getFacts() );
-				populateAllAssociationLists( _context.getQuery_AllResults().getEvents() );
-				//populate all results sources
-				//TODO add back
-				populateAllSourceTypeList( _context.getQuery_AllResults().getSourceTypeCounts() );
-				populateAllSourceKeyList( _context.getQuery_AllResults().getSourceKeyCounts() );
-			
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					//setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				
+				if ( isNewData(_context.getQuery_TopResults().getTopDocuments()) )
+				{
+					currData = _context.getQuery_TopResults();
+					currAllData = _context.getQuery_AllResults();
+					populateLists();
+				}
 			}
+			
+			private function isNewData(docs:ArrayCollection):Boolean
+			{
+				var isNew:Boolean = false;
+				if ( lastDocIdMap != null ) //check against old map
+				{
+					for each ( var doc:Object in docs )
+					{
+						//compare results
+						if ( !lastDocIdMap.containsKey(doc._id) )
+						{
+							isNew = true;
+							break;
+						}
+					}		
+				} else 	isNew = true; //first time through
+					
+				if ( isNew )
+				{
+					//create new map
+					lastDocIdMap = new HashMap();
+					for each (var doc:Object in docs)
+					{
+							lastDocIdMap.put(doc._id,true);
+					}
+				}
+				
+				return isNew;
+				
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				
+				//TODO: removed for ux testing
+				//if ( !internalFilterUpdate )
+				//{
+					if(!ignoreLocalFilter){
+						this.currData = _context.getQuery_FilteredResults();
+						if (currentView == ALL_VIEW){
+							clearTopResultsData();
+							populateTopResultsLists();
+						} else {
+							clearAllData();
+							populateLists();
+							setActiveToTop();
+						}							
+					}
+					//setTimeout( resetIgnoreLocalFilter, 1000 );
+				//}
+			}
+			
+			/**
+			 * Resets the ignore local filter flag and button
+			 */
+			protected function resetIgnoreLocalFilter():void
+			{
+				ignoreLocalFilter = false;
+				localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+				localFilterSettings.selected = false;
+				localFilterSettings.dispatchEvent( new MouseEvent( MouseEvent.ROLL_OUT ) );
+			}
+			
+			// This function handles clicking the "ignore local filter" button:
+			// - If no filter is applied, sets a flag
+			// - If a filter is applied and "ignore filter" is currently "true":
+			//    - Sets flag and re-calls receivedSelectedResults with the previously saved filtered results
+			// - If a filter is applied and "ignore filter" is currently "false"
+			//    - Sets flag and restores previously saved unfiltered results
+			
+			private function onClickIgnoreLocalFilter():void
+			{
+				internalFilterUpdate = true;
+				
+				this.ignoreLocalFilter = !this.ignoreLocalFilter;
+				
+				if (!this.ignoreLocalFilter)
+				{
+					localFilterSettings.toolTip = "Ignore Workspace Filtering - Show All Results";
+					
+					if ( hasFilter )
+					{
+						this.currData = _context.getQuery_FilteredResults();
+						if (currentView == ALL_VIEW){
+							clearTopResultsData();
+							populateTopResultsLists();
+						} else {
+							clearAllData();
+							populateLists();
+							setActiveToTop();
+						}
+					}
+					else 
+					{
+						currData = _context.getQuery_TopResults();						
+					}
+				}
+				else
+				{
+					localFilterSettings.toolTip = "Apply Workspace Filtering - Show Filtered Results";
+					currData = _context.getQuery_TopResults();
+				}
+				
+				internalFilterUpdate = false;
+			}
+			
 			
 			/**
 			 * This function gets called when the workspace is being saved.
@@ -318,7 +494,7 @@
 			protected function associationTypeIndex_changeHandler( event:IndexChangeEvent ):void
 			{
 				//clear old list
-				_subAssociationsArrayList.removeAll();
+				_displayAssociationsArrayList.removeAll();
 				//_subAssociationsNamesArrayList.removeAll();
 				var selectedType:Object = new Object();
 				//add entities with type equal to the new index to the filtered list
@@ -328,7 +504,7 @@
 				{
 					if ( assoc.verb_category == selectedType )
 					{
-						_subAssociationsArrayList.addItem( assoc )
+						_displayAssociationsArrayList.addItem( assoc )
 					}
 				}
 			}
@@ -339,7 +515,7 @@
 			 **/
 			protected function entityIndex_changeHandler( event:IndexChangeEvent ):void
 			{
-			
+				//logic removed due to change in functionality, header remains for testing
 			}
 			
 			/** The callback handler for selecting a new entity in the entity types list
@@ -349,7 +525,7 @@
 			protected function entityTypeIndex_changeHandler( event:IndexChangeEvent ):void
 			{
 				//clear old list
-				_subEntitiesArrayList.removeAll();
+				_displayEntitiesArrayList.removeAll();
 				var selectedType:Object = new Object();
 				//add entities with type equal to the new index to the filtered list
 				selectedType = _activeEntityTypeArrayList.getItemAt( event.newIndex );
@@ -358,7 +534,7 @@
 				{
 					if ( entity.type == selectedType )
 					{
-						_subEntitiesArrayList.addItem( entity )
+						_displayEntitiesArrayList.addItem( entity )
 					}
 				}
 			}
@@ -376,15 +552,15 @@
 				
 				if ( viewOptions.selectedIndex == ENTITY_VIEW && entityDataGrid.selectedIndex > -1 )
 				{
-					urlComp = encodeURIComponent( '"' + _subEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex ).disambiguated_name + '"' );
+					urlComp = encodeURIComponent( '"' + _displayEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex ).disambiguated_name + '"' );
 					externalUrl = ExternalInterface.call( 'getSearchUrl', urlComp );
 					url = new URLRequest( externalUrl );
 					navigateToURL( url, '_blank' );
 				}
 				else if ( viewOptions.selectedIndex == ASSOC_VIEW && assocDataGrid.selectedIndex > -1 )
 				{
-					var ent1:String = _subAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex ).entity1_index;
-					var ent2:String = _subAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex ).entity2_index;
+					var ent1:String = _displayAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex ).entity1_index;
+					var ent2:String = _displayAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex ).entity2_index;
 					var subEnt1:String = ent1.substring( 0, ent1.search( "/" ) );
 					var subEnt2:String = ent2.substring( 0, ent2.search( "/" ) );
 					urlComp = encodeURIComponent( '"' + subEnt1 + '" + "' + subEnt2 + '"' );
@@ -394,7 +570,7 @@
 				}
 			}
 			/**
-			 * Filters function for entity types in widget
+			 * Text filters unction for association types list 
 			 */
 			private function filterActiveAssocTypes( type:String ):Boolean
 			{
@@ -402,8 +578,9 @@
 				var typeName:String = ( type ).toLowerCase();
 				return typeName.indexOf( searchString ) > -1;
 			}
+			
 			/**
-			 * Filters function for entity types in widget
+			 * Text filters function for entity types list
 			 */
 			private function filterActiveEntityTypes( type:String ):Boolean
 			{
@@ -412,29 +589,31 @@
 				return typeName.indexOf( searchString ) > -1;
 			}
 			
-			
+			/**
+			 * Text filters function for association list
+			 */
 			private function filterAssociations():void
 			{
 				_activeAssociationTypeArrayList.filterFunction = filterActiveAssocTypes;
-				_subAssociationsArrayList.filterFunction = filterSpecificAssociations;
-				_subAssociationsArrayList.refresh();
+				_displayAssociationsArrayList.filterFunction = filterSpecificAssociations;
+				_displayAssociationsArrayList.refresh();
 				_activeAssociationTypeArrayList.refresh();
 			}
 			
 			
 			/**
-			 * Filters function for entities panel
+			 * Text Filter function for entities panel
 			 */
 			private function filterEntities():void
 			{
 				_activeEntityTypeArrayList.filterFunction = filterActiveEntityTypes;
-				_subEntitiesArrayList.filterFunction = filterSpecificEntities;
-				_subEntitiesArrayList.refresh();
+				_displayEntitiesArrayList.filterFunction = filterSpecificEntities;
+				_displayEntitiesArrayList.refresh();
 				_activeEntityTypeArrayList.refresh();
 			}
 			
 			/**
-			 * Filters function for specific entities in widget
+			 * Text filter function for associations panel
 			 */
 			private function filterSpecificAssociations( association:Object ):Boolean
 			{
@@ -449,7 +628,7 @@
 				else
 					return false;
 			}
-			
+
 			/**
 			 * Filters function for specific entities in widget
 			 */
@@ -459,6 +638,27 @@
 				var entityName:String = ( entity.disambiguated_name as String ).toLowerCase();
 				return entityName.indexOf( searchString ) > -1;
 			}
+			
+			/**
+			 * Filters function for specific entities in widget
+			 */
+			protected function addEntityToFilter_eventHandler(event:MouseEvent):void
+			{
+					var ent:Object = event.currentTarget.selectedItem;
+					var desc:String = "Doc Filter: Any Containing ";
+					var ents:Set = new HashSet();
+					
+					ents.add( ent.index );
+					desc += ent.index;
+					
+					if ( ents.isEmpty() )
+					{
+						Alert.show( "Nothing to filter" );
+						return;
+					}
+					
+					_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );	
+			 }
 			
 			/**
 			 * Method fired when module is done loading.  Sends
@@ -669,36 +869,45 @@
 			private function resultsOptions_changeHandler( event:IndexChangeEvent ):void
 			{
 				//clear old lists
-				_subAssociationsArrayList.removeAll();
+				_displayAssociationsArrayList.removeAll();
 				//_subAssociationsNamesArrayList.removeAll();
-				_subEntitiesArrayList.removeAll();
-				_subEntitiesNamesArrayList.removeAll();
-				_selectedObjectInfo = "";
+				_displayEntitiesArrayList.removeAll();
+				_displayEntitiesNamesArrayList.removeAll();
 				
 				//adjust data providers to meet new result sets to be displayed
 				if ( event.newIndex == TOP_VIEW )
 				{
-					_activeEntityTypeArrayList = _topEntityTypeArrayList;
-					_activeEntityArrayList = _topEntitiesArrayList;
-					_activeAssociationTypeArrayList = _topAssociationTypeArrayList;
-					_activeAssociationArrayList = _topAssociationsArrayList;
-					_activeSourceTypeArrayList = _topSourceTypeArrayList;
-					_activeSourceKeyArrayList = _topSourceKeyArrayList;
-					_currentView = "Top Results";
+					currentView = TOP_VIEW;
+					setActiveToTop();
 				}
 				else
 				{
-					_activeEntityTypeArrayList = _allEntityTypeArrayList;
-					_activeEntityArrayList = _allEntitiesArrayList;
-					_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
-					_activeAssociationArrayList = _allAssociationsArrayList;
-					_activeSourceTypeArrayList = _allSourceTypeArrayList;
-					_activeSourceKeyArrayList = _allSourceKeyArrayList;
-					_currentView = "All Results";
+					currentView = ALL_VIEW;
+					setActiveToAll();
 				}
 			
 			}
 			
+			private function setActiveToTop():void
+			{
+				_activeEntityTypeArrayList = _topEntityTypeArrayList;
+				_activeEntityArrayList = _topEntitiesArrayList;
+				_activeAssociationTypeArrayList = _topAssociationTypeArrayList;
+				_activeAssociationArrayList = _topAssociationsArrayList;
+				_activeSourceTypeArrayList = _topSourceTypeArrayList;
+				_activeSourceKeyArrayList = _topSourceKeyArrayList;
+			}
+				
+			private function setActiveToAll():void
+			{
+				_activeEntityTypeArrayList = _allEntityTypeArrayList;
+				_activeEntityArrayList = _allEntitiesArrayList;
+				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
+				_activeAssociationArrayList = _allAssociationsArrayList;
+				_activeSourceTypeArrayList = _allSourceTypeArrayList;
+				_activeSourceKeyArrayList = _allSourceKeyArrayList;
+			}
+	
 			/**
 			 * function to add entities to the query
 			 *
@@ -712,11 +921,11 @@
 				
 				if ( viewOptions.selectedIndex == ENTITY_VIEW )
 				{
-					var entity:Object = _subEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex )
+					var entity:Object = _displayEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex )
 					
 					if ( entityDataGrid.selectedIndex > -1 )
 					{
-						var targetedEntity:Object = _subEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex );
+						var targetedEntity:Object = _displayEntitiesArrayList.getItemAt( entityDataGrid.selectedIndex );
 						newTerm[ "entity" ] = targetedEntity.index;
 						queryTerms.addItem( newTerm );
 						_context.setCurrentQuery( query, "qt" );
@@ -727,7 +936,7 @@
 					if ( assocDataGrid.selectedIndex > -1 )
 					{
 						var assocTerm:Object = new Object();
-						var targetedAssoc:Object = _subAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex );
+						var targetedAssoc:Object = _displayAssociationsArrayList.getItemAt( assocDataGrid.selectedIndex );
 						var entity1:Object = new Object();
 						entity1[ "entity" ] = targetedAssoc.entity1_index;
 						assocTerm[ "entity1" ] = entity1;
@@ -777,7 +986,11 @@
 	<!--Header Content-->
 	<components:headerContent>
 		<s:HGroup gap="-3">
-			<!-- View Drop Down List -->
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+													   toolTip="Ignore Workspace Filtering - Show All Results"
+													   click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+						<!-- View Drop Down List -->
 			<components:WidgetDropDownList id="viewOptions"
 				width="120"
 				selectedIndex="{ SOURCE_VIEW }"
@@ -939,26 +1152,27 @@
 					<s:TextInput id="searchEntities"
 						width="100%"
 						keyUp="filterEntities()" />
-					<mx:DataGrid id="entityDataGrid"
-						dataProvider="{ _subEntitiesArrayList }"
-						y="4"
+					<s:DataGrid  
+						id="entityDataGrid"
+						doubleClickEnabled="true"
+						doubleClick="addEntityToFilter_eventHandler(event)"
+						dataProvider="{ _displayEntitiesArrayList }"
 						width="100%"
 						height="100%">
-						<mx:columns>
-							<mx:DataGridColumn 
-								dataField="disambiguated_name"
-								headerText="Index" />
-							<mx:DataGridColumn 
-								dataField="dimension"
-								headerText="Dimension" />
-							<mx:DataGridColumn 
-								dataField="doccount"
-								headerText="Doc Count" />
-							<mx:DataGridColumn 
-								dataField="datasetSignificance"
-								headerText="Query Significance" />
-						</mx:columns>
-					</mx:DataGrid>
+						<s:columns>
+							<s:ArrayList>
+								<s:GridColumn 
+									dataField="disambiguated_name"
+									headerText="Index" />
+								<s:GridColumn 
+									dataField="dimension"
+									headerText="Dimension" />
+								<s:GridColumn 
+									dataField="doccount"
+									headerText="Doc Count" />
+							</s:ArrayList>
+						</s:columns>
+					</s:DataGrid>
 				</s:VGroup>
 			</s:HGroup>
 			<!--</mx:Panel>-->
@@ -992,26 +1206,28 @@
 					<s:TextInput id="searchAssociations"
 						width="100%"
 						keyUp="filterAssociations()" />
-					<mx:DataGrid id="assocDataGrid"
-						dataProvider="{ _subAssociationsArrayList }"
+					<s:DataGrid id="assocDataGrid"
+						dataProvider="{ _displayAssociationsArrayList }"
 						y="4"
 						width="100%"
 						height="100%">
-						<mx:columns>
-							<mx:DataGridColumn 
-								dataField="entity1_index"
-								headerText="Entity 1" />
-							<mx:DataGridColumn 
-								dataField="verb_category"
-								headerText="Verb" />
-							<mx:DataGridColumn 
-								dataField="entity2_index"
-								headerText="Entity 2" />
-							<mx:DataGridColumn 
-								dataField="assoc_type"
-								headerText="Type" />
-						</mx:columns>
-					</mx:DataGrid>
+						<s:columns>
+							<s:ArrayList>
+								<s:GridColumn 
+									dataField="entity1_index"
+									headerText="Entity 1" />
+								<s:GridColumn 
+									dataField="verb_category"
+									headerText="Verb" />
+								<s:GridColumn 
+									dataField="entity2_index"
+									headerText="Entity 2" />
+								<s:GridColumn 
+									dataField="assoc_type"
+									headerText="Type" />
+							</s:ArrayList>
+						</s:columns>
+					</s:DataGrid>
 				</s:VGroup>
 			</s:HGroup>
 			<!--</mx:Panel>-->

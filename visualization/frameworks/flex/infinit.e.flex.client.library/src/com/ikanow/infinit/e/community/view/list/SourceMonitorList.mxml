@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -34,45 +34,114 @@
 			import com.ikanow.infinit.e.community.model.presentation.list.SourceMonitorListModel;
 			import com.ikanow.infinit.e.shared.event.SourceEvent;
 			import com.ikanow.infinit.e.shared.model.vo.Community;
-			
 			import mx.collections.ArrayCollection;
 			import mx.events.FlexEvent;
 			import mx.events.ItemClickEvent;
-			
 			import spark.events.IndexChangeEvent;
 			
 			[Bindable]
 			[Inject]
 			public var model:SourceMonitorListModel;
+			
 			[Bindable]
 			private var sourceInfo:ArrayCollection;
 			
-			protected function creationCompleteHandler(event:FlexEvent):void
+			protected function creationCompleteHandler( event:FlexEvent ):void
 			{
-				if(model != null && model.selectedSource)
+				if ( model != null && model.selectedSource )
 				{
 					sourceInfo = new ArrayCollection();
 					
-					sourceInfo.addItem({title: "Title", name: model.selectedSource.title});
-					sourceInfo.addItem({title: "ID", name: model.selectedSource._id});
-					sourceInfo.addItem({title: "Community", name: model.selectedSource.community});
-					sourceInfo.addItem({title: "Community ID", name: model.selectedSource.communityIds});
-					sourceInfo.addItem({title: "Approved", name: model.selectedSource.isApproved});
-					sourceInfo.addItem({title: "Harvest Status", name: getReadableHarvestStatus(model.selectedSource.harvest.harvest_status)});
-					sourceInfo.addItem({title: "Doc Count", name: model.selectedSource.harvest.doccount});
-					sourceInfo.addItem({title: "Last Harvest Date", name: model.selectedSource.harvest.harvested});
-					sourceInfo.addItem({title: "Harvest Error Message", name: model.selectedSource.harvest.harvest_message});
+					sourceInfo.addItem( { title: "Title", name: model.selectedSource.title } );
+					sourceInfo.addItem( { title: "ID", name: model.selectedSource._id } );
+					sourceInfo.addItem( { title: "Community", name: model.selectedSource.community } );
+					sourceInfo.addItem( { title: "Community ID", name: model.selectedSource.communityIds } );
+					//sourceInfo.addItem({title: "Approved", name: model.selectedSource.isApproved});
+					sourceInfo.addItem( { title: "Harvest Status", name: ( model.selectedSource.harvest != null ) ? getReadableHarvestStatus( model.selectedSource.harvest.harvest_status ) : "" } );
+					sourceInfo.addItem( { title: "Doc Count", name: ( model.selectedSource.harvest != null ) ? model.selectedSource.harvest.doccount : "" } );
+					sourceInfo.addItem( { title: "Last Harvest Date", name: ( model.selectedSource.harvest != null ) ? model.selectedSource.harvest.harvested : "" } );
+					sourceInfo.addItem( { title: "Harvest Error Message", name: ( model.selectedSource.harvest != null ) ? model.selectedSource.harvest.harvest_message : "" } );
+					var nextHarvest:String = getNextHarvestTime();
+					sourceInfo.addItem( { title: "Approximate Next Harvest", name: nextHarvest } );
+					var nextUpdate:String = getNextUpdateTime();
+					
+					if ( nextUpdate != null )
+					{
+						sourceInfo.addItem( { title: "Document Update Cycle (hrs)", name: nextUpdate } );
+					}
+				}
+			}
+			
+			/**
+			 * function to handle when an item is double clicked
+			 *
+			 * @param event The MouseEvent receieved
+			 */
+			protected function sourceMonitorListDoubleClickHandler( event:MouseEvent ):void
+			{
+				System.setClipboard( sourceMonitorList.selectedItem.name );
+				var eventObj:SourceEvent = new SourceEvent( SourceEvent.SOURCE_DATA_COPIED );
+				dispatchEvent( eventObj );
+			}
+			
+			/**
+			 * Returns the next harvest time following these rules about source.searchCycle_secs:
+			 * <0: Suspended
+			 * 0: Imminent
+			 * >0: Last Harvest + SearchCycleSecs
+			 */
+			private function getNextHarvestTime():String
+			{
+				var searchCycle:int = model.selectedSource.searchCycle_secs;
+				
+				if ( searchCycle < 0 )
+					return "Suspended";
+				else if ( searchCycle == 0 )
+					return "Imminent";
+				else
+				{
+					if ( model.selectedSource.harvest == null || model.selectedSource.harvest.harvested == null )
+					{
+						return "Imminent";
+					}
+					else
+					{
+						var lastRun:Date = model.selectedSource.harvest.harvested;
+						var milli:Number = lastRun.getTime();
+						milli += searchCycle;
+						var newDate:Date = new Date( 0, 0, 0, 0, 0, 0, milli );
+						return newDate.toString();
+					}
+				}
+			}
+			
+			/**
+			 * Converts a sources updateCycle_secs to hours and returns it.
+			 * Otherwise returns null
+			 */
+			private function getNextUpdateTime():String
+			{
+				if ( model.selectedSource.extractType == "Feed" &&
+					model.selectedSource.rss != null &&
+					model.selectedSource.rss.updateCycle_secs != null )
+				{
+					var update_secs:int = model.selectedSource.rss.updateCycle_secs;
+					return "" + ( update_secs / 360 );
+				}
+				else
+				{
+					return null;
 				}
 			}
 			
 			/**
 			 * function to get the harvest status
-			 * 
+			 *
 			 * @param harvestStatus The status of the harvester
 			 */
-			private function getReadableHarvestStatus(harvestStatus:String):String
+			private function getReadableHarvestStatus( harvestStatus:String ):String
 			{
-				switch(harvestStatus)
+				switch ( harvestStatus )
 				{
 					case "in_progress":
 						return "in progress";
@@ -84,19 +153,6 @@
 				
 				return harvestStatus;
 			}
-			
-			/**
-			 * function to handle when an item is double clicked
-			 * 
-			 * @param event The MouseEvent receieved
-			 */
-			protected function sourceMonitorListDoubleClickHandler(event:MouseEvent):void
-			{
-				System.setClipboard( sourceMonitorList.selectedItem.name );
-				var eventObj:SourceEvent = new SourceEvent(SourceEvent.SOURCE_DATA_COPIED);
-				dispatchEvent(eventObj);
-			}
-			
 		]]>
 	</fx:Script>
 
@@ -113,6 +169,6 @@
 		width="100%"
 		doubleClickEnabled="true"
 		doubleClick="sourceMonitorListDoubleClickHandler(event)"
-		itemRenderer="com.ikanow.infinit.e.community.view.list.SourceMonitorListItemRenderer"/>
+		itemRenderer="com.ikanow.infinit.e.community.view.list.SourceMonitorListItemRenderer" />
 
 </s:VGroup>

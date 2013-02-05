@@ -90,8 +90,7 @@ public class MongoDocumentTxfer {
 		}
 		else {
 			query = (BasicDBObject) com.mongodb.util.JSON.parse(sQuery);
-		}
-		
+		}		
 		if (!bDelete) {
 			txferManager.doTransfer(query, nSkip, nLimit);
 		}
@@ -131,7 +130,7 @@ public class MongoDocumentTxfer {
 		if (null == query) {
 			query = new BasicDBObject();			
 		}
-		if (null != query.get(null != DocumentPojo.sourceKey_)) {
+		if (null == query.get(DocumentPojo.sourceKey_)) {
 			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
 		}
 		

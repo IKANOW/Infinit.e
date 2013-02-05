@@ -40,60 +40,94 @@ public class AliasLookupTable {
 	
 	// Builds the Alias Lookup from a set of sources
 	
-	public synchronized void buildOrUpdateAliasTable(List<SharePojo> aliasTables) {
+	public synchronized void buildOrUpdateAliasTable(List<SharePojo> aliasTables, String userIdStr) {
 		_aliasTable.clear();
 		_reverseAliasTable.clear();
 		
 		_lastModified = new Date();
 		
+		_nNumAliasShares = 0;
+		SharePojo personalShare = null;
 		for (SharePojo share: aliasTables) {
-			String json = share.getShare();
-			if (null != json) {
-				try {
-					DBObject dbo = (DBObject) JSON.parse(json);
-					if (null != dbo) {
-						for (Object entryObj: dbo.toMap().entrySet()) {
-							@SuppressWarnings("unchecked")
-							Map.Entry<String, Object> entry = (Map.Entry<String, Object>)entryObj;
-							
-							String masterAlias = entry.getKey();
-							EntityPojo masterAliasEntity = new EntityPojo();
-							masterAliasEntity.setIndex(masterAlias);
-							
-							BasicDBObject entityFeatureObj = (BasicDBObject) entry.getValue();
-							EntityFeaturePojo aliasInfo = null;
-							try {
-								aliasInfo = EntityFeaturePojo.fromDb(entityFeatureObj, EntityFeaturePojo.class);
-							}
-							catch (Exception e) {
-								logger.debug("Failed to deserialize aliasInfo", e);
-							}
+			// Look for personal shares, apply them last
+			if ((null != share.getCommunities()) && !share.getCommunities().isEmpty()) {
+				SharePojo.ShareCommunityPojo primaryShareComm = share.getCommunities().iterator().next();
+				if (null != primaryShareComm.get_id()) {
+					if (userIdStr.equalsIgnoreCase(primaryShareComm.get_id().toString())) {
+						personalShare = share; // (save and carry on) 
+						continue;
+					}
+				}				
+			}//end look for personal community
+			
+			_nNumAliasShares++;
+			populateAliasTableFromShare(share);
+		}
+		if (null != personalShare) { // Apply personal shares last
+			_nNumAliasShares++;
+			populateAliasTableFromShare(personalShare);			
+		}
+		
+		
+	} //TESTED
+	
+	// Utility:
+	
+	private void populateAliasTableFromShare(SharePojo share) {
+		String json = share.getShare();
+		if (null != json) {
+			try {
+				DBObject dbo = (DBObject) JSON.parse(json);
+				if (null != dbo) {
+					for (Object entryObj: dbo.toMap().entrySet()) {
+						@SuppressWarnings("unchecked")
+						Map.Entry<String, Object> entry = (Map.Entry<String, Object>)entryObj;
+						
+						String masterAlias = entry.getKey();
+						EntityPojo masterAliasEntity = new EntityPojo();
+						masterAliasEntity.setIndex(masterAlias);
+						
+						BasicDBObject entityFeatureObj = (BasicDBObject) entry.getValue();
+						EntityFeaturePojo aliasInfo = null;
+						try {
+							aliasInfo = EntityFeaturePojo.fromDb(entityFeatureObj, EntityFeaturePojo.class);
+						}
+						catch (Exception e) {
+							logger.debug("Failed to deserialize aliasInfo", e);
+						}
 
-							if ((null != aliasInfo) && (null != aliasInfo.getAlias()))
-							{							
-								aliasInfo.setIndex(masterAlias);
-								if ((null == aliasInfo.getDimension()) && (null != aliasInfo.getType())) {
-									aliasInfo.setDimension(DimensionUtility.getDimensionByType(aliasInfo.getType()));
-								}//TESTED
-								
-								logger.debug("aliasTable entry: " + aliasInfo.getIndex() + " vs " + Arrays.toString(aliasInfo.getAlias().toArray()));
-								
-								for (String aliasIndex: aliasInfo.getAlias()) {
-									_aliasTable.put(aliasIndex, aliasInfo);
-								}
-								_aliasTable.put(aliasInfo.getIndex(), aliasInfo);
-								_reverseAliasTable.put(aliasInfo.getIndex(), aliasInfo.getAlias());
+						if ((null != aliasInfo) && (null != aliasInfo.getAlias()))
+						{							
+							aliasInfo.setIndex(masterAlias);
+							if ((null == aliasInfo.getDimension()) && (null != aliasInfo.getType())) {
+								aliasInfo.setDimension(DimensionUtility.getDimensionByType(aliasInfo.getType()));
+							}//TESTED
+							
+							logger.debug("aliasTable entry: " + aliasInfo.getIndex() + " vs " + Arrays.toString(aliasInfo.getAlias().toArray()));
+							
+							// This is going to collide in an ugly fashion across multiple communities, 
+							// we just have to live with that
+							for (String aliasIndex: aliasInfo.getAlias()) {
+								_aliasTable.put(aliasIndex, aliasInfo);
 							}
+							_aliasTable.put(aliasInfo.getIndex(), aliasInfo);
+							Set<String> currAlias = _reverseAliasTable.get(aliasInfo.getIndex());
+							if (null == currAlias) {
+								_reverseAliasTable.put(aliasInfo.getIndex(), aliasInfo.getAlias());									
+							}
+							else { // Collision ... this we can handle a little-bit more elegantly
+								currAlias.addAll(aliasInfo.getAlias());
+							}									
 						}
 					}
 				}
-				catch (Exception e) {
-					logger.debug("General Aliasing Error: ", e);
-					
-				} // not Json, just carry on...
 			}
-		}
-	} //TESTED
+			catch (Exception e) {
+				logger.debug("General Aliasing Error: ", e);
+				
+			} // not Json, just carry on...
+		}		
+	}//TESTED
 	
 	/////////////////////////////////
 	
@@ -115,6 +149,9 @@ public class AliasLookupTable {
 	public synchronized Date getLastModified() { 
 		return _lastModified;
 	}
+	public synchronized int  getNumAliasShares() { 
+		return _nNumAliasShares;
+	}
 	
 	/////////////////////////////////
 	
@@ -135,7 +172,8 @@ public class AliasLookupTable {
 	////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// State:
-	
+
+	private int _nNumAliasShares = 0;
 	private Date _lastModified = null;
 	private HashMap<String, EntityFeaturePojo> _aliasTable = new HashMap<String, EntityFeaturePojo>();
 	private HashMap<String, Set<String>> _reverseAliasTable = new HashMap<String, Set<String>>();

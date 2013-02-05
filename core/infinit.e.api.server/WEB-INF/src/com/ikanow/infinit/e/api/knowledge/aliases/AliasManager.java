@@ -28,6 +28,8 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 
 public class AliasManager {
 
@@ -42,8 +44,7 @@ public class AliasManager {
 			if (_bFirstTime) {
 				// Check if (beta) aliasing enabled
 				PropertiesManager props = new PropertiesManager();
-				String s = props.getProperty("app.aliasing.beta");
-				if ((null != s) && s.equalsIgnoreCase("true")) {
+				if (props.getAliasingEnabled()) {
 					if (null == _myself) {
 						logger.debug("Initialized alias manager");
 						
@@ -61,7 +62,7 @@ public class AliasManager {
 	// Returns null if there's no active alias lookup table
 	// (isn't null in the underlying structure)
 	
-	public synchronized AliasLookupTable getAliasLookupTable(String communityListStr, String[] communityStrArray, List<ObjectId> communityList) {
+	public synchronized AliasLookupTable getAliasLookupTable(String communityListStr, String[] communityStrArray, List<ObjectId> communityList, String userIdStr) {
 		
 		// 1. Normalize input args
 		if ((null == communityListStr) || (communityListStr.startsWith("*"))) {
@@ -117,13 +118,24 @@ public class AliasManager {
 				logger.debug("Alias table exists, checking for refresh: " + communityListStr);
 				
 				BasicDBObject query = new BasicDBObject(SharePojo.type_, "infinite-entity-alias");
-				query.put(ShareOwnerPojo.communities_id_, new BasicDBObject(MongoDbManager.in_, communityList));
-				query.put(SharePojo.modified_, new BasicDBObject(MongoDbManager.gt_, tableLastMod));
-
-				if (null == MongoDbManager.getSocial().getShare().findOne(query)) {
+				query.put(ShareOwnerPojo.communities_id_, new BasicDBObject(MongoDbManager.in_, communityList));								
+				BasicDBObject fields = new BasicDBObject(SharePojo.modified_, 1);				
+				DBCursor dbc = MongoDbManager.getSocial().getShare().find(query, fields);
+				
+				if (dbc.count() == table.getNumAliasShares()) { // easy answer is out!
 					bRefresh = false;
-					table.setLastModified(now); // (ie don't check again for another minute)
-				}//TESTED				
+					for (DBObject dbo: dbc) {
+						Date date = (Date) dbo.get(SharePojo.modified_);
+						if ((date != null) && (date.getTime() > tableLastMod.getTime())) {
+							logger.debug("Alias: change in date for " + dbo.get(SharePojo._id_) + ": " + date);
+							bRefresh = true;
+							break;
+						}
+					}					
+				}//TOTEST
+				else {
+					logger.debug("Alias: change in #shares, now: " + dbc.count() + " vs prev: " + table.getNumAliasShares());
+				}
 			}			
 		}//TESTED 
 		else {
@@ -143,9 +155,12 @@ public class AliasManager {
 			
 			if (null != aliasShares) {
 				logger.debug("Refresh/build alias table " + communityListStr + ": " + aliasShares.size());
-				
-				table.buildOrUpdateAliasTable(aliasShares);
 			}
+			else {
+				logger.debug("Clear alias table " + communityListStr);
+				aliasShares = new ArrayList<SharePojo>();
+			}
+			table.buildOrUpdateAliasTable(aliasShares, userIdStr);
 
 		}//TESTED
 		

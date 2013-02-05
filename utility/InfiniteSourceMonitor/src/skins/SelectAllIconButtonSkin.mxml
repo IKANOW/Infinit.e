@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -51,11 +51,11 @@
 	</s:Rect>
 	<!-- background -->
 	<s:Rect id="background"
-			bottom="0"
-			left="0"
-			right="0"
-			top="0"
-			alpha="0">
+		bottom="0"
+		left="0"
+		right="0"
+		top="0"
+		alpha="0">
 		<s:fill>
 			<s:LinearGradient rotation="90">
 				<s:entries>
@@ -69,7 +69,7 @@
 			</s:LinearGradient>
 		</s:fill>
 	</s:Rect>
-	
+
 	<s:Group 
 		horizontalCenter="0"
 		verticalCenter="0">

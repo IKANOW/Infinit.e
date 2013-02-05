@@ -93,18 +93,21 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		Boolean bStrict = null;
 		Integer batchSize = null;
 		Integer numKeywords = null;
-		
+				
 		if ((null != source) && (null != source.getExtractorOptions())) {
 			try {
-				bSentimentEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi-metadata.sentiment"));
+				String s = source.getExtractorOptions().get("app.alchemyapi-metadata.sentiment");
+				if (null != s) bSentimentEnabled = Boolean.parseBoolean(s);				
 			}
 			catch (Exception e){}
 			try {
-				bConceptsEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi-metadata.concepts"));						
+				String s = source.getExtractorOptions().get("app.alchemyapi-metadata.concepts");
+				if (null != s) bConceptsEnabled = Boolean.parseBoolean(s);						
 			}
 			catch (Exception e){}
 			try {
-				bStrict = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi-metadata.strict"));						
+				String s = source.getExtractorOptions().get("app.alchemyapi-metadata.strict");
+				if (null != s) bStrict = Boolean.parseBoolean(s);						
 			}
 			catch (Exception e){}
 			try {
@@ -603,51 +606,60 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		
 		for (EntityPojo ent: megaDoc.getEntities()) {
 			
-			keywordRegexBuff.append(Pattern.quote(ent.getDisambiguatedName())).append('|');
-			currKeywordMap.put(ent.getDisambiguatedName().toLowerCase(), ent);
-			nCurrKeywords++;
-			
-			if (nMaxKeywordsPerSearch == nCurrKeywords) {
-				keywordRegexBuff.setLength(keywordRegexBuff.length() - 1);
+			String disName = ent.getDisambiguatedName().toLowerCase();
+			if (!currKeywordMap.containsKey(disName)) {
+				keywordRegexBuff.append(Pattern.quote(ent.getDisambiguatedName())).append('|');
+				currKeywordMap.put(disName, ent);
+				nCurrKeywords++;
 				
-				handleBatchProcessing_keywordSet(batchInfo, keywordRegexBuff.toString(), currKeywordMap);
-				
-				currKeywordMap.clear();
-				keywordRegexBuff.setLength(0);
-				nCurrKeywords = 0;
-			}
+				if (nMaxKeywordsPerSearch == nCurrKeywords) {
+					keywordRegexBuff.setLength(keywordRegexBuff.length() - 1);
+					
+					handleBatchProcessing_keywordSet(batchInfo, keywordRegexBuff.toString(), currKeywordMap);
+					
+					currKeywordMap.clear();
+					keywordRegexBuff.setLength(0);
+					nCurrKeywords = 0;
+				}
+			}// (else entity already seen - won't normally happen I think)
 		}//end loop over entities
 		if (nCurrKeywords > 0) {
 			
 			keywordRegexBuff.setLength(keywordRegexBuff.length() - 1);			
 			handleBatchProcessing_keywordSet(batchInfo, keywordRegexBuff.toString(), currKeywordMap);
 		}
-	}//TOTEST
+	}//TESTED
 	
 	private void handleBatchProcessing_keywordSet(BatchInfo[] batchInfo, String currKeywordRegexStr, HashMap<String, EntityPojo> currKeywordMap)
 	{
 		Pattern currKeywordRegex = Pattern.compile(currKeywordRegexStr, Pattern.CASE_INSENSITIVE);
 		
+		long nDoc = 0;
 		for (BatchInfo batchedDoc: batchInfo) {
+			nDoc--;
+			
 			if (null == batchedDoc) { // null-terminated array
 				break;
 			}			
 			Matcher m = currKeywordRegex.matcher(batchedDoc.fullText);
-			
+
 			while (m.find()) {
 				
 				String name = m.group().toLowerCase();
 				EntityPojo ent = currKeywordMap.get(name);
 				
-				if (null != ent) {
+				if ((null != ent) && (nDoc != ent.getDoccount())) { // (see below) 
 					if (null == batchedDoc.doc.getEntities()) {
 						batchedDoc.doc.setEntities(new ArrayList<EntityPojo>());
 					}
 					batchedDoc.doc.getEntities().add(ent);
+					ent.setDoccount(nDoc);
+						// use this as an efficient check to only add each entity once per doc
+						// doccount gets overwritten by the generic processing module so fine to abuse this
 				}
 				// (else probably an internal logic error ie shouldn't happen)
 				
 			} // end loop over matches
 		}//end loop over matched docs
-	}//TOTEST
+	}//TESTED
 }

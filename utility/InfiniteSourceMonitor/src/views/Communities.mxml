@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <views:HeaderContentTitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
 	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
@@ -23,9 +24,9 @@
 	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
 	width="310"
 	height="262"
-	styleName="titleWindowSearch" xmlns:views="views.*"
-	creationComplete="headercontenttitlewindowCreationCompleteHandler(event)"
-	currentState="list">
+	styleName="titleWindowSearch"
+	currentState="list"
+	creationComplete="headercontenttitlewindowCreationCompleteHandler(event)">
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
 	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -33,62 +34,36 @@
 	<fx:Script>
 		<![CDATA[
 			import com.adobe.serialization.json.JSONDecoder;
-			
-			import events.CommunityEvent;
-			
 			import mx.collections.ArrayCollection;
 			import mx.collections.ArrayList;
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
-			
+			import spark.events.DropDownEvent;
+			import events.CommunityEvent;
 			import objects.Community;
 			import objects.CommunityApproval;
-			
-			import spark.events.DropDownEvent;
-			
 			import util.FilterUtil;
 			import util.ObjectTranslatorUtil;
+			
+			private static var ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
 			
 			[Bindable]
 			private var searchTerm:String;
 			
 			[Bindable]
 			private var communities:ArrayCollection;
+			
 			[Bindable]
 			private var selectedCommunity:Community;
 			
 			[Bindable]
 			private var options:ArrayList;
-			private static var ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
+			
 			private var communityApproval:CommunityApproval;
+			
 			private var selectedCommunities:ArrayCollection;
-			
-			public function setCommunities(communities:ArrayCollection):void
-			{
-				this.communities = communities;
-			}
-			
-			public function getCommunities():ArrayCollection
-			{
-				return communities;
-			}
-			
-			public function setSelectedCommunities(selectedCommunities:ArrayCollection):void
-			{
-				this.selectedCommunities = selectedCommunities;
-			}
-			
-			protected function filterTextInput_changeHandler():void
-			{
-				searchCommunities( filterTextInput.text );
-			}
-			
-			protected function filterTextInput_clearHandler():void
-			{
-				clearCommunitiesSearch();
-			}
 			
 			/**
 			 * Clear communities search
@@ -99,6 +74,11 @@
 				communities.refresh();
 			}
 			
+			public function getCommunities():ArrayCollection
+			{
+				return communities;
+			}
+			
 			/**
 			 * Search communities
 			 */
@@ -107,25 +87,6 @@
 				this.searchTerm = searchTerm;
 				communities.filterFunction = communitiesFilterFunction;
 				communities.refresh();
-			}
-			
-			/**
-			 * Communities filter function
-			 * Used for searching the communities
-			 * @param item
-			 * @return
-			 */
-			protected function communitiesFilterFunction( item:Object ):Boolean
-			{
-				if ( searchTerm == null || searchTerm.length == 0 )
-					return true;
-				else
-					return FilterUtil.checkAllSearchTerms( searchTerm, [ Community( item ).name ] );
-			}
-			
-			protected function selectNone():void
-			{
-				selectNoCommunities();
 			}
 			
 			/**
@@ -160,6 +121,150 @@
 				updateSelectedCommunities();
 			}
 			
+			public function setCommunities( communities:ArrayCollection ):void
+			{
+				this.communities = communities;
+			}
+			
+			public function setCommunityApproval( value:CommunityApproval ):void
+			{
+				if ( value )
+				{
+					communityApproval = value;
+					
+					if ( communityApproval.approved )
+					{
+						communityRequest.updateViewState( "approved" );
+						
+						var event:CommunityEvent = new CommunityEvent( CommunityEvent.COMMUNITY_JOINED );
+						event.community = selectedCommunity;
+						
+						dispatchEvent( event );
+					}
+					else
+						communityRequest.updateViewState( "pending" );
+				}
+			}
+			
+			public function setSelectedCommunities( selectedCommunities:ArrayCollection ):void
+			{
+				this.selectedCommunities = selectedCommunities;
+			}
+			
+			/**
+			 * Communities filter function
+			 * Used for searching the communities
+			 * @param item
+			 * @return
+			 */
+			protected function communitiesFilterFunction( item:Object ):Boolean
+			{
+				if ( searchTerm == null || searchTerm.length == 0 )
+					return true;
+				else
+					return FilterUtil.checkAllSearchTerms( searchTerm, [ Community( item ).name ] );
+			}
+			
+			protected function communityServiceFaultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to join community" );
+			}
+			
+			protected function communityServiceResultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				var approved:Array = new Array();
+				
+				if ( data.data )
+				{
+					approved.push( ObjectTranslatorUtil.translateObject( data.data, CommunityApproval ) );
+					
+					var approve:CommunityApproval = new CommunityApproval();
+					approve.approved = approved[ 0 ].approved;
+					
+					setCommunityApproval( approve );
+				}
+				else
+					Alert.show( "The joinCommunity() service call was unsuccessful.\nReason: " + data.response.message, "Service Call Unsuccessful" );
+			}
+			
+			protected function filterTextInput_changeHandler():void
+			{
+				searchCommunities( filterTextInput.text );
+			}
+			
+			protected function filterTextInput_clearHandler():void
+			{
+				clearCommunitiesSearch();
+			}
+			
+			/**
+			 * function to handle when a user cancels joining
+			 * a community
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleJoinCommunityCanceledEvent( event:CommunityEvent ):void
+			{
+				this.currentState = "list";
+			}
+			
+			/**
+			 * function to handle when a user wants to join
+			 * a community
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleJoinCommunityEvent( event:CommunityEvent ):void
+			{
+				communityService.url = ENDPOINT_URL + "social/community/member/join/" + event.communityID;
+				var params:Object = { action: "Join Community", dialogControl: event.dialogControl, communityID: event.communityID };
+				communityService.send( params );
+			}
+			
+			/**
+			 * function to handle when a user selects
+			 * a community button
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleJoinCommunitySelectedEvent( event:CommunityEvent ):void
+			{
+				this.currentState = "request";
+				this.selectedCommunity = event.community;
+				communityRequest.addEventListener( CommunityEvent.JOIN_COMMUNITY, handleJoinCommunityEvent );
+				communityRequest.addEventListener( CommunityEvent.JOIN_COMMUNITY_CANCELED, handleJoinCommunityCanceledEvent );
+			}
+			
+			/**
+			 * function to handle when a user selects
+			 * a community
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleSelectCommunityEvent( event:CommunityEvent ):void
+			{
+				selectedCommunity = event.community;
+				
+				if ( event.community.isUserMember )
+				{
+					event.community.selected = !event.community.selected;
+					updateSelectedCommunities();
+				}
+			}
+			
+			protected function headercontenttitlewindowCreationCompleteHandler( event:FlexEvent ):void
+			{
+				communitiesList.addEventListener( CommunityEvent.SELECT_COMMUNITY, handleSelectCommunityEvent );
+				communitiesList.addEventListener( CommunityEvent.JOIN_COMMUNITY_SELECTED, handleJoinCommunitySelectedEvent );
+			}
+			
+			protected function selectNone():void
+			{
+				selectNoCommunities();
+			}
+			
 			protected function selectOptions_changeHandler():void
 			{
 				if ( selectOptions.selectedIndex != -1 )
@@ -173,7 +278,7 @@
 			protected function selectOptions_creationCompleteHandler():void
 			{
 				options = new ArrayList();
-				options.addItem( { label: "SelectAll"} );
+				options.addItem( { label: "SelectAll" } );
 				options.addItem( { label: "SelectNone" } );
 				this.selectOptions.selectedIndex = -1;
 			}
@@ -193,52 +298,6 @@
 			protected function setlectAll():void
 			{
 				selectAllCommunities();
-			}
-			
-			private function selectOptionsDropDown_onMouseOut( event:MouseEvent ):void
-			{
-				selectOptions.closeDropDown( false );
-			}
-			
-			private function selectOptionsDropDown_onMouseOver( event:MouseEvent ):void
-			{
-				selectOptions.openDropDown();
-			}
-			
-			protected function headercontenttitlewindowCreationCompleteHandler(event:FlexEvent):void
-			{
-				communitiesList.addEventListener(CommunityEvent.SELECT_COMMUNITY, handleSelectCommunityEvent);
-				communitiesList.addEventListener(CommunityEvent.JOIN_COMMUNITY_SELECTED, handleJoinCommunitySelectedEvent);
-			}
-			
-			/**
-			 * function to handle when a user wants to join 
-			 * a community 
-			 * 
-			 * @param event The CommunityEvent received
-			 */
-			protected function handleJoinCommunityEvent(event:CommunityEvent):void
-			{
-				communityService.url = ENDPOINT_URL + "social/community/member/join/" + event.communityID;
-				var params:Object = { action: "Join Community", dialogControl: event.dialogControl, communityID: event.communityID };
-				communityService.send(params); 
-			}
-			
-			/**
-			 * function to handle when a user selects 
-			 * a community 
-			 * 
-			 * @param event The CommunityEvent received
-			 */
-			protected function handleSelectCommunityEvent(event:CommunityEvent):void
-			{
-				selectedCommunity = event.community;
-				
-				if ( event.community.isUserMember )
-				{
-					event.community.selected = !event.community.selected;
-					updateSelectedCommunities();
-				}
 			}
 			
 			/**
@@ -261,89 +320,30 @@
 					selectedCommunities = selectedCommunitiesNew;
 				}
 				
-				if(selectedCommunities)
+				if ( selectedCommunities )
 				{
-					var event:CommunityEvent = new CommunityEvent(CommunityEvent.SELECT_COMMUNITY);
+					var event:CommunityEvent = new CommunityEvent( CommunityEvent.SELECT_COMMUNITY );
 					event.selectedCommunities = selectedCommunities;
-					dispatchEvent(event);
+					dispatchEvent( event );
 				}
 			}
 			
-			/**
-			 * function to handle when a user selects 
-			 * a community button
-			 * 
-			 * @param event The CommunityEvent received
-			 */
-			protected function handleJoinCommunitySelectedEvent(event:CommunityEvent):void
+			private function selectOptionsDropDown_onMouseOut( event:MouseEvent ):void
 			{
-				this.currentState = "request";
-				this.selectedCommunity = event.community;
-				communityRequest.addEventListener(CommunityEvent.JOIN_COMMUNITY, handleJoinCommunityEvent);
-				communityRequest.addEventListener(CommunityEvent.JOIN_COMMUNITY_CANCELED, handleJoinCommunityCanceledEvent);
+				selectOptions.closeDropDown( false );
 			}
 			
-			/**
-			 * function to handle when a user cancels joining 
-			 * a community
-			 * 
-			 * @param event The CommunityEvent received
-			 */
-			protected function handleJoinCommunityCanceledEvent(event:CommunityEvent):void
+			private function selectOptionsDropDown_onMouseOver( event:MouseEvent ):void
 			{
-				this.currentState = "list";
+				selectOptions.openDropDown();
 			}
-			
-			protected function communityServiceResultHandler(event:ResultEvent):void
-			{
-				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
-				var data:Object = json.getValue(); 
-				var approved:Array = new Array();
-				
-				if(data.data)
-				{
-					approved.push(ObjectTranslatorUtil.translateObject(data.data, CommunityApproval));
-					
-					var approve:CommunityApproval = new CommunityApproval();
-					approve.approved = approved[0].approved;
-					
-					setCommunityApproval(approve);
-				}else
-					Alert.show("The joinCommunity() service call was unsuccessful.\nReason: " + data.response.message, "Service Call Unsuccessful");
-			}
-			
-			protected function communityServiceFaultHandler(event:FaultEvent):void
-			{
-				Alert.show( "Error: Could not contact api server to join community" );
-			}
-			
-			public function setCommunityApproval( value:CommunityApproval ):void
-			{
-				if ( value )
-				{
-					communityApproval = value;
-					
-					if ( communityApproval.approved )
-					{
-						communityRequest.updateViewState("approved");
-						
-						var event:CommunityEvent = new CommunityEvent(CommunityEvent.COMMUNITY_JOINED);
-						event.community = selectedCommunity;
-						
-						dispatchEvent(event);
-					}
-					else
-						communityRequest.updateViewState("pending");
-				}
-			}
-			
 		]]>
 	</fx:Script>
-	
+
 	<fx:Declarations>
 		<s:HTTPService id="communityService"
-					   result="communityServiceResultHandler(event)"
-					   fault="communityServiceFaultHandler(event)"/>
+			fault="communityServiceFaultHandler(event)"
+			result="communityServiceResultHandler(event)" />
 	</fx:Declarations>
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -399,15 +399,14 @@
 	<views:CommunityList id="communitiesList"
 		width="100%"
 		height="100%"
-		includeIn="list" 
-		communities="{communities}"/>
+		communities="{ communities }"
+		includeIn="list" />
 
 	<!-- Community Request -->
-	<views:CommunityRequest 
-		id="communityRequest"
+	<views:CommunityRequest id="communityRequest"
 		width="100%"
 		height="100%"
-		community="{selectedCommunity}"
+		community="{ selectedCommunity }"
 		includeIn="request" />
 
 </views:HeaderContentTitleWindow>

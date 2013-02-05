@@ -33,6 +33,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
@@ -79,15 +80,22 @@ public class GenericProcessingController {
 			PropertiesManager pm = new PropertiesManager();
 			
 			DbManager.getDocument().getContent().ensureIndex(new BasicDBObject(DocumentPojo.url_, 1)); // (annoyingly necessary)
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 1));
+			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			try { DbManager.getDocument().getMetadata().dropIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
 			
 			// Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey}
 			BasicDBObject compIndex = new BasicDBObject(DocumentPojo.url_, 1);
 			compIndex.put(DocumentPojo.sourceKey_, 1);
 			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceKey_, 1)); // (this is also needed standalone)
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.title_, 1));
-			DbManager.getDocument().getMetadata().ensureIndex(DocumentPojo.updateId_);
+			// Add {_id:-1} to "standalone" sourceKey, sort docs matching source key by "time" (sort of!) 
+			compIndex = new BasicDBObject(DocumentPojo.sourceKey_, 1);
+			compIndex.put(DocumentPojo._id_, -1);
+			DbManager.getDocument().getMetadata().ensureIndex(compIndex); 
+			try { DbManager.getDocument().getMetadata().dropIndex(new BasicDBObject(DocumentPojo.sourceKey_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			// Title simply not needed, that was a mistake from an early iteration:
+			try { DbManager.getDocument().getMetadata().dropIndex(new BasicDBObject(DocumentPojo.title_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.updateId_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			try { DbManager.getDocument().getMetadata().dropIndex(new BasicDBObject(DocumentPojo.updateId_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
 			if (!pm.getAggregationDisabled()) {
 				compIndex = new BasicDBObject(EntityPojo.docQuery_index_, 1);
 				compIndex.put(DocumentPojo.communityId_, 1);
@@ -99,6 +107,7 @@ public class GenericProcessingController {
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.disambiguated_name_, 1));
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.index_, 1));
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.alias_, 1));
+			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("country", 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("search_field", 1));
@@ -107,19 +116,25 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
-			// Compound index lets me access {type, communities._id}, {type} efficiently 
-			DbManager.getSocial().getShare().ensureIndex(new BasicDBObject("type", 1), new BasicDBObject("communities._id", 1));
-			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 1));
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobidS", 1));
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("jobtitle", 1));
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject("waitingOn", 1));
-		}
+			// Compound index lets me access {type, communities._id}, {type} efficiently
+			compIndex = new BasicDBObject("type", 1);
+			compIndex.put("communities._id", 1);
+			DbManager.getSocial().getShare().ensureIndex(compIndex);
+			try { DbManager.getSocial().getShare().dropIndex(new BasicDBObject("type", 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			try { DbManager.getSocial().getCookies().dropIndex(new BasicDBObject("apiKey", 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, 1));
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+		}		
 		catch (Exception e)  {
 			e.printStackTrace();
 			throw new RuntimeException(e.getMessage());
 		}
 	}//TESTED (not changed since by-eye test in Beta)
-						
+			
 	// (Note some of the code below is duplicated in MongoDocumentTxfer, so make sure you sync changes)
 	public void InitializeIndex(boolean bDeleteDocs, boolean bDeleteEntityFeature, boolean bDeleteEventFeature) {
 		InitializeIndex(bDeleteDocs, bDeleteEntityFeature, bDeleteEventFeature, false);

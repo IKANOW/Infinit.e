@@ -18,7 +18,6 @@
  */
 package com.ikanow.infinit.e.harvest.extraction.document;
 
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -29,6 +28,7 @@ import java.util.TreeSet;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -64,6 +64,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	private Set<String> _differentConfigurationSources = null;
 	private Set<String> _sameCommunitySources = null;
 	
+	private boolean _bCalculatedMostRecentlyModifiedFile = false;
+	private Date _mostRecentlyModifiedFile = null;
+	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 // INTERFACE
@@ -73,6 +76,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		_sameConfigurationSources = null;
 		_differentConfigurationSources = null;
 		_sameCommunitySources = null;
+		
+		_bCalculatedMostRecentlyModifiedFile = false;
+		_mostRecentlyModifiedFile = null;
 	}
 
 	/**
@@ -84,27 +90,15 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	 */
 	public boolean isDuplicate_UrlTitleDescription(String url, String title, String description, SourcePojo source, List<String> duplicateSources) {
 		BasicDBObject query = new BasicDBObject(DocumentPojo.url_, url);
-		BasicDBObject orQuery1 = new BasicDBObject(DocumentPojo.title_, title);
-		BasicDBObject orQuery2 = new BasicDBObject(DocumentPojo.description_, title);
-		query.put(MongoDbManager.or_, Arrays.asList(orQuery1, orQuery2));		
+		// Removing title/desc match for now, we mandate that for a given source key there be a unique URL
+		// TODO (INF-1890): Actually for RSS, changes in title/desc/pub date should result in updates occurring
+		//BasicDBObject orQuery1 = new BasicDBObject(DocumentPojo.title_, title);
+		//BasicDBObject orQuery2 = new BasicDBObject(DocumentPojo.description_, description);
+		//query.put(MongoDbManager.or_, Arrays.asList(orQuery1, orQuery2));		
 		
 		return duplicationLogic(query, source, duplicateSources);
 	}
 	
-	/**
-	 * Tests to see if duplicates exist based on defined key
-	 * 
-	 * @param collection
-	 * @param key
-	 * @return boolean (true/false)
-	 */
-	public boolean isDuplicate_UrlTitle(String url, String title, SourcePojo source, List<String> duplicateSources) {
-		BasicDBObject query = new BasicDBObject();
-		query.put(DocumentPojo.url_, url);
-		query.put(DocumentPojo.title_, title);
-		
-		return duplicationLogic(query, source, duplicateSources);
-	}
 	/**
 	 * Tests to see if duplicates exist based on defined key
 	 * 
@@ -143,7 +137,40 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	 * @param title
 	 * @return boolean (true/false)
 	 */
-	public boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, String sourceKey) {
+	public boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source) {
+		String sourceKey = source.getKey();
+		
+		// Performance shortcut:
+		if (!_bCalculatedMostRecentlyModifiedFile) {
+			_bCalculatedMostRecentlyModifiedFile = true;
+			// Get date of most recently modified file:
+			try {
+				if ((null != source.getHarvestStatus()) && (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
+				{
+					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
+					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
+					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
+					if (mostRecentDocs.count() > 0) {
+						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
+						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);
+					}
+				}
+			}
+			catch (Exception e) {} // If anything goes wrong will just check all files (slower)			
+		}//TESTED
+				
+		if (null != _mostRecentlyModifiedFile) { // Use short cut...
+			long nMostRecentlyModifiedTime = _mostRecentlyModifiedFile.getTime()/1000L;
+			long nFileTime = modifiedDate.getTime()/1000L;
+			
+			if (nFileTime <= nMostRecentlyModifiedTime) {
+				return false;
+			}
+		}//TESTED
+		
+		// No short cut, go the long way round:		
+		
 		DBCollection collection = DbManager.getDocument().getMetadata();
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
@@ -169,25 +196,74 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 				//  once an RPM >=5955 is deployed this will no longer be necessary)
 		}
 		return ret;
-	}	
-	public boolean needsUpdated_Url(Date modifiedDate, String url, String sourceKey) {
+	}//TESTED	
+	
+	public boolean needsUpdated_Url(Date modifiedDate, String url, SourcePojo source) {
+		String sourceKey = source.getKey();
+		
+		// Performance shortcut:
+		if (!_bCalculatedMostRecentlyModifiedFile) {
+			_bCalculatedMostRecentlyModifiedFile = true;
+			// Get date of most recently modified file:
+			try {
+				if ((null != source.getHarvestStatus()) && (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
+				{
+					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
+					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
+					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
+					if (mostRecentDocs.count() > 0) {
+						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
+						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);
+					}
+				}
+			}
+			catch (Exception e) {} // If anything goes wrong will just check all files (slower)			
+		}//TESTED
+		
+		if (null != _mostRecentlyModifiedFile) { // Use short cut...
+			long nMostRecentlyModifiedTime = _mostRecentlyModifiedFile.getTime()/1000L;
+			long nFileTime = modifiedDate.getTime()/1000L;
+			
+			if (nFileTime <= nMostRecentlyModifiedTime) {
+				return false;
+			}
+		}//TESTED
+		
+		// No short cut, go the long way round:
+		
 		DBCollection collection = DbManager.getDocument().getMetadata();
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, url);
 		addSourceKeyToQueries(query, sourceKey);
+		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
-		int count = collection.find(query).limit(1).count();
+		DBCursor dbc = collection.find(query, fields).limit(1);
+		int nCount = dbc.count();
 
-		if ( count == 0 ) { //if there is no record, return true
+		if ( nCount == 0 ) { //if there is no record, return true
 			ret = true;
 		}
 		else{
-			query.put(DocumentPojo.modified_, new BasicDBObject(MongoDbManager.ne_, modifiedDate));
-			ret = !(collection.find(query).limit(1).count() == 0);
+			BasicDBObject dbo = (BasicDBObject) dbc.iterator().next();
+			Date oldModified = (Date) dbo.get(DocumentPojo.modified_);
+			
+			if ((modifiedDate.getTime()/1000) != (oldModified.getTime()/1000)) { // times don't match
+				if (1 == nCount) { // 1 matching doc, different modified times so update
+					ret = true;					
+				}//TESTED
+				else { // Not sure about this case, multiple docs, are any of them the same? (Shouldn't ever occur) 
+					query.put(DocumentPojo.modified_, modifiedDate);
+					ret = !(collection.find(query).limit(1).count() == nCount);					
+				}//TOTEST (shouldn't ever occur)			
+			}
+			else { // Doc has same modified time so don't update
+				ret = false;
+			}//TESTED
 		}
 		return ret;
-	}		
+	}//TOTEST	
 		
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -197,18 +273,18 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	boolean duplicationLogic(BasicDBObject query, SourcePojo source, List<String> duplicateSources) {
 		duplicateSources.clear();
-		String parentSourceKey = null;
+		boolean bUpdate = false;
 		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUpdateCycle_secs())) {
 			//RSS and there's a means of updating
-			parentSourceKey = source.getKey(); // (so can saved modified time and update id)
+			bUpdate = true;
 		}
 		else if (null != source.getFileConfig()) {
 			// File and we're processing XML, normally >1 /file (else just waste some CPU cycles anyway)
-			parentSourceKey = source.getKey(); // (as above)			
+			bUpdate = true;
 		}//TESTEDx2
 		// TODO (INF-1300): (Leave databases alone until update functionality is implemented, then check if is enabled)
 		
-		LinkedList<String> possibleDups = getCandidateDuplicates(query, parentSourceKey);
+		LinkedList<String> possibleDups = getCandidateDuplicates(query, source.getKey(), bUpdate);
 		if (!possibleDups.isEmpty()) {
 			String definiteDup = isFunctionalDuplicate(source, possibleDups);
 			if (null == definiteDup) {
@@ -232,7 +308,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	private Date _modifiedTimeOfActualDuplicate = null; // (if we have a pure 1-1 duplicate, store its modified time)
 	private ObjectId _duplicateId = null; //  (if we have a pure 1-1 duplicate, store its _id)
 	
-	private LinkedList<String> getCandidateDuplicates(BasicDBObject query, String parentSourceKey) {
+	private LinkedList<String> getCandidateDuplicates(BasicDBObject query, String parentSourceKey, boolean bUpdate) {
 		_modifiedTimeOfActualDuplicate = null;
 		_duplicateId = null;
 		LinkedList<String> returnVal = new LinkedList<String>(); 
@@ -249,20 +325,34 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			DBObject dbo = dbc.next();
 			String sourceKey = (String) dbo.get(DocumentPojo.sourceKey_);
 			if (null != sourceKey) {
+				// Extract source key (multi-community case)
 				int nCompositeSourceKey = sourceKey.indexOf('#'); // (handle <key>#<id> case)
 				if (-1 != nCompositeSourceKey) {
 					sourceKey = sourceKey.substring(0, nCompositeSourceKey);
 				}//TESTED
+				
+				// Check for exact duplicates, in which case can bypass horrible functional duplicate logic:
+				boolean bFoundExactDuplicate = sourceKey.equals(parentSourceKey);
+				
+				// Update logic:
+				if (bUpdate && bFoundExactDuplicate) {
+					_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);
+					_duplicateId = (ObjectId) dbo.get(DocumentPojo.updateId_);
+					if (null == _duplicateId) { // first time, use the _id
+						_duplicateId = (ObjectId) dbo.get(DocumentPojo._id_);
+					}
+				}//TESTED
+				
+				if (bFoundExactDuplicate) { // Found exact duplicate, so return just that for performance
+					returnVal.clear();
+				}				
 				returnVal.add(sourceKey);
-			}			
-			if ((null != parentSourceKey) && (parentSourceKey.equalsIgnoreCase(sourceKey))) {
-				_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);
-				_duplicateId = (ObjectId) dbo.get(DocumentPojo.updateId_);
-				if (null == _duplicateId) { // first time, use the _id
-					_duplicateId = (ObjectId) dbo.get(DocumentPojo._id_);
+				
+				if (bFoundExactDuplicate) { // Found exact duplicate, we're done here
+					return returnVal;
 				}
-			}//TESTED
-		}
+			}//(if doc has source key, else is malformed, ignore)			
+		}//(end loop over URL-duplicates)
 		return returnVal;
 	}//TESTED (created different types of duplicate, put print statements in, tested by hand)
 	

@@ -95,11 +95,13 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			catch (Exception e){}
 			
 			try {
-				bSentimentEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi.sentiment"));
+				String s = source.getExtractorOptions().get("app.alchemyapi.sentiment");
+				if (null != s) bSentimentEnabled = Boolean.parseBoolean(s);
 			}
 			catch (Exception e){}
 			try {
-				bConceptsEnabled = Boolean.parseBoolean(source.getExtractorOptions().get("app.alchemyapi.concepts"));						
+				String s = source.getExtractorOptions().get("app.alchemyapi.concepts");
+				if (null != s) bConceptsEnabled = Boolean.parseBoolean(s);						
 			}
 			catch (Exception e){}
 			

@@ -102,6 +102,8 @@ package com.ikanow.infinit.e.community.model.manager
 		 */
 		public var communityApproval:CommunityApproval;
 		
+		public var refreshing:Boolean = false;
+		
 		//======================================
 		// protected properties 
 		//======================================
@@ -116,12 +118,6 @@ package com.ikanow.infinit.e.community.model.manager
 		 */
 		protected var currentUser:User;
 		
-		//======================================
-		// private properties 
-		//======================================
-		
-		private var firstTime:Boolean = true;
-		
 		
 		//======================================
 		// public methods 
@@ -132,7 +128,6 @@ package com.ikanow.infinit.e.community.model.manager
 		 */
 		public function getSourcesGood():void
 		{
-			firstTime = false;
 			var communityIDs:String = Constants.BLANK;
 			
 			for each ( var community:Community in communities )
@@ -289,10 +284,11 @@ package com.ikanow.infinit.e.community.model.manager
 			processCommunities();
 			
 			// get the sources
-			if ( value && communities && firstTime )
+			if ( value && communities && !refreshing )
 			{
 				getSourcesGood();
 			}
+			refreshing = false;
 		}
 		
 		/**

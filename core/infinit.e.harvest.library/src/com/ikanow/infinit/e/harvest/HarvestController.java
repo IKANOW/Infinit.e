@@ -1031,7 +1031,9 @@ public class HarvestController implements HarvestContext
 					{
 						if ( entity.getGeotag() != null )
 						{
-							entity.setOntology_type(GeoOntologyMapping.mapEntityToOntology(entity.getType()));							
+							if (null == entity.getOntology_type()) {
+								entity.setOntology_type(GeoOntologyMapping.mapEntityToOntology(entity.getType()));
+							}
 						}
 					}
 				}

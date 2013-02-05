@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -22,12 +22,12 @@
 	xmlns:request="com.ikanow.infinit.e.community.view.request.*"
 	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
 	width="310"
-	height="262"
+	height="310"
 	styleName="titleWindowSearchArrow"
 	currentState="{ model.navigator.currentState }"
+	creationComplete="headercontenttitlewindowCreationCompleteHandler(event)"
 	preinitialize="CommunitiesNavigator.updateViewStates( this )"
-	close="closeHandler(event)"
-	creationComplete="headercontenttitlewindowCreationCompleteHandler(event)">
+	close="closeHandler(event)">
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
 	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -38,13 +38,11 @@
 			import com.ikanow.infinit.e.community.model.presentation.CommunitiesModel;
 			import com.ikanow.infinit.e.community.model.presentation.CommunitiesNavigator;
 			import com.ikanow.infinit.e.shared.event.SourceEvent;
-			
 			import mx.collections.ArrayList;
 			import mx.events.CloseEvent;
 			import mx.events.EffectEvent;
 			import mx.events.FlexEvent;
 			import mx.managers.PopUpManager;
-			
 			import spark.events.DropDownEvent;
 			
 			[Bindable]
@@ -57,50 +55,57 @@
 			
 			/**
 			 * function to handle the closing of the component
-			 * 
+			 *
 			 * @param event The CloseEvent received
 			 */
-			protected function closeHandler(event:CloseEvent):void
+			protected function closeHandler( event:CloseEvent ):void
 			{
 				manager.selectedSource = null;
-				PopUpManager.removePopUp(this);
-			}
-			
-			protected function headercontenttitlewindowCreationCompleteHandler(event:FlexEvent):void
-			{
-				sourceMonitorList.addEventListener(SourceEvent.SOURCE_DATA_COPIED, handleSourceDataCopiedEvent);
-			}
-			
-			/**
-			 * function to handle when the user copies one of the 
-			 * data elements in the list
-			 * 
-			 * @param event The SourceEvent received
-			 */
-			protected function handleSourceDataCopiedEvent(event:SourceEvent):void
-			{
-				fadeIn.end();
-				fadeIn.play();
-				fadeIn.addEventListener(EffectEvent.EFFECT_END, handleEffectEndEvent);
+				PopUpManager.removePopUp( this );
 			}
 			
 			/**
 			 * function to handle when the effect ends
-			 * 
+			 *
 			 * @param event The EffectEvent received
 			 */
-			protected function handleEffectEndEvent(event:EffectEvent):void
+			protected function handleEffectEndEvent( event:EffectEvent ):void
 			{
 				fadeOut.end();
 				fadeOut.play();
 			}
 			
+			/**
+			 * function to handle when the user copies one of the
+			 * data elements in the list
+			 *
+			 * @param event The SourceEvent received
+			 */
+			protected function handleSourceDataCopiedEvent( event:SourceEvent ):void
+			{
+				fadeIn.end();
+				fadeIn.play();
+				fadeIn.addEventListener( EffectEvent.EFFECT_END, handleEffectEndEvent );
+			}
+			
+			protected function headercontenttitlewindowCreationCompleteHandler( event:FlexEvent ):void
+			{
+				sourceMonitorList.addEventListener( SourceEvent.SOURCE_DATA_COPIED, handleSourceDataCopiedEvent );
+			}
 		]]>
 	</fx:Script>
-	
+
 	<fx:Declarations>
-		<s:Fade id="fadeIn" duration="1000" target="{clipboardLabel}" alphaFrom="0" alphaTo="1"/>
-		<s:Fade id="fadeOut" duration="1000" target="{clipboardLabel}" alphaFrom="1" alphaTo="0"/>
+		<s:Fade id="fadeIn"
+			alphaFrom="0"
+			alphaTo="1"
+			duration="1000"
+			target="{ clipboardLabel }" />
+		<s:Fade id="fadeOut"
+			alphaFrom="1"
+			alphaTo="0"
+			duration="1000"
+			target="{ clipboardLabel }" />
 	</fx:Declarations>
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -120,32 +125,32 @@
 		<common:InfLabel id="titleLabel"
 			width="100%"
 			text="Infinite Source Monitor"
-			paddingTop="2"
-			maxDisplayedLines="1"
 			styleName="lightGrey"
-			showDropShadow="true" 
+			fontWeight="bold"
+			horizontalCenter="0"
+			left="7"
+			paddingRight="40"
+			paddingTop="2"
+			right="-4"
+			textAlign="center"
+			top="7"
+			maxDisplayedLines="1"
+			showDropShadow="true" />
+
+		<common:InfLabel id="clipboardLabel"
+			text="Data copied to clipboard"
+			styleName="lightGrey"
+			width="100%"
+			fontWeight="bold"
+			horizontalCenter="0"
 			left="7"
 			paddingRight="40"
 			right="-4"
-			top="7"
-			horizontalCenter="0"
-			fontWeight="bold"
-			textAlign="center"/>
-		
-		<common:InfLabel id="clipboardLabel"
-						 text="Data copied to clipboard"
-						 styleName="lightGrey"
-						 textAlign="center"
-						 width="100%"
-						 verticalAlign="middle"
-						 horizontalCenter="0"
-						 fontWeight="bold"
-						 showDropShadow="true"
-						 alpha="0"
-						 left="7"
-						 paddingRight="40"
-						 right="-4"
-						 top="{titleLabel.height + 10}"/>
+			textAlign="center"
+			top="{ titleLabel.height + 10 }"
+			verticalAlign="middle"
+			alpha="0"
+			showDropShadow="true" />
 	</component:headerContent>
 
 	<!-- Source Monitor List -->

@@ -1200,16 +1200,20 @@ public class CommunityHandler
 				}
 								
 				DbManager.getSocial().getCommunity().update(query, cp.toDb());
-				
-				
-				// Community.name
+								
 				// Community name has changed, member records need to be updated to reflect the name change
 				if (originalName != null)
 				{
 					DBObject query_person = new BasicDBObject("communities.name", originalName);
-					DBObject update = new BasicDBObject("$set",new BasicDBObject("communities.$.name", updateCommunity.getName()));					
-					DbManager.getSocial().getPerson().update(query_person, update, false, true);
+					DBObject update_person = new BasicDBObject("$set",new BasicDBObject("communities.$.name", updateCommunity.getName()));					
+					DbManager.getSocial().getPerson().update(query_person, update_person, false, true);
+					
+					//Also need to update share community names to reflect the name change
+					DBObject query_share = new BasicDBObject("communities.name", originalName);
+					DBObject update_share = new BasicDBObject("$set",new BasicDBObject("communities.$.name", updateCommunity.getName()));					
+					DbManager.getSocial().getShare().update(query_share, update_share, false, true);
 				}
+				
 				
 				/////////////////////////////////////////////////////////////////////////////////////////////////
 				// TODO (INF-1214): Make this code more robust to handle changes to the community that need to 

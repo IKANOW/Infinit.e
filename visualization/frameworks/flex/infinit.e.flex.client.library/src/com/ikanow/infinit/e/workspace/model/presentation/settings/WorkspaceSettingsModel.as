@@ -22,6 +22,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputDocumentOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputFilterOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
+	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import flash.events.Event;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
@@ -137,8 +138,9 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 		public var scoreOptionsFormValues:QueryScoreOptions;
 		
 		[Bindable]
-		public var rankByOptions:ArrayCollection = new ArrayCollection( [ ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.rankByScore' ),
-																		  ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.rankByDate' ) ] );
+		public var adjustAggregationSigOptions:ArrayCollection = new ArrayCollection( [ ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.adjustAggregationSig.Auto' ),
+																						ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.adjustAggregationSig.Always' ),
+																						ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.adjustAggregationSig.Never' ) ] );
 		
 		
 		//======================================

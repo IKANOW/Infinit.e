@@ -20,9 +20,9 @@ public class SimpleTextCleanserPojo
 	private String field = null;
 	private String regEx = null; // OBSOLETED, remove once posible
 	private String script = null;
-	private String scriptlang = null; // (defaults to "javascript")
-	private String replacement = null;
-	private String flags = null;
+	private String scriptlang = null; // (defaults to "regex", can also be "xpath", "javascript")
+	private String replacement = null; // (ignored for javascript)
+	private String flags = null; // (same flags as corresponding metadata, plus "+" to concatenate multiple entries) 
 	
 	public void setField(String field) {
 		this.field = field;

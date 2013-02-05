@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -17,37 +17,41 @@
  * <p>Infinit.e</p>
  *
  * <p>Copyright (c) 2011 IKANOW, llc.</p>
- * <p>http://www.ikanow.com</p> 
+ * <p>http://www.ikanow.com</p>
  *
- * <p>NOTICE:  IKANOW permits you to use this this file in accordance with the terms of the license agreement 
- * accompanying it.  For information about the licensing and copyright of this Plug-In please contact IKANOW, llc. 
+ * <p>NOTICE:  IKANOW permits you to use this this file in accordance with the terms of the license agreement
+ * accompanying it.  For information about the licensing and copyright of this Plug-In please contact IKANOW, llc.
  * at support&#64;ikanow.com.</p>
  *
  * <p>http://www.ikanow.com/terms-conditions/</p>
- * 
+ *
  */
 package com.ikanow.infinit.e.widget.library.frameworkold
 {
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
-	
 	import mx.collections.ArrayCollection;
 	import mx.collections.ArrayList;
 	import mx.controls.Alert;
 	
 	/**
-	 *  DEPRECATED: This class is used to get query results from the database and to put them into an 
+	 *  DEPRECATED: This class is used to get query results from the database and to put them into an
 	 * object that is accessible to any module in the environment
 	*/
-	
 	public class QueryResults
 	{
+		
+		//======================================
+		// private properties 
+		//======================================
+		
 		// Alpha parameters:
 		
 		private var _baseData:Object = null;
 		
 		/**array collection of data returned from the database**/
 		private var _feeds:ArrayCollection = new ArrayCollection();
-		/**array collection of events/summaries aggregated by day, or facts aggregated over the entire time range**/  
+		
+		/**array collection of events/summaries aggregated by day, or facts aggregated over the entire time range**/
 		private var _eventsTimeline:ArrayCollection = null; // Just the summaries (badly qualified events)
 		
 		/**A method for widgets to invoke new parameters with additional parameters (currently only used for graph XML)**/
@@ -60,26 +64,34 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 		
 		// Temporal
 		private var _times:ArrayCollection = null; // array of { "time":long, "count":int } ordered by count, where term is the publishedDate in ms truncated to the specified interval
+		
 		private var _timeInterval:Number = 0; // (a ms representation of eg <N>[wdy], 1m, month)
 		
 		// Geo
 		private var _geo:ArrayCollection = null; // array of { "lat":double, "lon":double, "count":int }, ordered by lat/lon
-			//(note there can be duplicate lat,lons here - just add the counts together)
+		
+		//(note there can be duplicate lat,lons here - just add the counts together)
 		private var _geoMaxCount:int = 0; // (max count, since geo not ordered by count)
+		
 		private var _geoMinCount:int = 0; // (min count, since geo not ordered by count)
 		
 		// Metadata aggregation 
 		private var _entities:ArrayCollection = null; // Just the entities
+		
 		private var _events:ArrayCollection = null; // Just the events (well qualified events, except facts, see below)
+		
 		private var _facts:ArrayCollection = null; // Just the facts (well qualified events that are generic relations)
 		
 		// Source aggregation (all in the format { "term":string, "count":int } ordered by count
 		private var _sources:ArrayCollection = null; // List of source *keys* 
+		
 		private var _sourceMetaTags:ArrayCollection = null; // List of source tags 
+		
 		private var _sourceMetaTypes:ArrayCollection = null; // List of source types 
-
+		
 		// Moments (TBD format)
 		private var _moments:ArrayCollection = null; // Momentum (documents aggregated over time into summaries of docs/entities/geospatial/events)
+		
 		private var _momentInterval:Number = 0; // (The moment interval)		
 		
 		// Placeholder to allow other objects without recompilation of GUI
@@ -87,6 +99,10 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 		
 		// Allow legacy widgets to access beta function
 		private var _context:IWidgetContext = null;
+		
+		//======================================
+		// constructor 
+		//======================================
 		
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		
@@ -96,30 +112,137 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 		public function QueryResults()
 		{
 		}
-
-		public function populateQueryResults(data:Object, widgetParameters:String, context:IWidgetContext):void {
+		
+		
+		//======================================
+		// public methods 
+		//======================================
+		
+		public function getBaseData():Object
+		{
+			return _baseData;
+		}
+		
+		public function getContext():IWidgetContext
+		{
+			return _context;
+		}
+		
+		public function getEntities():ArrayCollection
+		{
+			return _entities;
+		}
+		public function getEvents():ArrayCollection
+		{
+			return _events;
+		}
+		public function getEventsTimeline():ArrayCollection
+		{
+			return _eventsTimeline;
+		}
+		
+		public function getFacets():ArrayCollection
+		{
+			return _facets;
+		}
+		public function getFacts():ArrayCollection
+		{
+			return _facts;
+		}
+		
+		/**
+		 * getter method to get the feeds of data
+		 *
+		 * @return The array collection of feeds
+		 */
+		public function getFeeds():ArrayCollection
+		{
+			return _feeds;
+		}
+		public function getGeoCounts():ArrayCollection
+		{
+			return _geo;
+		}
+		public function getGeoMaxCount():int
+		{
+			return _geoMaxCount;
+		}
+		public function getGeoMinCount():int
+		{
+			return _geoMinCount;
+		}
+		public function getMomentInterval():Number
+		{
+			return _momentInterval;
+		}
+		
+		public function getMoments():ArrayCollection
+		{
+			return _moments;
+		}
+		public function getOther():Object
+		{
+			return _other;
+		}
+		public function getSourceKeyCounts():ArrayCollection
+		{
+			return _sources;
+		}
+		public function getSourceTagCounts():ArrayCollection
+		{
+			return _sourceMetaTags;
+		}
+		public function getSourceTypeCounts():ArrayCollection
+		{
+			return _sourceMetaTypes;
+		}
+		public function getTimeCountInterval():Number
+		{
+			return _timeInterval;
+		}
+		public function getTimeCounts():ArrayCollection
+		{
+			return _times;
+		}
+		
+		/**
+		 * function to get (arbitrary) widget parameters
+		 *
+		 * @return The data object as a string
+		*/
+		public function getWidgetParameters():String
+		{
+			return _widgetParameters;
+		}
+		
+		public function populateQueryResults( data:Object, widgetParameters:String, context:IWidgetContext ):void
+		{
 			_baseData = data;
-			setFeeds(data.data);
-			setWidgetParameters(widgetParameters);
+			setFeeds( data.data );
+			setWidgetParameters( widgetParameters );
 			
-			_facets = new ArrayCollection(data.facets); 
-			_times = new ArrayCollection(data.times); 
-			_timeInterval =data.timeInterval;
-			_geo = new ArrayCollection(data.geo);
+			_facets = new ArrayCollection( data.facets );
+			_times = new ArrayCollection( data.times );
+			_timeInterval = data.timeInterval;
+			_geo = new ArrayCollection( data.geo );
 			_geoMaxCount = data.maxGeoCount;
 			_geoMinCount = data.minGeoCount;
-			_entities = new ArrayCollection(data.entities);
-			_eventsTimeline = new ArrayCollection(data.eventsTimeline);
-			_events = new ArrayCollection(data.events);
-			_facts = new ArrayCollection(data.facts);
-			_sources = new ArrayCollection(data.sources);
-			_sourceMetaTags = new ArrayCollection(data.sourceMetaTags);
-			_sourceMetaTypes = new ArrayCollection(data.sourceMetaTypes);
-			_moments = new ArrayCollection(data.moments);
+			_entities = new ArrayCollection( data.entities );
+			_eventsTimeline = new ArrayCollection( data.eventsTimeline );
+			_events = new ArrayCollection( data.events );
+			_facts = new ArrayCollection( data.facts );
+			_sources = new ArrayCollection( data.sources );
+			_sourceMetaTags = new ArrayCollection( data.sourceMetaTags );
+			_sourceMetaTypes = new ArrayCollection( data.sourceMetaTypes );
+			_moments = new ArrayCollection( data.moments );
 			_momentInterval = data.momentInterval;
 			_other = data.other;
 			_context = context;
 		}
+		
+		//======================================
+		// private methods 
+		//======================================
 		
 		////////////////////////////////////////////////////////////////////////////////////////////////////////////
 		
@@ -128,17 +251,19 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 		/**
 		 * function to fill the feeds array with the query results returned
 		 * from the database
-		 * 
+		 *
 		 * @param _feeds The data object returned from the database
 		*/
-		private function setFeeds(feeds:Object):void
+		private function setFeeds( feeds:Object ):void
 		{
 			//clear the array if its full already
-			if(_feeds.length != 0)
+			if ( _feeds.length != 0 )
 			{
 				_feeds.removeAll();
 			}
-			if (null == feeds) {
+			
+			if ( null == feeds )
+			{
 				return;
 			}
 			
@@ -147,98 +272,33 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 			// Remove duplicates - necessary until back end code is sorted out fully
 			var title:String = "abc123!@#";
 			var url:String = "abc123!@#";
-			var desc:String = "abc123!@#";	
-
-			for each(var feed:Object in feeds)
+			var desc:String = "abc123!@#";
+			
+			for each ( var feed:Object in feeds )
 			{
-				var titleMatch:int = (feed.title == title)?1:0; 
-				var descMatch:int = (feed.description == desc)?1:0; 
-				var urlMatch:int = (feed.url == url)?1:0; 
+				var titleMatch:int = ( ( feed.title == title ) && ( feed.title != null ) ) ? 1 : 0;
+				var descMatch:int = ( feed.description == desc ) ? 1 : 0;
+				var urlMatch:int = ( feed.url == url ) ? 1 : 0;
 				title = feed.title;
 				desc = feed.description;
 				url = feed.url;
-
+				
 				// URL match => immedia-delete; otherwise (URL doesn't match) if title and description match
-				if ((0 == urlMatch) && ((titleMatch + descMatch) < 2)) 
+				if ( ( 0 == urlMatch ) && ( ( titleMatch + descMatch ) < 2 ) )
 				{
-					//Caleb removed the translation so I find where the application is breaking
-					//TODO: temporary translation of search results from new V0 format to old "beta" format:
-					/*if (null != feed["communityId"]) { // ie it's the new format
-						feed.groupids = [ feed.communityId ];
-						//(leave created and modified as are - don't/shouldn't use in widget code anyway?)
-						if (null != feed["entities"]) {
-							for each (var ent:Object in feed.entities) {
-								ent.gazateer_index = ent.index;
-								ent.disambiguous_name = ent.disambiguated_name;
-								//(relevance should work as is - only ref'd in doc browser, looks like it's always cast to Numeric anyway?)
-							}
-						}
-						if (null != feed["associations"]) {
-							feed.events = feed.associations;
-							for each (var evt:Object in feed.events) {
-								evt.event_type = evt.assoc_type;
-							}
-						}
-					}*/
-					_feeds.addItem(feed);
+					_feeds.addItem( feed );
 				}
 			}
 		}
 		
 		/**
-		 * getter method to get the feeds of data
-		 * 
-		 * @return The array collection of feeds
-		 */
-		public function getFeeds():ArrayCollection
-		{
-			return _feeds;
-		}
-		public function getEventsTimeline():ArrayCollection
-		{
-			return _eventsTimeline;
-		}
-		
-		/**
 		 * function to set the data object as a string
-		 * 
+		 *
 		 * @param _string the data returned from the database in string form
 		*/
-		private function setWidgetParameters(widgetParameters:String):void
+		private function setWidgetParameters( widgetParameters:String ):void
 		{
 			_widgetParameters = widgetParameters;
 		}
-		
-		/**
-		 * function to get (arbitrary) widget parameters
-		 * 
-		 * @return The data object as a string
-		*/
-		public function getWidgetParameters():String
-		{
-			return _widgetParameters;
-		}		
-
-		public function getFacets():ArrayCollection { return _facets; }
-		public function getTimeCounts():ArrayCollection { return _times; }
-		public function getTimeCountInterval():Number { return _timeInterval; }
-		public function getGeoCounts():ArrayCollection { return _geo; }
-		public function getGeoMaxCount():int { return _geoMaxCount; }
-		public function getGeoMinCount():int { return _geoMinCount; }
-		public function getSourceKeyCounts():ArrayCollection { return _sources; }
-		public function getSourceTagCounts():ArrayCollection { return _sourceMetaTags; }
-		public function getSourceTypeCounts():ArrayCollection { return _sourceMetaTypes; }
-		
-		public function getEntities():ArrayCollection { return _entities; }
-		public function getEvents():ArrayCollection { return _events; }
-		public function getFacts():ArrayCollection { return _facts; }
-		
-		public function getMoments():ArrayCollection { return _moments; }
-		public function getMomentInterval():Number { return _momentInterval; }
-		
-		public function getBaseData():Object { return _baseData; }
-		public function getOther():Object { return _other; }
-		
-		public function getContext():IWidgetContext { return _context; }
 	}
 }

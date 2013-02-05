@@ -739,7 +739,14 @@ h2
 	color: #d2331f;
 	margin-bottom: 25px;
 }
-
+.show {
+display: inherit;
+visibility: visible;
+}
+.hide {
+display: none;
+visibility: hidden;
+}
 </style>
 <script language="javascript" src="AppConstants.js"> </script>
 </head>
@@ -782,6 +789,7 @@ h2
 		if (null == API_ROOT) { 
 			// Default to localhost
 			API_ROOT = "http://localhost:8080/api/";
+			SHARE_ROOT = "$infinite/share/get/";
 		}
 
 		if (API_ROOT.contains("localhost"))
@@ -985,22 +993,22 @@ h2
 		}
 	function populate()
 	{
-		typerow = document.getElementById('typerow');
-		type = document.getElementById('type');
-		title = document.getElementById('title');
-		description = document.getElementById('description');
-		file = document.getElementById('file');
-		created = document.getElementById('created');
-		DBId = document.getElementById('DBId');
-		deleteId = document.getElementById('deleteId');
-		deleteButton = document.getElementById('deleteButton');
-		share_url = document.getElementById('share_url');
-		owner_text = document.getElementById('owner_text');
-		owner = document.getElementById('owner');
-		url_row = document.getElementById('url_row');
-		dropdown = document.getElementById("upload_info");
-		list = dropdown.options[dropdown.selectedIndex].value;
-		binary = document.getElementById("binary");
+		var typerow = document.getElementById('typerow');
+		var type = document.getElementById('type');
+		var title = document.getElementById('title');
+		var description = document.getElementById('description');
+		var file = document.getElementById('file');
+		var created = document.getElementById('created');
+		var DBId = document.getElementById('DBId');
+		var deleteId = document.getElementById('deleteId');
+		var deleteButton = document.getElementById('deleteButton');
+		var share_url = document.getElementById('share_url');
+		var owner_text = document.getElementById('owner_text');
+		var owner = document.getElementById('owner');
+		var url_row = document.getElementById('url_row');
+		var dropdown = document.getElementById("upload_info");
+		var list = dropdown.options[dropdown.selectedIndex].value;
+		var binary = document.getElementById("binary");
 		
 		if (list == "new")
 		{
@@ -1012,11 +1020,11 @@ h2
 			deleteId.value = "";
 			share_url.value = "";
 			owner.value = "";
-			typerow.style.display = 'none';
-			url_row.style.display = 'none';
-			owner.style.display = 'none';
-			owner_text.style.display = 'none';
-			deleteButton.style.visibility = 'hidden';
+			typerow.className = "hide";
+			url_row.className = "hide";
+			owner.className = "hide";
+			owner_text.className = "hide";
+			deleteButton.className = "hide";
 			clearCommList();
 			binary.value = "";
 			return;
@@ -1032,11 +1040,11 @@ h2
 			deleteId.value = "";
 			share_url.value = "";
 			owner.value = "";
-			typerow.style.display = '';
-			url_row.style.display = 'none';
-			owner.style.display = 'none';
-			owner_text.style.display = 'none';
-			deleteButton.style.visibility = 'hidden';
+			typerow.className = "show";
+			url_row.className = "hide";
+			owner.className = "hide";
+			owner_text.className = "hide";
+			deleteButton.className = "hide";
 			clearCommList();
 			binary.value = "null";
 			return;
@@ -1057,11 +1065,11 @@ h2
 		
 		if ( res_binary == "null" )
 		{
-			typerow.style.display = '';
+			typerow.className = "show";
 		}
 		else
 		{
-			typerow.style.display = 'none';
+			typerow.className = "hide";
 		}
 		title.value = res_title;
 		description.value = res_description;
@@ -1070,10 +1078,10 @@ h2
 		deleteId.value = res_id;
 		share_url.value = res_url;
 		owner.value = res_owner;		
-		deleteButton.style.visibility = '';
-		owner.style.display = '';
-		owner_text.style.display = '';
-		url_row.style.display = '';
+		deleteButton.className = "show";
+		owner.className = "show";
+		owner_text.className = "show";
+		url_row.className = "show";
 		highlightComms(communities);		
 		binary.value = res_binary;
 		type.value = res_type;
@@ -1114,6 +1122,13 @@ h2
 				return true ;
 			else
 				return false ;
+		}
+		function showResults()
+		{
+			var title = document.getElementById('DBId').value;
+			var url = getEndPointUrl() + "share/get/" + title;
+			window.open(url, '_blank');
+			window.focus();			
 		}
 		// -->
 		</script>
@@ -1180,10 +1195,11 @@ h2
 	                    <td>File:</td>
 	                    <td><input type="file" name="file" id="file" /></td>
 	                  </tr>
-	                  <tr id="url_row" style="display:none">
+	                  <tr id="url_row" class="hide">
 	                  	<td>Share URL:</td>
-	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="50"/>
+	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="40"/>
 	                  	</td>
+	                	<td><button type="button" onclick="showResults()">View</button></td>
 	                  </tr>
 	                  <tr>
 	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" /></td>

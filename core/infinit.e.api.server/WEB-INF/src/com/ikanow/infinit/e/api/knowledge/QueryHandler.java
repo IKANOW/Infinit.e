@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -41,10 +42,13 @@ import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CrossVersionQueryBuilders;
+import org.elasticsearch.index.query.CustomFiltersScoreQueryBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.GeoDistanceFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 
+import com.google.common.collect.ArrayListMultimap;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
@@ -127,7 +131,7 @@ public class QueryHandler {
 		if ((null == query.expandAlias) || query.expandAlias) {
 			AliasManager aliasManager = AliasManager.getAliasManager();
 			if (null != aliasManager) {
-				_aliasLookup = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null);
+				_aliasLookup = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null, userIdStr);
 			}
 		}
 		// (end initialize index)
@@ -265,6 +269,21 @@ public class QueryHandler {
 		int nRecordsToSkip = query.output.docs.skip;
 		int nRecordsToGet = query.score.numAnalyze;
 
+		final int nMAXRECORDSTOOUTPUT = 10000;
+		final int nMAXRECORDSTOGET = 20000;
+		
+		// Some sanity checking on doc numbers:
+		if (nRecordsToOutput > nMAXRECORDSTOOUTPUT) { // Upper limit...
+			errorString.append(": Max # docs to return is 10000.");
+			return null;
+		}
+		if (nRecordsToGet < nRecordsToOutput) {
+			nRecordsToGet = nRecordsToOutput;
+		}
+		else if (nRecordsToGet > nMAXRECORDSTOGET) { // Upper limit...
+			nRecordsToGet = nMAXRECORDSTOGET; // (we can do something sensible with this so carry on regardless)
+		}
+		
 		boolean bUseSignificance = (query.score.sigWeight > 0.0);
 		boolean bNeedExtraResultsForEnts = 
 			((query.output.aggregation != null) && (query.output.aggregation.entsNumReturn != null) && (query.output.aggregation.entsNumReturn > 0))
@@ -274,14 +293,13 @@ public class QueryHandler {
 		if (bUseSignificance || bNeedExtraResultsForEnts) {
 			
 			// Some logic taken from the original "knowledge/search"
-			if ( nRecordsToSkip + nRecordsToOutput > nRecordsToGet ) {
+			while ( (nRecordsToSkip + nRecordsToOutput > nRecordsToGet) && (nRecordsToGet <= nMAXRECORDSTOGET) )
+			{
 				nRecordsToGet += nRecordsToGet;
 			}
-			if ( nRecordsToSkip > nRecordsToGet) {
-				nRecordsToSkip = nRecordsToGet;
-			}
-			if ( nRecordsToSkip + nRecordsToOutput > nRecordsToGet) {
-				nRecordsToOutput = nRecordsToGet - nRecordsToSkip;
+			if (nRecordsToGet > nMAXRECORDSTOGET) {
+				errorString.append(": Can only skip through to 20000 documents.");				
+				return null;
 			}
 			searchSettings.setSize(nRecordsToGet);
 			
@@ -319,15 +337,28 @@ public class QueryHandler {
 		// 0.4.2] Prox scoring (needs to happen after [0.3]
 
 		// Add proximity scoring:
-		if (nRecordsToGet > 0) {
+		boolean bLowAccuracyDecay = false;
+		if ((nRecordsToGet > 0) || (null == _scoringParams.adjustAggregateSig) || _scoringParams.adjustAggregateSig) {
+			// (ie if we're getting docs or applying scores to entities)
+			
 			if (!_aggregationAccuracy.equals("full")) {
-				if (null != query.score) {
-					query.score.geoProx = null; // (still allow time-based prox)
+				bLowAccuracyDecay = true;
+			}
+			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score, parentFilterObj, bLowAccuracyDecay);
+			
+			if (null == _scoringParams.adjustAggregateSig) { // auto-decide .. if ftext is set and is non-trivial
+				if ((null != query.score.timeProx) || (null != query.score.geoProx)) {
+						// (These are set to null above if badly formed)
+					_scoringParams.adjustAggregateSig = true;					
 				}
 			}
-			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score);				
-		}// (else not worth the effort)
-								
+			
+		}// (else not worth the effort)	
+		
+		// 0.4.3] Source weightings (if any)
+		
+		applyManualWeights(queryObj, query.score);
+		
 	// 0.5] Pre-lucene output options
 		
 		// only return the id field and score
@@ -411,6 +442,7 @@ public class QueryHandler {
 			// Where I can, use the source filter as part of the query so that
 			// facets will apply to query+filter, not just filter
 			queryObj = QueryBuilders.boolQuery().must(queryObj).must(QueryBuilders.constantScoreQuery(parentFilterObj).boost(0.0F));
+			
 			queryResults = indexMgr.doQuery(queryObj, null, searchSettings);
 		}//TESTED '{}' etc
 		
@@ -450,7 +482,7 @@ public class QueryHandler {
 		ScoringUtils scoreStats = null;
 		if (null != stats.getIds()) {
 
-			DBCursor docs0 = this.getDocIds(DbManager.getDocument().getMetadata(), stats.getIds(), nRecordsToGet, query.output);
+			DBCursor docs0 = this.getDocIds(DbManager.getDocument().getMetadata(), stats.getIds(), nRecordsToGet, query.output, query.score);
 			nMongoTime = System.currentTimeMillis() - nMongoTime;
 							
 			nProcTime_tmp = System.currentTimeMillis();
@@ -480,7 +512,7 @@ public class QueryHandler {
 			scoreStats = new ScoringUtils();
 			scoreStats.setAliasLookupTable(_aliasLookup);
 			docs = scoreStats.calcTFIDFAndFilter(DbManager.getDocument().getMetadata(), 
-														docs0, query.score, query.output, stats, 
+														docs0, query.score, query.output, stats, bLowAccuracyDecay,
 															nRecordsToSkip, nRecordsToOutput, 
 																communityIdStrs,
 																entityTypeFilterStrings, assocVerbFilterStrings,
@@ -528,8 +560,7 @@ public class QueryHandler {
 			if (0.0 == query.score.sigWeight) {
 				scoreStats = null; // (don't calculate event/fact aggregated significance if it's not wanted)
 			}
-			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup);
-			//TODO (1203): TOTEST... alias code...
+			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings);
 			
 		} // (end facets not overwritten)			
 		
@@ -652,7 +683,7 @@ public class QueryHandler {
 
 ////////////////////////////////////////////////////////////////////////
 	
-// 1.X1] Output filter parsing	
+// 1.X2] Output filter parsing	
 
 	BoolFilterBuilder parseOutputFiltering(String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
@@ -1358,7 +1389,9 @@ public class QueryHandler {
 			_allowedDatesArray = new String[]
 				{
 					"yyyy'-'DDD", "yyyy'-'MM'-'dd", "yyyyMMdd", "dd MMM yyyy", "dd MMM yy", 
-					"MM/dd/yy", "MM/dd/yyyy", "MM.dd.yy", "MM.dd.yyyy", "dd MMM yyyy hh:mm:ss",
+					"MM/dd/yy", "MM/dd/yyyy", "MM.dd.yy", "MM.dd.yyyy", 
+					"yyyy'-'MM'-'dd hh:mm:ss", "dd MMM yy hh:mm:ss", "dd MMM yyyy hh:mm:ss",
+					"MM/dd/yy hh:mm:ss", "MM/dd/yyyy hh:mm:ss", "MM.dd.yy hh:mm:ss", "MM.dd.yyyy hh:mm:ss",
 					 DateFormatUtils.ISO_DATE_FORMAT.getPattern(),
 					 DateFormatUtils.ISO_DATE_TIME_ZONE_FORMAT.getPattern(),
 					 DateFormatUtils.ISO_DATETIME_TIME_ZONE_FORMAT.getPattern(),
@@ -1658,37 +1691,30 @@ public class QueryHandler {
 // 2] Complex scoring	
 
 	// 2.1] Proximity adjustments
-	private static BaseQueryBuilder addProximityBasedScoring(BaseQueryBuilder currQuery, SearchRequestBuilder searchSettings, AdvancedQueryPojo.QueryScorePojo scoreParams)
+	private static BaseQueryBuilder addProximityBasedScoring(BaseQueryBuilder currQuery, SearchRequestBuilder searchSettings, 
+										AdvancedQueryPojo.QueryScorePojo scoreParams,
+										BoolFilterBuilder parentFilterObj, boolean bLowAccuracyGeo)
 	{
 		Map<String, Object> params = new HashMap<String, Object>();
 		Object[] paramDoublesScript = new Object[6];
 		Object[] paramDoublesDecay = new Object[6];
-		//Geo decay portion
-		if ((null != scoreParams.geoProx) && (null != scoreParams.geoProx.ll) && (null != scoreParams.geoProx.decay) &&  
-				!scoreParams.geoProx.ll.equals(",") && !scoreParams.geoProx.ll.isEmpty() && !scoreParams.geoProx.decay.isEmpty()) 
-		{			
-			if ('(' == scoreParams.geoProx.ll.charAt(0)) 
-			{
-				scoreParams.geoProx.ll = scoreParams.geoProx.ll.substring(1, scoreParams.geoProx.ll.length() - 1);
-			}
-			String[] latlon = scoreParams.geoProx.ll.split("\\s*,\\s*");
-			if (2 == latlon.length) 
-			{
-				double dlat = Double.parseDouble(latlon[0]);
-				double dlon = Double.parseDouble(latlon[1]);
-				double dDist = getDistance(scoreParams.geoProx.decay); // (Returns it in km)
-				if (0.0 == dDist) dDist = 0.00001; // (robustness, whatever)
-				paramDoublesScript[0] = (1.0/dDist);
-				paramDoublesScript[1] = dlat;
-				paramDoublesScript[2] = dlon;
-				paramDoublesDecay[0] = (1.0/dDist);
-				paramDoublesDecay[1] = dlat;
-				paramDoublesDecay[2] = dlon;
-			}
+		double[] geoDecay = parseGeoDecay(scoreParams); // (encapsulate this away since it can also be called by ScoringUtils)
+		if ((null != geoDecay) && !bLowAccuracyGeo) {
+			double dlat = geoDecay[0];
+			double dlon = geoDecay[1];
+			double dInvDist = geoDecay[2];
+			paramDoublesScript[0] = dInvDist;
+			paramDoublesScript[1] = dlat;
+			paramDoublesScript[2] = dlon;
+			paramDoublesDecay[0] = dInvDist;
+			paramDoublesDecay[1] = dlat;
+			paramDoublesDecay[2] = dlon;
 		}
-		else // geo prox not specified
+		else // geo prox not specified/malformed, or low accuracy
 		{
-			scoreParams.geoProx = null;
+			if (!bLowAccuracyGeo) {
+				scoreParams.geoProx = null;
+			}
 			paramDoublesScript[0] = -1.0;
 			paramDoublesScript[1] = -1.0;
 			paramDoublesScript[2] = -1.0;
@@ -1696,6 +1722,15 @@ public class QueryHandler {
 			paramDoublesDecay[1] = -1.0;
 			paramDoublesDecay[2] = -1.0;
 		}
+		if ((null != geoDecay) && (null != parentFilterObj)) { // Regardless of high/low accuracy, add 0.5% filter
+			
+			GeoDistanceFilterBuilder geoFilter = FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).
+													point(geoDecay[0], geoDecay[1]).distance(200.0/geoDecay[2], DistanceUnit.KILOMETERS);
+			
+			parentFilterObj.must(FilterBuilders.nestedFilter(DocumentPojo.entities_, geoFilter));
+			
+		}//TESTED
+		
 		//Time decay portion
 		if ((null != scoreParams.timeProx) && (null != scoreParams.timeProx.time) && (null != scoreParams.timeProx.decay) &&  
 				!scoreParams.timeProx.time.isEmpty() && !scoreParams.timeProx.decay.isEmpty()) 
@@ -1712,6 +1747,15 @@ public class QueryHandler {
 			
 			scoreParams.timeProx.nTime = nDecayCenter;
 			scoreParams.timeProx.dInvDecay = dInvDecay;
+			
+			// Add 0.5% filter
+			if (null != parentFilterObj) {
+				
+				long nMinTime = nDecayCenter - 200*nDecayTime;
+				long nMaxTime = nDecayCenter + 200*nDecayTime;
+				parentFilterObj.must(FilterBuilders.numericRangeFilter(DocumentPojo.publishedDate_).from(nMinTime).to(nMaxTime));				
+				
+			}//TESTED
 			
 			paramDoublesScript[3] = dInvDecay;
 			paramDoublesScript[4] = nDecayCenter;		
@@ -1747,6 +1791,35 @@ public class QueryHandler {
 			return QueryBuilders.customScoreQuery(currQuery).script(QueryDecayFactory.getScriptName()).params(params).lang(QueryDecayFactory.getLanguage());
 		} 	
 	}//TESTED
+	
+	// Utility to parse out geo for "software emulated case"
+	// returns lat/lon/distance (or null if anything goes wrong)
+	// Also called from ScoringUtils
+
+	public static double[] parseGeoDecay(AdvancedQueryPojo.QueryScorePojo scoreParams) {
+		//Geo decay portion
+		if ((null != scoreParams.geoProx) && (null != scoreParams.geoProx.ll) && (null != scoreParams.geoProx.decay) &&  
+				!scoreParams.geoProx.ll.equals(",") && !scoreParams.geoProx.ll.isEmpty() && !scoreParams.geoProx.decay.isEmpty()) 
+		{			
+			if ('(' == scoreParams.geoProx.ll.charAt(0)) 
+			{
+				scoreParams.geoProx.ll = scoreParams.geoProx.ll.substring(1, scoreParams.geoProx.ll.length() - 1);
+			}
+			String[] latlon = scoreParams.geoProx.ll.split("\\s*,\\s*");
+			if (2 == latlon.length) 
+			{
+				double[] lat_lon_invdist = new double[3];
+				lat_lon_invdist[0] = Double.parseDouble(latlon[0]);
+				lat_lon_invdist[1] = Double.parseDouble(latlon[1]);
+				double dDist = getDistance(scoreParams.geoProx.decay); // (Returns it in km)
+				if (0.0 == dDist) dDist = 0.00001; // (robustness, whatever)
+				lat_lon_invdist[2] = (1.0/dDist); 
+
+				return lat_lon_invdist;
+			}
+		}
+		return null;		
+	}
 	
 	// Utility to get the ms count of an interval
 	
@@ -1809,6 +1882,73 @@ public class QueryHandler {
 		}		
 		return dDist;
 	}//TESTED
+
+	////////////////////////////////////////////////////////////////////////
+	
+	// 2.2] Manual weighting
+	
+	private BaseQueryBuilder applyManualWeights(BaseQueryBuilder queryObj, AdvancedQueryPojo.QueryScorePojo score)
+	{
+		if ((null != score.tagWeights) || (null != score.typeWeights) || (null != score.sourceWeights)) {
+			CustomFiltersScoreQueryBuilder manualWeights = QueryBuilders.customFiltersScoreQuery(queryObj);
+			manualWeights.scoreMode("avg"); // Only tags can match multiple filters, in which case we average them
+			
+			if (null != score.sourceWeights) {
+				// Find all weightings with the same score:
+				ArrayListMultimap<Float, String> invSourceWeights = ArrayListMultimap.create();
+				for (Map.Entry<String, Double> sourceKeyEl: score.sourceWeights.entrySet()) {
+					invSourceWeights.put((float)(double)sourceKeyEl.getValue(), sourceKeyEl.getKey());
+				}
+				for (Map.Entry<Float, Collection<String>> invSourceKeyEl: invSourceWeights.asMap().entrySet()) {
+					manualWeights.add(FilterBuilders.termsFilter(DocumentPojo.sourceKey_, invSourceKeyEl.getValue().toArray()), invSourceKeyEl.getKey());
+				}
+			}//TESTED
+			if (null != score.typeWeights) {
+				// Find all weightings with the same score:
+				ArrayListMultimap<Float, String> invTypeWeights = ArrayListMultimap.create();
+				for (Map.Entry<String, Double> typeEl: score.typeWeights.entrySet()) {
+					invTypeWeights.put((float)(double)typeEl.getValue(), typeEl.getKey());
+				}
+				for (Map.Entry<Float, Collection<String>> invTypeEl: invTypeWeights.asMap().entrySet()) {
+					if (null == score.sourceWeights) { // Easy case
+						manualWeights.add(FilterBuilders.termsFilter(DocumentPojo.mediaType_, invTypeEl.getValue().toArray()), invTypeEl.getKey());
+					}
+					else { // Need to filter out sources they are matched with higher prio
+						BoolFilterBuilder typesNotSources = FilterBuilders.boolFilter();
+						typesNotSources = typesNotSources.must(FilterBuilders.termsFilter(DocumentPojo.mediaType_, invTypeEl.getValue().toArray())).
+															mustNot(FilterBuilders.termsFilter(DocumentPojo.sourceKey_, score.sourceWeights.keySet().toArray()));
+						
+						manualWeights.add(typesNotSources, invTypeEl.getKey());
+					}
+				}
+			}//TESTED
+			if (null != score.tagWeights) { 
+				// Find all weightings with the same score:
+				ArrayListMultimap<Float, String> invTagWeights = ArrayListMultimap.create();
+				for (Map.Entry<String, Double> tagEl: score.tagWeights.entrySet()) {
+					invTagWeights.put((float)(double)tagEl.getValue(), tagEl.getKey());
+				}
+				for (Map.Entry<Float, Collection<String>> invTagEl: invTagWeights.asMap().entrySet()) {
+					if ((null == score.sourceWeights) && (null == score.typeWeights)) { // Easy case
+						manualWeights.add(FilterBuilders.termsFilter(DocumentPojo.tags_, invTagEl.getValue().toArray()), invTagEl.getKey());
+					}
+					else { // need to exclude types or sources
+						BoolFilterBuilder typesNotSources = FilterBuilders.boolFilter();
+						BoolFilterBuilder tagsAndNothingElse = typesNotSources.must(FilterBuilders.termsFilter(DocumentPojo.tags_, invTagEl.getValue().toArray()));
+						if (null != score.sourceWeights) {
+							tagsAndNothingElse = tagsAndNothingElse.mustNot(FilterBuilders.termsFilter(DocumentPojo.sourceKey_, score.sourceWeights.keySet().toArray()));
+						}
+						if (null != score.typeWeights) {
+							tagsAndNothingElse = tagsAndNothingElse.mustNot(FilterBuilders.termsFilter(DocumentPojo.mediaType_, score.typeWeights.keySet().toArray()));
+						}
+						manualWeights.add(tagsAndNothingElse, invTagEl.getKey());
+					}
+				}
+			}//TESTED
+			queryObj = manualWeights;
+		}
+		return queryObj;
+	}//TESTED
 	
 ////////////////////////////////////////////////////////////////////////
 	
@@ -1820,7 +1960,7 @@ public class QueryHandler {
 		
 // 4] Query management
 	
-	private DBCursor getDocIds(DBCollection docDb, ObjectId[] ids, int nFromServerLimit, AdvancedQueryPojo.QueryOutputPojo output)	
+	private DBCursor getDocIds(DBCollection docDb, ObjectId[] ids, int nFromServerLimit, AdvancedQueryPojo.QueryOutputPojo output, AdvancedQueryPojo.QueryScorePojo score)	
 	{
 		DBCursor docdCursor = null;
 		try {
@@ -1831,13 +1971,17 @@ public class QueryHandler {
 			if (!output.docs.metadata) {
 				fields.put(DocumentPojo.metadata_, 0);
 			}
-			boolean bAggEnts = ((output.aggregation == null) || (output.aggregation.entsNumReturn == null) || (output.aggregation.entsNumReturn == 0));
-			if (!output.docs.ents && bAggEnts) {
+			boolean bNotAggEnts = ((output.aggregation == null) || (output.aggregation.entsNumReturn == null) || (output.aggregation.entsNumReturn == 0));
+			if (bNotAggEnts && (null != score) && (null != score.sigWeight) && (score.sigWeight > 0.0)) {
+				bNotAggEnts = false; // (special case, use agg entities to score docs)
+			}
+			if (!output.docs.ents && bNotAggEnts) {
 				fields.put(DocumentPojo.entities_, 0);				
 			}
-			boolean bAggEvents = ((output.aggregation == null) || (output.aggregation.eventsNumReturn == null) || (output.aggregation.eventsNumReturn == 0));
-			boolean bAggFacts = ((output.aggregation == null) || (output.aggregation.factsNumReturn == null) || (output.aggregation.factsNumReturn == 0));
-			if (!output.docs.events && !output.docs.facts && !output.docs.summaries && !output.docs.eventsTimeline && bAggEvents && bAggFacts) {
+			boolean bNotAggEvents = ((output.aggregation == null) || (output.aggregation.eventsNumReturn == null) || (output.aggregation.eventsNumReturn == 0));
+			boolean bNotAggFacts = ((output.aggregation == null) || (output.aggregation.factsNumReturn == null) || (output.aggregation.factsNumReturn == 0));
+			boolean bNoStandaloneEvents = (null == output.docs.eventsTimeline) || (null == output.docs.numEventsTimelineReturn) || (output.docs.numEventsTimelineReturn == 0);
+			if (!output.docs.events && !output.docs.facts && !output.docs.summaries && bNoStandaloneEvents && bNotAggEvents && bNotAggFacts) {
 				fields.put(DocumentPojo.associations_, 0);
 			}
 			//TESTED
@@ -1851,6 +1995,30 @@ public class QueryHandler {
 		}
 		return docdCursor;
 	}		
+	
+	//___________________________________________________________________________________
+
+	// Utility function: create a populated query object (by defaults if necessary)
+	
+	public static AdvancedQueryPojo createQueryPojo(String queryJson) {
+		GsonBuilder gb = new GsonBuilder();
+		gb.registerTypeAdapter(AdvancedQueryPojo.QueryRawPojo.class, new AdvancedQueryPojo.QueryRawPojo.Deserializer());
+		AdvancedQueryPojo query = gb.create().fromJson(queryJson, AdvancedQueryPojo.class);
+		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)
+		if (null == query.input) {
+			query.input = new AdvancedQueryPojo.QueryInputPojo();				
+		}
+		if (null == query.score) {
+			query.score = new AdvancedQueryPojo.QueryScorePojo();				
+		}
+		if (null == query.output) {
+			query.output = new AdvancedQueryPojo.QueryOutputPojo();
+		}		
+		if (null == query.output.docs) { // (Docs are sufficiently important we'll make sure they're always present)
+			query.output.docs = new AdvancedQueryPojo.QueryOutputPojo.DocumentOutputPojo();
+		}
+		return query;
+	}//TESTED
 	
 ////////////////////////////////////////////////////////////////////////
 	
@@ -2333,13 +2501,13 @@ public class QueryHandler {
 		AdvancedQueryPojo.QueryScorePojo scoreParams = new AdvancedQueryPojo.QueryScorePojo();		
 		// Can't unit test this properly, so just rely on the "TEST CODE"
 		//NO PROXIMITY SCORING
-		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams);
+		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams, null, false);
 		
 		// Geo only:
 		scoreParams.geoProx = new AdvancedQueryPojo.QueryScorePojo.GeoProxTermPojo();
 		scoreParams.geoProx.ll = "10.0,20.0";
 		scoreParams.geoProx.decay = "100km";
-		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams);
+		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams, null, false);
 		
 		// Geo+time:
 		scoreParams.geoProx.ll = "(10.0,20.0)"; // (double check this version works)
@@ -2347,41 +2515,18 @@ public class QueryHandler {
 		scoreParams.timeProx = new AdvancedQueryPojo.QueryScorePojo.TimeProxTermPojo();
 		scoreParams.timeProx.decay = "month";
 		scoreParams.timeProx.time = "2000-01-01";
-		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams);
+		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams, null, false);
 		
 		// Time only:
 		scoreParams.geoProx = null;
 		scoreParams.timeProx.decay = "1m";
-		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams);		
+		addProximityBasedScoring(QueryBuilders.matchAllQuery(), null, scoreParams, null, false);		
 	}
 	
 	public enum GeoParseField
 	{
 		ALL,ASSOC,DOC,ENT;
 	}
-	//___________________________________________________________________________________
-
-	// Utility function: create a populated query object (by defaults if necessary)
-	
-	public static AdvancedQueryPojo createQueryPojo(String queryJson) {
-		GsonBuilder gb = new GsonBuilder();
-		gb.registerTypeAdapter(AdvancedQueryPojo.QueryRawPojo.class, new AdvancedQueryPojo.QueryRawPojo.Deserializer());
-		AdvancedQueryPojo query = gb.create().fromJson(queryJson, AdvancedQueryPojo.class);
-		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)
-		if (null == query.input) {
-			query.input = new AdvancedQueryPojo.QueryInputPojo();				
-		}
-		if (null == query.score) {
-			query.score = new AdvancedQueryPojo.QueryScorePojo();				
-		}
-		if (null == query.output) {
-			query.output = new AdvancedQueryPojo.QueryOutputPojo();
-		}		
-		if (null == query.output.docs) { // (Docs are sufficiently important we'll make sure they're always present)
-			query.output.docs = new AdvancedQueryPojo.QueryOutputPojo.DocumentOutputPojo();
-		}
-		return query;
-	}//TESTED
 	
 }
 

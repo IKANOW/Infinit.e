@@ -13,9 +13,19 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
+
+// It's important to understand QueryString and QueryStringRequest
+// QueryStringRequest is only ever transmitted to the API, never received
+// QueryString is used for internal storage 
+// And is also used to receive objects that were originally transmitted as
+// QueryStringRequest
+// CUSTOM LOGIC TO MAP BETWEEN THE INTERNAL REPRESENTATION OF OBJECTS AND THE API VERSION SHOULD RESIDE IN OBJECTTRANSLATORUTIL AND QUERYUTIL
+// (SEE setAggregationOptions/setScoringOptions)
+
 package com.ikanow.infinit.e.shared.model.vo
 {
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
+	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import flash.events.EventDispatcher;
 	import mx.collections.ArrayCollection;
 	
@@ -61,20 +71,7 @@ package com.ikanow.infinit.e.shared.model.vo
 		
 		public function clone():QueryStringRequest
 		{
-			var scoreOptions:QueryScoreOptions = new QueryScoreOptions();
-			
-			scoreOptions.numAnalyze = score.numAnalyze;
-			scoreOptions.relWeight = score.relWeight;
-			scoreOptions.sigWeight = score.sigWeight;
-			scoreOptions.timeProx = new TimeProximity();
-			scoreOptions.timeProx.time = score.timeProx[ QueryConstants.TIME ];
-			scoreOptions.timeProx.decay = score.timeProx[ QueryConstants.DECAY ];
-			
-			var geo:GeoProximity = new GeoProximity();
-			geo.ll = score.geoProx.ll;
-			geo.decay = score.geoProx.decay;
-			
-			scoreOptions.geoProx = geo;
+			var scoreOptions:QueryScoreOptions = score.getOptions();
 			
 			var clone:QueryStringRequest = new QueryStringRequest( scoreOptions, output.docs, output.aggregation, output.filter );
 			
@@ -92,6 +89,12 @@ package com.ikanow.infinit.e.shared.model.vo
 			}
 			
 			return clone;
+		}
+		
+		public function getOptions():QueryString
+		{
+			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( this.clone(), new QueryString() ) as QueryString;
+			return tempQueryString;
 		}
 	}
 }

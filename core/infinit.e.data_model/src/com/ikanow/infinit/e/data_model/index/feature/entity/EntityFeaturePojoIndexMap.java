@@ -57,6 +57,7 @@ public class EntityFeaturePojoIndexMap implements BasePojoIndexMap<EntityFeature
 			ent.setDbSyncDoccount(null);
 			ent.setDbSyncTime(null);
 			ent.setTotalfreq(null);
+			ent.setDb_sync_prio(null);
 		}			
 	}
 	

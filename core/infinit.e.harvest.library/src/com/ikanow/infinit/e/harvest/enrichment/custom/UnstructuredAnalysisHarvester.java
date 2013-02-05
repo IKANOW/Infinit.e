@@ -572,77 +572,7 @@ public class UnstructuredAnalysisHarvester {
 				f.setMetadata(new LinkedHashMap<String, Object[]>());
 			}
 			//set the script engine up if necessary
-			if ( null == engine )
-			{
-				//use the passed in sah one if possible
-				if ( null != this.get_sahEngine())
-				{
-					engine = this.get_sahEngine();
-				}
-				else if (null == factory)  //otherwise create our own
-				{
-					//set up the security manager
-					securityManager = new JavascriptSecurityManager();	
-					
-					factory = new ScriptEngineManager();
-					engine = factory.getEngineByName("JavaScript");		
-					//grab any json cache and make it available to the engine
-					try
-					{
-						if (null != uap.getCaches()) {
-							CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
-						}
-					}
-					catch (Exception ex)
-					{
-						_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
-						logger.error("JSONcache: " + ex.getMessage(), ex);
-					}
-				}
-				//once engine is created, do some initialization
-				if ( null != engine )
-				{
-					// Script code embedded in source
-					String script = (uap.getScript() != null) ? uap.getScript(): null;
-					
-					// scriptFiles - can contain String[] of script files to import into the engine
-					String[] scriptFiles = (uap.getScriptFiles() != null) ? uap.getScriptFiles(): null;
-					
-			        // Pass scripts into the engine
-			        try 
-			        {
-			        	// Eval script passed in s.script
-			        	if (script != null) securityManager.eval(engine, script);
-			        	
-			        	// Retrieve and eval script files in s.scriptFiles
-			        	if (scriptFiles != null)
-			        	{
-			        		for (String file : scriptFiles)
-			        		{
-			        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
-			        		}
-			        	}
-					} 
-			        catch (ScriptException e) 
-					{
-						this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
-						logger.error("ScriptException: " + e.getMessage(), e);
-					}
-			        
-					if (null == parsingScript) 
-					{
-						parsingScript = JavaScriptUtils.generateParsingScript();
-					}
-					try 
-					{
-						securityManager.eval(engine, parsingScript);						
-					} 
-					catch (ScriptException e) { // Just do nothing and log
-						e.printStackTrace();
-						logger.error(e.getMessage());
-					}
-				}
-			}
+			setupJavascriptEngine(source, uap);
 			
 			try 
 			{
@@ -880,8 +810,9 @@ public class UnstructuredAnalysisHarvester {
 		for (SimpleTextCleanserPojo s : simpleTextCleanser) {
 			boolean bConcat = (null != s.getFlags()) && s.getFlags().contains("+");
 			
+			boolean bUsingJavascript = ((null != s.getScriptlang()) && s.getScriptlang().equalsIgnoreCase("javascript"));
 			if (s.getField().equalsIgnoreCase("fulltext")) {
-				if (null != document.getFullText()) {
+				if ((null != document.getFullText()) || bUsingJavascript) {
 					StringBuffer myBuilder = fullTextBuilder;
 					
 					if ((!bConcat) && (null != myBuilder) && (myBuilder.length() > 0)) {
@@ -891,7 +822,7 @@ public class UnstructuredAnalysisHarvester {
 					
 					String res = cleanseField(document.getFullText(),
 												s.getScriptlang(), s.getScript(), s.getFlags(),
-												s.getReplacement());					
+												s.getReplacement(), document);					
 					if (bConcat) {
 						if (null == myBuilder) {
 							fullTextBuilder = myBuilder = new StringBuffer();
@@ -904,7 +835,7 @@ public class UnstructuredAnalysisHarvester {
 				}
 			} //TESTED
 			else if (s.getField().equalsIgnoreCase("description")) {
-				if (null != document.getDescription()) {
+				if ((null != document.getDescription()) || bUsingJavascript) {
 					StringBuffer myBuilder = descriptionBuilder;
 					
 					if ((!bConcat) && (null != myBuilder) && (myBuilder.length() > 0)) {
@@ -914,7 +845,7 @@ public class UnstructuredAnalysisHarvester {
 					
 					String res = cleanseField(document.getDescription(),
 												s.getScriptlang(), s.getScript(), s.getFlags(),
-												s.getReplacement());
+												s.getReplacement(), document);
 					
 					if (bConcat) {
 						if (null == myBuilder) {
@@ -928,7 +859,7 @@ public class UnstructuredAnalysisHarvester {
 				}
 			} //TESTED
 			else if (s.getField().equalsIgnoreCase("title")) {
-				if (null != document.getTitle()) {
+				if ((null != document.getTitle()) || bUsingJavascript) {
 					StringBuffer myBuilder = titleBuilder;
 					
 					if ((!bConcat) && (null != myBuilder) && (myBuilder.length() > 0)) {
@@ -938,7 +869,7 @@ public class UnstructuredAnalysisHarvester {
 					
 					String res = cleanseField(document.getTitle(),
 												s.getScriptlang(), s.getScript(), s.getFlags(),
-												s.getReplacement());
+												s.getReplacement(), document);
 					if (bConcat) {
 						if (null == myBuilder) {
 							titleBuilder = myBuilder = new StringBuffer();
@@ -962,7 +893,7 @@ public class UnstructuredAnalysisHarvester {
 							newMeta[i] = (Object) cleanseField(
 									(String) metaValue, s.getScriptlang(),
 									s.getScript(), s.getFlags(),
-									s.getReplacement());
+									s.getReplacement(), document);
 						} else {
 							newMeta[i] = metaValue;
 						}
@@ -996,7 +927,7 @@ public class UnstructuredAnalysisHarvester {
 	 * @param replaceWith
 	 */
 	private String cleanseField(String field, String scriptLang, String script,
-									String flags, String replaceWith) 
+									String flags, String replaceWith, DocumentPojo f) 
 	{
 		if ((null == scriptLang) || scriptLang.equalsIgnoreCase("regex")) {
 			if (null == flags) {
@@ -1065,7 +996,43 @@ public class UnstructuredAnalysisHarvester {
 			catch (XPatherException e) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 			}
+		}
+		else if (scriptLang.equalsIgnoreCase("javascript")) {
+			try {
+				SourcePojo src = f.getTempSource();
+				setupJavascriptEngine(src, src.getUnstructuredAnalysisConfig());
 
+				// Setup input:
+				if (null == flags) {
+					flags = "t";
+				}
+				if (flags.contains("t")) { // text
+					engine.put("text", field);							
+				}
+				if (flags.contains("d")) { // entire document
+					GsonBuilder gb = new GsonBuilder();
+					Gson g = gb.create();	
+					JSONObject document = new JSONObject(g.toJson(f));
+			        engine.put("document", document);
+			        securityManager.eval(engine, JavaScriptUtils.initScript);			        						
+				}
+				if (flags.contains("m")) { // metadata
+					GsonBuilder gb = new GsonBuilder();
+					Gson g = gb.create();	
+					JSONObject iterator = new JSONObject(g.toJson(f.getMetadata()));
+					engine.put("_metadata", iterator);
+					securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
+				}
+				Object returnVal = securityManager.eval(engine, script);
+				field = (String) returnVal; // (If not a string or is null then will exception out)
+			}
+			catch (Exception e) {
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
+
+				// Just do nothing and log
+				// e.printStackTrace();
+				logger.error(e.getMessage());
+			}
 		}
 		return field;
 	}
@@ -1076,7 +1043,7 @@ public class UnstructuredAnalysisHarvester {
 		if (null != flags) {
 			for (int i = 0; i < flags.length(); ++i) {
 				char c = flags.charAt(i);
-				switch (c) {
+				switch (c) { 
 				case 'm':
 					nflags |= Pattern.MULTILINE;
 					break;
@@ -1130,4 +1097,82 @@ public class UnstructuredAnalysisHarvester {
 	public JavascriptSecurityManager get_sahSecurity() {
 		return securityManager;
 	}	
+
+	///////////////////////////////////////////////////
+	
+	// Javascript scripting utilities:
+	
+	public void setupJavascriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
+		if ( null == engine )
+		{
+			//use the passed in sah one if possible
+			if ( null != this.get_sahEngine())
+			{
+				engine = this.get_sahEngine();
+			}
+			else if (null == factory)  //otherwise create our own
+			{
+				//set up the security manager
+				securityManager = new JavascriptSecurityManager();	
+				
+				factory = new ScriptEngineManager();
+				engine = factory.getEngineByName("JavaScript");		
+				//grab any json cache and make it available to the engine
+				try
+				{
+					if (null != uap.getCaches()) {
+						CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
+					}
+				}
+				catch (Exception ex)
+				{
+					_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+					logger.error("JSONcache: " + ex.getMessage(), ex);
+				}
+			}
+			//once engine is created, do some initialization
+			if ( null != engine )
+			{
+				// Script code embedded in source
+				String script = (uap.getScript() != null) ? uap.getScript(): null;
+				
+				// scriptFiles - can contain String[] of script files to import into the engine
+				String[] scriptFiles = (uap.getScriptFiles() != null) ? uap.getScriptFiles(): null;
+				
+		        // Pass scripts into the engine
+		        try 
+		        {
+		        	// Eval script passed in s.script
+		        	if (script != null) securityManager.eval(engine, script);
+		        	
+		        	// Retrieve and eval script files in s.scriptFiles
+		        	if (scriptFiles != null)
+		        	{
+		        		for (String file : scriptFiles)
+		        		{
+		        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
+		        		}
+		        	}
+				} 
+		        catch (ScriptException e) 
+				{
+					this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
+					logger.error("ScriptException: " + e.getMessage(), e);
+				}
+		        
+				if (null == parsingScript) 
+				{
+					parsingScript = JavaScriptUtils.generateParsingScript();
+				}
+				try 
+				{
+					securityManager.eval(engine, parsingScript);						
+				} 
+				catch (ScriptException e) { // Just do nothing and log
+					e.printStackTrace();
+					logger.error(e.getMessage());
+				}
+			}
+		}//end start engine up		
+	}
 }

@@ -136,7 +136,7 @@ public class SearchInterface extends ServerResource
 				 }
 				 else if ( action.equals("suggestassoc"))
 				 {
-					 rp = this.search.getAssociationSuggestions(cookieLookup, ent1, verb, ent2, field, communityIdStrList);					 
+					 rp = this.search.getAssociationSuggestions(cookieLookup, ent1, verb, ent2, field, communityIdStrList, wantNoAlias);					 
 				 }
 				 else if ( action.equals("suggestgeo"))
 				 {

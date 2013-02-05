@@ -33,6 +33,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputDocumentOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputFilterOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
+	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptionsRequest;
 	import com.ikanow.infinit.e.shared.model.vo.QueryString;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
@@ -207,6 +208,12 @@ package com.ikanow.infinit.e.query.model.manager
 		 */
 		public var selectedQueryTerm:QueryTerm;
 		
+		
+		/**
+		 * Variable for first time query runs
+		 */
+		public var refreshing:Boolean = false;
+		
 		//======================================
 		// private properties 
 		//======================================
@@ -220,12 +227,6 @@ package com.ikanow.infinit.e.query.model.manager
 		 * The setup
 		 */
 		private var setup:Setup;
-		
-		
-		/**
-		 * Variable for first time query runs
-		 */
-		private var firstTime:Boolean = true;
 		
 		
 		//======================================
@@ -246,7 +247,7 @@ package com.ikanow.infinit.e.query.model.manager
 			queryString.input = lastQueryString.input;
 			
 			// set the last query string
-			lastQueryString = ObjectTranslatorUtil.translateObject( queryString, new QueryString() ) as QueryString;
+			lastQueryString = queryString.getOptions();
 		}
 		
 		/**
@@ -273,6 +274,54 @@ package com.ikanow.infinit.e.query.model.manager
 		public function clearLastQuery():void
 		{
 			lastQuerySummary = null;
+		}
+		
+		public function createAdvancedQuery():Object
+		{
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
+			
+			// set to wildcard if no query terms
+			if ( queryTerms.length == 0 )
+			{
+				var queryTerm:QueryTerm = new QueryTerm();
+				queryTerm.etext = Constants.WILDCARD;
+				queryLogic = QueryConstants.DEFAULT_QUERY_LOGIC;
+				queryTerms.addItem( queryTerm );
+			}
+			
+			// add the query terms
+			queryString.qt = queryTerms.source;
+			
+			// add the query logic 
+			queryString.logic = queryLogic;
+			
+			var communtityIds:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities );
+			
+			queryString.communityIds = communtityIds.split( Constants.STRING_ARRAY_DELIMITER );
+			
+			// set the query term options
+			if ( setup && setup.queryString && setup.queryString.qtOptions )
+				queryString.qtOptions = setup.queryString.qtOptions;
+			else
+				queryString.qtOptions = null;
+			
+			var sourcesAll:ArrayCollection = new ArrayCollection( sources.source );
+			var sourcesCurrent:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, true );
+			var sourcesAvailable:ArrayCollection = CollectionUtil.getSelectedItems( sourcesAll, false );
+			
+			// update the sources input if the user has not selected all of the sources
+			if ( sourcesCurrent.length > 0 && sourcesAvailable.length > 0 )
+			{
+				// use the collection that has the least amount of sources and mark srcInclude as true or false depending
+				var useCurrentSources:Boolean = sourcesCurrent.length < sourcesAvailable.length;
+				var sourcesCollection:ArrayCollection = useCurrentSources ? sourcesCurrent : sourcesAvailable;
+				
+				queryString.input = new Object();
+				queryString.input[ QueryConstants.SRC_INCLUDE ] = useCurrentSources;
+				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
+			}
+			
+			return QueryUtil.getQueryStringObject( queryString );
 		}
 		
 		/**
@@ -339,7 +388,7 @@ package com.ikanow.infinit.e.query.model.manager
 		public function runAdvancedQuery():void
 		{
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			
 			// set to wildcard if no query terms
 			if ( queryTerms.length == 0 )
@@ -427,19 +476,19 @@ package com.ikanow.infinit.e.query.model.manager
 		public function runSimpleQuery( querySuggestion:QuerySuggestion ):void
 		{
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			
 			// set the query term
 			queryString.qt = [ QueryUtil.getQueryTermFromSuggestion( querySuggestion ) ];
 			
 			// run the query
-			runQuery( queryString, false );
+			runQuery( queryString, true );
 		}
 		
 		public function saveAdvancedQuery():TypedQueryString
 		{
 			// create a new query string
-			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, aggregationOptions, filterOptions );
+			var queryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
 			
 			// set to wildcard if no query terms
 			if ( queryTerms.length == 0 )
@@ -482,8 +531,8 @@ package com.ikanow.infinit.e.query.model.manager
 				queryString.input[ QueryConstants.SOURCES ] = CollectionUtil.getArrayFromString( CollectionUtil.getStringFromArrayCollectionField( sourcesCollection, QueryConstants.SOURCE_KEY ) );
 			}
 			
-			// set the last query string
-			var tempQueryString:QueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
+			// set the last query string (handle score differently - we have already got the code in place to clone this programmatically)
+			var tempQueryString:QueryString = queryString.getOptions();
 			
 			// add the last query string to the recent queries collection
 			return QueryUtil.getTypedQueryString( tempQueryString, QueryStringTypes.QUERY );
@@ -524,11 +573,11 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			currentUser = value;
 			
-			if ( setup && firstTime )
+			if ( setup && !refreshing )
 			{
-				firstTime = false;
 				initQueryStrings();
 			}
+			refreshing = false;
 		}
 		
 		/**
@@ -628,11 +677,11 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			setup = value;
 			
-			if ( currentUser && firstTime )
+			if ( currentUser && !refreshing )
 			{
-				firstTime = false;
 				initQueryStrings();
 			}
+			refreshing = false;
 		}
 		
 		/**
@@ -741,7 +790,8 @@ package com.ikanow.infinit.e.query.model.manager
 		protected function getSuggestions( collection:ArrayCollection ):ArrayCollection
 		{
 			var suggestionsNew:ArrayCollection = new ArrayCollection();
-			var lastSearchTerm:String = ServiceUtil.replaceMultipleWhitespace( StringUtil.trim( lastSuggestionKeywordString ) ).toLowerCase();
+			var lastSearchTermWithCase:String = ServiceUtil.replaceMultipleWhitespace( StringUtil.trim( lastSuggestionKeywordString ) );
+			var lastSearchTerm:String = lastSearchTermWithCase.toLowerCase();
 			
 			// add exact text suggestion
 			var etext:QuerySuggestion = new QuerySuggestion();
@@ -752,7 +802,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// add free text suggestion
 			var ftext:QuerySuggestion = new QuerySuggestion();
-			ftext.value = lastSearchTerm;
+			ftext.value = lastSearchTermWithCase;
 			ftext.type = EntityTypes.FREE_TEXT;
 			ftext.dimension = QueryDimensionTypes.FREE_TEXT;
 			suggestionsNew.addItem( ftext );
@@ -921,7 +971,7 @@ package com.ikanow.infinit.e.query.model.manager
 			lastQueryStringRequest = queryString.clone();
 			
 			// set the last query string
-			lastQueryString = ObjectTranslatorUtil.translateObject( queryString.clone(), new QueryString() ) as QueryString;
+			lastQueryString = queryString.getOptions();
 			
 			// set last query summary
 			lastQuerySummary = QueryUtil.getQueryStringSummary( lastQueryString.qt, lastQueryString.logic );

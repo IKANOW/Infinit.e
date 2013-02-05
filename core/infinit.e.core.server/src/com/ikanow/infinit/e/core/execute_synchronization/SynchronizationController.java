@@ -53,13 +53,16 @@ public class SynchronizationController {
 
         // Perform processing
         
-		//SET LAST SYNC TIME to 1 hour before
+		//SET LAST SYNC TIME to 2 hours before
 		long time_of_this_cleanse = 0;		
 		if ( 0 != time_of_last_cleanse_secs ) {
-			time_of_this_cleanse = (time_of_last_cleanse_secs*1000L - 3600000L); // 3600,000 ms==1hr			
+			time_of_this_cleanse = (time_of_last_cleanse_secs*1000L - 2*3600000L); // 3600,000 ms==1hr			
 		}
 		else { // Let's do 0 == two days ago, set it to 1 if you really want all time....
 			time_of_this_cleanse = new Date().getTime() - 48L*3600000L;
+		}
+		if (time_of_this_cleanse < 0) {
+			time_of_this_cleanse = 0;
 		}
 		logger.info("Starting sync process at: " + new Date().toString());
 		logger.info("Syncing: " + sources.size() + " sources from time: " + new Date(time_of_this_cleanse));

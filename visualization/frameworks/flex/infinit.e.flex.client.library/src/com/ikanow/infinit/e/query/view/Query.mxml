@@ -50,12 +50,13 @@
 			
 			protected function saveButton_mouseDownHandler( event:MouseEvent ):void
 			{
-				model.createAdvancedQuery();
+			
 			}
 			
 			
 			protected function saveButton_mouseUpHandler( event:MouseEvent ):void
 			{
+				model.createAdvancedQuery();
 				model.saveAdvancedQuery();
 				model.navigator.closeQueryView();
 			}
@@ -161,7 +162,7 @@
 						label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
 						mouseDown="saveButton_mouseDownHandler(event)"
 						mouseUp="saveButton_mouseUpHandler(event)" />
-
+					<s:Spacer width="20" />
 					<!-- Search Button -->
 					<common:InfButton id="searchButton"
 						width="90"

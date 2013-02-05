@@ -72,87 +72,42 @@ public class SynchronizationManager {
 		DBCollection documentDb = DbManager.getDocument().getMetadata();
 		StoreAndIndexManager storeManager = new StoreAndIndexManager();
 		
-		List<String> sourceKeyList = new ArrayList<String>();
 		for ( SourcePojo sp : sources ) {
+			// Don't combine the sources (apart from unusual multi-community case), because
+			// that prevents you from using the compound sourceKey/_id index
+			
+			List<String> sourceKeyList = new ArrayList<String>();
 			sourceKeyList.add(sp.getKey());
 			if (sp.getCommunityIds().size() > 1) { // Special case, need to add the communities
 				for (ObjectId communityId: sp.getCommunityIds()) {
 					sourceKeyList.add(new StringBuffer(sp.getKey()).append('#').append(communityId.toString()).toString());
 				}
-			}
-		}
-		try 
-		{	
-			List<DocumentPojo> docs_to_remove = new ArrayList<DocumentPojo>();
-			//FIRST DO ALL NEW FEEDS
-			BasicDBObject query = new BasicDBObject();
-			query.put(DocumentPojo._id_, new BasicDBObject(MongoDbManager.gt_, new ObjectId((int)(cleanseStartTime/1000), 0, 0))); // time aspect
-			query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, sourceKeyList) ); //source aspect
-			BasicDBObject queryFields = new BasicDBObject();
-			queryFields.append(DocumentPojo.url_, 1);
-			queryFields.append(DocumentPojo.index_, 1);
-			queryFields.append(DocumentPojo.sourceKey_, 1);
-			DBCursor cur = documentDb.find(query, queryFields); // (this internally works in batches of 1000)
-			ElasticSearchManager esm = null;
-			ElasticSearchManager esm_base = ElasticSearchManager.getIndex("document_index");
-			String sIndex = null;
+			}//(end handling rare multi-community case)
 			
-			while (cur.hasNext())
-			{
-				if (bKillMeNow) {
-					return fixcount;
-				}
-								
-				DocumentPojo doc = DocumentPojo.fromDb(cur.next(), DocumentPojo.class);
-				if (null != doc.getId()) {
-					dbCache.add(doc.getId().toString());
-				}
+			try 
+			{	
+				List<DocumentPojo> docs_to_remove = new ArrayList<DocumentPojo>();
+				//FIRST DO ALL NEW FEEDS
+				BasicDBObject query = new BasicDBObject();
+				query.put(DocumentPojo._id_, new BasicDBObject(MongoDbManager.gt_, new ObjectId((int)(cleanseStartTime/1000), 0, 0))); // time aspect
+				query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, sourceKeyList) ); //source aspect
+				BasicDBObject queryFields = new BasicDBObject();
+				queryFields.append(DocumentPojo.url_, 1);
+				queryFields.append(DocumentPojo.index_, 1);
+				queryFields.append(DocumentPojo.sourceKey_, 1);
 				
-				// Get index of doc to check in:
-				String sNewIndex = doc.getIndex();
-				if (null == sNewIndex) {
-					sIndex = null;
-					esm = esm_base;
-				}
-				else if ((null == sIndex) || (!sNewIndex.equals(sIndex))) {
-					sIndex = sNewIndex;
-					if (sNewIndex.equals("document_index")) {
-						esm = esm_base;
-					}
-					else {
-						esm = ElasticSearchManager.getIndex(sNewIndex + "/document_index");
-					}
-				}				
-				
-				//Compare mongo doc to search doc
-				Map<String, GetField> results = esm.getDocument(doc.getId().toString(),DocumentPojo.url_);
-				if ( null == results || results.isEmpty() )
+				DBCursor cur = documentDb.find(query, queryFields).batchSize(100); 
+				ElasticSearchManager esm = null;
+				ElasticSearchManager esm_base = ElasticSearchManager.getIndex("document_index");
+				String sIndex = null;
+
+				while (cur.hasNext())
 				{
-					//either too many entries (duplicates) or no entry
-					//delete this doc from both
-					logger.info("db sync removing doc: " + doc.getId() + "/" + doc.getSourceKey() + " not found in search (or duplicate)");						
-					docs_to_remove.add(doc);					
-					documentDb.remove(new BasicDBObject(DocumentPojo._id_, doc.getId()));
-					contentDb.remove(new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl()));
-					fixcount++;
-				}
-			}
-			storeManager.removeFromSearch(docs_to_remove);
-			
-			//NOW VERIFY ALL OLD FEEDS
-			int iteration = 1;
-			boolean removedAll = true;
-			docs_to_remove.clear();
-			while (removedAll)
-			{
-				int rows = iteration*iteration*10; //10x^2 exponentially check more docs
-				int oldfixes = 0;
-				BasicDBObject queryOLD = new BasicDBObject();	
-				queryOLD.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, sourceKeyList) ); //source aspect
-				DBCursor curOLD = documentDb.find(queryOLD, queryFields).limit(rows);
-				while (curOLD.hasNext())
-				{
-					DocumentPojo doc = DocumentPojo.fromDb(curOLD.next(), DocumentPojo.class);				
+					if (bKillMeNow) {
+						return fixcount;
+					}
+									
+					DocumentPojo doc = DocumentPojo.fromDb(cur.next(), DocumentPojo.class);
 					if (null != doc.getId()) {
 						dbCache.add(doc.getId().toString());
 					}
@@ -171,7 +126,7 @@ public class SynchronizationManager {
 						else {
 							esm = ElasticSearchManager.getIndex(sNewIndex + "/document_index");
 						}
-					}
+					}				
 					
 					//Compare mongo doc to search doc
 					Map<String, GetField> results = esm.getDocument(doc.getId().toString(),DocumentPojo.url_);
@@ -180,23 +135,75 @@ public class SynchronizationManager {
 						//either too many entries (duplicates) or no entry
 						//delete this doc from both
 						logger.info("db sync removing doc: " + doc.getId() + "/" + doc.getSourceKey() + " not found in search (or duplicate)");						
-						docs_to_remove.add(doc);						
+						docs_to_remove.add(doc);					
 						documentDb.remove(new BasicDBObject(DocumentPojo._id_, doc.getId()));
-						contentDb.remove(new BasicDBObject(DocumentPojo.url_, doc.getUrl()));
+						contentDb.remove(new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl()));
 						fixcount++;
-						oldfixes++;
-					}					
-				}
-				if ( oldfixes != rows )
-					removedAll = false;
-			}
-			storeManager.removeFromSearch(docs_to_remove);
-		} 
-		catch (Exception e) 
-		{
-			// If an exception occurs log the error
-			logger.error("Exception Message: " + e.getMessage(), e);
-		} 
+					}
+				} //end loop over new docs for this source
+				storeManager.removeFromSearch(docs_to_remove);
+				
+				//NOW VERIFY ALL OLD FEEDS
+				int iteration = 1;
+				boolean removedAll = true;
+				docs_to_remove.clear();
+				while (removedAll)
+				{
+					int rows = iteration*iteration*10; //10x^2 exponentially check more docs
+					int oldfixes = 0;
+					BasicDBObject queryOLD = new BasicDBObject();	
+					queryOLD.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, sourceKeyList) ); //source aspect
+					BasicDBObject sortOLD = new BasicDBObject(DocumentPojo._id_, 1);
+					
+					DBCursor curOLD = documentDb.find(queryOLD, queryFields).sort(sortOLD).limit(rows);
+					while (curOLD.hasNext())
+					{
+						DocumentPojo doc = DocumentPojo.fromDb(curOLD.next(), DocumentPojo.class);				
+						if (null != doc.getId()) {
+							dbCache.add(doc.getId().toString());
+						}
+						
+						// Get index of doc to check in:
+						String sNewIndex = doc.getIndex();
+						if (null == sNewIndex) {
+							sIndex = null;
+							esm = esm_base;
+						}
+						else if ((null == sIndex) || (!sNewIndex.equals(sIndex))) {
+							sIndex = sNewIndex;
+							if (sNewIndex.equals("document_index")) {
+								esm = esm_base;
+							}
+							else {
+								esm = ElasticSearchManager.getIndex(sNewIndex + "/document_index");
+							}
+						}
+						
+						//Compare mongo doc to search doc
+						Map<String, GetField> results = esm.getDocument(doc.getId().toString(),DocumentPojo.url_);
+						if ( null == results || results.isEmpty() )
+						{
+							//either too many entries (duplicates) or no entry
+							//delete this doc from both
+							logger.info("db sync removing doc: " + doc.getId() + "/" + doc.getSourceKey() + " not found in search (or duplicate)");						
+							docs_to_remove.add(doc);						
+							documentDb.remove(new BasicDBObject(DocumentPojo._id_, doc.getId()));
+							contentDb.remove(new BasicDBObject(DocumentPojo.url_, doc.getUrl()));
+							fixcount++;
+							oldfixes++;
+						}					
+					}
+					if ( oldfixes != rows )
+						removedAll = false;
+				}//(end loop over old docs for this source)
+				storeManager.removeFromSearch(docs_to_remove);
+			} 
+			catch (Exception e) 
+			{
+				// If an exception occurs log the error
+				logger.error("Exception Message: " + e.getMessage(), e);
+			} 
+		}		
 		return fixcount;
 	}//TESTED (unchanged from "tested" Beta version)
 	
@@ -210,13 +217,13 @@ public class SynchronizationManager {
 	 * @return The number of errors fixed (docs deleted)
 	 */
 	public int syncSearch(long cleanseStartTime, Set<String> dbCache)
-	{		
+	{
 		int fixcount = 0;
 		StoreAndIndexManager storeManager = new StoreAndIndexManager();
 		
-		// NO LONGER NEEDED, HAVE CACHE
-		//DBCollection documentDb = DbManager.getDocument().getMetadata();
-		//BasicDBObject queryFields = new BasicDBObject(); // (ie just _id, basically only need to know if it exists)
+		// NO LONGER NEEDED, HAVE CACHE (EXCEPT IN ONE PLACE, THE "OLD DOCS" CHECK)
+		DBCollection documentDb = DbManager.getDocument().getMetadata();
+		BasicDBObject queryFields = new BasicDBObject(); // (ie just _id, basically only need to know if it exists)
 		try 
 		{	
 			//get solr entries from last cleanse point	
@@ -248,6 +255,7 @@ public class SynchronizationManager {
 				SearchResponse rsp = esm.doQuery(boolQuery, searchOptions);
 				String scrollId = rsp.getScrollId();
 				int nSkip = 0;
+				
 				for (;;) // Until no more hits
 				{
 					rsp = esm.doScrollingQuery(scrollId, "10m");
@@ -321,7 +329,15 @@ public class SynchronizationManager {
 //						if ( dbo == null)
 						if (!dbCache.contains(idStr)) 
 						{				
+							// Also need to check the DB since dbCache is not guaranteed to be populated with the same
+							// number of "final" docs
 							ObjectId id = new ObjectId(idStr);
+							if (rows > 10) { // (dbCache always loaded with the first 10 rows)
+								BasicDBObject queryOLD = new BasicDBObject(DocumentPojo._id_, id);
+								if (null != documentDb.findOne(queryOLD, queryFields)) { // it is actually present
+									continue;
+								}
+							}
 							DocumentPojo doc = new DocumentPojo();
 							doc.setId(id);
 							doc.setIndex(hit.getIndex() + "/document_index");

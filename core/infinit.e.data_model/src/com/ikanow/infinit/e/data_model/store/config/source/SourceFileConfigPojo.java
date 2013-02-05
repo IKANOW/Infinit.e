@@ -24,6 +24,7 @@ public class SourceFileConfigPojo {
 	public String password = null;
 	public String domain = null;
 	//for xml files
+	public String type = null; // null == decide based on file type, otherwise "json", "xml", "tika", "Xsv" (eg "tsv", "csv")
 	public List<String> XmlRootLevelValues = null;
 	public List<String> XmlIgnoreValues = null;
 	public String XmlSourceName = null;

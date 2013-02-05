@@ -37,6 +37,7 @@ import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.mongodb.BasicDBObject;
 import com.mongodb.util.JSON;
 
 public class ShareInterface extends ServerResource
@@ -67,6 +68,7 @@ public class ShareInterface extends ServerResource
 	SharePojo sharePojo = null;
 	private byte[] binaryData = null;
 	private boolean returnContent = true;
+	private boolean jsonOnly = false; 
 	private boolean ignoreAdmin = false;
 	
 	
@@ -115,6 +117,9 @@ public class ShareInterface extends ServerResource
 			}
 			if ((queryOptions.get("nocontent") != null) && (queryOptions.get("nocontent").equalsIgnoreCase("true"))) {
 				returnContent = false;				
+			}
+			if ((queryOptions.get("nometa") != null) && (queryOptions.get("nometa").equalsIgnoreCase("true"))) {
+				jsonOnly = true;
 			}
 
 			// Get Share by ID
@@ -357,7 +362,8 @@ public class ShareInterface extends ServerResource
 					 rp = this.shareController.getShare(personId, shareId, returnContent);	
 					 SharePojo share = (SharePojo) rp.getData();
 					 if (null != share) {
-						 if ( share.getType().equals("binary") && returnContent )					 
+						 boolean bBinary = share.getType().equals("binary");
+						 if ( bBinary && returnContent )					 
 						 {			
 							 try
 							 {							 
@@ -369,6 +375,10 @@ public class ShareInterface extends ServerResource
 							 {
 								 rp = new ResponsePojo(new ResponseObject("get Share",false,"error converting bytes to output"));
 							 }						 
+						 }
+						 else if (!bBinary && jsonOnly) {
+							 BasicDBObject dbo = (BasicDBObject) com.mongodb.util.JSON.parse(share.getShare());
+							 rp.setData(dbo, null);
 						 }
 					 }
 					 //(else error)

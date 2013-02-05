@@ -169,7 +169,8 @@ public class CacheControlFilter implements Filter {
     	String queryString = req.getQueryString();
     	if ((null != queryString) && ((nInfiniteApiKey = queryString.indexOf("infinite_api_key=")) >= 0))
     	{
-    		if ((0 == nInfiniteApiKey) || ('&' == queryString.charAt(nInfiniteApiKey - 1))) {
+    		if ((0 == nInfiniteApiKey) || ('&' == queryString.charAt(nInfiniteApiKey - 1)) || ('?' == queryString.charAt(nInfiniteApiKey - 1)))
+    		{
     			nInfiniteApiKey += 17; // (jumps over attribute size)
     			int nEndApiKey = queryString.indexOf('&', nInfiniteApiKey + 1);
     			String apiKey = null;

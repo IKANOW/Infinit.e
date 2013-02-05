@@ -33,6 +33,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
+import com.ikanow.infinit.e.processing.generic.aggregation.BackgroundAggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 
 public class HarvestThenProcessController {
@@ -58,6 +59,9 @@ public class HarvestThenProcessController {
                 
 		// Intialize/update generic process controller (do this here so that it blocks before threading fun starts) 
 		new GenericProcessingController().Initialize();
+		
+		//Start the background aggregation thread (will do nothing if disabled)
+		BackgroundAggregationManager.startThread();
 		
 		_mainThread = Thread.currentThread();
 		
@@ -146,6 +150,9 @@ public class HarvestThenProcessController {
 			}
 		}//TESTED (cut and paste from tested Beta code)
         
+		// Stop background aggregation
+		BackgroundAggregationManager.stopThreadAndWait();
+		
 		_logger.info("Harvest server is going offline");
 		_bStopHarvest = true;
 		_bReadyToTerminate = true; // (if we were terminated manually tell the shutdown hook it can stop)

@@ -144,7 +144,7 @@ public class SearchHandler
 		if (!bWantNoAlias) {
 			AliasManager aliasManager = AliasManager.getAliasManager();
 			if (null != aliasManager) {
-				aliasTable = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null);
+				aliasTable = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null, userIdStr);
 			}
 		}
 		//TESTED
@@ -210,7 +210,10 @@ public class SearchHandler
 					index = (String) hit.field(EntityFeaturePojo.index_).value();
 					EntityFeaturePojo alias = aliasTable.doLookupFromIndex(index);
 					if (null != alias) { // Found!
-						if ((null != alias.getDisambiguatedName()) && (null != alias.getType())) {
+						if (alias.getIndex().equalsIgnoreCase("discard")) { // Discard this entity
+							continue;
+						}
+						else if ((null != alias.getDisambiguatedName()) && (null != alias.getType())) {
 							// (these need to be present)
 
 							//DEBUG (perf critical)
@@ -354,11 +357,24 @@ public class SearchHandler
 	
 	// Event suggestions code
 	
-	public ResponsePojo getAssociationSuggestions(String userIdStr, String ent1, String verb, String ent2, String field, String communityIdStrList) 
+	public ResponsePojo getAssociationSuggestions(String userIdStr, String ent1, String verb, String ent2, String field, String communityIdStrList, boolean bWantNoAlias) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
-		{			
+		{
+			// Community ids, needed in a couple of places
+			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			
+			// Initial alias handling:
+			AliasLookupTable aliasTable = null;
+			// Initial alias handling:			
+			if (!bWantNoAlias) {
+				AliasManager aliasManager = AliasManager.getAliasManager();
+				if (null != aliasManager) {
+					aliasTable = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null, userIdStr);
+				}
+			}//TESTED										
+			
 			ElasticSearchManager esm = ElasticSearchManager.getIndex(AssociationFeaturePojoIndexMap.indexName_);
 			SearchRequestBuilder searchOptions = esm.getSearchOptions();
 			BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
@@ -367,8 +383,18 @@ public class SearchHandler
 			{
 				if ( field.equals(AssociationFeaturePojo.entity1_) )
 					term = ent1;
-				else
-					boolQuery.must(QueryBuilders.termQuery(AssociationFeaturePojo.entity1_index_, ent1));
+				else {
+					EntityFeaturePojo alias = null;
+					if (null != aliasTable) {
+						alias = aliasTable.doLookupFromIndex(ent1);
+					}
+					if (null != alias) { // Found!
+						boolQuery.must(QueryBuilders.termsQuery(AssociationFeaturePojo.entity1_index_, alias.getAlias().toArray()));
+					}
+					else {
+						boolQuery.must(QueryBuilders.termQuery(AssociationFeaturePojo.entity1_index_, ent1));
+					}//TESTED
+				}
 			}
 			if ( !verb.equals("null") )
 			{
@@ -384,8 +410,18 @@ public class SearchHandler
 			{
 				if ( field.equals(AssociationFeaturePojo.entity2_) )
 					term = ent2;
-				else
-					boolQuery.must(QueryBuilders.termQuery(AssociationFeaturePojo.entity2_index_, ent2));
+				else {
+					EntityFeaturePojo alias = null;
+					if (null != aliasTable) {
+						alias = aliasTable.doLookupFromIndex(ent2);
+					}
+					if (null != alias) { // Found!
+						boolQuery.must(QueryBuilders.termsQuery(AssociationFeaturePojo.entity2_index_, alias.getAlias().toArray()));
+					}
+					else {
+						boolQuery.must(QueryBuilders.termQuery(AssociationFeaturePojo.entity2_index_, ent2));
+					}
+				}//TESTED (cut and paste from entity1)
 			}	
 			
 			String escapedterm = null;
@@ -411,7 +447,6 @@ public class SearchHandler
 			
 			escapedterm = sb.toString();
 			boolQuery.must(QueryBuilders.queryString(escapedterm).defaultField(field));
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
 			boolQuery.must(QueryBuilders.termsQuery(AssociationFeaturePojo.communityId_, communityIdStrs));
 			
 			searchOptions.addSort(AssociationFeaturePojo.doccount_, SortOrder.DESC);
@@ -419,6 +454,7 @@ public class SearchHandler
 			// Work out which fields to return:
 			//TODO (INF-1234) need to work out what to do with quotations and similar here (ie entityX without entityX_index) 
 			String returnfield;
+			boolean bReturningEntities = true;
 			if ( field.equals(AssociationFeaturePojo.entity1_) ) {
 				returnfield = AssociationFeaturePojo.entity1_index_;
 				searchOptions.addFields( AssociationFeaturePojo.entity1_index_, AssociationFeaturePojo.doccount_);
@@ -428,10 +464,18 @@ public class SearchHandler
 				searchOptions.addFields( AssociationFeaturePojo.entity2_index_, AssociationFeaturePojo.doccount_);
 			}
 			else {
+				bReturningEntities = false;
 				returnfield = AssociationFeaturePojo.verb_;
 				searchOptions.addFields( AssociationFeaturePojo.verb_, AssociationFeaturePojo.verb_category_,  AssociationFeaturePojo.doccount_);
 			}
-			searchOptions.setSize(20);
+			
+			int nNumSuggestionsToReturn = 20;
+			if (bReturningEntities && (null != aliasTable)) {
+				searchOptions.setSize(3*nNumSuggestionsToReturn); // we're going to remove some duplicates so get more than we need
+			}
+			else { // normal case
+				searchOptions.setSize(nNumSuggestionsToReturn);
+			}
 			
 			SearchResponse rsp = esm.doQuery(boolQuery, searchOptions);
 			SearchHit[] docs = rsp.getHits().getHits();
@@ -448,16 +492,37 @@ public class SearchHandler
 				SearchHitField retField = hit.field(returnfield); // (this can be null in theory/by mistake)
 				if (null != retField) {
 					String suggestion = (String) retField.value();
-					if ( returnfield.equals(AssociationFeaturePojo.verb_) && hit.field(AssociationFeaturePojo.verb_category_) != null ) 
-							//for some reason verb_cat can be null!?!?! i think this is broken (ent1 facebook inc/company verb *)
+					if (bReturningEntities && (null != aliasTable))
 					{
-						String verbcat = (String)hit.field(AssociationFeaturePojo.verb_category_).value();
-						suggestion += " (" + verbcat + ")";
-						suggestions.add(verbcat);
+						// More alias handling
+						EntityFeaturePojo alias = aliasTable.doLookupFromIndex(suggestion);
+						if (null != alias) { // Found!
+							if (alias.getIndex().equalsIgnoreCase("discard")) { // Discard this entity
+								continue;
+							}
+							else {
+								// (these need to be present)
+								suggestion = alias.getIndex();
+							}
+						}//TESTED
+					}
+					else { // (old code, still valid for verbs or no aliases) 
+						if ( returnfield.equals(AssociationFeaturePojo.verb_) && hit.field(AssociationFeaturePojo.verb_category_) != null ) 
+								//for some reason verb_cat can be null!?!?! i think this is broken (ent1 facebook inc/company verb *)
+						{
+							String verbcat = (String)hit.field(AssociationFeaturePojo.verb_category_).value();
+							suggestion += " (" + verbcat + ")";
+							suggestions.add(verbcat);
+						}
 					}
 					suggestions.add(suggestion);
-				}
-			}
+					
+					if (suggestions.size() >= nNumSuggestionsToReturn) {
+						break;
+					}
+					
+				} // (end return string valid)
+			}//end loop over suggestions
 			String[] suggestionArray = new String[suggestions.size()];
 			rp.setData(Arrays.asList(suggestions.toArray(suggestionArray)), (BasePojoApiMap<String>)null);
 			

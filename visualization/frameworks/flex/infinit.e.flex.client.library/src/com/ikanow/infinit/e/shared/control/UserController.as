@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.shared.control
 {
+	import com.ikanow.infinit.e.query.model.manager.QueryManager;
 	import com.ikanow.infinit.e.shared.control.base.InfiniteController;
 	import com.ikanow.infinit.e.shared.event.SetupEvent;
 	import com.ikanow.infinit.e.shared.event.UserEvent;
@@ -43,10 +44,24 @@ package com.ikanow.infinit.e.shared.control
 		[Inject]
 		public var userManager:UserManager;
 		
+		[Inject]
+		public var queryManager:QueryManager;
+		
 		
 		//======================================
 		// public methods 
 		//======================================
+		
+		[EventHandler( event = "UserEvent.REFRESH" )]
+		/**
+		 * Get User
+		 * @param event
+		 */
+		public function getRefresh( event:UserEvent ):void
+		{
+			queryManager.refreshing = true;
+			getUser( event );
+		}
 		
 		[EventHandler( event = "UserEvent.GET_USER" )]
 		/**

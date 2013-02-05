@@ -50,14 +50,6 @@ public interface DuplicateManager {
 	 * @param key
 	 * @return boolean (true/false)
 	 */
-	boolean isDuplicate_UrlTitle(String url, String title, SourcePojo source, List<String> duplicateSources);
-	/**
-	 * Tests to see if duplicates exist based on defined key
-	 * 
-	 * @param collection
-	 * @param key
-	 * @return boolean (true/false)
-	 */
 	boolean isDuplicate_Url(String url, SourcePojo source, List<String> duplicateSources);
 
 	/**
@@ -84,7 +76,7 @@ public interface DuplicateManager {
 	 * @param title
 	 * @return boolean (true/false)
 	 */
-	boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, String sourceKey);
+	boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source);
 	
-	boolean needsUpdated_Url(Date modifiedDate, String url, String sourceKey);	
+	boolean needsUpdated_Url(Date modifiedDate, String url, SourcePojo source);	
 }

@@ -31,6 +31,8 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 	private Map<String,Object> params;
 	private static final double AVG_EARTH_RADIUS = 6371.01;
 	private static final double DEGREE_IN_RADIAN = 0.0174532925;
+	private static final double APPROX_KM_TO_DEGREES_SQ = 0.00008098704;
+		// 1minute(==1/60th of a degree)~=1.852km at the equator
 	
 	public QueryDecayScript(Map<String,Object> params)
 	{
@@ -78,15 +80,19 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 					double[] locll = GeoHashUtils.decode(geohash);
 					newlat = locll[0];
 					newlon = locll[1];
-					double currd = ((newlat - paramlat)*(newlat - paramlat)) + ((newlon - paramlon)*(newlon - paramlon)) - ontModifier;
-					if ( currd < mind )
+					// very approximate, just used for comparison!
+					double currdsq = ((newlat - paramlat)*(newlat - paramlat)) + ((newlon - paramlon)*(newlon - paramlon)) 
+										- ontModifier*ontModifier*APPROX_KM_TO_DEGREES_SQ;
+					if ( currdsq < mind )
 					{
 						minlat = newlat;
 						minlon = newlon;
-						mind = currd;
+						mind = currdsq;
 						minModifier = ontModifier;
 					}
 				}
+				// THIS CODE IS CUT-AND-PASTED BELOW INTO getGeoDecay
+				// (LEAVE THIS HERE AS IT'S INNER LOOP AND THERE'S NOT MUCH CODE TO COPY)
 				if ( mind < 1000000.0 )
 				{
 					minlat = minlat*DEGREE_IN_RADIAN;
@@ -123,7 +129,35 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 		{
 			return this.score()*gfactor*tfactor;
 		}
-	}
+	}//TESTED
+	
+	/**
+	 * Performs the distance calculation
+	 * This is provided as a public static function so that
+	 * it can be "software emulated" within the API when the Lucene geo facet
+	 * is disabled.
+	 * 
+	 * NOTE THIS CODE IS A COPY/PASTE FROM ABOVE, KEEP IT THE SAME IN BOTH PLACES
+	 *  
+	 * @param TODO TODO
+	 * @return the geo decay only
+	 */
+	public static double getGeoDecay(double minlat, double minlon, double paramlat, double paramlon, double gdecay, char ontCode) 
+	{
+		//(Only bit that isn't copy paste)
+		double minModifier = getOntologyDistanceModifier(ontCode);
+		
+		minlat = minlat*DEGREE_IN_RADIAN;
+		minlon = minlon*DEGREE_IN_RADIAN;
+		double newlat = paramlat*DEGREE_IN_RADIAN;
+		double newlon = paramlon*DEGREE_IN_RADIAN;					
+		double mind = (Math.acos(Math.sin(minlat)*Math.sin(newlat) + Math.cos(minlat)*Math.cos(newlat)*Math.cos(minlon-newlon))*AVG_EARTH_RADIUS) - minModifier;
+		//the modifier may have made the distance < 0, set to 0 if it is
+		if ( mind < 0 )
+			mind = 0;
+		
+		return 1.0/(1.0 + gdecay*mind);
+	}//TESTED
 	
 	/**
 	 * Returns a distance modifier for the ontology type.
@@ -132,14 +166,14 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 	 * @param ontCode The ontology_type we want a modifier for.
 	 * @return a number of km to take off the distance calculations
 	 */
-	private double getOntologyDistanceModifier(char ontCode)
+	private static double getOntologyDistanceModifier(char ontCode)
 	{
 		switch ( ontCode )
 		{
 			case 'p':	return 0;		//point
 			case 'u':	return 10;		//city
 			case 'a':	return 100;		//countrysubsidiary
-			case 'c':	return 1000;	//country
+			case 'c':	return 500;		//country
 			case 'C':	return 1000;	//continent
 			case 'g':	return 1000;	//geographregion
 		}		

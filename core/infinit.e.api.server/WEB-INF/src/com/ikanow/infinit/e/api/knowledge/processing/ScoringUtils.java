@@ -28,6 +28,7 @@ import java.util.TreeSet;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.knowledge.QueryHandler;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_Associations.StandaloneEventHashAggregator;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils_MultiCommunity.Community_EntityExtensions;
@@ -43,6 +44,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -53,9 +55,9 @@ public class ScoringUtils
 {	
 	private static final Logger logger = Logger.getLogger(ScoringUtils.class);
 	
-	private AliasLookupTable _aliasLookup = null;
+	private AliasLookupTable _s1_aliasLookup = null;
 	public void setAliasLookupTable(AliasLookupTable aliasLookup) {
-		_aliasLookup = aliasLookup;
+		_s1_aliasLookup = aliasLookup;
 	}
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////	
@@ -220,6 +222,7 @@ public class ScoringUtils
 	
 	double _s0_maxLuceneScoreInv; // (unused)
 	double _s0_avgLuceneScoreInv; // (used for adjust aggregates' statistics)
+	double _s0_avgLuceneScore;
 	
 	// (Some output controls)
 	boolean _s0_sortingByDate = false;
@@ -266,7 +269,7 @@ public class ScoringUtils
 	public List<BasicDBObject> calcTFIDFAndFilter(DBCollection docsDb, DBCursor docs, 
 														AdvancedQueryPojo.QueryScorePojo scoreParams, 
 														AdvancedQueryPojo.QueryOutputPojo outParams,
-														StatisticsPojo scores,
+														StatisticsPojo scores, boolean bLowAccuracyDecay,
 														long nStart, long nToClientLimit,
 														String[] communityIds,
 														String[] entityTypeFilterStrings, String[] assocVerbFilterStrings,
@@ -278,6 +281,7 @@ public class ScoringUtils
 	{
 		_s0_multiCommunityHandler = new ScoringUtils_MultiCommunity(communityIds);
 		
+		_s0_avgLuceneScore = scores.avgScore;
 		_s0_avgLuceneScoreInv = 1.0/(scores.avgScore + 0.01); // (+0.01 for safety in case avgScore is small)
 		_s0_maxLuceneScoreInv = 1.0/(scores.maxScore + 0.01);		
 		
@@ -383,17 +387,17 @@ public class ScoringUtils
 		if ((null != standaloneEventsReturn) && (null != outParams.docs) 
 				&& (null != outParams.docs.numEventsTimelineReturn) && (outParams.docs.numEventsTimelineReturn > 0))
 		{
-			_s0_standaloneEventAggregator = new StandaloneEventHashAggregator(standaloneEventsReturn, false);
+			_s0_standaloneEventAggregator = new StandaloneEventHashAggregator(standaloneEventsReturn, false, _s1_aliasLookup);
 		}
 		if ((null != lowAccuracyAggregatedEvents) && (null != outParams.aggregation) 
 				&& (null != outParams.aggregation.eventsNumReturn) && (outParams.aggregation.eventsNumReturn > 0))
 		{
-			_s0_lowAccuracyAssociationAggregator_events = new StandaloneEventHashAggregator(lowAccuracyAggregatedEvents, true);
+			_s0_lowAccuracyAssociationAggregator_events = new StandaloneEventHashAggregator(lowAccuracyAggregatedEvents, true, _s1_aliasLookup);
 		}
 		if ((null != lowAccuracyAggregatedFacts) && (null != outParams.aggregation) 
 				&& (null != outParams.aggregation.factsNumReturn) && (outParams.aggregation.factsNumReturn > 0))
 		{
-			_s0_lowAccuracyAssociationAggregator_facts = new StandaloneEventHashAggregator(lowAccuracyAggregatedFacts, true);
+			_s0_lowAccuracyAssociationAggregator_facts = new StandaloneEventHashAggregator(lowAccuracyAggregatedFacts, true, _s1_aliasLookup);
 		}
 		if ((null != lowAccuracyAggregatedGeo) && (null != outParams.aggregation) 
 				&& (null != outParams.aggregation.geoNumReturn) && (outParams.aggregation.geoNumReturn > 0))
@@ -401,6 +405,9 @@ public class ScoringUtils
 			// Initialize the buckets
 			_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 
 		}
+		if (bLowAccuracyDecay) {
+			_s1_dManualGeoDecay_latLonInvdecay = QueryHandler.parseGeoDecay(scoreParams);
+		}//TESTED
 		
 		_s0_nQuerySubsetDocCount = docs.size(); // eg (1000 docus, user limit)
 		_s0_nQuerySetDocCount = scores.found;  // however many were actually found
@@ -440,6 +447,13 @@ public class ScoringUtils
 		
 // Finally, write all the information to the surviving 100 (or whatever) documents  		
 
+		// Handle skipping past the end:
+		if ((nStart + nToClientLimit) > _s3_pqDocs.size()) {
+			nToClientLimit = _s3_pqDocs.size() - nStart;
+			if (nToClientLimit < 0) {
+				nToClientLimit = 0;
+			}
+		}
 		this.stage4_prepareDocsForOutput(scoreParams, scores, nToClientLimit, returnList);
 		
 // And then same for entities		
@@ -489,6 +503,11 @@ public class ScoringUtils
 	// Loops over the data a first time and generates basic statistics required by the more complex
 	// functionality that follow
 
+	// Input:
+	
+	double _s1_dManualGeoDecay_latLonInvdecay[] = null;
+		// (this is needed if internal Lucene geo decay is turned off for performance reasons)
+
 	// Output:
 	
 	double _s1_sumFreqInQuerySubset = 0; // (the sum of all the frequencies in the received matching (sub-)dataset)
@@ -504,6 +523,8 @@ public class ScoringUtils
 										LinkedList<BasicDBObject> standaloneEventsReturn, 
 										int nCommunities)
 	{		
+		double s0_nQuerySubsetDocCountInv = 1.0/(double)_s0_nQuerySubsetDocCount;
+		
 		for ( DBObject f0 : docs)
 		{
 			BasicDBObject f = (BasicDBObject)f0;
@@ -537,7 +558,10 @@ public class ScoringUtils
 				if (null != scoreObj) {
 					docBucket.luceneScore = scoreObj.score;
 					if ((null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
-						docBucket.geoTemporalDecay = scoreObj.decay; // (will be -1 for legacy alpha code)
+						if (scoreObj.decay >= 0.0) {
+							docBucket.geoTemporalDecay = scoreObj.decay;
+						}
+						// (see also below for low accuracy geo scoring)
 					}
 				}
 			}//TESTED
@@ -546,57 +570,23 @@ public class ScoringUtils
 				if (null != scoreObj) {
 					docBucket.nLuceneIndex = scoreObj.nIndex;			
 				}				
-			}
-			
-			// Geo temporally adjust score:
-			if ((null != scoreParams.timeProx) && (docBucket.geoTemporalDecay < 0.0)) { // (just covers legacy temporal case where ES not used)
-				
-				Date pubDate = (Date) f.get(DocumentPojo.publishedDate_);
-				long nCreated;
-				if (null != pubDate) {
-					nCreated = pubDate.getTime(); // (should be pub date but we'll have to live with that.. ie to avoid parsing pub date)
-				}
-				else {
-					nCreated = System.currentTimeMillis();
-				}
-				docBucket.geoTemporalDecay = 1.0/(1.0 + (double)Math.abs(scoreParams.timeProx.nTime - nCreated)*scoreParams.timeProx.dInvDecay);
-					// (1 month ago -> 1/2, 2 months ago -> 1/3, etc)
-				
-				// Also update relevance since that won't have been decayed:
-				docBucket.luceneScore *= docBucket.geoTemporalDecay;
-				
-			}//TESTED (note will appear not to work if the created times are wrong, eg bulk db creation)
-					
+			}			
 			docBucket.manualWeighting = this.getManualScoreWeights(scoreParams, f);
 			
 			BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
 			if (null != l) {
 	
 				long nEntsInDoc = l.size();
+				double dBestGeoScore = 0.0; // (for low accuracy geo only)
 				for(Iterator<?> e0 = l.iterator(); e0.hasNext();){					
 					BasicDBObject e = (BasicDBObject)e0.next();
 
 					BasicDBObject tmpGeotag = null;
-					if (null != _s3_geoBuckets) { // low accuracy geo, need to look for geotag
+					if ((null != _s3_geoBuckets) || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
+						// low accuracy geo, need to look for geotag
 						tmpGeotag = (BasicDBObject) e.get(EntityPojo.geotag_);
 					}
-					
-					// Check if entity is in type filter list
-					if (null != _s0_entityTypeFilter) {
-						String entType = e.getString(EntityPojo.type_);
-						if (_s0_bEntityTypeFilterPositive) {
-							if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
-								nEntsInDoc--;
-								continue;
-							}
-						}
-						else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
-							//(negative filter)
-							nEntsInDoc--;
-							continue;
-						}
-					}
-					
+										
 					// Get attributes
 					
 					double freq = -1.0;
@@ -611,6 +601,7 @@ public class ScoringUtils
 						if (null == entity_index) {
 							// Just bypass the entity 
 							e.put(EntityPojo.significance_, 0.0);
+							nEntsInDoc--;
 							continue;
 						}
 					}
@@ -629,12 +620,14 @@ public class ScoringUtils
 							if (null == entity_index) {
 								// Just bypass the entity 
 								e.put(EntityPojo.significance_, 0.0);
+								nEntsInDoc--;
 								continue;
 							}
 						}
 						catch (Exception e2) {						
 							// Just bypass the entity 
 							e.put(EntityPojo.significance_, 0.0);
+							nEntsInDoc--;
 							continue;						
 						}
 					}//TESTED
@@ -645,12 +638,39 @@ public class ScoringUtils
 					EntSigHolder shp = _s1_entitiesInDataset.get(entity_index);
 					if (null == shp) {							
 						shp = new EntSigHolder(entity_index, ntotaldoccount, _s0_multiCommunityHandler);						
-						_s1_entitiesInDataset.put(entity_index, shp);
 						
 						// Stage 1a alias handling: set up infrastructure, calculate doc overlap
-						if (null != _aliasLookup) {
+						if (null != _s1_aliasLookup) {
 							stage1_initAlias(shp);
 						}
+						if ((null != shp.aliasInfo) && (null == shp.masterAliasSH)) { // this is the discard alias
+							nEntsInDoc--;
+							continue;
+						}//TESTED
+						
+						// Check if entity is in type filter list
+						if (null != _s0_entityTypeFilter) {
+							String entType = null;
+							if (null != shp.aliasInfo) {
+								entType = shp.aliasInfo.getType();
+							}
+							else {
+								entType = e.getString(EntityPojo.type_);
+							}
+							if (_s0_bEntityTypeFilterPositive) {
+								if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+									nEntsInDoc--;
+									continue;
+								}
+							}
+							else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
+								//(negative filter)
+								nEntsInDoc--;
+								continue;
+							}
+						}//TESTED
+						
+						_s1_entitiesInDataset.put(entity_index, shp);
 						// end Stage 1a alias handling
 					}			
 					// Stage 1b alias handling: calculate document counts (taking overlaps into account)
@@ -696,6 +716,7 @@ public class ScoringUtils
 					shp.avgFreqOverQuerySubset += freq;
 					shp.nDocCountInQuerySubset++; 
 					shp.decayedDocCountInQuerySubset += docBucket.geoTemporalDecay;
+						// (note this doesn't handle low accuracy geo-decay ... we'll address that via a separate term)
 
 					TempEntityInDocBucket entBucket = new TempEntityInDocBucket();
 					entBucket.dbo = e;
@@ -703,8 +724,24 @@ public class ScoringUtils
 					entBucket.doc = docBucket;
 					shp.entityInstances.add(entBucket);
 					if (null != tmpGeotag) { // (only needed for low accuracy geo aggregation)
-						shp.geotag = tmpGeotag;
-						shp.geotaggedEntity = e; // (ie for onto type)
+						
+						if (null != _s3_geoBuckets) {
+							shp.geotag = tmpGeotag;
+							shp.geotaggedEntity = e; // (ie for onto type)
+						}						
+						if (null != _s1_dManualGeoDecay_latLonInvdecay) {
+							// Emulate scripted Lucene calculations
+							double minlat = tmpGeotag.getDouble(GeoPojo.lat_);
+							double minlon = tmpGeotag.getDouble(GeoPojo.lon_);
+							double paramlat = _s1_dManualGeoDecay_latLonInvdecay[0];
+							double paramlon = _s1_dManualGeoDecay_latLonInvdecay[1];
+							double gdecay = _s1_dManualGeoDecay_latLonInvdecay[2];
+							char ontCode = GeoOntologyMapping.encodeOntologyCode(e.getString(EntityPojo.ontology_type_));
+							double dDecay = QueryDecayScript.getGeoDecay(minlat, minlon, paramlat, paramlon, gdecay, ontCode);
+							if (dDecay > dBestGeoScore) {
+								dBestGeoScore = dDecay;
+							}
+						}//TESTED
 					}
 					
 					if (freq > shp.maxFreq) {
@@ -730,6 +767,12 @@ public class ScoringUtils
 				docBucket.nLeftToProcess = nEntsInDoc;
 				docBucket.nEntsInDoc = (int) nEntsInDoc;
 				
+				if (null != this._s1_dManualGeoDecay_latLonInvdecay) { // Low accuracy geo-calculations
+					docBucket.geoTemporalDecay *= dBestGeoScore;
+					docBucket.luceneScore *= dBestGeoScore;
+					_s2_dAvgLowAccuracyGeoDecay += dBestGeoScore*s0_nQuerySubsetDocCountInv;
+				}//TESTED				
+				
 			} // (end if feed has entities)
 	
 			// Handle documents with no entities - can still promote them
@@ -747,6 +790,10 @@ public class ScoringUtils
 	// Generates a histogram of entity frequencies that can be used to suppress the significance
 	// of likely false positives
 	// Then calculates the IDFs of each entity (including cross-community scoring adjustments if necessary)
+	
+	// Inputs
+	
+	double _s2_dAvgLowAccuracyGeoDecay = 0.0; // for low accuracy geo a further approximation...
 	
 	// Outputs
 	
@@ -880,6 +927,9 @@ public class ScoringUtils
 				//  with an average doc length, to avoid an extra loop here or in S1 to calc "avg doc length for docs containing entity)
 				// (We're summing this across all entities anyway, so it's not like it would be a particularly accurate number anyway...)
 			
+			if (_s2_dAvgLowAccuracyGeoDecay > 0.0) { // Take into account average low accuracy geo-decay across the entire dataset
+				dApproxAvgTfTerm *= _s2_dAvgLowAccuracyGeoDecay;
+			}			
 			_s2_dApproxAverageDocumentSig += shp.decayedDocCountInQuerySubset*dApproxAvgTfTerm*shp.standaloneSignificance;
 				// (ie an approximation to sum(TF-IDF) across docs
 
@@ -969,21 +1019,26 @@ public class ScoringUtils
 			_s3_pqEnt = new java.util.PriorityQueue<EntSigHolder>();
 		}
 
-		_s3_dLuceneScalingFactor = 0.0;
-		_s3_dSigScalingFactor = 1.0;
-		_s3_dScoreScalingFactor = 1.0;
-		
+		// Calculate scaling factors:
+		_s3_dSigScalingFactor = 1.0;			
 		if (scoreParams.sigWeight != 0.0) {
 			double d = (scoreParams.relWeight/scoreParams.sigWeight);
 			_s3_dLuceneScalingFactor = (d*_s2_dApproxAverageDocumentSig)/
-										(scores.avgScore + 0.01); // (eg scale1*avQuery == (r/s)*avAggSig)			
+										(_s0_avgLuceneScore + 0.01); // (eg scale1*avQuery == (r/s)*avAggSig)			
 			_s3_dScoreScalingFactor = 100.0/
 									((1.0 + d)*_s2_dApproxAverageDocumentSig); // ie scale2*(scale1*avQuery + avAggSig)==100.0
+			
+			// Special case: all significances are 0:
+			if (_s2_dApproxAverageDocumentSig == 0.0) { // just ignore significance
+				_s3_dScoreScalingFactor = 100.0/_s0_avgLuceneScore;
+				_s3_dLuceneScalingFactor = 1.0;
+				_s3_dSigScalingFactor = 0.0;
+			}
 		}
 		else { // Ignore significance
 			_s3_dLuceneScalingFactor = 1.0;
 			_s3_dSigScalingFactor = 0.0;
-			_s3_dScoreScalingFactor = 100.0/scores.avgScore;
+			_s3_dScoreScalingFactor = 100.0/_s0_avgLuceneScore;
 		}
 		//TESTED
 		
@@ -1078,8 +1133,7 @@ public class ScoringUtils
 					entBucket.doc.aggSignificance *= entBucket.doc.geoTemporalDecay*_s3_dSigScalingFactor;
 					
 					entBucket.doc.luceneScore *= _s3_dLuceneScalingFactor; // (lucene already geo-temporally) scaled
-					entBucket.doc.luceneScore *= entBucket.doc.manualWeighting; 
-						// (manual weighting applied to both scores, ie to total score, do it separately because of entities)
+						// (don't up lucene score this is done inside Lucene)
 					
 					double d = _s3_dScoreScalingFactor*(entBucket.doc.luceneScore + entBucket.doc.aggSignificance);
 					if (Double.isNaN(d)) {
@@ -1276,7 +1330,7 @@ public class ScoringUtils
 		double dAvgScore = 0.0;
 		
 		double dSigFactor = 100.0/(_s3_dSigScalingFactor*_s2_dApproxAverageDocumentSig);
-		double dRelFactor = 100.0/(_s3_dLuceneScalingFactor*scores.avgScore);
+		double dRelFactor = 100.0/(_s3_dLuceneScalingFactor*_s0_avgLuceneScore);
 		
 		// Start at the bottom of the list, so don't need to worry about skipping documents, just count out from the bottom
 		// The call to stage3_calculateTFTerms with nStart+nToClientLimit handles the rest
@@ -1294,20 +1348,28 @@ public class ScoringUtils
 			BasicDBObject f = qsf.dbo;
 			
 			// Phase "0" - these are the highest prio events
+			boolean bNeedToFilterAndAliasAssoc_event = true;
+			boolean bNeedToFilterAndAliasAssoc_fact = true;
+			boolean bNeedToFilterAndAliasAssoc_summary = true;
 			if (null != _s0_standaloneEventAggregator) {
 				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_standaloneEventAggregator, 
 																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
 																	_s0_bEvents, _s0_bSummaries, _s0_bFacts);
-			}//TOTEST
+				bNeedToFilterAndAliasAssoc_event = false;
+				bNeedToFilterAndAliasAssoc_fact = false;
+				bNeedToFilterAndAliasAssoc_summary = false;
+			}//TESTED
 			if (null != _s0_lowAccuracyAssociationAggregator_events) {
 				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_lowAccuracyAssociationAggregator_events, 
 																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
 																	_s0_assocVerbFilter, true, false, false);
+				bNeedToFilterAndAliasAssoc_event = false;
 			}//TESTED								
 			if (null != _s0_lowAccuracyAssociationAggregator_facts) {
 				ScoringUtils_Associations.addStandaloneEvents(qsf.dbo, qsf.aggSignificance, 0, _s0_lowAccuracyAssociationAggregator_facts, 
 																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
 																	_s0_assocVerbFilter, false, false, true);
+				bNeedToFilterAndAliasAssoc_fact = false;
 			}//TESTED
 			
 			try {
@@ -1369,6 +1431,7 @@ public class ScoringUtils
 							BasicDBObject e = (BasicDBObject)e0.next();
 							
 							// Type filter
+							boolean bNeedToFilterAndAliasAssoc = true;
 							String sEvType = e.getString(AssociationPojo.assoc_type_);
 							boolean bKeep = true;
 							if (null == sEvType) {
@@ -1376,74 +1439,33 @@ public class ScoringUtils
 							}
 							else if (sEvType.equalsIgnoreCase("event")) {
 								if (!_s0_bEvents) bKeep = false;
+								bNeedToFilterAndAliasAssoc = bNeedToFilterAndAliasAssoc_event;
 							}
 							else if (sEvType.equalsIgnoreCase("fact")) {
 								if (!_s0_bFacts) bKeep = false;
+								bNeedToFilterAndAliasAssoc = bNeedToFilterAndAliasAssoc_fact;
 							}
 							else if (sEvType.equalsIgnoreCase("summary")) {
 								if (!_s0_bSummaries) bKeep = false;
+								bNeedToFilterAndAliasAssoc = bNeedToFilterAndAliasAssoc_summary;
 							}
 							if (!bKeep) {
 								e0.remove();
 							}
 							else { // Type matches, now for some more complex logic....
-								if (null != _s0_assocVerbFilter) { // Verb filter
+								
+								if (bNeedToFilterAndAliasAssoc) { // (otherwise done already)
 
-									if (_s0_bAssocVerbFilterPositive) {
-										if (!_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
-											e0.remove();
-											bKeep = false;
-										}										
-									}
-									else if (_s0_assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+									bKeep = ScoringUtils_Associations.filterAndAliasAssociation(
+																			e, _s1_aliasLookup, true,
+																			_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive,
+																			_s0_entityTypeFilter, _s0_assocVerbFilter);
+									if (!bKeep) {
 										e0.remove();
-										bKeep = false;
 									}
-								}
-								if ((null != _s0_entityTypeFilter) && bKeep) {
-									String entIndex = e.getString(AssociationPojo.entity1_index_);
-									if (null != entIndex) {
-										String entType = null; 
-										int nIndex = entIndex.lastIndexOf('/');
-										if (nIndex >= 0) {
-											entType = entIndex.substring(nIndex + 1);
-										}
-										if (_s0_bEntityTypeFilterPositive) {
-											
-											if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
-												e0.remove();
-												bKeep = false;
-											}
-										}
-										else if ((null != entType) && (_s0_entityTypeFilter.contains(entType))) {
-											//(-ve filter)
-											e0.remove();
-											bKeep = false;
-										}
-									}//(end if ent1_index exists)
-									if (bKeep) { // same for ent index 2
-										entIndex = e.getString(AssociationPojo.entity2_index_);
-										if (null != entIndex) {
-											String entType = null; 
-											int nIndex = entIndex.lastIndexOf('/');
-											if (nIndex >= 0) {
-												entType = entIndex.substring(nIndex + 1);
-											}
-											if (_s0_bEntityTypeFilterPositive) {
-												if ((null != entType) && (!_s0_entityTypeFilter.contains(entType))) {
-													e0.remove();
-													bKeep = false;
-												}
-											}
-											else if ((null != entType) && (_s0_entityTypeFilter.contains(entType))) {
-												//(-ve filter)
-												e0.remove();
-												bKeep = false;
-											}
-										}//(end if ent2_index exists)
-									}
-								}//(end entity filter logic for associations)
-								//TESTED
+									
+								}//TESTED
+								
 							}//(end output filter logic)
 
 						} // (end loop over events)	
@@ -1466,26 +1488,6 @@ public class ScoringUtils
 								e0.remove();
 								continue;
 							}
-						}
-						
-						//TODO (INF-1203): need to integrate entity type filter with aliases
-						// while remaining mostly efficient (eg mark doc as containing aliases, choose
-						// order? Ditto for associations) 
-						
-						// Output filter 
-						if (null != _s0_entityTypeFilter) {							
-							String entType = e.getString(EntityPojo.type_);
-							if (_s0_bEntityTypeFilterPositive) {
-								if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
-									e0.remove();
-									continue;
-								}
-							}
-							else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
-								// (negative filtering)
-								e0.remove();
-								continue;
-							}							
 						}
 						
 						String entity_index = e.getString(EntityPojo.index_);
@@ -1523,10 +1525,9 @@ public class ScoringUtils
 								e.put(EntityPojo.sentimentCount_, shp.nTotalSentimentValues);
 							}
 						}
-						else { // (can occur if there's a parsing error in one of the entities)
-							e.put(EntityPojo.datasetSignificance_, 0.0);
-							e.put(EntityPojo.queryCoverage_, 0.0);
-							e.put(EntityPojo.averageFreq_, 0.0);
+						else { // (most likely to occur if the entity is discarded (alias/filter) or is corrupt in some way)
+							e0.remove();
+							continue;
 						}
 		
 					} //(end loop over entities)
@@ -1675,8 +1676,13 @@ public class ScoringUtils
 	// S4: overwrite the entity values with aliased entities where necessary
 	
 	private void stage1_initAlias(EntSigHolder shp) {
-		EntityFeaturePojo alias = _aliasLookup.doLookupFromIndex(shp.index);
+		EntityFeaturePojo alias = _s1_aliasLookup.doLookupFromIndex(shp.index);
 		if (null != alias) { // overwrite index
+			if (alias.getIndex().equalsIgnoreCase("discard")) {
+				shp.aliasInfo = alias;
+				shp.masterAliasSH = null;
+				return;
+			}			
 			EntSigHolder masterAliasSH = null;
 			if (null == _s1_aliasSummary) {
 				_s1_aliasSummary = new HashMap<String, EntSigHolder>();

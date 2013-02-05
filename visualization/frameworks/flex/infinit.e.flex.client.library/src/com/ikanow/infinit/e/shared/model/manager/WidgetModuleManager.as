@@ -43,8 +43,8 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
 	import com.ikanow.infinit.e.widget.library.data.WidgetContext;
-	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;

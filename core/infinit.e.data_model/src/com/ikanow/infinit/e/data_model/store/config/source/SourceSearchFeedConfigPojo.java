@@ -15,6 +15,8 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.config.source;
 
+import java.util.List;
+
 public class SourceSearchFeedConfigPojo {
 
 	// JSON fields
@@ -28,6 +30,7 @@ public class SourceSearchFeedConfigPojo {
 									//	 "url": string }
 									// These links are then harvested as if they were "rss.extraUrls"
 	private String scriptlang = null; // Currently only "javascript" is supported
+	private String scriptflags = null; // flags to apply to above script, to select the variables - see meta.flags for more details
 	
 	private String pageChangeRegex = null; // If non-null, this regex should be used to match the pagination URL parameter (which will be replaced by pageChangeReplace)
 											// Also, group 1 should be the start, to allow any offsets specified in the URL to be respected
@@ -38,6 +41,9 @@ public class SourceSearchFeedConfigPojo {
 	private Integer maxDepth = null; // Optional, if spidering out, max depth (defaults to 2 if not specified)
 	
 	private String proxyOverride = null; // Currently: "direct" to bypass proxy, or a proxy specification "(http|socks)://host:port"
+	
+	private List<UnstructuredAnalysisConfigPojo.metaField> extraMeta = null; // For pre-generating other metadata to be used by "script" field (eg can use xpath)
+																				// Note the fieldname "searchEngineSubsystem" is reserved for the top-level (ie last to run) script
 	
 	// Getters and setters
 	
@@ -100,6 +106,18 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public String getProxyOverride() {
 		return proxyOverride;
+	}
+	public void setScriptflags(String scriptflags) {
+		this.scriptflags = scriptflags;
+	}
+	public String getScriptflags() {
+		return scriptflags;
+	}
+	public void setExtraMeta(List<UnstructuredAnalysisConfigPojo.metaField> extraMeta) {
+		this.extraMeta = extraMeta;
+	}
+	public List<UnstructuredAnalysisConfigPojo.metaField> getExtraMeta() {
+		return extraMeta;
 	}
 	
 }

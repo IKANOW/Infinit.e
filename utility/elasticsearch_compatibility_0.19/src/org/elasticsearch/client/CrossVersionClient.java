@@ -1,5 +1,7 @@
 package org.elasticsearch.client;
 
+//TODO (INF-1781): None of this actually works, need to implement:
+//http://today.java.net/pub/a/today/2005/11/01/implement-proxy-based-aop.html
 
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;

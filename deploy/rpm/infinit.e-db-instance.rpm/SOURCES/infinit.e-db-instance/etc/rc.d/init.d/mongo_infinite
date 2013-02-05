@@ -34,7 +34,7 @@ start()
 	################################ Config Server Setup #######################################
 	echo "Beginning mongo_infinite start"
 	
-	if [ $(infdb is_config) == "true" ]; then 
+	if [ "$(infdb is_config)" == "true" ]; then 
 		echo "Starting Configuration Server"
 		mkdir -p /data/configdb/ >/dev/null
 		chown -R mongod.mongod /data/ >/dev/null

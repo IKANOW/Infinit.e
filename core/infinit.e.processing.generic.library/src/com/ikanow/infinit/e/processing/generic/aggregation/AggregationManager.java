@@ -57,6 +57,15 @@ public class AggregationManager {
 		_diagnosticMode = bMode;
 	}
 	
+	public AggregationManager() {
+		PropertiesManager props = new PropertiesManager();
+		double dDutyCycle = props.getHarvestAggregationDutyCycle();
+		if (dDutyCycle > 0.0) { // Do most of the aggregation in a separate thread
+			_bBackgroundAggregationEnabled = true;
+		}
+	}
+	private boolean _bBackgroundAggregationEnabled = false; 
+	
 	/////////////////////////////////////////////////////////////////////////////////////////	
 	/////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -282,36 +291,45 @@ public class AggregationManager {
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
 	
+	// (This needs to happen last because it "corrupts" the entities and events)
+	
 	public void runScheduledSynchronization() {
 		
 		// 3a. Check entity schedule for doc/feature updates and index synchronization
 		
-		long nStartTime = System.currentTimeMillis();					
+		long nStartTime, nEndTime;	
+		nStartTime = System.currentTimeMillis();
 		for (Map<ObjectId, EntityFeaturePojo> entCommunity: _aggregatedEntities.values()) {
 			
-			boolean bSync = false;
 			for (Map.Entry<ObjectId, EntityFeaturePojo> entFeature: entCommunity.entrySet()) {				
-				bSync = doScheduleCheck(Schedule.SYNC_INDEX, entFeature.getValue().getIndex(), entFeature.getValue().getDoccount(), 
-										entFeature.getValue().getDbSyncDoccount(), entFeature.getValue().getDbSyncTime());
+				boolean bSync = false;
+				if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
+					bSync = doScheduleCheck(Schedule.SYNC_INDEX, entFeature.getValue().getIndex(), entFeature.getValue().getDoccount(), 
+											entFeature.getValue().getDbSyncDoccount(), entFeature.getValue().getDbSyncTime());
+				}
+				else { // Just synchronize first-time entities
+					bSync = (null == entFeature.getValue().getDbSyncTime());
+				}//TESTED
 
 				if (bSync) {
 					EntityAggregationUtils.synchronizeEntityFeature(entFeature.getValue(), entFeature.getKey());
 				}
 			}
 		}
-		long nEndTime = System.currentTimeMillis();
+		nEndTime = System.currentTimeMillis();
 		if ((nEndTime - nStartTime) > 60000) {
 			logger.warn("Frequency update slow, time=" + (nEndTime - nStartTime)/1000 + " num_ents=" + _aggregatedEntities.size());
 		}
 		
 		// 3b. Check event schedule for doc/feature updates and index synchronization		
 		
+		// (All association aggregation still happens inline)
+		
 		nStartTime = System.currentTimeMillis();					
 		for (Map<ObjectId, AssociationFeaturePojo> evtCommunity: _aggregatedEvents.values()) {
 			
-			boolean bSync = false;
 			for (Map.Entry<ObjectId, AssociationFeaturePojo> evtFeature: evtCommunity.entrySet()) {				
-				bSync = doScheduleCheck(Schedule.SYNC_INDEX, evtFeature.getValue().getIndex(), evtFeature.getValue().getDoccount(), 
+				boolean bSync = doScheduleCheck(Schedule.SYNC_INDEX, evtFeature.getValue().getIndex(), evtFeature.getValue().getDoccount(), 
 										evtFeature.getValue().getDb_sync_doccount(), evtFeature.getValue().getDb_sync_time());
 				if (bSync) {
 					AssociationAggregationUtils.synchronizeEventFeature(evtFeature.getValue(), evtFeature.getKey());
@@ -336,12 +354,20 @@ public class AggregationManager {
 				if (doScheduleCheck(Schedule.UPDATE_DOCS, entFeature.getIndex(), entFeature.getDoccount(), 
 									entFeature.getDbSyncDoccount(), entFeature.getDbSyncTime()))
 				{
-					EntityAggregationUtils.updateMatchingEntities(entFeature, entFeature.getCommunityId());
+					if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
+						
+						EntityAggregationUtils.updateMatchingEntities(entFeature, entFeature.getCommunityId());
+					}
+					else { // Background aggregation mode, mark the entity feature for the bg thread
+						EntityAggregationUtils.markEntityFeatureForSync(entFeature, entFeature.getCommunityId());
+					}//TESTED
 				}
 			}
 		}
 		
 		// 3b. Check event schedule for doc/feature updates and index synchronization		
+
+		// (All association aggregation still happens inline)
 		
 		for (Map<ObjectId, AssociationFeaturePojo> evtCommunity: _aggregatedEvents.values()) {
 			for (AssociationFeaturePojo evtFeature: evtCommunity.values()) {
@@ -362,7 +388,7 @@ public class AggregationManager {
 	
 	// UTILITIES
 	
-	private enum Schedule { UPDATE_DOCS, SYNC_INDEX };
+	public enum Schedule { UPDATE_DOCS, SYNC_INDEX };
 	
 	private static boolean doScheduleCheck(Schedule type,
 									String featureIndex, long nDocCount, 

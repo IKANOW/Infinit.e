@@ -31,7 +31,7 @@ package views
 	/**
 	 * Dispatched when the user double clicks an item
 	 */
-	[Event(name = "itemDoubleClick", type = "mx.events.ListEvent")]
+	[Event( name = "itemDoubleClick", type = "mx.events.ListEvent" )]
 	/**
 	 * A data gris that handles a check box column; used for selection
 	 */

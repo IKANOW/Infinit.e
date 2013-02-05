@@ -95,8 +95,13 @@ public class HarvestStatus_Integrated implements HarvestStatus {
 			update.put(SourcePojo.harvestBadSource_, true);			
 		}
 		if (bPermDisable) {
-			sourceToUpdate.setApproved(false);
-			update.put(SourcePojo.isApproved_, false);
+			if ((null == sourceToUpdate.getSearchCycle_secs()) || (0 == sourceToUpdate.getSearchCycle_secs())) {
+				sourceToUpdate.setSearchCycle_secs(-1);
+			}
+			else if (sourceToUpdate.getSearchCycle_secs() > 0) { //(else it's already negative, ie run manually)
+				sourceToUpdate.setSearchCycle_secs(-sourceToUpdate.getSearchCycle_secs());				
+			}
+			update.put(SourcePojo.searchCycle_secs_, sourceToUpdate.getSearchCycle_secs());
 		}
 		DBCollection sourceDb = DbManager.getIngest().getSource();
 		BasicDBObject query = new BasicDBObject(SourcePojo._id_, sourceToUpdate.getId());

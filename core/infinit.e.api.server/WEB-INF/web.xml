@@ -20,7 +20,7 @@
    <servlet>  
       <servlet-name>InfiniteServlet</servlet-name>  
       <servlet-class>  
-         org.restlet.ext.servlet.ServerServlet  
+         org.restlet.ext.servlet.ServerServlet 
       </servlet-class>  
    </servlet>   
   

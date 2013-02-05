@@ -119,6 +119,7 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/auth/login/{user}/{pass}", LoginInterface.class); 
         attach(router, "/auth/login/admin/{user}/{pass}",LoginInterface.class);
         attach(router, "/auth/keepalive",LoginInterface.class);
+        attach(router, "/auth/keepalive/admin",LoginInterface.class);
         attach(router, "/auth/logout",LoginInterface.class);
         attach(router, "/auth/forgotpassword",LoginInterface.class);
         attach(router, "/auth/deactivate",LoginInterface.class);

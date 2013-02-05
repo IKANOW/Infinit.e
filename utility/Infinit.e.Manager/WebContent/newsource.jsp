@@ -56,11 +56,13 @@ limitations under the License.
 			"rss: { searchConfig: { scriptlang: \"javascript\", script: \"var retval = []; var json = eval('('+text+')'); var example = {url: 'URL', title: 'TITLE', description: 'DESC', publishedDate: 'DATE' }; if (false) example.fullText = 'TEXT'; retval.push(example); retval; \" } } }";
 			
 	private static String starterSourceString_localFile = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"file:///directory1/directory2/\", isPublic: true, extractType: \"File\", mediaType: " +
+			"\"file:///directory1/directory2/\", isPublic: true, extractType: \"File\", file:" +
+			"{ XmlRootLevelValues: [] }, mediaType: "+
 			"\"Report\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"} }";
 
 	private static String starterSourceString_fileShare = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"smb://HOST:PORT/share/directory1/\", isPublic: true, extractType: \"File\", mediaType: " +
+			"\"smb://HOST:PORT/share/directory1/\", isPublic: true, extractType: \"File\", file: " +
+			"{ XmlRootLevelValues: [], domain: \"DOMAIN\", username: \"USERNAME\", password: \"PASSWORD\" }, mediaType: "+
 			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
 
 	private static String starterSourceString_database = "{ title: \"Title\", description: \"Description\", url: " +

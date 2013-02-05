@@ -231,7 +231,14 @@ package com.ikanow.infinit.e.source.model.manager
 					newSources.addItem( source );
 				}else
 					//update the item just in case it has data changed
-					CollectionUtil.replaceItemById(sourcesMaster, source);
+					CollectionUtil.replaceItemById(sourcesMaster, source)
+			}
+			
+			//check to see if any of the old sources were not returned
+			for each(var oldSource:Source in sourcesMaster)
+			{
+				if(!CollectionUtil.doesCollectionContainItem(value, oldSource))
+					CollectionUtil.removeItemById(sourcesMaster, oldSource._id);
 			}
 			
 			sourcesMaster.addAll( newSources );

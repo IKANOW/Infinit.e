@@ -252,15 +252,16 @@ limitations under the License.
 			
 			protected function filter_enterHandler( event:TextOperationEvent ):void
 			{
-				var sort:Sort = currsourceData.sort as Sort;
-				currsourceData.sort = null;
 				currsourceData.removeAll();
-				currsourceData.refresh();
 				var filterPattern:RegExp = new RegExp( filterInput.text, "i" );
 				
 				for each ( var o:Object in sourceData )
 				{
 					if ( ( o._id as String ).search( filterPattern ) != -1 )
+					{
+						currsourceData.addItem( ObjectUtil.copy( o ) );
+					}
+					else if ( ( o.key as String ).search( filterPattern ) != -1 )
 					{
 						currsourceData.addItem( ObjectUtil.copy( o ) );
 					}
@@ -285,7 +286,6 @@ limitations under the License.
 						currsourceData.addItem( ObjectUtil.copy( o ) );
 					}
 				}
-				currsourceData.sort = sort;
 				currsourceData.refresh();
 			}
 			
@@ -323,14 +323,33 @@ limitations under the License.
 						o.statusColor = 0x00FF00;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
+					else if ( o.harvest.harvest_status == "in_progress" )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0x0000EE;
+						if (null == o.harvest.harvested)
+							o.harvestDate = null;
+						else 
+							o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+					else if ( o.harvest.harvest_status == "success_iteration" )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0x0000EE;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
 					else
 					{
 						o.statusImage = redx;
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
+					if ((null != o.searchCycle_secs) && ((o.searchCycle_secs as Number) < 0)) 
+					{
+						o.title = "[SUSPENDED] " + o.title;
+					}
 					
-					if ( null != o.harvest.harvest_message )
+					if ( o.harvest != null && null != o.harvest.harvest_message )
 					{
 						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;
 						
@@ -347,7 +366,7 @@ limitations under the License.
 							o.harvest.harvest_message_trunc = truncatedMessageForPerformance;
 						}
 					}
-					else
+					else if ( o.harvest != null )
 					{
 						o.harvest.harvest_message_trunc = "";
 					}
@@ -363,6 +382,8 @@ limitations under the License.
 				
 				sourceData.addAll( goodSources );
 				currsourceData.addAll( goodSources );
+				
+				currsourceData.refresh();
 				
 				checkFilter();
 			}
@@ -419,14 +440,33 @@ limitations under the License.
 						o.statusColor = 0x00FF00;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
+					else if ( o.harvest.harvest_status == "in_progress" )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0x0000EE;
+						if (null == o.harvest.harvested)
+							o.harvestDate = null;
+						else 
+							o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+					else if ( o.harvest.harvest_status == "success_iteration" )
+					{
+						o.statusImage = yellowexclamation;
+						o.statusColor = 0x0000EE;
+						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
 					else
 					{
 						o.statusImage = redx;
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
-					
-					if ( null != o.harvest.harvest_message )
+					if ((null != o.searchCycle_secs) && ((o.searchCycle_secs as Number) < 0)) 
+					{
+						o.title = "[SUSPENDED] " + o.title;
+					}
+										
+					if ( o.harvest != null && null != o.harvest.harvest_message )
 					{
 						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;
 						
@@ -443,7 +483,7 @@ limitations under the License.
 							o.harvest.harvest_message_trunc = truncatedMessageForPerformance;
 						}
 					}
-					else
+					else if ( o.harvest != null )
 					{
 						o.harvest.harvest_message_trunc = "";
 					}
@@ -459,6 +499,8 @@ limitations under the License.
 				
 				sourceData.addAll( pendingSources );
 				currsourceData.addAll( pendingSources );
+				
+				currsourceData.refresh();
 				
 				checkFilter();
 			}
@@ -495,6 +537,11 @@ limitations under the License.
 				if ( buttonid == "titleSortButton" )
 				{
 					sortField.name = "title";
+					sortField.caseInsensitive = true;
+				}
+				else if ( buttonid == "keySortButton" )
+				{
+					sortField.name = "key";
 					sortField.caseInsensitive = true;
 				}
 				else if ( buttonid == "dateSortButton" )
@@ -559,10 +606,13 @@ limitations under the License.
 					var colname:Array = col.dataField.split( "." );
 					var obj:Object = statusDG.selectedItem;
 					
-					for each ( var s:String in colname )
-					{
-						obj = obj[ s ];
-					}
+					if ( col.headerText == "Harvest Error Message" )
+						obj = columnInfo.columnData.harvest.harvest_message;
+					else
+						for each ( var s:String in colname )
+						{
+							obj = obj[ s ];
+						}
 					var selectedData:String = " ";
 					
 					if ( obj != null )
@@ -606,22 +656,26 @@ limitations under the License.
 					filter_enterHandler( null );
 			}
 			
-			private function dateCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			private function dateCompareFunction( objA:Object, objB:Object, column:GridColumn /*fields:Array = null*/ ):int
 			{
-				var result:int = ObjectUtil.dateCompare( objA.harvestDate, objB.harvestDate );
+				var result:int = -1;//ObjectUtil.dateCompare(objA.harvestDate, objB.harvestDate);
 				
 				//if you want null to show up as the largest date, comment out the next 2 lines
-				if ( objA.harvestDate == null )
+				if ( objA.harvestDate == null && objB.harvestDate == null )
+					result = 0;
+				else if ( objA.harvestDate == null )
 					result = -1;
 				else if ( objB.harvestDate == null )
 					result = 1;
+				else
+					result = ObjectUtil.dateCompare( objA.harvestDate, objB.harvestDate );
 				
-				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
-					result *= -1;
+				/* if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1; */
 				return result;
 			}
 			
-			private function docCountCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			private function docCountCompareFunction( objA:Object, objB:Object, column:GridColumn/*fields:Array = null*/ ):int
 			{
 				var result:int = -1;
 				
@@ -632,8 +686,8 @@ limitations under the License.
 				else
 					result = ObjectUtil.numericCompare( objA.harvest.doccount, objB.harvest.doccount );
 				
-				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
-					result *= -1;
+				/* if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1; */
 				return result;
 			}
 			
@@ -668,7 +722,7 @@ limitations under the License.
 				dispatchEvent( event );
 			}
 			
-			private function messageCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			private function messageCompareFunction( objA:Object, objB:Object, column:GridColumn /*fields:Array = null*/ ):int
 			{
 				var result:int = -1;
 				
@@ -679,8 +733,8 @@ limitations under the License.
 				else
 					result = ObjectUtil.stringCompare( objA.harvest.harvest_message, objB.harvest.harvest_message, true );
 				
-				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
-					result *= -1;
+				/* if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1; */
 				return result;
 			}
 			
@@ -694,7 +748,7 @@ limitations under the License.
 				return "Error: Couldn't find matching community.";
 			}
 			
-			private function statusCompareFunction( objA:Object, objB:Object, fields:Array = null ):int
+			private function statusCompareFunction( objA:Object, objB:Object, column:GridColumn /*fields:Array = null*/ ):int
 			{
 				var result:int = -1;
 				
@@ -705,8 +759,8 @@ limitations under the License.
 				else
 					result = ObjectUtil.stringCompare( objA.harvest.harvest_status, objB.harvest.harvest_status, true );
 				
-				if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
-					result *= -1;
+				/* if ( fields != null && fields.length > 0 && fields[ 0 ].descending )
+					result *= -1; */
 				return result;
 			}
 		]]>
@@ -798,37 +852,43 @@ limitations under the License.
 						itemRenderer="renderers.StatusColorDGItemRenderer"
 						resizable="false" />
 					<s:GridColumn 
-						width="170"
+						width="155"
 						dataField="title"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Title"
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
-						width="170"
+						width="100"
 						dataField="_id"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="ID"
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
-						width="170"
+						width="155"
+						dataField="key"
+						headerRenderer="renderers.GridTextHeaderRenderer"
+						headerText="Key"
+						itemRenderer="renderers.GridTextItemRenderer" />
+					<s:GridColumn 
+						width="155"
 						dataField="communityName"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Community"
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
-						width="170"
+						width="100"
 						dataField="communityID"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Community ID"
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
-						width="100"
+						width="75"
 						dataField="isApproved"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Approved"
 						itemRenderer="renderers.GridTextItemRenderer" />
 					<s:GridColumn 
-						width="100"
+						width="75"
 						dataField="harvest.harvest_status"
 						headerRenderer="renderers.GridTextHeaderRenderer"
 						headerText="Harvest Status"
@@ -861,14 +921,6 @@ limitations under the License.
 						headerText="Harvest Error Message"
 						itemRenderer="renderers.GridTextItemRenderer"
 						sortCompareFunction="messageCompareFunction" />
-					<s:GridColumn 
-						width="0"
-						dataField="harvest.harvest_message"
-						headerRenderer="renderers.GridTextHeaderRenderer"
-						headerText="Harvest Error Message (full string)"
-						itemRenderer="renderers.GridTextItemRenderer"
-						sortCompareFunction="messageCompareFunction"
-						visible="false" />
 				</s:ArrayList>
 			</views:columns>
 		</views:InfSelectableDataGrid>

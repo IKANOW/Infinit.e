@@ -1,20 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:busyIndicator="com.ikanow.infinit.e.shared.view.component.busyIndicator.*"
 	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
@@ -23,33 +24,41 @@
 	paddingBottom="20"
 	paddingLeft="30"
 	paddingRight="30"
-	preinitialize="/*CommunityRequestNavigator.updateViewStates( this )*/" xmlns:views="views.*">
+	preinitialize="/*CommunityRequestNavigator.updateViewStates( this )*/">
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
 	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
 
 	<fx:Script>
 		<![CDATA[
-			import events.CommunityEvent;
-			
 			import mx.events.FlexEvent;
 			import mx.utils.StringUtil;
-			
+			import events.CommunityEvent;
 			import objects.Community;
-			
 			import util.Constants;
 			
 			[Bindable]
 			private var _community:Community;
 			
-			public function set community(community:Community):void
+			public function get community():Community
+			{
+				return _community;
+			}
+			
+			public function set community( community:Community ):void
 			{
 				this._community = community;
 			}
 			
-			public function get community():Community
+			/**
+			 * function to update the current state of
+			 * the component
+			 *
+			 * @param toState The state to transition to
+			 */
+			public function updateViewState( toState:String ):void
 			{
-				return _community;
+				this.currentState = toState;
 			}
 			
 			protected function cancelOkButton_clickHandler( event:MouseEvent ):void
@@ -70,7 +79,7 @@
 					communityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY );
 					communityEvent.community = community;
 					communityEvent.communityID = community._id;
-					communityEvent.dialogControl = DialogControl.create( false, StringUtil.substitute("Requesting Access to {0}", [ community.name ] ) );
+					communityEvent.dialogControl = DialogControl.create( false, StringUtil.substitute( "Requesting Access to {0}", [ community.name ] ) );
 					dispatchEvent( communityEvent );
 				}
 				else
@@ -78,17 +87,6 @@
 					communityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY_CANCELED );
 					dispatchEvent( communityEvent );
 				}
-			}
-			
-			/**
-			 * function to update the current state of 
-			 * the component
-			 * 
-			 * @param toState The state to transition to 
-			 */
-			public function updateViewState(toState:String):void
-			{
-				this.currentState = toState;
 			}
 			
 			protected function requesting_enterStateHandler( event:FlexEvent ):void
@@ -126,10 +124,10 @@
 		<!-- Request Message -->
 		<views:InfLabel 
 			width="100%"
-			text.prompt="{ StringUtil.substitute('Request access to the {0} community.', [ _community.name ] ) }"
-			text.requesting="{ StringUtil.substitute('Requesting access to the {0} community.', [ _community.name ] ) }"
-			text.approved="{ StringUtil.substitute('The request for access to the {0} community has been approved.', [ _community.name ] ) }"
-			text.pending="{ StringUtil.substitute('The request for access to the {0} community is pending approval.', [ _community.name ] ) }"
+			text.prompt="{ StringUtil.substitute('Request access to the {0 } community.', [ _community.name ] ) }"
+			text.requesting="{ StringUtil.substitute('Requesting access to the {0 } community.', [ _community.name ] ) }"
+			text.approved="{ StringUtil.substitute('The request for access to the {0 } community has been approved.', [ _community.name ] ) }"
+			text.pending="{ StringUtil.substitute('The request for access to the {0 } community is pending approval.', [ _community.name ] ) }"
 			styleName="whiteLarge"
 			horizontalCenter="0"
 			textAlign="center" />

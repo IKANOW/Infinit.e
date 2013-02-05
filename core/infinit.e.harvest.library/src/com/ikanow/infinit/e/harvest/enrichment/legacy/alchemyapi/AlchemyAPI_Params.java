@@ -31,7 +31,7 @@ public class AlchemyAPI_Params {
 	private String html;
 	private String text;
 	private String outputMode = OUTPUT_XML;
-	private String customParameters;
+	private StringBuffer customParameters;
 	
 	// Initialize the Logger
 	private static final Logger logger = Logger.getLogger(AlchemyAPI_Params.class);
@@ -65,11 +65,14 @@ public class AlchemyAPI_Params {
 		this.outputMode = outputMode;
 	}
 	public String getCustomParameters() {
-		return customParameters;
+		return customParameters.toString();
 	}
 	
 	public void setCustomParameters(String... customParameters) {
-		StringBuilder data = new StringBuilder();
+		if (null == this.customParameters) {
+			this.customParameters = new StringBuffer();
+		}
+		StringBuffer data = this.customParameters;
 		try{
 			for (int i = 0; i < customParameters.length; ++i) {
 				data.append('&').append(customParameters[i]);
@@ -78,10 +81,9 @@ public class AlchemyAPI_Params {
 			}
 		}
 		catch(UnsupportedEncodingException e){
-			this.customParameters = "";
+			this.customParameters.setLength(0);
 			return;
 		}
-		this.customParameters = data.toString();
 	}
 	
 	public String getParameterString(){
@@ -90,7 +92,7 @@ public class AlchemyAPI_Params {
 			if(url!=null) retString+="&url="+URLEncoder.encode(url,"UTF-8");
 			if(html!=null) retString+="&html="+URLEncoder.encode(html,"UTF-8");
 			if(text!=null) retString+="&text="+URLEncoder.encode(text,"UTF-8");
-			if(customParameters!=null) retString+=customParameters;
+			if(customParameters!=null) retString+=customParameters.toString();
 			if(outputMode!=null) retString+="&outputMode="+outputMode;
 		}
 		catch(UnsupportedEncodingException e ){

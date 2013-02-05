@@ -53,7 +53,7 @@ EOF
 	echo "Make a new backup directory in $DB_HOME/db"
 	mkdir $DB_HOME/db
 
-	mongodump --host localhost --out $DB_HOME/db
+	mongodump --host localhost --port $MONGO_PORT --out $DB_HOME/db
 	echo "Dump the existing database to file" >> $DB_HOME/bak.log
 
 	# tar up the backup

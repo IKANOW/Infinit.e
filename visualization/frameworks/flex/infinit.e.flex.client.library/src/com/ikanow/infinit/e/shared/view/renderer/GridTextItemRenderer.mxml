@@ -41,24 +41,27 @@
 				
 				if(column.dataField == SourceConstants.FIELD_STATUS)
 				{
-					switch(data.harvest.harvest_status)
+					if(data.harvest != null)
 					{
-						/* case "error":
-							displayData = "error"
-							break;
-						case "success":
-							break; */
-						case "in_progress":
-							displayData = "in progress";
-							break;
-						case "success_iteration":
-							displayData = "in progress";
-							break;
-						case "null":
-							displayData = "pending";
-						default:
-							displayData = data.harvest.harvest_status;
-							break;
+						switch(data.harvest.harvest_status)
+						{
+							/* case "error":
+								displayData = "error"
+								break;
+							case "success":
+								break; */
+							case "in_progress":
+								displayData = "in progress";
+								break;
+							case "success_iteration":
+								displayData = "in progress";
+								break;
+							case "null":
+								displayData = "pending";
+							default:
+								displayData = data.harvest.harvest_status;
+								break;
+						}
 					}
 					columnData = data;
 				}else

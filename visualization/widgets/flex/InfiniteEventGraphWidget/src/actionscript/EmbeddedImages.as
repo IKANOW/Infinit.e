@@ -62,13 +62,16 @@ package actionscript
 				return iconTemporal;
 			}
 			else { // "what"
-				if ((-1 != iconName.indexOf("company") || (-1 != iconName.indexOf("organization"))) || (-1 != iconName.indexOf("facility"))) {
+				if ((-1 != iconName.indexOf("company")) || (-1 != iconName.indexOf("organization")) || (-1 != iconName.indexOf("facility"))) {
 					return iconCompany;
 				}
-				else if ((-1 != iconName.indexOf("person")) || (-1 != iconName.indexOf("position")))  {
+				else if ((-1 != iconName.indexOf("location")) || (-1 != iconName.indexOf("city")) || (-1 != iconName.indexOf("country")))  {
+					return iconGeolocation;
+				}
+				else if ((-1 != iconName.indexOf("person")) || (-1 != iconName.indexOf("position")) || (-1 != iconName.indexOf("twitterhandle")))  {
 					return iconPerson;
 				}
-				else if ((-1 != iconName.indexOf("keyword"))) {
+				else if (-1 != iconName.indexOf("keyword")) {
 					return iconTextExact;
 				}
 				else {

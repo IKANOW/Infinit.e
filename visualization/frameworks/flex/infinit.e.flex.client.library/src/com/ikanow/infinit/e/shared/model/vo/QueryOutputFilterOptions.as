@@ -13,6 +13,10 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
+
+// CUSTOM LOGIC TO MAP BETWEEN THE INTERNAL REPRESENTATION OF OBJECTS AND THE API VERSION SHOULD RESIDE IN OBJECTTRANSLATORUTIL AND QUERYUTIL
+// (SEE setAggregationOptions/setScoringOptions)
+
 package com.ikanow.infinit.e.shared.model.vo
 {
 	import com.ikanow.infinit.e.shared.model.constant.settings.QueryAdvancedSettingsConstants;

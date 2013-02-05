@@ -127,14 +127,14 @@ limitations under the License.
 			Boolean redirect = false;
 			
 			// If user has clicked save, create, or update buttons do those actions before handling the action param
-			if (saveAccount.equals("saveaccount")) 
+			if (saveAccount.equals("saveaccount") || saveAccount.equals("save user account")) 
 			{
 				if ( validateFormFields() )
 				{
 					savePerson(false, request, response);
 				}
 			}
-			if (createAccount.equals("createaccount")) 
+			if (createAccount.equals("createaccount") || createAccount.equals("create user account")) 
 			{
 				if ( validateFormFields() && validatePassword() )
 				{
@@ -142,7 +142,7 @@ limitations under the License.
 					redirect = true;
 				}
 			}
-			if (updatePassword.equals("updatepassword")) 
+			if (updatePassword.equals("updatepassword") || updatePassword.equals("update password")) 
 			{
 				if ( validatePassword() )
 				{
@@ -170,7 +170,7 @@ limitations under the License.
 					+ personid + urlParams + "\">");
 			}
 			
-			if (action.equals("clearform")) 
+			if (action.equals("new user")) 
 			{
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp\">");
 			}
@@ -188,7 +188,7 @@ limitations under the License.
 				currentPage = 1;
 				populateEditForm(personid, request, response);
 			}
-			else if (action.equals("clearfilter")) 
+			else if (action.equals("clear")) 
 			{
 				listFilter = "";
 				populateEditForm(personid, request, response);
@@ -254,8 +254,8 @@ limitations under the License.
 				<td align="right"><input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
-					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
+					name="listFilter" size="20" value="<%=listFilter %>"/><input name="filterList" type="submit"
+					value="Filter"/><input name="clearFilter" value="Clear" type="submit"/></td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
@@ -269,7 +269,7 @@ limitations under the License.
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink"><%=editTableTitle %></td>
-				<td align="right"><button name="clearForm" value="clearForm">New User</button></td>
+				<td align="right"><input name="clearForm" id="clearForm" value="New User" type="submit"/></td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white">
@@ -334,21 +334,21 @@ limitations under the License.
 <%
 	if (personid.length() > 0) {
 %>
-							<button name="saveAccount" value="saveAccount"
+							<input name="saveAccount" id="saveAccount" value="Save User Account" type="submit"
 									onclick="if (confirm('Are you sure you want to change these account details?'))  return true; return false;"
-							>Save User Account</button>
+							/>
 							
-							<button name="updatePassword" value="updatePassword"
+							<input name="updatePassword" value="Update Password" type="submit"
 									onclick="if (confirm('Are you sure you want to update this password?'))  return true; return false;"
-							>Update Password</button>
+							/>
 <%
 	}
 	else
 	{
 %>
-							<button name="createAccount" value="createAccount"
+							<input name="createAccount" value="Create User Account" type="submit"
 									onclick="if (confirm('Are you sure you want to create this user account?'))  return true; return false;"
-							>Create User Account</button>	
+							/>	
 <%
 	}
 %>

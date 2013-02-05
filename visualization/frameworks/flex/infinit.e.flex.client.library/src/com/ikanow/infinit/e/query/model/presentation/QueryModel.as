@@ -98,12 +98,7 @@ package com.ikanow.infinit.e.query.model.presentation
 		
 		public function createAdvancedQuery():void
 		{
-			var queryString:Object = null;
-			
-			if ( lastQueryStringRequest != null )
-			{
-				queryString = QueryUtil.getQueryStringObject( lastQueryStringRequest );
-			}
+			var queryString:Object = queryManager.createAdvancedQuery();
 			saveQueryString = JSONEncoder.encode( queryString );
 		}
 		

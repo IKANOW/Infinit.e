@@ -14,24 +14,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
-					xmlns:s="library://ns.adobe.com/flex/spark" 
-					xmlns:mx="library://ns.adobe.com/flex/mx" 
-					focusEnabled="true"
-					clipAndEnableScrolling="true" xmlns:views="views.*">
+<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	focusEnabled="true"
+	clipAndEnableScrolling="true">
 	<fx:Script>
 		<![CDATA[
 			import util.ISelectable;
-			protected function circle_renderHandler(event:Event):void
-			{
-				/* var sprite:Sprite = new Sprite();
-				sprite.graphics.beginFill(0x000000);
-				sprite.graphics.drawCircle(15,15,10);
-				sprite.graphics.beginFill(data.statusColor);
-				sprite.graphics.drawCircle(15,15,9);					
-				circle.addChild(sprite); */
-				//this.backgroundContainer.
-			}
 			
 			override public function prepare( hasBeenRecycled:Boolean ):void
 			{
@@ -44,22 +35,36 @@ limitations under the License.
 				else
 					backgroundContainer.alpha = 0;
 			}
+			protected function circle_renderHandler( event:Event ):void
+			{
+			/* var sprite:Sprite = new Sprite();
+			sprite.graphics.beginFill(0x000000);
+			sprite.graphics.drawCircle(15,15,10);
+			sprite.graphics.beginFill(data.statusColor);
+			sprite.graphics.drawCircle(15,15,9);
+			circle.addChild(sprite); */
+				//this.backgroundContainer.
+			}
 		]]>
 	</fx:Script>
-	
+
 	<views:GradientContainer id="backgroundContainer"
-							 width="100%"
-							 height="100%"
-							 styleName="dataGridSelection"
-							 alpha="0"/>
-	
-	<s:Rect right="0" left="0" top="0" bottom="0">
+		width="100%"
+		height="100%"
+		styleName="dataGridSelection"
+		alpha="0" />
+
+	<s:Rect 
+		bottom="0"
+		left="0"
+		right="0"
+		top="0">
 		<s:fill>
-			<s:SolidColor color="{data.statusColor}"/>
+			<s:SolidColor color="{ data.statusColor }" />
 		</s:fill>
 	</s:Rect>
 	<!--<s:VGroup width="100%" height="100%" horizontalAlign="center">-->
 	<!--<s:SpriteVisualElement id="circle" width="30" height="30" render="circle_renderHandler(event)" horizontalCenter="0" verticalCenter="0"  />-->
 	<!--</s:VGroup>-->
-	
+
 </s:GridItemRenderer>

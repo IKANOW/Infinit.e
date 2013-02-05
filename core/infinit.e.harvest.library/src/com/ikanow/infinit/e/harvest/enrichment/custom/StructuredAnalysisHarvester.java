@@ -611,35 +611,37 @@ public class StructuredAnalysisHarvester
 					
 			// 5. Remove unwanted metadata fields
 					
-					String metaFields = s.getMetadataFields();
-					if (null != metaFields) {
-						boolean bInclude = true;
-						if (metaFields.startsWith("+")) {
-							metaFields = metaFields.substring(1);
-						}
-						else if (metaFields.startsWith("-")) {
-							metaFields = metaFields.substring(1);
-							bInclude = false;
-						}
-						String[] metaFieldArray = metaFields.split("\\s*,\\s*");
-						if (bInclude) {
-							Set<String> metaFieldSet = new HashSet<String>();
-							metaFieldSet.addAll(Arrays.asList(metaFieldArray));
-							Iterator<Entry<String,  Object[]>> metaField = f.getMetadata().entrySet().iterator();
-							while (metaField.hasNext()) {
-								Entry<String,  Object[]> metaFieldIt = metaField.next();
-								if (!metaFieldSet.contains(metaFieldIt.getKey())) {
-									metaField.remove();
+					if (null != f.getMetadata()) {
+						String metaFields = s.getMetadataFields();
+						if (null != metaFields) {
+							boolean bInclude = true;
+							if (metaFields.startsWith("+")) {
+								metaFields = metaFields.substring(1);
+							}
+							else if (metaFields.startsWith("-")) {
+								metaFields = metaFields.substring(1);
+								bInclude = false;
+							}
+							String[] metaFieldArray = metaFields.split("\\s*,\\s*");
+							if (bInclude) {
+								Set<String> metaFieldSet = new HashSet<String>();
+								metaFieldSet.addAll(Arrays.asList(metaFieldArray));
+								Iterator<Entry<String,  Object[]>> metaField = f.getMetadata().entrySet().iterator();
+								while (metaField.hasNext()) {
+									Entry<String,  Object[]> metaFieldIt = metaField.next();
+									if (!metaFieldSet.contains(metaFieldIt.getKey())) {
+										metaField.remove();
+									}
+								}
+							} 
+							else { // exclude case, easier
+								for (String metaField: metaFieldArray) {
+									f.getMetadata().remove(metaField);
 								}
 							}
-						} 
-						else { // exclude case, easier
-							for (String metaField: metaFieldArray) {
-								f.getMetadata().remove(metaField);
-							}
+							//TESTED: include (default + explicit) and exclude cases
 						}
-						//TESTED: include (default + explicit) and exclude cases
-					}					
+					}//(if metadata exists)
 				} 
 				catch (Exception e) 
 				{
@@ -1169,6 +1171,11 @@ public class StructuredAnalysisHarvester
 					e.setGeotag(geo);
 				}
 				// (Allow this field to be intrinsically optional)
+				
+				// If no ontology type is specified, derive it from getEntityGeo:
+				if (null == esp.getOntology_type()) {
+					esp.setOntology_type(esp.getGeotag().getOntology_type());
+				}
 			}
 			else if (esp.getUseDocGeo() == true)
 			{
@@ -2516,7 +2523,8 @@ public class StructuredAnalysisHarvester
 				}
 
 				// Send the GeoReferencePojo to enrichGeoInfo to attempt to get lat and lon values
-				List<GeoFeaturePojo> gList = GeoReference.enrichGeoInfo(g, false, true, 1);
+				boolean bStrictMatch = (null == d.getStrictMatch()) || d.getStrictMatch();
+				List<GeoFeaturePojo> gList = GeoReference.enrichGeoInfo(g, bStrictMatch, true, 1);
 				latValue = gList.get(0).getGeoindex().lat.toString();
 				lonValue = gList.get(0).getGeoindex().lon.toString();
 			}
@@ -2650,9 +2658,12 @@ public class StructuredAnalysisHarvester
 					}
 
 					// Send the GeoReferencePojo to enrichGeoInfo to attempt to get lat and lon values
-					List<GeoFeaturePojo> gList = GeoReference.enrichGeoInfo(gfp, false, true, 1);
-					latValue = gList.get(0).getGeoindex().lat.toString();
-					lonValue = gList.get(0).getGeoindex().lon.toString();
+					boolean bStrictMatch = (null == gsp.getStrictMatch()) || gsp.getStrictMatch();
+					List<GeoFeaturePojo> gList = GeoReference.enrichGeoInfo(gfp, bStrictMatch, true, 1);
+					GeoFeaturePojo firstGeo = gList.get(0);
+					latValue = firstGeo.getGeoindex().lat.toString();
+					lonValue = firstGeo.getGeoindex().lon.toString();
+					gsp.setOntology_type(firstGeo.getOntology_type());
 					
 					// Set lat and long in DocGeo if possible
 					dLat = Double.parseDouble(latValue);

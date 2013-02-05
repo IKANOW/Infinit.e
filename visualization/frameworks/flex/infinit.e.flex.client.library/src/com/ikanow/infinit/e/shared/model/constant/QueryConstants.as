@@ -64,6 +64,12 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		// scoring constants
 		
+		public static const ADJUST_AGGREGATE_SIG:String = "adjustAggregateSig";
+		
+		public static const SIG_WEIGHT:String = "relWeight";
+		
+		public static const REL_WEIGHT:String = "sigWeight";
+		
 		public static const TIME_PROXIMITY:String = "timeProx";
 		
 		public static const GEO_PROXIMITY:String = "geoProx";

@@ -25,7 +25,13 @@ package com.ikanow.infinit.e.shared.model.constant.settings
 		
 		// scoring
 		
+		public static const SCORING_ENABLE:Boolean = true;
+		
 		public static const SCORING_NUM_ANALYZE:int = 1000;
+		
+		public static const SCORING_ADJUST_AGGSIG:int = 0;
+		
+		public static const SCORING_SCORE_ENTS:Boolean = true;
 		
 		public static const SCORING_REL_WEIGHT:int = 33;
 		

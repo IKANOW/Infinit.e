@@ -1699,7 +1699,7 @@ else if (isLoggedIn == true)
 	                <tr>
 	                	<td>Status Message:</td>
 	                	<td><textarea rows="4" cols="44" name="joberror" id="joberror" ></textarea></td>
-	                	<td><button onclick="showResults()">Show results</button></td>
+	                	<td><button type="button" onclick="showResults()">Show results</button></td>
 	                </tr></table>
 		        	<input type="hidden" name="refreshId" id="refreshId" />
 		        </form>

@@ -120,7 +120,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		
 		if ((null != source) && (null != source.getExtractorOptions())) {
 			try {
-				bWriteMetadata = Boolean.parseBoolean(source.getExtractorOptions().get("app.opencalais.store_raw_events"));
+				String s = source.getExtractorOptions().get("app.opencalais.store_raw_events");
+				if (null != s) bWriteMetadata = Boolean.parseBoolean(s);
 			}
 			catch (Exception e){}
 		}

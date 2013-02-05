@@ -104,10 +104,10 @@ public class CoreMain {
 				System.exit(0);
 			}
 			// Sync command line options:
-			long nTimeOfLastCleanse = 0; // (default)
+			long nTimeOfLastCleanse_secs = 0; // (default)
 			if (cliOpts.hasOption("from")) {
 				try {
-					nTimeOfLastCleanse = Long.parseLong((String) cliOpts.getOptionValue("from"));
+					nTimeOfLastCleanse_secs = Long.parseLong((String) cliOpts.getOptionValue("from"));
 				}
 				catch (NumberFormatException e) {
 					System.out.println("From date is incorrect");
@@ -125,7 +125,7 @@ public class CoreMain {
 			SourceUtils.checkSourcesHaveHashes(communityOverride, sourceDebug);
 				// (infrequently ie as part of sync, check all the sources have hashes, which the harvester depends on)
 			
-			new SynchronizationController().startService(nTimeOfLastCleanse, SourceUtils.getSourcesToWorkOn(communityOverride, sourceDebug, true, true));
+			new SynchronizationController().startService(nTimeOfLastCleanse_secs, SourceUtils.getSourcesToWorkOn(communityOverride, sourceDebug, true, true));
 		}//TESTED
 		else if (cliOpts.hasOption("custom")) 
 		{

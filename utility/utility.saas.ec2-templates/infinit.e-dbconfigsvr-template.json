@@ -49,11 +49,26 @@
 			"Default" : "t1.micro",
 			"AllowedValues" : [ "t1.micro", "m1.large" ],
 			"ConstraintDescription" : "t1.micro should be fine, m1.large is safer for high performance deployments"
+		},
+		"HostedZone" : {
+			"Type" : "String",
+			"Description" : "The DNS name of an existing Amazon Route 53 hosted zone"
 		}
 	},
 
 	"Resources" : {
 		
+		"HostRecord" : {
+			"Type" : "AWS::Route53::RecordSet",
+			"Properties" : {
+				"HostedZoneName" : { "Fn::Join" : [ "", [{"Ref" : "HostedZone"}, "." ]]},
+				"Comment" : "DNS name for my instance.",
+				"Name" : { "Fn::Join" : [ "", [{"Ref" : "NodeName"}, ".", {"Ref" : "HostedZone"} ,"."]]},
+				"Type" : "CNAME",
+				"TTL" : "300",
+				"ResourceRecords" : [ { "Fn::GetAtt" : [ "Ec2Instance", "PublicDnsName" ] } ]
+			}
+		},
 		"Ec2Instance" : {			
 			"Type" : "AWS::EC2::Instance",
 			
@@ -68,6 +83,10 @@
 				"Tags" : [ { 
 					"Key": "Name", 
 					"Value": { "Ref": "NodeName" } 
+				},
+				{
+					"Key": "DnsName", 
+					"Value": { "Fn::Join" : [ "", [{"Ref" : "NodeName"}, ".", {"Ref" : "HostedZone"}]]}	
 				},
 				{
 					"Key": "cluster-name", 

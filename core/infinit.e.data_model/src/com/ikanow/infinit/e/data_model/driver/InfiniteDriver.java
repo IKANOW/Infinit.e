@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012 The Infinit.e Open Source Project
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
 package com.ikanow.infinit.e.data_model.driver;
 
 import java.io.BufferedReader;
@@ -56,8 +71,9 @@ public class InfiniteDriver
 	private String apiRoot;
 	private String user;
 	private String password;
+	private String apiKey = null;
 	
-	private static String cookie = null;
+	private String cookie = null;
 	
 	public InfiniteDriver()
 	{
@@ -73,6 +89,20 @@ public class InfiniteDriver
 		else
 			apiRoot = apiRootUrl;
 		
+		user = DEFAULT_USER;
+		password = DEFAULT_PASSWORD;
+	}
+	
+	public InfiniteDriver(String apiRootUrl, String apiKey)
+	{
+		if (apiRootUrl == null)
+			apiRoot = DEFAULT_API_ROOT;
+		else
+			apiRoot = apiRootUrl;
+		
+		this.apiKey = apiKey;
+		
+		// (unused)
 		user = DEFAULT_USER;
 		password = DEFAULT_PASSWORD;
 	}
@@ -115,6 +145,12 @@ public class InfiniteDriver
 	
 	// AUTHENTICATION
 	
+	// If you already have a valid cookie, then use that:
+	
+	public void useExistingCookie(String existingCookie) {
+		cookie = "infinitecookie=" + existingCookie + "; Path=/; HttpOnly";
+	}
+	
 	/**
 	 * Logs the user in specified by setUser() using the password
 	 * specified by setPassword().
@@ -156,6 +192,9 @@ public class InfiniteDriver
 	 */
 	public Boolean login(String username, String password, ResponseObject responseObject)
 	{
+		if (null != apiKey) { // Have an API key, don't need to login....
+			return true;
+		}		
 		cookie = null;
 		try {
 			String address = apiRoot + "auth/login/" + username + "/" + encryptEncodePassword(password);
@@ -176,6 +215,8 @@ public class InfiniteDriver
 	
 	public Boolean adminLogin(String username, String password, ResponseObject responseObject)
 	{
+		// Allow this even if have an API key because it's currently the only way of knowing if you're an admin
+		
 		cookie = null;
 		try {
 			String address = apiRoot + "auth/login/admin/" + username + "/" + encryptEncodePassword(password);
@@ -200,6 +241,9 @@ public class InfiniteDriver
 	 */
 	public Boolean logout()
 	{
+		if (null == cookie) { // not logged in, eg have an API key
+			return true;
+		}
 		try {
 			String address = apiRoot + "auth/logout/";
 			String logoutResult;
@@ -218,6 +262,31 @@ public class InfiniteDriver
 		}
 	}
 
+	/**
+	 * Sends a keepalive message
+	 * @return true if user is currently logged in
+	 */
+	public Boolean sendKeepalive() {
+		return sendKeepalive(false);
+	}
+	public Boolean sendKeepalive(boolean bAdminOnly) {
+		
+		try {			
+			String address = apiRoot + "auth/keepalive";
+			if (bAdminOnly) {
+				address += "/admin";
+			}
+			String logoutResult;
+			logoutResult = sendRequest(address, null);
+			ResponsePojo response = ResponsePojo.fromApi(logoutResult, ResponsePojo.class);
+			return response.getResponse().isSuccess();
+		}
+		catch (Exception e) 
+		{
+			return false;
+		}
+	}
+	
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// SOCIAL - COMMUNITIES
@@ -1077,9 +1146,17 @@ public class InfiniteDriver
 	
 	///////// Request Calls	
 	
-	public static String sendRequest(String urlAddress, String postData)
+	public String sendRequest(String urlAddress, String postData)
 	{
 		try {
+			if (null != apiKey) {
+				if (urlAddress.indexOf('?') > 0) {
+					urlAddress += ("&infinite_api_key=" + apiKey);
+				}
+				else {
+					urlAddress += ("?infinite_api_key=" + apiKey);					
+				}//TOTEST
+			}
 			if (postData == null)
 				return sendGetRequest(urlAddress);
 			else
@@ -1091,7 +1168,7 @@ public class InfiniteDriver
 	}
 
 
-	private static String sendPostRequest(String urlAddress, String data) throws MalformedURLException, IOException
+	private String sendPostRequest(String urlAddress, String data) throws MalformedURLException, IOException
 	{	
 		String result = "";
 
@@ -1140,7 +1217,7 @@ public class InfiniteDriver
 	
 	
 
-	public static String sendGetRequest(String urlAddress) throws Exception
+	public String sendGetRequest(String urlAddress) throws Exception
 	{
 		URL url = new URL(urlAddress);
 		URLConnection urlConnection = url.openConnection();

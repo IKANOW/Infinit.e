@@ -73,6 +73,7 @@
 			import org.alivepdf.pages.Page;
 			import org.alivepdf.pdf.PDF;
 			import system.data.Map;
+			import system.data.maps.HashMap;
 			import system.data.sets.HashSet;
 			
 			private static const MAP_OVERLAY:int = 0;
@@ -281,16 +282,15 @@
 						for ( var i:int = 0; i < keys.length; i++ )
 						{
 							//The keys are the commid, the val is a map of name -> kml urls
-							var kmlMap:Object = vals[ i ];
-							var kmlKeys:Array = kmlMap.keys;
-							var kmlVals:Array = kmlMap.values;
 							
-							for ( var j:int = 0; j < kmlVals.length; j++ )
+							var kmlMap:Object = vals[ i ];
+							
+							for ( var x:String in kmlMap )
 							{
-								var url:String = kmlVals[ j ];
+								var url:String = kmlMap[ x ];
 								url = url.replace( "\$infinite/", ENDPOINT_URL );
 								var remoteColl:RemoteCollection = new RemoteCollection( url, DeserializeKML );
-								remoteColl.name = getKmlName( keys[ i ], kmlKeys[ j ] );
+								remoteColl.name = getKmlName( keys[ i ], x );
 								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_LOADED, kmlLoaded );
 								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );
 								kmlCollection.addItem( remoteColl );
@@ -700,7 +700,7 @@
 			
 			private function createKML():ByteArray
 			{
-				var xml:String = "< xmlns=\"http://www.opengis.net/kml/2.2\"><Document>";
+				var xml:String = "<kml><Document>";
 				xml += "<Style id=\"Document\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png</href></Icon></IconStyle></Style>";
 				xml += "<Style id=\"Entity\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle></Style>";
 				xml += "<Style id=\"Event\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ltblu-pushpin.png</href></Icon></IconStyle></Style>";
@@ -871,7 +871,6 @@
 				xml += "</Folder>";
 				
 				xml += "</Document></kml>";
-				
 				var x:XML = new XML( xml );
 				
 				var ba:ByteArray = new ByteArray();
@@ -912,7 +911,7 @@
 			 */
 			private function getKMLLayerWasToggled( newLayerName:String ):Boolean
 			{
-				if ( this.widgetOptions.openKMLLayers != null )
+				if ( this.widgetOptions != null && this.widgetOptions.openKMLLayers != null )
 				{
 					var openKMLLayers:Array = this.widgetOptions.openKMLLayers;
 					

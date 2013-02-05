@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -89,6 +89,7 @@ package assets
 		
 		[Embed( source = "/assets/images/Filter.png" )]
 		public static const FILTER:Class;
+		
 		/*
 		[Embed( source = "/assets/images/Green_CrossHatch.png" )]
 		public static const GREEN_CROSS_HATCH:Class;
@@ -194,6 +195,7 @@ package assets
 		
 		[Embed( source = "/assets/images/Search.png" )]
 		public static const SEARCH:Class;
+		
 		/*
 		[Embed( source = "/assets/images/Search_White_Over.png" )]
 		public static const SEARCH_WHITE_OVER:Class;
@@ -233,15 +235,12 @@ package assets
 		
 		[Embed( source = "/assets/images/SelectAll_Icon_On.png" )]
 		public static const SELECT_ALL_ON:Class;
-		
-		/*[Embed( source = "/assets/images/Sources_AddNew_On.png" )]
-		public static const SOURCE_ADD_NEW_ON:Class;
-		
-		[Embed( source = "/assets/images/Sources_AddNew_Off.png" )]
-		public static const SOURCE_ADD_NEW_OFF:Class;
-		
-		[Embed( source = "/assets/images/Widget_Options_Button.png" )]
-		public static const WIDGET_OPTIONS_BUTTON:Class;*/
+	/*[Embed( source = "/assets/images/Sources_AddNew_On.png" )]
+	public static const SOURCE_ADD_NEW_ON:Class;
+	[Embed( source = "/assets/images/Sources_AddNew_Off.png" )]
+	public static const SOURCE_ADD_NEW_OFF:Class;
+	[Embed( source = "/assets/images/Widget_Options_Button.png" )]
+	public static const WIDGET_OPTIONS_BUTTON:Class;*/
 	}
 }
 

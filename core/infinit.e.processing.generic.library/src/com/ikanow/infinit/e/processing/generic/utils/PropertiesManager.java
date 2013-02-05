@@ -129,6 +129,17 @@ public class PropertiesManager {
 		return false;
 	}
 
+	// If aggregation enabled, normally will run in a background thread with a 50% duty cycle
+	// set this to <0 to run synchronously in harvest (legacy code), or 0<.<=1 otherwise, (0 just doesn't aggreagate on-the-fly)
+	
+	public double getHarvestAggregationDutyCycle() {
+		String s = this.getProperty("harvest.aggregation.duty_cycle");
+		if (null == s) { // Once this has had a chance to be proven we'll enable it by default
+			return 0.5;
+		}
+		return Double.parseDouble(s);
+	}
+	
 	/**
 	 * Checks if icu_normalization should be active for community ES index
 	 * 

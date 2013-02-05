@@ -188,6 +188,11 @@ public class LoginInterface extends ServerResource
 			 
 			 mustComeFromAuthority = true;
 		 }
+		 else if ( urlStr.contains("auth/keepalive/admin"))
+		 {
+			 cookie = request.getCookies().getFirstValue("infinitecookie",true);
+			 action ="admin-keepalive";
+		 }
 		 else if ( urlStr.contains("auth/keepalive"))
 		 {
 			 cookie = request.getCookies().getFirstValue("infinitecookie",true);
@@ -253,6 +258,26 @@ public class LoginInterface extends ServerResource
 		 if ( action.equals("login"))
 		 {
 			 rp = new ResponsePojo(new ResponseObject("Login",isLogin,null));
+		 }
+		 else if ( action.equals("admin-keepalive"))
+		 {
+			 if (null != cookie) {
+				 cookieLookup = RESTTools.cookieLookup(cookie);
+			 }
+			 if (null != cookieLookup) {
+				AuthenticationPojo query = new AuthenticationPojo();
+				query.setProfileId(new ObjectId(cookieLookup));
+				AuthenticationPojo authUser = AuthenticationPojo.fromDb(DbManager.getSocial().getAuthentication().findOne(query.toDb()), AuthenticationPojo.class);
+				if ((authUser.getAccountType() != null) && authUser.getAccountType().equalsIgnoreCase("admin")) {
+					 rp = new LoginHandler().keepAlive(cookieLookup);					
+				}
+				else {					
+					 rp.setResponse(new ResponseObject("Keepalive", false, "Logged in but not admin."));
+				}
+			 }
+			 else {
+				 rp.setResponse(new ResponseObject("Keepalive", false, "Not logged in."));
+			 }
 		 }
 		 else if ( action.equals("keepalive"))
 		 {

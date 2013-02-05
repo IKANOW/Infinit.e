@@ -1,21 +1,20 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 package views
 {
-	import views.InfButton;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
 	import mx.core.mx_internal;
@@ -23,6 +22,7 @@ package views
 	import mx.validators.IValidator;
 	import spark.components.TextInput;
 	import spark.components.supportClasses.SkinnableComponent;
+	import views.InfButton;
 	
 	[Event( name = "submitQuery", type = "flash.events.Event" )]
 	/**
@@ -36,7 +36,7 @@ package views
 		//======================================
 		
 		/*[SkinPart( required = "false" )]
-		/** @private 
+		/** @private
 		public var validationStatus:ValidationStatus;*/
 		
 		[SkinPart( required = "false" )]
@@ -138,8 +138,8 @@ package views
 		
 		private function textDisplay_changeHandler( event:Event ):void
 		{
-			/*if ( validationStatus )
-				validationStatus.valid = valid;*/
+		/*if ( validationStatus )
+			validationStatus.valid = valid;*/
 		}
 	}
 }

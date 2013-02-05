@@ -92,6 +92,12 @@
 			 */
 			protected var currentUser:User;
 			
+			[Bindable]
+			private var queryRefresh:Boolean = true;
+			
+			[Bindable]
+			private var communityRefresh:Boolean = true;
+			
 			public function closeCommunitiesPopup( event:Event = null ):void
 			{
 				if ( communitiesPopup )
@@ -186,6 +192,7 @@
 				sourceManager.removeEventListener( SourceEvent.REFRESH_SOURCES, handleRefreshSourcesEvent );
 				sourceManager.sendRefreshEvent = false;
 				sourceManager.sources.refresh();
+				model.sources.refresh();
 				refreshingIndicator.visible = false;
 			}
 			
@@ -214,13 +221,13 @@
 			 * @param renderer The current renderer
 			 */
 			protected function positionSourceMonitorPopup( renderer:GridTextItemRenderer ):void
-			{				
+			{
 				if ( sourceMonitorPopup )
 				{
 					var p:Point = sources.contentToGlobal( new Point( renderer.x, renderer.y ) );
-					sourceMonitorPopup.x = (p.x - ( sourceMonitorPopup.width)) + 10;
+					sourceMonitorPopup.x = ( p.x - ( sourceMonitorPopup.width ) ) + 10;
 					sourceMonitorPopup.y = sources.y + 180;
-				}				
+				}
 			}
 			
 			/**
@@ -236,14 +243,21 @@
 				sourceManager.addEventListener( SourceEvent.REFRESH_SOURCES, handleRefreshSourcesEvent );
 				sourceManager.sendRefreshEvent = true;
 				
-				//First call out to get the user object, will refresh the current communities user is in			
-				var userEvent:UserEvent = new UserEvent( UserEvent.GET_USER );
+				//First call out to get the user object, will refresh the current communities user is in	
+				/*var userEvent:UserEvent = new UserEvent( UserEvent.GET_USER );
+				userEvent.userName = currentUser.email;
+				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
+				dispatcher.dispatchEvent( userEvent );*/
+				var userEvent:UserEvent = new UserEvent( UserEvent.REFRESH );
 				userEvent.userName = currentUser.email;
 				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
 				dispatcher.dispatchEvent( userEvent );
 				
 				//Next call out to the public communities, will list any new public communities below user
-				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
+				/*var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
+				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
+				dispatcher.dispatchEvent( communityEvent );*/
+				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.REFRESH );
 				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
 				dispatcher.dispatchEvent( communityEvent );
 			}

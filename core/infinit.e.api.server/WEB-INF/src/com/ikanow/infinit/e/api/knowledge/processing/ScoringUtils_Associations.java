@@ -23,9 +23,11 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.TreeSet;
 
+import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils.EntSigHolder;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 
@@ -48,11 +50,12 @@ class ScoringUtils_Associations {
 	
 	static class StandaloneEventHashAggregator {
 		@SuppressWarnings("unchecked")
-		StandaloneEventHashAggregator(LinkedList<BasicDBObject> primaryList, boolean bSimulateAggregation) {
+		StandaloneEventHashAggregator(LinkedList<BasicDBObject> primaryList, boolean bSimulateAggregation, AliasLookupTable aliasLookup) {
 			store = new HashMap<StandaloneEventHashCode,BasicDBObject>();
 			listBuckets = (LinkedList<BasicDBObject>[])new LinkedList[NUM_BUCKETS]; 
 			tmpList = new LinkedList<BasicDBObject>();
 			this.bSimulateAggregation = bSimulateAggregation;
+			this.aliasLookup = aliasLookup;
 		}
 		HashMap<StandaloneEventHashCode,BasicDBObject> store;
 		double dMaxSig = 0; // (max sig observed)
@@ -60,6 +63,7 @@ class ScoringUtils_Associations {
 		int nPhase0Events = 0; // (count the events from promoted docs - allows some optimization later)
 		int nPhase1Events = 0; // (count the events from once-promoted docs - allows some optimization later)
 		boolean bSimulateAggregation = false; // (if true, generates pure aggregations of events/facts)
+		AliasLookupTable aliasLookup = null;
 		
 		// Very basic prioritization
 		private static final int NUM_BUCKETS = 100;
@@ -227,61 +231,18 @@ class ScoringUtils_Associations {
 					bIsSummary = true;
 				}//TESTED x4
 				
-				// Verb filter
-				if (null != assocVerbFilter) {
-					if (bAssocVerbFilterPositive) {
-						if (!assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
-							bKeep = false;
-						}						
-					}
-					else if (assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+				// Filter and aliasing logic:
+				if (bKeep) {
+					boolean bKeep2 = filterAndAliasAssociation(e, standaloneEventAggregator.aliasLookup, true,
+							bEntTypeFilterPositive, bAssocVerbFilterPositive,
+							entTypeFilter, assocVerbFilter);
+					if (!bKeep2) {
+						e0.remove();
+							// (remove/rename events based on filters where we can, 
+							//  means we don't have to do it in stage4)
 						bKeep = false;
 					}
 				}//TESTED
-
-				if ((null != entTypeFilter) && bKeep) {
-					String entIndex = e.getString(AssociationPojo.entity1_index_);
-					if (null != entIndex) {
-						String entType = null; 
-						int nIndex = entIndex.lastIndexOf('/');
-						if (nIndex >= 0) {
-							entType = entIndex.substring(nIndex + 1);
-						}
-						if (bEntTypeFilterPositive) {
-							if ((null != entType) && (!entTypeFilter.contains(entType))) {
-								e0.remove();
-								bKeep = false;
-							}
-						}
-						else if ((null != entType) && (entTypeFilter.contains(entType))) {
-							e0.remove();
-							bKeep = false;
-						}
-						//TESTED
-						
-					}//(end if ent1_index exists)
-					if (bKeep) { // same for ent index 2
-						entIndex = e.getString(AssociationPojo.entity2_index_);
-						if (null != entIndex) {
-							String entType = null; 
-							int nIndex = entIndex.lastIndexOf('/');
-							if (nIndex >= 0) {
-								entType = entIndex.substring(nIndex + 1);
-							}
-							if (bEntTypeFilterPositive) {
-								if ((null != entType) && (!entTypeFilter.contains(entType))) {
-									e0.remove();
-									bKeep = false;
-								}
-							}
-							else if ((null != entType) && (entTypeFilter.contains(entType))) {
-								e0.remove();
-								bKeep = false;
-							}
-						}//(end if ent2_index exists)
-					}
-				}//(end entity filter logic for associations)
-				//TESTED
 				
 				if (bKeep) 
 				{
@@ -411,6 +372,160 @@ class ScoringUtils_Associations {
 		
 	} //TESTED 
 
+	////////////////////////////////////
+	
+	// Utility
+	
+	static boolean filterAndAliasAssociation(BasicDBObject e, AliasLookupTable aliasLookup, boolean bModifyAssocObj,
+			boolean bEntTypeFilterPositive, boolean bAssocVerbFilterPositive,
+			HashSet<String> entTypeFilter, HashSet<String> assocVerbFilter)
+	{
+		// Verb filter
+		if (null != assocVerbFilter) {
+			if (bAssocVerbFilterPositive) {
+				if (!assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+					return false;
+				}						
+			}
+			else if (assocVerbFilter.contains(e.getString(AssociationPojo.verb_category_))) {
+				return false;
+			}
+		}//TESTED
+
+		if ((null != entTypeFilter) || (null != aliasLookup)) {			
+			String ent1Index = e.getString(AssociationPojo.entity1_index_);
+			if (null != ent1Index) {
+				String entType = null; 
+				if (null != aliasLookup) {
+					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(ent1Index);
+					if (null != alias) {						
+						ent1Index = alias.getIndex();
+						entType = alias.getType();						
+						if (ent1Index.equalsIgnoreCase("discard")) {
+							return false;
+						}
+						else { // rename
+							if (bModifyAssocObj) {
+								e.put(AssociationPojo.entity1_index_, alias.getIndex());
+							}
+						}
+					}
+				}//TESTED
+				if (null == entType) {
+					int nIndex = ent1Index.lastIndexOf('/');
+					if (nIndex >= 0) {
+						entType = ent1Index.substring(nIndex + 1);
+					}
+				}
+				else {
+					entType = entType.toLowerCase();
+				}//TESTED (both clauses)
+				if (null != entTypeFilter) {					
+					if (bEntTypeFilterPositive) {
+						if ((null != entType) && (!entTypeFilter.contains(entType))) {
+							return false;
+						}
+					}
+					else if ((null != entType) && (entTypeFilter.contains(entType))) {
+						return false;
+					}
+				}
+				//TESTED
+				
+			}//(end if ent1_index exists)
+
+			String ent2Index = e.getString(AssociationPojo.entity2_index_);
+			if (null != ent2Index) {
+				String entType = null; 
+				if (null != aliasLookup) {
+					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(ent2Index);
+					if (null != alias) {
+						ent2Index = alias.getIndex();
+						entType = alias.getType();
+						if (ent2Index.equalsIgnoreCase("discard")) {
+							return false;
+						}
+						else { // rename
+							if (bModifyAssocObj) {
+								e.put(AssociationPojo.entity2_index_, alias.getIndex());
+							}
+						}
+					}
+				}//TESTED (cut and paste from ent1)
+				if (null == entType) {
+					int nIndex = ent2Index.lastIndexOf('/');
+					if (nIndex >= 0) {
+						entType = ent2Index.substring(nIndex + 1);
+					}
+				}
+				else {
+					entType = entType.toLowerCase();
+				}//TESTED (cut and paste from ent1)
+				if (null != entTypeFilter) {
+					if (bEntTypeFilterPositive) {
+						if ((null != entType) && (!entTypeFilter.contains(entType))) {
+							return false;
+						}
+					}
+					else if ((null != entType) && (entTypeFilter.contains(entType))) {
+						return false;
+					}
+				}
+			}//(end if ent2_index exists)
+			
+			String geoIndex = e.getString(AssociationPojo.geo_index_);
+			if (null != geoIndex) {
+				String entType = null; 
+				if (null != aliasLookup) {
+					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(geoIndex);
+					if (null != alias) {
+						geoIndex = alias.getIndex();
+						entType = alias.getType();
+						if (geoIndex.equalsIgnoreCase("discard")) {
+							if ((ent1Index == null) || (ent2Index == null)) {
+								return false;								
+							}
+							else if (bModifyAssocObj) {
+								e.remove(AssociationPojo.geo_index_);
+							}
+							else {
+								return false;
+							}
+						}
+						else { // rename
+							if (bModifyAssocObj) {
+								e.put(AssociationPojo.geo_index_, alias.getIndex());
+							}
+						}
+					}
+				}//TESTED (cut and paste from ent1)
+				if (null == entType) {
+					int nIndex = geoIndex.lastIndexOf('/');
+					if (nIndex >= 0) {
+						entType = geoIndex.substring(nIndex + 1);
+					}
+				}
+				else {
+					entType = entType.toLowerCase();
+				}//TESTED (cut and paste from ent1)
+				if (null != entTypeFilter) {
+					if (bEntTypeFilterPositive) {
+						if ((null != entType) && (!entTypeFilter.contains(entType))) {
+							return false;
+						}
+					}
+					else if ((null != entType) && (entTypeFilter.contains(entType))) {
+						return false;
+					}
+				}
+			}//(end if ent2_index exists)
+			
+		}//(end entity filter logic for associations)
+		//TESTED
+		
+		return true;
+	}//TOTEST (geo index)
+	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////	
 
 // ADDITIONAL FUNCTIONALITY #2: SIMPLE ASSOCIATION SCORING

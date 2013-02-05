@@ -454,7 +454,14 @@ public class StoreAndIndexManager {
 										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
 			
 			col.update(query, softDelete, false, true); // (needs to be multi- even though there's a single element for sharding reasons)
-			if ((null == doc.getId()) || (null == doc.getSourceUrl())) { 
+			
+			// Cases in which we don't need to go get extra information:
+			// (index and _id needed for normal removal from ES, created needed for update cases) 
+			// 1) if doc.getId==null then this comes from the update code in the main harvester, so need created
+			// 2) obv if doc.index==null then we need to fill this in
+			
+			if ((null == doc.getIndex()) || (null == doc.getId())) {
+				// null==doc.getId() means this is an updateId case
 				// (these docs are dummy documents, they already have the _id for deleting from index, created not needed)
 				deadDoc = (BasicDBObject) col.findOne(new BasicDBObject(DocumentPojo.url_, doc.getUrl()), fields);
 			}

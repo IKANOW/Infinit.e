@@ -78,6 +78,12 @@ public class UnstructuredAnalysisConfigPojo
 		}
 	}
 	
+	public void CopyMeta(List<metaField> newMeta) {
+		if (null == meta)
+			meta = new ArrayList<metaField>();
+		meta.addAll(newMeta);
+	}
+	
 	public void AddMetaField(String fieldName, Context context, String script, String scriptlang, String flags)
 	{
 		if (null == meta)

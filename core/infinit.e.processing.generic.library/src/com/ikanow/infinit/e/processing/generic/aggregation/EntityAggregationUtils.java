@@ -125,7 +125,7 @@ public class EntityAggregationUtils {
 								// (returns entity before the changes above, update the feature object below)
 								// (also atomically creates the object if it doesn't exist so is "distributed-safe")
 						}
-						if ( ( dboUpdate != null ) && !dboUpdate.keySet().isEmpty() )
+						if ( ( dboUpdate != null ) && !dboUpdate.keySet().isEmpty() ) // (feature already exists)
 						{
 							// (Update the entity feature to be correct so that it can be accurately synchronized with the index)							
 							EntityFeaturePojo gp = EntityFeaturePojo.fromDb(dboUpdate, EntityFeaturePojo.class);
@@ -143,6 +143,7 @@ public class EntityAggregationUtils {
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, found: " + ((BasicDBObject)gp.toDb()).toString());
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
 							}
+							// (In background aggregation mode we update db_sync_prio when checking the doc update schedule) 
 						}
 						else // (the object in memory is now an accurate representation of the database, minus some fields we'll now add)
 						{
@@ -188,7 +189,10 @@ public class EntityAggregationUtils {
 							else {
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, not found: " + query.toString() + ": " + baseFields.toString());
 							}
-							entFeature.setDbSyncTime(null); // (ensures that index re-sync will occur)
+							entFeature.setDbSyncTime(null); // (ensures that index re-sync will occur)		
+							
+							// (Note even in background aggregation mode we still perform the feature synchronization
+							//  for new entities - and it has to be right at the end because it "corrupts" the objects)
 						}
 					}
 				}
@@ -278,6 +282,8 @@ public class EntityAggregationUtils {
 			update2.put(EntityFeaturePojo.db_sync_time_, Long.toString(nCurrTime));
 			update2.put(EntityFeaturePojo.db_sync_doccount_, entityFeature.getDoccount());
 			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, update2);
+			BasicDBObject update3 = new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 1);
+			update.put(MongoDbManager.unset_, update3);
 			BasicDBObject query = new BasicDBObject(EntityFeaturePojo.index_, entityFeature.getIndex());
 			query.put(EntityFeaturePojo.communityId_, communityId);
 	
@@ -299,4 +305,23 @@ public class EntityAggregationUtils {
 				//(_id is set by the index map to index:communityId)
 		}
 	}//TESTED (by eye, mostly cut-and-paste from test Beta)
+	
+	///////////////////////////////////////////////////////////////////////////////////////
+	
+	// Set flag to synchronize entity features
+	
+	public static void markEntityFeatureForSync(EntityFeaturePojo entityFeature, ObjectId communityId) {
+		DBCollection entityFeatureDb = DbManager.getFeature().getEntity();
+		double dPrio = 100.0*(double)entityFeature.getDoccount()/(0.01 + (double)entityFeature.getDbSyncDoccount());
+		entityFeature.setDb_sync_prio(dPrio);
+		BasicDBObject query = new BasicDBObject(EntityFeaturePojo.index_, entityFeature.getIndex());
+		query.put(EntityFeaturePojo.communityId_, communityId);
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(EntityFeaturePojo.db_sync_prio_, dPrio));
+		if (_diagnosticMode) {
+			System.out.println("EntityAggregationUtils.markEntityFeatureForSynchronization, featureDB: " + query.toString() + " / " + update.toString());				
+		}
+		else {
+			entityFeatureDb.update(query, update, false, true);
+		}
+	}//TESTED
 }

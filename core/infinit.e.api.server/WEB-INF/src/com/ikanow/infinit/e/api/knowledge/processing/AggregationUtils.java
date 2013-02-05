@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.api.knowledge.processing;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -61,7 +62,8 @@ public class AggregationUtils {
 	// OUTPUT PARSING - TOP LEVEL
 	
 	public static void loadAggregationResults(ResponsePojo rp, Map<String, Facet> facets, AggregationOutputPojo aggOutParams, 
-												ScoringUtils scoreStats, AliasLookupTable aliasLookup)
+												ScoringUtils scoreStats, AliasLookupTable aliasLookup,
+												String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
 		for (Map.Entry<String, Facet> facet: facets.entrySet()) {
 			
@@ -99,11 +101,11 @@ public class AggregationUtils {
 			
 			if (facet.getKey().equals("events")) {
 				TermsFacet eventsFacet = (TermsFacet)facet.getValue();
-				rp.setEvents(parseEventAggregationOutput("Event", eventsFacet, scoreStats, aliasLookup));
+				rp.setEvents(parseEventAggregationOutput("Event", eventsFacet, scoreStats, aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings));
 			}					
 			if (facet.getKey().equals("facts")) {
 				TermsFacet factsFacet = (TermsFacet)facet.getValue();
-				rp.setFacts(parseEventAggregationOutput("Fact", factsFacet, scoreStats, aliasLookup));
+				rp.setFacts(parseEventAggregationOutput("Fact", factsFacet, scoreStats, aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings));
 			}					
 			//TESTED x2
 			
@@ -251,8 +253,7 @@ public class AggregationUtils {
 				regex.append("\\|.*");
 			}
 			//DEBUG
-			//System.out.println("REGEX==" + regex.toString());
-			
+			//System.out.println("REGEX==" + regex.toString());			
 			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 			
 			TermsFacetBuilder fb = FacetBuilders.termsFacet("events").field(AssociationPojo.assoc_index_).size(aggregation.eventsNumReturn).nested(DocumentPojo.associations_);
@@ -276,14 +277,23 @@ public class AggregationUtils {
 			if (null != verbCatRegex) {
 				regex.append(verbCatRegex);
 			}
+			else if (null != entTypeRegex) {
+				regex.append("\\|[^|]*");				
+			}
+			else {
+				regex.append(".*");				
+			}
 			if (null != entTypeRegex) {
 				regex.append("\\|").append(entTypeRegex);				
+				regex.append(".*");
 			}
 			else {
 				regex.append("\\|.*");
 			}
+			//DEBUG
+			//System.out.println("REGEX==" + regex.toString());			
 			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
-			
+						
 			TermsFacetBuilder fb = FacetBuilders.termsFacet("facts").field(AssociationPojo.assoc_index_).size(aggregation.factsNumReturn).nested(DocumentPojo.associations_);
 			fb.regex(regex.toString());
 			
@@ -324,10 +334,13 @@ public class AggregationUtils {
 	private static Pattern eventIndexParser = Pattern.compile("([^|]+/[^/|]+)?\\|([^|]+)?\\|([^|]+/[^|/]+)?\\|(.+)?");
 	
 	private static List<BasicDBObject> parseEventAggregationOutput(String sEventOrFact, TermsFacet facet, 
-																	ScoringUtils scoreStats, AliasLookupTable aliasLookup)
+																	ScoringUtils scoreStats, AliasLookupTable aliasLookup,
+																	String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
 		ArrayList<BasicDBObject> facetList = new ArrayList<BasicDBObject>(facet.entries().size());
 		
+		// (These 2 might be needed if we alias and there are filter strings specified)
+		HashSet<String> entTypeFilter = null;		
 		//TEST CASES:
 //		String term1 = "mark kelly/person|family relation|gabrielle giffords/person|";
 //		String term2 = "|family relation|gabrielle giffords/person|";
@@ -378,12 +391,18 @@ public class AggregationUtils {
 					json.put(AssociationPojo.assoc_sig_, 0.0);
 				}				
 				
+				boolean bTransformedByAlias = false; // when true need to re-check vs entity type filter
+				
 				// Now write the last few values (adjusted for aliases if necessary) into the JSON object
 				if (null != sEnt1_index) {
 					if (null != aliasLookup) {
 						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt1_index);
 						if (null != alias) {
 							sEnt1_index = alias.getIndex();
+							if (sEnt1_index.equalsIgnoreCase("discard")) {
+								continue;
+							}//TESTED
+							bTransformedByAlias = true;
 						}
 					}					
 					json.put(AssociationPojo.entity1_index_, sEnt1_index);
@@ -393,6 +412,10 @@ public class AggregationUtils {
 						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt2_index);
 						if (null != alias) {
 							sEnt2_index = alias.getIndex();
+							if (sEnt2_index.equalsIgnoreCase("discard")) {
+								continue;
+							}//TESTED (cut and paste of ent index1)
+							bTransformedByAlias = true;
 						}						
 					}					
 					json.put(AssociationPojo.entity2_index_, sEnt2_index);					
@@ -402,10 +425,34 @@ public class AggregationUtils {
 						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sGeoIndex);
 						if (null != alias) {
 							sGeoIndex = alias.getIndex();
+							if (sGeoIndex.equalsIgnoreCase("discard")) {
+								if ((sEnt1_index != null) && (sEnt2_index != null)) {
+									sGeoIndex = null; // event/fact is still valid even without the geo									
+								}//TESTED
+								else continue; // event/fact now meaningless
+							}
+							bTransformedByAlias = true;
 						}						
 					}					
 					json.put(AssociationPojo.geo_index_, sGeoIndex);										
 				}				
+				//TESTED
+				
+				//Whenever aliases are applied, need to re-check whether is this now a filter item
+				//ideally have a single code block for doing this in scoringutils_association.
+				if (bTransformedByAlias) {
+					if ((null == entTypeFilter) && (null != entityTypeFilterStrings)) {
+						entTypeFilter = new HashSet<String>();
+					}
+					// (only create the map once, and only if needed)
+					
+					boolean bKeep = recheckFiltersAfterTransform(json, aliasLookup, entityTypeFilterStrings, entTypeFilter);
+					
+					if (!bKeep) {
+						continue; // ie just bypass the facetList.add and the nFacetEl
+					}
+				}//TESTED
+				
 				facetList.add(json);
 			}
 			nFacetEl++;
@@ -413,4 +460,32 @@ public class AggregationUtils {
 		return facetList;		
 	}//TESTED (see cases above - difficult to make this test case standalone because of TermsFacet.Entry)
 		
+	//////////////////////////////////
+	
+	// Utility:
+	
+	private static boolean recheckFiltersAfterTransform(BasicDBObject json, AliasLookupTable aliasLookup,
+			String[] entityTypeFilterStrings, HashSet<String> entTypeFilter)
+	{
+		// (approximate copy paste from ScoringUtils to initialize these objects:)
+		boolean bEntTypeFilterPositive = true; // (will recreate this every time since it's so cheap and passsing by ref is such a pain in Java)
+		
+		if (null != entityTypeFilterStrings) {
+			
+			if ('-' == entityTypeFilterStrings[0].charAt(0)) {
+				bEntTypeFilterPositive = false;
+			}
+			if (entTypeFilter.isEmpty()) {// (first time through per call only)
+				for (String entityType: entityTypeFilterStrings) {
+					if (!bEntTypeFilterPositive && ('-' == entityType.charAt(0))) {
+						entityType = entityType.substring(1);
+					}
+					entTypeFilter.add(entityType.toLowerCase());
+				}
+			}
+		}
+		// (Only need to re-filter on entities)
+		return ScoringUtils_Associations.filterAndAliasAssociation(json, null, false, bEntTypeFilterPositive, true, entTypeFilter, null);		
+	}//TESTED
+	
 }

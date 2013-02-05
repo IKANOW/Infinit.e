@@ -29,7 +29,9 @@
 		<![CDATA[
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
 			import com.ikanow.infinit.e.shared.util.FormatterUtil;
+			import com.ikanow.infinit.e.shared.util.JSONUtil;
 			import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
+			import mx.controls.Alert;
 			
 			[Bindable]
 			[Inject]
@@ -50,7 +52,6 @@
 			
 			protected function restoreButton_clickHandler( event:MouseEvent ):void
 			{
-				rankByOptions.selectedIndex = 0;
 				model.restoreDefaults()
 			}
 			
@@ -132,12 +133,17 @@
 			entityTypes_cs="{ entityTypeFilter.text }" />
 
 		<vo:QueryScoreOptions id="scoreOptions"
+			adjustAggregateSig=" { adjustAggregationSigOptions.selectedIndex } "
+			enableScoring="{ enableScoring.selected }"
 			numAnalyze="{ parseInt( numDocsToAnalyze.text ) }"
-			relWeight="{ weightSlider.value }">
+			scoreEntities="{ scoreEntities.selected }"
+			sourceWeights_cs="{ manualWeightsSources.text }"
+			tagWeights_cs="{ manualWeightsTags.text }"
+			typeWeights_cs="{ manualWeightsTypes.text }">
 			<vo:timeProx>
 				<vo:TimeProximity 
 					decay="{ timeProxDecay.text }"
-					time="{ timeProxDate.text }" />
+					time="{ FormatterUtil.getDateTimeFromString( timeProxDate.text, timeProxHourOffset.text ) }" />
 			</vo:timeProx>
 			<vo:geoProx>
 				<vo:GeoProximity 
@@ -214,18 +220,13 @@
 					<s:VerticalLayout gap="25" />
 				</s:layout>
 
-				<s:HGroup 
-					verticalAlign="middle"
-					gap="25">
-					<common:InfLabel 
-						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.rankBy' ) }"
-						styleName="workspaceSettingsGroupLabel" />
-					<common:InfDropDownList id="rankByOptions"
-						width="206"
-						dataProvider="{ model.rankByOptions }"
-						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.rankByToolTip' ) }"
-						selectedIndex="0"
-						addedToStage="{ rankByOptions.selectedIndex = 0 }" />
+				<!-- Include events, Score metadata -->
+				<s:HGroup verticalAlign="middle">
+					<common:InfCheckBox id="enableScoring"
+						width="150"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.enableScoringToolTip' ) }"
+						selected="{ model.scoreOptions.enableScoring }"
+						label="{ resourceManager.getString( 'infinite', 'workspaceSettings.enableScoring' ) }" />
 				</s:HGroup>
 				<s:HGroup verticalAlign="middle">
 					<common:InfLabel 
@@ -296,6 +297,19 @@
 
 					<common:InfLabel 
 						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.timeDecayHourOffset' ) }"
+						paddingLeft="25"
+						paddingTop="3" />
+					<textInput:InfTextInput id="timeProxHourOffset"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.timeDecayHourOffsetToolTip' ) }"
+						width="60"
+						text="{ FormatterUtil.getHourFromNowString( model.scoreOptions.timeProx.time ) }"
+						maxChars="2"
+						styleName="infTextInput"
+						restrict="0-9" />
+
+					<common:InfLabel 
+						styleName="darkText"
 						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.halfLife' ) }"
 						paddingLeft="25"
 						paddingTop="3" />
@@ -303,7 +317,8 @@
 						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.halfLifeToolTip' ) }"
 						text="{ model.scoreOptions.timeProx.decay }"
 						width="60"
-						styleName="infTextInput" />
+						styleName="infTextInput"
+						restrict="0-9hmwyd" />
 				</s:HGroup>
 				<s:HGroup verticalAlign="middle">
 					<common:InfLabel 
@@ -343,6 +358,83 @@
 						text="{ model.scoreOptions.geoProx.decay }"
 						width="60"
 						styleName="infTextInput" />
+				</s:HGroup>
+				<s:HGroup 
+					verticalAlign="middle"
+					gap="25">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.adjustAggregationSig' ) }"
+						styleName="workspaceSettingsGroupLabel" />
+					<common:InfDropDownList id="adjustAggregationSigOptions"
+						width="206"
+						dataProvider="{ model.adjustAggregationSigOptions }"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.adjustAggregationSigToolTip' ) }"
+						selectedIndex="{ model.scoreOptions.adjustAggregateSig }"
+						addedToStage="{ adjustAggregationSigOptions.selectedIndex = 0 }" />
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					verticalAlign="middle"
+					gap="25">
+					<common:InfLabel 
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeights' ) }"
+						styleName="workspaceSettingsGroupLabel"
+						paddingTop="2" />
+
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					verticalAlign="middle"
+					gap="25">
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsSources' ) }"
+						paddingLeft="40"
+						paddingTop="3" />
+
+					<textInput:InfTextInput id="manualWeightsSources"
+						text="{ model.scoreOptions.sourceWeights_cs }"
+						width="75%"
+						styleName="infTextInput"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsSourcesToolTip' ) }" />
+
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					verticalAlign="middle"
+					gap="25">
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTypes' ) }"
+						paddingLeft="40"
+						paddingTop="3" />
+
+					<textInput:InfTextInput id="manualWeightsTypes"
+						text="{ model.scoreOptions.typeWeights_cs }"
+						width="75%"
+						styleName="infTextInput"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTypesToolTip' ) }" />
+
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					verticalAlign="middle"
+					gap="25">
+
+					<common:InfLabel 
+						styleName="darkText"
+						text="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTags' ) }"
+						paddingLeft="40"
+						paddingTop="3" />
+
+					<textInput:InfTextInput id="manualWeightsTags"
+						text="{ model.scoreOptions.tagWeights_cs }"
+						width="75%"
+						styleName="infTextInput"
+						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTagsToolTip' ) }" />
+
 				</s:HGroup>
 			</s:SkinnableContainer>
 
@@ -406,26 +498,33 @@
 							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeSummaries' ) }" />
 					</s:HGroup>
 
-					<!-- Include events, Include geotags -->
+					<!-- Include events, Score metadata -->
 					<s:HGroup verticalAlign="middle">
-						<common:InfCheckBox id="includeEvents"
+						<common:InfCheckBox id="scoreEntities"
 							width="150"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.scoreEntitiesToolTip' ) }"
+							selected="{ model.scoreOptions.scoreEntities }"
+							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.scoreEntities' ) }" />
+						<common:InfCheckBox id="includeEvents"
 							selected="{ model.documentOptions.events }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEventsToolTip' ) }"
 							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeEvents' ) }" />
+					</s:HGroup>
+
+					<!-- Include facts, Include geo -->
+					<s:HGroup verticalAlign="middle">
 						<common:InfCheckBox id="includeGeotags"
+							width="150"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeGeotagsToolTip' ) }"
 							selected="{ model.documentOptions.geo }"
 							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeGeotags' ) }" />
-					</s:HGroup>
-
-					<!-- Include facts, Include metadata -->
-					<s:HGroup verticalAlign="middle">
 						<common:InfCheckBox id="includeFacts"
-							width="150"
 							selected="{ model.documentOptions.facts }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeFactsToolTip' ) }"
 							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeFacts' ) }" />
+					</s:HGroup>
+					<!-- Include metadata -->
+					<s:HGroup verticalAlign="middle">
 						<common:InfCheckBox id="includeMetadata"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.includeMetadataToolTip' ) }"
 							selected="{ model.documentOptions.metadata }"
@@ -464,7 +563,7 @@
 							styleName="infTextInput"
 							text="{ model.aggregationOptions.timesInterval }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregationIntervalToolTip' ) }"
-							restrict="0-9mwyd" />
+							restrict="0-9hmwyd" />
 						<common:InfLabel 
 							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.aggregationInterval' ) }"
 							styleName="workspaceSettingsGroupLabel" />

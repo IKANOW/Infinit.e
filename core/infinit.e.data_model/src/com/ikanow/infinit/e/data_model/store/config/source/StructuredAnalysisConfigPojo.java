@@ -630,6 +630,8 @@ public class StructuredAnalysisConfigPojo
 		private String stateProvince = null;
 		private String country = null;
 		private String countryCode = null;
+		private Boolean strictMatch = null; // defaults to true
+		private transient String ontology_type;
 		
 		private List<GeoSpecPojo> alternatives = null;
 		
@@ -710,6 +712,18 @@ public class StructuredAnalysisConfigPojo
 		}
 		public List<GeoSpecPojo> getAlternatives() {
 			return alternatives;
+		}
+		public void setStrictMatch(Boolean strictMatch) {
+			this.strictMatch = strictMatch;
+		}
+		public Boolean getStrictMatch() {
+			return strictMatch;
+		}
+		public void setOntology_type(String ontology_type) {
+			this.ontology_type = ontology_type;
+		}
+		public String getOntology_type() {
+			return ontology_type;
 		}
 	}
 	
