@@ -6,7 +6,7 @@ Summary: Infinit.e search engine REST API
 Name: infinit.e-interface-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config, infinit.e-index-engine, elasticsearch >= 0.18.7-8
+Requires: tomcat6, infinit.e-config, infinit.e-index-engine, elasticsearch >= 0.18.7-9
 License: None
 Group: Infinit.e
 BuildArch: noarch

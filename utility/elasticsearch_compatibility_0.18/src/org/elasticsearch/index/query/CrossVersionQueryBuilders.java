@@ -9,6 +9,6 @@ public class CrossVersionQueryBuilders {
      * @param text The query text (to be analyzed).
      */
     public static MatchQueryBuilder matchPhraseQuery(String name, Object text) {
-        return new MatchQueryBuilder(name, text);
+        return new MatchQueryBuilder(name, text).type(MatchQueryBuilder.Type.PHRASE);
     }
 }

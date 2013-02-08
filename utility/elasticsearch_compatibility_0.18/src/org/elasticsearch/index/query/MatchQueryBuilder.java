@@ -10,5 +10,9 @@ public class MatchQueryBuilder extends org.elasticsearch.index.query.TextQueryBu
 	public MatchQueryBuilder(String name, Object text) {
 		super(name, text);
 	}
+	public MatchQueryBuilder type(Type type) {
+		super.type((TextQueryBuilder.Type.values()[type.ordinal()]));
+		return this;
+	}
 
 }

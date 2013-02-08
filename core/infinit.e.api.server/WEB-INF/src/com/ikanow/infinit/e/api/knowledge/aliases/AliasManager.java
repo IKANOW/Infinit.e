@@ -79,8 +79,9 @@ public class AliasManager {
 					sb.append(",");
 				}				
 			}
-			sb.setLength(sb.length() - 1);
-			
+			if (sb.length() > 0) {
+				sb.setLength(sb.length() - 1);
+			}			
 			communityListStr = sb.toString();
 		}//TESTED
 		if (null == communityList) {
