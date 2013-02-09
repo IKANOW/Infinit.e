@@ -522,14 +522,17 @@ public class CustomHandler
 				} 
 				catch (IllegalArgumentException e)
 				{
+					// If an exception occurs log the error
 					logger.error("Exception Message: " + e.getMessage(), e);
-					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"No enum matching scheduled frequency, try NONE, DAILY, WEEKLY, MONTHLY"));
+					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Illegal arg (enum needs to be DAILY/WEEKLY/MONTHLY/NONE?): " + e.getMessage()));
+					return rp;
 				}
 				catch (Exception e)
 				{
 					// If an exception occurs log the error
 					logger.error("Exception Message: " + e.getMessage(), e);
-					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"error scheduling job"));
+					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"error scheduling job: " + e.getMessage()));
+					return rp;
 				}
 							
 				//update succeeded, right back to db over existing

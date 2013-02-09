@@ -212,10 +212,11 @@ public class CustomInterface extends ServerResource
 
 					// Overwrite command line args (quick and easy way to get POST working)
 					// communityIds and jobDependencies still have to be specified at the command line
-					if (null != jsonPojo.scheduleFreq) {
+					if ((null != jsonPojo.scheduleFreq) && (null == freqSched)) {
+						//(this has a default value so need to prioritize URL params)
 						freqSched = jsonPojo.scheduleFreq.toString();
 					}
-					if (Long.MAX_VALUE != jsonPojo.nextRunTime) {
+					if ((Long.MAX_VALUE != jsonPojo.nextRunTime) && (null == nextRunTime)) {
 						nextRunTime = Long.toString(jsonPojo.nextRunTime);
 					}
 					if (null != jsonPojo.jarURL) {

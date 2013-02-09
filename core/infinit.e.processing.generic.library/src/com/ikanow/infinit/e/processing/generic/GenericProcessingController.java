@@ -124,10 +124,15 @@ public class GenericProcessingController {
 			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			try { DbManager.getSocial().getCookies().dropIndex(new BasicDBObject("apiKey", 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, 1));
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			//TODO (): MOVE THESE TO SPARSE INDEXES AFTER YOU'VE UPDATED THE LOGIC (SWAP THE 1 AND 2)
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
+			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)			//DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+//			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+//			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
+			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
+//			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+//			try { DbManager.getCustom().getLookup().dropIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1)); } catch (Exception e) {} // (leave this in for a while until all legacy DBs are removed)
 		}		
 		catch (Exception e)  {
 			e.printStackTrace();
