@@ -1572,7 +1572,7 @@ else if (isLoggedIn == true)
 				}
 			}
 			else  {
-				query = "{}";
+				document.getElementById('query').value = "{}";
 			}
 			
 			if ((mapper == "") || (combiner == "") || (reducer == ""))
