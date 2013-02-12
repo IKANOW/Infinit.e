@@ -1571,12 +1571,8 @@ else if (isLoggedIn == true)
 					alert('Error parsing query: ' + err.toString())
 				}
 			}
-			else if (query == "") 
-			{
+			else  {
 				query = "{}";
-			}
-			else { 
-				document.getElementById('query').value = "null";
 			}
 			
 			if ((mapper == "") || (combiner == "") || (reducer == ""))
