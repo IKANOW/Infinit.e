@@ -267,7 +267,7 @@ public class CustomHandler
 						cmr.outputValue = outputValue;
 					else
 						cmr.outputValue = "com.mongodb.hadoop.io.BSONWritable";
-					if ( (null != query) && !query.equals("null"))
+					if ( (null != query) && !query.equals("null") && !query.isEmpty())
 						cmr.query = query;
 					else
 						cmr.query = "{}";
@@ -464,7 +464,10 @@ public class CustomHandler
 					}
 					if ( (null != query) && !query.equals("null"))
 					{
-						cmr.query = query;
+						if ( !query.isEmpty() )
+							cmr.query = query;
+						else
+							cmr.query = "{}";
 					}
 					if ( (null != outputKey) && !outputKey.equals("null"))
 					{

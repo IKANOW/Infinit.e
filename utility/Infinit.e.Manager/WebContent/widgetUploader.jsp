@@ -705,7 +705,7 @@ h2
 	margin-bottom: 25px;
 }
 .show {
-display: inherit;
+display: ;
 visibility: visible;
 }
 .hide {
@@ -1282,7 +1282,7 @@ else if (isLoggedIn == true)
 	        	<h2>Widget Uploader</h2>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
 	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New Widget</option> <% out.print(populatePreviousUploads(request, response)); %></select>
-	        		<input type="submit" name="deleteButton" id="deleteButton" style="visibility:hidden;" value="Delete" />
+	        		<input type="submit" name="deleteButton" id="deleteButton" class="hidden" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
 	        		<input type="hidden" name="deleteFile" id="deleteFile" />
 	        		<input type="hidden" name="deleteIcon" id="deleteIcon" />

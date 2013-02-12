@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2012 The Infinit.e Open Source Project
+ * 
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ * 
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ * 
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ ******************************************************************************/
 package com.ikanow.infinit.e.utility.hadoop;
 
 import java.io.IOException;
@@ -22,9 +37,7 @@ import com.mongodb.hadoop.io.BSONWritable;
 import com.mongodb.hadoop.util.MongoTool;
 import com.mongodb.util.JSON;
 
-//TODO (INF-1666) OSS headers
-
-// This protoptype version is very slow, should run with the actual Rhino script,
+// This protoptype version is very slow, should run with the actual Rhino script engine,
 // and there are a number of unnecessary memory copies for simplicity.
 // We'll see if this is noticeably slow (it should really only be run on small datasets anyway)
 
@@ -84,13 +97,16 @@ public class HadoopPrototypingTool extends MongoTool {
 		{
 			ObjectId inkey = (ObjectId)key;
 			_engine.put("_map_input_key", inkey.toString());
-			_engine.put("_map_input_value", JSON.serialize(value));
+			String valueStr = value.toString(); // (these BSON objects are actually DBObjects, hence have a sensible toString())
+			_engine.put("_map_input_value", valueStr);
 			try {
 				((Invocable) _engine).invokeFunction("internal_mapper", (Object[])null);
-			} catch (ScriptException e) {
-				throw new RuntimeException("map: " + e.getMessage());
-			} catch (NoSuchMethodException e) {
-				throw new RuntimeException("map: " + e.getMessage());
+			} catch (Exception e) {
+				//TODO (INF-1891): running on system/sentiment/enron community, get a bunch of "unterminated string literal"
+				// fails on: 4db7887ade327f612ca33ce3, 4fe6d7c2e4b0ec981064a0d5, 4fe8648de4b0d96833fa757d, 4fea0e9de4b08cca3fd181d5, 4fea2afce4b0f44772f0f4bb, etc
+				// (compare this with SAH js input and fix, then start throwing exception again)
+				//Just carry on, this entry has failed for some reason...
+				//throw new RuntimeException("map1: " + e.getMessage() + ": " + inkey);
 			}
 		}
 		protected void combine(BSONWritable key, Iterable<BSONWritable> values)

@@ -740,7 +740,7 @@ h2
 	margin-bottom: 25px;
 }
 .show {
-display: inherit;
+display: ;
 visibility: visible;
 }
 .hide {
@@ -1134,7 +1134,7 @@ visibility: hidden;
 		</script>
 	</script>
 		<div id="uploader_outter_div" name="uploader_outter_div" align="center" style="width:100%" >
-	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:450px; margin:auto">
+	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:475px; margin:auto">
 	        	<h2>File Uploader</h2>
 	        	<form id="search_form" name="search_form" method="get">
 	        		<div align="center"">
@@ -1154,7 +1154,7 @@ visibility: hidden;
 	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New File</option><option value="newJSON">Upload New JSON</option> <%
  	out.print(populatePreviousUploads(request, response));
  %></select>
-	        		<input type="submit" name="deleteButton" id="deleteButton" style="visibility:hidden;" value="Delete" />
+	        		<input type="submit" name="deleteButton" id="deleteButton" class="hidden" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
 	        		<input type="hidden" name="deleteFile" id="deleteFile" />
 					 <%
@@ -1197,9 +1197,10 @@ visibility: hidden;
 	                  </tr>
 	                  <tr id="url_row" class="hide">
 	                  	<td>Share URL:</td>
-	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="40"/>
+	                  	<td><input type="text" name="share_url" id="share_url" readonly="readonly" size="38"/>
+	                  	<input type="button" onclick="showResults()" value="View"/>
 	                  	</td>
-	                	<td><button type="button" onclick="showResults()">View</button></td>
+	                	<td></td>
 	                  </tr>
 	                  <tr>
 	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" /></td>

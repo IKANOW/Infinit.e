@@ -2001,7 +2001,7 @@ public class QueryHandler {
 	// Utility function: create a populated query object (by defaults if necessary)
 	
 	public static AdvancedQueryPojo createQueryPojo(String queryJson) {
-		GsonBuilder gb = new GsonBuilder();
+		GsonBuilder gb = AdvancedQueryPojo.getDefaultBuilder();
 		gb.registerTypeAdapter(AdvancedQueryPojo.QueryRawPojo.class, new AdvancedQueryPojo.QueryRawPojo.Deserializer());
 		AdvancedQueryPojo query = gb.create().fromJson(queryJson, AdvancedQueryPojo.class);
 		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)

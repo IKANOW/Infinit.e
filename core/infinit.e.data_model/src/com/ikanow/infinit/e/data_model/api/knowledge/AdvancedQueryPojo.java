@@ -19,6 +19,8 @@ import java.lang.reflect.Type;
 import java.util.HashMap;
 import java.util.List;
 
+import org.bson.types.ObjectId;
+
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
@@ -209,4 +211,5 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 		
 	}
 	public QueryOutputPojo output; // (optional, just defaults to the above defaults if omitted)
+	public List<ObjectId> communityIds = null;
 }

@@ -23,6 +23,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import org.bson.types.ObjectId;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
@@ -179,8 +180,16 @@ public class QueryInterface extends ServerResource
 			cookieLookup = RESTTools.cookieLookup(_cookie);
 			
 			if (!bNotRss) { // RSS case
+				//Set the commids to whatever is given in the query to
+				_communityIdStrList = "";
+				for ( ObjectId comm : _requestDetails.communityIds )
+				{
+					_communityIdStrList += "," + comm.toString(); 
+				}
+				_communityIdStrList = _communityIdStrList.substring(1);
 				// Authentication:
-				if (null == cookieLookup) { // (else don't need to both)
+				if (null == cookieLookup) 
+				{ // (else don't need to both)
 					Map<String, String> queryOptions = this.getQuery().getValuesMap();
 					String sKey = queryOptions.get("key");
 					String sKeyCmp = null;
@@ -205,9 +214,15 @@ public class QueryInterface extends ServerResource
 							return new StringRepresentation(data, mediaType);
 						}
 						cookieLookup = authuser.getProfileId().toString();
+						
 					}
-				} // end authentication for RSS
-				
+					//no other auth was used, try using the commid
+					if ( null == cookieLookup )
+					{
+						cookieLookup = _requestDetails.communityIds.get(0).toString();
+					}
+				}
+				// end authentication for RSS
 				// Also, since we're RSS, there's a bunch of output params that we know we don't need:
 				
 				// (output and output.docs are guaranteed to exist)
@@ -218,6 +233,8 @@ public class QueryInterface extends ServerResource
 				_requestDetails.output.docs.summaries = false;
 				_requestDetails.output.docs.eventsTimeline = false;
 				_requestDetails.output.docs.metadata = false;
+				//set cookielookup to first commid
+				
 			}
 			
 			// Fail out otherwise perform query

@@ -1571,8 +1571,11 @@ else if (isLoggedIn == true)
 					alert('Error parsing query: ' + err.toString())
 				}
 			}
-			else
+			else if (query == "") 
 			{
+				query = "{}";
+			}
+			else { 
 				document.getElementById('query').value = "null";
 			}
 			
