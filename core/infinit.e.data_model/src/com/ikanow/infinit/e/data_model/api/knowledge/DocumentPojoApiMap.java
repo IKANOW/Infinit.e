@@ -32,6 +32,7 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -184,12 +185,15 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			if (null != tmp) {
 				JsonObject tmpMeta = tmp.getAsJsonObject();
 				for (Entry<String, JsonElement> entry: tmpMeta.entrySet()) {
-					// Very slow, better to do something like "http://stackoverflow.com/questions/5699323/using-json-with-mongodb"
-					// (or in fact MongoDbUtil)
-					// (note the only high performance use of documents with metadata enabled bypasses the data_model, so not a big problem at the moment)
-					doc.addToMetadata(entry.getKey(), 
-							((BasicDBList)com.mongodb.util.JSON.parse(entry.getValue().toString())).toArray());
-				}				
+					if (entry.getValue().isJsonArray()) {
+						doc.addToMetadata(entry.getKey(), MongoDbUtil.encodeArray(entry.getValue().getAsJsonArray()));
+					}
+					else {
+						BasicDBList dbl = new BasicDBList();
+						dbl.add(MongoDbUtil.encodeUnknown(entry.getValue()));
+						doc.addToMetadata(entry.getKey(), dbl);
+					}
+				}//TOTEST				
 			}
 			
 			// Finally handle updateId/_id swap

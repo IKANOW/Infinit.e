@@ -216,6 +216,9 @@ public class EntityAggregationUtils {
 	///////////////////////////////////////////////////////////////////////////////////////	
 	///////////////////////////////////////////////////////////////////////////////////////	
 	
+	// NOTE: IMPORTANT that only entFeature attributes used are index/totalfreq/doccount
+	// (this is relied upon by BackgroundAggregationThread)
+	
 	public static void updateMatchingEntities(EntityFeaturePojo entFeature, ObjectId communityId)
 	{
 		String index = entFeature.getIndex();

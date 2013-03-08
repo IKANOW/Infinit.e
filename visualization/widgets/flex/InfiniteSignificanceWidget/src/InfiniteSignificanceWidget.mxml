@@ -36,8 +36,14 @@
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
+			import flexlib.mdi.containers.MDIWindow;
+			
+			import ilog.charts3d.series.items.ColumnSeries3DItem;
+			
 			import mx.charts.HitData;
 			import mx.charts.chartClasses.Series;
 			import mx.charts.effects.SeriesEffect;
@@ -46,12 +52,13 @@
 			import mx.controls.Alert;
 			import mx.core.UITextField;
 			import mx.events.FlexEvent;
-			import mx.managers.CursorManager;
-			import spark.events.IndexChangeEvent;
-			import flexlib.mdi.containers.MDIWindow;
-			import ilog.charts3d.series.items.ColumnSeries3DItem;
+			
 			import org.alivepdf.pdf.PDF;
+			
 			import skins.InfiniteFilterApplyOrIgnore;
+			
+			import spark.events.IndexChangeEvent;
+			
 			import system.data.Collection;
 			import system.data.Iterator;
 			import system.data.Map;
@@ -84,8 +91,6 @@
 			[Bindable]
 			private var topEntitiesCombo:ArrayCollection;
 			
-			private var busyCursorCounter:int = 0;
-			
 			// Determines if filtering results are immediately applied:
 			private var ignoreLocalFilter:Boolean = false;
 			
@@ -112,6 +117,14 @@
 			 */
 			
 			private var entSliderOffset:int = 0;
+			
+			/**
+			 * object that is used to manage the widget options on 
+			 * save and on load
+			 */
+			private var widgetOptions:Object = new Object();
+			private var sigSliderApplied:Boolean = false;
+			private var queryHash:String = "";
 			
 			/**
 			 * function to build a pdf version of the widget
@@ -177,7 +190,61 @@
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
-				//TODO
+				if( widgetOptions != null )
+				{
+					//this holds a users last map 
+					if ( widgetOptions.userSave != null )
+					{
+						this.widgetOptions = widgetOptions.userSave;
+							// (note this is apparently persisted
+
+						// (In all 3 cases below - apply changes if onReceiveNewQuery called, else don't)
+						
+						// Slider (only apply if query hash hasn't changed)						
+						this.queryHash = this.getQueryHash();
+						
+						if ( (null == queryHash) // Don't have a query yet
+							||
+						 	 ( ( null != this.widgetOptions.queryHash ) && ( this.widgetOptions.queryHash == this.queryHash) ) )
+						{
+							if ( ( null != sigSlider ) && ( null != this.widgetOptions.sigSliderValue ) )
+							{
+								sigSlider.value = this.widgetOptions.sigSliderValue;
+								entitySliderUpdate( null );
+							}//TESTED
+							else
+							{
+								this.entSliderOffset = this.widgetOptions.sigSliderValue;
+								sigSliderApplied = true;
+								this.queryHash = this.widgetOptions.queryHash;
+							}//TESTED
+						}
+						else // ensure reset to 0
+						{
+							this.entSliderOffset = 0;
+							sigSliderApplied = true;
+						}//TESTED
+							
+						
+						// Sorting
+						if( ( null != sortOptions.dataProvider) && ( null != this.widgetOptions.sortOptionIndex ) ) 
+						{
+							sortOptions.selectedIndex = this.widgetOptions.sortOptionIndex;
+							if ( null != sigSlider ) // (else onReceiveNewQuery not called yet)
+							{
+								sortOptions_changeHandler( null );
+							}
+						}//TESTED
+						
+						// Regex
+						if ( ( null != regexFilter ) && (null != this.widgetOptions.regexFilter ) )
+						{
+							regexFilter.text = this.widgetOptions.regexFilter;
+							doneChangingFilter( null );
+						}//TESTED
+						
+					}//(end widget save non null)
+				}//(end widget options non null)
 			}
 			
 			/**
@@ -207,10 +274,11 @@
 				
 				this.currData = _context.getQuery_FilteredResults().getTopDocuments();
 				this.currData_entities = _context.getQuery_FilteredResults().getEntities();
-				this.entSliderOffset = 0;
-				this.sigSlider.value = 0;
-				// (spinner already going, fn below unsets)
+
 				populateGraph();
+				this.entSliderOffset = 0; // (if filtering always reset the slider)
+				this.sigSlider.value = 0;				
+				renderGraph();
 			}
 			
 			/**
@@ -225,21 +293,35 @@
 					hasFilter = false;
 					setTimeout( resetIgnoreLocalFilter, 1000 );
 				}
-				
-				startSpinner(); // (need dataview)
-				
+				this.currentState = "dataview"; // (initializes everything)
+			
 				if ( null == sigSlider )
 				{ // may not be initialized yet?
 					return;
 				}
 				
 				this.currData = _context.getQuery_AllResults().getTopDocuments();
-				this.currData_entities = _context.getQuery_AllResults().getEntities();
+				this.currData_entities = _context.getQuery_AllResults().getEntities(true);
 				
-				this.entSliderOffset = 0;
-				this.sigSlider.value = 0;
-				// (spinner already set, fn below unsets)
 				populateGraph();
+				if (sigSliderApplied)
+				{	
+					this.sigSlider.value = this.entSliderOffset;
+					entitySliderUpdate(null);	// (calls renderGraph)
+					sigSliderApplied = false;
+				}
+				else // (if the same query is being repeated then can leave the slider as is)
+				{
+					var newQueryHash:String = this.getQueryHash();
+					
+					if (this.queryHash != newQueryHash)
+					{
+						this.queryHash = newQueryHash;
+						this.entSliderOffset = 0;
+						this.sigSlider.value = 0;
+					}//TESTED			
+					renderGraph();
+				}//TESTED
 			}
 			
 			/**
@@ -249,8 +331,35 @@
 			 * @return an object this widget can use to reload state
 			 */
 			public function onSaveWidgetOptions():Object
+			{				
+				if ( null == sigSlider ) // (nothing initialized yet)
+				{
+					return widgetOptions;
+				}
+				//set the values for the widget
+				widgetOptions.sortOptionIndex = sortOptions.selectedIndex;
+				widgetOptions.regexFilter = regexFilter.text;
+				widgetOptions.sigSliderValue = (sigSlider != null) ? sigSlider.value : 0;
+				widgetOptions.queryHash = this.queryHash;
+				
+				return widgetOptions;
+			}//TESTED
+			
+			private function getQueryHash():String
 			{
-				return null;
+				var x:Object = _context.getLastQuery();
+				var y:Object = null;
+				if ( null == x ) // (don't have a "last query" yet
+					return null;
+				
+				if ( null != x["communityIds"] ) // ensure they're in the right order
+				{
+					var tmpCommIds:Array = x["communityIds"] as Array;
+					tmpCommIds.sort();
+				}
+				var hash:String = XmlEncoder.encode(x).toXMLString();
+				
+				return hash;
 			}
 			
 			/**
@@ -260,15 +369,6 @@
 			 */
 			public function receiveEvent( event:Event ):void
 			{
-			}
-			
-			/**
-			 * function to start the components spinner when it is receiving data
-			 */
-			public function startSpinner():void
-			{
-				this.currentState = "dataview";
-				this.enabled = false;
 			}
 			
 			/**
@@ -285,8 +385,11 @@
 			
 			protected function addDocumentsToFilter( entName:String, significance:Number, freq:Number ):void
 			{
+				var docs:ArrayCollection = new ArrayCollection();
 				var docids:Set = new HashSet();
 				var docmap:Map = new HashMap();
+				
+				var currMaxVal:Number = -100; // Sig or freq
 				
 				// All documents matching the entity (needs to have its performance improved)
 				for each ( var feed:Object in this.currData )
@@ -295,23 +398,42 @@
 					{
 						if ( entities.index.toString() == entName )
 						{
-							if ( ( ( significance < 0.0 ) || ( significance == entities.significance ) )
-								&& ( ( freq < 0.0 ) || ( freq == entities.frequency ) ) )
+							var currVal:Number = 0;
+							if ( significance >= 0.0 )
 							{
-								docids.add( feed._id.toString() );
-								//add all the feeds entity names to the entNames array to pass along
-								var entSet:Set = new HashSet();
-								
-								for each ( var ent:Object in feed.entities )
-								{
-									entSet.add( ent.index.toString() );
-								}
-								docmap.put( feed._id.toString(), entSet );
-								break;
+								currVal = entities.significance;
 							}
+							else if ( freq >= 0.0 )
+							{
+								currVal = entities.frequency;
+							}
+							if ( currVal >= currMaxVal )
+							{
+								if ( currVal > currMaxVal ) // oops, new max
+								{
+									docids.clear();
+									docs.removeAll();
+								}
+								currMaxVal = currVal;
+								docids.add( feed._id.toString() );
+								docs.addItem(feed);
+							}							
 						}
 					}
+				}// pass 1, get the docs
+				
+				//pass 2, get the entities
+				for each ( var doc:Object in docs )
+				{
+					var entSet:Set = new HashSet();
+					
+					for each ( var ent:Object in doc.entities )
+					{
+						entSet.add( ent.index.toString() );
+					}
+					docmap.put( doc._id.toString(), entSet );					
 				}
+				
 				var desc:String = "Doc Filter: ";
 				
 				if ( ( significance < 0.0 ) && ( freq < 0.0 ) )
@@ -329,33 +451,19 @@
 				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docids, docmap, "_id", "_id", desc );
 			}
 			
-			/**
-			 * function to handle when the chart legend is clicked on
-			 *
-			 * @param event The MouseEvent received when the chart legend is clicked on
-			 */
-			protected function chart_clickHandler( event:MouseEvent ):void
-			{
-				var entName:String = "";
-				
-				//make sure an entity was clicked
-				if ( event.target is UITextField )
-				{
-					entName = event.target.text;
-					
-					var index:int = entName.lastIndexOf( " (" );
-					// convert to gaz index:
-					entName = entName.substring( 0, index ).toLowerCase() + "/" + entName.substring( index + 2, entName.length - 1 ).toLowerCase();
-					
-					addDocumentsToFilter( entName, -1.0, -1 );
-				}
-			}
 			protected function chart_itemClickHandler( event:mx.charts.events.ChartItemEvent ):void
 			{
 				var data:HitData = event.hitData;
 				var item:ColumnSeries3DItem = ColumnSeries3DItem( event.hitData.chartItem );
-				
+
 				var entName:String = data.item.entity.index;
+				
+				var isPromoted:Boolean = !data.item.entity.hasOwnProperty("notPromoted");
+				if ( !isPromoted )
+				{
+					send2Query_internal(entName);
+					return;
+				}				
 				
 				// Starting from the bottom...
 				if ( item.yValue <= data.item.queryCoverage )
@@ -368,39 +476,17 @@
 				}
 				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance )
 				{
-					addDocumentsToFilter( entName, data.item.significance, -1 );
+					addDocumentsToFilter( entName, +1.0, -1 );
 				}
 				else if ( item.yValue <= data.item.queryCoverage + data.item.datasetSignificance + data.item.significance + data.item.augFrequency )
 				{
-					addDocumentsToFilter( entName, -1.0, data.item.frequency );
+					addDocumentsToFilter( entName, -1.0, +1 );
 				}
 				else
 				{
 					addDocumentsToFilter( entName, -1.0, -1 );
 				}
-			}
-			
-			protected function chart_mouseOver( event:MouseEvent ):void
-			{
-				if ( event.target is UITextField )
-				{
-					var textfield:UITextField = UITextField( event.target );
-					var str:String = event.target.text;
-					
-					if ( str.length > 0 )
-					{
-						if ( ( str.length < 3 ) && ( 0x30 == ( str.charCodeAt( 0 ) & 0xF0 ) ) )
-						{
-							// One of the axis, ignore
-							textfield.toolTip = "Query Significance, Dataset Significance, and Query Coverage (%s) (Max Doc Frequency and Average Frequency have their own separate scale, not shown)";
-						}
-						else
-						{
-							textfield.toolTip = "[Mouse: add docs containing entity to filter]";
-						}
-					}
-				}
-			}
+			}			
 			protected function entitySliderUpdate( event:Event ):void
 			{
 				if ( sigSlider.value < 0 )
@@ -424,8 +510,7 @@
 					}
 					sigSlider.value = this.entSliderOffset;
 				}
-				startSpinner(); // (populate graph stops spinner)
-				this.populateGraph();
+				this.renderGraph();
 			}
 			
 			/**
@@ -441,7 +526,7 @@
 			
 			protected function sortOptions_changeHandler( event:IndexChangeEvent ):void
 			{
-				this.populateGraph();
+				this.renderGraph();
 			}
 			
 			/**
@@ -473,7 +558,13 @@
 				
 				var filterOption:Boolean = false;
 				
+				var isPromoted:Boolean = !data.item.entity.hasOwnProperty("notPromoted");
+				
 				info += "Entity: " + data.item.entity.disambiguated_name + "\n";
+				if ( !isPromoted )
+				{
+					info += "(not present in promoted documents)\n";
+				}
 				
 				// Starting from the bottom...
 				if ( item.yValue <= data.item.queryCoverage )
@@ -523,10 +614,14 @@
 				
 				
 				info += "Entity Type: " + data.item.entity.type + "\n";
-				
-				if ( filterOption )
+
+				if ( !isPromoted )
 				{
-					info += "[Mouse: add documents containing max value to filter]";
+					info += "[Mouse: add entity to query]";					
+				}
+				else if ( filterOption )
+				{
+					info += "[Mouse: add documents containing max promoted value to filter]";
 				}
 				else
 				{
@@ -535,10 +630,6 @@
 				
 				info += "</FONT></HTML?>";
 				return info;
-			}
-			private function decBusyCursorCounter():void
-			{
-				busyCursorCounter--;
 			}
 			private function doneChangingFilter( event:TimerEvent ):void
 			{
@@ -552,7 +643,10 @@
 					_regexFilter = new RegExp( regexFilter.text, "i" );
 					_regexActivateString = "<=";
 				}
-				this.populateGraph();
+				if ( null != sigSlider ) // (else graph doesn't exist yet)
+				{
+					this.renderGraph();
+				}
 			}
 			
 			//(end regex hackery)
@@ -642,10 +736,6 @@
 				else
 					return "";
 			}
-			private function incBusyCursorCounter():void
-			{
-				busyCursorCounter++;
-			}
 			
 			/**
 			 * function to dispatch an event to the parent when the module is down creation
@@ -715,17 +805,14 @@
 				
 				_filterModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingFilter );
 				
-				this.parent.parent.width = 700;
-				this.parent.parent.height = 500;
+				/* this.parent.parent.width = 700;
+				this.parent.parent.height = 500; */
 			}
 			
 			private function populateGraph():void
 			{
 				if ( ( this.currData != null && this.currData.length > 0 ) || ( this.currData_entities != null && this.currData_entities.length > 0 ) )
 				{
-					//instantiate a hashset to hold all the entities so that there are no duplicates
-					var entities:HashSet = new HashSet();
-					
 					// Get a single set of entities from all the feeds
 					
 					if ( this.currData_entities != null && this.currData_entities.length > 0 )
@@ -756,6 +843,12 @@
 					{ // Use documents if we have to
 						this.allEntities = removeDups( this.currData ).toArray();
 					}
+				}	
+			}
+			private function renderGraph():void
+			{
+				if ( this.currData_entities != null && this.currData_entities.length > 0 )
+				{ // Use entities if we can...
 					
 					if ( sortOptions.selectedIndex == SORT_BY_QUERY_COVERAGE )
 					{
@@ -845,7 +938,6 @@
 					}
 					entityToSend.dataProvider = this.topEntitiesCombo;
 					entityToSend.validateNow();
-					entityToSend.selectedIndex = 0;
 					
 					setSeriesEffect( interpolateIn );
 					chart.dataProvider = topEntities;
@@ -856,9 +948,6 @@
 				{
 					this.currentState = "nodata";
 				}
-				CursorManager.removeBusyCursor();
-				decBusyCursorCounter();
-				this.enabled = true;
 			}
 			
 			/**
@@ -960,10 +1049,14 @@
 			 */
 			private function send2Query( event:MouseEvent ):void
 			{
+				send2Query_internal( entityToSend.selectedItem.entity.index );
+			}
+			private function send2Query_internal( index:String ):void
+			{
 				var query:Object = _context.getCurrentQuery();
 				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
 				var newTerm:Object = new Object();
-				newTerm[ "entity" ] = entityToSend.selectedItem.entity.index;
+				newTerm[ "entity" ] = index;
 				queryTerms.addItem( newTerm );
 				_context.setCurrentQuery( query, "qt" );
 			}
@@ -1125,11 +1218,6 @@
 					width="100%"
 					height="100%"
 					paddingTop="10">
-					<!--Remove these at least temporarily from ColumnChart3d below - they are spurious and can cause problem
-					if the mouse is over both the text and the chart at the same time (INF-1327)
-					click="chart_clickHandler(event)"
-					mouseOver="chart_mouseOver(event)"
-					-->
 					<ilog:ColumnChart3D id="chart"
 						width="80%"
 						height="100%"

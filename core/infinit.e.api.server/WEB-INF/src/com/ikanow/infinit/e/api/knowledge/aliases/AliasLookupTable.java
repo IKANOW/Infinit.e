@@ -20,7 +20,6 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -111,12 +110,13 @@ public class AliasLookupTable {
 								_aliasTable.put(aliasIndex, aliasInfo);
 							}
 							_aliasTable.put(aliasInfo.getIndex(), aliasInfo);
-							Set<String> currAlias = _reverseAliasTable.get(aliasInfo.getIndex());
+							EntityFeaturePojo currAlias = _reverseAliasTable.get(aliasInfo.getIndex());
 							if (null == currAlias) {
-								_reverseAliasTable.put(aliasInfo.getIndex(), aliasInfo.getAlias());									
+								_reverseAliasTable.put(aliasInfo.getIndex(),aliasInfo);									
 							}
 							else { // Collision ... this we can handle a little-bit more elegantly
-								currAlias.addAll(aliasInfo.getAlias());
+								currAlias.getAlias().addAll(aliasInfo.getAlias());
+								_reverseAliasTable.put(aliasInfo.getIndex(),currAlias);									
 							}									
 						}
 					}
@@ -134,11 +134,11 @@ public class AliasLookupTable {
 	// Returns relevant info
 	// (for now only care about disname and index)
 	
-	public synchronized EntityFeaturePojo doLookupFromIndex(String index) {
+	public synchronized EntityFeaturePojo getAliasMaster(String index) { // returns master from alias or master indexes
 		return _aliasTable.get(index);
 	}
 	
-	public synchronized Set<String> doInverseLookupFromIndex(String index) {
+	public synchronized EntityFeaturePojo getAliases(String index) { // returns master from master index only
 		return _reverseAliasTable.get(index);
 	}
 	
@@ -176,6 +176,6 @@ public class AliasLookupTable {
 	private int _nNumAliasShares = 0;
 	private Date _lastModified = null;
 	private HashMap<String, EntityFeaturePojo> _aliasTable = new HashMap<String, EntityFeaturePojo>();
-	private HashMap<String, Set<String>> _reverseAliasTable = new HashMap<String, Set<String>>();
+	private HashMap<String, EntityFeaturePojo> _reverseAliasTable = new HashMap<String, EntityFeaturePojo>();
 	
 }

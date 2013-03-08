@@ -38,6 +38,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import com.mongodb.ReadPreference;
 
 /**
  * @author cmorgan
@@ -66,6 +67,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	private boolean _bCalculatedMostRecentlyModifiedFile = false;
 	private Date _mostRecentlyModifiedFile = null;
+	private int _replicaSetDistributionRatio = -1; 
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -79,6 +81,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		
 		_bCalculatedMostRecentlyModifiedFile = false;
 		_mostRecentlyModifiedFile = null;
+		
+		com.ikanow.infinit.e.data_model.utils.PropertiesManager dataModelProps = new com.ikanow.infinit.e.data_model.utils.PropertiesManager();
+		_replicaSetDistributionRatio = 1 + dataModelProps.getDocDbReadDistributionRatio();
 	}
 
 	/**
@@ -315,12 +320,25 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		
 		DBCollection collection = DbManager.getDocument().getMetadata();
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.sourceKey_, 1);
-		if (null != parentSourceKey) {
+		if (bUpdate) {
 			fields.put(DocumentPojo.modified_, 1);
 			fields.put(DocumentPojo.updateId_, 1);
 		}//TESTED
-		DBCursor dbc = collection.find(query, fields);
 		
+		boolean bPrimary = true;		
+		if (_replicaSetDistributionRatio > 0) {
+			// (distribute based on source key, should ensure some reasonable cache grouping...)
+			if (0 != (parentSourceKey.hashCode() % _replicaSetDistributionRatio)) {
+				bPrimary = false;
+			}
+		}	
+		DBCursor dbc = null;
+		if (bPrimary) {		
+			dbc = collection.find(query, fields);
+		}
+		else {
+			dbc = collection.find(query, fields).setReadPreference(ReadPreference.SECONDARY);
+		}		
 		while (dbc.hasNext()) {
 			DBObject dbo = dbc.next();
 			String sourceKey = (String) dbo.get(DocumentPojo.sourceKey_);

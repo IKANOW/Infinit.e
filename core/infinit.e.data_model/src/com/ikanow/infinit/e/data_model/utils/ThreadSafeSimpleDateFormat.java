@@ -20,12 +20,17 @@ import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
+import java.util.TimeZone;
 
 public class ThreadSafeSimpleDateFormat {
 	 private DateFormat df;
 
 	 public ThreadSafeSimpleDateFormat(String format) {
 	     this.df = new SimpleDateFormat(format);
+	     this.df.setTimeZone(TimeZone.getTimeZone("GMT"));
+	     	// (mostly this is used twice if it's used at all so timezone doesn't actually matter)
+	     	//TODO: (INF-) if no incoming time zone - eg see "format2" usage, assumes is time zone of server
+	     	//  some EC2 servers are UTC, some are EST so there's some scope for confusion here
 	 }
 
 	 public synchronized String format(Date date) {

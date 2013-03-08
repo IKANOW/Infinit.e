@@ -328,9 +328,9 @@ public class SourceUtils {
 	private static void addSearchCycleClause(BasicDBObject currQuery, Date now) {
 		BasicDBObject subclause1 = new BasicDBObject(SourcePojo.searchCycle_secs_, new BasicDBObject(MongoDbManager.exists_, false));
 		StringBuffer js = new StringBuffer();
-		js.append("(null == this.harvest) || (null == this.harvest.harvested) || (null == this.searchCycle_secs) || ((this.harvest.harvested.getTime() + 1000*this.searchCycle_secs) <= ");
+		js.append("(null == this.harvest) || (null == this.harvest.harvested) || (null == this.searchCycle_secs) || ((this.searchCycle_secs >= 0) && ((this.harvest.harvested.getTime() + 1000*this.searchCycle_secs) <= ");
 		js.append(now.getTime());
-		js.append(")");
+		js.append("))");
 		BasicDBObject subclause2 = new BasicDBObject(MongoDbManager.where_, js.toString());
 		currQuery.append(MongoDbManager.or_, Arrays.asList(subclause1, subclause2));
 	}//TESTED (by hand/eye)

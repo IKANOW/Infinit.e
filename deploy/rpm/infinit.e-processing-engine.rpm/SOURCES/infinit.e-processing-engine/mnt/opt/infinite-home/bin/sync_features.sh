@@ -4,9 +4,16 @@
 
 CONFDIR=/opt/infinite-home/config/
 BINDIR=/opt/infinite-home/bin/
+LIBDIR=/opt/infinite-home/lib/
 SCRIPTDIR=/opt/infinite-home/db-scripts/
 LOGDIR=/opt/infinite-home/logs
 MONGODB=
+if [ -d $CONFDIR ]; then
+        if [ -f $CONFDIR/infinite.service.properties ]; then
+                MONGODB=`grep "^db.server=" $CONFDIR/infinite.service.properties | sed s/'db.server='// | sed s/' '//g`
+                MONGODP=`grep "^db.port=" $CONFDIR/infinite.service.properties | sed s/'db.port='// | sed s/' '//g`
+        fi
+fi
 
 # Administratively off:
 if [ -f $BINDIR/STOP_BATCH_SYNC_FILE ] && [ -z "$1" ]; then
@@ -16,8 +23,6 @@ fi
 IS_MASTER=$(curl -s http://localhost:9200/_cluster/nodes/_local |\
  				grep -q `curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$"` \
 				&& echo "true")
-
-MONGODB=`/usr/bin/infdb master_of_set 1`
 
 if echo $IS_MASTER  | grep -qi "true"; then
 	if [ ! -z "$MONGODB" ]; then
@@ -43,27 +48,21 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "Completed soft deletion mop up" >> $LOGDIR/sync_time.txt
             
             # (Update feature/document entity counts)
-			/usr/bin/mongo --quiet $MONGODB/doc_metadata $SCRIPTDIR/calc_freq_counts.js
+			/usr/bin/mongo --quiet $MONGODB/doc_metadata $SCRIPTDIR/calc_freq_counts.js >> $LOGDIR/sync_time.txt
             date >> $LOGDIR/sync_time.txt
-			echo "Completed frequency recalculation" >> $LOGDIR/sync_time.txt
+			echo "Completed frequency recalculation phase 1" >> $LOGDIR/sync_time.txt
+
+			# (Phase 2 of frequency update)
+			java -jar $LIBDIR/infinit.e.mongo-indexer.jar --entity --verify --query doc_metadata.tmpCalcFreqCounts >> $LOGDIR/sync_time.txt
+			/usr/bin/mongo --quiet $MONGODB/doc_metadata --eval '{db.tmpCalcFreqCounts.drop()}'
+            date >> $LOGDIR/sync_time.txt
+			echo "Completed frequency recalculation phase 2" >> $LOGDIR/sync_time.txt
 
 			# (Update per-source document counts)			 
 			/usr/bin/mongo --quiet $MONGODB/ingest $SCRIPTDIR/update_doc_counts.js
             date >> $LOGDIR/sync_time.txt
 			echo "Completed doc counts recalculation" >> $LOGDIR/sync_time.txt
 
-			#(since this will delete the entire entity DB if called after the calc_freq_counts script fails for any reason
-			#  - believe me, I *know* - will check that it worked first...)
-			if mongo --quiet $MONGODB/feature --eval '{ db.entity.find({batch_resync:true}).limit(100).length() }' | grep -q 100; then
-				/usr/bin/mongo --quiet $MONGODB/feature --eval 'db.entity.remove({ "batch_resync": { "$exists": false } })'
-				rm -rf $LOGDIR/feature_sync_log.txt
-				$BINDIR/reindex_from_db.sh --entity --rebuild 100000 $LOGDIR/feature_sync_log.txt
-				echo "Completed DB pruning and index resync" >> $LOGDIR/sync_time.txt
-			else
-				echo "Skipped DB pruning and index resync" >> $LOGDIR/sync_time.txt
-			fi			
-            date >> $LOGDIR/sync_time.txt
-            
             # REMOVE LOCK
 			mongo $MONGODB/feature --eval 'db.sync_lock.drop()'            
 		fi

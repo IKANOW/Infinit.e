@@ -24,8 +24,15 @@
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 	<fx:Script>
 		<![CDATA[
+			import actionscript.JSONUtil;
+			import actionscript.Member;
+			import actionscript.ServiceConstants;
+			import actionscript.Share;
+			import actionscript.WidgetConstants;
+			
 			import com.ikanow.infinit.e.widget.library.data.ResultSet;
 			import com.ikanow.infinit.e.widget.library.data.WidgetContext;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
 			import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 			import com.ikanow.infinit.e.widget.library.utility.Authentication;
@@ -33,6 +40,9 @@
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			
+			import flexlib.mdi.events.MDIWindowEvent;
+			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
@@ -40,15 +50,16 @@
 			import mx.modules.ModuleLoader;
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
-			import flexlib.mdi.events.MDIWindowEvent;
 			
-			private var API_SERVER:String = "http://beta.ikanow.com/api/"; 	//api url address of infinite api server
+			private var API_SERVER:String = "http://infinite.ikanow.com/api/"; 	//api url address of infinite api server
 			
 			private var COMMUNITYID:String = ""; //community id to search on, gets populated during load
 			
 			private var context:WidgetContext = new WidgetContext();    		//new module data holder
 			
 			private var queryResults:QueryResults = new QueryResults(); 		//old module data holder
+			
+			private var userId:String;
 			
 			/**
 			 * Rescale event when module window gets resized, sends a message to the
@@ -136,6 +147,7 @@
 				
 				if ( data.response.success == true )
 				{
+					userId = data.data._id;
 					var groups:ArrayCollection = new ArrayCollection( data.data.communities );
 					
 					for each ( var group:Object in groups )
@@ -224,6 +236,78 @@
 				//send request
 				return "{ qt: [ { etext:\"" + queryTerm + "\" } ] }";
 			}
+			
+			protected function button4_clickHandler(event:MouseEvent):void
+			{
+				//only save if the widgetSaveMap has been initialized, this means that the
+				//load uisetup has come in
+				var desc:String = "save options for the widget";
+				var id:String = "511bbf94e4b040dbab2cc32b";
+				var save:WidgetSaveObject = new WidgetSaveObject();
+				var savetitle:String = WidgetConstants.ENTITY_SIGNIFICANCE;
+				//put the share object back in the map
+				//or add a new entry if necessary
+				var share:Share = new Share();
+				share._id = id;
+				share.title = savetitle;
+				share.owner = new Member();
+				share.owner._id = userId;
+				var saveobject:Object = devModule.onSaveWidgetOptions();
+				var json:String = JSONUtil.encode( saveobject );
+				share.share = json;
+				save.userSave = saveobject;
+				//widgetSaveMap.put( savetitle, save );
+				
+				var httpService:HTTPService = new HTTPService();
+				httpService.url = ServiceConstants.GET_SOCIAL_SHARE_ADD_JSON_URL + id + "/" + "widgetsave/" + URLEncoder.encode( savetitle ) + "/" + URLEncoder.encode( desc );
+				httpService.method = "POST";
+				httpService.contentType = "application/json";
+				httpService.addEventListener( ResultEvent.RESULT, widgetSaveResultHandler );
+				httpService.send( json ); 
+			}
+			
+			/**
+			 * Write back new id to share handler if necessa
+			 **/
+			private function widgetSaveResultHandler( event:ResultEvent ):void
+			{
+				var json:Object = JSONDecoder.decode( event.result as String );
+				
+				Alert.show("Widget saved successfully", "Widget Save");
+				/* var response:ServiceResponse = ObjectTranslatorUtil.translateObject( json.response, new ServiceResponse ) as ServiceResponse;
+				
+				if ( response.responseSuccess )
+				{
+					var share:Share = Share( ObjectTranslatorUtil.translateObject( json.data, new Share ) );
+					
+					//next put the share into the map
+					var save:WidgetSaveObject = widgetSaveMap.get( share.title );
+					save.shareid = share._id;
+				} */
+			}
+			
+			protected function button5_clickHandler(event:MouseEvent):void
+			{
+				var id:String = "511bbf94e4b040dbab2cc32b";
+				var httpService:HTTPService = new HTTPService();
+				httpService.url = ServiceConstants.GET_SOCIAL_SHARE_URL + id;
+				httpService.method = "GET";
+				httpService.contentType = "application/json";
+				httpService.addEventListener( ResultEvent.RESULT, widgetGetResultHandler );
+				httpService.send(  ); 
+			}
+			
+			protected function widgetGetResultHandler(event:ResultEvent):void
+			{
+				var json:Object = JSONDecoder.decode( event.result as String );
+				
+				var widgetSaveObject:WidgetSaveObject = new WidgetSaveObject();
+				widgetSaveObject.shareid = "511bbf94e4b040dbab2cc32b";
+				widgetSaveObject.userSave = JSONDecoder.decode( json.data.share as String );
+				
+				devModule.onLoadWidgetOptions(widgetSaveObject);
+			}
+			
 		]]>
 	</fx:Script>
 
@@ -255,7 +339,7 @@
 				x="0"
 				y="50"
 				width="250"
-				height="270"
+				height="300"
 				layout="absolute"
 				horizontalAlign="center"
 				verticalAlign="middle"
@@ -273,7 +357,7 @@
 					paddingLeft="5"
 					paddingRight="5"
 					paddingTop="5"
-					verticalAlign="middle">
+					verticalAlign="middle" height="100%">
 					<s:Group>
 						<s:BorderContainer borderVisible="true">
 							<s:layout>
@@ -331,6 +415,9 @@
 							</s:HGroup>
 						</s:BorderContainer>
 					</s:Group>
+					
+					<s:Button label="Save Widget State" click="button4_clickHandler(event)"/>
+					<s:Button label="Load Widget State" click="button5_clickHandler(event)"/>
 				</s:VGroup>
 			</containers:MDIWindow>
 			<containers:MDIWindow id="devModuleContainer"
@@ -338,7 +425,7 @@
 				horizontalScrollPolicy="off"
 				x="450"
 				y="50"
-				width="700"
+				width="100%"
 				height="400"
 				layout="absolute"
 				horizontalAlign="center"
@@ -351,7 +438,7 @@
 				title="SkeletonModule"
 				visible="true">
 				<local:InfiniteSignificanceWidget id="devModule"
-					title="Stats" />
+					title="Stats" width="100%"/>
 			</containers:MDIWindow>
 		</containers:MDICanvas>
 	</s:VGroup>

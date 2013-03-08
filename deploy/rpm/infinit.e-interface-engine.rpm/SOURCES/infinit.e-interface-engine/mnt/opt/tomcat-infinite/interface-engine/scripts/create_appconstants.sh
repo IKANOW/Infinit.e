@@ -22,13 +22,16 @@ SERVERCONF_CONF_LOCATION='/opt/tomcat-infinite/interface-engine/conf/server.xml'
 # AppConstants.js from AppConstants.js.TEMPLATE
 ###########################################################################
 # Get the properties from the property file
-APP_SAAS=$(getParam 				"^app.saas=" $PROPERTY_CONFIG_FILE)
-END_POINT_URL=$(getParam			"^ui.end.point.url=" $PROPERTY_CONFIG_FILE)
-DOMAIN_URL=$(getParam				"^ui.domain.url=" $PROPERTY_CONFIG_FILE)
-GOOGLE_MAPS_API_KEY=$(getParam		"^google.maps.api.key=" $PROPERTY_CONFIG_FILE)
-ACCESS_TIMEOUT=$(getParam			"^access.timeout=" $PROPERTY_CONFIG_FILE)
-FORGOT_PASSWORD_URL=$(getParam		"^ui.forgot.password=" $PROPERTY_CONFIG_FILE)
-LOGOUT_URL=$(getParam				"^ui.logout=" $PROPERTY_CONFIG_FILE)
+APP_SAAS=$(getParam 					"^app.saas=" $PROPERTY_CONFIG_FILE)
+END_POINT_URL=$(getParam				"^ui.end.point.url=" $PROPERTY_CONFIG_FILE)
+DOMAIN_URL=$(getParam					"^ui.domain.url=" $PROPERTY_CONFIG_FILE)
+GOOGLE_MAPS_API_KEY=$(getParam			"^google.maps.api.key=" $PROPERTY_CONFIG_FILE)
+ACCESS_TIMEOUT=$(getParam				"^access.timeout=" $PROPERTY_CONFIG_FILE)
+FORGOT_PASSWORD_URL=$(getParam			"^ui.forgot.password=" $PROPERTY_CONFIG_FILE)
+LOGOUT_URL=$(getParam					"^ui.logout=" $PROPERTY_CONFIG_FILE)
+EXTERNAL_SEARCH_NAME=$(getParam			"^ui.externalsearch.name=" $PROPERTY_CONFIG_FILE)
+EXTERNAL_SEARCH_URL=$(getParam			"^ui.externalsearch.url=" $PROPERTY_CONFIG_FILE)
+LOGO_URL=$(getParam						"^ui.logo.url=" $PROPERTY_CONFIG_FILE)
 	
 cp $CONSTANTS_TEMPLATE $CONSTANTS_CONF_LOCATION
 if [ "$END_POINT_URL" != "" ]; then
@@ -58,6 +61,22 @@ else
 fi
 # If no end point specified then default it to current location:
 sed -i "s|\"END_POINT_URL\"|'http://'+document.location.hostname+':'+document.location.port+'/api/'|" $CONSTANTS_CONF_LOCATION
+
+if [ "$EXTERNAL_SEARCH_NAME" = "" ]; then
+	EXTERNAL_SEARCH_NAME="google" #(default)
+fi
+sed -i "s|EXTERNAL_SEARCH_NAME|$EXTERNAL_SEARCH_NAME|" $CONSTANTS_CONF_LOCATION
+
+# External URL is a bit more complicated because you can return javascript (fine provided you use '' and not "")
+if [ "$EXTERNAL_SEARCH_URL" = "" ]; then
+	sed -i "s|.*EXTERNAL_SEARCH_URL.*|//\0|" $CONSTANTS_CONF_LOCATION
+else	
+	sed -i "s|EXTERNAL_SEARCH_URL|$EXTERNAL_SEARCH_URL|" $CONSTANTS_CONF_LOCATION
+	sed -i "s|.*ui.logo.url=default.*|//\0|" $CONSTANTS_CONF_LOCATION
+fi
+
+#Logo (can be empty)
+sed -i "s|LOGO_URL|$LOGO_URL|" $CONSTANTS_CONF_LOCATION
 
 chown tomcat.tomcat $CONSTANTS_CONF_LOCATION
 

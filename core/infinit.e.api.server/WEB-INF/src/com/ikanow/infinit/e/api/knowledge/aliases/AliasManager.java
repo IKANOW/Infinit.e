@@ -26,7 +26,7 @@ import org.bson.types.ObjectId;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
-import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -119,7 +119,8 @@ public class AliasManager {
 				logger.debug("Alias table exists, checking for refresh: " + communityListStr);
 				
 				BasicDBObject query = new BasicDBObject(SharePojo.type_, "infinite-entity-alias");
-				query.put(ShareOwnerPojo.communities_id_, new BasicDBObject(MongoDbManager.in_, communityList));								
+				query.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(MongoDbManager.in_, communityList));								
+				query.put(SharePojo.endorsed_, new BasicDBObject(MongoDbManager.in_, communityList));
 				BasicDBObject fields = new BasicDBObject(SharePojo.modified_, 1);				
 				DBCursor dbc = MongoDbManager.getSocial().getShare().find(query, fields);
 				
@@ -149,7 +150,8 @@ public class AliasManager {
 		if (bRefresh) {
 			
 			BasicDBObject query = new BasicDBObject(SharePojo.type_, "infinite-entity-alias");
-			query.put(ShareOwnerPojo.communities_id_, new BasicDBObject(MongoDbManager.in_, communityList));
+			query.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(MongoDbManager.in_, communityList));
+			query.put(SharePojo.endorsed_, new BasicDBObject(MongoDbManager.in_, communityList));
 			
 			List<SharePojo> aliasShares = SharePojo.listFromDb(
 					MongoDbManager.getSocial().getShare().find(query), SharePojo.listType());

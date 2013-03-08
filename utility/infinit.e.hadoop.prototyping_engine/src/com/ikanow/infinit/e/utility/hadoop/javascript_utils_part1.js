@@ -29,6 +29,9 @@ function s1(el) {
 	else if (typeof el == 'object') {
 		outList.add(s3(el));
 	}
+	else if (typeof el == 'number') {
+		outList.add(el);
+	}
 	else {
 		outList.add(el.toString());
 	}
@@ -43,6 +46,9 @@ function s2(el, master_list) {
 		}
 		else if (typeof subel == 'object') {
 			list.add(s3(subel));
+		}
+		else if (typeof subel == 'number') {
+			list.add(subel);
 		}
 		else {
 			list.add(subel.toString());
@@ -73,6 +79,9 @@ function s3(el) {
 		}
 		else if (typeof subel == 'object') {
 			currObj.put(prop, s3(subel));
+		}
+		else if (typeof subel == 'number') {
+			currObj.put(prop, subel);
 		}
 		else {
 			currObj.put(prop, subel.toString());

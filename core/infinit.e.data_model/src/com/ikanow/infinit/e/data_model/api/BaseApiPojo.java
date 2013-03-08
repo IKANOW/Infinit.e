@@ -164,7 +164,7 @@ public class BaseApiPojo {
 		} catch (Exception e) {
 			return null;
 		}
-		return (String) com.mongodb.util.JSON.parse(gb.create().toJson(list, listType.getType()));
+		return gb.create().toJson(list, listType.getType());
 	}
 	/////////////////////////////////////////////////////////////////////////////////////
 	// From the API JSON to a list of objects

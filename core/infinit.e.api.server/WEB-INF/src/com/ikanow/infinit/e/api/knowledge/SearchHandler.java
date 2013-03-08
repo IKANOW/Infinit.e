@@ -208,7 +208,7 @@ public class SearchHandler
 				String index = null;
 				if (null != aliasTable) {
 					index = (String) hit.field(EntityFeaturePojo.index_).value();
-					EntityFeaturePojo alias = aliasTable.doLookupFromIndex(index);
+					EntityFeaturePojo alias = aliasTable.getAliasMaster(index);
 					if (null != alias) { // Found!
 						if (alias.getIndex().equalsIgnoreCase("discard")) { // Discard this entity
 							continue;
@@ -386,7 +386,7 @@ public class SearchHandler
 				else {
 					EntityFeaturePojo alias = null;
 					if (null != aliasTable) {
-						alias = aliasTable.doLookupFromIndex(ent1);
+						alias = aliasTable.getAliasMaster(ent1);
 					}
 					if (null != alias) { // Found!
 						boolQuery.must(QueryBuilders.termsQuery(AssociationFeaturePojo.entity1_index_, alias.getAlias().toArray()));
@@ -413,7 +413,7 @@ public class SearchHandler
 				else {
 					EntityFeaturePojo alias = null;
 					if (null != aliasTable) {
-						alias = aliasTable.doLookupFromIndex(ent2);
+						alias = aliasTable.getAliasMaster(ent2);
 					}
 					if (null != alias) { // Found!
 						boolQuery.must(QueryBuilders.termsQuery(AssociationFeaturePojo.entity2_index_, alias.getAlias().toArray()));
@@ -495,7 +495,7 @@ public class SearchHandler
 					if (bReturningEntities && (null != aliasTable))
 					{
 						// More alias handling
-						EntityFeaturePojo alias = aliasTable.doLookupFromIndex(suggestion);
+						EntityFeaturePojo alias = aliasTable.getAliasMaster(suggestion);
 						if (null != alias) { // Found!
 							if (alias.getIndex().equalsIgnoreCase("discard")) { // Discard this entity
 								continue;

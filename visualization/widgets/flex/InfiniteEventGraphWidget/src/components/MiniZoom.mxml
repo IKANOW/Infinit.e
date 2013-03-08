@@ -27,14 +27,17 @@
 		     
 	<fx:Script>
 		<![CDATA[
+			import org.un.cava.birdeye.ravis.assets.icons.EmbeddedIcons;
+			import org.un.cava.birdeye.ravis.graphLayout.visual.VisualGraph;
 			import org.un.cava.birdeye.ravis.utils.LogUtil;
 			import org.un.cava.birdeye.ravis.utils.events.VGraphEvent;
-			import org.un.cava.birdeye.ravis.graphLayout.visual.VisualGraph;
-			import org.un.cava.birdeye.ravis.assets.icons.EmbeddedIcons;
 			
 			private static const _LOG:String = "components.ui.controls.vgraphControls.BirdEyeZoom";
 			
 			private var _vgraph:VisualGraph;
+			
+			private var _widgetOptions:Object;
+			private var _zoomLevelChanged:Boolean;
 			
 			/**
 			 * Provides access to the registered vgraph object.
@@ -50,6 +53,23 @@
 			 * */
 			public function get vgraph():VisualGraph {
 				return _vgraph;
+			}
+			
+			/**
+			 * set the widget options for the component
+			 */
+			public function setWidgetOptions(widgetOptions:Object):void
+			{
+				_widgetOptions = widgetOptions;
+			}
+			
+			/**
+			 * function to set if the zoom level was changed
+			 * from the main view 
+			 */
+			public function setZoomLevelChanged(zoomLevelChanged:Boolean):void
+			{
+				_zoomLevelChanged = zoomLevelChanged;
 			}
 			
 			/** 
@@ -142,7 +162,11 @@
 					LogUtil.warn(_LOG, "BirdEyeZoom NOT refreshed, no valid vgraph!");
 					return;
 				}
-				bzoom.value = _vgraph.scale;
+				
+				//commented out to prevent zoom level from being set to a value 
+				//less than one when the graph updates instead of reflecting
+				//the actual zoom level
+				//bzoom.value = _vgraph.scale;
 			}
 			
 			/**

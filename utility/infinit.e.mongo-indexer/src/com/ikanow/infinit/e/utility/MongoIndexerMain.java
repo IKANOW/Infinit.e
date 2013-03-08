@@ -53,7 +53,7 @@ public class MongoIndexerMain {
 			allOps.addOption("l", "limit", true, "Caps the number of records to act upon");
 			allOps.addOption("s", "skip", true, "The record at which to start (not in delete mode)");
 			allOps.addOption("r", "rebuild", false, "Rebuild the index before transferring");
-			allOps.addOption("v", "verify", false, "Verifies the document indexes all exist");
+			allOps.addOption("v", "verify", false, "Verifies the document indexes all exist | resync the entity frequencies (INTERNAL ONLY)");
 	
 			CommandLine cliOpts = cliParser.parse(allOps, args);
 			
@@ -100,6 +100,9 @@ public class MongoIndexerMain {
 				if (cliOpts.hasOption("doc") && !bRebuildIndex) {
 					bVerifyIndex = true; // (doc only)
 				}
+				else if (cliOpts.hasOption("entity")) {
+					bVerifyIndex = true; // (ents only)					
+				}
 			}
 			if ((0 == args.length) || ((null == query)&&(0 == nLimit)&&!bVerifyIndex)) {
 				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--verify] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
@@ -118,7 +121,13 @@ public class MongoIndexerMain {
 				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);			
 			}
 			else if (cliOpts.hasOption("entity")) {
-				MongoEntityFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);			
+				if (bVerifyIndex) {
+					String[] dbDotColl = query.split("\\.");
+					MongoEntitySyncFreq.syncFreq(dbDotColl[0], dbDotColl[1], configOverride);
+				}
+				else {
+					MongoEntityFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);
+				}
 			}
 			else {
 				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");

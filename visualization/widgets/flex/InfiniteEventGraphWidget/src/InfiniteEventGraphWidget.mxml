@@ -89,7 +89,7 @@
 			private var _context:IWidgetContext;
 			
 			//private var titleArray:ArrayCollection = new ArrayCollection();
-			private var loadOptions:Object = null;
+			private var widgetOptions:Object = null;
 			
 			//graph variables
 			private var graph:IGraph = null;
@@ -208,18 +208,65 @@
 			 * @param widgetOptions the last save object or null if there was none
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
-			{
+			{				
+				this.widgetOptions = widgetOptions.userSave;
+				
 				if ( widgetOptions != null && widgetOptions.userSave != null )
 				{
-					//set icon button, should fire change event and update correctly (also should happen before query on load)
-					if ( dataOptionsList == null )
+					var loadedQuery:Boolean = null != this.graph;
+					if ( dataOptionsList.dataProvider )
 					{
-						loadOptions = widgetOptions.userSave;
+						dataOptionsList.selectedIndex = this.widgetOptions.buttonbarIndex;
+						if ( loadedQuery )
+							dataOptionsList_changeHandler(null);
 					}
-					else
+					if(this.widgetOptions.regexFilter)
 					{
-						dataOptionsList.selectedIndex = widgetOptions.userSave.buttonbarIndex;
+						regexFilter.text = this.widgetOptions.regexFilter;
+						if ( loadedQuery )
+							doneChangingFilter(null);
 					}
+					if(this.widgetOptions.filterOptionsIndex)
+					{
+						filterOptions.selectedIndex = this.widgetOptions.filterOptionsIndex;
+						if ( loadedQuery && ( visibleEvents.length > 0 ) )
+							filterOptions_changeHandler(null);
+					}
+					if(null != this.widgetOptions.optionsVisible)
+					{
+						optionsToggleButton.selected = this.widgetOptions.optionsVisible;
+						if ( loadedQuery )
+							optionsToggleButton_changeHandler(null);
+					}
+					// Kinda unpleasant but need to pre-create the dataview state, so need to pre-create
+					if ( !loadedQuery )
+						this.currentState = "dataviewOptionsHidden";
+					if(this.widgetOptions.evtSliderValue)
+					{
+						evtSlider.value = this.widgetOptions.evtSliderValue;
+						if ( loadedQuery )
+							updateEventsShown(null);
+					}
+					if(this.widgetOptions.zoomLevelSliderValue)
+					{
+						zoomLevel.bzoom.value = this.widgetOptions.zoomLevelSliderValue;
+						if ( loadedQuery )
+							zoomLevel.updateVScale(null);
+					}
+					if(this.widgetOptions.linkLengthSliderValue)
+					{
+						linkLength.lslider.value = this.widgetOptions.linkLengthSliderValue;
+						if ( loadedQuery )
+							linkLength.updateLinkLength();
+					}
+					if(edgeRankDropDown.dataProvider)
+					{
+						edgeRankDropDown.selectedIndex = this.widgetOptions.edgeRankIndex;
+						if ( loadedQuery )
+							edgeRankDropDown_changeHandler(null);
+					}
+					if ( !loadedQuery )
+						this.currentState = "nodata";
 				}
 			}
 			
@@ -249,14 +296,18 @@
 				}
 				
 				dataSorted = false;
-				currentState = "dataviewOptionsHidden";
+				if(optionsToggleButton.selected)
+					currentState = "dataviewOptionsVisible";
+				else
+					currentState = "dataviewOptionsHidden";
 				
 				currentResultSet_events = _context.getQuery_FilteredResults();
 				currentResultSet_facts = _context.getQuery_FilteredResults();
 				
-				evtSlider.value = 10;
+				if ( null == this.widgetOptions.evtSliderValue ) // (else have saved options, use them)
+					evtSlider.value = 10;
 				
-				changeGraphSelection();
+				doneChangingFilter(null); // renders the graph
 			}
 			
 			/**
@@ -272,7 +323,11 @@
 					setTimeout( resetIgnoreLocalFilter, 1000 );
 				}
 				dataSorted = false;
-				currentState = "dataviewOptionsHidden";
+				if(optionsToggleButton.selected)
+					currentState = "dataviewOptionsVisible";
+				else
+					currentState = "dataviewOptionsHidden";
+
 				currentResultSet_facts = _context.getQuery_AllResults();
 				currentResultSet_events = _context.getQuery_AllResults();
 				
@@ -283,8 +338,10 @@
 				if ( currentResultSet_facts.getFacts().length == 0 )
 					currentResultSet_facts = _context.getQuery_TopResults();
 				
-				evtSlider.value = 10;
-				changeGraphSelection();
+				if ( null == this.widgetOptions.evtSliderValue ) // (else have saved options, use them)
+					evtSlider.value = 10;
+
+				doneChangingFilter(null); // renders the graph
 			}
 			
 			/**
@@ -296,7 +353,19 @@
 			public function onSaveWidgetOptions():Object
 			{
 				var saveOptions:Object = new Object();
-				saveOptions[ "buttonbarIndex" ] = dataOptionsList.selectedIndex;
+				
+				if (null != this.vgraph)
+				{
+					saveOptions.buttonbarIndex = dataOptionsList.selectedIndex;
+					saveOptions.filterOptionsIndex = filterOptions.selectedIndex;
+					saveOptions.regexFilter = regexFilter.text;
+					saveOptions.optionsToggleButtonSelected = optionsToggleButton.selected;
+					saveOptions.evtSliderValue = evtSlider.value;
+					saveOptions.zoomLevelSliderValue = zoomLevel.bzoom.value;
+					saveOptions.linkLengthSliderValue = linkLength.lslider.value;
+					saveOptions.edgeRankIndex = edgeRankDropDown.selectedIndex;
+					saveOptions.optionsVisible = optionsToggleButton.selected;
+				}				
 				return saveOptions;
 			}
 			
@@ -361,7 +430,7 @@
 				
 				if ( dataOptionsList.selectedIndex == 1 )
 				{
-					var events:ArrayCollection = currentResultSet_events.getEvents();
+					var events:ArrayCollection = currentResultSet_events.getEvents(true);
 					maxEvt.text = events.length + "";
 					evtSlider.maximum = events.length;
 					
@@ -372,7 +441,7 @@
 				}
 				else if ( dataOptionsList.selectedIndex == 2 )
 				{
-					var facts:ArrayCollection = currentResultSet_facts.getFacts();
+					var facts:ArrayCollection = currentResultSet_facts.getFacts(true);
 					maxEvt.text = facts.length + "";
 					evtSlider.maximum = facts.length;
 					
@@ -383,8 +452,8 @@
 				}
 				else
 				{
-					var events1:ArrayCollection = currentResultSet_events.getEvents();
-					var facts1:ArrayCollection = currentResultSet_facts.getFacts();
+					var events1:ArrayCollection = currentResultSet_events.getEvents(true);
+					var facts1:ArrayCollection = currentResultSet_facts.getFacts(true);
 					var all:ArrayCollection = new ArrayCollection();
 					all.addAll( events1 );
 					all.addAll( facts1 );
@@ -738,7 +807,9 @@
 			{
 				if ( _context.getQuery_AllResults() != null )
 				{
-					evtSlider.value = 10;
+					if ( null != event ) // (else occurs because of a saved option)
+						evtSlider.value = 10;
+					
 					changeGraphSelection();
 				}
 			}
@@ -877,9 +948,6 @@
 			private function onWidgetCreationComplete():void
 			{
 				_filterModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingFilter );
-				
-				if ( loadOptions != null )
-					dataOptionsList.selectedIndex = loadOptions.buttonbarIndex;
 			}
 			
 			private function removeOldGraph():void
@@ -921,8 +989,6 @@
 			{
 				percentile.text = "Showing top " + evtSlider.value + " events";
 				//force a redraw, it gets the #of events to use
-				//var fakeEvent:IndexChangeEvent = new IndexChangeEvent( "", false, false, -1, dataOptionsList.selectedIndex );
-				//dataOptionsList_changeHandler( fakeEvent );
 				changeGraphSelection();
 			}
 		]]>
@@ -1084,10 +1150,10 @@
 				</s:HGroup>
 			</s:VGroup>
 			<mx:Spacer width="5" />
-			<components1:MiniZoom vgraph="{ vgraph }" />
+			<components1:MiniZoom id="zoomLevel" vgraph="{ vgraph }" />
 			<!--<vgraphControls:BirdEyeZoom vgraph="{vgraph}" />-->
 			<mx:Spacer width="5" />
-			<components1:MiniLinkLength vgraph="{ vgraph }" />
+			<components1:MiniLinkLength id="linkLength" vgraph="{ vgraph }" />
 			<mx:Spacer width="5" />
 			<s:VGroup 
 				horizontalAlign="center"

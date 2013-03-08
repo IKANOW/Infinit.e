@@ -30,9 +30,15 @@ function getTimeoutSeconds() {
 }
 
 function getSearchProvider() {
-	return "Google";
+	return "EXTERNAL_SEARCH_NAME";
 }
 
+// (Note, have to use '' not "" here because of substitution logic elsewhere)
 function getSearchUrl(encodedSearchTerms) {
-	return "https://www.google.com/search?hl=en&q=" + encodedSearchTerms;
+	return 'https://www.google.com/search?hl=en&q=' + encodedSearchTerms; // ui.logo.url=default
+	return EXTERNAL_SEARCH_URL;
+}
+
+function getLogoUrl() {
+	return "LOGO_URL";
 }

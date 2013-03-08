@@ -218,7 +218,7 @@ public class RESTTools
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getAuthentication().findOne(authQuery.toDb());
 			if (null != dbo) {
 				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);			
-				return ap.getAccountType().equalsIgnoreCase("admin");
+				return (null != ap.getAccountType()) && ap.getAccountType().equalsIgnoreCase("admin");
 			}
 			else { 
 				return false;

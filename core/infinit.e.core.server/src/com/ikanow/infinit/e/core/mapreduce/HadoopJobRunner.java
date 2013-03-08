@@ -65,6 +65,7 @@ import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
 import com.ikanow.infinit.e.api.knowledge.QueryHandler;
+import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -679,6 +680,9 @@ public class HadoopJobRunner
 		String dbserver = prop_general.getDatabaseServer();
 		output = outputDatabase + "." + tempOutputCollection;
 
+		int nSplits = 8;
+		int nDocsPerSplit = 12500;
+		
 		//add communities to query if this is not a custom table
 		if ( !isCustomTable )
 		{
@@ -693,7 +697,26 @@ public class HadoopJobRunner
 			
 			// Community Ids aren't indexed in the metadata collection, but source keys are, so we need to transform to that
 			BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
-			if (oldQueryObj.containsField(DocumentPojo.sourceKey_)) {
+			boolean bAdminOverride = false;
+			if (oldQueryObj.containsField("admin")) { // For testing only...
+				if (1 == communityIds.size()) {
+					ObjectId communityId = communityIds.get(0);
+					if (RESTTools.adminLookup(communityId.toString())) {
+						bAdminOverride = true;
+						if (oldQueryObj.containsField("max.splits")) {
+							nSplits = oldQueryObj.getInt("max.splits");
+						}
+						if (oldQueryObj.containsField("max.docs.per.split")) {
+							nDocsPerSplit = oldQueryObj.getInt("max.docs.per.split");
+						}
+					}
+				}				
+			}//(end diagnostic/benchmarking/test code for admins only part 1)
+			if (bAdminOverride) {
+				oldQueryObj = (BasicDBObject) oldQueryObj.get("admin");
+				//(end diagnostic/benchmarking/test code for admins only part 2)
+			}
+			else if (oldQueryObj.containsField(DocumentPojo.sourceKey_)) {
 				// Source Key specified by user, stick communityIds check in for security
 				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
 			}
@@ -756,8 +779,8 @@ public class HadoopJobRunner
 				"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
 				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
-				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>8</value></property>"+
-				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>12500</value></property>"+				
+				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
+				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+				
 				"\n</configuration>");		
 		out.flush();
 		out.close();

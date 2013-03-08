@@ -87,7 +87,7 @@ public class TestCode {
 		//CANONICAL EXAMPLE:
 		Set<ObjectId> communities = new HashSet<ObjectId>();
 		communities.add(new ObjectId("a0000000000000000000000a"));
-		rp1.setData(sp, new SourcePojoApiMap(null, null, communities));
+		rp1.setData(sp, new SourcePojoApiMap(null, communities, communities));
 		String sRPSingleObject = rp1.toApi();
 		System.out.println("RPa=" + sRPSingleObject); // ("chris" removed, toApi handles RepsonsePojo specially)
 		////////////////////////////////////////////////
@@ -95,10 +95,10 @@ public class TestCode {
 		System.out.println("RPc=" + ResponsePojo.toApi(rp1)); // ("chris" removed, toApi handles RepsonsePojo specially)
 		
 		//API: Get an non-API object
-		String sJson = "{ 'url':'http://test2', 'isApproved': false, 'harvestBadSource': true } ";
+		String sJson = "{ 'url':'http://test2', 'isApproved': false, 'harvestBadSource': true, 'created': 'Feb 14, 2013 9:24:34 PM' } ";
 		//sp = BaseApiPojo.mapFromApi(sJson, SourcePojo.class, null);
 		// Equivalent to:
-		SourcePojo sp2 = ApiManager.mapFromApi(sJson, SourcePojo.class, new SourcePojoApiMap(null, null, new HashSet<ObjectId>()));
+		SourcePojo sp2 = ApiManager.mapFromApi(sJson, SourcePojo.class, new SourcePojoApiMap(null, new HashSet<ObjectId>(), new HashSet<ObjectId>()));
 		System.out.println("RPd="+new Gson().toJson(sp2)); // "alex" and "chris" both removed
 		
 		//API: add a list to the response Pojo
@@ -107,7 +107,7 @@ public class TestCode {
 		//rp1.setData(list); // (Not allowed SourcePojo isn't a BaseApiPojo)
 
 		sp2.addToCommunityIds(new ObjectId("a0000000000000000000000a")); // (alex will be allowed again)
-		rp1.setData(list, new SourcePojoApiMap(null, null, communities));
+		rp1.setData(list, new SourcePojoApiMap(null, communities, communities));
 		String sRPList = rp1.toApi(); 
 		sp2.setCommunityIds(null);
 		
@@ -137,20 +137,20 @@ public class TestCode {
 				}
 			}			
 			// Try again:
-			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(null, null, communities)));
+			System.out.println("SPJ=" + ApiManager.mapListToApi(set, new TypeToken<Set<SourcePojo>>(){}, new SourcePojoApiMap(null, communities, communities)));
 				// (just has "alex")			
 		}
 		
 		// And now in the other direction, ie deserializing....
-		ResponsePojo rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class, SourcePojo.class, new SourcePojoApiMap(null, null, communities));
+		ResponsePojo rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class, SourcePojo.class, new SourcePojoApiMap(null, communities, communities));
 		System.out.println("RECREATED RP_SRC=" + rpRecreated.toApi());
 		System.out.println("RECREATED SRC(RP_SRC)=" + ((BasicDBObject)((SourcePojo)rpRecreated.getData()).toDb()).toString());
-		rpRecreated = ResponsePojo.listFromApi(sRPList, ResponsePojo.class, SourcePojo.listType(), new SourcePojoApiMap(null, null, communities));
+		rpRecreated = ResponsePojo.listFromApi(sRPList, ResponsePojo.class, SourcePojo.listType(), new SourcePojoApiMap(null, communities, communities));
 		System.out.println("RECREATED RP_LSRC=" + rpRecreated.toApi());
 		
 		rpRecreated = ResponsePojo.fromApi(sRPSingleObject, ResponsePojo.class);
 		System.out.println("RECREATED RAW(RP_SRC)=" + ((JsonElement)rpRecreated.getData()));
-		sp = ApiManager.mapFromApi((JsonElement)rpRecreated.getData(), SourcePojo.class, new SourcePojoApiMap(null, null, communities));
+		sp = ApiManager.mapFromApi((JsonElement)rpRecreated.getData(), SourcePojo.class, new SourcePojoApiMap(null, communities, communities));
 		System.out.println("RECREATED SRC(RAW(RP_SRC))=" + ((JsonElement)rpRecreated.getData()));
 		
 		// Real-life source pojo testing:
@@ -227,6 +227,8 @@ public class TestCode {
 		// (display results of API mappings)
 		DocumentPojo docApi = DocumentPojo.fromDb(docApiDbo, DocumentPojo.class);
 		ResponsePojo rp3 = new ResponsePojo(null, docApi, new DocumentPojoApiMap());
+		/**/
+		System.out.println(docApi.getCreated());
 		System.out.println("DOC_API1=" + rp3.toApi());
 		DocumentPojoApiMap.mapToApi(docApiDbo);
 		System.out.println("DOC_API2=" + BaseApiPojo.getDefaultBuilder().setPrettyPrinting().create().toJson(docApiDbo));
@@ -266,10 +268,16 @@ public class TestCode {
 		
 		//DB: Read/write feed with metadata
 		BasicDBObject query = new BasicDBObject("metadata", new BasicDBObject("$exists", true)); // (complex query so can't represent using pojos)
+		query.put("entities", new BasicDBObject("$size", 3));
 		////////////////////////////////////////////////
 		//CANONICAL EXAMPLE:
 		DocumentPojo doc = DocumentPojo.fromDb(documentDb.findOne(query), DocumentPojo.class);
 		System.out.println("DOC1="+doc.toDb());
+		BasicDBList dblTest = (BasicDBList) doc.toDb().get("entities");
+		BasicDBObject dboTest = (BasicDBObject) dblTest.get(0);
+		if (!dboTest.get("doccount").getClass().toString().equals("class java.lang.Long")) {
+			throw new RuntimeException(dboTest.get("doccount").getClass().toString() + " SHOULD BE LONG");
+		}
 		////////////////////////////////////////////////
 		System.out.println("DOC2="+new Gson().toJson(doc));
 		doc = DocumentPojo.fromDb(documentDb.findOne(query), new TypeToken<DocumentPojo>(){}); // (alternative to the prettier DocumentPojo.class, needed for container classes)

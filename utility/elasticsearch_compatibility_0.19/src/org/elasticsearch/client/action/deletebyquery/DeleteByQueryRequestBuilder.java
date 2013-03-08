@@ -1,31 +1,43 @@
 package org.elasticsearch.client.action.deletebyquery;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.index.query.QueryBuilder;
 
-public class DeleteByQueryRequestBuilder extends org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder {
+public class DeleteByQueryRequestBuilder  {
 
-	public DeleteByQueryRequestBuilder(Client client) {
-		super(client);
+	protected org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder _delegate;
+	
+	public DeleteByQueryRequestBuilder(org.elasticsearch.action.deletebyquery.DeleteByQueryRequestBuilder delegate) {
+		_delegate = delegate;
 	}
 	public DeleteByQueryRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-		return (DeleteByQueryRequestBuilder) super.setConsistencyLevel(consistencyLevel);
+		_delegate.setConsistencyLevel(consistencyLevel);
+		return this;
 	}
 	public DeleteByQueryRequestBuilder setTypes(String... arg0) {
-		return (DeleteByQueryRequestBuilder) super.setTypes(arg0);
+		_delegate.setTypes(arg0);
+		return this;
 	}
 	public DeleteByQueryRequestBuilder setQuery(String query) {
-		return (DeleteByQueryRequestBuilder) super.setQuery(query);
+		_delegate.setQuery(query);
+		return this;
 	}
 	public DeleteByQueryRequestBuilder setRouting(String routing) {
-		return (DeleteByQueryRequestBuilder) super.setRouting(routing);
+		_delegate.setRouting(routing);
+		return this;
 	}
 	public DeleteByQueryRequestBuilder setRouting(String... routing) {
-		return (DeleteByQueryRequestBuilder) super.setRouting(routing);
+		_delegate.setRouting(routing);
+		return this;
 	}
 	public DeleteByQueryRequestBuilder setQuery(QueryBuilder query) {
-		return (DeleteByQueryRequestBuilder) super.setQuery(query);
+		_delegate.setQuery(query);
+		return this;
+	}
+	public ListenableActionFuture<DeleteByQueryResponse> execute() {
+		return _delegate.execute();
 	}
 
 }

@@ -2,73 +2,102 @@ package org.elasticsearch.client.action.search;
 
 import java.util.Map;
 
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
 import org.elasticsearch.search.facet.AbstractFacetBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
-public class SearchRequestBuilder extends org.elasticsearch.action.search.SearchRequestBuilder {
+public class SearchRequestBuilder {
 
-	public SearchRequestBuilder(Client client) {
-		super(client);
+	protected org.elasticsearch.action.search.SearchRequestBuilder _delegate;
+	
+	public SearchRequestBuilder(org.elasticsearch.action.search.SearchRequestBuilder delegate) {
+		_delegate = delegate;
 	}
 	
 	public SearchRequestBuilder setIndices(String... arg0) {
-		return (SearchRequestBuilder) super.setIndices(arg0);
+		_delegate.setIndices(arg0);
+		return this;
 	}
 	public SearchRequestBuilder setTypes(String... arg0) {
-		return (SearchRequestBuilder) super.setTypes(arg0);
+		_delegate.setTypes(arg0);
+		return this;
 	}
 	
 	public SearchRequestBuilder setSize(int size) {
-		return (SearchRequestBuilder) super.setSize(size);
+		_delegate.setSize(size);
+		return this;
 	}
 	public SearchRequestBuilder setFrom(int from) {
-		return (SearchRequestBuilder) super.setFrom(from);
+		_delegate.setFrom(from);
+		return this;
 	}
 	
 	public SearchRequestBuilder addScriptField(String name, String lang, String script, Map<String, Object> params) {
-		return (SearchRequestBuilder) super.addScriptField(name, lang, script, params);
+		_delegate.addScriptField(name, lang, script, params);
+		return this;
 	}
 	
+	public SearchRequestBuilder setFilter(FilterBuilder filter) {
+		_delegate.setFilter(filter);
+		return this;
+		
+	}
 	public SearchRequestBuilder addSort(String field, SortOrder order) {
-		return (SearchRequestBuilder) super.addSort(field, order);
+		_delegate.addSort(field, order);
+		return this;
 	}
 	public SearchRequestBuilder addSort(SortBuilder sort) {
-		return (SearchRequestBuilder) super.addSort(sort);
+		_delegate.addSort(sort);
+		return this;
 	}
 	public SearchRequestBuilder setFacets(byte[] facets) {
-		return (SearchRequestBuilder) super.setFacets(facets);
+		_delegate.setFacets(facets);
+		return this;
 	}
 	public SearchRequestBuilder addFacet(AbstractFacetBuilder facet) {
-		return (SearchRequestBuilder) super.addFacet(facet);		
+		_delegate.addFacet(facet);
+		return this;
 	}
 	public SearchRequestBuilder setQuery(QueryBuilder query) {
-		return (SearchRequestBuilder) super.setQuery(query);
+		_delegate.setQuery(query);
+		return this;
 	}
 	public SearchRequestBuilder setQuery(String query) {
-		return (SearchRequestBuilder) super.setQuery(query);
+		_delegate.setQuery(query);
+		return this;
 	}
 	public SearchRequestBuilder setSearchType(SearchType type) {
-		return (SearchRequestBuilder) super.setSearchType(type);
+		_delegate.setSearchType(type);
+		return this;
 	}
 	public SearchRequestBuilder setScroll(String keepAlive) {
-		return (SearchRequestBuilder) super.setScroll(keepAlive);		
+		_delegate.setScroll(keepAlive);		
+		return this;
 	}
 	public SearchRequestBuilder setScroll(Scroll scrollId) {
-		return (SearchRequestBuilder) super.setScroll(scrollId);		
+		_delegate.setScroll(scrollId);		
+		return this;
 	}
 	public SearchRequestBuilder setScroll(TimeValue keepAlive) {
-		return (SearchRequestBuilder) super.setScroll(keepAlive);		
+		_delegate.setScroll(keepAlive);		
+		return this;
 	}
 	public SearchRequestBuilder addFields(String... fields) {
-		return (SearchRequestBuilder) super.addFields(fields);	
+		_delegate.addFields(fields);	
+		return this;
 	}
 	public SearchRequestBuilder addField(String field) {
-		return (SearchRequestBuilder) super.addField(field);	
+		_delegate.addField(field);	
+		return this;
+	}
+	public ListenableActionFuture<SearchResponse> execute() {
+		return _delegate.execute();
 	}
 }

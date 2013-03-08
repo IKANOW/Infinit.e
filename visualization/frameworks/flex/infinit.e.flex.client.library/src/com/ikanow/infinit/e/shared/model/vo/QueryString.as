@@ -65,7 +65,15 @@ package com.ikanow.infinit.e.shared.model.vo
 			clone.output = new QueryOutput();
 			clone.output.aggregation = output.aggregation.clone();
 			clone.output.docs = output.docs.clone();
-			clone.output.filter = output.filter.clone();
+			
+			if ( null != output.filter )
+			{
+				clone.output.filter = output.filter.clone();
+			}
+			else
+			{
+				clone.output.filter = null;
+			}
 			clone.output.format = output.format.toString();
 			clone.qtOptions = qtOptions;
 			clone.communityIds = communityIds;

@@ -55,16 +55,6 @@ Infinit.e Mongo DB installation and update
 		chown -R mongod:mongod /opt/db-home/data
 	fi
 	
-	###########################################################################
-	# Copy the infdb file to usr/bin based on install type (EC2 vs non)
-	SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties' 
-	USE_AWS=`grep "^use.aws=" $SERVICE_PROPERTY_FILE | sed s/'use.aws='// | sed s/' '//g`
-	if [ "$USE_AWS" = "0" ]; then
-		cp /opt/db-home/infdb_standard /usr/bin/infdb
-	else
-		cp /opt/db-home/infdb_aws /usr/bin/infdb
-	fi
-	
 ###########################################################################
 # INSTALL ONLY
 
@@ -80,7 +70,6 @@ Infinit.e Mongo DB installation and update
 		ln -sf /opt/db-home/data/ /data
 		
 		service mongo_infinite start
-		sh /opt/db-home/write_cron.sh
 		sh /opt/db-home/setupAdminShards.sh
 			
 		################################################################################
@@ -163,7 +152,10 @@ Infinit.e Mongo DB installation and update
 %defattr(-,mongod,mongod)
 # (DB config)
 %dir /mnt/opt/db-home/
+%attr(755,mongod,mongod) /mnt/opt/db-home/master_backup-script.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/backup-script.sh
+%attr(755,mongod,mongod) /mnt/opt/db-home/master_compact-script.sh
+%attr(644,mongod,mongod) /mnt/opt/db-home/compact-script.js
 %attr(755,mongod,mongod) /mnt/opt/db-home/infdb_aws
 %attr(755,mongod,mongod) /mnt/opt/db-home/infdb_standard
 %attr(755,mongod,mongod) /mnt/opt/db-home/sync_from_master.sh
@@ -173,4 +165,5 @@ Infinit.e Mongo DB installation and update
 %attr(755,mongod,mongod) /mnt/opt/db-home/setupAdminShards.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/
 %attr(755,mongod,mongod) /usr/bin/infdb
-%config %attr(755,mongod,mongod) /etc/rc.d/init.d/mongo_infinite
+%attr(755,mongod,mongod) /etc/rc.d/init.d/mongo_infinite
+%attr(644,root,root) /etc/cron.d/infinite-db

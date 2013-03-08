@@ -1,16 +1,20 @@
 package org.elasticsearch.client.action.get;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.get.GetResponse;
 
-public class GetRequestBuilder extends org.elasticsearch.action.get.GetRequestBuilder {
+public class GetRequestBuilder {
 
-	public GetRequestBuilder(Client client) {
-		super(client);
-	}
-	public GetRequestBuilder(Client client, String index) {
-		super(client, index);
+	protected org.elasticsearch.action.get.GetRequestBuilder _delegate;
+	
+	public GetRequestBuilder(org.elasticsearch.action.get.GetRequestBuilder delegate) {
+		_delegate = delegate;
 	}
 	public GetRequestBuilder setFields(String... fields) {
-		return (GetRequestBuilder) super.setFields(fields);
+		_delegate.setFields(fields);
+		return this;
+	}
+	public ListenableActionFuture<GetResponse> execute() {
+		return _delegate.execute();
 	}
 }

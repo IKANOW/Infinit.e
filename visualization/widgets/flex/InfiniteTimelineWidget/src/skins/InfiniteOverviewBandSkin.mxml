@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2012, The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<ibm:RectangularTransparentSkin xmlns:fx="http://ns.adobe.com/mxml/2009" 
+								xmlns:s="library://ns.adobe.com/flex/spark" 
+								xmlns:mx="library://ns.adobe.com/flex/mx" 
+								xmlns:ibm="http://www.ibm.com/xmlns/prod/ilog/elixir/2010"
+								xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+								useChromeColor="true" alpha.disabled="0.5" height="50">
+	
+	<fx:Metadata>
+		<![CDATA[ 
+		/** 
+		* A strongly-typed property that references the component to which this skin is applied.
+		*/    
+		[HostComponent("com.ibm.ilog.elixir.timeline.components.supportClasses.TimelineBandBase")]
+		]]>
+	</fx:Metadata> 
+	
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+
+			
+			static public var _allDocs:ArrayCollection = null;
+			static private const exclusions:Array = [ "background", "axis", "dataGroup" ];
+			
+			[Bindable]
+			private var allDocs:ArrayCollection = new ArrayCollection();
+			
+			/**
+			 * @private
+			 */
+			override public function get colorizeExclusions():Array { return exclusions; }
+			
+			/**
+			 * @private
+			 */
+			override protected function updateDisplayList(unscaledWidth:Number, unscaledHeight:Number):void
+			{
+				_allDocs = allDocs;
+				bgFill.color = 0x575c60;
+				super.updateDisplayList(unscaledWidth, unscaledHeight);
+			}
+		]]>
+	</fx:Script>
+	
+	<!-- states -->
+	<ibm:states>
+		<s:State name="normal" />
+		<s:State name="disabled" />
+	</ibm:states>     
+	
+	<!--- @private -->
+	<s:Rect width="100%" height="100%" id="background">    
+		<s:fill>
+			<!--- @private -->
+			<s:SolidColor id="bgFill"/>
+		</s:fill>
+	</s:Rect>
+	
+	<s:Group width="100%" height="100%">
+		
+		<!--- @private -->
+		<ibm:TimelineDataGroup id="dataGroup" width="100%" height="100%"
+							   clipAndEnableScrolling="true"							    
+							   itemRenderer="com.ibm.ilog.elixir.timeline.skins.spark.DefaultOverviewItemRenderer">
+			<ibm:layout>
+				<ibm:TimelineLayout stackingDirection="btt" stackingGap="1" allowAdjustment="false"  />
+			</ibm:layout>
+		</ibm:TimelineDataGroup>
+		
+		<!--- @private -->
+		<ibm:TimeAxis id="axis" width="100%" bottom="0" color="0xcbcdce" />
+		
+	</s:Group>
+	
+	<!--- @private -->
+	<ibm:TimelineRangeSelector id="rangeSelector" height="100%"  />
+	
+	<mx:LineChart id="recordlinechart"
+				  dataProvider="{ allDocs }"
+				  width="100%"
+				  height="100%"
+				  paddingBottom="-13"
+				  paddingLeft="-30"
+				  alpha="1.0"
+				  depth="1"
+				  mouseEnabled="false"
+				  showDataTips="false"
+				  visible="true">
+		
+		<mx:backgroundElements>
+			<mx:GridLines visible="false" />
+		</mx:backgroundElements>
+		
+		<mx:series>
+			<mx:LineSeries 
+				xField="time"
+				yField="count">
+				<mx:lineStroke>
+					<mx:Stroke 
+						color="#b4a468"
+						alpha=".75"
+						weight="1" />
+				</mx:lineStroke>
+			</mx:LineSeries>
+		</mx:series>
+	</mx:LineChart>
+	
+</ibm:RectangularTransparentSkin>

@@ -19,7 +19,6 @@ function getDomainLogoutUrl() {
 
 }
 
-// Note tidied to the domain, so need to regenerate when goes onto a new server
 function getMapLicenseKey() {
 	url = "dummy";
 	return url;
@@ -27,4 +26,12 @@ function getMapLicenseKey() {
 
 function getTimeoutSeconds() {
 	return 1800;
+}
+
+function getSearchProvider() {
+	return "google";
+}
+
+function getSearchUrl(encodedSearchTerms) {
+	return "https://www.google.com/search?hl=en&q=" + encodedSearchTerms; // ui.logo.url=default
 }

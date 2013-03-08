@@ -40,7 +40,7 @@ if mongo localhost:$MONGO_PORT --eval "a = db.isMaster(); print(tojson(a)); " | 
 	################################################################################
 	mongo $mongos_ip <<EOF
 use config
-db.settings.update( { "_id": "balancer" }, { "$set" : { "stopped": true } } , true );
+db.settings.update( { "_id": "balancer" }, { "\$set" : { "stopped": true } } , true );
 while( db.locks.findOne({ "_id": "balancer" }).state ) { print("waiting..."); sleep(1000); }
 exit
 EOF
@@ -58,15 +58,15 @@ EOF
 
 	# tar up the backup
 	echo "Create a compressed version of the backup" >> $DB_HOME/bak.log
-	tar -cvzf $DB_HOME/db_backup_`hostname`_`date +%d`.tgz $DB_HOME/db 
+	tar -cvzf $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz $DB_HOME/db 
 	
 	################################################################################
 	# Transfer: S3 vs non
 	################################################################################
 	if [ "$S3_URL" != "" ]; then
-    	s3cmd -f put $DB_HOME/db_backup_`hostname`_`date +%d`.tgz s3://$S3_URL
-    	mv $DB_HOME/db_backup_`hostname`_`date +%d`.tgz $DB_HOME/db_backup_`hostname`_most_recent.tgz
-    	s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent.tgz s3://$S3_URL
+    	s3cmd -f put $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz s3://$S3_URL
+    	mv $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz
+    	s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz s3://$S3_URL
 	fi
 	
 	# Tidy up:
@@ -76,7 +76,7 @@ EOF
 	# Weekly, do a transfer to a remote backup location S3 vs non
 	################################################################################
     if [ `date +%w` -eq 0 ] && [ "$S3_URL" != "" ]; then 
-            s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent.tgz s3://backup.$S3_URL/db_backup_`hostname`_`date +%Y%m%d`.tgz
+            s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz s3://backup.$S3_URL/db_backup_`hostname`_`date +%Y%m%d`_${MONGO_PORT}.tgz
     fi
 	
 	################################################################################
@@ -84,7 +84,7 @@ EOF
 	################################################################################
 	mongo $mongos_ip <<EOF
 use config
-db.settings.update( { "_id": "balancer" }, { "$set" : { "stopped": false } } , true );
+db.settings.update( { "_id": "balancer" }, { "\$set" : { "stopped": false } } , true );
 exit
 EOF
 		

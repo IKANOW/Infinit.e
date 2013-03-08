@@ -32,6 +32,8 @@ package com.ikanow.infinit.e.widget.library.data
 	import com.ikanow.infinit.e.widget.library.utility.Authentication;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
+	import mx.controls.Alert;
 	import mx.formatters.DateFormatter;
 	import mx.utils.ObjectUtil;
 	import system.data.Map;
@@ -58,10 +60,19 @@ package com.ikanow.infinit.e.widget.library.data
 		// Base Query results
 		private var _queryBase:QueryResults = null; // the actual returned values from the query
 		
+		// (utility state for combined aggregated + derived entities)
+		private var _entitiesCombined:ArrayCollection = null;
+		
+		// (utility state for combined aggregated + derived events)
+		private var _eventsCombined:ArrayCollection = null;
+		
+		// (utility state for combined aggregated + derived facts)
+		private var _factsCombined:ArrayCollection = null;
+		
 		private var _queryBaseObject:Object = null; // The object used to perform the query
 		
 		// Derived Query results
-		//TODO (can I just use _queryBaseObject)
+		//(just use _queryBaseObject)
 		
 		// Location in the various chains:
 		private var _nPosInChain:int = 0;
@@ -180,6 +191,15 @@ package com.ikanow.infinit.e.widget.library.data
 			return res;
 		}
 		
+		//======================================
+		// private static methods 
+		//======================================
+		
+		private static function getAssocHash( assoc:Object ):String
+		{
+			return assoc.entity1_index + "|" + assoc.entity2_index + "|" + assoc.verb_category + "|" + assoc.geo_index;
+		}
+		
 		
 		//======================================
 		// public methods 
@@ -218,8 +238,9 @@ package com.ikanow.infinit.e.widget.library.data
 		/**
 		 * If entity aggregations are available (either directly or derived from the documents), an array
 		 * of entity objects (see the REST API for more details on the entity object) - null if none exist
+		 * @param combine: top level only - if set will combine with any additional entities in the documents but not the aggregations
 		 */
-		public function getEntities():ArrayCollection
+		public function getEntities( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -228,6 +249,25 @@ package com.ikanow.infinit.e.widget.library.data
 					_queryBase.getEntities().source = getDeDuplicatedEntities().getValues();
 				}
 				return _queryBase.getEntities();
+			}
+			else if ( combine && ( null != _filterChild ) )
+			{
+				if ( null == _entitiesCombined ) // documents exist, haven't calculated anything yet
+				{
+					var fromDocs:Map = _filterChild.getDeDuplicatedEntities();
+					
+					for each ( var ent:Object in _queryBase.getEntities() )
+					{
+						if ( null == fromDocs.get( ent.index ) )
+						{
+							ent[ "notPromoted" ] = true;
+						}
+						// Always overwrite doc values with ent values (??)
+						fromDocs.put( ent.index, ent );
+					}
+					_entitiesCombined = new ArrayCollection( fromDocs.getValues() );
+				}
+				return _entitiesCombined;
 			}
 			else
 			{
@@ -239,8 +279,9 @@ package com.ikanow.infinit.e.widget.library.data
 		 * If "event" aggregations are available (either directly or derived from the documents), an array
 		 * of "event" objects (see the REST API for more details on the "event" object) - null if none exist
 		 * An "event" is a relationship between more than 1 entity of a transient nature (eg "person visits place")
+		 * @param combine: top level only - if set will combine with any additional events in the documents but not the aggregations
 		 */
-		public function getEvents():ArrayCollection
+		public function getEvents( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -249,6 +290,27 @@ package com.ikanow.infinit.e.widget.library.data
 					_queryBase.getEvents().source = getDeDuplicatedEventsOrFacts( "Event" ).getValues();
 				}
 				return _queryBase.getEvents();
+			}
+			else if ( combine && ( null != _filterChild ) )
+			{
+				if ( null == _eventsCombined ) // documents exist, haven't calculated anything yet
+				{
+					var fromDocs:Map = _filterChild.getDeDuplicatedEventsOrFacts( "Event" );
+					
+					for each ( var evt:Object in _queryBase.getEvents() )
+					{
+						var evtindex:String = getAssocHash( evt );
+						
+						if ( null == fromDocs.get( evtindex ) )
+						{
+							evt[ "notPromoted" ] = true;
+						}
+						// Always overwrite doc values with ent values (??)
+						fromDocs.put( evtindex, evt );
+					}
+					_eventsCombined = new ArrayCollection( fromDocs.getValues() );
+				}
+				return _eventsCombined;
 			}
 			else
 			{
@@ -265,8 +327,9 @@ package com.ikanow.infinit.e.widget.library.data
 		 * of "event" objects (see the REST API for more details on the "event" object) - null if none exist
 		 * An "event" is a relationship between more than 1 entity of a transient nature (eg "person visits place")
 		 * The "event timeline" aggregates events and summaries by day, and facts over the entire timerange.
+		 * @param combine: top level only - if set will combine with any additional events in the documents but not the aggregations
 		 */
-		public function getEventsTimeline():ArrayCollection
+		public function getEventsTimeline( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -281,8 +344,9 @@ package com.ikanow.infinit.e.widget.library.data
 		 * If "fact" aggregations are available (either directly or derived from the documents), an array
 		 * of "fact" objects (see the REST API for more details on the "fact" object) - null if none exist
 		 * A "fact" is a relationship between more than 1 entity with some degree of persistence (eg "person works for company")
+		 * @param combine: top level only - if set will combine with any additional facts in the documents but not the aggregations
 		 */
-		public function getFacts():ArrayCollection
+		public function getFacts( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -291,6 +355,27 @@ package com.ikanow.infinit.e.widget.library.data
 					_queryBase.getFacts().source = getDeDuplicatedEventsOrFacts( "Fact" ).getValues();
 				}
 				return _queryBase.getFacts();
+			}
+			else if ( combine && ( null != _filterChild ) )
+			{
+				if ( null == _factsCombined ) // documents exist, haven't calculated anything yet
+				{
+					var fromDocs:Map = _filterChild.getDeDuplicatedEventsOrFacts( "Fact" );
+					
+					for each ( var evt:Object in _queryBase.getFacts() )
+					{
+						var evtindex:String = getAssocHash( evt );
+						
+						if ( null == fromDocs.get( evtindex ) )
+						{
+							evt[ "notPromoted" ] = true;
+						}
+						// Always overwrite doc values with ent values (??)
+						fromDocs.put( evtindex, evt );
+					}
+					_factsCombined = new ArrayCollection( fromDocs.getValues() );
+				}
+				return _factsCombined;
 			}
 			else
 			{
@@ -372,7 +457,7 @@ package com.ikanow.infinit.e.widget.library.data
 		 */
 		public function getMomentInterval():Number
 		{
-			return null; // Not yet supported
+			return 0; // Not yet supported
 		}
 		/**
 		 * If available (either directly from the query, or from the documents), an array collection of
@@ -429,8 +514,9 @@ package com.ikanow.infinit.e.widget.library.data
 		/**
 		 * If available (either directly from the query, or from the documents), an array collection of
 		 * {source_key:string, count:number}, ordered by count
+		 * @param combine: top level only - if set will combine with any additional source keys from the documents but not the aggregations
 		 */
-		public function getSourceKeyCounts():ArrayCollection
+		public function getSourceKeyCounts( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -448,8 +534,9 @@ package com.ikanow.infinit.e.widget.library.data
 		/**
 		 * If available (either directly from the query, or from the documents), an array collection of
 		 * {source_tag:string, count:number}, ordered by count
+		 * @param combine: top level only - if set will combine with any additional source tags in the documents but not the aggregations
 		 */
-		public function getSourceTagCounts():ArrayCollection
+		public function getSourceTagCounts( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -464,8 +551,9 @@ package com.ikanow.infinit.e.widget.library.data
 		/**
 		 * If available (either directly from the query, or from the documents), an array collection of
 		 * {source_type:string, count:number}, ordered by count
+		 * @param combine: top level only - if set will combine with any additional source types from the documents but not the aggregations
 		 */
-		public function getSourceTypeCounts():ArrayCollection
+		public function getSourceTypeCounts( combine:Boolean = false ):ArrayCollection
 		{
 			if ( _bDerived )
 			{
@@ -755,8 +843,7 @@ package com.ikanow.infinit.e.widget.library.data
 						{
 							continue;
 						}
-						var event_index:String = event.entity1_index + "|" + event.entity2_index + "|"
-							+ event.verb_category + "|" + event.geo_index;
+						var event_index:String = getAssocHash( event );
 						var currEvent:Object = queryDeDupeMap.get( event_index );
 						
 						if ( null == currEvent ) //if no ent yet, put this one in

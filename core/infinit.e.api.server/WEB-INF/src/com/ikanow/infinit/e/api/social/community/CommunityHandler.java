@@ -53,6 +53,7 @@ import com.ikanow.infinit.e.data_model.store.social.person.PersonContactPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonLinkPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 
@@ -442,7 +443,7 @@ public class CommunityHandler
 								
 								// 1] Remove from all shares (delete shares if that leaves them orphaned)
 								
-								BasicDBObject deleteQuery1 = new BasicDBObject(ShareOwnerPojo.communities_id_, communityId);
+								BasicDBObject deleteQuery1 = new BasicDBObject(ShareCommunityPojo.shareQuery_id_, communityId);
 								BasicDBObject deleteFields1 = new BasicDBObject(SharePojo.communities_, 1);
 								List<SharePojo> shares = SharePojo.listFromDb(DbManager.getSocial().getShare().find(deleteQuery1, deleteFields1), SharePojo.listType());				
 								for (SharePojo share: shares) {

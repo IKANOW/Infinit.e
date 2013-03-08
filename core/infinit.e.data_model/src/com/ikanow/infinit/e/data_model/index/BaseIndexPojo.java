@@ -122,7 +122,7 @@ public class BaseIndexPojo {
 		} catch (Exception e) {
 			return null;
 		}
-		return (String) com.mongodb.util.JSON.parse(gb.create().toJson(list, listType.getType()));
+		return gb.create().toJson(list, listType.getType());
 	}
 	/////////////////////////////////////////////////////////////////////////////////////
 	// From the Index JSON to a list of objects

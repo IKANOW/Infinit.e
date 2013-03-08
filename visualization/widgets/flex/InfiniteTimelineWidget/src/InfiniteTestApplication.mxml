@@ -22,6 +22,27 @@
 	backgroundColor="#FFFFFF"
 	creationComplete="application1_creationCompleteHandler(event)">
 	<fx:Style source="com/ikanow/infinit/e/assets/styles/InfiniteStyles.css" />
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace ibm "http://www.ibm.com/xmlns/prod/ilog/elixir/2010";
+		
+		ibm|TimelineBand#overviewBand {
+			skinClass: ClassReference("skins.InfiniteOverviewBandSkin"); 
+		}
+		
+		ibm|TimeAxis		
+		{
+			major-ticks-visible: true;
+			minor-ticks-visible: true;	
+			minor-labels-visible: true;
+		}		
+		ibm|TimelineGrid
+		{
+			major-lines-visible: true;
+			minor-lines-visible: true;			
+		}
+	</fx:Style>
 	<fx:Script>
 		<![CDATA[
 			import com.ikanow.infinit.e.widget.library.data.ResultSet;
@@ -42,7 +63,7 @@
 			import mx.rpc.events.ResultEvent;
 			import flexlib.mdi.events.MDIWindowEvent;
 			
-			private var API_SERVER:String = "http://beta.ikanow.com/api/"; 	//api url address of infinite api server
+			private var API_SERVER:String = "http://dev.ikanow.com/api/"; 	//api url address of infinite api server
 			
 			private var COMMUNITYID:String = ""; //community id to search on, gets populated during load
 			
@@ -284,12 +305,12 @@
 							<s:Label text="Step 1: Login" />
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Username" />
-								<s:TextInput id="usernameInput" />
+								<s:TextInput id="usernameInput" text=""/>
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">
 								<s:Label text="Password" />
 								<s:TextInput id="passwordInput"
-									displayAsPassword="true"
+									displayAsPassword="true"  text=""
 									enter="button1_clickHandler(event)" />
 							</s:HGroup>
 							<s:HGroup verticalAlign="middle">

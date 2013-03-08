@@ -1,30 +1,41 @@
 package org.elasticsearch.client.action.index;
 
+import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.index.IndexResponse;
 
-public class IndexRequestBuilder extends org.elasticsearch.action.index.IndexRequestBuilder {
+public class IndexRequestBuilder {
 
-	public IndexRequestBuilder(Client client) {
-		super(client);
-	}
-	public IndexRequestBuilder(Client client, String index) {
-		super(client, index);
+	protected org.elasticsearch.action.index.IndexRequestBuilder _delegate;
+	
+	public IndexRequestBuilder(org.elasticsearch.action.index.IndexRequestBuilder delegate) {
+		_delegate = delegate;
 	}
 	public IndexRequestBuilder setSource(String source) {
-		return (IndexRequestBuilder) super.setSource(source);
+		_delegate.setSource(source);
+		return this;
 	}
 	public IndexRequestBuilder setId(String id) {
-		return (IndexRequestBuilder) super.setId(id);
+		_delegate.setId(id);
+		return this;
 	}
 	public IndexRequestBuilder setOpType(IndexRequest.OpType type) {
-		return (IndexRequestBuilder) super.setOpType(type);
+		_delegate.setOpType(type);
+		return this;
 	}
 	public IndexRequestBuilder setParent(String id) {
-		return (IndexRequestBuilder) super.setParent(id);
+		_delegate.setParent(id);
+		return this;
 	}
 	public IndexRequestBuilder setConsistencyLevel(WriteConsistencyLevel consistencyLevel) {
-		return (IndexRequestBuilder) super.setConsistencyLevel(consistencyLevel);
+		_delegate.setConsistencyLevel(consistencyLevel);
+		return this;
+	}
+	public ListenableActionFuture<IndexResponse> execute() {
+		return _delegate.execute();
+	}
+	public org.elasticsearch.action.index.IndexRequestBuilder getDelegate() {
+		return _delegate;
 	}
 }

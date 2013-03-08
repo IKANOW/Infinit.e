@@ -335,10 +335,11 @@ public class EmbeddedRestletApp extends Application
         // Communities
         //BETA NAMING
         router.attach("/share/add/community/{shareid}/{comment}/{communityid}/", ShareInterface.class);
-        router.attach("/share/remove/community/{shareid}/{communityid}/", ShareInterface.class);
+        attach(router, "/social/share/endorse/{shareid}/{communityid}/{isendorsed}", ShareInterface.class);
         //V0 NAMING
         attach(router, "/social/share/add/community/{shareid}/{comment}/{communityid}", ShareInterface.class);
         attach(router, "/social/share/remove/community/{shareid}/{communityid}", ShareInterface.class);
+        attach(router, "/share/remove/community/{shareid}/{communityid}", ShareInterface.class);
         
         // Delete Share from DB
         //BETA NAMING

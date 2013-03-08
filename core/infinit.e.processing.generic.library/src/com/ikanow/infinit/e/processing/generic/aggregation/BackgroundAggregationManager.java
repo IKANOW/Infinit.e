@@ -144,16 +144,22 @@ public class BackgroundAggregationManager implements Runnable {
 						continue;
 					}//TESTED
 				}
-				for (EntityFeaturePojo entity: entitiesToSync) {
-					
+				for (EntityFeaturePojo entity: entitiesToSync) {					
 					logger.debug("Entity=" + entity.getIndex() + " prio=" + entity.getDb_sync_prio());
 					
 					long nIndividualTime_ms = new Date().getTime(); // for stats
 
 					// Update entities:
-					EntityAggregationUtils.updateMatchingEntities(entity, entity.getCommunityId());
-					EntityAggregationUtils.synchronizeEntityFeature(entity, entity.getCommunityId());
-						// (this also removes db_sync_prio)
+					// (duplicate a few entity fields so I can _first_ sync the entity, which corrupts it)
+					EntityFeaturePojo docEnt = new EntityFeaturePojo();
+					docEnt.setIndex(entity.getIndex());
+					docEnt.setDoccount(entity.getDoccount());
+					docEnt.setTotalfreq(entity.getTotalfreq());
+					ObjectId communityId = entity.getCommunityId();
+					EntityAggregationUtils.synchronizeEntityFeature(entity, communityId);
+						// (this also removes db_sync_prio - and corrupts "entity", hence use "docEnt" below)
+					EntityAggregationUtils.updateMatchingEntities(docEnt, communityId);
+						// (some of the time I'll lose my lock in here - this is checked below)					
 	
 					nEndTime_ms = new Date().getTime();
 					long nTimeTaken_ms = nEndTime_ms - nIndividualTime_ms;
@@ -192,11 +198,11 @@ public class BackgroundAggregationManager implements Runnable {
 							} catch (InterruptedException e) {}
 						}//TESTED (including exit while in long sleep, immediately wakes up)
 						
+						nEndTime_ms += nTimeToSleep_ms;
 						nTimeToSleep_ms = 0;
 					}
 					
 					// Check if 20s block is up:
-					nEndTime_ms += nTimeToSleep_ms;
 					if (_bKillMe || (nEndTime_ms - nStartTime_ms > 20000)) {
 						logger.debug("(Completed 20s block of entity updates #1)");
 						break;
@@ -220,7 +226,7 @@ public class BackgroundAggregationManager implements Runnable {
 		
 		//Display some stats if anything has been updated?
 		if (nEntitiesUpdated > 0) {
-			logger.info("Background aggregation thread complete, ents=" + nEntitiesUpdated + " docs=" + nDocsUpdated + " dbtime=" + nTimeSpentUpdating_ms);
+			logger.info("Background aggregation thread complete, ents=" + nEntitiesUpdated + " docs=" + nDocsUpdated + " dbtime=" + nTimeSpentUpdating_ms + " stoleToken=" + _nGrabbedControl + " lostToken=" + _nLostControl);
 		}//TESTED		
 		
 	}//TESTED
@@ -228,6 +234,9 @@ public class BackgroundAggregationManager implements Runnable {
 	///////////////////////////////////////////////////////////////////////////
 	
 	// Synchronization utility between multiple harvesters
+
+	private int _nGrabbedControl = 0;
+	private int _nLostControl = 0;
 	
 	private boolean getToken() {
 
@@ -269,6 +278,11 @@ public class BackgroundAggregationManager implements Runnable {
 				if (savedHostname.equals(hostname) && savedOneUp.equals(oneUp)) { // Now I have control...
 					logger.debug("I am taking control from: " + hostname + ", " + oneUp);				
 					bHaveControl = true;
+					_nGrabbedControl++;
+				}
+				else if (getHostname().equals(savedHostname)) { // I had control of this last time I checked
+					logger.debug("Lost control to: " + hostname);				
+					_nLostControl++;
 				}
 			}
 			else {
@@ -276,6 +290,7 @@ public class BackgroundAggregationManager implements Runnable {
 			}//TESTED
 			
 			if (bHaveControl) {
+				savedHostname = hostname;
 				long nOneUp = Long.parseLong(oneUp);
 				lockObj.put(hostname_, getHostname());
 				lockObj.put(oneUp_, Long.toString(nOneUp + 1));

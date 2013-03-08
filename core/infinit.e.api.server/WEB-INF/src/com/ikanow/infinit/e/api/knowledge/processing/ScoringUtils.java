@@ -1550,7 +1550,7 @@ public class ScoringUtils
 		// Update the scores:
 		scores.maxScore = (float) dBestScore;
 		if (nDocs > 0) {
-			scores.avgScore = (float)dBestScore/nDocs;
+			scores.avgScore = (float)dAvgScore/nDocs;
 		}
 	}
 
@@ -1676,7 +1676,7 @@ public class ScoringUtils
 	// S4: overwrite the entity values with aliased entities where necessary
 	
 	private void stage1_initAlias(EntSigHolder shp) {
-		EntityFeaturePojo alias = _s1_aliasLookup.doLookupFromIndex(shp.index);
+		EntityFeaturePojo alias = _s1_aliasLookup.getAliasMaster(shp.index);
 		if (null != alias) { // overwrite index
 			if (alias.getIndex().equalsIgnoreCase("discard")) {
 				shp.aliasInfo = alias;

@@ -23,6 +23,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.social.community.CommunityHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -281,8 +282,8 @@ public class ShareHandler
 		return rp;
 	}
 	
-	//TODO (): have ability to enforce uniqueness on title/type
-	//TODO (): for updates, have the ability to fail if document has changed in meantime...
+	//TODO (???): have ability to enforce uniqueness on title/type
+	//TODO (???): for updates, have the ability to fail if document has changed in meantime...
 	
 	/**
 	 * addShare
@@ -313,6 +314,9 @@ public class ShareHandler
 				share.setTitle(title);
 				share.setDescription(description);
 				share.setShare(json);
+				HashSet<ObjectId> endorsedSet = new HashSet<ObjectId>();
+				share.setEndorsed(endorsedSet); // (you're always endorsed within your own community)
+				endorsedSet.add(new ObjectId(ownerIdStr));				
 
 				// Get ShareOwnerPojo object and personal community
 				PersonPojo owner = getPerson(new ObjectId(ownerIdStr));
@@ -356,7 +360,9 @@ public class ShareHandler
 			share.setType(type);
 			share.setTitle(title);
 			share.setDescription(description);			
-			//share.setBinaryData(bytes);
+			HashSet<ObjectId> endorsedSet = new HashSet<ObjectId>();
+			share.setEndorsed(endorsedSet); // (you're always endorsed within your personal community)
+			endorsedSet.add(new ObjectId(ownerIdStr));				
 			share.setMediaType(mediatype);
 			ObjectId id = new ObjectId();
 			share.set_id(id);
@@ -411,12 +417,49 @@ public class ShareHandler
 				SharePojo share = SharePojo.fromDb(dboshare, SharePojo.class);
 				// Check ... am I the owner?
 				ObjectId ownerId = new ObjectId(ownerIdStr);
-				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin
-					if (!RESTTools.adminLookup(ownerIdStr)) {
-						rp.setResponse(new ResponseObject("Update Share",false,"Shareid does not exist or you are not owner or admin"));
-						return rp;
+				boolean bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr);
+				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin (except for one special case)
+					if (!bAdminOrModOfAllCommunities) {
+						// Special case: I am also community admin/moderator of every community to which this share belongs
+						bAdminOrModOfAllCommunities = true;
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+								bAdminOrModOfAllCommunities = false;
+							}
+						}//TESTED
+						
+						if (!bAdminOrModOfAllCommunities) {						
+							rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
+							return rp;
+						}
 					}					
-				}
+				}//end if not owner
+				
+				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
+				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
+					if (null == share.getEndorsed()) {
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+					}//TESTED
+					for (ShareCommunityPojo comm: share.getCommunities()) {
+						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							share.getEndorsed().add(comm.get_id());
+						}//TESTED
+						else {
+							share.getEndorsed().remove(comm.get_id());
+						}//TESTED						
+					}//TESTED
+				}//TESTED
+				else {
+					if (null == share.getEndorsed()) { // fill this with all communities
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id());
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							share.getEndorsed().add(comm.get_id());							
+						}
+					}
+					//(else just leave with the same set of endorsements as before)
+				}//TESTED
 				
 				share.setModified(new Date());
 				share.setType(type);
@@ -478,17 +521,51 @@ public class ShareHandler
 			if (dbo != null)
 			{
 				share = SharePojo.fromDb(dbo, SharePojo.class);
-				// Check ... am I the owner?
+				// Check ... am I the owner? 
 				ObjectId ownerId = new ObjectId(ownerIdStr);
-				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin
-					
-					//TODO () what about moderator?? plus elsewhere probably....
-					
-					if (!RESTTools.adminLookup(ownerIdStr)) {
-						rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
-						return rp;
+				boolean bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr);
+				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin (except for one special case)
+					if (!bAdminOrModOfAllCommunities) {
+						// Special case: I am also community admin/moderator of every community to which this share belongs
+						bAdminOrModOfAllCommunities = true;
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+								bAdminOrModOfAllCommunities = false;
+							}
+						}//TESTED
+						
+						if (!bAdminOrModOfAllCommunities) {						
+							rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
+							return rp;
+						}
 					}					
-				}
+				}//end if not owner
+				
+				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
+				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
+					if (null == share.getEndorsed()) {
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+					}//TESTED
+					for (ShareCommunityPojo comm: share.getCommunities()) {
+						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							share.getEndorsed().add(comm.get_id());
+						}//TESTED
+						else {
+							share.getEndorsed().remove(comm.get_id());
+						}//TESTED						
+					}//TESTED
+				}//TESTED
+				else {
+					if (null == share.getEndorsed()) { // fill this with all communities
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id());
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							share.getEndorsed().add(comm.get_id());							
+						}
+					}
+					//(else just leave with the same set of endorsements as before)
+				}//TESTED
 				
 				share.setModified(new Date());
 				share.setType(type);
@@ -681,6 +758,69 @@ public class ShareHandler
 
 	
 	/**
+	 * endorseShare
+	 * Endorse a share for use within a community (needs to be admin, community owner or moderator)
+	 * Can be used by applications
+	 * @param shareIdStr
+	 * @return
+	 */
+	public ResponsePojo endorseShare(String personIdStr, String communityIdStr, String shareIdStr, boolean isEndorsed)
+	{
+		ResponsePojo rp = new ResponsePojo();
+		try
+		{
+			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
+			ObjectId communityId = new ObjectId(communityIdStr);
+
+			// Do I have permission to do any endorsing?
+			// I can be:
+			// Admin
+			// Community owner
+			// Community moderator
+			boolean bAdmin = RESTTools.adminLookup(personIdStr);
+			if (!bAdmin) {
+				if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, personIdStr))  {	
+					rp.setResponse(new ResponseObject("Share", false, "Unable to endorse share: insufficient permissions"));
+					return rp;
+				}
+			}//TESTED
+			
+			// Now check if the share is even in our community...
+			BasicDBObject query = new BasicDBObject(SharePojo._id_, new ObjectId(shareIdStr));
+			query.put(ShareCommunityPojo.shareQuery_id_, communityId);
+			BasicDBObject fields = new BasicDBObject(ShareOwnerPojo.shareQuery_id_, 1);
+			fields.put(SharePojo.endorsed_, 1);
+			BasicDBObject shareObj = (BasicDBObject) DbManager.getSocial().getShare().findOne(query, fields);
+			SharePojo shareToEndorse = SharePojo.fromDb(shareObj, SharePojo.class);
+			if (null == shareToEndorse) {
+				rp.setResponse(new ResponseObject("Share", false, "Failed to locate share in community: " + shareIdStr + " vs " + communityIdStr));				
+				return rp;
+			}//TESTED
+			// If we've got this far we're good to go
+			BasicDBObject update = null;
+			if ((null == shareToEndorse.getEndorsed()) && (null != shareToEndorse.getOwner())) {
+				//Legacy case: create the owner's personal community in there
+				update = new BasicDBObject(DbManager.addToSet_, new BasicDBObject(SharePojo.endorsed_, shareToEndorse.getOwner().get_id()));
+				DbManager.getSocial().getShare().update(query, update, false, true);
+			}//TESTED
+			if (isEndorsed) {
+				update = new BasicDBObject(DbManager.addToSet_, new BasicDBObject(SharePojo.endorsed_, communityId));
+			}//TESTED
+			else {
+				update = new BasicDBObject(DbManager.pull_, new BasicDBObject(SharePojo.endorsed_, communityId));				
+			}//TESTED
+			DbManager.getSocial().getShare().update(query, update, false, true);
+			rp.setResponse(new ResponseObject("Share", true, "Share endorsed successfully."));
+		}
+		catch (Exception e)
+		{
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Share", false, "Unable to endorse share: " + e.getMessage()));
+		}
+		return rp;
+	}//TESTED
+	
+	/**
 	 * removeShare
 	 * Remove an individual share from the share collection, shares can only be removed by the
 	 * owner via the rest API (id retrieved via cookielookup).
@@ -761,16 +901,27 @@ public class ShareHandler
 				{
 					if (scp.get_id().toString().equalsIgnoreCase(communityIdStr)) addCommunity = false;
 				}
-
+				
 				// Add new community to communities
 				if (addCommunity)
-				{
+				{					
 					ShareCommunityPojo cp = new ShareCommunityPojo();
 					cp.set_id(new ObjectId(communityIdStr));
 					cp.setName(getCommunity(new ObjectId(communityIdStr)).getName());
 					cp.setComment(comment);
 					communities.add(cp);
 
+					// Endorse if applicable...
+					if (null == share.getEndorsed()) { // legacy case
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id()); // user's personal community always endorsed
+					}//TESTED
+					boolean bAdmin = RESTTools.adminLookup(ownerIdStr);
+					if (bAdmin || CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
+						share.getEndorsed().add(cp.get_id());
+					}
+					//TESTED - adding as admin/community owner, not adding if not
+					
 					share.setModified(new Date());
 
 					DbManager.getSocial().getShare().update(query, share.toDb());
@@ -830,6 +981,11 @@ public class ShareHandler
 				{
 					if (scp.get_id().toString().equalsIgnoreCase(communityIdStr)) 
 					{
+						//Also remove endorsements...
+						if (null != share.getEndorsed()) {
+							share.getEndorsed().remove(scp.get_id());
+						}//TESTED						
+						
 						removeCommunity = true;
 						communities.remove(scp);
 						share.setModified(new Date());

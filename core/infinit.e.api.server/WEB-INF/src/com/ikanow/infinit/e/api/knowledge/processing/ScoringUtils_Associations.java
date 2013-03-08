@@ -397,7 +397,7 @@ class ScoringUtils_Associations {
 			if (null != ent1Index) {
 				String entType = null; 
 				if (null != aliasLookup) {
-					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(ent1Index);
+					EntityFeaturePojo alias = aliasLookup.getAliasMaster(ent1Index);
 					if (null != alias) {						
 						ent1Index = alias.getIndex();
 						entType = alias.getType();						
@@ -438,7 +438,7 @@ class ScoringUtils_Associations {
 			if (null != ent2Index) {
 				String entType = null; 
 				if (null != aliasLookup) {
-					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(ent2Index);
+					EntityFeaturePojo alias = aliasLookup.getAliasMaster(ent2Index);
 					if (null != alias) {
 						ent2Index = alias.getIndex();
 						entType = alias.getType();
@@ -477,7 +477,7 @@ class ScoringUtils_Associations {
 			if (null != geoIndex) {
 				String entType = null; 
 				if (null != aliasLookup) {
-					EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(geoIndex);
+					EntityFeaturePojo alias = aliasLookup.getAliasMaster(geoIndex);
 					if (null != alias) {
 						geoIndex = alias.getIndex();
 						entType = alias.getType();

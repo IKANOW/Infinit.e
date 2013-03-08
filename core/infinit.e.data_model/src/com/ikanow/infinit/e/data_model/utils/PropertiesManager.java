@@ -119,7 +119,7 @@ public class PropertiesManager {
 	 * By default, don't use slaveOK (in 2-node replica sets might even be worse)
 	 * Set to 1/true to set this parameter (might improve read performance in 3+node replica sets?)
 	 */
-	public boolean distributeDbReadsAcrossSlaves() {
+	public boolean getDistributeAllDbReadsAcrossSlaves() {
 		String s = this.getProperty("db.distribute_reads");
 		if ((null != s) && (s.equals("1") || s.equalsIgnoreCase("true"))) { 
 			return true;
@@ -128,6 +128,21 @@ public class PropertiesManager {
 			return false;
 		}
 	}
+	//QUERY DISTRIBUTION
+	// 1:N ration of primary:secondary reads for query documents (N>0) 
+	// (<=0 to force all queries to primary node in replica set)
+	public int getDocDbReadDistributionRatio() { 
+		String s = this.getProperty("db.doc.distribute_read_ratio");
+		if (null == s) {
+			return 2; // 2:1 secondary:primary default distro
+		}
+		try {
+			return Integer.parseInt(s);			
+		}
+		catch (Exception e) {			
+			return 2; // 2:1 secondary:primary default distro
+		}
+	}		
 	
 // Index configuration
 	

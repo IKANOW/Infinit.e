@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.api.knowledge;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
@@ -55,6 +56,8 @@ import com.ikanow.infinit.e.data_model.store.social.authentication.Authenticatio
 // or...
 // POST<preamble>/knowledge/query/<communityIdList>
 // <JSON object>
+
+//TODO moments interface
 
 public class QueryInterface extends ServerResource 
 {
@@ -332,6 +335,7 @@ public class QueryInterface extends ServerResource
 			new TreeMap<Integer, AdvancedQueryPojo.QueryTermPojo>();
 		TreeMap<Integer, AdvancedQueryPojo.QueryInputPojo.TypeAndTagTermPojo> tt = 
 			new TreeMap<Integer, AdvancedQueryPojo.QueryInputPojo.TypeAndTagTermPojo>();
+		TreeMap<Integer, String> momentEnts = new TreeMap<Integer, String>();
 		
 		// And off we go through the different options...
 		
@@ -992,6 +996,48 @@ public class QueryInterface extends ServerResource
 				}
 				_requestDetails.output.filter.entityTypes = value.split("\\s*,\\s*");
 			}
+			// moments
+			else if (attrName.equals("output.aggregation.moments.timesinterval")) {
+				if (null == _requestDetails.output) {
+					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation) {
+					_requestDetails.output.aggregation = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation.moments) {
+					_requestDetails.output.aggregation.moments = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo.TemporalAggregationOutputPojo();
+				}
+				_requestDetails.output.aggregation.moments.timesInterval = value;
+			}//TOTEST
+			else if (attrName.equals("output.aggregation.moments.entitylist")) {
+				if (null == _requestDetails.output) {
+					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation) {
+					_requestDetails.output.aggregation = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation.moments) {
+					_requestDetails.output.aggregation.moments = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo.TemporalAggregationOutputPojo();
+				}
+				_requestDetails.output.aggregation.moments.entityList = Arrays.asList(value.split("\\s*,\\s*"));
+			}//TESTED
+			else if (attrName.startsWith("output.aggregation.moments.entitylist[")) {
+				if (null == _requestDetails.output) {
+					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation) {
+					_requestDetails.output.aggregation = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation.moments) {
+					_requestDetails.output.aggregation.moments = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo.TemporalAggregationOutputPojo();
+				}
+				int npos = attrName.indexOf(']');				
+				if (npos >= 0) {
+					String index = attrName.substring(38, npos);		
+					int nIndex = Integer.parseInt(index);
+					momentEnts.put(nIndex, value);
+				}
+			}//TESTED
 			
 // Generic event aggregation: not implemented (INF-1230)
 // Moments: not implemented (INF-955)
@@ -1009,6 +1055,9 @@ public class QueryInterface extends ServerResource
 			for (AdvancedQueryPojo.QueryInputPojo.TypeAndTagTermPojo ttIndex: tt.values()) {
 				_requestDetails.input.typeAndTags.add(ttIndex);
 			}
+		}
+		if (!momentEnts.isEmpty()) {
+			_requestDetails.output.aggregation.moments.entityList = new ArrayList<String>(momentEnts.values());
 		}
 		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)
 		if (null == _requestDetails.input) {

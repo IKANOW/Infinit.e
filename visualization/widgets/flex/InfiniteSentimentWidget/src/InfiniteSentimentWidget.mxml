@@ -56,6 +56,12 @@
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
+			import flexlib.mdi.containers.MDIWindow;
+			
+			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
+			import ilog.charts3d.series.items.ColumnSeries3DItem;
+			
 			import mx.charts.HitData;
 			import mx.charts.chartClasses.Series;
 			import mx.charts.effects.SeriesEffect;
@@ -65,11 +71,13 @@
 			import mx.core.UITextField;
 			import mx.events.FlexEvent;
 			import mx.managers.CursorManager;
-			import spark.events.IndexChangeEvent;
-			import flexlib.mdi.containers.MDIWindow;
-			import ilog.charts3d.series.items.ColumnSeries3DItem;
+			
 			import org.alivepdf.pdf.PDF;
+			
 			import skins.InfiniteFilterApplyOrIgnore;
+			
+			import spark.events.IndexChangeEvent;
+			
 			import system.data.Collection;
 			import system.data.Iterator;
 			import system.data.Map;
@@ -108,7 +116,7 @@
 			
 			[Bindable]
 			private var allEntities:Array = [];
-			
+			private var entitiesOnDisplay:Map = new HashMap();
 			private var maxSig:Number = 0;
 			
 			[Bindable]
@@ -140,6 +148,14 @@
 			 */
 			
 			private var entSliderOffset:int = 0;
+			
+			/**
+			 * object that is used to manage the widget options on 
+			 * save and on load
+			 */
+			private var widgetOptions:Object = new Object();
+			private var sigSliderApplied:Boolean = false;
+			private var queryHash:String = "";
 			
 			/**
 			 * function to build a pdf version of the widget
@@ -205,7 +221,61 @@
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
-				//TODO
+				if( widgetOptions != null )
+				{
+					//this holds a users last map 
+					if ( widgetOptions.userSave != null )
+					{
+						this.widgetOptions = widgetOptions.userSave;
+						// (note this is apparently persisted
+						
+						// (In all 3 cases below - apply changes if onReceiveNewQuery called, else don't)
+						
+						// Slider (only apply if query hash hasn't changed)						
+						this.queryHash = this.getQueryHash();
+						
+						if ( (null == queryHash) // Don't have a query yet
+							||
+							( ( null != this.widgetOptions.queryHash ) && ( this.widgetOptions.queryHash == this.queryHash) ) )
+						{
+							if ( ( null != sigSlider ) && ( null != this.widgetOptions.sigSliderValue ) )
+							{
+								sigSlider.value = this.widgetOptions.sigSliderValue;
+								entitySliderUpdate( null );
+							}//TESTED
+							else
+							{
+								this.entSliderOffset = this.widgetOptions.sigSliderValue;
+								sigSliderApplied = true;
+								this.queryHash = this.widgetOptions.queryHash;
+							}//TESTED
+						}
+						else // ensure reset to 0
+						{
+							this.entSliderOffset = 0;
+							sigSliderApplied = true;
+						}//TESTED
+						
+						
+						// Sorting
+						if( ( null != sortOptions.dataProvider) && ( null != this.widgetOptions.sortOptionIndex ) ) 
+						{
+							sortOptions.selectedIndex = this.widgetOptions.sortOptionIndex;
+							if ( null != sigSlider ) // (else onReceiveNewQuery not called yet)
+							{
+								sortOptions_changeHandler( null );
+							}
+						}//TESTED
+						
+						// Regex
+						if ( ( null != regexFilter ) && (null != this.widgetOptions.regexFilter ) )
+						{
+							regexFilter.text = this.widgetOptions.regexFilter;
+							doneChangingFilter( null );
+						}//TESTED
+						
+					}//(end widget save non null)
+				}//(end widget options non null)
 			}
 			
 			/**
@@ -227,18 +297,19 @@
 			 */
 			public function onReceiveNewFilter():void
 			{
-				this.currData = _context.getQuery_FilteredResults().getTopDocuments();
-				this.currData_entities = _context.getQuery_FilteredResults().getEntities();
-				this.entSliderOffset = 0;
-				this.sigSlider.value = 0;
-				// (spinner already going, fn below unsets)
-				populateGraph();
-				
 				if ( !internalFilterUpdate )
 				{
 					hasFilter = true;
 					setTimeout( resetIgnoreLocalFilter, 1000 );
 				}
+				
+				this.currData = _context.getQuery_FilteredResults().getTopDocuments();
+				this.currData_entities = _context.getQuery_FilteredResults().getEntities();
+
+				populateGraph();
+				this.entSliderOffset = 0;// (if filtering always reset the slider)
+				this.sigSlider.value = 0;
+				renderGraph();				
 			}
 			
 			/**
@@ -248,7 +319,12 @@
 			 */
 			public function onReceiveNewQuery():void
 			{
-				startSpinner(); // (need dataview)
+				if ( !internalFilterUpdate )
+				{
+					hasFilter = false;
+					setTimeout( resetIgnoreLocalFilter, 1000 );
+				}
+				this.currentState = "dataview"; // (initializes everything)
 				
 				if ( null == sigSlider )
 				{ // may not be initialized yet?
@@ -256,19 +332,27 @@
 				}
 				
 				this.currData = _context.getQuery_AllResults().getTopDocuments();
-				this.currData_entities = _context.getQuery_AllResults().getEntities();
+				this.currData_entities = _context.getQuery_AllResults().getEntities(true);
 				
-				this.entSliderOffset = 0;
-				this.sigSlider.value = 0;
-				// (spinner already set, fn below unsets)
 				populateGraph();
-				
-				if ( !internalFilterUpdate )
-				{
-					hasFilter = false;
-					setTimeout( resetIgnoreLocalFilter, 1000 );
+				if (sigSliderApplied)
+				{	
+					this.sigSlider.value = this.entSliderOffset;
+					entitySliderUpdate(null);	// (calls renderGraph)
+					sigSliderApplied = false;
 				}
-			
+				else // (if the same query is being repeated then can leave the slider as is)
+				{
+					var newQueryHash:String = this.getQueryHash();
+					
+					if (this.queryHash != newQueryHash)
+					{
+						this.queryHash = newQueryHash;
+						this.entSliderOffset = 0;
+						this.sigSlider.value = 0;
+					}//TESTED			
+					renderGraph();
+				}//TESTED
 			}
 			
 			/**
@@ -279,7 +363,34 @@
 			 */
 			public function onSaveWidgetOptions():Object
 			{
-				return null;
+				if ( null == sigSlider ) // (nothing initialized yet)
+				{
+					return widgetOptions;
+				}
+				//set the values for the widget
+				widgetOptions.sortOptionIndex = sortOptions.selectedIndex;
+				widgetOptions.regexFilter = regexFilter.text;
+				widgetOptions.sigSliderValue = (sigSlider != null) ? sigSlider.value : 0;
+				widgetOptions.queryHash = this.queryHash;
+				
+				return widgetOptions;
+			}
+			
+			private function getQueryHash():String
+			{
+				var x:Object = _context.getLastQuery();
+				var y:Object = null;
+				if ( null == x ) // (don't have a "last query" yet
+					return null;
+				
+				if ( null != x["communityIds"] ) // ensure they're in the right order
+				{
+					var tmpCommIds:Array = x["communityIds"] as Array;
+					tmpCommIds.sort();
+				}
+				var hash:String = XmlEncoder.encode(x).toXMLString();
+				
+				return hash;
 			}
 			
 			/**
@@ -289,15 +400,6 @@
 			 */
 			public function receiveEvent( event:Event ):void
 			{
-			}
-			
-			/**
-			 * function to start the components spinner when it is receiving data
-			 */
-			public function startSpinner():void
-			{
-				this.currentState = "dataview";
-				this.enabled = false;
 			}
 			
 			/**
@@ -312,48 +414,114 @@
 				return null;
 			}
 			
-			protected function addDocumentsToFilter( entName:String, significance:Number, freq:Number ):void
+			protected function addDocumentsToFilter_internal( entName:String, sentiment:int, docids:Set, docmap:Map, dir:int ):void
 			{
-				var docids:Set = new HashSet();
-				var docmap:Map = new HashMap();
+				var docs:ArrayCollection = new ArrayCollection();
+				var currMaxVal:Number = -100; 
 				
 				// All documents matching the entity (needs to have its performance improved)
 				for each ( var feed:Object in this.currData )
 				{
 					for each ( var entities:Object in feed.entities )
 					{
-						if ( entities.index.toString() == entName )
+						if ( ( entities.index.toString() == entName ) && entities.hasOwnProperty("sentiment") )
 						{
-							if ( ( ( significance < 0.0 ) || ( significance == entities.significance ) )
-								&& ( ( freq < 0.0 ) || ( freq == entities.frequency ) ) )
+							var currVal:Number = entities.sentiment;
+							if ( ( 0 == sentiment ) && ( dir < 0 ) )
+								currVal = -currVal;							
+									
+							var add:Boolean = false;
+							if ( 100 == sentiment )
 							{
-								docids.add( feed._id.toString() );
-								//add all the feeds entity names to the entNames array to pass along
-								var entSet:Set = new HashSet();
-								
-								for each ( var ent:Object in feed.entities )
-								{
-									entSet.add( ent.index.toString() );
-								}
-								docmap.put( feed._id.toString(), entSet );
-								break;
+								add = true;
 							}
+							else if ( ( sentiment == -1 ) && ( currVal < 0.0 ) )
+							{
+								add = true;
+							}
+							if ( ( sentiment == 1 ) && ( currVal > 0.0 ) )
+							{
+								add = true;
+							}
+							else if ( ( 0 == sentiment ) && ( currVal >= 0 ) )
+							{
+								if ( currVal >= currMaxVal )
+								{
+									if ( currVal > currMaxVal ) // oops, new max
+									{
+										docids.clear();
+										docs.removeAll();
+									}
+									add = true;
+								}								
+							}
+							if ( add )
+							{
+								currMaxVal = currVal;
+								docids.add( feed._id.toString() );
+								docs.addItem(feed);								
+							}
+							
+						}
+					}
+				}// pass 1, get the docs
+				
+				//pass 2, get the entities
+				for each ( var doc:Object in docs )
+				{
+					var entSet:Set = new HashSet();
+					
+					for each ( var ent:Object in doc.entities )
+					{
+						entSet.add( ent.index.toString() );
+					}
+					docmap.put( doc._id.toString(), entSet );					
+				}								
+			}
+			protected function addDocumentsToFilter( entName:String, sentiment:int ):void
+			{
+				var docids:Set = new HashSet();
+				var docmap:Map = new HashMap();
+				
+				addDocumentsToFilter_internal(entName, sentiment, docids, docmap, 1);
+				if (0 == sentiment)
+				{
+					var docids2:Set = new HashSet();
+					var docmap2:Map = new HashMap();
+					addDocumentsToFilter_internal(entName, sentiment, docids2, docmap2, -1);
+					for each ( var doc:Object in docids2.toArray() )
+					{
+						docids.add(doc);
+						var ents2:Object = docmap2.get(doc);
+						if ( null != ents2 )
+						{
+							docmap.put(doc, ents2);
 						}
 					}
 				}
+				if ( docids.isEmpty() )
+				{
+					Alert.show("No promoted documents with this attribute. \nTry refining the query by source or entity");
+					return;
+				}
+				
 				var desc:String = "Doc Filter: ";
 				
-				if ( ( significance < 0.0 ) && ( freq < 0.0 ) )
+				if ( 100 == sentiment )
 				{
-					desc += "Any Containing " + entName;
+					desc += "Any Containing " + entName + " (and sentiment)";
 				}
-				else if ( freq < 0.0 )
+				else if ( 1 == sentiment )
 				{
-					desc += "Containing Max Sig " + entName;
+					desc += "Any Containing " + entName + " (and positive sentiment)";
+				}
+				else if ( -1 == sentiment )
+				{
+					desc += "Any Containing " + entName + " (and negative sentiment)";
 				}
 				else
 				{
-					desc += "Containing Max Freq " + entName;
+					desc += "Max Positive and Negative Sentiment Containing " + entName;
 				}
 				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docids, docmap, "_id", "_id", desc );
 			}
@@ -371,12 +539,20 @@
 				if ( event.target is UITextField )
 				{
 					entName = event.target.text;
-					
-					var index:int = entName.lastIndexOf( " (" );
-					// convert to gaz index:
-					entName = entName.substring( 0, index ).toLowerCase() + "/" + entName.substring( index + 2, entName.length - 1 ).toLowerCase();
-					
-					addDocumentsToFilter( entName, -1.0, -1 );
+
+					var ent:Object = entitiesOnDisplay.get(entName);
+					if ( ( null == ent ) || ( null == ent.entity ) )
+					{
+						return;								
+					}
+					else if ( ent.entity.hasOwnProperty("notPromoted") )
+					{
+						this.send2Query_internal(ent.entity.index);								
+					}
+					else
+					{
+						addDocumentsToFilter( ent.entity.index, 100 );
+					}							
 				}
 			}
 			protected function chart_itemClickHandler( event:mx.charts.events.ChartItemEvent ):void
@@ -385,22 +561,32 @@
 				var item:ColumnSeries3DItem = ColumnSeries3DItem( event.hitData.chartItem );
 				
 				var entName:String = data.item.entity.index;
+				var sentiment:int = 0;
 				
-				if ( item.yValue == data.item.augFrequency )
+				var isPromoted:Boolean = !data.item.entity.hasOwnProperty("notPromoted");
+				if ( !isPromoted )
 				{
-					addDocumentsToFilter( entName, -1.0, data.item.frequency );
+					send2Query_internal(entName);
+					return;
+				}				
+				
+				if ( item.yValue == data.item.positiveSentiment )
+				{
+					sentiment = 1;
+					addDocumentsToFilter( entName, sentiment );
 				}
-				else if ( item.yValue == data.item.augAvgFrequency )
+				else if ( item.yValue == data.item.negativeSentiment )
 				{
-					addDocumentsToFilter( entName, -1.0, -1 );
+					sentiment = -1;
+					addDocumentsToFilter( entName, sentiment );
 				}
-				else if ( item.yValue == data.item.significance )
+				else if ( item.yValue == data.item.aggregateSentiment )
 				{
-					addDocumentsToFilter( entName, data.item.significance, -1 );
+					addDocumentsToFilter( entName, sentiment );
 				}
 				else
 				{
-					addDocumentsToFilter( entName, -1.0, -1 );
+					addDocumentsToFilter( entName, 100 );
 				}
 			}
 			
@@ -413,14 +599,26 @@
 					
 					if ( str.length > 0 )
 					{
-						if ( ( str.length < 3 ) && ( 0x30 == ( str.charCodeAt( 0 ) & 0xF0 ) ) )
+						if ( ( str.length < 3 ) && ( ( '-' == str.charAt(0) ) ||  ( 0x30 == ( str.charCodeAt( 0 ) & 0xF0 ) ) ) )
 						{
 							// One of the axis, ignore
-							textfield.toolTip = "Query Significance, Dataset Significance, and Query Coverage (%s) (Max Doc Frequency and Average Frequency have their own separate scale, not shown)";
+							textfield.toolTip = "(Axis)";
 						}
 						else
 						{
-							textfield.toolTip = "[Mouse: add docs containing entity to filter]";
+							var ent:Object = entitiesOnDisplay.get(str);
+							if ( ( null == ent ) || ( null == ent.entity ) )
+							{
+								textfield.toolTip = "(Axis)";								
+							}
+							else if ( ent.entity.hasOwnProperty("notPromoted") )
+							{
+								textfield.toolTip = str + "\n[Mouse: add entity to query]";								
+							}
+							else
+							{
+								textfield.toolTip = str + "\n[Mouse: add documents with sentiment for this entity to filter]";								
+							}							
 						}
 					}
 				}
@@ -448,8 +646,7 @@
 					}
 					sigSlider.value = this.entSliderOffset;
 				}
-				startSpinner(); // (populate graph stops spinner)
-				this.populateGraph();
+				this.renderGraph();
 			}
 			
 			/**
@@ -465,7 +662,7 @@
 			
 			protected function sortOptions_changeHandler( event:IndexChangeEvent ):void
 			{
-				this.populateGraph();
+				this.renderGraph();
 			}
 			
 			/**
@@ -497,21 +694,32 @@
 				
 				var filterOption:Boolean = false;
 				
+				var isPromoted:Boolean = !data.item.entity.hasOwnProperty("notPromoted");
+				
+				var sentiment:int = 0;
+				
 				info += "Entity: " + data.item.entity.disambiguated_name + "\n";
+				if ( !isPromoted )
+				{
+					info += "(not present in promoted documents)\n";
+				}
 				
 				if ( item.yValue == data.item.positiveSentiment )
 				{
 					info += "Positive Sentiment: " + data.item.positiveSentiment.toFixed( 3 ) + "\n";
+					sentiment = 1;
 					filterOption = true;
 				}
 				else if ( item.yValue == data.item.negativeSentiment )
 				{
 					info += "Negative Sentiment: " + data.item.negativeSentiment.toFixed( 3 ) + "\n";
+					sentiment = -1;
 					filterOption = true;
 				}
 				else if ( item.yValue == data.item.aggregateSentiment )
 				{
 					info += "Aggregate Sentiment: " + data.item.aggregateSentiment.toFixed( 3 ) + "\n";
+					filterOption = true;
 				}
 				else if ( item.yValue == 0.0 )
 				{
@@ -519,8 +727,6 @@
 				}
 				
 				info += "Sentiment Count:" + data.item.sentimentCount + "\n";
-				
-				
 				
 				var rounded:Number = Math.round( data.item.queryCoverage );
 				
@@ -552,13 +758,22 @@
 				
 				info += "Entity Type: " + data.item.entity.type + "\n";
 				
-				if ( filterOption )
+				if ( !isPromoted )
 				{
-					info += "[Mouse: add documents containing max value to filter]";
+					info += "[Mouse: add entity to query]";					
+				}
+				else if ( filterOption )
+				{
+					if ( 1 == sentiment )
+						info += "[Mouse: add documents with positive sentiment for this entity to filter]";
+					else if ( -1 == sentiment )
+						info += "[Mouse: add documents with negative sentiment for this entity to filter]";
+					else
+						info += "[Mouse: add documents containing highest positive and negative sentiment for this entity to filter]";						
 				}
 				else
 				{
-					info += "[Mouse: add entity to filter]";
+					info += "[Mouse: add documents with sentiment for this entity to filter]";
 				}
 				
 				info += "</FONT></HTML?>";
@@ -576,7 +791,10 @@
 					_regexFilter = new RegExp( regexFilter.text, "i" );
 					_regexActivateString = "<=";
 				}
-				this.populateGraph();
+				if ( null != sigSlider ) // (else graph doesn't exist yet)
+				{
+					this.renderGraph();
+				}
 			}
 			
 			private function findMatchingDocs( instances:ArrayCollection ):void
@@ -677,6 +895,9 @@
 				
 				for each ( var entity:Object in this.currData_entities )
 				{
+					if ( (null == entity.positiveSentiment) && (null == entity.negativeSentiment) )
+						continue;
+					
 					var entContainer:Object = new Object;
 					entContainer[ "entity" ] = entity;
 					entContainer[ "queryCoverage" ] = entity.queryCoverage;
@@ -778,6 +999,12 @@
 					{ // Use documents if we have to
 						this.allEntities = removeDups( this.currData ).toArray();
 					}
+				}
+			}
+			private function renderGraph():void
+			{
+				if ( this.currData_entities != null && this.currData_entities.length > 0 )
+				{ // Use entities if we can...					
 					
 					if ( sortOptions.selectedIndex == SORT_BY_QUERY_COVERAGE )
 					{
@@ -840,7 +1067,7 @@
 						}
 						j = 0;
 					}
-					
+					entitiesOnDisplay.clear();
 					for ( ; ( j < 10 ) && ( i < this.allEntities.length ); i++, j++ )
 					{
 						var ent:Object = this.allEntities[ i ];
@@ -895,6 +1122,8 @@
 						
 						topEntities.addItem( ent );
 						topEntitiesCombo.addItem( ent );
+						
+						entitiesOnDisplay.put(ent.entity.disambiguated_name.toString() + " (" + ent.entity.type + ")", ent);
 					}
 					entityToSend.dataProvider = this.topEntitiesCombo;
 					entityToSend.validateNow();
@@ -998,10 +1227,14 @@
 			 */
 			private function send2Query( event:MouseEvent ):void
 			{
+				send2Query_internal( entityToSend.selectedItem.entity.index );
+			}
+			private function send2Query_internal( index:String ):void
+			{
 				var query:Object = _context.getCurrentQuery();
 				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
 				var newTerm:Object = new Object();
-				newTerm[ "entity" ] = entityToSend.selectedItem.entity.index;
+				newTerm[ "entity" ] = index;
 				queryTerms.addItem( newTerm );
 				_context.setCurrentQuery( query, "qt" );
 			}

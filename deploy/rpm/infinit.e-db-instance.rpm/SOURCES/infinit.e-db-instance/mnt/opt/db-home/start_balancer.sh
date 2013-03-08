@@ -7,6 +7,6 @@ else
 fi
 mongo $mongos_ip <<EOF
 use config
-db.settings.update( { "_id": "balancer" }, { "$set" : { "stopped": false } } , true );
+db.settings.update( { "_id": "balancer" }, { "\$set" : { "stopped": false } } , true );
 exit
 EOF

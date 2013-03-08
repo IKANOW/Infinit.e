@@ -44,6 +44,7 @@ import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.mongodb.BasicDBList;
 
@@ -617,12 +618,15 @@ public class DocumentPojo extends BaseDbPojo {
 			DocumentPojo doc = BaseDbPojo.getDefaultBuilder().create().fromJson(json, DocumentPojo.class);  
 			if (null != metadata) {				
 				for (Entry<String, JsonElement> entry: metadata.entrySet()) {
-					// Very slow, better to do something like "http://stackoverflow.com/questions/5699323/using-json-with-mongodb"
-					// (or in fact MongoDbUtil)
-					// (note the only high performance use of documents with metadata enabled bypasses the data_model, so not a big problem at the moment)
-					doc.addToMetadata(entry.getKey(), 
-							((BasicDBList)com.mongodb.util.JSON.parse(entry.getValue().toString())).toArray());
-				}				
+					if (entry.getValue().isJsonArray()) {
+						doc.addToMetadata(entry.getKey(), MongoDbUtil.encodeArray(entry.getValue().getAsJsonArray()));
+					}
+					else {
+						BasicDBList dbl = new BasicDBList();
+						dbl.add(MongoDbUtil.encodeUnknown(entry.getValue()));
+						doc.addToMetadata(entry.getKey(), dbl);
+					}
+				}//TOTEST				
 			}
 			return doc;
 		}

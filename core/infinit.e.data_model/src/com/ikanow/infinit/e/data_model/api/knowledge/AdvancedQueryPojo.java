@@ -182,21 +182,16 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 			public Integer sources = 0; // (src urls)
 			public Integer sourceMetadata = 0; // (both tags and types)
 			
-			// A better interface, note will override the above if no regex filter set:
-			// (not supported as of V0)
-			static public class EntityAggregationOutputPojo {
-				// This has different meaning depending on which of numReturn/geoMaxCount/timesInterval is set:
-				public String target = null; // 1 of "geo", "times", "entity", "event", "fact", "source", "source_tag", "source_type", or "metadata.<[object.]*field>"
-				// And then one of:
-				public Integer numReturn = 0; // Number of entries to return - aggregates document counts vs the specified object
-				public String regexFilter = null; // (only applies for numReturn set, not geoMaxCount or timesInterval)
-				//or
-				public Integer geoMaxCount = null; // Number of geotags to return - counts either documents (target==null), or numeric fields (target="metadata.*")
-				//or
-				public String timesInterval = null; // Date histogram width - counts either documents (target==null), or numeric fields (object="metadata.*")				
-			}
-			public List<EntityAggregationOutputPojo> aggList = null; 
-
+			// Temporal aggregation (basic info)
+			static public class TemporalAggregationOutputPojo {
+				public String timesInterval = null; // "month", or "<N>[ydwh]" (if null, takes from timesInterval - errors out if neither set)
+				public List<String> entityList; // List of entities to grab
+				//TODO (INF-955): NOT IMPLEMENTED YET
+				public Boolean entityCountOnly = null; // If true counts only (default); if false then provides sentiment (if available), significance and total counts  
+				public Integer geoCount = null; // Number of geo-counts to store per time, 0/null to not display at all			
+			};
+			public TemporalAggregationOutputPojo moments = null;
+			
 			// Alternatively:
 			public String raw = null; // (allows the user to specify his own facets in ElasticSearch syntax as an alternative)
 		}

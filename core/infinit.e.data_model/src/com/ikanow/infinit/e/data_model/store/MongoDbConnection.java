@@ -20,6 +20,7 @@ import java.net.UnknownHostException;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.Mongo;
 import com.mongodb.MongoException;
+import com.mongodb.ReadPreference;
 
 
 /**
@@ -113,14 +114,13 @@ public class MongoDbConnection {
 	 * @throws MongoException 
 	 * @throws UnknownHostException 
 	 */
-	@SuppressWarnings("deprecation")
 	public MongoDbConnection(PropertiesManager properties) throws UnknownHostException, MongoException {
 		this.server = properties.getDatabaseServer();
 		this.port = properties.getDatabasePort();
 		mongo = new Mongo(this.server, this.port);
 		
-		if (properties.distributeDbReadsAcrossSlaves()) {
-			mongo.slaveOk();
+		if (properties.getDistributeAllDbReadsAcrossSlaves()) {
+			mongo.setReadPreference(ReadPreference.SECONDARY);
 		}
 	}
 	

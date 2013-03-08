@@ -29,8 +29,9 @@
 package com.ikanow.infinit.e.widget.library.framework
 {
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
-	import mx.rpc.http.mxml.HTTPService;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
+	
+	import mx.rpc.http.mxml.HTTPService;
 	/**
 	 * This interface is used to create an infinite master to be the parent over all infinite modules
 	 * in the environment
@@ -95,6 +96,35 @@ package com.ikanow.infinit.e.widget.library.framework
 		 * @param action The action to be processed
 		 */
 		function updateCurrentQuery(newQuery:Object, modifiedElements:String):void;
+		
+		// Source/community state
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "community" JSON format
+		 * 
+		 * @param id The id of the community
+		 * @returns an Object representation of the community JSON
+		 */
+		function getCommunityById(id:String):Object;
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "source" JSON format
+		 * 
+		 * @param id Either the id or the key of the source
+		 * @returns an Object representation of the source JSON
+		 */
+		function getSourceByIdOrKey(idOrKey:String):Object;
+		
+		//______________________________________________________________________________________
+		//
+		// FRAMEWORK INTERFACE (SAVED SETTINGS)
+		
+		/**
+		 * Allows widgets writers to tell the framework to save their settings immediately
+		 * 
+		 * @param id The widget save object
+		 */
+		function saveWidgetSettingsNow( widgetOptions:WidgetSaveObject ):void;
 		
 		//______________________________________________________________________________________
 		//

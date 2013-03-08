@@ -197,7 +197,7 @@ public class ResponsePojo extends BaseApiPojo
 	
 	// Moments
 	private Object moments = null; // Momentum (documents aggregated over time into summaries of docs/entities/geospatial/events)
-	private String momentInterval = null; // (The moment interval)
+	private Long momentInterval = null; // (The moment interval)
 
 	private Object other = null; // (in case we thing of other sutff!)
 	
@@ -309,7 +309,7 @@ public class ResponsePojo extends BaseApiPojo
 	public Object getMoments() {
 		return moments;
 	}
-	public String getMomentInterval() {
+	public Long getMomentInterval() {
 		return momentInterval;
 	}
 	public void setTimes(Object times, long interval) {
@@ -332,7 +332,7 @@ public class ResponsePojo extends BaseApiPojo
 	public void setSummaries(Object summaries) {
 		this.summaries = summaries;
 	}
-	public void setMoments(Object moments, String interval) {
+	public void setMoments(Object moments, Long interval) {
 		this.moments = moments;
 		this.momentInterval = interval;
 	}

@@ -41,10 +41,17 @@ public class InfiniteMongoSplitter
 	{
 		MongoURI uri = conf.getInputURI();
 		DBCollection coll = InfiniteMongoConfigUtil.getCollection(uri);
-		int count = coll.find(conf.getQuery()).count();
+		int nMaxCount = 1 + conf.getMaxDocsPerSplit()*conf.getMaxSplits();
+		int count = 0;
+		if (nMaxCount <= 1) { 
+			nMaxCount = 0;
+		}
+		else {
+			count = coll.find(conf.getQuery()).limit(nMaxCount).count();
+		}
 		//if maxdocssplit and maxsplits is set and there are less documents than splits*docspersplit then use the new splitter
 		//otherwise use the old splitter
-		if ( conf.getMaxDocsPerSplit() > 0 && conf.getMaxSplits() > 0 && ( count < (conf.getMaxSplits()*conf.getMaxDocsPerSplit()) ) )
+		if ( conf.getMaxDocsPerSplit() > 0 && conf.getMaxSplits() > 0 && ( count < nMaxCount ) )
 		{
 			_logger.debug("Calculating splits manually");
 			int splits_needed = (count/conf.getMaxDocsPerSplit()) + 1;

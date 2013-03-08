@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.data_model.store.social.sharing;
 import java.io.ByteArrayOutputStream;
 import java.util.Date;
 import java.util.List;
+import java.util.Set;
 
 import org.bson.types.ObjectId;
 
@@ -39,6 +40,8 @@ public class SharePojo extends BaseDbPojo
 	final public static String modified_ = "modified";
 	private ShareOwnerPojo owner = null;
 	final public static String owner_ = "owner";
+	private Set<ObjectId> endorsed = null; 
+	final public static String endorsed_ = "endorsed";
 	private String type = null;
 	final public static String type_ = "type";
 	private String title = null;
@@ -214,7 +217,7 @@ public class SharePojo extends BaseDbPojo
 	{
 		private ObjectId _id = null;
 		final public static String _id_ = "_id";
-		final public static String communities_id_ = "communities._id";
+		final public static String shareQuery_id_ = "owner._id";
 		private String email = null;
 		private String displayName = null;
 		/**
@@ -382,5 +385,11 @@ public class SharePojo extends BaseDbPojo
 	}
 	public ByteArrayOutputStream getBinaryStream() {
 		return binaryStream;
+	}
+	public void setEndorsed(Set<ObjectId> endorsed) {
+		this.endorsed = endorsed;
+	}
+	public Set<ObjectId> getEndorsed() {
+		return endorsed;
 	}
 }

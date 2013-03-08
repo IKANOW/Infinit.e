@@ -153,7 +153,7 @@ package assets
 		[Embed( source = "/assets/images/IKANOW_Logo.png" )]
 		public static const LOGO:Class;
 		
-		[Embed( source = "/assets/images/IKANOW_PoweredBy.png" )]
+		[Embed( source = "/assets/images/INFINITE_PoweredBy.png" )]
 		public static const POWEREDBY:Class;
 		
 		[Embed( source = "/assets/images/Max_on.png" )]

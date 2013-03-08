@@ -1,5 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
+	TODO (INF-1893) from doc timeline:	1] node list on datachange (data!=null), not on init 
+										2] Improvements: custom overview renderer + rewrite line chart code + iconize events + time scaling + save framework
+										3] Fix bubble renderer, including add colors depending on event type and fix display (2 lines?)
+										4] Change color bg scheme
+										5] label function fix... (timeline.mainBand.showDataTips = true; in createNewTimeline)
+										6] resize fix
+-->
+<!--
    Copyright 2012, The Infinit.e Open Source Project
 
    Licensed under the Apache License, Version 2.0 (the "License");

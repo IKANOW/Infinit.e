@@ -56,7 +56,8 @@ public class ShareInterface extends ServerResource
 	private String type = null;
 	private String title = null;
 	private String description = null;
-	private String documentId = null;
+	@SuppressWarnings("unused")
+	private String documentId = null; // addref not currently supported
 	private String comment = null;
 	
 	//
@@ -70,7 +71,7 @@ public class ShareInterface extends ServerResource
 	private boolean returnContent = true;
 	private boolean jsonOnly = false; 
 	private boolean ignoreAdmin = false;
-	
+	private boolean isEndorsed = false;	
 	
 	/**
 	 * ShareResource
@@ -206,6 +207,15 @@ public class ShareInterface extends ServerResource
 				action = "removeShare";
 			}
 
+			// Endorse share
+			else if ( urlStr.contains("/share/endorse/") )
+			{
+				shareId = RESTTools.decodeRESTParam("shareid", attributes);
+				communityId = RESTTools.decodeRESTParam("communityid", attributes);
+				isEndorsed = Boolean.parseBoolean(RESTTools.decodeRESTParam("isendorsed", attributes));
+				action = "endorseShare";
+			}
+			
 			// Share - Add a community so that members can view the share
 			else if ( urlStr.contains("/share/add/community/") )
 			{
@@ -309,8 +319,7 @@ public class ShareInterface extends ServerResource
 			 if (cookieLookup == null )
 			 {
 				 // User is not logged in
-				 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Cookie session expired or" +
-				 " never existed, please login first"));
+				 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Cookie session expired or never existed, please login first"));
 			 }
 			 else
 			 {
@@ -339,15 +348,23 @@ public class ShareInterface extends ServerResource
 				 }
 				 else if (action.equals("addRef"))
 				 {
-					 rp = this.shareController.addRef(personId, type, documentId, title, description);
+					 // Not currently supported
+					 //rp = this.shareController.addRef(personId, type, documentId, title, description);
+					 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Not currently supported"));
 				 }
 				 else if (action.equals("updateRef"))
 				 {
-					 rp = this.shareController.updateRef(personId, id, type, documentId, title, description);
+					 // Not currently supported
+					 //rp = this.shareController.updateRef(personId, id, type, documentId, title, description);
+					 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Not currently supported"));
 				 }
 				 else if (action.equals("removeShare"))
 				 {
 					 rp = this.shareController.removeShare(personId, shareId);
+				 }
+				 else if (action.equals("endorseShare"))
+				 {
+					 rp = this.shareController.endorseShare(personId, communityId, shareId, isEndorsed);
 				 }
 				 else if (action.equals("addCommunity"))
 				 {

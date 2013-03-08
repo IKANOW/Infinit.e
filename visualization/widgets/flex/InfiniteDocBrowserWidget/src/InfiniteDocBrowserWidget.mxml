@@ -26,6 +26,9 @@ limitations under the License.
 
 	<fx:Script>
 		<![CDATA[
+			import assets.skins.DetailsCheckbox;
+			import assets.skins.InfiniteFilterApplyOrIgnore;
+			
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
@@ -35,10 +38,15 @@ limitations under the License.
 			import com.ikanow.infinit.e.widget.library.utility.InfiniteIcons;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
 			import flash.utils.flash_proxy;
 			import flash.utils.setTimeout;
+			
+			import flexlib.mdi.containers.MDIWindow;
+			
 			import mx.collections.ArrayCollection;
 			import mx.collections.Sort;
 			import mx.collections.SortField;
@@ -53,11 +61,7 @@ limitations under the License.
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
 			import mx.utils.StringUtil;
-			import spark.components.CheckBox;
-			import spark.events.IndexChangeEvent;
-			import assets.skins.DetailsCheckbox;
-			import assets.skins.InfiniteFilterApplyOrIgnore;
-			import flexlib.mdi.containers.MDIWindow;
+			
 			import org.alivepdf.colors.RGBColor;
 			import org.alivepdf.data.Grid;
 			import org.alivepdf.data.GridColumn;
@@ -74,6 +78,10 @@ limitations under the License.
 			import org.alivepdf.pages.Page;
 			import org.alivepdf.pdf.PDF;
 			import org.alivepdf.saving.Method;
+			
+			import spark.components.CheckBox;
+			import spark.events.IndexChangeEvent;
+			
 			import system.data.Map;
 			import system.data.Set;
 			import system.data.maps.HashMap;
@@ -101,7 +109,7 @@ limitations under the License.
 			
 			private var pageSets:ArrayCollection;
 			
-			private var currentPage:Number = 0;
+			private var currentPage:Number = 1;
 			
 			// Semantic web links
 			[Bindable]
@@ -134,6 +142,37 @@ limitations under the License.
 			 */
 			
 			private var maxDocsPerPage:int = 10;
+			
+			/**
+			 * object that is used to manage the widget options on 
+			 * save and on load
+			 */
+			private var widgetOptions:Object = new Object();
+			private var queryHash:String = "";
+			
+			private function getQueryHash():String
+			{
+				var x:Object = _context.getLastQuery();
+				var y:Object = null;
+				if ( null == x ) // (don't have a "last query" yet
+					return null;
+				
+				if ( null != x["communityIds"] ) // ensure they're in the right order
+				{
+					var tmpCommIds:Array = x["communityIds"] as Array;
+					tmpCommIds.sort();
+				}
+				if ( null != x.output )
+				{
+					y = x.output.aggregation;
+					x.output.aggregation = null; //(don't care if these change, will have no effect on query)
+				}
+				var hash:String = XmlEncoder.encode(x).toXMLString();
+				if ( null != x.output )
+					x.output.aggregation = y;
+
+				return hash;
+			}
 			
 			/**
 			 * Allow users to export the widget contents in the specified format
@@ -435,7 +474,49 @@ limitations under the License.
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
-				//TODO
+				if( widgetOptions != null )
+				{
+					//this holds a users last map 
+					if ( widgetOptions.userSave != null )
+					{
+						// Current page: only set if query is the same
+						
+						this.widgetOptions = widgetOptions.userSave;
+						this.queryHash = this.getQueryHash();
+						var pageChanged:Boolean = false;
+						var oldCurrPage:int = this.currentPage;
+						
+						if ( (null == queryHash) // Don't have a query yet
+							||
+							( (null != this.widgetOptions.queryHash ) && ( this.widgetOptions.queryHash == this.queryHash ) ) )
+						{							
+							if ( null != this.widgetOptions.currentPage)
+							{
+								this.currentPage = this.widgetOptions.currentPage;
+							}
+							if ( null != queryHash )
+								pageChanged = this.currentPage != oldCurrPage;
+							else
+								this.queryHash = this.widgetOptions.queryHash;
+						}//TESTED					
+
+						var oldSelectedIndex:int = sortOptions.selectedIndex;
+						if ( null != this.widgetOptions.sortOptionIndex )
+						{
+							sortOptions.selectedIndex = this.widgetOptions.sortOptionIndex;
+						}
+						var selectedIndexChanged:Boolean = sortOptions.selectedIndex != oldSelectedIndex; 
+						
+						if (null != contentContainer) // ie onReceiveNewQuery has been called
+						{
+							if ( pageChanged )
+								Paging_clickHandler(null);
+
+							if ( selectedIndexChanged )
+								sortOptions_changeHandler(null);
+						}//TESTED
+					}
+				}
 			}
 			
 			/**
@@ -474,6 +555,9 @@ limitations under the License.
 				
 				currentState = "dataview";
 				currData = _context.getQuery_FilteredResults().getTopDocuments();
+
+				// Always reset page
+				this.currentPage = 1;
 				
 				//check which state the module should be in
 				if ( currData != null && currData.length > 0 )
@@ -485,6 +569,7 @@ limitations under the License.
 						rankBy( "publishedLong", true, true );
 					}
 					updateDataSet();
+					highlightPage(currentPage); //(if we're overwriting something) 
 				}
 				else
 				{
@@ -529,6 +614,14 @@ limitations under the License.
 				//check which state the module should be in
 				if ( currData != null && currData.length > 0 )
 				{
+					// Reset page only if query has changed
+					var newQueryHash:String = this.getQueryHash();
+					if ( newQueryHash != this.queryHash )
+					{
+						this.currentPage = 1;
+					}//TESTED					
+					this.queryHash = newQueryHash;
+				
 					fixDates(); //add published longs on all dates so they can be sorted by date
 					
 					if ( sortOptions.selectedIndex == SORT_BY_DATE )
@@ -536,6 +629,12 @@ limitations under the License.
 						rankBy( "publishedLong", true, true );
 					}
 					updateDataSet();
+					
+					// Navigate to saved page if applicable
+					if ( 1 != this.currentPage )
+					{
+						Paging_clickHandler( null );
+					}					
 				}
 				else
 				{
@@ -551,7 +650,17 @@ limitations under the License.
 			 */
 			public function onSaveWidgetOptions():Object
 			{
-				return null;
+				if ( null == sortOptions ) // (nothing initialized yet)
+				{
+					return widgetOptions;
+				}
+				
+				//set the values for the widget
+				widgetOptions.sortOptionIndex = sortOptions.selectedIndex;
+				widgetOptions.currentPage = (currentPage > 0) ? currentPage : 1;
+				widgetOptions.queryHash = this.queryHash;
+				
+				return widgetOptions;
 			}
 			
 			/**
@@ -580,7 +689,15 @@ limitations under the License.
 				
 				if ( pages > 0 )
 				{
-					if ( event.target.id == "forwardButton" )
+					if(event == null)
+					{
+						// use this.currentPage
+						if ( currentPage > pages )
+						{
+							currentPage = 1;
+						}
+					}
+					else if ( event.target.id == "forwardButton" )
 					{
 						if ( currentPage < pages )
 						{
@@ -669,7 +786,7 @@ limitations under the License.
 			
 			protected function sortOptions_changeHandler( event:IndexChangeEvent ):void
 			{
-				if ( event.newIndex == 1 )
+				if ( sortOptions.selectedIndex == 1 )
 				{
 					rankBy( "publishedLong", true, true );
 				}
@@ -843,7 +960,7 @@ limitations under the License.
 				return eventgrid;
 			}
 			
-			private function filterQuery( event:Event ):void //TODO TEST
+			private function filterQuery( event:Event ):void //TESTED
 			{
 				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
 				var docSet:Set = new HashSet();
@@ -865,7 +982,7 @@ limitations under the License.
 				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docSet, docEntMap, "_id", "_id", "Doc Filter: " + HtmlConvert.convertEntities_txt( feed.title ) );
 			}
 			
-			private function filterQueryMatchDocAllEnt( event:Event ):void //TODO test
+			private function filterQueryMatchDocAllEnt( event:Event ):void //TESTED
 			{
 				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
 				var desc:String = "Doc Filter: Any Containing ";
@@ -893,7 +1010,7 @@ limitations under the License.
 				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );
 			}
 			
-			private function filterQueryMatchDocAllEnt_AND( event:Event ):void //TODO test
+			private function filterQueryMatchDocAllEnt_AND( event:Event ):void //TESTED
 			{
 				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
 				var desc:String = "Doc Filter: Any Containing ";
@@ -918,7 +1035,7 @@ limitations under the License.
 				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );
 			}
 			
-			private function filterQueryMatchDocMatchEnt( event:Event ):void //TODO test - im not sure if i need to add all other matching ents?
+			private function filterQueryMatchDocMatchEnt( event:Event ):void //TESTED
 			{
 				var feed:Object = dataSet.getItemAt( event.target.repeaterIndex );
 				var desc:String = "Doc Filter: Any Containing ";
@@ -1175,6 +1292,12 @@ limitations under the License.
 					vrule4.yFrom = 0;
 					vrule4.yTo = 10;
 					vrule4.stroke = new SolidColorStroke( 0x000000, 2 );
+					var vrule5:Line = new Line();
+					vrule5.xFrom = 0;
+					vrule5.xTo = 0;
+					vrule5.yFrom = 0;
+					vrule5.yTo = 10;
+					vrule5.stroke = new SolidColorStroke( 0x000000, 2 );
 					
 					// Build entity list components					
 					
@@ -1343,6 +1466,22 @@ limitations under the License.
 						generatedSortedCategories( entity.type, buildCategories( entities.toArray() ), index, "significance" );
 					} );
 					
+					var docSentvalue:spark.components.Label = null;
+					if ( ( null != entity.sentiment ) && ( 0 != entity.sentiment ) )
+					{
+						docSentvalue = new spark.components.Label();
+						docSentvalue.text = entity.sentiment.toPrecision(4);
+						docSentvalue.toolTip = "Document sentiment\n(entity sentiments: +" + entity.positiveSentiment.toPrecision(4) + " " + entity.negativeSentiment.toPrecision(4) + ")";
+						if (entity.sentiment > 0)
+						{
+							docSentvalue.setStyle( "color", "#00FF00" );
+						}
+						else
+						{
+							docSentvalue.setStyle( "color", "#FF0000" );							
+						}
+					}
+					
 					var button:LinkButton = new LinkButton();
 					button.label = "Add To Query";
 					button.labelPlacement = "left";
@@ -1409,7 +1548,19 @@ limitations under the License.
 					spacer.width = 9;
 					hGroup.addElement( spacer );
 					
-					hGroup.addElement( vrule4 );
+					if ( null != docSentvalue )
+					{
+						hGroup.addElement( vrule4 );
+						spacer = new Spacer();
+						spacer.width = 9;
+						hGroup.addElement( spacer );
+						hGroup.addElement( docSentvalue );
+						spacer = new Spacer();
+						spacer.width = 9;
+						hGroup.addElement( spacer );
+					}					
+					
+					hGroup.addElement( vrule5 );
 					hGroup.addElement( button );
 					
 					//add the hgroup to the vbox
@@ -2100,6 +2251,8 @@ limitations under the License.
 				}
 				//find the number of available pages
 				pages = ( ( this.currData.length + this.maxDocsPerPage - 1 ) / this.maxDocsPerPage );
+				if ( currentPage > pages )
+					currentPage = 1;					
 				
 				if ( pages > 0 )
 				{
@@ -2119,12 +2272,8 @@ limitations under the License.
 								break;
 							}
 						}
-						
 						pageSets.addItem( sets );
 					}
-					
-					//set the first page
-					currentPage = 1;
 					
 					//build the buttons for the pages
 					buildPages( pages );
@@ -2143,6 +2292,7 @@ limitations under the License.
 							break;
 						}
 					}
+					
 					var nDocs:int = this.currData.length;
 					numReturned.text = pages + " Page" + ( ( pages == 1 ) ? " " : "s " ) +
 						"(" + nDocs + " Document" + ( ( nDocs == 1 ) ? ")" : "s)" );

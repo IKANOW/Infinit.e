@@ -78,6 +78,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.MongoException;
+import com.mongodb.ReadPreference;
 
 //
 // This code contains all the processing logic for the (beta)
@@ -98,10 +99,13 @@ public class QueryHandler {
 		// (used to allow entity terms to add top level (full text) terms)	
 	
 	private static PropertiesManager _properties = null;
-	private String _aggregationAccuracy = "full"; 
+	private static com.ikanow.infinit.e.data_model.utils.PropertiesManager _dataModelProps = null;
+	private static String _aggregationAccuracy = "full"; 
 	
 	private AdvancedQueryPojo.QueryScorePojo _scoringParams;
 		// (need this here so we can set the adjust param for complex queries)
+	
+	private static int _replicaSetDistributionRatio = -1;
 	
 ////////////////////////////////////////////////////////////////////////
 	
@@ -111,8 +115,10 @@ public class QueryHandler {
 
 		if (null == _properties) {
 			_properties = new PropertiesManager();
+			_aggregationAccuracy = _properties.getAggregationAccuracy();
+			_dataModelProps = new com.ikanow.infinit.e.data_model.utils.PropertiesManager();
+			_replicaSetDistributionRatio = 1 + _dataModelProps.getDocDbReadDistributionRatio();
 		}
-		_aggregationAccuracy = _properties.getAggregationAccuracy();
 		_scoringParams = query.score;
 		
 		// (NOTE CAN'T ACCESS "query" UNTIL AFTER 0.1 BECAUSE THAT CAN CHANGE IT) 
@@ -406,7 +412,7 @@ public class QueryHandler {
 					// (allow source aggregation)
 				}
 			}
-			AggregationUtils.parseOutputAggregation(query.output.aggregation, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
+			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
 
 			// In partial accuracy case, restore aggregation
 			if (null != tmpEntsNumReturn) {
@@ -1004,7 +1010,8 @@ public class QueryHandler {
 			//TESTED (entity+association)
 			
 			if (null != _aliasLookup) {
-				EntityFeaturePojo masterAlias = _aliasLookup.doLookupFromIndex(qt.entity);
+				EntityFeaturePojo masterAlias = _aliasLookup.getAliases(qt.entity);	
+					// (need to do it this way round to get the semantic links)
 				if (null != masterAlias) {
 					if (null == termBoolQ) {
 						termBoolQ = QueryBuilders.boolQuery();
@@ -1987,7 +1994,19 @@ public class QueryHandler {
 			//TESTED
 			
 			//cm = new CollectionManager();
-			docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit);
+			boolean bPrimary = true;
+			
+			if (_replicaSetDistributionRatio > 0) {
+				if (0 != (new Date().getTime() % _replicaSetDistributionRatio)) {
+					bPrimary = false;
+				}
+			}			
+			if (bPrimary) { // Get from the primary
+				docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit);				
+			}
+			else { // Try and get from the secondary if possible
+				docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit).setReadPreference(ReadPreference.SECONDARY);
+			}
 			
 		} catch (Exception e) {
 			// If an exception occurs log the error

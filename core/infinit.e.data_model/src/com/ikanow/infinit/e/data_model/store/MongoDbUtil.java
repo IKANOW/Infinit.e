@@ -15,9 +15,11 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store;
 
+import java.text.ParseException;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 
 import org.bson.types.ObjectId;
 
@@ -27,6 +29,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonPrimitive;
 import com.ikanow.infinit.e.data_model.utils.ThreadSafeSimpleDateFormat;
 import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 
@@ -81,7 +84,7 @@ public class MongoDbUtil {
         }
         return result;
     }
-
+    
     public static JsonElement encode(DBObject o) {
         JsonObject result = new JsonObject();
         Iterator<?> i = o.keySet().iterator();
@@ -111,7 +114,7 @@ public class MongoDbUtil {
             	else if (v instanceof Date) {
             		JsonObject date = new JsonObject();
             		date.add("$date", new JsonPrimitive(_format.format((Date)v)));
-            		result.add(k, date);            		
+            		result.add(k, date); 
             	}
             	// Ignore BinaryData, should be serializing that anyway...            	
             }
@@ -119,4 +122,54 @@ public class MongoDbUtil {
         return result;
     }
     private static ThreadSafeSimpleDateFormat _format = new ThreadSafeSimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+
+    public static Object encodeUnknown(JsonElement from) {
+		if (from.isJsonArray()) { // Array
+			return encodeArray(from.getAsJsonArray());
+		}//TESTED
+		else if (from.isJsonObject()) { // Object
+			JsonObject obj = from.getAsJsonObject();
+			// Check for OID/Date:
+			if (1 == obj.entrySet().size()) {
+				if (obj.has("$date")) {
+					try {
+						return _format.parse(obj.get("$date").getAsString());
+					} catch (ParseException e) {
+						return null;
+					}
+				}//TESTED
+				else if (obj.has("$oid")) {
+					return new ObjectId(obj.get("$oid").getAsString());
+				}//TESTED    				
+			}
+			return encode(obj);
+		}//TESTED
+		else if (from.isJsonPrimitive()) { // Primitive
+			JsonPrimitive val = from.getAsJsonPrimitive();
+			if (val.isNumber()) {
+				return val.getAsNumber();
+			}//TESTED
+			else if (val.isBoolean()) {
+				return val.getAsBoolean();
+			}//TESTED
+			else if (val.isString()) {
+				return val.getAsString();
+			}//TESTED
+		}//TESTED
+    	return null;
+    }
+    public static BasicDBList encodeArray(JsonArray a) {
+    	BasicDBList dbl = new BasicDBList();
+    	for (JsonElement el: a) {
+    		dbl.add(encodeUnknown(el));
+    	}
+    	return dbl;    	
+    }//TESTED
+    public static BasicDBObject encode(JsonObject o) {
+    	BasicDBObject dbo = new BasicDBObject();
+    	for (Map.Entry<String, JsonElement> elKV: o.entrySet()) {
+    		dbo.append(elKV.getKey(), encodeUnknown(elKV.getValue()));
+    	}    	
+    	return dbo;
+    }//TESTED
 }

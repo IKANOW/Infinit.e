@@ -19,12 +19,13 @@
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:mx="library://ns.adobe.com/flex/mx"
 	currentState="baseState"
-	height.baseState="70"
-	width.baseState="280"
+	height.baseState="{ baseStateHeight }"
+	width.baseState="{ baseStateWidth }"
 	height.expanded="{ this.owner.height - 80 }"
 	width.expanded="{ this.owner.width - 80 }"
 	x.expanded="40"
 	y.expanded="40"
+	dataChange="onDataChange(event)"
 	includeInLayout.expanded="false"
 	click.baseState="highlightSkin(event)"
 	creationComplete="init()"
@@ -46,12 +47,47 @@
 			import com.ikanow.infinit.e.widget.library.utility.ColorConfig;
 			import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			
 			import mx.controls.Alert;
 			import mx.controls.LinkButton;
 			import mx.controls.Spacer;
 			import mx.core.UIComponent;
 			import mx.graphics.SolidColorStroke;
+			
 			import spark.primitives.Line;
+			import flashx.textLayout.conversion.TextConverter;
+			import flashx.textLayout.elements.TextFlow;
+			
+			[Bindable]
+			private var iconized:Boolean = false;
+			[Bindable]
+			private var baseStateHeight:int = 70;
+			[Bindable]
+			private var baseStateWidth:int = 200;
+			
+			private function onDataChange(event:Event):void
+			{
+				if (null != data) {
+					var timelinemod:InfiniteTimelineWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineWidget;
+					iconize(timelinemod.isIconized());
+					timelinemod.addNode( this );
+				}
+			}
+			
+			public function iconize(iconize:Boolean):void
+			{
+				iconized = iconize;
+				if (iconized)
+				{
+					baseStateHeight = 35;
+					baseStateWidth = 35;
+				}
+				else
+				{
+					baseStateHeight = 70;
+					baseStateWidth = 200;
+				}
+			}
 			
 			public function hightlightNode( highlight_now:Boolean ):void
 			{
@@ -59,55 +95,6 @@
 				highlighted = !highlight_now;
 				highlightSkin( null );
 			}
-			
-			/**
-			 * function to format the date for the feed
-			 *
-			 * @param date The date of the feed
-			 */
-			private function formatDate( date:String ):void
-			{
-				//var _date:Date = new Date(Number(date));
-			
-				//timeDate.text = _date.toString();
-			}
-			
-			/**
-			 * THIS IS NOT USED
-			 * function to add entities to the dimension explorer
-			 *
-			 * @param entity The entity to send
-			 */
-			/*private function send2Query(entity:Object):void
-			{
-				var queryHandler:QueryContainer = new QueryContainer();
-				var queryObject:QueryObject = new QueryObject();
-				var name:String = "";
-			
-				if(entity.disambiguous_name != null)
-				{
-					name = entity.disambiguous_name;
-				}
-				else
-				{
-					name = entity.actual_name;
-				}
-				queryObject.keywordString = name.toLowerCase();
-				queryObject.boolString = "AND";
-				queryObject.queryType = "entity";
-				if ( null != entity.type )
-				{
-					queryObject.keywordString += "&" + entity.type.toLowerCase();
-				}
-				else
-				{
-					queryObject.keywordString += "&null";
-				}
-				queryHandler.qObjects.addItem(queryObject);
-				var eventObj:QueryBrowserEventClass = new QueryBrowserEventClass("addEntities",queryHandler);
-				parentDocument.parentDocument.parentDocument.dispatchEvent(eventObj);
-			}*/
-			
 			private function formatHtmlText( unformatted:String ):String
 			{
 				return HtmlConvert.convertEntities( unformatted );
@@ -120,22 +107,22 @@
 			 *
 			 * @return The formatted title
 			 */
-			private function formatText( title:String, signif:String ):String
+			private function formatText( title:String, signif:String ):TextFlow
 			{
 				var newTitle:String = title;
 				var newSignif:String = new Number( signif ).toFixed( 1 ).toString();
-				var MAXLENGTH:int = 55 - newSignif.length;
+				var MAXLENGTH:int = 50 - newSignif.length;
 				
 				if ( newTitle.length > MAXLENGTH )
 				{
-					newTitle = HtmlConvert.convertEntities_txt( title.substring( 0, MAXLENGTH - 3 ) ) + "...";
+					newTitle = HtmlConvert.convertEntities( title.substring( 0, MAXLENGTH - 3 ) ) + "...";
 				}
 				else
 				{
-					newTitle = HtmlConvert.convertEntities_txt( title.substring( 0, MAXLENGTH ) );
+					newTitle = HtmlConvert.convertEntities( title.substring( 0, MAXLENGTH ) );
 				}
 				
-				return newTitle + " (Score: " + newSignif + ")";
+				return TextConverter.importToFlow(newTitle + " (Score: " + newSignif + ")", TextConverter.TEXT_FIELD_HTML_FORMAT);
 			}
 			
 			/**
@@ -182,14 +169,22 @@
 			{
 				if ( !highlighted )
 				{
-					bContainer.setStyle( "borderColor", "0x000000" );
+					bContainer.setStyle( "borderColor", "0xCC0000" );
+					bContainer.setStyle( "borderWeight", "2" );
+					bContainer.setStyle( "borderVisible", "true" );
+
 				}
 				else if ( highlighted )
 				{
-					bContainer.setStyle( "borderColor", "0xFFFFFF" );
+					bContainer.setStyle( "borderColor", "0x000000" );
+					bContainer.setStyle( "borderWeight", "1" );
+					bContainer.setStyle( "borderVisible", "false" );
 				}
 				highlighted = !highlighted;
-				data[ "highlighted" ] = highlighted;
+				if (null != data)
+				{
+					data[ "highlighted" ] = highlighted;
+				}
 			}
 			
 			/**
@@ -198,10 +193,6 @@
 			 */
 			private function init():void
 			{
-				//add item renderers to parent so it can highlight them
-				//if necessary
-				var timelinemod:InfiniteTimelineWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineWidget;
-				timelinemod.addNode( this );
 			}
 			
 			/**
@@ -255,13 +246,13 @@
 		]]>
 	</fx:Script>
 
-	<s:BorderContainer id="bContainer"
-		width="100%"
-		height="70"
-		borderColor="0xFFFFFF"
-		borderStyle="solid"
+	<s:BorderContainer id="bContainer" 
+		width="{ baseStateWidth }"
+		height="{ baseStateHeight }"
+		borderColor="0x000000"
+		borderStyle="inset"
 		cornerRadius="8"
-		borderWeight="3"
+		borderWeight="1"
 		contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
 		includeIn="baseState">
 		<s:backgroundFill>
@@ -272,7 +263,26 @@
 				</s:entries>
 			</s:LinearGradient>
 		</s:backgroundFill>
+		<s:Label id="ranking"
+				  x="5" y="16"
+				  visible="{ iconized }"
+				 includeIn="baseState"
+				 text="#{ data.ranking }"
+				 />
+		<s:HGroup 
+			visible="{ iconized }"
+			x="18"
+			width="100%"
+			verticalAlign="middle"
+			contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
+			includeIn="baseState">
+			<s:Button id="expandWindowIconized"
+					  click="switchStates(event)"
+					  includeIn="baseState"
+					  skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin" />
+		</s:HGroup>
 		<s:VGroup 
+			visible="{ !iconized }"
 			width="100%"
 			height="100%"
 			bottom="0"
@@ -288,7 +298,7 @@
 			contentBackgroundColor="{ getMediaColor( data.mediaType ) }"
 			includeIn="baseState">
 			<s:HGroup id="topgroup"
-				height="20"
+				height="15"
 				width="100%"
 				horizontalAlign="left"
 				verticalAlign="middle"
@@ -297,7 +307,7 @@
 				<s:Label id="timeDate"
 					x="0"
 					y="0"
-					text="{ data.published.toString() }"
+					text="{ data.publishedDate }"
 					fontWeight="bold"
 					includeIn="baseState" />
 
@@ -313,15 +323,16 @@
 						skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin" />
 				</s:HGroup>
 			</s:HGroup>
-			<s:Label id="article"
-				height="44"
-				text="{ formatText( data.title, data.score ) }"
-				width="{ topgroup.width }"
-				fontWeight="bold"
-				includeIn="baseState"
-				lineBreak="toFit" />
+			<s:RichText id="article"
+					 height="44" 
+					 textFlow="{ formatText( data.title, data.score ) }"
+					 width="{ topgroup.width }"
+					 fontWeight="bold"
+					 includeIn="baseState"
+					 lineBreak="toFit" />
 		</s:VGroup>
 	</s:BorderContainer>
+		
 	<s:BorderContainer id="bContainerExpanded"
 		width="100%"
 		height="100%"
@@ -349,7 +360,7 @@
 			</s:HGroup>	-->
 			<s:Label id="timeDateExpanded"
 				width="100%"
-				text="{ data.published.toString() }"
+				text="{ data.publishedDate }"
 				fontWeight="bold"
 				includeIn="expanded" />
 			<mx:Label id="articleExpanded"

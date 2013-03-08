@@ -63,7 +63,17 @@ public class SharePojoApiMap implements BasePojoApiMap<SharePojo> {
 					//Exception out and hope for the best!
 					throw new RuntimeException("Insufficient access permissions on this object");					
 				}
-			}
+			}//TESTED
+			Set<ObjectId> communityIds = share.getEndorsed();
+			if ((null != communityIds) && (null != _allowedCommunityIds)) {
+				Iterator<ObjectId> commIt = communityIds.iterator();
+				while (commIt.hasNext()) {
+					if (!_allowedCommunityIds.contains(commIt.next())) {
+						commIt.remove();
+							// (ok we're "corrupting" the share pojo here to make life easy)
+					}
+				}
+			}//TESTED
 			JsonElement json = BaseApiPojo.getDefaultBuilder().create().toJsonTree(share);
 			return json;
 		}		

@@ -34,6 +34,7 @@ package com.ikanow.infinit.e.widget.library.data
 	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 	import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
@@ -489,7 +490,10 @@ package com.ikanow.infinit.e.widget.library.data
 		 * @return the current query options (see REST API for details on the JSON format)
 		 */
 		public function setCurrentQuery(modifiedQueryOptions:Object, modifiedElements:String = null):void {
-			infinite_parent.updateCurrentQuery(modifiedQueryOptions, modifiedElements);
+			if ( infinite_parent != null )
+			{
+				infinite_parent.updateCurrentQuery(modifiedQueryOptions, modifiedElements);
+			}			
 		}
 
 		//////////////////////////////////////////////////////////////////////////////////
@@ -512,6 +516,57 @@ package com.ikanow.infinit.e.widget.library.data
 			// Not applicable
 		}
 		
+		//______________________________________________________________________________________
+		//
+		// FRAMEWORK INTERFACE (SAVED SETTINGS)
+		
+		/**
+		 * Allows widgets writers to tell the framework to save their settings immediately
+		 * 
+		 * @param id The widget save object
+		 */
+		public function saveWidgetSettingsNow( widgetOptions:WidgetSaveObject ):void
+		{
+			if ( infinite_parent != null )
+			{
+				infinite_parent.saveWidgetSettingsNow(widgetOptions); 
+			}
+		}
+		
+		//______________________________________________________________________________________
+		//
+		// FRAMEWORK INTERFACE (SOURCES AND COMMUNITIES)
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "community" JSON format
+		 * 
+		 * @param id The id of the community
+		 * @returns an Object representation of the community JSON
+		 */
+		public function getCommunityById(id:String):Object
+		{
+			if ( infinite_parent != null )
+			{
+				return infinite_parent.getCommunityById(id); 
+			}
+			return null;
+		}
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "source" JSON format
+		 * 
+		 * @param id Either the id or the key of the source
+		 * @returns an Object representation of the source JSON
+		 */
+		public function getSourceByIdOrKey(idOrKey:String):Object
+		{
+			if ( infinite_parent != null )
+			{
+				return infinite_parent.getSourceByIdOrKey(idOrKey);
+			}						
+			return null;
+		}
+					
 		//______________________________________________________________________________________
 		//
 		// THE FRAMEWORK'S INTERFACE WITH US (NOT IWIDGETCONTEXT)

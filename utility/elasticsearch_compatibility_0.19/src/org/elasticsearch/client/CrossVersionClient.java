@@ -1,8 +1,5 @@
 package org.elasticsearch.client;
 
-//TODO (INF-1781): None of this actually works, need to implement:
-//http://today.java.net/pub/a/today/2005/11/01/implement-proxy-based-aop.html
-
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -152,7 +149,7 @@ public class CrossVersionClient //implements org.elasticsearch.client.Client (US
 
 	//@Override
 	public org.elasticsearch.client.action.bulk.BulkRequestBuilder prepareBulk() {
-		return (BulkRequestBuilder) _superClient.prepareBulk();
+		return new BulkRequestBuilder(_superClient.prepareBulk());
 	}
 
 	//@Override
@@ -162,44 +159,44 @@ public class CrossVersionClient //implements org.elasticsearch.client.Client (US
 
 	//@Override
 	public org.elasticsearch.client.action.delete.DeleteRequestBuilder prepareDelete() {
-		return (DeleteRequestBuilder) _superClient.prepareDelete();
+		return new DeleteRequestBuilder(_superClient.prepareDelete());
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.delete.DeleteRequestBuilder prepareDelete(String arg0, String arg1,
 			String arg2) {
-		return (DeleteRequestBuilder) _superClient.prepareDelete(arg0, arg1, arg2);
+		return new DeleteRequestBuilder(_superClient.prepareDelete(arg0, arg1, arg2));
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder prepareDeleteByQuery(String... arg0) {
-		return (DeleteByQueryRequestBuilder) _superClient.prepareDeleteByQuery(arg0);
+		return new DeleteByQueryRequestBuilder(_superClient.prepareDeleteByQuery(arg0));
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.get.GetRequestBuilder prepareGet() {
-		return (GetRequestBuilder) _superClient.prepareGet();
+		return new GetRequestBuilder(_superClient.prepareGet());
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.get.GetRequestBuilder prepareGet(String arg0, String arg1, String arg2) {
-		return (GetRequestBuilder) _superClient.prepareGet(arg0, arg1, arg2);
+		return new GetRequestBuilder(_superClient.prepareGet(arg0, arg1, arg2));
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.index.IndexRequestBuilder prepareIndex() {
-		return (IndexRequestBuilder) _superClient.prepareIndex();
+		return new IndexRequestBuilder(_superClient.prepareIndex());
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.index.IndexRequestBuilder prepareIndex(String arg0, String arg1) {
-		return (IndexRequestBuilder) _superClient.prepareIndex(arg0, arg1);
+		return new IndexRequestBuilder(_superClient.prepareIndex(arg0, arg1));
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.index.IndexRequestBuilder prepareIndex(String arg0, String arg1,
 			String arg2) {
-		return (IndexRequestBuilder) _superClient.prepareIndex(arg0, arg1, arg2);
+		return new IndexRequestBuilder(_superClient.prepareIndex(arg0, arg1, arg2));
 	}
 
 	//@Override
@@ -220,12 +217,12 @@ public class CrossVersionClient //implements org.elasticsearch.client.Client (US
 
 	//@Override
 	public org.elasticsearch.client.action.search.SearchRequestBuilder prepareSearch(String... arg0) {
-		return (SearchRequestBuilder) _superClient.prepareSearch(arg0);
+		return new SearchRequestBuilder(_superClient.prepareSearch(arg0));
 	}
 
 	//@Override
 	public org.elasticsearch.client.action.search.SearchScrollRequestBuilder prepareSearchScroll(String arg0) {
-		return (SearchScrollRequestBuilder) _superClient.prepareSearchScroll(arg0);
+		return new SearchScrollRequestBuilder(_superClient.prepareSearchScroll(arg0));
 	}
 
 	//@Override

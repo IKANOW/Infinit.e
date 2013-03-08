@@ -85,7 +85,7 @@ public class BaseDbPojo {
 		if (null != dynamicMap) {
 			gb = dynamicMap.extendBuilder(gb);
 		}
-		return (DBObject) com.mongodb.util.JSON.parse(gb.create().toJson(s));
+		return (DBObject) MongoDbUtil.encode(gb.create().toJsonTree(s).getAsJsonObject());
 	}
 	/////////////////////////////////////////////////////////////////////////////////////
 	// From the API JSON To a single Object
@@ -140,7 +140,7 @@ public class BaseDbPojo {
 		} catch (Exception e) {
 			return null;
 		}
-		return (DBObject) com.mongodb.util.JSON.parse(gb.create().toJson(list, listType.getType()));
+		return (DBObject) MongoDbUtil.encodeArray(gb.create().toJsonTree(list, listType.getType()).getAsJsonArray());
 	}
 	/////////////////////////////////////////////////////////////////////////////////////
 	// From the API JSON to a list of objects

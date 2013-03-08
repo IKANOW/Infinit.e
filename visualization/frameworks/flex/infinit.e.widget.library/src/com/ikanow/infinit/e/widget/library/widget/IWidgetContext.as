@@ -31,6 +31,7 @@ package com.ikanow.infinit.e.widget.library.widget
 	import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 	import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	
 	import mx.collections.ArrayCollection;
 	
@@ -214,5 +215,36 @@ package com.ikanow.infinit.e.widget.library.widget
 		 * @param localOnly - by default, saved query applied only to this widgetl if false applied to all widgets
 		 */		
 		function applySavedQuery_FromResultSet(queryResults:IResultSet = null, localOnly:Boolean = true):void;
+		
+		//______________________________________________________________________________________
+		//
+		// FRAMEWORK INTERFACE (SAVED SETTINGS)
+		
+		/**
+		 * Allows widgets writers to tell the framework to save their settings immediately
+		 * 
+		 * @param id The widget save object
+		 */
+		function saveWidgetSettingsNow( widgetOptions:WidgetSaveObject ):void;
+		
+		//______________________________________________________________________________________
+		//
+		// FRAMEWORK INTERFACE (SOURCES AND COMMUNITIES)
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "community" JSON format
+		 * 
+		 * @param id The id of the community
+		 * @returns an Object representation of the community JSON
+		 */
+		function getCommunityById(id:String):Object;
+		
+		/**
+		 * Returns an anonymous object in the Infinit.e "source" JSON format
+		 * 
+		 * @param id Either the id or the key of the source
+		 * @returns an Object representation of the source JSON
+		 */
+		function getSourceByIdOrKey(idOrKey:String):Object;
 	}
 }

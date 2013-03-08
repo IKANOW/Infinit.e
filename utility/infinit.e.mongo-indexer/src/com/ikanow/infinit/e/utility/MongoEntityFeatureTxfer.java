@@ -79,7 +79,7 @@ public class MongoEntityFeatureTxfer
 		}
 		
 		if (bDelete) {
-			txferManager.doDelete(query, nLimit);
+			MongoEntityFeatureTxfer.doDelete(query, nLimit);
 		}
 		else {
 			txferManager.doTransfer(query, nSkip, nLimit);						
@@ -173,7 +173,7 @@ public class MongoEntityFeatureTxfer
 	
 	// DELETE DOCUMENTS FROM A QUERY
 	
-	private void doDelete(BasicDBObject query, int nLimit)
+	static void doDelete(BasicDBObject query, int nLimit)
 	{		
 		try 
 		{
@@ -181,21 +181,33 @@ public class MongoEntityFeatureTxfer
 			DBCollection entityFeatureDB = DbManager.getFeature().getEntity();
 			ElasticSearchManager elasticManager = ElasticSearchManager.getIndex("entity_index");
 			
-			DBCursor cur = entityFeatureDB.find(query).limit(nLimit); 
+			BasicDBObject fields = new BasicDBObject();
+			fields.put(EntityFeaturePojo.index_, 1);
+			fields.put(EntityFeaturePojo.communityId_, 1);
+			
+			DBCursor cur = entityFeatureDB.find(query, fields).limit(nLimit); 
 				// (this internally works in batches of 1000)
-			System.out.println("Found " + cur.count() + " records to delete");
+			System.out.println("Found " + cur.count() + " records to delete from " + query.toString());
 			if (nLimit > 0) {
 				System.out.println("(limited to " + nLimit + " records)");
 			}
+			int nArraySize = (cur.count() > 1000) ? 1000 : cur.count();
+			ArrayList<EntityFeaturePojo> batchList = new ArrayList<EntityFeaturePojo>(nArraySize);			
 			
 			while (cur.hasNext())
 			{
 				EntityFeaturePojo gp = EntityFeaturePojo.fromDb(cur.next(),EntityFeaturePojo.class);
-				//remove from mongo
-				entityFeatureDB.remove(new BasicDBObject("index", gp.getIndex() ));
-				//remove from ES				
-				elasticManager.removeDocument(gp.getIndex() + ":" + gp.getCommunityId());
+				batchList.add(gp);
+				if (batchList.size() >= nArraySize) {
+					internalDelete(batchList, elasticManager);
+					batchList.clear();
+				}
 			}			
+			if (!batchList.isEmpty()) {
+				internalDelete(batchList, elasticManager);				
+			}
+			entityFeatureDB.remove(query);
+			
 		} catch (NumberFormatException e) {
 			e.printStackTrace();
 		} catch (MongoException e) {
@@ -204,8 +216,19 @@ public class MongoEntityFeatureTxfer
 		finally 
 		{
 		}
-	}
+		
+	}//TESTED
 	
+	// Batch delete
+	
+	private static void internalDelete(List<EntityFeaturePojo> entitiesToDelete, ElasticSearchManager esMgr) {
+		
+		List<String> esids = new ArrayList<String>(entitiesToDelete.size());
+		for (EntityFeaturePojo gp: entitiesToDelete) {
+			esids.add(new StringBuffer(gp.getIndex()).append(':').append(gp.getCommunityId().toString()).toString());
+		}		
+		esMgr.bulkDeleteDocuments(esids);
+	}//TESTED
 	
 	//___________________________________________________________________________________________________
 	

@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.api.knowledge.processing;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -26,10 +27,17 @@ import java.util.regex.Pattern;
 
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
 import org.elasticsearch.index.query.BoolFilterBuilder;
+import org.elasticsearch.index.query.BoolQueryBuilder;
+import org.elasticsearch.index.query.CrossVersionQueryBuilders;
+import org.elasticsearch.index.query.FilterBuilders;
+import org.elasticsearch.index.query.NestedFilterBuilder;
+import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.QueryFilterBuilder;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
+import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet.Entry;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetBuilder;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
@@ -42,6 +50,7 @@ import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.mongodb.BasicDBObject;
@@ -65,6 +74,8 @@ public class AggregationUtils {
 												ScoringUtils scoreStats, AliasLookupTable aliasLookup,
 												String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
+		HashMap<String, List<? extends Entry>> moments = null;
+		
 		for (Map.Entry<String, Facet> facet: facets.entrySet()) {
 			
 			// Geo
@@ -122,14 +133,30 @@ public class AggregationUtils {
 				rp.setSources(keysFacet.entries());
 			}
 			//TESTED x3
-		}		
+			
+			// Moments (basic functionality)
+			
+			if (facet.getKey().startsWith("moments.")) {
+				DateHistogramFacet momentFacet = (DateHistogramFacet) facet.getValue();
+				if (null == moments) {
+					moments = new HashMap<String, List<? extends Entry>>();
+				}
+				moments.put(facet.getKey().substring(8), momentFacet.entries());
+			}//TESTED
+				
+		}//(end loop over generated facets)	
+		
+		if ((null != moments) && !moments.isEmpty()) {
+			rp.setMoments(moments, QueryHandler.getInterval(aggOutParams.moments.timesInterval, 'm'));
+		}
+		
 	}//TESTED
 	
 	////////////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// OUTPUT PARSING - UTILS:
 	
-	public static void parseOutputAggregation(AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo aggregation,
+	public static void parseOutputAggregation(AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo aggregation, AliasLookupTable aliasLookup,
 			String[] entTypeFilterStrings, String[] assocVerbFilterStrings, SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj)
 	{
 		// 1.] Go through aggregation list
@@ -158,9 +185,72 @@ public class AggregationUtils {
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
 			}
-			searchSettings.addFacet(fb);					
+			searchSettings.addFacet(fb);
 		}//(TESTED)
 
+		// Temporal Moments
+		
+		if ((null != aggregation) && (null != aggregation.moments)) {
+			if (null == aggregation.moments.timesInterval) {
+				if (null != aggregation.timesInterval) {
+					aggregation.moments.timesInterval = aggregation.timesInterval;
+				}
+				else {
+					aggregation.moments.timesInterval = "m";					
+				}
+			}
+			if (aggregation.moments.timesInterval.contains("m")) {
+				aggregation.moments.timesInterval = "month";
+			}
+			
+			if (null != aggregation.moments.entityList) {
+				for (String entIndex: aggregation.moments.entityList) {
+					
+					DateHistogramFacetBuilder fb = FacetBuilders.dateHistogramFacet("moments." + entIndex).
+													field(DocumentPojo.publishedDate_).interval(aggregation.moments.timesInterval);
+					
+					EntityFeaturePojo alias = null;
+					if (null != aliasLookup) {
+						alias = aliasLookup.getAliases(entIndex);
+					}
+					if (null == alias) { // no alias
+						fb = fb.facetFilter(FilterBuilders.nestedFilter(DocumentPojo.entities_, 
+											FilterBuilders.termFilter(EntityPojo.index_, entIndex)));
+					}//TESTED
+					else {
+						QueryFilterBuilder qfb = null;
+						if ((null != alias.getSemanticLinks()) && !alias.getSemanticLinks().isEmpty())  {
+							BoolQueryBuilder qb = QueryBuilders.boolQuery();
+							for (String textAlias: alias.getSemanticLinks()) {
+								qb = qb.should(CrossVersionQueryBuilders.matchPhraseQuery(DocumentPojo.fullText_, textAlias));
+							}
+							qfb = FilterBuilders.queryFilter(qb);							
+						}//TESTED
+						if (!alias.getAlias().isEmpty()) {
+							NestedFilterBuilder nfb = FilterBuilders.nestedFilter(DocumentPojo.entities_, 
+													FilterBuilders.termsFilter(EntityPojo.index_, entIndex, alias.getAlias()));
+							if (null == qfb) {
+								fb = fb.facetFilter(nfb);
+							}//TESTED
+							else {
+								BoolFilterBuilder bfb = FilterBuilders.boolFilter().should(nfb).should(qfb);
+								fb = fb.facetFilter(bfb);
+							}//TESTED
+						}
+						else if (null != qfb) {
+							fb = fb.facetFilter(qfb);
+						}//TESTED
+					}//TESTED
+					
+					// Gross raw handling for facets
+					if (null != parentFilterObj) {
+						fb = fb.facetFilter(parentFilterObj);
+					}
+					searchSettings.addFacet(fb);
+				}
+			}//(end list over entities)
+		}//TESTED
+		
 		// Entities - due to problems with significance, handled on a document by document basis, see Significance helper class
 		
 		// Associations (Events/Facts)
@@ -396,7 +486,7 @@ public class AggregationUtils {
 				// Now write the last few values (adjusted for aliases if necessary) into the JSON object
 				if (null != sEnt1_index) {
 					if (null != aliasLookup) {
-						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt1_index);
+						EntityFeaturePojo alias = aliasLookup.getAliasMaster(sEnt1_index);
 						if (null != alias) {
 							sEnt1_index = alias.getIndex();
 							if (sEnt1_index.equalsIgnoreCase("discard")) {
@@ -409,7 +499,7 @@ public class AggregationUtils {
 				}
 				if (null != sEnt2_index) {
 					if (null != aliasLookup) {
-						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sEnt2_index);
+						EntityFeaturePojo alias = aliasLookup.getAliasMaster(sEnt2_index);
 						if (null != alias) {
 							sEnt2_index = alias.getIndex();
 							if (sEnt2_index.equalsIgnoreCase("discard")) {
@@ -422,7 +512,7 @@ public class AggregationUtils {
 				}
 				if (null != sGeoIndex) {
 					if (null != aliasLookup) {
-						EntityFeaturePojo alias = aliasLookup.doLookupFromIndex(sGeoIndex);
+						EntityFeaturePojo alias = aliasLookup.getAliasMaster(sGeoIndex);
 						if (null != alias) {
 							sGeoIndex = alias.getIndex();
 							if (sGeoIndex.equalsIgnoreCase("discard")) {

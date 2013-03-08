@@ -1,17 +1,21 @@
 package org.elasticsearch.client.action.search;
 
-import org.elasticsearch.client.Client;
+import org.elasticsearch.action.ListenableActionFuture;
+import org.elasticsearch.action.search.SearchResponse;
 
-public class SearchScrollRequestBuilder extends org.elasticsearch.action.search.SearchScrollRequestBuilder {
+public class SearchScrollRequestBuilder {
 
-	public SearchScrollRequestBuilder(Client client) {
-		super(client);
-	}
-	public SearchScrollRequestBuilder(Client client, String scrollId) {
-		super(client, scrollId);
+	protected org.elasticsearch.action.search.SearchScrollRequestBuilder _delegate;
+	
+	public SearchScrollRequestBuilder(org.elasticsearch.action.search.SearchScrollRequestBuilder delegate) {
+		_delegate = delegate;
 	}
 	public SearchScrollRequestBuilder setScroll(String scrollId) {
-		return (SearchScrollRequestBuilder) super.setScroll(scrollId);
+		_delegate.setScroll(scrollId);
+		return this;
+	}
+	public ListenableActionFuture<SearchResponse> execute() {
+		return _delegate.execute();
 	}
 
 
