@@ -16,11 +16,13 @@
 package com.ikanow.infinit.e.api.knowledge;
 
 import java.io.ByteArrayInputStream;
+import java.io.File;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.utils.MimeUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -180,6 +182,63 @@ public class DocumentHandler
 		return rp;
 	}
 	
+	public ResponsePojo getFileContents(String userIdStr, String sourceKey, String relativePath) {
+		ResponsePojo rp = new ResponsePojo();
+		
+		try  {
+			BasicDBObject query = new BasicDBObject(SourcePojo.key_, sourceKey);
+			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, RESTTools.getUserCommunities(userIdStr)));
+			BasicDBObject fields = new BasicDBObject(SourcePojo.url_, 1);
+			fields.put(SourcePojo.extractType_, 1);
+			fields.put(SourcePojo.file_, 1);
+			fields.put(SourcePojo.isApproved_, 1);
+			SourcePojo source = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query, fields), SourcePojo.class);
+
+			// TEST for security shenanigans
+			String baseRelativePath = new File(".").getCanonicalPath();
+			String actualRelativePath = new File(relativePath).getCanonicalPath();
+			if (!actualRelativePath.startsWith(baseRelativePath)) {
+				throw new RuntimeException("Access denied: " + relativePath);
+			}			
+			//(end security shenanigans)
+			
+			if (null == source) {
+				throw new RuntimeException("Document source not found: " + sourceKey);
+			}
+			if ((null != source.getExtractType()) && !source.getExtractType().equals("File")) {
+				throw new RuntimeException("Document source not a file: " + sourceKey + ", " + source.getExtractType());				
+			}
+			if (!source.isApproved()) {
+				throw new RuntimeException("Document source not approved, access denied: " + sourceKey);				
+			}
+			String fileURL = source.getUrl() + relativePath;
+			byte[] bytes = FileHarvester.getFile(fileURL, source);
+			if ( bytes == null )
+			{
+				//fail
+				rp.setResponse(new ResponseObject("Doc Info",false,"Could not find document: " + relativePath));
+				return rp;
+			}
+			else
+			{						
+				DocumentFileInterface dfp = new DocumentFileInterface();
+				dfp.bytes = bytes;
+				dfp.mediaType = getMediaType(fileURL);
+				rp.setResponse(new ResponseObject("Doc Info",true,"Document bytes returned successfully"));
+				rp.setData(dfp, null);
+				return rp;
+			}			
+		}
+		catch (Exception e)
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Doc Info",false,"error returning feed: " + e.getMessage()));
+		}
+		// Return Json String representing the user
+		return rp;
+	}//TESTED
+	
 	private SourcePojo getSourceFromKey(String sourceKey)
 	{
 		SourcePojo source = null;
@@ -197,15 +256,20 @@ public class DocumentHandler
 	}
 	
 	private String getMediaType(String url)
-	{
-		String mediaType = "text/plain";
+	{		
+		String mediaType = null;
+
+		int end = url.lastIndexOf("?");
+		if (end >= 0) {
+			url = url.substring(0, end);
+		}
 		int mid = url.lastIndexOf(".");
 		String extension = url.substring(mid+1, url.length());
-		if ( extension.equals("pdf"))
-			return "application/pdf";
-		else if ( extension.equals("xml"))
-			return "text/xml";
+		mediaType = MimeUtils.lookupMimeType(extension);
+		if (null == mediaType) {
+			mediaType = "text/plain";
+		}
 		return mediaType;
-	}
+	}//TESTED
 }
 

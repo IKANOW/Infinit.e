@@ -25,6 +25,8 @@
 		value="source,lines,vars" />
 	<property name="manifest.name"
 		value="com/ikanow/infinit/e" />
+	<property name="chrome.extension.source-updater.location"
+		value="../chrome.extension.source-updater" />
 
 	<path id="infinit.e.manager.classpath">
 		<pathelement location="${dir.build.classes}" />
@@ -48,6 +50,9 @@
 	<target name="prepare"
 		depends="clean">
 		<mkdir dir="${dir.build}" />
+		<copy 
+			file="${chrome.extension.source-updater.location}/extension.crx"
+			tofile="WebContent/extension.crx" />
 	</target>
 
 

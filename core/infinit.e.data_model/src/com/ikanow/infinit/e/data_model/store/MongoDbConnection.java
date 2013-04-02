@@ -120,7 +120,7 @@ public class MongoDbConnection {
 		mongo = new Mongo(this.server, this.port);
 		
 		if (properties.getDistributeAllDbReadsAcrossSlaves()) {
-			mongo.setReadPreference(ReadPreference.SECONDARY);
+			mongo.setReadPreference(ReadPreference.secondaryPreferred());
 		}
 	}
 	

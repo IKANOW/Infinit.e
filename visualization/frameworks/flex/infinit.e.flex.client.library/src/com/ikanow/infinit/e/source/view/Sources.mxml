@@ -52,6 +52,8 @@
 			import com.ikanow.infinit.e.source.model.presentation.SourcesModel;
 			import com.ikanow.infinit.e.source.model.presentation.SourcesNavigator;
 			import flash.utils.setTimeout;
+			import mx.collections.ISortField;
+			import mx.controls.Alert;
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
 			import mx.events.FlexEvent;
@@ -91,6 +93,11 @@
 			 * The current user
 			 */
 			protected var currentUser:User;
+			
+			//TODO: should have a mouse not over handler here, that just removes it?
+			protected var mouseOverInterval:uint = 0;
+			
+			protected var mouseOverElement:GridTextItemRenderer = null;
 			
 			[Bindable]
 			private var queryRefresh:Boolean = true;
@@ -244,19 +251,12 @@
 				sourceManager.sendRefreshEvent = true;
 				
 				//First call out to get the user object, will refresh the current communities user is in	
-				/*var userEvent:UserEvent = new UserEvent( UserEvent.GET_USER );
-				userEvent.userName = currentUser.email;
-				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
-				dispatcher.dispatchEvent( userEvent );*/
 				var userEvent:UserEvent = new UserEvent( UserEvent.REFRESH );
 				userEvent.userName = currentUser.email;
 				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
 				dispatcher.dispatchEvent( userEvent );
 				
 				//Next call out to the public communities, will list any new public communities below user
-				/*var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
-				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
-				dispatcher.dispatchEvent( communityEvent );*/
 				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.REFRESH );
 				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
 				dispatcher.dispatchEvent( communityEvent );
@@ -307,12 +307,15 @@
 				model.navigator.navigate( sourceCollections.selectedItem );
 			}
 			
-			protected function sources_mouseOverHandler( event:MouseEvent ):void
+			protected function sources_mouseHandler():void
 			{
-				if ( event.target is Label && event.target.owner is GridTextItemRenderer )
+				clearInterval( mouseOverInterval );
+				mouseOverInterval = 0;
+				
+				var statusInfo:GridTextItemRenderer = mouseOverElement;
+				
+				if ( null != statusInfo )
 				{
-					var statusInfo:GridTextItemRenderer = event.target.owner as GridTextItemRenderer;
-					
 					if ( statusInfo.column.dataField == SourceConstants.FIELD_STATUS )
 					{
 						communityManager.setSelectedSource( statusInfo.columnData as Source );
@@ -336,23 +339,72 @@
 						
 						positionSourceMonitorPopup( statusInfo );
 					}
+					
+						// else not over status, do nothing
+				}
+				else // not over anything, remove
+				{
+					if ( sourceMonitorPopup )
+						sourceMonitorPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, function mouseHandler( event:MouseEvent ):void
+						{
+						} );
+					PopUpManager.removePopUp( sourceMonitorPopup )
+					sourceMonitorPopup = null;
+					refreshButton.selected = false;
+				}
+			}
+			protected function sources_mouseOutHandler( event:MouseEvent ):void
+			{
+				//(actually this is a roll out handler)
+				
+				// OK need to go to the top of the list and see if we're a source monior
+				var it:DisplayObjectContainer = event.relatedObject.parent;
+				
+				while ( null != it )
+				{
+					if ( it is SourceMonitor )
+						return;
 					else
+						it = it.parent;
+				}
+				
+				// If we're here then we didn't roll onto the source monitor...				
+				
+				mouseOverElement = null;
+				
+				if ( 0 == mouseOverInterval )
+				{
+					mouseOverInterval = setInterval( sources_mouseHandler, 250 );
+				}
+			}
+			
+			protected function sources_mouseOverHandler( event:MouseEvent ):void
+			{
+				if ( event.target is Label && event.target.owner is GridTextItemRenderer )
+				{
+					mouseOverElement = event.target.owner as GridTextItemRenderer;
+					
+					if ( 0 == mouseOverInterval )
 					{
-						if ( sourceMonitorPopup )
-							sourceMonitorPopup.removeEventListener( FlexMouseEvent.MOUSE_DOWN_OUTSIDE, function mouseHandler( event:MouseEvent ):void
-							{
-							} );
-						PopUpManager.removePopUp( sourceMonitorPopup )
-						sourceMonitorPopup = null;
-						refreshButton.selected = false;
+						mouseOverInterval = setInterval( sources_mouseHandler, 250 );
 					}
 				}
+				// (else do nothing)
 			}
 			
 			protected function sources_selectionChangeHandler( event:GridSelectionEvent ):void
 			{
 				model.toggleSourceSelected( event.selectionChange.rowIndex );
 				sources.selectedIndex = -1;
+			}
+			
+			protected function sources_sortApplied( event:spark.events.GridSortEvent ):void
+			{
+				sourceManager.currSortOrder = event.newSortFields;
+			
+			/**/
+				//var item:ISortField = sourceManager.currSortOrder.pop() as ISortField;
+				//sourceManager.currSortOrder.push( item );
 			}
 			
 			protected function startSearch():void
@@ -366,9 +418,6 @@
 			 */
 			private function sendUpdatedWidgetOptions():void
 			{
-				//var event:Event = new Event( "CommunitiesChangedEvent", true, false );
-				//this.dispatchEvent( event );
-				//widgetManager.dispatcher.dispatchEvent( event );
 				widgetManager.communitiesUpdated();
 			}
 		]]>
@@ -513,9 +562,11 @@
 				horizontalScrollPolicy="off"
 				dataProvider="{ model.sources }"
 				mouseOver="sources_mouseOverHandler(event)"
+				rollOut="sources_mouseOutHandler(event)"
 				selectAll="model.selectAllSources()"
 				selectNone="model.selectNoneSources()"
-				selectionChange="sources_selectionChangeHandler(event)">
+				selectionChange="sources_selectionChangeHandler(event)"
+				sortChange="sources_sortApplied(event)">
 				<common:columns>
 					<s:ArrayList>
 						<s:GridColumn 
@@ -556,7 +607,7 @@
 							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
 							headerText="{ resourceManager.getString( 'infinite', 'sources.status' ) }"
 							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
-							sortCompareFunction="{ SourceUtil.sortCompareCommunity }" />
+							sortCompareFunction="{ SourceUtil.sortCompareStatus }" />
 					</s:ArrayList>
 				</common:columns>
 			</common:InfSelectableDataGrid>

@@ -115,6 +115,7 @@ public class AssociationPojoIndexMap implements BasePojoIndexMap<AssociationPojo
 			public ElasticSearchPojos.FieldStringPojo assoc_type = new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null).excludeFromAll();
 			ElasticSearchPojos.FieldDatePojo time_start = new ElasticSearchPojos.FieldDatePojo("yes", null, null, null).excludeFromAll(); 
 			ElasticSearchPojos.FieldDatePojo time_end = new ElasticSearchPojos.FieldDatePojo("yes", null, null, null).excludeFromAll(); 
+			public ElasticSearchPojos.FieldDoublePojo sentiment = new ElasticSearchPojos.FieldDoublePojo("yes", null, null);
 		}
 		RootProperties properties = new RootProperties();
 	}

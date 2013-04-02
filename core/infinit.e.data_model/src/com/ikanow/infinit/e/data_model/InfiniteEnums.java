@@ -22,8 +22,6 @@ public class InfiniteEnums
 	public static final int FEEDS = 2;
 	public static final int DATABASE = 4;
 	public static final int FILES = 8;
-	public static final int STRUCTUREDANALYSIS = 10;
-	public static final int UNSTRUCTUREDANALYSIS = 12;
 	
 	public static int castExtractType(String type)
 	{
@@ -33,10 +31,6 @@ public class InfiniteEnums
 			return DATABASE;
 		else if ( type.toLowerCase().equals("file"))
 			return FILES;
-		else if ( type.toLowerCase().equals("structuredanalysis"))
-			return STRUCTUREDANALYSIS;
-		else if( type.toLowerCase().equals("unstructuredanalysis"))
-			return UNSTRUCTUREDANALYSIS;
 		return 0;
 	}
 	

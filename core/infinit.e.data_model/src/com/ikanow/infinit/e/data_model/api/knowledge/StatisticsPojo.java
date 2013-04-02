@@ -39,6 +39,7 @@ public class StatisticsPojo extends BaseApiPojo {
 	public float avgScore = (float)0.0;
 	
 	public static class Score {
+		public Object explain;
 		public double score;
 		public double decay = -1.0;
 		public int nIndex;
@@ -59,7 +60,7 @@ public class StatisticsPojo extends BaseApiPojo {
 	}
 	
 	
-	public void setScore(SearchHits elasticHits, boolean bDecay) {
+	public void setScore(SearchHits elasticHits, boolean bDecay, boolean bExplain) {
         if (Float.isNaN(maxScore)) {
         	maxScore = (float) 0.0;
         }
@@ -71,6 +72,9 @@ public class StatisticsPojo extends BaseApiPojo {
 			for(SearchHit hit: elasticHits) {
 				String idStr = hit.getId();
 				Score scoreObj = new Score();
+				if (bExplain) {
+					scoreObj.explain = hit.getExplanation();
+				}
 				scoreObj.nIndex = i;
 				scoreObj.score = (double)hit.getScore();
 			    if (Double.isNaN(scoreObj.score)) {

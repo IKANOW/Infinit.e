@@ -207,6 +207,7 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			if (null != doc.getTempSource()) filter = doc.getTempSource().getSearchIndexFilter();
 			
 			doc.setIndex(null); // (this is the index to which we're about to store the feed, so obviously redundant by this point)
+			doc.setDisplayUrl(null); // (this is just for the GUI)
 
 			if (null == doc.getLocs()) { // (should always have been filled in by hasManyGeos)
 				hasManyGeos(doc);
@@ -214,7 +215,9 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
 
 			// If the entity list exists then filter it
-			if (null != filter) {
+			if ((null != filter) && (null != doc.getEntities()) && 
+					((null != filter.entityFilter)||(null != filter.entityGeoFilter)))
+			{
 				Iterator<EntityPojo> it = doc.getEntities().iterator();
 				while (it.hasNext()) {
 					EntityPojo ent = it.next();

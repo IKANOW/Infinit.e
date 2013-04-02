@@ -195,7 +195,9 @@ package com.ikanow.infinit.e.shared.model.manager
 			{
 				var widgetUrl:String = _widgetUrls[ i ];
 				var widget:IWidget = _widgets[ i ] as IWidget;
-				widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
+				var widgetSave:WidgetSaveObject = setupManager.getSetupWidgetOptions( widgetUrl );
+				if ( null != widgetSave.communitySave && !widgetSave.communitySave.isEmpty() )
+					widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
 			}
 		}
 		

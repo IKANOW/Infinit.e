@@ -38,6 +38,9 @@ public class InfiniteFile {
 		if (url.startsWith("file://")) {
 			_localFile = new File(url.substring(7)); // ie "file://", path is relative to ~tomcat I guess
 		}
+		else if (url.startsWith("file:")) { // (apparently the jcifs doesn't need the "//" bit in file)
+			_localFile = new File(url.substring(5)); // ie "file:", path is relative to ~tomcat I guess
+		}
 		else {
 			_smbFile = new SmbFile(url);
 			if (!_smbFile.exists()) {

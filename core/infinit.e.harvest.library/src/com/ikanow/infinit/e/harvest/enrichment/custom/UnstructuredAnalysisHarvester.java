@@ -28,7 +28,6 @@ import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Scanner;
-import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -65,7 +64,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
-import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.ManualTextExtractionSpecPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.MetadataSpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
@@ -85,9 +85,116 @@ import com.mongodb.BasicDBList;
  * UnstructuredAnalysisHarvester
  */
 public class UnstructuredAnalysisHarvester {
-	// Configuration
-	private Set<Integer> sourceTypesCanHarvest = new HashSet<Integer>();
+	
+	///////////////////////////////////////////////////////////////////////////////////////////
+	
+	// NEW PROCESSING PIPELINE INTERFACE
 
+	//TODO (INF-1922): Handle headers and footers
+	
+	public void setContext(HarvestContext context) {
+		_context = context;
+		
+		//TODO: need to set up the javascript engine just once - can't do it here though
+		// because this might be called before the SAH is setup...		
+	} 
+	
+	// Transform the doc's text (go get it if necessary)
+	
+	public void doManualTextEnrichment(DocumentPojo doc, List<ManualTextExtractionSpecPojo> textExtractors, SourceRssConfigPojo feedConfig) throws IOException {
+		// Map to the legacy format and then call the legacy code 
+		ArrayList<SimpleTextCleanserPojo> mappedTextExtractors = new ArrayList<SimpleTextCleanserPojo>(textExtractors.size());
+		for (ManualTextExtractionSpecPojo textExtractor: textExtractors) {
+			if (DocumentPojo.fullText_.equalsIgnoreCase(textExtractor.fieldName)) {
+				getRawTextFromUrl(doc, feedConfig);				
+					// (if transforming full text then grab the raw body from the URL if necessary)
+			}			
+			SimpleTextCleanserPojo mappedTextExtractor = new SimpleTextCleanserPojo();
+			mappedTextExtractor.setField(textExtractor.fieldName);
+			mappedTextExtractor.setFlags(textExtractor.flags);
+			mappedTextExtractor.setScript(textExtractor.script);
+			mappedTextExtractor.setScriptlang(textExtractor.scriptlang);
+			mappedTextExtractor.setReplacement(textExtractor.replacement);
+			mappedTextExtractors.add(mappedTextExtractor);
+		}
+		this.cleanseText(mappedTextExtractors, doc);
+		
+	}//TOTEST
+	
+	public void processMetadataChain(DocumentPojo doc, List<MetadataSpecPojo> metadataFields)
+	{
+		//TODO: setup javascript engine
+		// Map metadata list to a legacy meta format (they're really similar...)
+		UnstructuredAnalysisConfigPojo.metaField mappedEl = new UnstructuredAnalysisConfigPojo.metaField();
+		for (MetadataSpecPojo meta: metadataFields) {
+			mappedEl.fieldName = meta.fieldName;
+			mappedEl.context = Context.All;
+			mappedEl.flags = meta.flags;
+			mappedEl.scriptlang = meta.scriptlang;
+			mappedEl.script = meta.script;
+			mappedEl.replace = meta.replace;
+			//(no group num - just use replace, and flags "o" for xpath/gN:-1)
+			
+			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);
+		}
+		//TODO (store/index)
+	}
+	//TOTEST
+	
+	///////////////////////////////////////////////////////////////////////////////////////////
+	
+	// PROCESSING PIPELINE - UTILITIES
+	
+	private void getRawTextFromUrl(DocumentPojo doc, SourceRssConfigPojo feedConfig) throws IOException {
+		if (null != doc.getFullText()) { // Nothing to do
+			return;
+		}
+		Scanner s = null;
+		try {
+			URL url = new URL(doc.getUrl());
+			URLConnection urlConnect = null;
+			if (null != feedConfig) {
+				urlConnect = url.openConnection(ProxyManager.getProxy(url, feedConfig.getProxyOverride()));
+				if (null != feedConfig.getUserAgent()) {
+					urlConnect.setRequestProperty("User-Agent", feedConfig.getUserAgent());
+				}// TESTED
+			}
+			else {
+				urlConnect = url.openConnection();				
+			}
+			InputStream urlStream = null;
+			try {
+				urlStream = urlConnect.getInputStream();
+			}
+			catch (Exception e) { // Try one more time, this time exception out all the way
+				if (null != feedConfig) {
+					urlConnect = url.openConnection(ProxyManager.getProxy(url, feedConfig.getProxyOverride()));
+					if (null != feedConfig.getUserAgent()) {
+						urlConnect.setRequestProperty("User-Agent", feedConfig.getUserAgent());
+					}// TESTED
+				}
+				else {
+					urlConnect = url.openConnection();				
+				}
+				urlStream = urlConnect.getInputStream();
+			}
+			s = new Scanner(urlStream, "UTF-8");
+			doc.setFullText(s.useDelimiter("\\A").next());
+		}
+		finally { //(release resources)
+			if (null != s) {
+				s.close();
+			}
+		}		
+		
+	}//TESTED (cut-and-paste from existing code, so new testing very cursory) 
+	
+	///////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////////////////////////
+	
+	// LEGACY CODE - USE TO SUPPORT OLD CODE FOR NOW + AS UTILITY CODE FOR THE PIPELINE LOGIC
+	
 	// Per-source state
 	private Pattern headerPattern = null;
 	private Pattern footerPattern = null;
@@ -121,7 +228,6 @@ public class UnstructuredAnalysisHarvester {
 	 * Default Constructor
 	 */
 	public UnstructuredAnalysisHarvester() {
-		sourceTypesCanHarvest.add(InfiniteEnums.UNSTRUCTUREDANALYSIS);
 	}
 
 	/**
@@ -197,21 +303,7 @@ public class UnstructuredAnalysisHarvester {
 							}
 						}
 						else {
-							URL url = new URL(d.getUrl());
-							URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
-							if (null != source.getRssConfig().getUserAgent()) {
-								urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
-							}// TESTED
-							
-							InputStream urlStream = null;
-							try {
-								urlStream = urlConnect.getInputStream();
-							}
-							catch (Exception e) { // Try one more time, this time exception out all the way
-								urlStream = urlConnect.getInputStream();					 
-							}
-							
-							d.setFullText(new Scanner(urlStream,"UTF-8").useDelimiter("\\A").next());
+							this.getRawTextFromUrl(d, source.getRssConfig());
 						}
 						bFetchedUrl = true;
 						
@@ -234,7 +326,7 @@ public class UnstructuredAnalysisHarvester {
 
 				try {
 					if (uap.getSimpleTextCleanser() != null) {
-						cleanseText(source, d);
+						cleanseText(uap.getSimpleTextCleanser(), d);
 					}
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("cleanseText: " + e.getMessage(), true);
@@ -342,26 +434,7 @@ public class UnstructuredAnalysisHarvester {
 					}
 				}
 				else {
-
-					URL url = new URL(doc.getUrl());
-					URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
-					if (null != source.getRssConfig().getUserAgent()) {
-						urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
-					}// TESTED
-					
-					InputStream urlStream = null;
-					try {
-						urlStream = urlConnect.getInputStream();
-					}
-					catch (Exception e) { // Try one more time, this time exception out all the way
-						url = new URL(doc.getUrl());
-						urlConnect = url.openConnection(ProxyManager.getProxy(url, source.getRssConfig().getProxyOverride()));
-						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
-							urlConnect.setRequestProperty("User-Agent", source.getRssConfig().getUserAgent());
-						}// TESTED
-						urlStream = urlConnect.getInputStream();					 
-					}
-					doc.setFullText(new Scanner(urlStream,"UTF-8").useDelimiter("\\A").next());
+					getRawTextFromUrl(doc, source.getRssConfig());
 				}
 				bFetchedUrl = true;
 				
@@ -394,7 +467,7 @@ public class UnstructuredAnalysisHarvester {
 			}
 			try {
 				if (uap.getSimpleTextCleanser() != null) {
-					cleanseText(source, doc);
+					cleanseText(uap.getSimpleTextCleanser(), doc);
 				}
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("cleanseText: " + e.getMessage(), true);
@@ -526,6 +599,7 @@ public class UnstructuredAnalysisHarvester {
 	/**
 	 * processMeta - handle an individual field
 	 */
+	//TODO: source+uap are just used in the setup js engine code - should probably be able to fix that
 	private void processMeta(DocumentPojo f, metaField m, String text, SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 
 		if ((null == m.scriptlang) || m.scriptlang.equalsIgnoreCase("regex")) {
@@ -572,7 +646,10 @@ public class UnstructuredAnalysisHarvester {
 				f.setMetadata(new LinkedHashMap<String, Object[]>());
 			}
 			//set the script engine up if necessary
-			setupJavascriptEngine(source, uap);
+			if ((null != source) && (null != uap)) {
+				//(these are null if called from new processing pipeline vs legacy code)
+				setupJavascriptEngine(source, uap);
+			}
 			
 			try 
 			{
@@ -669,8 +746,10 @@ public class UnstructuredAnalysisHarvester {
 				
 				if (res.getLength() > 0)
 				{
-					StringBuffer prefix = new StringBuffer(m.fieldName)
-					.append(':');
+					if ((null != m.flags) && (m.flags.contains("o"))) { // "o" for object
+						m.groupNum = -1; // (see bConvertToObject below)
+					}
+					StringBuffer prefix = new StringBuffer(m.fieldName).append(':');
 					int nFieldNameLen = m.fieldName.length() + 1;
 					ArrayList<Object> Llist = new ArrayList<Object>(res.getLength());
 					boolean bConvertToObject = ((m.groupNum != null) && (m.groupNum == -1));
@@ -795,11 +874,8 @@ public class UnstructuredAnalysisHarvester {
 	 * @param documents
 	 * @return
 	 */
-	private void cleanseText(SourcePojo source, DocumentPojo document)
+	private void cleanseText(List<SimpleTextCleanserPojo> simpleTextCleanser, DocumentPojo document)
 	{
-		List<SimpleTextCleanserPojo> simpleTextCleanser = source
-				.getUnstructuredAnalysisConfig().getSimpleTextCleanser();
-		
 		// Store these since can re-generate them by concatenation
 		StringBuffer fullTextBuilder = null;
 		StringBuffer descriptionBuilder = null;
@@ -1102,7 +1178,7 @@ public class UnstructuredAnalysisHarvester {
 	
 	// Javascript scripting utilities:
 	
-	public void setupJavascriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
+	private void setupJavascriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 		if ( null == engine )
 		{
 			//use the passed in sah one if possible

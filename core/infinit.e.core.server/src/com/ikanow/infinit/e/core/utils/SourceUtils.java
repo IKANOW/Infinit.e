@@ -114,7 +114,8 @@ public class SourceUtils {
 					query.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.lt_, recentlySynced));
 						// (will know synced exists because we set it below - the sort doesn't work without its being set for all records)
 				}
-				else { // for harvest, try to take into account the effect of search cycles
+				else if (null == sSourceId) { // for harvest, try to take into account the effect of search cycles
+					// (if manually setting the source then ignore this obviously...)
 					addSearchCycleClause(query, now);
 				}
 			}
@@ -328,7 +329,7 @@ public class SourceUtils {
 	private static void addSearchCycleClause(BasicDBObject currQuery, Date now) {
 		BasicDBObject subclause1 = new BasicDBObject(SourcePojo.searchCycle_secs_, new BasicDBObject(MongoDbManager.exists_, false));
 		StringBuffer js = new StringBuffer();
-		js.append("(null == this.harvest) || (null == this.harvest.harvested) || (null == this.searchCycle_secs) || ((this.searchCycle_secs >= 0) && ((this.harvest.harvested.getTime() + 1000*this.searchCycle_secs) <= ");
+		js.append("(null == this.harvest) || ('success_iteration'== this.harvest.harvest_status) || (null == this.harvest.harvested) || (null == this.searchCycle_secs) || ((this.searchCycle_secs >= 0) && ((this.harvest.harvested.getTime() + 1000*this.searchCycle_secs) <= ");
 		js.append(now.getTime());
 		js.append("))");
 		BasicDBObject subclause2 = new BasicDBObject(MongoDbManager.where_, js.toString());

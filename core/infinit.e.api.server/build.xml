@@ -19,13 +19,18 @@
 	<property name="source" value="1.6"/>
 	<property name="debuglevel" value="source,lines,vars"/>	
 	
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>	
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>	
 	<property name="manifest.name" value="com/ikanow/infinit/e"/>
-	<property name="specification.title" value="infinit.e data model classes"/>
-	<property name="specification.version" value="0.25"/>
-	<property name="specification.vendor" value="${vendor}"/>
-	<property name="implementation.title" value="com.ikanow.infinit.e"/>
-	<property name="implementation.version" value="build${build.number}"/>
-	<property name="implementation.vendor" value="${vendor}"/>
+	<property name="specification.title" value="Infinit.e API classes"/>
+	<property name="specification.version" value="${infinite_version}-${infinite_release}"/>
+	<property name="specification.vendor" value="IKANOW"/>
+	<property name="implementation.title" value="Infinit.e API classes"/>
+	<property name="implementation.version" value="${infinite_version}-${infinite_release}"/>
+	<property name="implementation.vendor" value="IKANOW"/>
 	
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
@@ -127,6 +132,7 @@
 				<attribute name="Class-Path" value=". "/>
 				<attribute name="Specification-Title" value="${specification.title}"/>
 				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Specification-Vendor" value="${specification.vendor}"/>
 				<attribute name="Implementation-Title" value="${implementation.title}"/>
 				<attribute name="Implementation-Version" value="${implementation.version}"/>
 				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
@@ -145,6 +151,7 @@
 				<attribute name="Class-Path" value=". "/>
 				<attribute name="Specification-Title" value="${specification.title}"/>
 				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Specification-Vendor" value="${specification.vendor}"/>
 				<attribute name="Implementation-Title" value="${implementation.title}"/>
 				<attribute name="Implementation-Version" value="${implementation.version}"/>
 				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
@@ -173,6 +180,17 @@
 		<delete file="${dir.lib}/infinit.e.processing.generic.library.jar"/>
 		<delete file="${dir.lib}/infinit.e.data_model.jar"/>
 		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". "/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Specification-Vendor" value="${specification.vendor}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			
 			<classes dir="${dir.build.classes}"/>
 			<lib dir="${dir.lib}" includes="**/*.jar"/>
 			<lib dir="${infinit.e.harvest.library.location}/dist" includes="**/*.jar" />

@@ -19,7 +19,12 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+
 public class SourceRssConfigPojo {
+	//Pipeline fields:
+	private String url = null; // (pipeline only)
+	private AuthenticationPojo authentication = null; // (pipeline only)
 
 	private String feedType = null;
 	
@@ -130,5 +135,17 @@ public class SourceRssConfigPojo {
 	}
 	public String getProxyOverride() {
 		return proxyOverride;
+	}
+	public String getUrl() {
+		return url;
+	}
+	public void setUrl(String url) {
+		this.url = url;
+	}
+	public AuthenticationPojo getAuthentication() {
+		return authentication;
+	}
+	public void setAuthentication(AuthenticationPojo authentication) {
+		this.authentication = authentication;
 	}
 }

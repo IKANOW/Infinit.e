@@ -88,6 +88,7 @@
 						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
 						                   
 							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow-infinite.repo';",
 							                   "yum install -y infinit.e-platform.prerequisites.online;",
 							                   
 								           "cd /opt/infinite-install/; ",						                   
@@ -107,7 +108,7 @@
 							               "yum -y --nogpgcheck install infinit.e-db-instance;",
 						                   
 						                   "sed -i 's/^curl/#curl/' /etc/rc.local"   
-					}
+							               ]]}
 				}
 			}
 		}

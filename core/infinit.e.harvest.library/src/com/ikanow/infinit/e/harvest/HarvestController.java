@@ -81,6 +81,8 @@ import com.mongodb.BasicDBObject;
  */
 public class HarvestController implements HarvestContext
 {
+	private HarvestControllerPipeline procPipeline;
+	
 	private PropertiesManager pm = new PropertiesManager();
 	private IEntityExtractor default_entity_extractor = null;
 	private ITextExtractor default_text_extractor = null;
@@ -103,6 +105,7 @@ public class HarvestController implements HarvestContext
 	}
 	public void setStandaloneMode(int nMaxDocs, boolean bRealDedup) {
 		_bIsStandalone = true;
+		urlsThatError.clear(); // (for api testing, obviously don't want to stop trying if we get an error)
 		if (nMaxDocs > 0) {
 			_nMaxDocs = nMaxDocs;
 		}
@@ -174,6 +177,12 @@ public class HarvestController implements HarvestContext
 				}				
 			}
 			else if (s.equalsIgnoreCase("file")) {
+
+				// According to http://www.ryanchapin.com/fv-b-4-648/java-lang-OutOfMemoryError--unable-to-create-new-native-thread-Exception-When-Using-SmbFileInputStream.html
+				// this is needed to avoid java.lang.OutOfMemoryError (intermittent - for me at least, it's happened for exactly 1 source, but consistently when it does)
+				System.setProperty("jcifs.resolveOrder", "DNS");
+				System.setProperty("jcifs.smb.client.dfs.disabled", "true");
+				
 				try {
 					this.harvesters.add(new FileHarvester());
 				}
@@ -360,6 +369,14 @@ public class HarvestController implements HarvestContext
 		// Reset any state that might have been generated from the previous source
 		getDuplicateManager().resetForNewSource();
 		
+		// New Harvest Pipeline logic
+		if (null != source.getProcessingPipeline()) {
+			procPipeline = new HarvestControllerPipeline();
+			procPipeline.extractSource_preProcessingPipeline(source, this);
+				//(just copy the config into the legacy source fields since the 
+				// actual processing is the same in both cases)
+		}
+		
 		//First up, Source Extraction (could spawn off some threads to do source extraction)
 		// Updates will be treated as follows:
 		// - extract etc etc (since they have changed)
@@ -369,8 +386,12 @@ public class HarvestController implements HarvestContext
 		extractSource(source, toAdd, toUpdate, toRemove, toDuplicate);
 			// (^^^ this adds toUpdate to toAdd) 
 		
-		enrichSource(source, toAdd, toUpdate, toRemove);
-		
+		if (null != procPipeline) {
+			procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
+		}
+		else { // Old logic (more complex, less functional)
+			enrichSource(source, toAdd, toUpdate, toRemove);
+		}
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
 		LinkedList<DocumentPojo> groupedDups = new LinkedList<DocumentPojo>(); // (ie clones)
 		DocumentPojo masterDoc = null; // (just looking for simple pointer matching here)
@@ -455,7 +476,9 @@ public class HarvestController implements HarvestContext
 							doc.setSource(source.getTitle());
 							doc.setTempSource(source);
 							doc.setMediaType(source.getMediaType());
-							doc.setTags(source.getTags());
+							if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
+								doc.setTags(source.getTags());
+							}
 							ObjectId sCommunityId = source.getCommunityIds().iterator().next(); // (multiple communities handled below) 
 							String sIndex = new StringBuffer("doc_").append(sCommunityId.toString()).toString();
 							doc.setCommunityId(sCommunityId);								
@@ -480,7 +503,9 @@ public class HarvestController implements HarvestContext
 										cloneDoc.setSourceKey(source.getKey()); // (will be overwritten with the correct <key>#<id> composite later)
 										cloneDoc.setSource(source.getTitle());
 										cloneDoc.setUrl(doc.getUrl());
-										cloneDoc.setTags(source.getTags());
+										if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
+											cloneDoc.setTags(source.getTags());
+										}
 										
 										cloneDoc.setCloneFrom(doc);
 										toDup.add(cloneDoc);
@@ -513,7 +538,7 @@ public class HarvestController implements HarvestContext
 	}
 
 	// 
-	// Gets metadata using the extractors and appends to documents
+	// (LEGACY) Gets metadata using the extractors and appends to documents
 	//
 	
 	private void enrichSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
@@ -720,7 +745,7 @@ public class HarvestController implements HarvestContext
 					
 					try {
 						if (null != currentTextExtractor)
-						{					
+						{	
 							bExtractedText = true;
 							currentTextExtractor.extractText(doc);
 							if (null != currentEntityExtractor) {

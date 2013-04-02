@@ -36,6 +36,6 @@ r = function(k, vals) {
 
 print("Entity feature update, starting... " + Date());
 
-res = db.metadata.mapReduce( m, r, { out: { replace: "tmpCalcFreqCounts" }, query: my_query } );
+res = db.metadata.mapReduce( m, r, { out: { replace: "tmpCalcFreqCounts", db: "feature" }, query: my_query } );
 
 print("Batch update phase 1 completed... " + Date());

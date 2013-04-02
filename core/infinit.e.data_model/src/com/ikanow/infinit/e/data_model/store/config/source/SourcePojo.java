@@ -126,6 +126,10 @@ public class SourcePojo extends BaseDbPojo {
 	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
 	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
 
+	// LEGACY CODE, IGNORED IN PROCESSING-PIPELINE MODE
+	private Boolean appendTagsToDocs = null; // if true (default) source tags are appended to the document
+	final public static String appendTagsToDocs_ = "appendTagsToDocs";
+	
 	public static class SourceSearchIndexFilter {
 		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocFilter = null; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
@@ -145,6 +149,10 @@ public class SourcePojo extends BaseDbPojo {
 	
 	private LinkedHashMap<String, String> extractorOptions = null; // Optional, overrides the per-extractor configuration options, where permissible
 	final public static String extractorOptions_ = "extractorOptions";
+	
+	// TODO (INF-1922) source pipeline
+	private List<SourcePipelinePojo> processingPipeline;
+	final public static String processingPipeline_ = "processingPipeline";
 	
 	// Gets and sets
 	
@@ -573,6 +581,20 @@ public class SourcePojo extends BaseDbPojo {
 				registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer());
 	}
 	
+	public void setProcessingPipeline(List<SourcePipelinePojo> processingPipeline) {
+		this.processingPipeline = processingPipeline;
+	}
+	public List<SourcePipelinePojo> getProcessingPipeline() {
+		return processingPipeline;
+	}
+
+	public void setAppendTagsToDocs(Boolean appendTagsToDocs) {
+		this.appendTagsToDocs = appendTagsToDocs;
+	}
+	public Boolean getAppendTagsToDocs() {
+		return appendTagsToDocs;
+	}
+
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 
 	{
 		@Override

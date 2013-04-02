@@ -68,6 +68,12 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		
 		[Bindable]
 		/**
+		 * The summary for the last query summary
+		 */
+		public var lastQuerySettingsSummary:String;
+		
+		[Bindable]
+		/**
 		 * the collection of query suggestions
 		 */
 		public var suggestions:ArrayCollection;
@@ -197,6 +203,22 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 			// update the user name in the navagator action button
 			if ( value )
 				navigator.updateCurrentUser();
+		}
+		
+		/**
+		 * Last Query Summary
+		 * @param value
+		 */
+		[Inject( "queryManager.lastQuerySettingsSummary", bind = "true" )]
+		public function setLastQuerySettingsSummary( value:String ):void
+		{
+			lastQuerySettingsSummary = value;
+			
+			// clear the selected suggestion
+			clearSelectedSuggestion();
+			
+			searchInProgress = false;
+			showSuggestions = false;
 		}
 		
 		/**

@@ -8,7 +8,7 @@ License: None
 Group: Infinit.e
 BuildArch: noarch
 Prefix: /mnt/opt
-Requires: mongo-10gen, mongo-10gen-server
+Requires: mongo-10gen, mongo-10gen-server, vim-common
 
 %description
 Infinit.e Mongo DB installation and update

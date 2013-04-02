@@ -46,8 +46,16 @@ public class SocketSecurityManager extends SecurityManager
 		super.checkConnect(host,port);		
 	}		
 	
+	// Infinite loop workaround: http://jira.smartfrog.org/jira/browse/SFOS-236
+	protected boolean inReadCheck = false;
+	
 	@Override
-	public void checkRead(String file) {
+	public synchronized void checkRead(String file) {
+		if (inReadCheck) {
+			// Infinite loop workaround: http://jira.smartfrog.org/jira/browse/SFOS-236
+			return;
+		}
+		
 		Boolean lock = javascriptLock.get();		
 		if ( lock != null && lock )
 		{
@@ -70,7 +78,14 @@ public class SocketSecurityManager extends SecurityManager
 				}
 			}
 		}
-		super.checkRead(file);
+		try {
+			inReadCheck = true;
+			super.checkRead(file);
+		}
+		finally {
+			// Infinite loop workaround: http://jira.smartfrog.org/jira/browse/SFOS-236
+			inReadCheck = false;
+		}
 	}
 	
 	@Override

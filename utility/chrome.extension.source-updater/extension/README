@@ -1,0 +1,8 @@
+To install and test the extension:
+1. In Chrome click wrench button, select Tools > Extensions
+2. Click developer mode button in top right if necessary
+3. Click load unpacked extension
+4. Navigate to ChromeExtension/extension folder
+5. Should have added Ikanow: Source Editor to extension list
+6. Click Options link on Ikanow: Source Editor OR the lightbulb icon in extensions toolbar
+7. Enter login and hashed password, click Login and follow prompts

@@ -206,11 +206,11 @@ limitations under the License.
 				{
 					printPDF.setFont( FontFamily.ARIAL, Style.UNDERLINE, 12 );
 					printPDF.textStyle( new RGBColor( 0x0000FF ) ); //blue
-					printPDF.writeText( 12, dataSet.getItemAt( i ).title, dataSet.getItemAt( i ).url );
+					printPDF.writeText( 12, dataSet.getItemAt( i ).title, getDisplayableUrl( dataSet.getItemAt( i ) ) );
 					printPDF.newLine( 8 );
 					printPDF.setFont( FontFamily.ARIAL, Style.NORMAL, 12 );
 					printPDF.textStyle( new RGBColor( 0x008000 ) ); //green
-					printPDF.writeText( 12, dataSet.getItemAt( i ).url, dataSet.getItemAt( i ).url );
+					printPDF.writeText( 12, getDisplayableUrl( dataSet.getItemAt( i ) ), getDisplayableUrl( dataSet.getItemAt( i ) ) );
 					printPDF.newLine( 8 );
 					
 					if ( dataSet.getItemAt( i ).description && dataSet.getItemAt( i ).description.length > 0 )
@@ -816,17 +816,43 @@ limitations under the License.
 					repeaterItem = event.target.getRepeaterItem();
 				}
 				
-				if ( repeaterItem.url.indexOf( "http" ) > -1 )
+				var urlToUse:String = getDisplayableUrl( repeaterItem );
+				var url:URLRequest = new URLRequest( urlToUse );
+				navigateToURL( url, '_blank' );				
+			}
+			
+			private function getDisplayableUrl(repeaterItem: Object):String
+			{
+				var urlStr;
+				if ( null != repeaterItem.displayUrl && (repeaterItem.displayUrl is String) && ( (repeaterItem.displayUrl as String).length > 0 ) )
 				{
-					var url:URLRequest = new URLRequest( repeaterItem.url );
-					navigateToURL( url, '_blank' );
+					if ( repeaterItem.displayUrl.indexOf( "http://" ) > -1 )
+					{			
+						urlStr = repeaterItem.displayUrl;
+					}
+					else // must be a relative path ... ie for files
+					{
+						urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + repeaterItem.sourceKey + "/" + 
+							repeaterItem.displayUrl;
+					}
+				}
+				else if ( repeaterItem.url.indexOf( "http://" ) > -1 )
+				{
+					urlStr = repeaterItem.url;
+				}
+				else if ( ( null != repeaterItem.metadata ) && ( null != repeaterItem.sourceKey ) &&
+					( null != repeaterItem.metadata["_FILE_METADATA_"] ) && ( null != repeaterItem.metadata["_FILE_METADATA_"][0]["InfinitePath"] ) )
+				{
+					// (since displayUrl, this is a legacy case...)
+					
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + repeaterItem.sourceKey + "/" + 
+						repeaterItem.metadata["_FILE_METADATA_"][0]["InfinitePath"];
 				}
 				else
 				{
-					var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=true";
-					var url1:URLRequest = new URLRequest( urlStr );
-					navigateToURL( url1, '_blank' );
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=true";
 				}
+				return urlStr;
 			}
 			
 			/**
@@ -2425,8 +2451,8 @@ limitations under the License.
 								height="100%"
 								width="100%">
 								<mx:LinkButton id="link"
-									label="{ repeat.currentItem.url.substr( 0, 196 ) }"
-									toolTip="{ repeat.currentItem.url }"
+									label="{ getDisplayableUrl( repeat.currentItem ).substr( 0, 196 ) }"
+									toolTip="{ getDisplayableUrl( repeat.currentItem ) }"
 									color="green"
 									fontSize="14"
 									textAlign="left"

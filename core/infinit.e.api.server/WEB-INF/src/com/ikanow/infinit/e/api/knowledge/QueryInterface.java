@@ -45,6 +45,7 @@ import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryTermPojo.SentimentModifierPojo;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 
 // The resource handlers for Advanced Queries in beta
@@ -381,6 +382,18 @@ public class QueryInterface extends ServerResource
 					else if (attrName.equals("entitytype")) {
 						qtIndex.entityType = value;						
 					}
+					else if (attrName.equals("sentiment.min")) {
+						if (null == qtIndex.sentiment) {
+							qtIndex.sentiment = new SentimentModifierPojo();
+						}
+						qtIndex.sentiment.min = Double.parseDouble(value);
+					}
+					else if (attrName.equals("sentiment.max")) {
+						if (null == qtIndex.sentiment) {
+							qtIndex.sentiment = new SentimentModifierPojo();
+						}
+						qtIndex.sentiment.max = Double.parseDouble(value);
+					}
 					else if (attrName.equals("entityopt.expandalias")) {
 						if (null == qtIndex.entityOpt) {
 							qtIndex.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
@@ -645,6 +658,9 @@ public class QueryInterface extends ServerResource
 			}
 			else if (attrName.equals("expandalias")) {
 				_requestDetails.expandAlias = Boolean.parseBoolean(value);
+			}
+			else if (attrName.equals("explain")) {
+				_requestDetails.explain = Boolean.parseBoolean(value);
 			}
 			else if (attrName.equals("raw")) {
 				_requestDetails.raw = new AdvancedQueryPojo.QueryRawPojo(value);

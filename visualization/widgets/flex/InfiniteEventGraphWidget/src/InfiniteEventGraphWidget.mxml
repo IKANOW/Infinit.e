@@ -89,7 +89,7 @@
 			private var _context:IWidgetContext;
 			
 			//private var titleArray:ArrayCollection = new ArrayCollection();
-			private var widgetOptions:Object = null;
+			private var widgetOptions:Object = new Object();
 			
 			//graph variables
 			private var graph:IGraph = null;
@@ -209,6 +209,9 @@
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{				
+				if ( null == widgetOptions )
+					return;
+				
 				this.widgetOptions = widgetOptions.userSave;
 				
 				if ( widgetOptions != null && widgetOptions.userSave != null )

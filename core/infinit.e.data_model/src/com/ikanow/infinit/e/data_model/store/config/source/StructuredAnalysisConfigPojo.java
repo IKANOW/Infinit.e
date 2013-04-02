@@ -18,6 +18,8 @@ package com.ikanow.infinit.e.data_model.store.config.source;
 import java.util.List;
 import java.util.Map;
 
+import org.bson.types.ObjectId;
+
 /**
  * StructuredAnalysisPojo
  * @author cvitter
@@ -29,7 +31,7 @@ public class StructuredAnalysisConfigPojo
 	private String title = null;
 	private String description = null;
 	private String fullText = null;
-	private String url = null;
+	private String displayUrl = null;
 	private String publishedDate = null;
 	private String scriptEngine = null;
 	private String script = null;
@@ -40,7 +42,7 @@ public class StructuredAnalysisConfigPojo
 	private GeoSpecPojo docGeo = null;
 	private String rejectDocCriteria = null;
 	private String metadataFields = null;
-	private Map<String,String> caches = null;
+	private Map<String,ObjectId> caches = null;
 		
 	/**
 	 * @return the title
@@ -81,18 +83,6 @@ public class StructuredAnalysisConfigPojo
 		this.fullText = fullText;
 	}
 	
-	/**
-	 * @param url the url to set
-	 */
-	public void setUrl(String url) {
-		this.url = url;
-	}
-	/**
-	 * @return the url
-	 */
-	public String getUrl() {
-		return url;
-	}
 	/**
 	 * @param publishedDate the publishedDate to set
 	 */
@@ -216,11 +206,21 @@ public class StructuredAnalysisConfigPojo
 
 
 
-	public void setCaches(Map<String,String> caches) {
+	public void setCaches(Map<String,ObjectId> caches) {
 		this.caches = caches;
 	}
-	public Map<String,String> getCaches() {
+	public Map<String,ObjectId> getCaches() {
 		return caches;
+	}
+
+
+
+
+	public void setDisplayUrl(String displayUrl) {
+		this.displayUrl = displayUrl;
+	}
+	public String getDisplayUrl() {
+		return displayUrl;
 	}
 
 

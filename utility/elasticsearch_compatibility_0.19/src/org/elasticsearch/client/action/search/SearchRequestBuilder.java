@@ -44,6 +44,11 @@ public class SearchRequestBuilder {
 		return this;
 	}
 	
+	public SearchRequestBuilder setExplain(boolean explain) {
+		_delegate.setExplain(explain);
+		return this;
+	}
+	
 	public SearchRequestBuilder setFilter(FilterBuilder filter) {
 		_delegate.setFilter(filter);
 		return this;

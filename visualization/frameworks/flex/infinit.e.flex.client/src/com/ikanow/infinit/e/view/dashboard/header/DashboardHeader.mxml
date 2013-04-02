@@ -409,21 +409,33 @@
 					source="{ model.selectedSuggestion ? QueryDimensionTypes.getIcon( model.selectedSuggestion.dimension ) : EmbeddedAssets.ENTITY_TEXT_EXACT }" />
 			</s:Group>
 
-			<!-- Last Query Summary -->
-			<component:QuerySummary id="querySummary"
-				includeInLayout="{ model.lastQuerySummary != null }"
-				maxWidth="{ simpleSearch.width - 43 }"
+			<s:HGroup 
+				height="100%"
 				bottom="20"
 				left="20"
-				top="21"
-				remove="querySummary_removeHandler(event)"
-				show="querySummary.setFocus()"
-				querySummary="{ model.lastQuerySummary }"
-				showQuery="model.navigator.showQueryDialog()"
-				visible="{ model.lastQuerySummary != null }" />
+				top="21">
+				<!-- Last Query Summary -->
+				<component:QuerySummary id="querySummary"
+					includeInLayout="{ model.lastQuerySummary != null }"
+					maxWidth="{ simpleSearch.width - 193 }"
+					remove="querySummary_removeHandler(event)"
+					show="querySummary.setFocus()"
+					querySummary="{ model.lastQuerySummary }"
+					showQuery="model.navigator.showQueryDialog()"
+					visible="{ model.lastQuerySummary != null }" />
+
+				<!-- Last Query Summary -->
+				<component:SettingsSummary id="settingsSummary"
+					includeInLayout="{ model.lastQuerySettingsSummary != null }"
+					maxWidth="{ 150 }"
+					show="querySummary.setFocus()"
+					querySummary="{ model.lastQuerySettingsSummary }"
+					showSettings="model.navigator.showSettingsDialog()"
+					visible="{ model.lastQuerySettingsSummary != null }" />
+
+			</s:HGroup>
 
 		</s:Group>
-
 		<!-- Dialog Tab Buttons -->
 		<common:InfButtonBar id="dialogButtons"
 			height="100%"

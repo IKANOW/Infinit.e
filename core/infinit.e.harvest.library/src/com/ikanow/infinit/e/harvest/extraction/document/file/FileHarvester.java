@@ -29,6 +29,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 import javax.xml.stream.FactoryConfigurationError;
 import javax.xml.stream.XMLInputFactory;
@@ -88,6 +89,10 @@ public class FileHarvester implements HarvesterInterface {
 		// (only need to start filling this if I'm persisting metadata across updates)
 	
 	private HarvestContext _context;
+	
+	// Can specify regexes to select which files to ignore
+	private Pattern includeRegex = null; // files only
+	private Pattern excludeRegex = null; // files and paths
 	
 	/**
 	 * Get a specific doc to return the bytes for
@@ -216,6 +221,14 @@ public class FileHarvester implements HarvesterInterface {
 		sourceUrlsGettingUpdated = new HashSet<String>();
 		LinkedList<String> duplicateSources = new LinkedList<String>(); 		
 		try {			
+			// Compile regexes if they are present
+			if ((null != source.getFileConfig()) && (null != source.getFileConfig().pathInclude)) {
+				includeRegex = Pattern.compile(source.getFileConfig().pathInclude, Pattern.CASE_INSENSITIVE);
+			}
+			if ((null != source.getFileConfig()) && (null != source.getFileConfig().pathExclude)) {
+				excludeRegex = Pattern.compile(source.getFileConfig().pathExclude, Pattern.CASE_INSENSITIVE);				
+			}
+			
 			// Process the fileshare
 			getFiles(source);	
 		}
@@ -315,6 +328,9 @@ public class FileHarvester implements HarvesterInterface {
 				}
 				
 				SourceFileConfigPojo fileSystem = source.getFileConfig();
+				if ((null == fileSystem) && (bIsXml || bIsJson)) {
+					fileSystem = new SourceFileConfigPojo();
+				}
 				XmlToMetadataParser xmlParser = null;
 				JsonToMetadataParser jsonParser = null;
 				String urlType = extension;
@@ -584,11 +600,36 @@ public class FileHarvester implements HarvesterInterface {
 						break;
 					}
 					if( l[i].isDirectory() ) {
-						traverse( l[i], source, depth - 1 );					
+						// Directories: included unless explicity exclude:
+						String path = l[i].getURL().getPath();
+						boolean bProcess = true;
+						if (null != excludeRegex) {
+							if (excludeRegex.matcher(path).matches()) {
+								bProcess = false;
+							}							
+						}//TESTED
+						if (bProcess) {
+							traverse( l[i], source, depth - 1 );
+						}
 					}
 					else {
-						parse( l[i], source);
-							// (Adds to this.files)
+						// Files: check both include and exclude
+						String path = l[i].getURL().getPath();
+						boolean bProcess = true;
+						if (null != includeRegex) {
+							if (!includeRegex.matcher(path).matches()) {
+								bProcess = false;
+							}
+						}
+						if (bProcess && (null != excludeRegex)) {
+							if (excludeRegex.matcher(path).matches()) {
+								bProcess = false;
+							}							
+						}//TESTED
+						if (bProcess) {
+							parse( l[i], source);
+								// (Adds to this.files)
+						}
 					}
 				}
 			}

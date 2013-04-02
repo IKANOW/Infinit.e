@@ -1,0 +1,57 @@
+<!--
+Copyright 2012 The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+  http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<!doctype html>
+<html>
+<head>
+	<title>Source Updater Options</title>
+	<style type="text/css">
+body 
+{
+  min-width:500px;
+  min-height:500px;
+  overflow-x:hidden;
+}
+span.highlighted 
+{
+  background-color: #161616;
+  font-weight: bold;
+}
+span 
+{
+   	float: left;
+	width: 100px;
+}
+span.message
+{
+	width: 500px;
+}
+	</style>
+	<script type="text/javascript" src="../utility/sha256.js"></script>
+	<script type="text/javascript" src="../utility/enc-base64-min.js"></script>
+	<script type="text/javascript" src="../utility/utilities.js"></script>
+	<script type="text/javascript" src="options.js"></script>
+</head>
+<body>
+	<p id="status"></p>
+	<span>Infinit.e API:</span><input type="text" id="apiInput" value="http://INFINITE_PUBLIC_HOSTNAME/api/" size="30" /><br />
+	<span>Username:</span><input type="text" id="usernameInput" size="30" /><br />
+	<span>Password:</span><input type="password" id="passwordInput" size="30" /><br />
+	<span>Http Timeout:</span><input type="text" id="timeoutInput" size="30" /><br />
+	<button id="saveButton" >Login</button>
+	<div id="status1"></div><br />
+	<p>Note: This extension attempts to make some guesses at what kind of website you are adding.  If we get it wrong, you can make manual changes via the <a id="sourceManagerLink"  target="_blank">Source Manager</a></p>
+</body>
+</html>

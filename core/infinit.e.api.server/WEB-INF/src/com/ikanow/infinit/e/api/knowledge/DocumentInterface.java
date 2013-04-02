@@ -62,7 +62,20 @@ public class DocumentInterface extends ServerResource
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
 		 Map<String,Object> attributes = request.getAttributes();
-		 if ( urlStr.contains("/knowledge/feed/") || urlStr.contains("/knowledge/doc/") || urlStr.contains("/knowledge/document/"))
+		 if (urlStr.contains("/document/file/get/")) {
+			 sourcekey = RESTTools.decodeRESTParam("sourcekey", attributes);
+			 int nIndexOfRelativePath = urlStr.indexOf("/document/file/get/"); //19B 
+			 nIndexOfRelativePath += 19 + sourcekey.length() + 1; // (the +1 for the trailing /)
+			 docid = urlStr.substring(nIndexOfRelativePath);
+			 int nEndOfUrl = docid.lastIndexOf('?');
+			 if (nEndOfUrl > 0) {
+				 docid = docid.substring(0, nEndOfUrl);
+			 }
+			 action = "file";
+			 returnRawData = true;
+			 //TESTED
+		 }
+		 else if ( urlStr.contains("/knowledge/feed/") || urlStr.contains("/knowledge/doc/") || urlStr.contains("/knowledge/document/"))
 		 {	
 			 docid = RESTTools.decodeRESTParam("docid", attributes);
 			 if (null == docid) {
@@ -104,22 +117,27 @@ public class DocumentInterface extends ServerResource
 				 {
 					 rp = this.docHandler.getInfo(cookieLookup, sourcekey, docid, bReturnFullText, returnRawData);
 					 //return full text takes precedence over raw data
-					 if ( !bReturnFullText && returnRawData && rp.getResponse().isSuccess() )
-					 {		
-						 try
-						 {
-							 //return the bytes like we do in shares
-							 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();						
-							 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
-							 rep.setOutputBytes(dfp.bytes);
-							 //rep.setSize(dfp.bytes.length);
-							 return rep;
-						 }
-						 catch (Exception ex )
-						 {
-							 rp = new ResponsePojo(new ResponseObject("Doc Info", false, "error converting bytes to output"));
-						 }	
+				 }
+				 else if ( action.equals("file"))
+				 {
+					rp = this.docHandler.getFileContents(cookieLookup, sourcekey, docid); 
+				 }
+				 
+				 if ( !bReturnFullText && returnRawData && rp.getResponse().isSuccess() )
+				 {		
+					 try
+					 {
+						 //return the bytes like we do in shares
+						 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();						
+						 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
+						 rep.setOutputBytes(dfp.bytes);
+						 //rep.setSize(dfp.bytes.length);
+						 return rep;
 					 }
+					 catch (Exception ex )
+					 {
+						 rp = new ResponsePojo(new ResponseObject("Doc Info", false, "error converting bytes to output"));
+					 }	
 				 }
 			 }
 		 }

@@ -19,6 +19,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.bson.types.ObjectId;
+
 /**
  * UnstructuredAnalysisPojo
  */
@@ -37,7 +39,7 @@ public class UnstructuredAnalysisConfigPojo
 	
 	private List<metaField> meta = null;	
 	private List<SimpleTextCleanserPojo> simpleTextCleanser = null;
-	private Map<String,String> caches = null;
+	private Map<String,ObjectId> caches = null;
 	
 	public static class metaField{
 		
@@ -168,10 +170,10 @@ public class UnstructuredAnalysisConfigPojo
 		return footerRegExFlags;
 	}
 	
-	public void setCaches(Map<String,String> caches) {
+	public void setCaches(Map<String,ObjectId> caches) {
 		this.caches = caches;
 	}
-	public Map<String,String> getCaches() {
+	public Map<String,ObjectId> getCaches() {
 		return caches;
 	}
 

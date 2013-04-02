@@ -102,10 +102,14 @@ public class DocumentPojo extends BaseDbPojo {
 	private List<EntityPojo> entities = null;
 	final public static String entities_ = "entities";
 	// (moved metadata to beta because of wholesale changes)
-
-	// Data source
+	
+	// Data source/Content
 	private Set<String> tags = null;
 	final public static String tags_ = "tags";
+	private String displayUrl = null;
+	final public static String displayUrl_ = "displayUrl";
+
+	// Data source
 	private ObjectId communityId = null; 
 	final public static String communityId_ = "communityId";
 		// (note as far as the API is concerned this a Set<String>)
@@ -126,6 +130,10 @@ public class DocumentPojo extends BaseDbPojo {
 	private String index = null; // The name of the index to which the feed's been added
 	final public static String index_ = "index";
 
+	// Only used for query responses
+	private Object explain = null;
+	final public static String explain_ = "explain";
+	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
 	
 // The following won't be stored in the DB (either created by index map or transient)
@@ -665,6 +673,22 @@ public class DocumentPojo extends BaseDbPojo {
 
 	public ObjectId getUpdateId() {
 		return updateId;
+	}
+
+	public void setDisplayUrl(String displayUrl) {
+		this.displayUrl = displayUrl;
+	}
+
+	public String getDisplayUrl() {
+		return displayUrl;
+	}
+
+	public void setExplain(Object explain) {
+		this.explain = explain;
+	}
+
+	public Object getExplain() {
+		return explain;
 	}
 
 }

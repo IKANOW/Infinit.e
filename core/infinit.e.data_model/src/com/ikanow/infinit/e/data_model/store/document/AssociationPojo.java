@@ -53,6 +53,8 @@ public class AssociationPojo extends BaseDbPojo
 	final public static String geo_index_ = "geo_index";
 	private String assoc_type = null;
 	final public static String assoc_type_ = "assoc_type";
+	private Double sentiment = null; // directed sentiment from ent1 to ent2
+	final public static String sentiment_ = "sentiment";
 	
 	private String assoc_index = null; // (for counting on in facets)	
 	final public static String assoc_index_ = "assoc_index";
@@ -182,6 +184,12 @@ public class AssociationPojo extends BaseDbPojo
 	}
 	public void setGeo_sig(Double geo_sig) {
 		this.geo_sig = geo_sig;
+	}
+	public void setSentiment(Double sentiment) {
+		this.sentiment = sentiment;
+	}
+	public Double getSentiment() {
+		return sentiment;
 	}
 
 }

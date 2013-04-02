@@ -85,6 +85,9 @@ public class ScoringUtils
 		public TempDocBucket dupList = null; // (linked list starting at the "master" document)
 		public int nEntsInDoc = 0; // (performance shortcut for comparing 2 potentially duplicate docs)
 		
+		// Store explain object (rarely needed) so won't incur map cost across all docs
+		public Object explain;
+		
 		// Deduplication and ordering:
 		@Override
 		public int compareTo(TempDocBucket rhs) {
@@ -556,6 +559,7 @@ public class ScoringUtils
 			if ((0 != scoreParams.relWeight) || (null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
 				StatisticsPojo.Score scoreObj = scores.getScore().get(id);
 				if (null != scoreObj) {
+					docBucket.explain = scoreObj.explain; // (will normally be null)
 					docBucket.luceneScore = scoreObj.score;
 					if ((null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
 						if (scoreObj.decay >= 0.0) {
@@ -1533,7 +1537,12 @@ public class ScoringUtils
 					} //(end loop over entities)
 				} // (end if feed has entities)
 				//TESTED
-										
+					
+				// Explain if enabled
+				if (null != qsf.explain) {
+					f.put(DocumentPojo.explain_, qsf.explain);
+				}
+				
 				// Add to the end of the list (so will come back from API call in natural order, highest first)
 				returnList.addFirst(f);
 					// (add elements to the front of the list so that the top of the list is ordered by priority)

@@ -89,6 +89,18 @@
 	skinClass : ClassReference("assets.skins.query.QuerySummaryClearButtonSkin");	
 }
 
+.settingsSummary
+{
+	backgroundAlpha: 1.0;
+	backgroundColor: #B57920;
+	skinClass : ClassReference("assets.skins.query.QuerySummarySkin");
+}
+
+.settingsSummaryClearButton
+{
+	skinClass : ClassReference("assets.skins.query.QuerySummaryClearButtonSkin");	
+}
+
 .queryTermEditor
 {
 	start-ratio: 0;

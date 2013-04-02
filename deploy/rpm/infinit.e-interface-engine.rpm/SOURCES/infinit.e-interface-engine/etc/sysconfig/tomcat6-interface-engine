@@ -3,7 +3,7 @@
 #
 JAVA_HOME=/usr/java/latest
 # For large memory systems, increase the memory available to the system
-JAVA_OPTS="-Xms1024m -Xmx1024m -Xmn256m" && [[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && JAVA_OPTS="-Xms2048m -Xmx2048m -Xmn512m"
+JAVA_OPTS="$JAVA_OPTS -Xms1024m -Xmx1024m -Xmn256m" && [[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && JAVA_OPTS="$JAVA_OPTS -Xms2048m -Xmx2048m -Xmn512m"
 #(^^^ >10GB system)
 JAVA_OPTS="$JAVA_OPTS -Dcom.sun.management.jmxremote -Dorg.apache.tomcat.util.buf.UDecoder.ALLOW_ENCODED_SLASH=true -Djavax.servlet.request.encoding=UTF-8 -Dfile.encoding=UTF-8"
 

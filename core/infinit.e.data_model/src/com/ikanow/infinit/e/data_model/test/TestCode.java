@@ -227,11 +227,13 @@ public class TestCode {
 		// (display results of API mappings)
 		DocumentPojo docApi = DocumentPojo.fromDb(docApiDbo, DocumentPojo.class);
 		ResponsePojo rp3 = new ResponsePojo(null, docApi, new DocumentPojoApiMap());
-		/**/
-		System.out.println(docApi.getCreated());
+
+		System.out.println("TIME_DOC_API1_CREATED="+docApi.getCreated());
 		System.out.println("DOC_API1=" + rp3.toApi());
 		DocumentPojoApiMap.mapToApi(docApiDbo);
 		System.out.println("DOC_API2=" + BaseApiPojo.getDefaultBuilder().setPrettyPrinting().create().toJson(docApiDbo));
+		DocumentPojo docFromApi = ApiManager.mapFromApi(ApiManager.mapToApi(docApi, null), DocumentPojo.class, null);
+		System.out.println("TIME_DOC_API1_CREATED_INV="+docFromApi.getCreated());
 		
 /////////////////////////////////////////////////////////////////////////////
 		

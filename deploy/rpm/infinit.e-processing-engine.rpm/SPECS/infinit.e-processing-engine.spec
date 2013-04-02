@@ -128,6 +128,7 @@ Infinit.e harvesting and cleansing services
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite-px-engine.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/sync_features.sh
+%config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/generate_temporal_aggregations.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/weekly_sources_report.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reset_bad_harvest.sh
 %config /mnt/opt/infinite-home/bin/security.policy
@@ -138,8 +139,10 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/db-scripts/rebuild_entity_feature.js
 /mnt/opt/infinite-home/db-scripts/rebuild_assoc_feature.js
 /mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js
+/mnt/opt/infinite-home/db-scripts/temporal_entity_aggregation.js
 
 %dir /mnt/opt/infinite-home/lib
+%dir /mnt/opt/infinite-home/lib/extractors
 /mnt/opt/infinite-home/lib/infinit.e.data_model.jar
 /mnt/opt/infinite-home/lib/infinit.e.harvest.library.jar
 /mnt/opt/infinite-home/lib/infinit.e.query.library.jar

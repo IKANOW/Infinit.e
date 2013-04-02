@@ -47,7 +47,9 @@ public class BaseApiPojo {
 		return new GsonBuilder()
 			.registerTypeAdapter(ObjectId.class, new ObjectIdSerializer())
 			.registerTypeAdapter(ObjectId.class, new ObjectIdDeserializer())
-			.registerTypeAdapter(Date.class, new DateDeserializer());
+			.registerTypeAdapter(Date.class, new DateDeserializer())
+			.registerTypeAdapter(Date.class, new DateSerializer())
+			;
 	}
 	private static GsonBuilder extendBuilder_internal(GsonBuilder gp) {
 		return gp;
@@ -255,6 +257,16 @@ public class BaseApiPojo {
 				}
 			}
 			return d;
+		}
+	}
+	// Just convert API calls to UTC
+	protected static class DateSerializer implements JsonSerializer<Date> 
+	{
+		@Override
+		public JsonElement serialize(Date date, Type typeOfT, JsonSerializationContext context)
+		{
+			ThreadSafeSimpleDateFormat tsdf = new ThreadSafeSimpleDateFormat("MMM d, yyyy hh:mm:ss a 'UTC'");
+			return new JsonPrimitive(tsdf.format(date));
 		}
 	}
 }

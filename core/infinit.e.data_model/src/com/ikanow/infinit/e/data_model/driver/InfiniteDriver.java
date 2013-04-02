@@ -41,6 +41,7 @@ import org.bson.types.ObjectId;
 import com.google.gson.Gson;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -1143,6 +1144,33 @@ public class InfiniteDriver
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// UTILITY	
+	
+	public boolean hasSourceHarvested(String sourceId)
+	{
+		ResponseObject ro = new ResponseObject();
+		return hasSourceHarvested(getSource(sourceId, ro));
+	}
+	
+	public boolean hasSourceHarvested(SourcePojo source)
+	{
+		if ( source != null )
+		{
+			if ( source.getHarvestStatus() != null && source.getHarvestStatus().getHarvested() != null )
+			{
+				if ( source.getHarvestStatus().getHarvest_status() == HarvestEnum.in_progress && source.getHarvestStatus().getDoccount() != null && source.getHarvestStatus().getDoccount() > 0)
+				{
+					//if the source is in progress but has a doc count, it has already completed once
+					return true;
+				}
+				else if ( source.getHarvestStatus().getHarvested() != null )
+				{
+					//if the source is not in progress but has a harvested date, it has completed atleast once
+					return true;
+				}
+			}
+		}
+		return false;
+	}
 	
 	///////// Request Calls	
 	

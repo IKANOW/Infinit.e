@@ -371,7 +371,7 @@ limitations under the License.
 	// getUserSources - 
 	private String getUserSources(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("config/source/user/", request, response);
+		return callRestfulApi("config/source/user?stripped=true", request, response);
 	} // TESTED
 	
 	

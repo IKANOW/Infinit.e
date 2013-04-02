@@ -224,6 +224,11 @@ function start() {
 	    cp /opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
 	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
 	fi    
+    if [[ -d /opt/infinite-home/lib/extractors/ ]]; then
+    	for i in `find /opt/infinite-home/lib/extractors/ -name "*.jar"`; do
+    		cp $i /opt/tomcat-infinite/interface-engine/webapps/api/WEB-INF/lib
+    	done
+	fi
     return $RETVAL
 }
 

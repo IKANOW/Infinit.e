@@ -19,14 +19,18 @@
 	<property name="debuglevel" value="source,lines,vars"/>	
 	<property name="test.pattern" value="**/**Test.java" />
 		
-	
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>	
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>	
 	<property name="manifest.name" value="com/ikanow/infinit/e"/>
-	<property name="specification.title" value="infinit.e data model classes"/>
-	<property name="specification.version" value="0.25"/>
-	<property name="specification.vendor" value="${vendor}"/>
-	<property name="implementation.title" value="com.ikanow.infinit.e"/>
-	<property name="implementation.version" value="build${build.number}"/>
-	<property name="implementation.vendor" value="${vendor}"/>
+	<property name="specification.title" value="Infinit.e data model classes"/>
+	<property name="specification.version" value="${infinite_version}-${infinite_release}"/>
+	<property name="specification.vendor" value="IKANOW"/>
+	<property name="implementation.title" value="Infinit.e data model classes"/>
+	<property name="implementation.version" value="${infinite_version}-${infinite_release}"/>
+	<property name="implementation.vendor" value="IKANOW"/>
 		
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">

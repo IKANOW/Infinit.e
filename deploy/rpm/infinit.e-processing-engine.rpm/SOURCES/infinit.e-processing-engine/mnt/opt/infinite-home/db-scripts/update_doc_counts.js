@@ -30,15 +30,7 @@ r = function(k, vals) {
 
 // 1.1: CREATE THE LIST IN THE INGEST COLLECTION
 
-res = db.source.mapReduce(m, r, { out: { replace: "tmpDocCounts" }, query: my_query, limit: my_limit } );
-
-// 1.2 MOVE TO THE DOC_METADATA COLLECTION
-
-db = db.getMongo().getDB( "doc_metadata" );
-db.tmpDocCounts.drop();
-	// (otherwise the rename will fail if "doc_metadata.tmpDocCounts" happens to exist)
-
-db.getMongo().getDB( "admin" ).runCommand({renameCollection:"ingest.tmpDocCounts",to:"doc_metadata.tmpDocCounts"});
+res = db.source.mapReduce(m, r, { out: { replace: "tmpDocCounts", db: "doc_metadata" }, query: my_query, limit: my_limit } );
 
 ////////////////////////////////////////////////////////////
 

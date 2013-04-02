@@ -306,6 +306,73 @@ package com.ikanow.infinit.e.shared.util
 			return queryStringObject;
 		}
 		
+		public static function getQueryStringSettingsSummary( queryString:QueryString ):String
+		{
+			var querySummary:String = "";
+			
+			if ( null != queryString.score )
+			{
+				if ( null != queryString.score.geoProx )
+				{
+					if ( ( null != queryString.score.geoProx.decay ) && ( null != queryString.score.geoProx.ll ) )
+					{
+						if ( ( queryString.score.geoProx.decay.length > 0 ) && ( queryString.score.geoProx.ll.length > 1 ) )
+						{
+							if ( querySummary.length > 0 )
+								querySummary += " | ";
+							querySummary += "geo";
+						}
+					}
+				}
+				
+				if ( null != queryString.score.timeProx )
+				{
+					if ( ( null != queryString.score.timeProx.time ) && ( null != queryString.score.timeProx.decay ) )
+					{
+						if ( ( queryString.score.timeProx.time.length > 0 ) && ( queryString.score.timeProx.decay.length > 0 ) )
+						{
+							if ( querySummary.length > 0 )
+								querySummary += " | ";
+							
+							if ( queryString.score.timeProx.time == "now" )
+							{
+								querySummary += "recent";
+							}
+							else
+							{
+								querySummary += "time";
+							}
+						}
+					}
+				}
+				
+				if ( ( null != queryString.score.sourceWeights ) || ( null != queryString.score.tagWeights ) || ( null != queryString.score.typeWeights ) )
+				{
+					if ( querySummary.length > 0 )
+						querySummary += " | ";
+					querySummary += "source";
+				}
+			}
+			
+			if ( null != queryString.output )
+			{
+				if ( null != queryString.output.filter )
+				{
+					if ( ( null != queryString.output.filter.assocVerbs ) || ( null != queryString.output.filter.entityTypes ) )
+					{
+						if ( querySummary.length > 0 )
+							querySummary += " | ";
+						querySummary += "filter";
+					}
+				}
+			}
+			
+			if ( 0 == querySummary.length )
+				querySummary = null;
+			
+			return querySummary;
+		}
+		
 		/**
 		 * Gets an query string summary
 		 */

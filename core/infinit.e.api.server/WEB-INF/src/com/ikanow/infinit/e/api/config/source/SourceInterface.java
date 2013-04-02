@@ -62,6 +62,7 @@ public class SourceInterface extends ServerResource
 	private int nNumDocsToReturn = 10; // (used for test source)
 	private boolean bReturnFullText = false; // (used for test source)
 	private boolean bRealDedup = false; // (used for test source)
+	private boolean bStripped = false;
 	
 	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(SourceInterface.class);	
@@ -72,7 +73,9 @@ public class SourceInterface extends ServerResource
 		 Request request = this.getRequest();
 		 Map<String,Object> attributes = request.getAttributes();
 		 urlStr = request.getResourceRef().toString();
-		 cookie = request.getCookies().getFirstValue("infinitecookie",true);	
+		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
+		 bStripped = (null != queryOptions.get("stripped")) && Boolean.parseBoolean((String) queryOptions.get("stripped"));
 		 
 		 // communityid - all get/post methods need this value
 		 if (RESTTools.decodeRESTParam("communityid", attributes) != null)
@@ -272,19 +275,19 @@ public class SourceInterface extends ServerResource
 						 }
 						 else if ( action.equals("good") )
 						 {
-							 rp = this.source.getGoodSources(cookieLookup, communityid);
+							 rp = this.source.getGoodSources(cookieLookup, communityid, bStripped);
 						 }
 						 else if ( action.equals("bad"))
 						 {
-							 rp = this.source.getBadSources(cookieLookup, communityid);
+							 rp = this.source.getBadSources(cookieLookup, communityid, bStripped);
 						 }
 						 else if ( action.equals("pending"))
 						 {
-							 rp = this.source.getPendingSources(cookieLookup, communityid);
+							 rp = this.source.getPendingSources(cookieLookup, communityid, bStripped);
 						 }
 						 else if ( action.equals("user"))
 						 {
-							 rp = this.source.getUserSources(cookieLookup);
+							 rp = this.source.getUserSources(cookieLookup, bStripped);
 						 }
 						 else if ( action.equals("delete") || action.equals("deletedocs"))
 						 {

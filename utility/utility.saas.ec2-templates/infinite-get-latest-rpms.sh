@@ -3,11 +3,11 @@
 # infinite-get-latest-rpms.sh <user> <pass>
 #
 # COMMENT THE RPMS YOU WANT FOR THE SPECIFIC MACHINE
-#CONFIG_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latest/Configuration-RPM'
-#INDEX_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latest/Index-Engine-RPM'
-#INTERFACE_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latest/Interface-Engine-RPM'
-#PROCESSING_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latest/Processing-Engine-RPM'
-#DB_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latest/Database-RPM'
+#CONFIG_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latestSuccessful/Configuration-RPM'
+#INDEX_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latestSuccessful/Index-Engine-RPM'
+#INTERFACE_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latestSuccessful/Interface-Engine-RPM'
+#PROCESSING_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latestSuccessful/Processing-Engine-RPM'
+#DB_URL='https://ikanow.jira.com/builds//artifact/INF-OSS/JOB1/build-latestSuccessful/Database-RPM'
 
 GREP=$1
 

@@ -337,7 +337,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			dbc = collection.find(query, fields);
 		}
 		else {
-			dbc = collection.find(query, fields).setReadPreference(ReadPreference.SECONDARY);
+			dbc = collection.find(query, fields).setReadPreference(ReadPreference.secondaryPreferred());
 		}		
 		while (dbc.hasNext()) {
 			DBObject dbo = dbc.next();

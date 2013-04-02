@@ -193,9 +193,9 @@ limitations under the License.
 					commString += o._id + ",";
 				}
 				commString = commString.substring( 0, commString.length - 1 );
-				goodSourceService.url = ENDPOINT_URL + "config/source/good/" + commString;
+				goodSourceService.url = ENDPOINT_URL + "config/source/good/" + commString + "?stripped=true";
 				goodSourceService.send();
-				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/" + commString;
+				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/" + commString + "?stripped=true";
 				pendingSourceService.send();
 			}
 			
@@ -327,9 +327,10 @@ limitations under the License.
 					{
 						o.statusImage = yellowexclamation;
 						o.statusColor = 0x0000EE;
-						if (null == o.harvest.harvested)
+						
+						if ( null == o.harvest.harvested )
 							o.harvestDate = null;
-						else 
+						else
 							o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
 					else if ( o.harvest.harvest_status == "success_iteration" )
@@ -344,7 +345,8 @@ limitations under the License.
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
-					if ((null != o.searchCycle_secs) && ((o.searchCycle_secs as Number) < 0)) 
+					
+					if ( ( null != o.searchCycle_secs ) && ( ( o.searchCycle_secs as Number ) < 0 ) )
 					{
 						o.title = "[SUSPENDED] " + o.title;
 					}
@@ -444,9 +446,10 @@ limitations under the License.
 					{
 						o.statusImage = yellowexclamation;
 						o.statusColor = 0x0000EE;
-						if (null == o.harvest.harvested)
+						
+						if ( null == o.harvest.harvested )
 							o.harvestDate = null;
-						else 
+						else
 							o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
 					else if ( o.harvest.harvest_status == "success_iteration" )
@@ -461,11 +464,12 @@ limitations under the License.
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
 					}
-					if ((null != o.searchCycle_secs) && ((o.searchCycle_secs as Number) < 0)) 
+					
+					if ( ( null != o.searchCycle_secs ) && ( ( o.searchCycle_secs as Number ) < 0 ) )
 					{
 						o.title = "[SUSPENDED] " + o.title;
 					}
-										
+					
 					if ( o.harvest != null && null != o.harvest.harvest_message )
 					{
 						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;

@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="chrome.extension.source-updater"
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	basedir="."
+	default="crx">
+
+	<!-- =================================
+			 target: clean
+	================================= -->
+	<target name="clean"
+		description="Removing the all generated files.">
+		<delete file="./extension.crx" />
+	</target>
+
+	<!-- =================================
+		 target: prepare
+	================================= -->
+	<target name="prepare"
+		depends="clean">
+	</target>
+
+	<!-- =================================
+	target: war
+	create the war file
+	================================= -->
+
+	<!-- Version number for standalone ZIP only, the WAR gets tagged inside the search engine RPM -->
+	<property name="bamboo.majorBuild"
+		value="localBuild" />
+	<property name="bamboo.minorBuild"
+		value="0" />
+	<property name="bamboo.custom.svn.revision.number"
+		value="0" />
+	<property name="infinite_version"
+		value="${bamboo.majorBuild}.${bamboo.minorBuild}" />
+	<property name="infinite_release"
+		value="${bamboo.custom.svn.revision.number}" />
+
+	<target name="crx"
+		depends="prepare"
+		description="Generates ${ant.project.name}.crx file in to the 'dist' directory.">
+
+		<exec executable="/bin/bash">
+			<arg value="./build.sh" />
+			<arg value="./extension" />
+			<arg value="./extension.pem" />
+		</exec>
+
+	</target>
+
+</project>

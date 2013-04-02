@@ -95,6 +95,7 @@
 						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
 						                   
 							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow-infinite.repo';",
 							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
 							                   "yum install -y infinit.e-platform.prerequisites.online;",
 							                   
@@ -113,14 +114,14 @@
 							                   "s3cmd get ", { "Ref": "ConfigFileS3Path" }, ";",
 							                   
 							               "yum -y --nogpgcheck install infinit.e-config;",    
-							               "yum -y --nogpgcheck install infinit.e-db-instance;"    
-							               "yum -y --nogpgcheck install infinit.e-index-engine;"    
-							               "yum -y --nogpgcheck install infinit.e-processing-engine;"    
+							               "yum -y --nogpgcheck install infinit.e-db-instance;",    
+							               "yum -y --nogpgcheck install infinit.e-index-engine;",    
+							               "yum -y --nogpgcheck install infinit.e-processing-engine;",    
 							               "yum -y --nogpgcheck install infinit.e-interface-engine;",
 						                   
 						                   "sed -i 's/^curl/#curl/' /etc/rc.local;",  
 							               "grep -q 'modprobe capability' /etc/rc.local || echo 'modprobe capability' >> /etc/rc.local"
-					}
+							               ]]}
 				}
 			}
 		}

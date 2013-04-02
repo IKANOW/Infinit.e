@@ -15,12 +15,18 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.config.source;
 
+import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+
 /**
  * Primary object used to specify the properties for connecting to a database
  * @author cmorgan
  */
 public class SourceDatabaseConfigPojo 
 {	
+	//Pipeline fields:
+	private String url = null; // (pipeline only)
+	private AuthenticationPojo authentication = null; // (pipeline only)
+	
 	private String databaseType = null;			// Type of the database, eg DB2, Oracle, MySQL, MS SQL Server, or Sybase
 	private String hostname = null; 			// Name of the server where the database resides, fully qualified domain name
 	private String port = null; 				// Port number on which the database resides and for JDBC to use
@@ -227,5 +233,17 @@ public class SourceDatabaseConfigPojo
 	}
 	public void setModifiedDate(String modifiedDate) {
 		this.modifiedDate = modifiedDate;
+	}
+	public AuthenticationPojo getAuthentication() {
+		return authentication;
+	}
+	public void setAuthentication(AuthenticationPojo authentication) {
+		this.authentication = authentication;
+	}
+	public String getUrl() {
+		return url;
+	}
+	public void setUrl(String url) {
+		this.url = url;
 	}
 }

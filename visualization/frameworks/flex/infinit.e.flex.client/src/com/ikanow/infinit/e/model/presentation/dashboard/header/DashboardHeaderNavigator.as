@@ -179,6 +179,14 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 		/**
 		 * Show Sources Dialog
 		 */
+		public function showSettingsDialog():void
+		{
+			navigateById( NavigationConstants.WORKSPACE_SETTINGS_ID );
+		}
+		
+		/**
+		 * Show Sources Dialog
+		 */
 		public function showSourcesDialog():void
 		{
 			navigateById( SOURCES_ID );

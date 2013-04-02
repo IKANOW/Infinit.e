@@ -132,6 +132,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		// source service
 		public static const GET_SOURCES_GOOD_URL:String = SERVER_URL + "config/source/good/";
 		
+		public static const GET_SOURCE_URL_PARAM:String = "stripped=true";
+		
 		public static const GET_SOURCES_GOOD_ACTION:String = "Good Sources";
 		
 		// query service

@@ -162,6 +162,12 @@ package com.ikanow.infinit.e.query.model.manager
 		
 		[Bindable]
 		/**
+		 * The summary for the last query summary (settings component)
+		 */
+		public var lastQuerySettingsSummary:String;
+		
+		[Bindable]
+		/**
 		 * The statistics returned from a query
 		 */
 		public var queryStatistics:ServiceStatistics;
@@ -274,6 +280,7 @@ package com.ikanow.infinit.e.query.model.manager
 		public function clearLastQuery():void
 		{
 			lastQuerySummary = null;
+			lastQuerySettingsSummary = null;
 		}
 		
 		public function createAdvancedQuery():Object
@@ -368,6 +375,7 @@ package com.ikanow.infinit.e.query.model.manager
 			lastQueryString = null;
 			lastQueryStringRequest = null;
 			lastQuerySummary = null;
+			lastQuerySettingsSummary = null;
 			lastSuggestionKeywordString = "";
 			documentOptions = null
 			aggregationOptions = null;
@@ -447,6 +455,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// set last query summary
 			lastQuerySummary = QueryUtil.getQueryStringSummary( lastQueryString.qt, lastQueryString.logic );
+			lastQuerySettingsSummary = QueryUtil.getQueryStringSettingsSummary( lastQueryString );
 			
 			// run the query
 			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.QUERY );
@@ -872,6 +881,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// set last query summary
 			lastQuerySummary = QueryUtil.getQueryStringSummary( lastQueryString.qt, lastQueryString.logic );
+			lastQuerySettingsSummary = QueryUtil.getQueryStringSettingsSummary( lastQueryString );
 			
 			// run the first query
 			runFirstQuery( queryString );
@@ -913,6 +923,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// set last query summary
 			lastQuerySummary = QueryUtil.getQueryStringSummary( new ArrayCollection( queryString.qt ), queryString.logic );
+			lastQuerySettingsSummary = QueryUtil.getQueryStringSettingsSummary( queryString.getOptions() );
 		}
 		
 		/**
@@ -975,6 +986,7 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			// set last query summary
 			lastQuerySummary = QueryUtil.getQueryStringSummary( lastQueryString.qt, lastQueryString.logic );
+			lastQuerySettingsSummary = QueryUtil.getQueryStringSettingsSummary( lastQueryString );
 			
 			// save the ui setup
 			var setupEvent:SetupEvent = new SetupEvent( SetupEvent.SAVE_SETUP );

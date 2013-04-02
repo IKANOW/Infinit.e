@@ -27,7 +27,7 @@ public class CacheUtils
 	 * @param _context2
 	 * @throws ScriptException
 	 */	
-	public static void addJSONCachesToEngine(Map<String, String> caches, ScriptEngine engine, Set<ObjectId> communityIds, HarvestContext _context2) throws ScriptException 
+	public static void addJSONCachesToEngine(Map<String, ObjectId> caches, ScriptEngine engine, Set<ObjectId> communityIds, HarvestContext _context2) throws ScriptException 
 	{
 		if ( null != engine )
 		{
@@ -35,7 +35,7 @@ public class CacheUtils
 			//get json from shares
 			for ( String cacheName : caches.keySet())
 			{
-				ObjectId shareId = new ObjectId(caches.get(cacheName));
+				ObjectId shareId = caches.get(cacheName);
 				String json = getShareFromDB(shareId, communityIds);
 				if ( json != null )
 				{						

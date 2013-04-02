@@ -26,6 +26,7 @@ import org.restlet.Context;
 import org.restlet.Restlet;  
 import org.restlet.resource.ServerResource;
 import org.restlet.routing.Router;
+import org.restlet.routing.Template;
 
 import com.ikanow.infinit.e.api.authentication.LoginInterface;
 import com.ikanow.infinit.e.api.config.source.SourceInterface;
@@ -203,6 +204,7 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/knowledge/feature/aliasSuggest/{field}/{term}/{communityids}",SearchInterface.class);        
         attach(router, "/knowledge/document/get/{docid}", DocumentInterface.class);  
         attach(router, "/knowledge/document/get/{sourcekey}/{url}", DocumentInterface.class);  
+    	router.attach("/knowledge/document/file/get/{sourcekey}/", DocumentInterface.class, Template.MODE_STARTS_WITH);
         attach(router, "/knowledge/document/query/{communityids}",QueryInterface.class);    
         attach(router, "/knowledge/feature/eventSuggest/{ent1}/{verb}/{ent2}/{field}/{communityids}",SearchInterface.class);
         	// (This is obsolete but leave in for another couple of releases)

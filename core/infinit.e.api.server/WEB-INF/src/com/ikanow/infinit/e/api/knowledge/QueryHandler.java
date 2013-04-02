@@ -46,6 +46,7 @@ import org.elasticsearch.index.query.CustomFiltersScoreQueryBuilder;
 import org.elasticsearch.index.query.FilterBuilders;
 import org.elasticsearch.index.query.GeoDistanceFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
 import com.google.common.collect.ArrayListMultimap;
@@ -436,6 +437,10 @@ public class QueryHandler {
 		
 	// 0.6] Perform Lucene query
 		
+		if ((null != query.explain) && query.explain) { // (for diagnostic - will return lucene explanation)
+			searchSettings.setExplain(true);
+		}
+		
 		SearchResponse queryResults = null;
 		if ((null != query.raw) && (null != query.raw.query)) 
 		{
@@ -464,7 +469,7 @@ public class QueryHandler {
         stats.start = (long)nRecordsToSkip;
         
 		if (nRecordsToGet > 0) {
-			stats.setScore(queryResults.getHits(), (null != query.score.geoProx)||(null != query.score.timeProx));
+			stats.setScore(queryResults.getHits(), (null != query.score.geoProx)||(null != query.score.timeProx), (null != query.explain) && query.explain);
 		}
 
 		//DEBUG
@@ -798,7 +803,7 @@ public class QueryHandler {
 	
 	// 1.3] Entity 	
 		
-		if ((null != qt.entity) || (null != qt.entityValue)) {
+		if ((null != qt.entity) || (null != qt.entityValue) || ((null == qt.assoc) && (null != qt.sentiment))) { // (if no association specified then sentiment applies to entities)
 			if (sQueryTerm.length() > 1) {
 				sQueryTerm.append(" AND ");
 			}
@@ -880,7 +885,7 @@ public class QueryHandler {
 			}
 			sQueryTerm.append('(');
 			
-			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.associations_, this.parseAssociationTerm(qt.assoc, sQueryTerm));
+			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.associations_, this.parseAssociationTerm(qt.assoc, qt.sentiment, sQueryTerm));
 			if (null != termQ) {
 				if (null == term) {
 					term = termQ;
@@ -961,7 +966,7 @@ public class QueryHandler {
 		
 	// 1.3c] Logic	
 		
-		if (null == termQ) { // entities.index or fully-specified value,type
+		if ((null == termQ) && (null != qt.entity)) { // entities.index or fully-specified value,type
 			
 			sQueryTerm.append(sFieldName).append(":\"").append(qt.entity).append('"');
 			
@@ -981,7 +986,8 @@ public class QueryHandler {
 						sQueryTerm.append(" OR actual_name:$aliases");
 					}
 				}
-			}//TESTED logic3a,b,f
+			}//TESTED logic3a,b,f - actual_name expansion
+			
 			if ((null != qt.entityOpt) && qt.entityOpt.rawText) {
 				if (null == this._extraFullTextTerms) {
 					_extraFullTextTerms = new LinkedList<AdvancedQueryPojo.QueryTermPojo>();
@@ -1007,7 +1013,7 @@ public class QueryHandler {
 					sQueryTerm.append(" OR ").append(nonIndexField).append(":\"").append(dName).append('"');					
 				}//TESTED
 			}
-			//TESTED (entity+association)
+			//TESTED (entity+association) - entity options, add dname as exact text query
 			
 			if (null != _aliasLookup) {
 				EntityFeaturePojo masterAlias = _aliasLookup.getAliases(qt.entity);	
@@ -1051,7 +1057,7 @@ public class QueryHandler {
 							sQueryTerm.append(" OR ").append(nonIndexField).append(":$manual_aliases");												
 						}
 						
-					}//TESTED (entity + association)		
+					}//TESTED (entity + association) - aliases #1
 					
 					// Recall: we're abusing linkdata to contain aliases:
 					if ((null != masterAlias.getSemanticLinks()) && !masterAlias.getSemanticLinks().isEmpty()) {
@@ -1080,16 +1086,37 @@ public class QueryHandler {
 							sQueryTerm.append(" OR ").append(nonIndexField).append(":$manual_text_aliases");												
 						}
 						
-					}//TESTED (entity + association)
+					}//TESTED (entity + association) - aliases #2
 				}
-			}//TESTED (by hand)
+			}//TESTED (by hand) - alias lookups
 			
 			if (null == termQ) {
 				termQ = QueryBuilders.termQuery(sFieldName, qt.entity);				
 			}
 			
-		} //TESTED logic3*
+		} //TESTED logic3* - end if entity options (apart from sentiment, which is handled below)
 						
+		// Sentiment... only apply for entities (association sentiment is handled in parseAssociationTerm)
+		
+		if ((null != qt.sentiment) && (EntityPojo.index_ == sFieldName)) { // (note: can use pointers here)
+			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(EntityPojo.sentiment_);
+			if (null != qt.sentiment.min) {
+				sentimentQ.from(qt.sentiment.min);
+			}
+			if (null != qt.sentiment.max) {
+				sentimentQ.to(qt.sentiment.max);					
+			}
+			if (null == termQ) {
+				termQ = sentimentQ;
+				sQueryTerm.append("sentiment:[").append(qt.sentiment.min).append(',').append(qt.sentiment.max).append(']');
+			}
+			else {
+				termQ = QueryBuilders.boolQuery().must(termQ).must(sentimentQ);
+				sQueryTerm.append(" AND ").append("sentiment:[").append(qt.sentiment.min).append(',').append(qt.sentiment.max).append(']');
+					// (don't mind the nulls in the range)
+			}
+		}//TESTED (combined sentiment and standalone sentiment)
+		
 		return termQ;
 	}
 	
@@ -1418,7 +1445,7 @@ public class QueryHandler {
 	
 	// 1.2.3] Event term parsing - this one is pretty complex
 	
-	BaseQueryBuilder parseAssociationTerm(AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo assoc, StringBuffer sQueryTerm )
+	BaseQueryBuilder parseAssociationTerm(AdvancedQueryPojo.QueryTermPojo.AssociationTermPojo assoc, AdvancedQueryPojo.QueryTermPojo.SentimentModifierPojo sentiment, StringBuffer sQueryTerm )
 	{
 		boolean bFirstTerm = true;
 		BoolQueryBuilder query = QueryBuilders.boolQuery();	
@@ -1505,6 +1532,21 @@ public class QueryHandler {
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TOTEST
+		if (null != sentiment) {
+			if (!bFirstTerm) {
+				sQueryTerm.append(" AND ");				
+			}			
+			bFirstTerm = false;
+			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(AssociationPojo.sentiment_);			
+			if (null != sentiment.min) {
+				sentimentQ.from(sentiment.min);
+			}
+			if (null != sentiment.max) {
+				sentimentQ.to(sentiment.max);					
+			}
+			query.must(sentimentQ);
+			sQueryTerm.append("sentiment:[").append(sentiment.min).append(',').append(sentiment.max).append(']');
+		}//TOTEST (combined sentiment only)
 		sQueryTerm.append(')');
 
 		return query;
@@ -2005,7 +2047,7 @@ public class QueryHandler {
 				docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit);				
 			}
 			else { // Try and get from the secondary if possible
-				docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit).setReadPreference(ReadPreference.SECONDARY);
+				docdCursor = docDb.find(query, fields).batchSize(nFromServerLimit).setReadPreference(ReadPreference.secondaryPreferred());
 			}
 			
 		} catch (Exception e) {

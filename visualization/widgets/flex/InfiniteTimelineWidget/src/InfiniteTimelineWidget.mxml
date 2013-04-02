@@ -15,6 +15,7 @@
    limitations under the License.
 -->
 <components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fw="com.ikanow.infinit.e.widget.library.framework.*"
 	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:mx="library://ns.adobe.com/flex/mx"
@@ -63,11 +64,12 @@
 	import com.ikanow.infinit.e.widget.library.data.SelectedItem;
 	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 	import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
+	import com.ikanow.infinit.e.widget.library.framework.Spinner;
 	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
-	import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
-	import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 	import com.ikanow.infinit.e.widget.library.utility.DateConverter;
 	import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
+	import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+	import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 	
@@ -103,6 +105,8 @@
 	[Bindable]
 	private var maxDate:Date = new Date(); // visible data
 	
+	private var maxOffset_msec:Number = 10*30*24*3600*1000; // (ie approx 10 months)
+	
 	[Bindable]
 	private var overViewMinDate:Date = new Date(); // size of entire timeline
 	[Bindable]
@@ -119,6 +123,7 @@
 	private var ignoreLocalFilter:Boolean = false; // filtering
 	private var internalFilterUpdate:Boolean = false; // filtering
 	private var filterResults:SelectedItem = null; // filtering
+	private var maxDocsSeen:int = 0;
 	
 	// 
 	private var linechart:LineChart = new LineChart(); // for line graphs
@@ -185,10 +190,7 @@
 	 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
 	 */
 	
-	private var loadDataTimer:Timer = null;
-	
-	private function readyToLoadData(event:Event):void {
-		loadDataTimer.stop();
+	private function readyToLoadData():void {
 		if ( !isFilter )
 			onReceiveNewQuery();
 		//(else nothing to do)
@@ -196,14 +198,8 @@
 	private function initializeDataLoad():void
 	{
 		currentState = "dataview"; // (this step creates timeline etc synchronously)
-		currentState = "loadingdata"; // (this step both shows a nice graphic and also prevents bizarre resize bug) 
-		if (null == loadDataTimer)
-		{
-			loadDataTimer = new Timer(100, 1);
-		}
-		loadDataTimer.addEventListener(TimerEvent.TIMER_COMPLETE, readyToLoadData);
-		loadDataTimer.stop();
-		loadDataTimer.start();		
+		currentState = "loadingdata"; // (this step both shows a nice graphic and also prevents bizarre resize bug)
+		setTimeout(readyToLoadData, 100);
 	}
 	
 	private function checkQueryHashAndHandle():void
@@ -224,9 +220,9 @@
 	}//TESTED
 	
 	public function onReceiveNewQuery():void
-	{	
+	{		
 		if ( !internalFilterUpdate )
-		{
+		{			
 			isFilter = false;
 			setTimeout( resetIgnoreLocalFilter, 1000 );
 		}
@@ -236,7 +232,7 @@
 			return; // give the rest of the GUI a chance to load, this control is really slow...
 		}
 		this.checkQueryHashAndHandle();
-		
+				
 		queryData = _context.getQuery_AllResults().getTopDocuments();
 		if ( queryData.length == 0 )
 			queryData = _context.getQuery_TopResults().getTopDocuments();
@@ -274,6 +270,8 @@
 	 */  
 	public function onReceiveNewFilter():void
 	{			
+		// Fast rebuild, leave, createdOnce as is
+		
 		if ( !internalFilterUpdate )
 		{
 			isFilter = true;
@@ -513,9 +511,10 @@
 			timeline.endTime = maxDate;
 			if ((null != currData) && (currData.length > 0) && (2 != this.docDisplayEnum))
 			{
-				timeline.dataProvider = currData;
+				createNewTimeline_initialize();
 			}
-			else {
+			else
+			{
 				timeline.dataProvider = null;
 			}
 			timeline.addEventListener(TimelineRangeEvent.VISIBLE_RANGE_CHANGED, onTimelineChange);
@@ -530,6 +529,48 @@
 		catch (e:*) {}
 	}
 	
+	private function createNewTimeline_initialize():void
+	{
+		var ndocs:int = currData.length;
+		if (ndocs > this.maxDocsSeen)
+		{
+			maxDocsSeen = ndocs;
+			spinner.visible = true;
+			spinner.play();
+			setTimeout(createNewTimeline_iteration, 3000, 0, 10);
+		}
+		else
+		{
+			timeline.dataProvider = currData;
+		}
+			
+	}
+	
+	private function createNewTimeline_iteration(ntmploaded:int, nthisit:int):void
+	{
+		try {
+			if (0 == ntmploaded)
+			{
+				timeline.dataProvider = new ArrayCollection();
+			}
+			for (var i:int = 0; (ntmploaded < currData.length) && (i < nthisit); ++i, ++ntmploaded)
+			{
+				timeline.dataProvider.addItem(currData.getItemAt(ntmploaded));
+			}
+		}
+		finally {
+			if (ntmploaded < currData.length)
+			{
+				setTimeout(createNewTimeline_iteration, 1000, ntmploaded, 5);
+			}
+			else
+			{
+				spinner.stop();
+				spinner.visible = false;
+			}
+		}
+	}
+	
 	/**
 	 * onTimelineChange
 	 * Called when the Visible Range of Dates on the timeline chages and used to
@@ -540,7 +581,19 @@
 	{
 		this.minDate = timeline.startTime;
 		this.maxDate = timeline.endTime;
-		populateLineChart(event.operation == "other");
+		
+		if (this.maxOffset_msec > 0) // show subset of entire time range
+		{
+			var nmiddle:Number = (minDate.getTime()+maxDate.getTime())/2;
+			timeline.overviewStartTime = new Date(nmiddle - this.maxOffset_msec);
+			timeline.overviewEndTime = new Date(nmiddle + this.maxOffset_msec);
+		}
+		else // show entire time range
+		{
+			timeline.overviewStartTime = this.overViewMinDate;
+			timeline.overviewEndTime = this.overViewMaxDate;
+		}
+		populateLineChart(null == event || (event.operation == "other"));
 		// don't redraw overview line chart on "pan"
 		
 	}
@@ -1291,13 +1344,15 @@
 		{
 			newIndex = timestepDuration.selectedIndex;
 		}
-		else {
+		else
+		{
 			newIndex = event.newIndex;
 		}
 		
 		// Years/months (weeks)
 		if ( newIndex == 0 )
 		{
+			maxOffset_msec = -1; //entire timerange
 			timeline.majorTickTimeUnit="year";
 			timeline.minorTickTimeStep=3;
 			timeline.minorTickTimeUnit="month";	
@@ -1309,6 +1364,7 @@
 		// Months/weeks (days)
 		if ( newIndex == 1 )
 		{
+			maxOffset_msec = 10*30*24*3600*1000;			
 			timeline.majorTickTimeUnit="month";
 			timeline.minorTickTimeStep=1;
 			timeline.minorTickTimeUnit="week";	
@@ -1320,6 +1376,7 @@
 		// Weeks/days (hours)
 		if ( newIndex == 2 )
 		{
+			maxOffset_msec = 10*7*24*3600*1000;			
 			timeline.majorTickTimeUnit="week";
 			timeline.minorTickTimeStep=1;
 			timeline.minorTickTimeUnit="day";
@@ -1331,6 +1388,7 @@
 		// Days/hours (hours)
 		if ( newIndex == 3 )
 		{
+			maxOffset_msec = 10*24*3600*1000;						
 			timeline.majorTickTimeUnit="day";
 			timeline.minorTickTimeStep=6;
 			timeline.minorTickTimeUnit="hour";	
@@ -1338,6 +1396,11 @@
 			timeline.minDurationTimeUnit="hour";
 			timeline.overviewMajorTickTimeUnit="year";
 		}
+		/**/
+		onTimelineChange(null);
+		// (redraws line chart)
+		/**/
+		//Alert.show("" + this.timeline.overviewStartTime + "/" + maxOffset_msec);
 	}
 
 	/**
@@ -1359,7 +1422,7 @@
 		{
 			this.docDisplayEnum = newIndex;	
 			if ((null != currData) && (currData.length > 0)) {
-				timeline.dataProvider = currData;
+				createNewTimeline_initialize();
 			}
 			else { // not sure what's going on, play it safe
 				timeline.dataProvider = null;
@@ -1371,7 +1434,7 @@
 		{
 			this.docDisplayEnum = newIndex;	
 			if ((null != currData) && (currData.length > 0)) {
-				timeline.dataProvider = currData;
+				createNewTimeline_initialize();
 			}
 			else { // not sure what's going on, play it safe
 				timeline.dataProvider = null;
@@ -1401,7 +1464,7 @@
 		}
 		else {
 			newIndex = event.newIndex;
-		}
+		}		
 		//<s:ArrayList source="[Auto/Log,None/Log,Auto/None,None/None,No graphs]" />
 		this.lineDisplayEnum = newIndex;
 		this.populateLineChart(true);
@@ -1752,7 +1815,7 @@
 							   minorTickTimeStep="1"
 							   minorTickTimeUnit="week"	
 							   minDurationTimeStep="1"
-							   minDurationTimeUnit="day"
+							   minDurationTimeUnit="day"							  
 							   priorityField="score"
 							   labelFunction="formatText"
 							   updateComplete="updateComplete_handler(event)"
@@ -1760,6 +1823,9 @@
 							   useVirtualLayout="false">
 				</ibm:HTimeline>
 			</s:VGroup>
+			
+			<fw:Spinner id="spinner" visible="false" horizontalCenter="0" verticalCenter="0"/>
+			
 		</s:Group>
 	</s:HGroup>
 

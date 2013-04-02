@@ -20,8 +20,8 @@
 	<classpathentry kind="lib" path="lib/boilerpipe-1.2.0.jar"/>
 	<classpathentry kind="lib" path="lib/nekohtml-1.9.13.jar"/>
 	<classpathentry kind="lib" path="lib/xerces-2.9.1.jar"/>
-	<classpathentry kind="lib" path="lib/mongo-2.7.2.jar"/>
 	<classpathentry kind="lib" path="lib/textrank-en.jar"/>
+	<classpathentry kind="lib" path="lib/mongo-2.10.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="lib" path="lib/commons-logging-1.1.1.jar"/>
 	<classpathentry kind="lib" path="lib/tika-app-1.0.jar"/>

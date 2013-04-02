@@ -203,22 +203,8 @@
 			 **/
 			private function labelClick( data:Object ):void
 			{
-				if ( data.url != null && data.url.indexOf( "http" ) > -1 )
-				{
-					navigateToUrl( data.url );
-				}
-				else if ( null != data.metadata )
-				{
-					Alert.show( JSONEncoder.encode( data.metadata ), "Metadata fields" );
-				}
-				else if ( null != data.description )
-				{
-					Alert.show( data.description );
-				}
-				else
-				{
-					Alert.show( "No more information is available." );
-				}
+				var url:String = getDisplayableUrl( data );
+				navigateToUrl( url );
 			}
 			
 			/**
@@ -242,6 +228,40 @@
 			{
 				expanded = !expanded;
 				event.stopImmediatePropagation();
+			}
+			
+			private function getDisplayableUrl(repeaterItem: Object):String
+			{
+				var urlStr;
+				if ( null != repeaterItem.displayUrl && (repeaterItem.displayUrl is String) && ( (repeaterItem.displayUrl as String).length > 0 ) )
+				{
+					if ( repeaterItem.displayUrl.indexOf( "http://" ) > -1 )
+					{			
+						urlStr = repeaterItem.displayUrl;
+					}
+					else // must be a relative path ... ie for files
+					{
+						urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + repeaterItem.sourceKey + "/" + 
+							repeaterItem.displayUrl;
+					}
+				}
+				else if ( repeaterItem.url.indexOf( "http://" ) > -1 )
+				{
+					urlStr = repeaterItem.url;
+				}
+				else if ( ( null != repeaterItem.metadata ) && ( null != repeaterItem.sourceKey ) &&
+					( null != repeaterItem.metadata["_FILE_METADATA_"] ) && ( null != repeaterItem.metadata["_FILE_METADATA_"][0]["InfinitePath"] ) )
+				{
+					// (since displayUrl, this is a legacy case...)
+					
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + repeaterItem.sourceKey + "/" + 
+						repeaterItem.metadata["_FILE_METADATA_"][0]["InfinitePath"];
+				}
+				else
+				{
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + repeaterItem._id + "?returnRawData=true";
+				}
+				return urlStr;
 			}
 		]]>
 	</fx:Script>
@@ -307,7 +327,7 @@
 				<s:Label id="timeDate"
 					x="0"
 					y="0"
-					text="{ data.publishedDate }"
+					text="{ (data.publishedDate as String).replace(' UTC', '') }"
 					fontWeight="bold"
 					includeIn="baseState" />
 
@@ -376,7 +396,7 @@
 				mouseChildren="false"
 				useHandCursor="true" />
 			<mx:LinkButton id="link"
-				label="{ data.url }"
+				label="{ getDisplayableUrl( data ) }"
 				maxWidth="{ bContainerExpanded.width - 20 }"
 				toolTip="[Mouse: open URL in new tab]"
 				color="green"

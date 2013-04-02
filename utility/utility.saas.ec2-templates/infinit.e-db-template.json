@@ -128,6 +128,7 @@
 						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
 						                   
 							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow-infinite.repo';",
 							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
 							                   "yum install -y infinit.e-platform.prerequisites.online;",
 							                   
@@ -139,15 +140,15 @@
 							                   "echo ", { "Ref": "AwsAccessKey" }, " >> s3;",
 							                   "for i in `seq 1 4`; do echo '' >> s3; done;",
 							                   "echo n >> s3; echo y >> s3; echo n >> s3;",
-							                   "s3cmd --configure < s3; rm -f s3;",
+							                   "s3cmd --configure -c /tmp/s3cfg < s3; rm s3;",
 							                   
-							                   "s3cmd get ", { "Ref": "ConfigFileS3Path" }, ";",
+							                   "s3cmd -c /tmp/s3cfg get ", { "Ref": "ConfigFileS3Path" }, "; rm -f /tmp/s3cfg; ",
 							                   
 							               "yum -y --nogpgcheck install infinit.e-config;",    
 							               "yum -y --nogpgcheck install infinit.e-db-instance;",
 						                   
 						                   "sed -i 's/^curl/#curl/' /etc/rc.local"    
-					}
+							               ]]}
 				}
 			}
 		}

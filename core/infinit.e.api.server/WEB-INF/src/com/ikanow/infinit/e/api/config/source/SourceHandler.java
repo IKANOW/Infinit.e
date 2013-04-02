@@ -747,7 +747,7 @@ public class SourceHandler
 	 * @param communityIdStrList
 	 * @return
 	 */
-	public ResponsePojo getGoodSources(String userIdStr, String communityIdStrList) 
+	public ResponsePojo getGoodSources(String userIdStr, String communityIdStrList, boolean bStrip) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		try 
@@ -775,8 +775,12 @@ public class SourceHandler
 			// (allow failed harvest sources because they might have previously had good data)
 			query.put(SourcePojo.isApproved_, true);
 			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
+			BasicDBObject fields = new BasicDBObject();
+			if (bStrip) {
+				setStrippedFields(fields);
+			}			
 			
-			DBCursor dbc = DbManager.getIngest().getSource().find(query);
+			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);
 			
 			// Remove communityids we don't want the user to see:
 			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
@@ -791,8 +795,29 @@ public class SourceHandler
 		// Return Json String representing the user
 		return rp;
 	}
-	
-	
+		
+	private static void setStrippedFields(BasicDBObject fields) {
+		fields.put(SourcePojo.created_, 1);
+		fields.put(SourcePojo.modified_, 1);
+		fields.put(SourcePojo.url_, 1);
+		fields.put(SourcePojo.title_, 1);
+		fields.put(SourcePojo.isPublic_, 1);
+		fields.put(SourcePojo.ownerId_, 1);
+		fields.put(SourcePojo.author_, 1);
+		fields.put(SourcePojo.mediaType_, 1);
+		fields.put(SourcePojo.key_, 1);
+		fields.put(SourcePojo.description_, 1);
+		fields.put(SourcePojo.tags_, 1);
+		fields.put(SourcePojo.communityIds_, 1);
+		fields.put(SourcePojo.harvest_, 1);
+		fields.put(SourcePojo.isApproved_, 1);
+		fields.put(SourcePojo.extractType_, 1);
+		fields.put(SourcePojo.searchCycle_secs_, 1);
+		fields.put(SourcePojo.maxDocs_, 1);
+		fields.put(SourcePojo.duplicateExistingUrls_, 1);
+		fields.put(SourcePojo.maxDocs_, 1);		
+	}
+
 	/**
 	 * getBadSources
 	 * Get a list of sources with harvester errors for a list of one or more
@@ -800,7 +825,7 @@ public class SourceHandler
 	 * @param communityIdStrList
 	 * @return
 	 */
-	public ResponsePojo getBadSources(String userIdStr, String communityIdStrList) 
+	public ResponsePojo getBadSources(String userIdStr, String communityIdStrList, boolean bStrip) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try 
@@ -827,7 +852,11 @@ public class SourceHandler
 			BasicDBObject query = new BasicDBObject();
 			query.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString());
 			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
-			DBCursor dbc = DbManager.getIngest().getSource().find(query);			
+			BasicDBObject fields = new BasicDBObject();
+			if (bStrip) {
+				setStrippedFields(fields);
+			}			
+			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);			
 
 			// Remove communityids we don't want the user to see:
 			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
@@ -851,7 +880,7 @@ public class SourceHandler
 	 * @param communityIdStrList
 	 * @return
 	 */
-	public ResponsePojo getPendingSources(String userIdStr, String communityIdStrList) 
+	public ResponsePojo getPendingSources(String userIdStr, String communityIdStrList, boolean bStrip) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		try 
@@ -878,7 +907,11 @@ public class SourceHandler
 			BasicDBObject query = new BasicDBObject();
 			query.put(SourcePojo.isApproved_, false);
 			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
-			DBCursor dbc = DbManager.getIngest().getSource().find(query);
+			BasicDBObject fields = new BasicDBObject();
+			if (bStrip) {
+				setStrippedFields(fields);
+			}			
+			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);
 			
 			// Remove communityids we don't want the user to see:
 			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
@@ -900,7 +933,7 @@ public class SourceHandler
 	 * @param userId
 	 * @return
 	 */
-	public ResponsePojo getUserSources(String userIdStr) 
+	public ResponsePojo getUserSources(String userIdStr, boolean bStrip) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try 
@@ -911,6 +944,10 @@ public class SourceHandler
 			DBCursor dbc = null;
 			BasicDBObject query = new BasicDBObject(); 
 			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, userCommunities));
+			BasicDBObject fields = new BasicDBObject();
+			if (bStrip) {
+				setStrippedFields(fields);
+			}			
 								
 			Set<ObjectId> ownedOrModeratedCommunityIdSet = null;
 			if (!bAdmin) {
@@ -924,7 +961,7 @@ public class SourceHandler
 			// Get all sources for admins
 			if (bAdmin)
 			{
-				dbc = DbManager.getIngest().getSource().find(query);
+				dbc = DbManager.getIngest().getSource().find(query, fields);
 			}
 			// Get only sources the user owns or owns/moderates the parent community
 			else
@@ -932,7 +969,7 @@ public class SourceHandler
 				query.put(SourcePojo.ownerId_, new ObjectId(userIdStr));
 				BasicDBObject query2 = new BasicDBObject();
 				query2.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, ownedOrModeratedCommunityIdSet));
-				dbc = DbManager.getIngest().getSource().find(new BasicDBObject(MongoDbManager.or_, Arrays.asList(query, query2)));
+				dbc = DbManager.getIngest().getSource().find(new BasicDBObject(MongoDbManager.or_, Arrays.asList(query, query2)), fields);
 			}			
 			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(null, userCommunities, null));
 			rp.setResponse(new ResponseObject("User's Sources", true, "successfully returned user's sources"));

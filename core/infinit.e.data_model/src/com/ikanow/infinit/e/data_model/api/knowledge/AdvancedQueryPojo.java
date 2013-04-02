@@ -35,17 +35,22 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 
 	static public class QueryTermPojo 
 	{
+		// Can only specify 1 of: ftext [+metadataField], etext [+metadataField], {entity,entityValue+entityType} [+sentiment], { event, assoc } [+sentiment], time, geo
+		
 		public String ftext; // Free text query (arbitrary Lucene query)
 		public String etext; // Exact text search
-		public String entity; // Gazateer index ("disambiguous_name/type", '/' can be ':')
+		public String metadataField = null; // Restricts an etext/ftext to apply only to the specified metadata field
+		// Ignored for other query types.
+		
+		public String entity; // Entity index ("disambiguous_name/type", '/' can be ':')
 		// Alternative for entity (overrides it):
 		public String entityValue; // (must be specified)
 		public String entityType; // (can be left unspecified)
 		
 		static public class EntityOptionPojo { // Options for "entity" types
 			public boolean rawText = false; // If true (!default) adds the disambiguated name and all aliases as an exact text search
-			public boolean expandAlias = false; // If true (!default), adds aliases to the search
-			public boolean expandOntology = false; // If true (!default), adds "useful" generalizations of the entity to the search
+			public boolean expandAlias = false; // If true (!default), adds other actual names to the search
+			public boolean expandOntology = false; // If true (!default), adds "useful" generalizations of the entity to the search (CURRENTLY UNSUPPORTED)
 		}
 		public EntityOptionPojo entityOpt;
 		
@@ -57,8 +62,15 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 			public QueryTermPojo.TimeTermPojo time;
 			public String type; // Event,Fact,Summary
 		}
-		public AssociationTermPojo event;
+		public AssociationTermPojo event; //DEPRECATED - use assoc instead, this is just for backwards compatibility
 		public AssociationTermPojo assoc;
+		
+		//This sentiment tag is ignored unless accompanied with an entity or assoc term:
+		static public class SentimentModifierPojo {
+			public Double min;
+			public Double max;
+		}
+		public SentimentModifierPojo sentiment;
 		
 		static public class TimeTermPojo { // Time bounding term for the query
 			public String min; // Min date, inclusive, (default - no min) - any sensible date format parsed
@@ -84,14 +96,12 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 				//e.g. send countrysubsidiary and we will only search states, cities, points (not country so US doesnt show up 1mil times)
 			public String ontology_type; //the ontology type of the searchterm so we can only search this type an below 
 		}
-		public GeoTermPojo geo;
-		
-		public String metadataField = null; // Restricts an etext/ftext to apply only to the specified metadata field
-											// Ignored for other query types.
+		public GeoTermPojo geo;		
 	}
 	public List<QueryTermPojo> qt; // Array of query terms as above
 	public String logic; // The logic to combine these query terms, use Lucene logic with qt[n], n=0,1,2,... or n=1,2,3...
 	public Boolean expandAlias; // Optional, defaults to true - if false, manually specified aliases are ignored (automatic aliases still depend on per-entity settings)
+	public Boolean explain; // Optional, defaults to false - if true appends the "explain" parameter from elasticsearch to every promoted document 
 	
 	static public class QueryRawPojo { // Raw query object for power users
 		public QueryRawPojo() {}

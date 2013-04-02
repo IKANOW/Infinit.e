@@ -373,7 +373,17 @@ package com.ikanow.infinit.e.widget.library.utility
 				out += ch;
 			}
 			return out;
-		}			
+		}
+		
+		private static function htmlEscape( raw:String ):String
+		{
+			var xml:XML = <a/>
+				;
+			xml.setChildren( raw );
+			var s:String = xml.toXMLString().substring( 3 );
+			return s.substr( 0, s.length - 4 );
+		}
+		
 	} // end class htmlConvert
 }
 
