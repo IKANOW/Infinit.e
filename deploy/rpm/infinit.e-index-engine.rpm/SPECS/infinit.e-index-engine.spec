@@ -64,7 +64,10 @@ Infinit.e index engine using ElasticSearch
 	# Load AWS plugin:
 	USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
 	if [ "$USE_AWS" = "1" ]; then
-		/usr/share/java/elasticsearch/bin/plugin -install cloud-aws
+		# Try for both 0.18 and 0.19 (this is a bit of a disaster at the moment, versions aren't auto-detecting...)
+		res=$(/usr/share/java/elasticsearch/bin/plugin -install cloud-aws)
+		echo $res | grep -v 'failed to download'
+		echo $res | grep -q 'failed to download' && /usr/share/java/elasticsearch/bin/plugin -url "http://cloud.github.com/downloads/elasticsearch/elasticsearch-cloud-aws/elasticsearch-cloud-aws-1.10.0.zip" -install elasticsearch-cloud-aws
 	fi	
 	
 	# (service started in posttrans)
