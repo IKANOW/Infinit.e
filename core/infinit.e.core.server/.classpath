@@ -5,9 +5,9 @@
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
 	<classpathentry kind="lib" path="lib/hadoop-core-0.20.2-cdh3u3.jar"/>
 	<classpathentry kind="lib" path="lib/commons-lang-2.1.jar"/>
-	<classpathentry kind="lib" path="lib/mongo-2.7.2.jar"/>
 	<classpathentry kind="lib" path="lib/guava-r09-jarjar.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-all-1.8.10.jar"/>
+	<classpathentry kind="lib" path="lib/mongo-2.10.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.harvest.library"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
