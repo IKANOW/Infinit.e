@@ -60,7 +60,7 @@ else
 	sed -i "s|.*app.saas=true.*|//\0|" $CONSTANTS_CONF_LOCATION
 fi
 # If no end point specified then default it to current location:
-sed -i "s|\"END_POINT_URL\"|'http://'+document.location.hostname+':'+document.location.port+'/api/'|" $CONSTANTS_CONF_LOCATION
+sed -i "s|\"END_POINT_URL\"|'http://'+document.location.hostname+':'+(document.location.port==''?80:document.location.port)+'/api/'|" $CONSTANTS_CONF_LOCATION
 
 if [ "$EXTERNAL_SEARCH_NAME" = "" ]; then
 	EXTERNAL_SEARCH_NAME="google" #(default)

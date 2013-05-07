@@ -256,3 +256,4 @@ if [ "$USE_AWS" = "1" ]; then
 	echo "Set EC2 Cluster Name and Cluster Name in properties file"
 	sh /opt/infinite-home/scripts/set_cluster.sh
 fi
+echo "(If running this manually, not from RPM, you may also need to sh /opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh to update the Interface Engine)"
