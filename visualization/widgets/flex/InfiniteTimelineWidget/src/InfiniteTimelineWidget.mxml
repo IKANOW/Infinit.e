@@ -1153,8 +1153,11 @@
 			newTerm["time"] = newTimeTerm;
 			queryTerms.addItem(newTerm);
 			
-			// Clear the time decay setting by setting it to null
-			query["score"]["timeProx"] = null;
+			// Clear the time decay setting by setting it to "" (can't set things to null, framework just writes default over sigh)
+			if (null != query["score"]["timeProx"])
+			{				
+				query["score"]["timeProx"]["decay"] = "";
+			}
 			
 			// Update the query in the dimension explorer
 			this._context.setCurrentQuery(query, "qt");

@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -101,6 +101,12 @@ package com.ikanow.infinit.e.widget.library.assets
 		
 		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Widget_Zoom_Button_Off.png" )]
 		public static const WIDGET_ZOOM_BUTTON_OFF:Class;
+		
+		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Widget_Drag_Icon_On.png" )]
+		public static var WIDGET_DRAG_ICON_ON:Class;
+		
+		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Widget_Drag_Icon_Off.png" )]
+		public static var WIDGET_DRAG_ICON_OFF:Class;
 	}
 }
 

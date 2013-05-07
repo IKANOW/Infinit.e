@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.generic;
 
+import java.util.HashMap;
 import java.util.List;
 
 //import org.apache.log4j.Logger;
@@ -34,6 +35,7 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
+import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
@@ -48,14 +50,15 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 
+import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
+import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.collect.ImmutableMap;
+
 //DEBUG (alias corruption)
-//import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
-//import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 //import org.elasticsearch.action.admin.indices.status.IndexStatus;
 //import org.elasticsearch.action.admin.indices.status.IndicesStatusRequest;
 //import org.elasticsearch.action.admin.indices.status.IndicesStatusResponse;
-//import org.elasticsearch.cluster.metadata.AliasMetaData;
-//import org.elasticsearch.common.collect.ImmutableMap;
 
 public class GenericProcessingController {
 
@@ -80,7 +83,8 @@ public class GenericProcessingController {
 		{
 			PropertiesManager pm = new PropertiesManager();
 			
-			DbManager.getDocument().getContent().ensureIndex(new BasicDBObject(DocumentPojo.url_, 1)); // (annoyingly necessary)
+			DbManager.getDocument().getContent().ensureIndex(new BasicDBObject(CompressedFullTextPojo.sourceKey_, 2), new BasicDBObject(CompressedFullTextPojo.url_, 2)); // (annoyingly necessary)
+			dropIndexIfItExists(DbManager.getDocument().getContent(), CompressedFullTextPojo.url_, 1);
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.sourceUrl_, 1);
 			
@@ -110,6 +114,7 @@ public class GenericProcessingController {
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.alias_, 1));
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
+			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("country", 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("search_field", 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("geoindex", "2d"));
@@ -169,22 +174,32 @@ public class GenericProcessingController {
 			
 			if (!pm.getAggregationDisabled()) {
 				
+				boolean languageNormalization = pm.getNormalizeEncoding();
+				
 				Builder localSettingsEvent = ImmutableSettings.settingsBuilder();
 				localSettingsEvent.put("number_of_shards", 1).put("number_of_replicas", 0);
 				localSettingsEvent.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
-				localSettingsEvent.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard", "lowercase");
+				if (languageNormalization) {
+					localSettingsEvent.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "icu_normalizer","icu_folding","standard","lowercase");
+				}
+				else {
+					localSettingsEvent.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard","lowercase");					
+				}
 	
-				localSettingsEvent.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
-				localSettingsEvent.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard", "lowercase");
-				
 				Builder localSettingsGaz = ImmutableSettings.settingsBuilder();
 				localSettingsGaz.put("number_of_shards", 1).put("number_of_replicas", 0);
 				localSettingsGaz.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
-				localSettingsGaz.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard", "lowercase");
+				if (languageNormalization) {
+					localSettingsGaz.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "icu_normalizer","icu_folding","standard","lowercase");
+				}
+				else {
+					localSettingsGaz.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard","lowercase");					
+				}
 			
 				//event feature
 				String eventGazMapping = new Gson().toJson(new AssociationFeaturePojoIndexMap.Mapping(), AssociationFeaturePojoIndexMap.Mapping.class);	
 				ElasticSearchManager eventIndex = IndexManager.createIndex(AssociationFeaturePojoIndexMap.indexName_, null, false, null, eventGazMapping, localSettingsEvent);
+				eventIndex.createAlias(AssociationFeaturePojoIndexMap.indexCollectionName_);
 				if (bDeleteEventFeature) {
 					eventIndex.deleteMe();
 					eventIndex = IndexManager.createIndex(AssociationFeaturePojoIndexMap.indexName_, null, false, null, eventGazMapping, localSettingsEvent);
@@ -192,6 +207,7 @@ public class GenericProcessingController {
 				//entity feature
 				String gazMapping = new Gson().toJson(new EntityFeaturePojoIndexMap.Mapping(), EntityFeaturePojoIndexMap.Mapping.class);	
 				ElasticSearchManager entityIndex = IndexManager.createIndex(EntityFeaturePojoIndexMap.indexName_, null, false, null, gazMapping, localSettingsGaz);
+				entityIndex.createAlias(EntityFeaturePojoIndexMap.indexCollectionName_);
 				if (bDeleteEntityFeature) {
 					entityIndex.deleteMe();
 					entityIndex = IndexManager.createIndex(EntityFeaturePojoIndexMap.indexName_, null, false, null, gazMapping, localSettingsGaz);
@@ -209,6 +225,17 @@ public class GenericProcessingController {
 			}
 			bRebuildDocsIndex |= bPingMainIndexFailed;
 			
+			// check the main index has the "collection" alias - if not then rebuild everything
+			
+			if (!bPingMainIndexFailed && (null == _aliasInfo)) { 
+				ElasticSearchManager docIndex = ElasticSearchManager.getIndex(DocumentPojoIndexMap.globalDocumentIndex_);
+				ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
+				_aliasInfo = clusterState.getState().getMetaData().getAliases();
+				if (!_aliasInfo.containsKey(DocumentPojoIndexMap.globalDocumentIndexCollection_)) {
+					bRebuildDocsIndex = true;
+				}
+			} //TESTED
+			
 			createCommunityDocIndex(DocumentPojoIndexMap.globalDocumentIndex_, null, false, true, bDeleteDocs);
 			createCommunityDocIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_, null, false, false, bDeleteDocs);
 			
@@ -217,17 +244,17 @@ public class GenericProcessingController {
 			createCommunityDocIndex("4e3706c48d26852237079004", null, true, false, bDeleteDocs); // (test user)
 				// (create dummy index used to keep personal group aliases)
 						
-			// OK, going to have different shards for different communities:
-			// Get a list of all the communities:
-			
-			BasicDBObject query = new BasicDBObject();
-			BasicDBObject fieldsToDrop = new BasicDBObject("members", 0);
-			fieldsToDrop.put("communityAttributes", 0);
-			fieldsToDrop.put("userAttributes", 0);
-			DBCursor dbc = DbManager.getSocial().getCommunity().find(query, fieldsToDrop);
-			
 			if (bRebuildDocsIndex || bDeleteDocs) {
 
+				// OK, going to have different shards for different communities:
+				// Get a list of all the communities:
+				
+				BasicDBObject query = new BasicDBObject();
+				BasicDBObject fieldsToDrop = new BasicDBObject("members", 0);
+				fieldsToDrop.put("communityAttributes", 0);
+				fieldsToDrop.put("userAttributes", 0);
+				DBCursor dbc = DbManager.getSocial().getCommunity().find(query, fieldsToDrop);
+				
 				List<DBObject> tmparray = dbc.toArray(); // (brings the entire thing into memory so don't get cursor timeouts)
 				int i = 0;
 				System.out.println("Initializing " + dbc.size() + " indexes:");
@@ -268,9 +295,6 @@ public class GenericProcessingController {
 		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, false); 
 	}
 	
-	//DEBUG (alias corruption)
-	//private static ImmutableMap<String, ImmutableMap<String, AliasMetaData>> _aliasInfo = null;
-	
 	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, 
 			boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, boolean bParentsOnly)
 	{
@@ -281,14 +305,25 @@ public class GenericProcessingController {
 		
 		String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
 		
-		String sGroupIndex = null;
+		String sGroupIndex = null; // for indexing, ie always a single index
+		String sAliasIndex = null; // for querying, ie will point to doc_commid, doc_commid_1, etc
 		try {
 			sGroupIndex = new StringBuffer("doc_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
+			sAliasIndex = new StringBuffer("docs_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
 		}
 		catch (Exception e) {
 			sGroupIndex = nameOrCommunityIdStr;
+			if (DocumentPojoIndexMap.globalDocumentIndex_.equals(nameOrCommunityIdStr)) { 
+				sAliasIndex = DocumentPojoIndexMap.globalDocumentIndexCollection_;
+			}
+			else if (DocumentPojoIndexMap.manyGeoDocumentIndex_.equals(nameOrCommunityIdStr)) {
+				sAliasIndex = DocumentPojoIndexMap.manyGeoDocumentIndexCollection_;				
+			}
+			else { // fallback
+				sAliasIndex = nameOrCommunityIdStr.replaceAll("doc(?:ument)?_", "docs_");
+			}
+			//TESTED
 		}		
-		
 		if (!bPersonalGroup) {
 			
 			String parentCommunityIdStr = null;
@@ -310,19 +345,7 @@ public class GenericProcessingController {
 					localSettingsGroupIndex.putArray("index.analysis.analyzer.default.filter", "icu_normalizer","icu_folding","standard","lowercase","stop");
 				}//TESTED
 
-				ElasticSearchManager docIndex = null;
-				try {
-					docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
-				}
-				catch (RuntimeException e) { // illegal arg exception, probably the language normalization?
-					if (languageNormalization) { // (likely the required plugins have not been installed, just regress back to normal)
-						localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
-						localSettingsGroupIndex.put("number_of_shards", nShards).put("number_of_replicas", nPreferredReplicas);	
-						
-						docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
-					}//TESTED
-					else throw e;
-				}//TOTEST
+				ElasticSearchManager docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
 				if (bClearIndex) {
 					docIndex.deleteMe();
 					docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
@@ -332,11 +355,16 @@ public class GenericProcessingController {
 						docIndex.pingIndex(); // (wait until it's created itself)
 					}
 					catch (Exception e) {} // (just make sure this doesn't die horribly)
-					
+				}
+				else {
+					docIndex = IndexManager.getIndex(sGroupIndex);
+				}
+				if (null != docIndex) { // should always be true
+					docIndex.createAlias(sAliasIndex);
 					docIndex.closeIndex();
 				}
 			}
-			else if (!bParentsOnly) {				
+			else if (!bParentsOnly) { // A sub-index of a parent 			
 				String sParentGroupIndex = new StringBuffer("doc_").append(new ObjectId(parentCommunityIdStr).toString()).toString();
 				ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
 				
@@ -357,11 +385,14 @@ public class GenericProcessingController {
 //					}
 //				}
 				
-				docIndex.createAlias(sGroupIndex);
+				docIndex.createAlias(sGroupIndex); // for indexing 
+					// (this is going to be tricky when the functionality is fully implemented
+					//  because it will need to handle the parent index splitting)
+				docIndex.createAlias(sAliasIndex); // for queries
 				docIndex.closeIndex();
 				// (do nothing on delete - that will be handled at the parent index level)
 			}
-			//TESTED (parents, children, and personal)
+			//TESTED (parents, children, and personal + docs_ aliases)
 		}
 		else {
 			// Just create the dummy index, no different to getting it in practice
@@ -373,11 +404,12 @@ public class GenericProcessingController {
 			}			
 			
 			// Just create an alias, so that queries work arbitrarily:
-			dummyGroupIndex.createAlias(sGroupIndex);			
+			dummyGroupIndex.createAlias(sGroupIndex); // (at some point we should delete the sGroupIndex alias, but leave it in for bw compatibility for now)
+			dummyGroupIndex.createAlias(sAliasIndex); // (never index dummy indices so only need query index)
 			// (do nothing on delete since don't have any docs in here anyway)
 		}
 	}
-	//TESTED
+	//TESTED (including new docs_ alias)
 
 	///////////////////////////
 	
@@ -404,21 +436,37 @@ public class GenericProcessingController {
 		
 	public static void deleteCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, boolean bPersonalGroup) {
 		
-		String sGroupIndex = null;
+		String sGroupIndex = null; // for indexing, ie always a single index
+		String sAliasIndex = null; // for querying, ie will point to doc_commid, doc_commid_1, etc
 		try {
 			sGroupIndex = new StringBuffer("doc_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
+			sAliasIndex = new StringBuffer("docs_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
 		}
 		catch (Exception e) {
 			sGroupIndex = nameOrCommunityIdStr;
+			if (DocumentPojoIndexMap.globalDocumentIndex_.equals(nameOrCommunityIdStr)) { 
+				sAliasIndex = DocumentPojoIndexMap.globalDocumentIndexCollection_;
+			}
+			else if (DocumentPojoIndexMap.manyGeoDocumentIndex_.equals(nameOrCommunityIdStr)) {
+				sAliasIndex = DocumentPojoIndexMap.manyGeoDocumentIndexCollection_;				
+			}
+			else { // fallback
+				sAliasIndex = nameOrCommunityIdStr.replaceAll("doc(?:ument)?_", "docs_");
+			}
+			//TESTED
 		}		
 		if (bPersonalGroup) {
 			ElasticSearchManager dummyGroupIndex = IndexManager.getIndex(DocumentPojoIndexMap.dummyDocumentIndex_);
+			dummyGroupIndex.removeAlias(sAliasIndex);
 			dummyGroupIndex.removeAlias(sGroupIndex);
 		}
-		else if (null != parentCommunityId) {
+		else if ((null != parentCommunityId) && (!parentCommunityId.equals(new ObjectId("4c927585d591d31d7b37097a")))) {
+			// (system community is hardwired)
+			
 			String sParentGroupIndex = new StringBuffer("doc_").append(parentCommunityId.toString()).toString();
 			ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
 			docIndex.removeAlias(sGroupIndex);
+			docIndex.removeAlias(sAliasIndex);
 			docIndex.closeIndex();
 		}
 		else {
@@ -429,6 +477,61 @@ public class GenericProcessingController {
 	}
 	//TESTED (personal and system)
 		
+	///////////////////////////////////////////////////////////////////////////////////////
+	//
+	// Interface to handle scaleable indexes
+	// Currently this is a dummy interface, but it will make it easy to split the indexes in the future
+
+	private static HashMap<String, String> _docIndexMap = null;
+	private static String _assocIndex = null;
+	private static String _entityIndex = null;
+	private static ImmutableMap<String, ImmutableMap<String, AliasMetaData>> _aliasInfo = null;
+		
+	//TODO (INF-1136): Test and integrate this (phase 1), then implement the index splitting code (phase 2)
+	
+	public static synchronized String getIndex(String communityIdOrIndexStr) {
+		if (communityIdOrIndexStr == EntityFeaturePojoIndexMap.indexName_) { // pointer == intended
+			if (null == _entityIndex) {
+				_entityIndex = EntityFeaturePojoIndexMap.indexName_;
+			}
+			return _entityIndex;
+		}
+		else if (communityIdOrIndexStr == AssociationFeaturePojoIndexMap.indexName_) { // pointer == intended			
+			if (null == _assocIndex) {
+				_assocIndex = AssociationFeaturePojoIndexMap.indexName_;
+			}
+			return _assocIndex;
+		}
+		else { // Documents
+			
+			if (null == _docIndexMap) {
+				_docIndexMap = new HashMap<String, String>();
+			}
+			String sAliasIndex;
+			try {
+				sAliasIndex = new StringBuffer("doc_").append(new ObjectId(communityIdOrIndexStr).toString()).toString();
+			}			
+			catch (Exception e) {
+				if (DocumentPojoIndexMap.globalDocumentIndex_.equals(communityIdOrIndexStr)) { 
+					communityIdOrIndexStr = sAliasIndex = DocumentPojoIndexMap.globalDocumentIndexCollection_;
+				}
+				else if (DocumentPojoIndexMap.manyGeoDocumentIndex_.equals(communityIdOrIndexStr)) {
+					communityIdOrIndexStr = sAliasIndex = DocumentPojoIndexMap.manyGeoDocumentIndexCollection_;				
+				}
+				else { // fallback
+					communityIdOrIndexStr = sAliasIndex = communityIdOrIndexStr.replaceAll("doc(?:ument)?_", "");
+				}				
+			}
+			String sDocIndex = _docIndexMap.get(communityIdOrIndexStr);
+			if (null == sDocIndex) {
+				sDocIndex = sAliasIndex;
+				_docIndexMap.put(communityIdOrIndexStr, sAliasIndex);
+			}
+			return sDocIndex;
+		}
+	}
+	//TOTEST (lots of cases)
+	
 	///////////////////////////////////////////////////////////////////////////////////////
 	//
 	// Enrich and store documents
@@ -488,8 +591,6 @@ public class GenericProcessingController {
 		}
 		
 	}//TESTED (by eye - logic is v simple)
-	
-	//TOTEST
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	//

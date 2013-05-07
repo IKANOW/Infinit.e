@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -51,7 +51,7 @@
 			{
 				selectedWidgetsList.setFocus();
 				stage.addEventListener( KeyboardEvent.KEY_DOWN, showPreviosOrNextWidget );
-				
+			
 			}
 			
 			protected function selectOptions_changeHandler():void
@@ -87,7 +87,6 @@
 					model.maximizeNextWidget();
 				}
 			}
-			
 		]]>
 	</fx:Script>
 
@@ -137,7 +136,8 @@
 		</s:HGroup>
 
 		<!-- Spacer -->
-		<s:Spacer width="100%" id="spacer" />
+		<s:Spacer id="spacer"
+			width="100%" />
 
 		<!-- Options Navigation -->
 		<s:DropDownList id="selectOptions"
@@ -152,25 +152,29 @@
 
 	</s:HGroup>
 
-		<!-- Selected Widgets List -->
-		<common:InfItemClickList id="selectedWidgetsList"
-			dataProvider="{ model.selectedWidgetsSorted }"
-			styleName="workspacesSelectedWidgetsList"
-			labelField="title"
-			width="{spacer.width}"
-			focusEnabled="false"
-			horizontalScrollPolicy="off" 
-			includeInLayout="{ model.maximized }"
-			horizontalCenter="0"
-			verticalCenter="-2"
-			itemClick="selectedWidgetsList_itemClickHandler(event)"
-			contentBackgroundAlpha="0"
-			itemRenderer="com.ikanow.infinit.e.view.dashboard.workspaces.header.WorkspacesHeaderWidgetItemRenderer"
-			selectedItem="{ model.maximizedWidget }"
-			visible="{ model.maximized }">
-			<common:layout>
-				<s:HorizontalLayout gap="10" requestedColumnCount="-1" requestedMinColumnCount="-1" variableColumnWidth="true" />
-			</common:layout>
-		</common:InfItemClickList>
+	<!-- Selected Widgets List -->
+	<common:InfItemClickList id="selectedWidgetsList"
+		dataProvider="{ model.selectedWidgetsSorted }"
+		styleName="workspacesSelectedWidgetsList"
+		labelField="title"
+		width="{ spacer.width }"
+		focusEnabled="false"
+		horizontalScrollPolicy="off"
+		includeInLayout="{ model.maximized }"
+		horizontalCenter="128"
+		verticalCenter="-2"
+		itemClick="selectedWidgetsList_itemClickHandler(event)"
+		contentBackgroundAlpha="0"
+		itemRenderer="com.ikanow.infinit.e.view.dashboard.workspaces.header.WorkspacesHeaderWidgetItemRenderer"
+		selectedItem="{ model.maximizedWidget }"
+		visible="{ model.maximized }">
+		<common:layout>
+			<s:HorizontalLayout 
+				gap="10"
+				requestedColumnCount="-1"
+				requestedMinColumnCount="-1"
+				variableColumnWidth="true" />
+		</common:layout>
+	</common:InfItemClickList>
 
 </component:GradientContainer>

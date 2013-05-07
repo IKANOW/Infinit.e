@@ -144,10 +144,10 @@ public class QueryHandler {
 		// (end initialize index)
 		
 		// Create a multi-index to check against all relevant shards:
-		StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.globalDocumentIndex_);
-		sb.append(',').append(DocumentPojoIndexMap.manyGeoDocumentIndex_);
+		StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.globalDocumentIndexCollection_);
+		sb.append(',').append(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_);
 		for (String sCommunityId: communityIdStrs) {
-			sb.append(',').append("doc_").append(sCommunityId);
+			sb.append(',').append("docs_").append(sCommunityId);
 		}
 		sb.append('/').append(DocumentPojoIndexMap.documentType_);
 		ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(sb.toString());
@@ -364,7 +364,7 @@ public class QueryHandler {
 		
 		// 0.4.3] Source weightings (if any)
 		
-		applyManualWeights(queryObj, query.score);
+		queryObj = applyManualWeights(queryObj, query.score);
 		
 	// 0.5] Pre-lucene output options
 		

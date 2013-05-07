@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.api.knowledge;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.util.Arrays;
 import java.util.zip.GZIPInputStream;
 
 import org.apache.log4j.Logger;
@@ -105,7 +106,9 @@ public class DocumentHandler
 					byte[] storageArray = new byte[200000];
 					DBCollection contentDB = DbManager.getDocument().getContent();
 					BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, dp.getUrl());
-					BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
+					contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, dp.getSourceKey())));
+					BasicDBObject fields = new BasicDBObject(CompressedFullTextPojo.gzip_content_, 1);
+					BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ, fields);
 					if (null != dboContent) {
 						byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));				
 						ByteArrayInputStream in = new ByteArrayInputStream(compressedData);

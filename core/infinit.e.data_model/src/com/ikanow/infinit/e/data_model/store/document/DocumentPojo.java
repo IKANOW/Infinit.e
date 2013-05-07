@@ -155,7 +155,8 @@ public class DocumentPojo extends BaseDbPojo {
 	
 	// Alpha transient:
 	
-	transient String tmpFullText = null; // (temporary storage until obj written to MongoDB)
+	private transient String tmpFullText = null; // (temporary storage until obj written to MongoDB)
+	private transient String rawFullText = null; // (stores a pointer to the first full text set, ie normally directly from URL/file)
 
 	// Beta unstored (eg index or API fields)
 	
@@ -270,6 +271,9 @@ public class DocumentPojo extends BaseDbPojo {
 		return (null == fullText)?tmpFullText:fullText;
 	}
 	public void setFullText(String fullText) {
+		if (null == this.rawFullText) { // very first time, set the raw full text
+			rawFullText = fullText;
+		}
 		this.tmpFullText = fullText;
 	}
 	public void makeFullTextNonTransient() {
@@ -634,7 +638,7 @@ public class DocumentPojo extends BaseDbPojo {
 						dbl.add(MongoDbUtil.encodeUnknown(entry.getValue()));
 						doc.addToMetadata(entry.getKey(), dbl);
 					}
-				}//TOTEST				
+				}//TESTED				
 			}
 			return doc;
 		}
@@ -689,6 +693,14 @@ public class DocumentPojo extends BaseDbPojo {
 
 	public Object getExplain() {
 		return explain;
+	}
+
+	public void resetRawFullText() {
+		this.rawFullText = null;
+	}
+
+	public String getRawFullText() {
+		return rawFullText;
 	}
 
 }

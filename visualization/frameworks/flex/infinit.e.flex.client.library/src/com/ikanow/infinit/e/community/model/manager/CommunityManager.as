@@ -431,9 +431,15 @@ package com.ikanow.infinit.e.community.model.manager
 		protected function processCommunities():void
 		{
 			var userCommunitiesNew:ArrayCollection = new ArrayCollection();
+			var filter:Function = null;
 			
 			if ( communities && currentUser && selectedCommunities )
 			{
+				//store and remove a filter if there was one
+				filter = communities.filterFunction;
+				communities.filterFunction = null;
+				communities.refresh();
+				
 				// create the userCommunities collection and set properties
 				for each ( var community:Community in communities )
 				{
@@ -468,6 +474,7 @@ package com.ikanow.infinit.e.community.model.manager
 				}
 				
 				// sort the communities
+				communities.filterFunction = filter; //put the filter back on
 				CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, false, true ), new SortField( Constants.NAME_PROPERTY, true ) ] );
 				communities.refresh();
 				

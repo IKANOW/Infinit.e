@@ -52,17 +52,14 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
-	
 	import flash.display.DisplayObject;
 	import flash.utils.setTimeout;
-	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.resources.IResourceManager;
 	import mx.resources.ResourceManager;
 	import mx.rpc.events.ResultEvent;
 	import mx.rpc.http.mxml.HTTPService;
-	
 	import system.data.Map;
 	import system.data.maps.HashMap;
 	
@@ -196,7 +193,8 @@ package com.ikanow.infinit.e.shared.model.manager
 				var widgetUrl:String = _widgetUrls[ i ];
 				var widget:IWidget = _widgets[ i ] as IWidget;
 				var widgetSave:WidgetSaveObject = setupManager.getSetupWidgetOptions( widgetUrl );
-				if ( null != widgetSave.communitySave && !widgetSave.communitySave.isEmpty() )
+				
+				if ( null != widgetSave && null != widgetSave.communitySave && !widgetSave.communitySave.isEmpty() )
 					widget.onLoadWidgetOptions( setupManager.getSetupWidgetOptions( widgetUrl ) );
 			}
 		}
@@ -466,6 +464,15 @@ package com.ikanow.infinit.e.shared.model.manager
 				httpService.send( json );
 			}
 		}
+		/**
+		 * Allows widgets writers to tell the framework to save their settings immediately
+		 *
+		 * @param id The widget save object
+		 */
+		public function saveWidgetSettingsNow( widgetOptions:WidgetSaveObject ):void
+		{
+			//TODO
+		}
 		
 		[Inject( "queryManager.currentQueryStringRequest", bind = "true" )]
 		/**
@@ -478,9 +485,9 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			currentQueryStringRequest = value;
 			
-			if ( (null != queryResult) && runQueryIfPossible )
+			if ( ( null != queryResult ) && runQueryIfPossible )
 			{
-				setQueryResult(queryResult);
+				setQueryResult( queryResult );
 			}
 		}
 		
@@ -588,8 +595,6 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
 			queryEvent.queryString = queryString;
-			
-			// Default event: update query, pop up nothing
 			
 			if ( modifiedElements )
 			{
@@ -709,15 +714,6 @@ package com.ikanow.infinit.e.shared.model.manager
 				var save:WidgetSaveObject = widgetSaveMap.get( share.title );
 				save.shareid = share._id;
 			}
-		}
-		/**
-		 * Allows widgets writers to tell the framework to save their settings immediately
-		 * 
-		 * @param id The widget save object
-		 */
-		public function saveWidgetSettingsNow( widgetOptions:WidgetSaveObject ):void
-		{
-			//TODO
 		}
 	}
 }

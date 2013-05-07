@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -30,6 +30,7 @@
 			import com.ikanow.infinit.e.shared.model.vo.ui.QueryTermGroup;
 			import com.ikanow.infinit.e.shared.util.QueryUtil;
 			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
 			import mx.core.DragSource;
 			import mx.events.DragEvent;
 			import mx.events.FlexEvent;
@@ -46,7 +47,45 @@
 				if ( value != null )
 				{
 					queryTermGroup = value as QueryTermGroup;
-					queryTermCollection = queryTermGroup.children;
+					
+					if ( queryTermGroup.children.length <= 5 )
+					{
+						queryTermCollection = queryTermGroup.children;
+					}
+					else
+					{
+						queryTermCollection = new ArrayCollection();
+						extraTerms = "...";
+						
+						var i:int = 0;
+						
+						for ( ; ( i < extraTermsOffset ) && ( i < queryTermGroup.children.length ); ++i )
+						{
+							var dotdotdot:QueryTerm = queryTermGroup.children.getItemAt( i ) as QueryTerm;
+							extraTerms += " " + dotdotdot.logicOperator + " ";
+							extraTerms += dotdotdot.displayLabel;
+						}
+						
+						for ( ; ( i < ( this.extraTermsOffset + 5 ) ) && ( i < queryTermGroup.children.length ); ++i )
+						{
+							queryTermCollection.addItem( queryTermGroup.children.getItemAt( i ) );
+						}
+						
+						for ( ; i < queryTermGroup.children.length; ++i )
+						{
+							dotdotdot = queryTermGroup.children.getItemAt( i ) as QueryTerm;
+							extraTerms += " " + dotdotdot.logicOperator + " ";
+							extraTerms += dotdotdot.displayLabel;
+						}
+						extraTerms += "\n\n[CTRL+CLICK/WHEEL TO SCROLL FORWARDS]";
+						var qtFinal:QueryTerm = new QueryTerm();
+						qtFinal.etext = "...";
+						qtFinal.logicIndex = -1;
+						qtFinal.logicOperator = "AND";
+						queryTermCollection.addItem( qtFinal );
+					}
+					
+					
 					logicOperator = queryTermGroup.logicOperator;
 					list.queryLevel = queryTermGroup.level;
 					list.queryTerm = queryTermGroup;
@@ -54,6 +93,11 @@
 					invalidateDisplayList();
 				}
 			}
+			
+			protected var extraTermsOffset:int = 0;
+			
+			[Bindable]
+			protected var extraTerms:String = null;
 			
 			[Bindable]
 			protected var logicOperator:String;
@@ -72,6 +116,28 @@
 				var queryEvent:QueryEvent = new QueryEvent( QueryEvent.DELETE_QUERY_TERM, true, true );
 				queryEvent.queryTermObject = queryTermGroup;
 				dispatchEvent( queryEvent );
+			}
+			
+			protected function list_clickHandler( event:MouseEvent ):void
+			{
+				if ( ( null == event ) || event.ctrlKey )
+				{
+					if ( queryTermGroup.children.length > 5 )
+					{
+						extraTermsOffset += 5;
+						
+						if ( extraTermsOffset >= queryTermGroup.children.length )
+						{
+							extraTermsOffset = 0;
+						}
+						this.data = super.data;
+					}
+				}
+			}
+			
+			protected function list_mouseWheelHandler( event:MouseEvent ):void
+			{
+				list_clickHandler( null );
 			}
 			
 			protected function logicOperatorSelector_changeHandler( event:IndexChangeEvent ):void
@@ -141,10 +207,13 @@
 		<!-- Query Term Group Children List -->
 		<builder:QueryTermSkinnableDataContainer id="list"
 			dataProvider="{ queryTermCollection }"
+			toolTip="{ extraTerms }"
 			styleName="advancedQueryTermList"
+			click="list_clickHandler(event)"
 			mouseMove="mouseMoveHandler(event)"
 			mouseOut="mouseOutHandler(event)"
 			mouseOver="mouseOverHandler(event)"
+			mouseWheel="list_mouseWheelHandler(event)"
 			dropEnabled="true"
 			itemRendererFunction="QueryUtil.advancedQueryList_itemRendererFunction">
 			<builder:layout>
@@ -174,7 +243,7 @@
 	<common:InfButton id="deleteButton"
 		styleName="deleteBlackButton"
 		y="{ list.y - 1 }"
-		x="{ list.x + list.width - 21 }"
+		x="{ list.x }"
 		includeInLayout="{ showDeleteButton }"
 		click="deleteButton_clickHandler(event)"
 		mouseOut="mouseOutHandler(event)"

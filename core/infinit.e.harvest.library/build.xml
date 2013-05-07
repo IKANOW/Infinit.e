@@ -57,7 +57,7 @@
 
 
 	<path id="infinit.e.data_model.classpath">
-		<pathelement location="${infinit.e.data_model.location}/build/classes" />
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
 	</path>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">
@@ -170,7 +170,7 @@
 				<!-- Get a list of all the excluded files, add manually to classpath -->
 				<fileset 
 					dir="${dir.lib}"
-					includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar" />
+					includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar aws-java*.jar kundera-*.jar" />
 			</path>
 		</pathconvert>
 
@@ -194,7 +194,7 @@
 			<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions -->
 			<zipgroupfileset 
 				dir="${dir.lib}"
-				excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar"
+				excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar aws-java*.jar kundera-*.jar"
 				includes="*.jar" />
 		</jar>
 	</target>

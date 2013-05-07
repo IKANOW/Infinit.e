@@ -26,6 +26,7 @@ package com.ikanow.infinit.e.shared.event
 	import com.ikanow.infinit.e.shared.model.vo.QueryTerm;
 	import com.ikanow.infinit.e.shared.model.vo.TypedQueryString;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
+	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 	import flash.events.Event;
 	import mx.collections.ArrayCollection;
 	import mx.events.DragEvent;
@@ -83,6 +84,8 @@ package com.ikanow.infinit.e.shared.event
 		
 		public static const RESET:String = "resetQueryEvent";
 		
+		public static const UPDATE_QUERY_FROM_WIDGET_DRAGDROP:String = "updateQueryFromWidgetDragDrop";
+		
 		
 		//======================================
 		// public properties 
@@ -120,11 +123,13 @@ package com.ikanow.infinit.e.shared.event
 		
 		public var searchType:String;
 		
+		public var widgetInfo:WidgetDragObject;
+		
 		//======================================
 		// constructor 
 		//======================================
 		
-		public function QueryEvent( type:String, bubbles:Boolean = true, cancelable:Boolean = false, dialogControl:DialogControl = null, keywordString:String = null, keywordString2:String = null, communityids:String = null, querySuggestion:QuerySuggestion = null, queryString:Object = null, typedQueryString:TypedQueryString = null, documentOptions:QueryOutputDocumentOptions = null, aggregationOptions:QueryOutputAggregationOptions = null, filterOptions:QueryOutputFilterOptions = null, scoreOptions:QueryScoreOptions = null, dragEvent:DragEvent = null, queryTerm:QueryTerm = null, queryTermObject:* = null, queryTerms:ArrayCollection = null, queryLogic:String = null, searchType:String = null )
+		public function QueryEvent( type:String, bubbles:Boolean = true, cancelable:Boolean = false, dialogControl:DialogControl = null, keywordString:String = null, keywordString2:String = null, communityids:String = null, querySuggestion:QuerySuggestion = null, queryString:Object = null, typedQueryString:TypedQueryString = null, documentOptions:QueryOutputDocumentOptions = null, aggregationOptions:QueryOutputAggregationOptions = null, filterOptions:QueryOutputFilterOptions = null, scoreOptions:QueryScoreOptions = null, dragEvent:DragEvent = null, queryTerm:QueryTerm = null, queryTermObject:* = null, queryTerms:ArrayCollection = null, queryLogic:String = null, searchType:String = null, widgetInfo:WidgetDragObject = null )
 		{
 			super( type, bubbles, cancelable, dialogControl );
 			this.keywordString = keywordString;
@@ -143,6 +148,7 @@ package com.ikanow.infinit.e.shared.event
 			this.queryTerms = queryTerms;
 			this.queryLogic = queryLogic;
 			this.searchType = searchType;
+			this.widgetInfo = widgetInfo;
 		}
 		
 		

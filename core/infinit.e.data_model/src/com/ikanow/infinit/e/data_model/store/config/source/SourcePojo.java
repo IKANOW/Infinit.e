@@ -94,6 +94,9 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String harvest_ = "harvest";
 	private SourceDatabaseConfigPojo database = null;
 	final public static String database_ = "database";
+	private SourceNoSqlConfigPojo nosql = null; 
+	final public static String nosql_ = "nosql";
+	
 	private SourceFileConfigPojo file = null;
 	final public static String file_ = "file";
 	private SourceRssConfigPojo rss = null;
@@ -593,6 +596,13 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public Boolean getAppendTagsToDocs() {
 		return appendTagsToDocs;
+	}
+
+	public void setNoSql(SourceNoSqlConfigPojo noSql) {
+		this.nosql = noSql;
+	}
+	public SourceNoSqlConfigPojo getNoSql() {
+		return nosql;
 	}
 
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 

@@ -104,7 +104,9 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public String outputCollectionTemp = null;
 	public static final String outputCollectionTemp_ = "outputCollectionTemp";
 	public String arguments = null; //user arguments that can be added and will be sent to the job
-	public static final String arguments_ = "arguments";	
+	public static final String arguments_ = "arguments";
+	public Boolean exportToHdfs; // If (present AND true), the output is written to hdfs://user/tomcat
+	public static final String exportToHdfs_ = "exportToHdfs";
 	// (need to start moving these guys to private...)
 	
 	public enum SCHEDULE_FREQUENCY
@@ -117,7 +119,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	
 	public enum INPUT_COLLECTIONS
 	{	
-		DOC_METADATA;
+		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS;
 	}
 
 	// Getters and setters

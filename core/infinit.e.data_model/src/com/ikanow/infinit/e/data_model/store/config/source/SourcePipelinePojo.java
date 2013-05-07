@@ -39,6 +39,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public SourceFileConfigPojo file;
 	public SourceRssConfigPojo feed;
 	public SourceRssConfigPojo web;
+	public SourceNoSqlConfigPojo nosql = null; 
 
 	// 1.2] Global operations
 	

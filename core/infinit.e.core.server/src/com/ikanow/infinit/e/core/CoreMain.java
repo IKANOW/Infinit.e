@@ -93,7 +93,7 @@ public class CoreMain {
 			if (cliOpts.hasOption("community")) {
 				communityOverride = (String) cliOpts.getOptionValue("community");
 			}
-			else if (cliOpts.hasOption("source")) {
+			if (cliOpts.hasOption("source")) {
 				sourceDebug = (String) cliOpts.getOptionValue("source");
 			}
 			new HarvestThenProcessController().startService(SourceUtils.getSourcesToWorkOn(communityOverride, sourceDebug, false, true));

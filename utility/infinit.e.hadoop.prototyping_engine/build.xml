@@ -27,6 +27,9 @@
 	<property name="implementation.vendor" value="${vendor}"/>
 
 		
+	<path id="infinit.e.data_model.classpath">
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	</path>
     <path id="infinit.e.hadoop.prototyping_engine.classpath">
         <pathelement location="${dir.build.classes}"/>
     	
@@ -34,6 +37,7 @@
         	<include name="**/*.jar"/>
         </fileset>
 
+        <path refid="infinit.e.data_model.classpath"/>
 	</path>
 	
 	<!-- ================================= 

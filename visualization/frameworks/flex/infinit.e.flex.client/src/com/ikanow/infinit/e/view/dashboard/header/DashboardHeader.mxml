@@ -36,15 +36,19 @@
 			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
 			import com.ikanow.infinit.e.shared.model.constant.types.QueryDimensionTypes;
 			import com.ikanow.infinit.e.shared.model.vo.QuerySuggestion;
+			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+			import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
 			import flash.utils.setTimeout;
 			import mx.controls.Alert;
 			import mx.controls.Button;
 			import mx.core.FlexGlobals;
 			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
 			import mx.events.FlexEvent;
 			import mx.events.FlexMouseEvent;
 			import mx.events.ItemClickEvent;
 			import mx.events.ResizeEvent;
+			import mx.managers.DragManager;
 			import mx.managers.PopUpManager;
 			import mx.managers.PopUpManagerChildList;
 			import spark.components.ButtonBarButton;
@@ -203,6 +207,22 @@
 			{
 				if ( simpleSearch.text != null )
 					model.getQuerySuggestions( simpleSearch.text );
+			}
+			
+			protected function simpleSearch_dragDropHandler( event:DragEvent ):void
+			{
+				var dragObject:WidgetDragObject = event.dragSource.dataForFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) as WidgetDragObject;
+				// Update the query and navigate to the advanced query dialog (or wherever...)
+				model.updateQuery( dragObject );
+			}
+			
+			protected function simpleSearch_dragEnterHandler( event:DragEvent ):void
+			{
+				if ( event.dragSource.hasFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) )
+				{
+					DragManager.acceptDragDrop( simpleSearch );
+					return;
+				}
 			}
 			
 			/**
@@ -390,6 +410,8 @@
 				right="12"
 				top="16"
 				change="simpleSearch_changeHandler()"
+				dragDrop="simpleSearch_dragDropHandler(event)"
+				dragEnter="simpleSearch_dragEnterHandler(event)"
 				focusIn="simpleSearch_focusInHandler()"
 				focusOut="simpleSearch_focusOutHandler(event)"
 				keyDown="simpleSearch_keyDownHandler(event)"

@@ -30,6 +30,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 	import flash.events.Event;
 	import flash.net.URLRequest;
 	import flash.net.navigateToURL;
@@ -328,6 +329,16 @@ package com.ikanow.infinit.e.model.presentation.dashboard.header
 				queryEvent.querySuggestion = selectedSuggestion;
 				dispatcher.dispatchEvent( queryEvent );
 			}
+		}
+		
+		/**
+		* Update the query with the contents of a widget drag/drop event
+		*/
+		public function updateQuery( widgetInfo:WidgetDragObject ):void
+		{
+			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_FROM_WIDGET_DRAGDROP );
+			queryEvent.widgetInfo = widgetInfo;
+			dispatcher.dispatchEvent( queryEvent );
 		}
 	}
 }

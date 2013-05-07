@@ -39,7 +39,6 @@ private static final Logger logger = Logger.getLogger(XmlOutput.class);
 	 * @param rp
 	 * @return
 	 */
-	@SuppressWarnings("deprecation")
 	public String getFeeds(ResponsePojo rp) {
 		String xml = null;
 		XmlMapper mapper = new XmlMapper();

@@ -54,6 +54,7 @@ public class MongoIndexerMain {
 			allOps.addOption("s", "skip", true, "The record at which to start (not in delete mode)");
 			allOps.addOption("r", "rebuild", false, "Rebuild the index before transferring");
 			allOps.addOption("v", "verify", false, "Verifies the document indexes all exist | resync the entity frequencies (INTERNAL ONLY)");
+			allOps.addOption("f", "features", false, "Updates features present in the queried documents (--doc only; INTERNAL ONLY)");
 	
 			CommandLine cliOpts = cliParser.parse(allOps, args);
 			
@@ -64,6 +65,7 @@ public class MongoIndexerMain {
 			boolean bDelete = false;
 			boolean bRebuildIndex = false;
 			boolean bVerifyIndex = false;
+			boolean bUpdateFeatures = false;
 			int nLimit = 0;
 			int nSkip = 0;
 			if (cliOpts.hasOption("config")) {
@@ -96,6 +98,9 @@ public class MongoIndexerMain {
 			if (cliOpts.hasOption("rebuild")) {
 				bRebuildIndex = true;
 			}
+			if (cliOpts.hasOption("features")) {
+				bUpdateFeatures = true;
+			}
 			if (cliOpts.hasOption("verify")) {
 				if (cliOpts.hasOption("doc") && !bRebuildIndex) {
 					bVerifyIndex = true; // (doc only)
@@ -115,7 +120,7 @@ public class MongoIndexerMain {
 			// Invoke appropriate manager to perform processing
 			
 			if (cliOpts.hasOption("doc")) {
-				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, nSkip, nLimit);
+				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, bUpdateFeatures, nSkip, nLimit);
 			}
 			else if (cliOpts.hasOption("assoc")||cliOpts.hasOption("association")) {
 				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);			

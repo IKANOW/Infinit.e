@@ -574,6 +574,7 @@ public class SourceHandler
 			if (null != source.getKey()) { // or may delete everything!
 				BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
 				BasicDBObject docFields = new BasicDBObject();
+				// These fields are required by removeFromDatastore_byURL, called from removeFromDatastore_bySourceKey
 				docFields.append(DocumentPojo.url_, 1);
 				docFields.append(DocumentPojo.sourceUrl_, 1);
 				docFields.append(DocumentPojo.index_, 1);

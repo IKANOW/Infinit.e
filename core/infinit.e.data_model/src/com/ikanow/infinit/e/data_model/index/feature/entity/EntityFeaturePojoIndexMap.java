@@ -31,6 +31,7 @@ public class EntityFeaturePojoIndexMap implements BasePojoIndexMap<EntityFeature
 
 	// Misc access constants:
 	final public static String indexName_ = "entity_index";
+	final public static String indexCollectionName_ = "entities_index";
 	
 	@Override
 	public GsonBuilder extendBuilder(GsonBuilder gp) {

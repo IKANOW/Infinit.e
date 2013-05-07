@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -47,6 +47,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		public var geo:QueryTermGeoLocation;
 		
 		public var event:QueryTermEvent;
+		
+		public var sentiment:QueryTermSentiment;
 		
 		[Transient]
 		public var _id:String;
@@ -105,9 +107,23 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			if ( entity )
 			{
-				var strings:Array = entity.split( Constants.FORWARD_SLASH, 2 );
-				return strings[ 0 ];
-			}
+				var entityName:String = entity;
+				var npos:int = entity.lastIndexOf( Constants.FORWARD_SLASH );
+				
+				if ( npos > 0 )
+					entityName = entityName.substr( 0, npos );
+				
+				if ( sentiment )
+				{
+					if ( sentiment.min >= 0.0 )
+						return entityName + " (s+)";
+					else if ( sentiment.max <= 0.0 )
+						return entityName + " (s-)";
+					else
+						return entityName + " (s)";
+				}
+				return entityName;
+			}//TESTED
 			
 			if ( etext )
 				return Constants.DOUBLE_QUOTE + etext + Constants.DOUBLE_QUOTE;
@@ -164,8 +180,13 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			if ( entity )
 			{
-				var strings:Array = entity.split( Constants.FORWARD_SLASH, 2 );
-				return strings[ 0 ];
+				var entityName:String = entity;
+				var npos:int = entity.lastIndexOf( Constants.FORWARD_SLASH );
+				
+				if ( npos > 0 )
+					entityName = entityName.substr( 0, npos );
+				
+				return entityName;
 			}
 			
 			if ( etext )
@@ -229,6 +250,9 @@ package com.ikanow.infinit.e.shared.model.vo
 			if ( event )
 				clone.event = event.clone();
 			
+			if ( sentiment )
+				clone.sentiment = sentiment.clone();
+			
 			clone.level = level;
 			clone.logicOperator = logicOperator;
 			clone.editing = editing;
@@ -245,8 +269,13 @@ package com.ikanow.infinit.e.shared.model.vo
 			}
 			else if ( entity )
 			{
-				entityArray = entity.split( Constants.FORWARD_SLASH );
-				return entityArray[ 1 ] as String;
+				var entityName:String = entity;
+				var npos:int = entity.lastIndexOf( Constants.FORWARD_SLASH );
+				
+				if ( npos > 0 )
+					entityName = entityName.substr( 1 + npos );
+				
+				return entityName;
 			}
 			
 			return Constants.BLANK;
@@ -260,8 +289,13 @@ package com.ikanow.infinit.e.shared.model.vo
 			}
 			else if ( entity )
 			{
-				entityArray = entity.split( Constants.FORWARD_SLASH );
-				return entityArray[ 0 ] as String;
+				var entityName:String = entity;
+				var npos:int = entity.lastIndexOf( Constants.FORWARD_SLASH );
+				
+				if ( npos > 0 )
+					entityName = entityName.substr( 0, npos );
+				
+				return entityName;
 			}
 			
 			return Constants.BLANK;

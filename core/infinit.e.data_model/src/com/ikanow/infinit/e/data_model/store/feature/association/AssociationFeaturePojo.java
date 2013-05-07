@@ -59,6 +59,8 @@ public class AssociationFeaturePojo extends BaseDbPojo
 	final public static String db_sync_time_ = "db_sync_time";
 	private Long db_sync_doccount = 0L;	
 	final public static String db_sync_doccount_ = "db_sync_doccount";
+	private Double db_sync_prio = null; // Sparse field that indicates when an update is needed, and how badly
+	final public static String db_sync_prio_ = "db_sync_prio";	
 	private ObjectId communityId = null; 
 	final public static String communityId_ = "communityId";
 		// (note will be Set<String> as far as the API is concerned, once this object is available)	
@@ -155,5 +157,11 @@ public class AssociationFeaturePojo extends BaseDbPojo
 	}
 	public void setAssociation_type(String assoc_type) {
 		this.assoc_type = assoc_type;
+	}
+	public void setDb_sync_prio(Double db_sync_prio) {
+		this.db_sync_prio = db_sync_prio;
+	}
+	public Double getDb_sync_prio() {
+		return db_sync_prio;
 	}
 }

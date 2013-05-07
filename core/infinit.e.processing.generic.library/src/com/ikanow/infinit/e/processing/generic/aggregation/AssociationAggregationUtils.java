@@ -33,6 +33,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
@@ -195,6 +196,7 @@ public class AssociationAggregationUtils {
 							System.out.println("EventAggregationUtils.updateEventFeatures, found: " + ((BasicDBObject)egp.toDb()).toString());
 							System.out.println("EventAggregationUtils.updateEventFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
 						}
+						// (In background aggregation mode we update db_sync_prio when checking the -otherwise unused, unlike entities- document update schedule) 
 					}
 					else // (the object in memory is now an accurate representation of the database, minus some fields we'll now add)
 					{
@@ -230,7 +232,10 @@ public class AssociationAggregationUtils {
 						else {
 							System.out.println("EventAggregationUtils.updateEventFeatures, not found: " + query.toString() + " / " + baseFields.toString() + "/ orig_update= " + updateOp.toString());
 						}
-						evtFeature.setDb_sync_time(null); // (ensures that index re-sync will occur)
+						evtFeature.setDb_sync_time(null); // (ensures that index re-sync will occur)						
+						
+						// (Note even in background aggregation mode we still perform the feature synchronization
+						//  for new entities - and it has to be right at the end because it "corrupts" the objects)
 					}
 				}
 				catch (Exception e) {
@@ -282,6 +287,8 @@ public class AssociationAggregationUtils {
 			update2.put(AssociationFeaturePojo.db_sync_doccount_, eventFeature.getDoccount());
 			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, update2);
 				// (also can be added to below)
+			BasicDBObject update3 = new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 1);
+			update.put(MongoDbManager.unset_, update3);
 			BasicDBObject query = new BasicDBObject(AssociationFeaturePojo.index_, eventFeature.getIndex());
 			query.put(AssociationFeaturePojo.communityId_, communityId);
 
@@ -347,4 +354,22 @@ public class AssociationAggregationUtils {
 		}
 	}//TESTED
 	
+	///////////////////////////////////////////////////////////////////////////////////////
+	
+	// Set flag to synchronize entity features
+	
+	public static void markAssociationFeatureForSync(AssociationFeaturePojo assocFeature, ObjectId communityId) {
+		DBCollection assocFeatureDb = DbManager.getFeature().getAssociation();
+		double dPrio = 100.0*(double)assocFeature.getDoccount()/(0.01 + (double)assocFeature.getDb_sync_doccount());
+		assocFeature.setDb_sync_prio(dPrio);
+		BasicDBObject query = new BasicDBObject(AssociationFeaturePojo.index_, assocFeature.getIndex());
+		query.put(AssociationFeaturePojo.communityId_, communityId);
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, dPrio));
+		if (_diagnosticMode) {
+			System.out.println("EntityAggregationUtils.markAssociationFeatureForSync, featureDB: " + query.toString() + " / " + update.toString());				
+		}
+		else {
+			assocFeatureDb.update(query, update, false, true);
+		}
+	}//TESTED
 }

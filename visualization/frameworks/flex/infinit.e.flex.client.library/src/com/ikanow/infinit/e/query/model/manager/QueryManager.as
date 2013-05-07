@@ -50,6 +50,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
+	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
@@ -760,6 +761,107 @@ package com.ikanow.infinit.e.query.model.manager
 					dispatcher.dispatchEvent( navigationEvent );
 				}
 			}
+		}
+		
+		/**
+		 * set the query logic string to be used for the query
+		 * @param value
+		 */
+		public function updateQueryFromWidgetDragDrop( widgetInfo:WidgetDragObject ):void
+		{
+			// DOCS
+			
+			if ( ( null != widgetInfo.documents ) && ( widgetInfo.documents.length > 0 ) )
+				for each ( var doc:Object in widgetInfo.documents )
+				{
+					var newQuery:Object = QueryUtil.getQueryStringObject( currentQueryStringRequest );
+					var qts:ArrayCollection = new ArrayCollection();
+					
+					var entities:ArrayCollection = new ArrayCollection( doc[ 'entities' ] );
+					
+					for each ( var ent:Object in entities )
+					{
+						var qt:Object = new Object();
+						qt[ 'entity' ] = ent[ 'index' ];
+						qts.addItem( qt );
+					}
+					newQuery[ 'qt' ] = qts;
+					var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+					
+					// Call update and navigate once per doc
+					var queryEvent:QueryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
+					queryEvent.widgetInfo = widgetInfo;
+					queryEvent.searchType = null;
+					queryEvent.queryString = queryString;
+					dispatcher.dispatchEvent( queryEvent );
+				}
+			
+			//ENTS
+			
+			if ( ( null != widgetInfo.entities ) && ( widgetInfo.entities.length > 0 ) )
+			{
+				newQuery = QueryUtil.getQueryStringObject( currentQueryStringRequest );
+				
+				qts = new ArrayCollection();
+				
+				for each ( ent in widgetInfo.entities )
+				{
+					qt = new Object();
+					qt[ 'entity' ] = ent[ 'index' ];
+					qts.addItem( qt );
+				}
+				newQuery[ 'qt' ] = qts;
+				
+				queryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+				
+				// Call update and navigate once per doc
+				queryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
+				queryEvent.widgetInfo = widgetInfo;
+				queryEvent.searchType = null;
+				queryEvent.queryString = queryString;
+				dispatcher.dispatchEvent( queryEvent );
+			}
+			
+			// ASSOCS
+			
+			if ( ( null != widgetInfo.associations ) && ( widgetInfo.associations.length > 0 ) )
+			{
+				newQuery = QueryUtil.getQueryStringObject( currentQueryStringRequest );
+				
+				qts = new ArrayCollection();
+				
+				for each ( var assoc:Object in widgetInfo.associations )
+				{
+					qt = new Object();
+					var qtAssoc:Object = new Object();
+					var qtAssocEnt1:Object = new Object();
+					var qtAssocEnt2:Object = new Object();
+					qtAssocEnt1[ 'entity' ] = assoc[ 'entity1_index' ];
+					qtAssocEnt2[ 'entity' ] = assoc[ 'entity2_index' ];
+					qtAssoc[ 'entity1' ] = qtAssocEnt1;
+					qtAssoc[ 'entity2' ] = qtAssocEnt2;
+					qt[ 'event' ] = qtAssoc; // (should be assoc, this isn't event forwwards compatible!)
+					qts.addItem( qt );
+				}
+				newQuery[ 'qt' ] = qts;
+				queryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+				
+				// Call update and navigate once per doc
+				queryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
+				queryEvent.widgetInfo = widgetInfo;
+				queryEvent.searchType = null;
+				queryEvent.queryString = queryString;
+				dispatcher.dispatchEvent( queryEvent );
+			}
+			
+			// Once we're done, then navigate
+			var navigationEvent:NavigationEvent = null;
+			navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+			navigationEvent.navigationItemId = NavigationConstants.QUERY_BUILDER_ID;
+			dispatcher.dispatchEvent( navigationEvent );
+			navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+			navigationEvent.navigationItemId = NavigationConstants.WORKSPACES_QUERY_ID;
+			dispatcher.dispatchEvent( navigationEvent );
 		}
 		
 		//======================================

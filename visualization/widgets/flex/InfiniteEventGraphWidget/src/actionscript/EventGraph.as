@@ -49,7 +49,7 @@ package actionscript
 				;
 			xml.setChildren( raw );
 			var s:String = xml.toXMLString().substring( 3 );
-			return s.substr( 0, s.length - 4 );
+			return s.substr( 0, s.length - 4 ).replace(/["]/g, "&quot;");
 		}
 		
 		
@@ -72,7 +72,13 @@ package actionscript
 		{
 			//close graph and return
 			xml += "</graph>\n";
-			return XML( xml );
+			try {
+			var xmlObj:XML = XML( xml )
+			}
+			catch(e:Error) { 
+				mx.controls.Alert.show("nooo " + xml);
+			}
+			return xmlObj;
 		}
 	}
 }

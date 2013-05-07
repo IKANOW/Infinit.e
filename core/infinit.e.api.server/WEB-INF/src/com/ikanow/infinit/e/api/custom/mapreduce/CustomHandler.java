@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.api.custom.mapreduce;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 
@@ -26,6 +27,7 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceJobPojoApiMap;
@@ -38,6 +40,8 @@ import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJob
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
+import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -53,7 +57,7 @@ public class CustomHandler
 	 * @param jobid
 	 * @return
 	 */
-	public ResponsePojo getJobResults(String userid, String jobid, int limit ) 
+	public ResponsePojo getJobResults(String userid, String jobid, int limit, String fields ) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		
@@ -77,24 +81,37 @@ public class CustomHandler
 			{				
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
 				//make sure user is allowed to see results
-				if ( RESTTools.adminLookup(userid) || isInCommunity(cmr.communityIds, userid) )
-				{
+				if ( RESTTools.adminLookup(userid) || isInAllCommunities(cmr.communityIds, userid) )
+				{					
 					//get results collection if done and return
-					if ( cmr.lastCompletionTime != null )
+					if ( ( cmr.lastCompletionTime != null ) || (cmr.mapper.equals("none") && cmr.exportToHdfs))
 					{
-						//return the results
-						DBCursor resultCursor = null;
-						if (limit > 0) {
-							resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find().sort(new BasicDBObject("_id",1)).limit(limit);
+						BasicDBObject queryDbo = new BasicDBObject();
+						BasicDBObject fieldsDbo = new BasicDBObject();
+						if (null != fields) {
+							fieldsDbo = (BasicDBObject) com.mongodb.util.JSON.parse("{" + fields + "}");
 						}
-						else {
-							resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find();
-						}
+
+						//return the results: 
+						
+						// Case 1: DB
 						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
-						CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
-						cmrr.lastCompletionTime = cmr.lastCompletionTime;
-						cmrr.results = resultCursor.toArray();
-						rp.setData(cmrr);																								
+						if ((null == cmr.exportToHdfs) || !cmr.exportToHdfs) {
+							DBCursor resultCursor = null;
+							if (limit > 0) {
+								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(new BasicDBObject("_id",1)).limit(limit);
+							}
+							else {
+								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo);
+							}
+							CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
+							cmrr.lastCompletionTime = cmr.lastCompletionTime;
+							cmrr.results = resultCursor.toArray();
+							rp.setData(cmrr);
+						}
+						else { // Case 2: HDFS
+							rp.setData(HadoopUtils.getBsonFromSequenceFile(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
+						}
 					}
 					else
 					{
@@ -118,38 +135,6 @@ public class CustomHandler
 			rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"error retrieving job info"));
 		}
 		return rp;
-	}
-	
-	/**
-	 * Return true if a user is in community or is their own self community, false otherwise
-	 * 1. CommunityID = userid
-	 * 2. community.members contains userid
-	 * 
-	 * @param communityIds
-	 * @return
-	 */
-	private boolean isInCommunity(List<ObjectId> communityIds, String userid)
-	{
-		try
-		{			
-			BasicDBObject inQuery = new BasicDBObject(DbManager.in_, communityIds.toArray());
-			BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo._id_,inQuery);
-			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);			
-			while (dbc.hasNext())
-			{
-				DBObject dbo = dbc.next();				
-				CommunityPojo cp = CommunityPojo.fromDb(dbo, CommunityPojo.class);
-				if ( (cp.getId().toString()).equals(userid) )
-					return true; //Means this is this users personal group
-				else if ( cp.isMember(new ObjectId(userid)))
-					return true; //means this user is a member of this group
-			}
-		}
-		catch(Exception ex)
-		{
-			//error looking up communities
-		}
-		return false; //if we never find the user return false
 	}
 	
 	/**
@@ -190,7 +175,7 @@ public class CustomHandler
 	 * @param userid
 	 * @return
 	 */
-	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json)
+	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		List<ObjectId> commids = new ArrayList<ObjectId>(); 
@@ -229,6 +214,7 @@ public class CustomHandler
 					}
 					cmr.outputCollection = cmr._id.toString() + "_1";
 					cmr.outputCollectionTemp = cmr._id.toString() + "_2";
+					cmr.exportToHdfs = exportToHdfs;
 					
 					// Get the output database, based on the size of the collection
 					long nJobs = DbManager.getCustom().getLookup().count();
@@ -250,15 +236,15 @@ public class CustomHandler
 					if ( (null != mapperClass) && !mapperClass.equals("null"))
 						cmr.mapper = mapperClass;
 					else
-						cmr.mapper = "null";
+						cmr.mapper = "";
 					if ( (null != reducerClass) && !reducerClass.equals("null"))
 						cmr.reducer = reducerClass;
 					else
-						cmr.reducer = "null";
+						cmr.reducer = "";
 					if ( (null != combinerClass) &&  !combinerClass.equals("null"))
 						cmr.combiner = combinerClass;
 					else
-						cmr.combiner = "null";
+						cmr.combiner = "";
 					if ( (null != outputKey) && !outputKey.equals("null"))
 						cmr.outputKey = outputKey;
 					else
@@ -348,7 +334,7 @@ public class CustomHandler
 		return rp;
 	}
 	
-	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json)
+	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
@@ -372,10 +358,14 @@ public class CustomHandler
 			if ( RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
 			{
 				//check if job is already running
-				if ( cmr.jobidS != null )
+				if ( ( cmr.jobidS != null ) && !cmr.jobidS.equals( "CHECKING_COMPLETION" ) &&  !cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
 				{
 					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
 					return rp;
+				}
+				if (cmr.jobidS != null) { // (must be checking completion, ie in bug state, so reset...)
+					cmr.jobidS = null;
+					cmr.jobidN = 0;
 				}
 				//check each variable to see if its needs/can be updated
 				if ( (null != communityIds) && !communityIds.equals("null") )
@@ -499,6 +489,9 @@ public class CustomHandler
 							cmr.appendAgeOutInDays = 0.0;
 						}
 					}
+					if (null != exportToHdfs) {
+						cmr.exportToHdfs = exportToHdfs;
+					}
 					
 					//try to work out dependencies, error out if they fail
 					if ( (null != jobsToDependOn) && !jobsToDependOn.equals("null"))
@@ -563,6 +556,12 @@ public class CustomHandler
 			INPUT_COLLECTIONS input = INPUT_COLLECTIONS.valueOf(inputColl);
 			if ( input == INPUT_COLLECTIONS.DOC_METADATA )
 				return "doc_metadata.metadata";
+			if ( input == INPUT_COLLECTIONS.DOC_CONTENT )
+				return "doc_content.gzip_content";
+			if ( input == INPUT_COLLECTIONS.FEATURE_ASSOCS )
+				return "feature.association";
+			if ( input == INPUT_COLLECTIONS.FEATURE_ENTITIES )
+				return "feature.entity";			
 		}
 		catch (Exception ex)
 		{
@@ -624,11 +623,11 @@ public class CustomHandler
 			if (dbo != null )
 			{
 				PersonPojo pp = PersonPojo.fromDb(dbo, PersonPojo.class);
-				List<ObjectId> communities = new ArrayList<ObjectId>();
+				HashSet<ObjectId> communities = new HashSet<ObjectId>();
 				for ( PersonCommunityPojo pcp : pp.getCommunities())
 					communities.add(pcp.get_id());
 				BasicDBObject commquery = new BasicDBObject(
-						CustomMapReduceJobPojo.communityIds_, new BasicDBObject(MongoDbManager.in_,communities.toArray()));
+						CustomMapReduceJobPojo.communityIds_, new BasicDBObject(MongoDbManager.in_,communities));
 				if (null != jobIdOrTitle) {
 					try {
 						if (jobIdOrTitle.contains(",")) {
@@ -660,7 +659,17 @@ public class CustomHandler
 				}
 				else {
 					rp.setResponse(new ResponseObject("Custom Map Reduce Get Jobs",true,"succesfully returned jobs"));
-					rp.setData(CustomMapReduceJobPojo.listFromDb(dbc, CustomMapReduceJobPojo.listType()), new CustomMapReduceJobPojoApiMap(new HashSet<ObjectId>(communities)));
+					List<CustomMapReduceJobPojo> jobs = CustomMapReduceJobPojo.listFromDb(dbc, CustomMapReduceJobPojo.listType());
+					// Extra bit of code, need to eliminate partial community matches, eg if job belongs to A,B and we only belong to A
+					// then obviously we can't see the job since it contains data from B
+					Iterator<CustomMapReduceJobPojo> jobsIt = jobs.iterator();
+					while (jobsIt.hasNext()) {
+						CustomMapReduceJobPojo job = jobsIt.next();
+						if (!communities.containsAll(job.communityIds)) {
+							jobsIt.remove();
+						}
+					}//TOTEST
+					rp.setData(jobs, new CustomMapReduceJobPojoApiMap(communities));
 				}
 			}
 			else
@@ -712,12 +721,18 @@ public class CustomHandler
 				if ( RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
 				{
 					//make sure job is not running
-					if ( cmr.jobidS == null )
+					if ( ( cmr.jobidS == null ) || cmr.jobidS.equals( "CHECKING_COMPLETION" ) || cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
 					{
 						//remove results and job
 						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));
 						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).drop();
 						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
+
+						// Delete HDFS directory, if one is used
+						if ((null != cmr.exportToHdfs) && cmr.exportToHdfs) {
+							HadoopUtils.deleteHadoopDir(cmr);
+						}
+						
 						//remove jar file if unused elsewhere?
 						if ( removeJar )
 						{

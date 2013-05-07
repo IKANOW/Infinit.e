@@ -30,6 +30,7 @@ public class AssociationFeaturePojoIndexMap implements BasePojoIndexMap<Associat
 
 	// Misc access constants:
 	final public static String indexName_ = "association_index";
+	final public static String indexCollectionName_ = "assocs_index";
 	
 	@Override
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
@@ -61,6 +62,7 @@ public class AssociationFeaturePojoIndexMap implements BasePojoIndexMap<Associat
 			
 			evt.setDb_sync_doccount(null);
 			evt.setDb_sync_time(null);
+			evt.setDb_sync_prio(null);
 
 			//TODO (INF-1234) Eventually want to index this information, but it's currently not clear what to do with
 			// it inside the assocSuggest (which is hte only place it's currently used)
@@ -70,7 +72,7 @@ public class AssociationFeaturePojoIndexMap implements BasePojoIndexMap<Associat
 			if (null == evt.getEntity2_index()) {
 				evt.setEntity2(null);
 			}
-}	
+		}	
 	}
 	
 	/////////////////////////////////////////////////////////////////////////////////////

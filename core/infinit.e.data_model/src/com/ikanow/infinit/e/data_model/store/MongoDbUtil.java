@@ -21,6 +21,9 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import org.bson.BSONObject;
+import org.bson.BasicBSONObject;
+import org.bson.types.BasicBSONList;
 import org.bson.types.ObjectId;
 
 import com.google.gson.JsonArray;
@@ -32,6 +35,7 @@ import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
+import com.mongodb.hadoop.io.BSONWritable;
 
 public class MongoDbUtil {
 
@@ -50,15 +54,23 @@ public class MongoDbUtil {
     	}
     	return result;
     }
-    public static JsonElement encode(BasicDBList a) {
+    public static JsonElement encode(BasicBSONList a) {
         JsonArray result = new JsonArray();
         for (int i = 0; i < a.size(); ++i) {
             Object o = a.get(i);
             if (o instanceof DBObject) {
                 result.add(encode((DBObject)o));
-            } else if (o instanceof BasicDBList) {
+            } 
+            else if (o instanceof BasicBSONObject) {
+                result.add(encode((BasicBSONObject)o));
+            } 
+            else if (o instanceof BasicBSONList) {
+                result.add(encode((BasicBSONList)o));
+            } 
+            else if (o instanceof BasicDBList) {
                 result.add(encode((BasicDBList)o));
-            } else { // Must be a primitive... 
+            } 
+            else { // Must be a primitive... 
             	if (o instanceof String) {
             		result.add(new JsonPrimitive((String)o));
             	}
@@ -85,17 +97,25 @@ public class MongoDbUtil {
         return result;
     }
     
-    public static JsonElement encode(DBObject o) {
+    public static JsonElement encode(BSONObject o) {
         JsonObject result = new JsonObject();
         Iterator<?> i = o.keySet().iterator();
         while (i.hasNext()) {
             String k = (String)i.next();
             Object v = o.get(k);
-            if (v instanceof BasicDBList) {
+            if (v instanceof BasicBSONList) {
+                result.add(k, encode((BasicBSONList)v));
+            } 
+            else if (v instanceof BasicDBList) {
                 result.add(k, encode((BasicDBList)v));
-            } else if (v instanceof DBObject) {
+            } 
+            else if (v instanceof DBObject) {
                 result.add(k, encode((DBObject)v));
-            } else { // Must be a primitive... 
+            } 
+            else if (v instanceof BasicBSONObject) {
+                result.add(k, encode((BasicBSONObject)v));
+            } 
+            else { // Must be a primitive... 
             	if (v instanceof String) {            		
             		result.add(k, new JsonPrimitive((String)v));
             	}
@@ -172,4 +192,22 @@ public class MongoDbUtil {
     	}    	
     	return dbo;
     }//TESTED
+	public static DBObject convert(BSONWritable dbo) {
+		DBObject out = new BasicDBObject();
+		for (Object entryIt: dbo.toMap().entrySet()) {
+			@SuppressWarnings("unchecked")			
+			Map.Entry<String, Object> entry = (Map.Entry<String, Object>)entryIt;
+			out.put(entry.getKey(), entry.getValue());
+		}
+		return out;
+	}//TESTED
+	public static BSONWritable convert(BSONObject dbo) {
+		BSONWritable out = new BSONWritable();
+		for (Object entryIt: dbo.toMap().entrySet()) {
+			@SuppressWarnings("unchecked")
+			Map.Entry<String, Object> entry = (Map.Entry<String, Object>)entryIt;
+			out.put(entry.getKey(), entry.getValue());
+		}
+		return out;
+	}//TESTED
 }

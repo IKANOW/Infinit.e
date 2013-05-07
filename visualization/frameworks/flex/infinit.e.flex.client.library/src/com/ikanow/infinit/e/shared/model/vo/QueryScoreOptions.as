@@ -27,6 +27,7 @@ package com.ikanow.infinit.e.shared.model.vo
 	import com.ikanow.infinit.e.shared.model.constant.settings.QueryAdvancedSettingsConstants;
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import flash.events.EventDispatcher;
+	import mx.controls.Alert;
 	import mx.utils.ObjectUtil;
 	import system.data.maps.HashMap;
 	
@@ -127,13 +128,20 @@ package com.ikanow.infinit.e.shared.model.vo
 			typeWeights_cs = options.typeWeights_cs;
 			sourceWeights_cs = options.sourceWeights_cs;
 			
-			if ( ( null != tagWeights_cs ) && ( tagWeights_cs.length > 0 ) )
+			if ( null != tagWeights_cs ) // on save
 			{
-				var tmp:String = '{' + options.tagWeights_cs + '}';
-				tagWeights = JSONUtil.decode( tmp );
+				if ( tagWeights_cs.length > 0 )
+				{
+					var tmp:String = '{' + options.tagWeights_cs + '}';
+					tagWeights = JSONUtil.decode( tmp );
+				}
+				else // there were previously tag weights, now they've been removed
+				{
+					tagWeights = null;
+				}
 			}
-			else if ( null != options.tagWeights )
-			{ // Copying in other direction
+			else if ( null != options.tagWeights )  // Copying in other direction, ie to load query
+			{
 				tagWeights_cs = JSONUtil.encode( options.tagWeights );
 				
 				if ( ( null != tagWeights_cs ) && ( tagWeights_cs.length > 2 ) )
@@ -146,18 +154,21 @@ package com.ikanow.infinit.e.shared.model.vo
 					tagWeights_cs = "";
 				}
 			}
-			else
-			{ // There were previously tag weights, now they've been removed
-				tagWeights = null;
-			}
 			
-			if ( ( null != typeWeights_cs ) && ( typeWeights_cs.length > 0 ) )
+			if ( null != typeWeights_cs ) // on save
 			{
-				var tmp2:String = '{' + options.typeWeights_cs + '}';
-				typeWeights = JSONUtil.decode( tmp2 );
+				if ( typeWeights_cs.length > 0 )
+				{
+					var tmp2:String = '{' + options.typeWeights_cs + '}';
+					typeWeights = JSONUtil.decode( tmp2 );
+				}
+				else // there were previously tag weights, now they've been removed
+				{
+					typeWeights = null;
+				}
 			}
-			else if ( null != options.typeWeights )
-			{ // Copying in other direction
+			else if ( null != options.typeWeights ) // Copying in other direction, ie to load query
+			{
 				typeWeights_cs = JSONUtil.encode( options.typeWeights );
 				
 				if ( ( null != typeWeights_cs ) && ( typeWeights_cs.length > 2 ) )
@@ -170,18 +181,21 @@ package com.ikanow.infinit.e.shared.model.vo
 					typeWeights_cs = "";
 				}
 			}
-			else
-			{ // There were previously tag weights, now they've been removed
-				typeWeights = null;
-			}
 			
-			if ( ( null != sourceWeights_cs ) && ( sourceWeights_cs.length > 0 ) )
+			if ( null != sourceWeights_cs ) // on save
 			{
-				var tmp3:String = '{' + options.sourceWeights_cs + '}';
-				sourceWeights = JSONUtil.decode( tmp3 );
+				if ( sourceWeights_cs.length > 0 )
+				{
+					var tmp3:String = '{' + options.sourceWeights_cs + '}';
+					sourceWeights = JSONUtil.decode( tmp3 );
+				}
+				else // there were previously tag weights, now they've been removed
+				{
+					sourceWeights = null;
+				}
 			}
-			else if ( null != options.sourceWeights )
-			{ // Copying in other direction
+			else if ( null != options.sourceWeights ) // Copying in other direction, ie to load query
+			{
 				sourceWeights_cs = JSONUtil.encode( options.sourceWeights );
 				
 				if ( ( null != sourceWeights_cs ) && ( sourceWeights_cs.length > 2 ) )
@@ -193,10 +207,6 @@ package com.ikanow.infinit.e.shared.model.vo
 				{
 					sourceWeights_cs = "";
 				}
-			}
-			else
-			{ // There were previously tag weights, now they've been removed
-				sourceWeights = null;
 			}
 		}
 		
@@ -229,11 +239,11 @@ package com.ikanow.infinit.e.shared.model.vo
 			timeProx = new TimeProximity();
 			geoProx = new GeoProximity();
 			tagWeights = null;
-			tagWeights_cs = "";
+			tagWeights_cs = null;
 			typeWeights = null;
-			typeWeights_cs = "";
+			typeWeights_cs = null;
 			sourceWeights = null;
-			sourceWeights_cs = "";
+			sourceWeights_cs = null;
 		}
 	}
 }

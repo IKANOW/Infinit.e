@@ -101,6 +101,30 @@ public class PropertiesManager {
 		}
 	}
 	
+	/** 
+	  * Additional content:
+	  */
+	public boolean storeRawContent() {
+		String s = this.getProperty("store.rawcontent");
+		try {
+			return Boolean.parseBoolean(s);
+		}
+		catch (Exception e) {
+			return false;
+		}		
+	}
+
+	public boolean storeMetadataAsContent() {
+		String s = this.getProperty("store.metadata_as_content");
+		try {
+			return Boolean.parseBoolean(s);
+		}
+		catch (Exception e) {
+			return false;
+		}		
+	}
+	
+	
 	// Get preferred (max) index replicas
 	
 	public int getMaxIndexReplicas() {

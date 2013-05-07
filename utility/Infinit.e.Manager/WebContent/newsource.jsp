@@ -65,6 +65,11 @@ limitations under the License.
 			"{ XmlRootLevelValues: [], domain: \"DOMAIN\", username: \"USERNAME\", password: \"PASSWORD\" }, mediaType: "+
 			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
 
+	private static String starterSourceString_s3 = "{ title: \"Title\", description: \"Description\", url: " +
+			"\"s3://BUCKET_NAME/FOLDERS/\", isPublic: true, extractType: \"File\", file: " +
+			"{ XmlRootLevelValues: [], username: \"AWS_ACCESSID\", password: \"AWS_SECRETKEY\" }, mediaType: "+
+			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
+
 	private static String starterSourceString_database = "{ title: \"Title\", description: \"Description\", url: " +
 			"\"jdbc:mysql://DB_HOST:3306/DATABASE\", isPublic: true, extractType: \"Database\", mediaType: " +
 			"\"Record\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}, " +
@@ -124,6 +129,10 @@ limitations under the License.
 				else if (selectedSourceTemplate.equals("fileShare")) 
 				{
 					sourceJson = new JSONObject(starterSourceString_fileShare).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("awss3")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_s3).toString(4);
 				}
 				else if (selectedSourceTemplate.equals("database")) 
 				{
@@ -399,6 +408,7 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	sources.append("<option value=\"complexApi\">-- Basic Complex JSON API Source Template --</option>");
 	sources.append("<option value=\"localFile\">-- Basic Local File Source Template --</option>");
 	sources.append("<option value=\"fileShare\">-- Basic Fileshare Source Template --</option>");
+	sources.append("<option value=\"awss3\">-- Basic Amazon S3 Source Template --</option>");
 	sources.append("<option value=\"database\">-- Basic SQL Database Source Template --</option>");
 	
 	String apiAddress = "social/share/search/?searchby=type&type=source_template";

@@ -97,6 +97,10 @@ public class CustomInterface extends ServerResource
 				 limit = 0;
 			 }
 		 }
+		 String fields = queryOptions.get("fields");
+		 if ((null != fields)) {
+			 json = fields;
+		 }
 		 
 		 //Method.POST
 		 if (request.getMethod() == Method.POST) 
@@ -291,15 +295,15 @@ public class CustomInterface extends ServerResource
 			 {
 				 if ( action.equals("getresults") )
 				 {
-					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit); 
+					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit, json); 
 				 }
 				 else if ( action.equals("schedule"))
 				 {
-					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments);
+					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs);
 				 }
 				 else if ( action.equals("update") )
 				 {
-					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments);
+					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs);
 				 }
 				 else if ( action.equals("getjobs"))
 				 {

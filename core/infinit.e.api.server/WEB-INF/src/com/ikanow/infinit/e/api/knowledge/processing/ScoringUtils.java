@@ -1669,11 +1669,11 @@ public class ScoringUtils
 				}
 			}
 			if (0 == nDocCount) { // (Probably shouldn't happen if a harvest has occurred, just don't bomb out
-				nDocCount = _s0_nQuerySubsetDocCount;
+				nDocCount = _s0_nQuerySetDocCount;
 			}
 		}
 		catch (Exception e) { // Doc count might not be setup correctly?
-			nDocCount = _s0_nQuerySubsetDocCount;			
+			nDocCount = _s0_nQuerySetDocCount;			
 		}
 		return nDocCount;
 	}//TESTED
@@ -1714,9 +1714,6 @@ public class ScoringUtils
 		// Highest prio: source key weight
 		if (null != scoreParams.sourceWeights) {			
 			String sourceKey = doc.getString(DocumentPojo.sourceKey_);
-			if (null != sourceKey) {
-				sourceKey = sourceKey.toLowerCase();
-			}
 			Double dWeight = scoreParams.sourceWeights.get(sourceKey);
 			
 			if (null != dWeight) {
@@ -1726,9 +1723,6 @@ public class ScoringUtils
 		// Middle prio: type
 		if (null != scoreParams.typeWeights) {
 			String mediaType = doc.getString(DocumentPojo.mediaType_);
-			if (null != mediaType) {
-				mediaType = mediaType.toLowerCase();
-			}
 			Double dWeight = scoreParams.typeWeights.get(mediaType);
 			
 			if (null != dWeight) {
@@ -1743,9 +1737,6 @@ public class ScoringUtils
 			if (null != tags) {
 				for (Object tagObj: tags) {
 					String tag = (String)tagObj;
-					if (null != tag) {
-						tag = tag.toLowerCase();
-					}
 					Double dWeight = scoreParams.tagWeights.get(tag);
 					if (null != dWeight) {
 						nComps++;

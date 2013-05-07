@@ -21,6 +21,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -47,6 +48,7 @@ import org.apache.commons.codec.digest.DigestUtils;
 
 import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -55,6 +57,7 @@ import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
+import com.ikanow.infinit.e.harvest.utils.AuthUtils;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
@@ -100,6 +103,7 @@ public class FileHarvester implements HarvesterInterface {
 	 */
 	public static byte[] getFile(String fileURL, SourcePojo source ) throws Exception
 	{
+		InputStream in = null;
 		try 
 		{
 			InfiniteFile searchFile = searchFileShare( source, fileURL);
@@ -109,7 +113,7 @@ public class FileHarvester implements HarvesterInterface {
 			else
 			{
 				//found the file, return the bytes
-				InputStream in = searchFile.getInputStream();
+				in = searchFile.getInputStream();
 				ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 				
 				int read;
@@ -125,6 +129,11 @@ public class FileHarvester implements HarvesterInterface {
 		catch (Exception e) 
 		{
 			throw e;
+		}
+		finally {
+			if (null != in) {
+				in.close();
+			}
 		}
 	}
 	
@@ -150,12 +159,15 @@ public class FileHarvester implements HarvesterInterface {
 			try {
 				if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 				{
-					f = new InfiniteFile(searchFile);
+					f = InfiniteFile.create(searchFile);
 				}
 				else
 				{
+					if (source.getFileConfig().domain == null) {
+						source.getFileConfig().domain = "";
+					}
 					NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
-					f = new InfiniteFile(searchFile, auth);
+					f = InfiniteFile.create(searchFile, auth);
 				}
 			}//TESTED
 			catch (Exception e) {
@@ -166,7 +178,7 @@ public class FileHarvester implements HarvesterInterface {
 				if (f.isDirectory()) {
 					throw new MalformedURLException(searchFile + " is directory.");				
 				}
-			}//TESTED
+			}//TESTED			
 			return f;
 		}
 		// (End INF-1406 sync bug, see above explanation)
@@ -182,15 +194,23 @@ public class FileHarvester implements HarvesterInterface {
 		InfiniteFile file = null;
 		try 
 		{
-			if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
+			if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 			{
-				file = new InfiniteFile(source.getUrl());
+				file = InfiniteFile.create(source.getUrl());
 			}
 			else
 			{
+				if (source.getFileConfig().domain == null) {
+					source.getFileConfig().domain = "";
+				}
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
-				file = new InfiniteFile(source.getUrl(), auth);
+				file = InfiniteFile.create(source.getUrl(), auth);
 			}
+			if (file.isLocal()) { // Local files can only be harvested by admin users: check this...
+				if (!AuthUtils.isAdmin(source.getOwnerId())) {
+					throw new ExtractorSourceLevelMajorException("Permission denied");
+				}
+			}//TESTED
 			traverse(file, source, maxDepth);
 		} 
 		catch (Exception e) {
@@ -287,7 +307,7 @@ public class FileHarvester implements HarvesterInterface {
 		}
 	}
 
-	private void parse( InfiniteFile f, SourcePojo source ) throws MalformedURLException {
+	private void parse( InfiniteFile f, SourcePojo source ) throws MalformedURLException, URISyntaxException {
 
 		DocumentPojo doc = null;		
 		//Determine File Extension
@@ -346,32 +366,47 @@ public class FileHarvester implements HarvesterInterface {
 				List<DocumentPojo> partials = null;
 				try {
 					if (bIsXml) {
-						XMLStreamReader xmlStreamReader;
+						XMLStreamReader xmlStreamReader = null;
 						XMLInputFactory factory = XMLInputFactory.newInstance();
 						factory.setProperty(XMLInputFactory.IS_COALESCING, true);
-						xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
-						partials = xmlParser.parseDocument(xmlStreamReader);
-						xmlStreamReader.close();
+						try {							
+							xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
+							partials = xmlParser.parseDocument(xmlStreamReader);
+						}
+						finally {
+							if (null != xmlStreamReader) xmlStreamReader.close();
+						}
 					}//TESTED
 					else if (bIsJson) {
-						JsonReader jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
-						partials = jsonParser.parseDocument(jsonReader);
-						jsonReader.close();
+						JsonReader jsonReader = null;
+						try {							
+							jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
+							partials = jsonParser.parseDocument(jsonReader);
+						}
+						finally {
+							if (null != jsonReader) jsonReader.close();
+						}
 					}//TESTED
 					else if (bIsLineOriented) { // Just generate a document for every line
-						BufferedReader lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
-						String line;
-						partials = new LinkedList<DocumentPojo>();
-						while ((line = lineReader.readLine()) != null) {
-							DocumentPojo newDoc = new DocumentPojo();
-							newDoc.setFullText(line);
-							if (line.length() > 128) {
-								newDoc.setDescription(line.substring(0, 128));
+						BufferedReader lineReader = null;
+						try {
+							lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
+							String line;
+							partials = new LinkedList<DocumentPojo>();
+							while ((line = lineReader.readLine()) != null) {
+								DocumentPojo newDoc = new DocumentPojo();
+								newDoc.setFullText(line);
+								if (line.length() > 128) {
+									newDoc.setDescription(line.substring(0, 128));
+								}
+								else {
+									newDoc.setDescription(line);
+								}
+								partials.add(newDoc);
 							}
-							else {
-								newDoc.setDescription(line);
-							}
-							partials.add(newDoc);
+						}
+						finally {
+							if (null != lineReader) lineReader.close();
 						}
 					}
 
@@ -444,8 +479,6 @@ public class FileHarvester implements HarvesterInterface {
 				try {
 
 					doc = new DocumentPojo();
-					in = null;
-					in = f.getInputStream();
 					// Create a tika object
 					tika = new Tika();
 					// BUGGERY
@@ -460,7 +493,15 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setSource(source.getTitle());
 					doc.setSourceKey(source.getKey());
 					doc.setMediaType(source.getMediaType());
-					String fullText = tika.parseToString(in, metadata);
+					String fullText = "";
+					
+					in = f.getInputStream();
+					try {
+						fullText = tika.parseToString(in, metadata);
+					}
+					finally {
+						if (null != in) in.close();
+					}
 					int descCap = 500;
 					doc.setFullText(fullText);
 					if (descCap > fullText.length())
@@ -591,7 +632,8 @@ public class FileHarvester implements HarvesterInterface {
 				l = f.listFiles();
 				
 				for(int i = 0; l != null && i < l.length; i++ ) {
-	
+					if (null == l[i]) break; // (reached the end of the list)
+					
 					// Check to see if the item is a directory or a file that needs to parsed
 					// if it is a file then parse the sucker using tika 
 					// if it is a directory then use recursion to dive into the directory
@@ -636,7 +678,6 @@ public class FileHarvester implements HarvesterInterface {
 			// (End INF-1406 sync bug, see above explanation)
 
 		} catch (Exception e) {
-			
 			if (maxDepth == depth) { // Top level error, abandon ship
 				errors++;
 				throw e;

@@ -217,6 +217,9 @@ else
 	setParam ALCHEMY_POSTPROC_VAL "$ALCHEMY_POSTPROC_VAL" $API_PROPERTY_FILE
 	setParam API_AGG_ACCURACY "$API_AGG_ACCURACY" $API_PROPERTY_FILE
 	
+	setParam HADOOP_DIR "$HADOOP_DIR" $API_PROPERTY_FILE
+	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $API_PROPERTY_FILE
+	
 	chown tomcat.tomcat $API_PROPERTY_FILE
 	################### End infinite.api.properties ###########################
 

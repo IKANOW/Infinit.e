@@ -52,9 +52,11 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 	// Some useful string constants:
 	
 	public final static String globalDocumentIndex_ = "document_index";
-	public final static String documentType_ = "document_index";
+	public final static String globalDocumentIndexCollection_ = "docs_index";
 	public final static String manyGeoDocumentIndex_ = "doc_manygeos";
+	public final static String manyGeoDocumentIndexCollection_ = "docs_manygeos";
 	public final static String dummyDocumentIndex_ = "doc_dummy";
+	public final static String documentType_ = "document_index";
 	
 	////////////////////////////////////////////////////////////////////////////////
 

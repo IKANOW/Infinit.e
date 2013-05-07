@@ -166,25 +166,53 @@ package com.ikanow.infinit.e.query.model.presentation.builder
 		/**
 		 * Add a query terms to the query
 		 */
-		public function addQueryTermsToQuery( value:ArrayCollection ):void
+		public function addQueryTermsToQuery( value:ArrayCollection, grouped:Boolean = false ):void
 		{
 			var queryTermAlreadyExists:Boolean;
 			var queryTerm:QueryTerm;
+			var queryTermGroup:QueryTermGroup;
+			
+			if ( grouped && ( value.length <= 1 ) )
+			{
+				grouped = false;
+			}
+			
+			if ( grouped )
+			{
+				queryTermGroup = new QueryTermGroup();
+				queryTermGroup.children = new ArrayCollection();
+				queryTermGroup._id = QueryUtil.getRandomNumber().toString();
+				queryTermGroup.level = 0;
+			}
 			
 			for each ( var queryTermObject:Object in value )
 			{
 				queryTerm = ObjectTranslatorUtil.translateObject( queryTermObject, new QueryTerm ) as QueryTerm;
 				
-				queryTermAlreadyExists = QueryUtil.doesQueryTermExistInCollection( queryTerm, queryTerms );
-				
-				if ( !queryTermAlreadyExists )
+				if ( grouped )
 				{
-					queryTerm.logicOperator = QueryOperatorTypes.AND;
+					queryTerm.logicOperator = QueryOperatorTypes.OR;
 					queryTerm.editMode = EditModeTypes.UPDATE;
-					queryTermGroups.addItem( queryTerm );
+					queryTermGroup.children.addItem( queryTerm );
+				}
+				else // individual elements
+				{
+					queryTermAlreadyExists = QueryUtil.doesQueryTermExistInCollection( queryTerm, queryTerms );
+					
+					if ( !queryTermAlreadyExists )
+					{
+						queryTerm.logicOperator = QueryOperatorTypes.AND;
+						queryTerm.editMode = EditModeTypes.UPDATE;
+						queryTermGroups.addItem( queryTerm );
+					}
 				}
 			}
 			
+			if ( grouped )
+			{
+				queryTermGroup.logicOperator = QueryOperatorTypes.AND;
+				queryTermGroups.addItem( queryTermGroup );
+			}
 			updateQueryTerms( queryTermGroups );
 		}
 		

@@ -38,6 +38,7 @@ public class MongoDbManager {
 	public static final String gte_ = "$gte"; 
 	public static final String lt_ = "$lt"; 
 	public static final String lte_ = "$lte"; 
+	public static final String all_ = "$all"; 
 	public static final String in_ = "$in"; 
 	public static final String each_ = "$each"; 
 	public static final String set_ = "$set"; 

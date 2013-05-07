@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.processing.generic.aggregation;
 import java.io.InputStream;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -87,8 +88,21 @@ public class AggregationManager {
 			
 			if (null != doc.getEntities())
 			{
-				for (EntityPojo ent: doc.getEntities()) 
-				{
+				Iterator<EntityPojo> entIt = doc.getEntities().iterator();
+				while (entIt.hasNext())  {
+					EntityPojo ent = entIt.next();
+					
+					// Some QA checking:
+					if ((null == ent.getIndex()) || (null == ent.getDisambiguatedName()) || (null == ent.getType())
+							|| (null == ent.getDimension()))
+					{
+						entIt.remove(); // malformed
+						continue;
+					}
+					if (null == ent.getFrequency()) { // can recover
+						ent.setFrequency(1L);
+					}
+
 					// (Assume index not yet set, but that it's correct if so!)
 					if (null == ent.getIndex()) {
 						ent.setIndex(new StringBuffer(ent.getDisambiguatedName()).append('/').append(ent.getType()).toString());
@@ -329,8 +343,15 @@ public class AggregationManager {
 		for (Map<ObjectId, AssociationFeaturePojo> evtCommunity: _aggregatedEvents.values()) {
 			
 			for (Map.Entry<ObjectId, AssociationFeaturePojo> evtFeature: evtCommunity.entrySet()) {				
-				boolean bSync = doScheduleCheck(Schedule.SYNC_INDEX, evtFeature.getValue().getIndex(), evtFeature.getValue().getDoccount(), 
+				boolean bSync = false;
+				if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
+					bSync = doScheduleCheck(Schedule.SYNC_INDEX, evtFeature.getValue().getIndex(), evtFeature.getValue().getDoccount(), 
 										evtFeature.getValue().getDb_sync_doccount(), evtFeature.getValue().getDb_sync_time());
+				}
+				else { // Just synchronize first-time entities
+					bSync = (null == evtFeature.getValue().getDb_sync_time());
+				}//TESTED
+				
 				if (bSync) {
 					AssociationAggregationUtils.synchronizeEventFeature(evtFeature.getValue(), evtFeature.getKey());
 				}
@@ -375,8 +396,14 @@ public class AggregationManager {
 				if (doScheduleCheck(Schedule.UPDATE_DOCS, evtFeature.getIndex(), evtFeature.getDoccount(), 
 										evtFeature.getDb_sync_doccount(), evtFeature.getDb_sync_time()))
 				{
-					AssociationAggregationUtils.updateMatchingEvents(evtFeature, evtFeature.getCommunityId());
-						// (note, currently does nothing - not needed until we start trying to calc signficance for events)
+					if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
+						
+						AssociationAggregationUtils.updateMatchingEvents(evtFeature, evtFeature.getCommunityId());
+							// (note, currently does nothing - not needed until we start trying to calc signficance for events)
+					}
+					else { // Background aggregation mode, mark the assoc feature for the bg thread
+						AssociationAggregationUtils.markAssociationFeatureForSync(evtFeature, evtFeature.getCommunityId());
+					}//TOEST					
 				}
 			}
 		}

@@ -25,6 +25,7 @@ package com.ikanow.infinit.e.query.control
 	import com.ikanow.infinit.e.shared.model.vo.QuerySuggestions;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
+	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
@@ -302,6 +303,16 @@ package com.ikanow.infinit.e.query.control
 			queryManager.tryGetQuerySuggestions( event.searchType, event.keywordString, event.keywordString2 );
 		}
 		
+		[EventHandler( event = "QueryEvent.UPDATE_QUERY_FROM_WIDGET_DRAGDROP" )]
+		/**
+		 * Updates the query logic string to be used in a query
+		 * @param event
+		 */
+		public function updateQuery( event:QueryEvent ):void
+		{
+			queryManager.updateQueryFromWidgetDragDrop( event.widgetInfo );
+		}
+		
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_NAVIGATE" )]
 		/**
 		 * Saves the query advanced scoring settings, navigates to a new page
@@ -309,8 +320,10 @@ package com.ikanow.infinit.e.query.control
 		 */
 		public function updateQueryAndNavigate( event:QueryEvent ):void
 		{
+			/**/
+			//			mx.controls.Alert.show( JSONUtil.encode( event.queryString ) );
 			var queryString:QueryString = event.queryString as QueryString;
-			queryBuilderModel.addQueryTermsToQuery( queryString.qt );
+			queryBuilderModel.addQueryTermsToQuery( queryString.qt, ( event.widgetInfo != null ) ); // if widget info is non null then group... 
 			queryManager.updateQueryAndNavigate( queryString, event.searchType );
 		}
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_LOGIC" )]
@@ -322,6 +335,7 @@ package com.ikanow.infinit.e.query.control
 		{
 			queryManager.setQueryLogic( event.queryLogic );
 		}
+		
 		
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_TERM" )]
 		/**

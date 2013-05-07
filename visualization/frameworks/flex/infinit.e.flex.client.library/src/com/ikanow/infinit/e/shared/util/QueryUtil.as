@@ -611,6 +611,10 @@ package com.ikanow.infinit.e.shared.util
 						break;
 					case QueryTermTypes.ENTITY:
 						qo[ QueryTermTypes.ENTITY ] = queryTerm.entity;
+						if ( null != queryTerm.sentiment )
+						{
+							qo[ QueryTermTypes.SENTIMENT ] = queryTerm.sentiment;
+						}
 						break;
 					case QueryTermTypes.EVENT:
 						qo[ QueryTermTypes.EVENT ] = getQueryTermEventObject( queryTerm.event );

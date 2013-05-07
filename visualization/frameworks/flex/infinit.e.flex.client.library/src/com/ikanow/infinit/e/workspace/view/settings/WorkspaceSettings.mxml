@@ -132,10 +132,12 @@
 			assocVerbs_cs="{ assocVerbFilter.text }"
 			entityTypes_cs="{ entityTypeFilter.text }" />
 
+		<!-- Note sigWeight not needed, it's auto-adjusted based on value -->
 		<vo:QueryScoreOptions id="scoreOptions"
 			adjustAggregateSig=" { adjustAggregationSigOptions.selectedIndex } "
 			enableScoring="{ enableScoring.selected }"
 			numAnalyze="{ parseInt( numDocsToAnalyze.text ) }"
+			relWeight=" { weightSlider.value } "
 			scoreEntities="{ scoreEntities.selected }"
 			sourceWeights_cs="{ manualWeightsSources.text }"
 			tagWeights_cs="{ manualWeightsTags.text }"
@@ -212,6 +214,10 @@
 		<s:VGroup 
 			width="100%"
 			height="100%">
+
+			<!-- Note that in the code below, the text="{ model.XXX.YYY }" construct _only initializes_ those values.
+				 Their values are maintained in the <vo:XxxOptions> constructs above.
+			-->
 
 			<s:SkinnableContainer 
 				width="100%"
@@ -394,7 +400,7 @@
 						paddingTop="3" />
 
 					<textInput:InfTextInput id="manualWeightsSources"
-						text="{ model.scoreOptions.sourceWeights_cs }"
+						text="{ model.scoreOptions.sourceWeights_cs == null ? '' : model.scoreOptions.sourceWeights_cs }"
 						width="75%"
 						styleName="infTextInput"
 						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsSourcesToolTip' ) }" />
@@ -412,7 +418,7 @@
 						paddingTop="3" />
 
 					<textInput:InfTextInput id="manualWeightsTypes"
-						text="{ model.scoreOptions.typeWeights_cs }"
+						text="{ model.scoreOptions.typeWeights_cs == null ? '' : model.scoreOptions.typeWeights_cs }"
 						width="75%"
 						styleName="infTextInput"
 						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTypesToolTip' ) }" />
@@ -430,7 +436,7 @@
 						paddingTop="3" />
 
 					<textInput:InfTextInput id="manualWeightsTags"
-						text="{ model.scoreOptions.tagWeights_cs }"
+						text="{ model.scoreOptions.tagWeights_cs == null ? '' : model.scoreOptions.tagWeights_cs }"
 						width="75%"
 						styleName="infTextInput"
 						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.manualWeightsTagsToolTip' ) }" />

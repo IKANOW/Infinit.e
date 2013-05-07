@@ -49,6 +49,8 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobStatus;
 import org.apache.hadoop.mapreduce.InputFormat;
@@ -56,6 +58,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.w3c.dom.Document;
@@ -83,13 +86,13 @@ import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
+import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.gridfs.GridFSDBFile;
-
 
 public class HadoopJobRunner
 {
@@ -280,7 +283,9 @@ public class HadoopJobRunner
 	 * @param wantQuery
 	 * @return
 	 */
-	private String getQueryOrProcessing(String query, boolean wantQuery)
+	private enum QuerySpec { QUERY, POSTPROC, INPUTFIELDS };
+	
+	private String getQueryOrProcessing(String query, QuerySpec querySpec)
 	{
 		if ( query.equals("") || query.equals("null") || query == null )
 			query = "{}";
@@ -289,35 +294,44 @@ public class HadoopJobRunner
 		{
 			BasicDBList dbl = (BasicDBList)dbo;
 			//is a list
-			if ( wantQuery )
+			if ( querySpec == QuerySpec.QUERY )
 			{
 				return dbl.get(0).toString();
 			}
-			else
+			else if ( querySpec == QuerySpec.POSTPROC )
 			{
-				if ( dbl.size() > 1 )
-					return dbl.get(1).toString();
+				if ( dbl.size() > 1 ) {
+					if (null == dbl.get(1)) // (only query and fields are specified) 
+						return null;
+					else
+						return dbl.get(1).toString();
+				}
 				else
 					return null;
 			}
+			else if ( querySpec == QuerySpec.INPUTFIELDS ) 
+			{
+				if ( dbl.size() > 2 ) 
+					return dbl.get(2).toString();
+				else
+					return null;
+			}
+			else
+				return null;
 		}
 		catch (Exception ex)
 		{
 			try
 			{				
 				//is just a an object
-				if ( wantQuery )
-				{
+				if ( querySpec == QuerySpec.QUERY )
 					return dbo.toString();
-				}
 				else 
-				{
 					return null;
-				}
 			}
 			catch (Exception e)
 			{
-				if ( wantQuery )
+				if ( querySpec == QuerySpec.QUERY )
 					return "{}";
 				else
 					return null;
@@ -341,7 +355,7 @@ public class HadoopJobRunner
 		StringBuffer errorString = new StringBuffer("Saved query error");
 		try 
 		{
-			String queryString = getQueryOrProcessing(savedQuery.query,true);			
+			String queryString = getQueryOrProcessing(savedQuery.query, QuerySpec.QUERY);			
 			AdvancedQueryPojo query = QueryHandler.createQueryPojo(queryString);
 			StringBuffer communityIdStrList = new StringBuffer();
 			for (ObjectId commId: savedQuery.communityIds) 
@@ -513,7 +527,7 @@ public class HadoopJobRunner
 	private String runHadoopJob(CustomMapReduceJobPojo job, String tempJarLocation) throws IOException, SAXException, ParserConfigurationException
 	{
 		StringWriter xml = new StringWriter();
-		createConfigXML(xml, job.jobtitle,job.inputCollection, job.isCustomTable, job.getOutputDatabase(), job._id.toString(), job.outputCollectionTemp, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.outputKey, job.outputValue,job.arguments);
+		createConfigXML(xml, job.jobtitle,job.inputCollection, getQueryOrProcessing(job.query,QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), job.outputCollectionTemp, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments);
 		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
 
@@ -554,8 +568,8 @@ public class HadoopJobRunner
 				config.set("fs.default.name", "local");							
 			}
 			else {
-				String trackerUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
-				String fsUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
+				String trackerUrl = HadoopUtils.getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+				String fsUrl = HadoopUtils.getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
 				config.set("mapred.job.tracker", trackerUrl);
 				config.set("fs.default.name", fsUrl);				
 			}
@@ -565,10 +579,22 @@ public class HadoopJobRunner
 			Class<?> classToLoad = Class.forName (job.mapper, true, child);			
 			hj.setJarByClass(classToLoad);
 			hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
-			hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.mongodb.hadoop.MongoOutputFormat", true, child));
+			if ((null != job.exportToHdfs) && job.exportToHdfs) {
+				hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));
+				Path outPath = this.ensureOutputDirectory(job);
+				SequenceFileOutputFormat.setOutputPath(hj, outPath);
+			}
+			else { // normal case, stays in MongoDB
+				hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.mongodb.hadoop.MongoOutputFormat", true, child));
+			}
 			hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
-			hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
-			if (null != job.combiner) {
+			if ((null != job.reducer) && !job.reducer.equalsIgnoreCase("null") && !job.reducer.equalsIgnoreCase("none")) {
+				hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
+			}
+			else {
+				hj.setNumReduceTasks(0);
+			}
+			if ((null != job.combiner) && !job.combiner.equalsIgnoreCase("null") && !job.combiner.equalsIgnoreCase("none")) {
 				hj.setCombinerClass((Class<? extends Reducer>) Class.forName (job.combiner, true, child));
 			}
 			hj.setOutputKeyClass(Class.forName (job.outputKey, true, child));
@@ -587,7 +613,7 @@ public class HadoopJobRunner
 			}			
 		}
 		catch (Exception e) {
-			
+			e.printStackTrace();
 			Thread.currentThread().setContextClassLoader(savedClassLoader);
 			return "Error: " + HarvestExceptionUtils.createExceptionMessage(e);
 		}
@@ -602,7 +628,7 @@ public class HadoopJobRunner
 		String jobid = null;
 		try
 		{				
-			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,true), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
+			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, getQueryOrProcessing(job.query,QuerySpec.QUERY), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", prop_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
@@ -669,13 +695,13 @@ public class HadoopJobRunner
 		File configFile = new File(configLocation);
 		FileWriter fstream = new FileWriter(configFile);
 		BufferedWriter out = new BufferedWriter(fstream);
-		createConfigXML(out, title, input, isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments);
+		createConfigXML(out, title, input, getQueryOrProcessing(query,QuerySpec.INPUTFIELDS), isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments);
 		fstream.close();
 			
 		return configLocation;
 	}	
 	
-	private void createConfigXML( Writer out, String title, String input, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments) throws IOException
+	private void createConfigXML( Writer out, String title, String input, String fields, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments) throws IOException
 	{
 		String dbserver = prop_general.getDatabaseServer();
 		output = outputDatabase + "." + tempOutputCollection;
@@ -716,7 +742,7 @@ public class HadoopJobRunner
 				oldQueryObj = (BasicDBObject) oldQueryObj.get("admin");
 				//(end diagnostic/benchmarking/test code for admins only part 2)
 			}
-			else if (oldQueryObj.containsField(DocumentPojo.sourceKey_)) {
+			else if (oldQueryObj.containsField(DocumentPojo.sourceKey_) || input.startsWith("feature.")) {
 				// Source Key specified by user, stick communityIds check in for security
 				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
 			}
@@ -755,14 +781,19 @@ public class HadoopJobRunner
 		if ( arguments == null )
 			arguments = "";
 		
-		out.write("<?xml version=\"1.0\"?>\n<configuration>"+
+		// Generic configuration
+		out.write("<?xml version=\"1.0\"?>\n<configuration>");
+		
+		// Mongo specific configuration
+		
+		out.write(
 				"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
 				"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
 				"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>"+
 				"\n\t<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://"+dbserver+"/"+input+"</value></property>"+  
 				"\n\t<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://"+dbserver+"/"+output+"</value>  </property>"+  
 				"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + query + "</value></property>"+
-				"\n\t<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value></value></property>"+
+				"\n\t<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value>"+( (fields==null) ? ("") : fields )+"</value></property>"+
 				"\n\t<property><!-- A JSON sort specification for read [OPTIONAL] --><name>mongo.input.sort</name><value></value></property>"+
 				"\n\t<property><!-- The number of documents to limit to for read [OPTIONAL] --><name>mongo.input.limit</name><value>0</value><!-- 0 == no limit --></property>"+
 				"\n\t<property><!-- The number of documents to skip in read [OPTIONAL] --><!-- TODO - Are we running limit() or skip() first? --><name>mongo.input.skip</name><value>0</value> <!-- 0 == no skip --></property>"+
@@ -777,11 +808,20 @@ public class HadoopJobRunner
 				"\n\t<property><!-- Class for the combiner [optional] --><name>mongo.job.combiner</name><value>"+combiner+"</value></property>"+
 				"\n\t<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>"+
 				"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+
-				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"+
+				"\n\t<property><!-- Split Size [optional] --><name>mongo.input.split_size</name><value>32</value></property>"
+				);		
+		
+		// Infinit.e specific configuration
+		
+		out.write(
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
-				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+				
-				"\n</configuration>");		
+				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"				
+			);		
+		
+		// Closing thoughts:
+		out.write("\n</configuration>");
+		
 		out.flush();
 		out.close();
 	}
@@ -1064,10 +1104,12 @@ public class HadoopJobRunner
 	 */
 	private void setJobComplete(CustomMapReduceJobPojo cmr, boolean isComplete, boolean isError, float mapProgress, float reduceProgress, String errorMessage) 
 	{		
+		BasicDBObject updates = new BasicDBObject();
+		BasicDBObject update = new BasicDBObject();
 		try
 		{			
-			BasicDBObject updates = new BasicDBObject();
-			BasicDBObject update = new BasicDBObject();
+			long nNew = 0;
+			long nTotal = 0;
 			if ( isComplete )
 			{				
 				updates.append(CustomMapReduceJobPojo.jobidS_, null);
@@ -1101,15 +1143,19 @@ public class HadoopJobRunner
 					_logger.info("job_error_removing_tempfiles=" + HarvestExceptionUtils.createExceptionMessage(e));
 				} 
 				
-				BasicDBObject incs = new BasicDBObject("timesRan", 1);				
+				BasicDBObject incs = new BasicDBObject(CustomMapReduceJobPojo.timesRan_, 1);				
 				//copy depencies to waitingOn
 				updates.append(CustomMapReduceJobPojo.waitingOn_, cmr.jobDependencies);
 				if ( !isError )
 				{
+					nNew = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).count();					
+					
 					updates.append(CustomMapReduceJobPojo.errorMessage_, errorMessage); // (will often be null)
 					moveTempOutput(cmr);
 					//if job was successfully, mark off dependencies
-					removeJobFromChildren(cmr._id);					
+					removeJobFromChildren(cmr._id);
+					
+					nTotal = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).count();										
 				}
 				else
 				{
@@ -1123,22 +1169,27 @@ public class HadoopJobRunner
 				
 				if (null != cmr.jobidS) 
 				{
-					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN);
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError + " job_hadoop_id=" + cmr.jobidS + "_" + cmr.jobidN + " job_new_records=" + nNew + " job_total_records=" + nTotal);
 				}
 				else 
 				{
-					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError);					
+					_logger.info("job_completion_title=" + cmr.jobtitle + " job_completion_id="+cmr._id.toString() + " job_completion_time=" + runtime + " job_schedule_delta=" + timeFromSchedule + " job_completion_success=" + !isError + " job_new_records=" + nNew + " job_total_records=" + nTotal);					
 				}
 			}
 			updates.append(CustomMapReduceJobPojo.mapProgress_, mapProgress);
 			updates.append(CustomMapReduceJobPojo.reduceProgress_, reduceProgress);			
-			update.append(MongoDbManager.set_,updates);				
-			DbManager.getCustom().getLookup().update(new BasicDBObject(CustomMapReduceJobPojo._id_,cmr._id),update);					
 		}
 		catch (Exception ex)
 		{
 			_logger.info("job_error_updating_status_title=" + cmr.jobtitle + " job_error_updating_status_id=" + cmr._id.toString() + " job_error_updating_status_message="+HarvestExceptionUtils.createExceptionMessage(ex));
 		}		
+		finally { // It's really bad if this doesn't happen, so do it here so that it always gets called
+			if (!updates.isEmpty()) {
+				update.append(MongoDbManager.set_,updates);
+					// (if isComplete, should always include resetting jobidS and jobidN)
+				DbManager.getCustom().getLookup().update(new BasicDBObject(CustomMapReduceJobPojo._id_,cmr._id),update);
+			}
+		}
 	}
 	
 	/**
@@ -1158,9 +1209,16 @@ public class HadoopJobRunner
 	 * the tmp collection.
 	 * 
 	 * @param cmr
+	 * @throws IOException 
+	 * @throws ParserConfigurationException 
+	 * @throws SAXException 
 	 */
-	private void moveTempOutput(CustomMapReduceJobPojo cmr)
+	private void moveTempOutput(CustomMapReduceJobPojo cmr) throws IOException, SAXException, ParserConfigurationException
 	{
+		// If we are an export job then move files:
+		bringTempOutputToFront(cmr);
+			// (the rest of this will just do nothing) 
+		
 		/**
 		 * Atomic plan:
 		 * If not append, move customlookup pointer to tmp collection, drop old collection.
@@ -1175,7 +1233,7 @@ public class HadoopJobRunner
 		BasicDBObject sort = new BasicDBObject();
 		try
 		{
-			postProcObject = (DBObject) com.mongodb.util.JSON.parse(getQueryOrProcessing(cmr.query, false));
+			postProcObject = (DBObject) com.mongodb.util.JSON.parse(getQueryOrProcessing(cmr.query, QuerySpec.POSTPROC));
 			if ( postProcObject != null )
 			{
 				if ( postProcObject.containsField("limitAllData") )
@@ -1293,8 +1351,11 @@ public class HadoopJobRunner
 										new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", false)));
 		}
 		//step3 clean up temp output collection so we can use it again
-		DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).remove(new BasicDBObject());
-		
+		// (drop it, removing chunks)
+		try {
+			DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
+		}
+		catch (Exception e) {} // That's fine, it probably just doesn't exist yet...
 	}		
 	
 	/**
@@ -1347,7 +1408,7 @@ public class HadoopJobRunner
 	 */
 	private InetSocketAddress getJobClientConnection() throws SAXException, IOException, ParserConfigurationException
 	{
-		String jobclientAddress = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+		String jobclientAddress = HadoopUtils.getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
 		String[] parts = jobclientAddress.split(":");
 		String hostname = parts[0];
 		int port = Integer.parseInt(parts[1]);		
@@ -1381,50 +1442,40 @@ public class HadoopJobRunner
 			f.delete();
 		}
 	}
-	/**
-	 * Parses a given xml file and returns the requested value of propertyName.
-	 * The XML is expected to be in a format: <configuration><property><name>some.prop.name</name><value>some.value</value></property></configuration>
-	 * 
-	 * @param xmlFileLocation
-	 * @param propertyName
-	 * @return
-	 * @throws SAXException
-	 * @throws IOException
-	 * @throws ParserConfigurationException
-	 */
-	private String getXMLProperty(String xmlFileLocation, String propertyName) throws SAXException, IOException, ParserConfigurationException
-	{
-		File configFile = new File(xmlFileLocation);
+/////////////////////////////////////////////////////////////////////////////
+	
+	// Some HDFS utilities
+	
+	private Path ensureOutputDirectory(CustomMapReduceJobPojo cmr) throws IOException, SAXException, ParserConfigurationException {
+		Configuration config = HadoopUtils.getConfiguration(prop_custom);
+		Path path = HadoopUtils.getPathForJob(cmr, config, true);
 		
-		DocumentBuilderFactory docBuilderFactory = DocumentBuilderFactory.newInstance();
-        DocumentBuilder docBuilder = docBuilderFactory.newDocumentBuilder();
-        Document doc = docBuilder.parse(configFile);        
-        doc.getDocumentElement().normalize();
-        
-        NodeList listOfProps = doc.getElementsByTagName("property");
-        
-        for ( int i = 0; i < listOfProps.getLength(); i++ )
-        {
-        	Node prop = listOfProps.item(i);
-        	if ( prop.getNodeType() == Node.ELEMENT_NODE)
-        	{
-	        	Element propElement = (Element)prop;	        	
-	        	NodeList name = propElement.getElementsByTagName("name").item(0).getChildNodes();
-	        	Node nameValue = (Node) name.item(0);
-	        	String nameString = nameValue.getNodeValue().trim();
-	        	
-	        	//found the correct property
-	        	if ( nameString.equals(propertyName) )
-	        	{
-	        		//return the value
-	        		NodeList value = propElement.getElementsByTagName("value").item(0).getChildNodes();
-		        	Node valueValue = (Node) value.item(0);
-		        	String valueString = valueValue.getNodeValue().trim();		        	
-		        	return valueString;		        	
-	        	}
-        	}
-        }
-        return null;
+		FileSystem fs = FileSystem.get(config);
+		if (fs.exists(path)) { // delete it
+			fs.delete(path, true); // (might be dir => recursive)
+		}
+		// (don't create the dir, this all gets sorted out by the reducer)
+		return path;
+	}
+	
+	private void bringTempOutputToFront(CustomMapReduceJobPojo cmr) throws IOException, SAXException, ParserConfigurationException {
+		// Get the names:
+		Configuration config = HadoopUtils.getConfiguration(prop_custom);
+		FileSystem fs = FileSystem.get(config);
+		Path pathTmp = HadoopUtils.getPathForJob(cmr, config, true);
+		Path pathFinal = HadoopUtils.getPathForJob(cmr, config, false);
+		
+		// OK don't do anything if pathTmp doesn't exist...
+		if (fs.exists(pathTmp)) {
+			// If the final path exists, delete it
+			
+			if (!fs.exists(pathFinal)) { // create it, which guarantees the parent path also exists
+				//(otherwise the rename fails sigh)
+				fs.mkdirs(pathFinal);
+			}
+			fs.delete(pathFinal, true);
+			fs.rename(pathTmp, pathFinal);
+		}
 	}
 	
 /////////////////////////////////////////////////////////////////////////////

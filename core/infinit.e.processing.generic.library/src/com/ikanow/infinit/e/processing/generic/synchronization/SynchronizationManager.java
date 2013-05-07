@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.processing.generic.synchronization;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -137,7 +138,9 @@ public class SynchronizationManager {
 						logger.info("db sync removing doc: " + doc.getId() + "/" + doc.getSourceKey() + " not found in search (or duplicate)");						
 						docs_to_remove.add(doc);					
 						documentDb.remove(new BasicDBObject(DocumentPojo._id_, doc.getId()));
-						contentDb.remove(new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl()));
+						BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl());
+						contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));						
+						contentDb.remove(contentQ);
 						fixcount++;
 					}
 				} //end loop over new docs for this source

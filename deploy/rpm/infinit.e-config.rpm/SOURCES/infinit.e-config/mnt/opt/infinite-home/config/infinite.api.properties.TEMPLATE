@@ -72,6 +72,11 @@ extractor.text.default=DEFAULT_TEXT_EXTRACTOR
 app.alchemy.postproc=ALCHEMY_POSTPROC_VAL
 
 #####################################################
+# Hadoop config path
+hadoop.configpath=HADOOP_DIR
+hadoop.local_mode=HADOOP_LOCALMODE
+
+#####################################################
 # JDBC Drives Supported by Infinit.e
 jdbc.db2.class=com.ibm.db2.jcc.DB2Driver
 jdbc.mysql.class=com.mysql.jdbc.Driver

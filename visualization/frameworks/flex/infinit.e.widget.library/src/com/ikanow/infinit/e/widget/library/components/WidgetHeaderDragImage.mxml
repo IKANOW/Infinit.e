@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	width="40"
+	height="36"
+	mouseOut="{ image.source = WidgetAssets.WIDGET_DRAG_ICON_ON }"
+	mouseOver="{ image.source = WidgetAssets.WIDGET_DRAG_ICON_OFF }">
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.assets.WidgetAssets;
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<!-- left seperator -->
+	<components:WidgetVSeparator 
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+	<!-- right seperator -->
+	<components:WidgetVSeparator 
+		right="1"
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+
+
+	<s:BitmapImage id="image"
+		width="24"
+		height="24"
+		x="8"
+		y="6"
+		source="{ WidgetAssets.WIDGET_DRAG_ICON_ON }">
+
+	</s:BitmapImage>
+
+
+</s:Group>
+

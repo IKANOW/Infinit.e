@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -72,38 +72,50 @@
 			
 			protected function deleteButton_clickHandler( event:MouseEvent ):void
 			{
-				var queryEvent:QueryEvent = new QueryEvent( QueryEvent.DELETE_QUERY_TERM, true, true );
-				queryEvent.queryTermObject = queryTerm;
-				dispatchEvent( queryEvent );
+				if ( -1 != queryTerm.logicIndex )
+				{
+					var queryEvent:QueryEvent = new QueryEvent( QueryEvent.DELETE_QUERY_TERM, true, true );
+					queryEvent.queryTermObject = queryTerm;
+					dispatchEvent( queryEvent );
+				}
 			}
 			
 			protected function doubleClickHandler( event:MouseEvent ):void
 			{
-				var queryEvent:QueryEvent = new QueryEvent( "editQueryTerm", true, true );
-				queryEvent.queryTerm = queryTerm;
-				dispatchEvent( queryEvent );
+				if ( -1 != queryTerm.logicIndex )
+				{
+					var queryEvent:QueryEvent = new QueryEvent( "editQueryTerm", true, true );
+					queryEvent.queryTerm = queryTerm;
+					dispatchEvent( queryEvent );
+				}
 			}
 			
 			protected function logicOperatorSelector_changeHandler( event:IndexChangeEvent ):void
 			{
-				queryTerm.logicOperator = logicOperatorSelector.selectedItem as String;
-				
-				dispatchEvent( new Event( "queryOperatorChange", true, true ) );
+				if ( -1 != queryTerm.logicIndex )
+				{
+					queryTerm.logicOperator = logicOperatorSelector.selectedItem as String;
+					
+					dispatchEvent( new Event( "queryOperatorChange", true, true ) );
+				}
 			}
 			
 			protected function mouseMoveHandler( event:MouseEvent ):void
 			{
-				var dragInitiator:QueryTermSkinnableDataContainer = QueryTermSkinnableDataContainer( event.currentTarget );
-				var ds:DragSource = new DragSource();
-				var bitmapData:BitmapData = ImageSnapshot.captureBitmapData( dragInitiator );
-				var image:Image = new Image();
-				
-				image.source = bitmapData;
-				ds.addData( dragInitiator, QueryConstants.DRAG_DATA );
-				
-				DragManager.doDrag( dragInitiator, ds, event, image );
-				
-				event.stopImmediatePropagation();
+				if ( -1 != queryTerm.logicIndex )
+				{
+					var dragInitiator:QueryTermSkinnableDataContainer = QueryTermSkinnableDataContainer( event.currentTarget );
+					var ds:DragSource = new DragSource();
+					var bitmapData:BitmapData = ImageSnapshot.captureBitmapData( dragInitiator );
+					var image:Image = new Image();
+					
+					image.source = bitmapData;
+					ds.addData( dragInitiator, QueryConstants.DRAG_DATA );
+					
+					DragManager.doDrag( dragInitiator, ds, event, image );
+					
+					event.stopImmediatePropagation();
+				}
 			}
 			
 			protected function mouseOutHandler( event:MouseEvent ):void
@@ -117,7 +129,11 @@
 			{
 				list.setStyle( "borderAlpha", 1 );
 				df.alpha = 1;
-				showDeleteButton = true;
+				
+				if ( -1 != queryTerm.logicIndex )
+				{
+					showDeleteButton = true;
+				}
 				event.stopImmediatePropagation();
 			}
 		]]>
@@ -137,18 +153,18 @@
 		height="100%"
 		paddingLeft="2"
 		verticalAlign="middle"
-		gap="{ isOrphan ? 8 : 4 }">
+		gap="{ ( ( queryTerm.logicIndex == -1 ) ) ? 0 : ( isOrphan ? 8 : 4 ) }">
 
 		<!-- Logic Operator -->
 		<s:DropDownList id="logicOperatorSelector"
-			width="38"
+			width="{ queryTerm.logicIndex == -1 ? 0 : 38 }"
 			focusEnabled="false"
 			includeInLayout="{ itemIndex != 0 }"
 			styleName="queryOperatorDropDownList"
 			dataProvider="{ QueryOperatorTypes.types }"
 			change="logicOperatorSelector_changeHandler(event)"
 			selectedItem="{ logicOperator }"
-			visible="{ itemIndex != 0 }" />
+			visible="{ !( itemIndex == 0 || queryTerm.logicIndex == -1 ) }" />
 
 		<!-- Query Term Group Children List -->
 		<builder:QueryTermSkinnableDataContainer id="list"
@@ -156,6 +172,7 @@
 			dataProvider="{ queryTermCollection }"
 			styleName="advancedQueryTermList"
 			doubleClickEnabled="true"
+			enabled="{ queryTerm.logicIndex != -1 }"
 			doubleClick="doubleClickHandler(event)"
 			mouseMove="mouseMoveHandler(event)"
 			mouseOut="mouseOutHandler(event)"

@@ -17,12 +17,14 @@ package com.ikanow.infinit.e.processing.generic.store_and_index;
 
 
 import java.net.UnknownHostException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
-import java.util.TreeSet;
+import java.util.TreeMap;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -33,6 +35,7 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
@@ -55,6 +58,8 @@ public class StoreAndIndexManager {
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
 	
 	private int nMaxContentLen_bytes = 100000; // (100KB default max)
+	private boolean bStoreRawContent = false; // (store the raw as well as the processed data)
+	private boolean bStoreMetadataAsContent = false; // (store the metadata in the content block)
 	
 	private String harvesterUUID = null;
 	public String getUUID() { return harvesterUUID; }
@@ -67,6 +72,9 @@ public class StoreAndIndexManager {
 		if (nMaxContent > -1) {
 			nMaxContentLen_bytes = nMaxContent;
 		}		
+		bStoreRawContent = pm.storeRawContent();
+		bStoreMetadataAsContent = pm.storeMetadataAsContent();
+		
 		try {
 			StringBuffer sb = new StringBuffer("?DEL?").append(java.net.InetAddress.getLocalHost().getHostName());
 			harvesterUUID = sb.toString();
@@ -165,15 +173,24 @@ public class StoreAndIndexManager {
 			
 			for ( DocumentPojo doc : docs )
 			{
-				if ((0 != nMaxContentLen_bytes) && (null != doc.getFullText()) && !doc.getFullText().isEmpty() && docHasExternalContent(doc.getUrl(), doc.getSourceUrl()))
-				{
+				//TODO: (INF-1367) Currently simplistic logic for deciding whether to store external content 
+				boolean bStoreContent = true;
+				bStoreContent &= (0 != nMaxContentLen_bytes); // (otherwise it's turned off)
+				bStoreContent &= this.bStoreMetadataAsContent || ((null != doc.getFullText()) && !doc.getFullText().isEmpty());				
+				boolean bDocHasExternalContent = docHasExternalContent(doc.getUrl(), doc.getSourceUrl());
+				
+				if (bStoreContent && bDocHasExternalContent) {
 					try
 					{
-						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getFullText(), nMaxContentLen_bytes);
-						if ((null != gzippedContent.getUrl()) && (null != gzippedContent.getGzip_content())) 
-						{
+						String rawText = this.bStoreRawContent ? doc.getRawFullText() : null; 
+						DocumentPojo meta = bStoreMetadataAsContent ? doc : null; 
+						CompressedFullTextPojo gzippedContent = new CompressedFullTextPojo(doc.getUrl(), doc.getSourceKey(), doc.getCommunityId(),
+																							doc.getFullText(), rawText, meta, nMaxContentLen_bytes);
+						
+						if (null != gzippedContent.getUrl())  {
 							// Be efficient and write field-by-field vs using JSON conversion
 							BasicDBObject query = new BasicDBObject(CompressedFullTextPojo.url_, gzippedContent.getUrl());
+							query.put(CompressedFullTextPojo.sourceKey_, gzippedContent.getSourceKey());
 							BasicDBObject update = gzippedContent.getUpdate();
 							if (!_diagnosticMode) {
 								contentDb.update(query, update, true, false); // (ie upsert, supported because query includes shard key==url)
@@ -186,8 +203,9 @@ public class StoreAndIndexManager {
 					catch (Exception ex)
 					{
 						// Do nothing, just carry on
+						ex.printStackTrace();
 					}
-				}
+				}//TESTED
 			}
 		}
 		catch (Exception ex)
@@ -221,13 +239,15 @@ public class StoreAndIndexManager {
 	
 	/**
 	 * Remove a list of doc documents from the data store (you have their id)
+	 * 
+	 * CALLED FROM:	resizeDB()
 	 */
 	public void removeFromDatastore_byId(List<DocumentPojo> docs, boolean bDeleteContent) {
 		try {
 			// Add to data store
 			removeFromDatastore_byId(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
 			
-			// removeFromDataStore(), above, adds "url" and "index" to the doc
+			// IMPORTANT: removeFromDataStore(), above, adds "url" and "index" to the doc
 			// (not created since can't be used for update...)
 			this.removeFromSearch(docs);
 			
@@ -238,7 +258,15 @@ public class StoreAndIndexManager {
 	}//TESTED
 	
 	/**
-	 * Remove a list of doc documents from the data store (you have their url)
+	 * Remove a list of doc documents from the data store (you have their url) AND ALSO the search index
+	 * 
+	 * @param docs - child function needs url (optionally sourceUrl) set - child function requires sourceKey
+	 * 					this function needs id and index both of which are set by the child stack
+	 * 
+	 * CALLED FROM: MongoDocumentTxfer.doDelete(...) <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
+	 * 				processDocuments(...) [ always called after harvester, ie docs are fully populated ]
+	 * 				pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
+	 * 					updateHarvestStatus(...)
 	 */
 	public void removeFromDatastore_byURL(List<DocumentPojo> docs, boolean bDeleteContent) {
 		
@@ -279,8 +307,18 @@ public class StoreAndIndexManager {
 					}
 				}//TESTED			
 				if (!bNoDocsHaveExternalContent) {
-					// Still need to go slow in the DB unfortunately because of the content
-					removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
+					// OK quick check ... are there any legacy docs left?
+					DBObject quickCheck = DbManager.getDocument().getContent().findOne(new BasicDBObject(CompressedFullTextPojo.sourceKey_, null));
+					if (null != quickCheck) {		
+						
+						// Still need to go slow in the DB unfortunately because of the content
+						removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
+					}
+					else {
+						DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
+						bDeleteContent = false; // ie drop to clause below
+					}
+					//TESTED (all sourceKeys set => moves to more efficient delete)
 				}
 				else {
 					bDeleteContent = false; // ie drop to clause below
@@ -310,26 +348,35 @@ public class StoreAndIndexManager {
 	// Utility
 	
 	/**
-	 * Remove a list of doc documents from the data store
+	 * Remove a list of doc documents from the data store + adds _id and index and created to the docs
+	 * @param docs - needs url (optionally sourceUrl) set - child function requires sourceKey
 	 * @param col
 	 * @param feeds
+	 * 
+	 * CALLED FROM: removeFromDatastore_bySourceKey(List<doc>, sourceKey, bDeleteContent)  
+	 * 					deleteSource(...) <- ENSURES DOC HAS URL, SOURCEURL, SOURCEKEY, INDEX
+	 * 				removeFromDataStore_byURL(List<doc>, bDeleteContent) [REQUIRES index be set]
+	 * 					MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
+	 * 					processDocuments(...) [ always called after harvester, ie docs are fully populated ]
+	 * 					pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
+	 * 						updateHarvestStatus(...)
 	 */
 	private void removeFromDatastore_byURL(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
 		BasicDBObject fields = new BasicDBObject();
-		fields.put(DocumentPojo.created_, 1);
-		fields.put(DocumentPojo.index_, 1);
+		fields.put(DocumentPojo.created_, 1); //TODO (INF-1367) explain why this is needed
+		fields.put(DocumentPojo.index_, 1); // This is needed for the calling removeFromDataStore_byURL
 		
-		Set<String> sourceUrlSet = null;
+		TreeMap<String,String> sourceUrlToKeyMap = null;
 		// Store the knowledge in the feeds collection in the harvester db
 		Iterator<DocumentPojo> docIt = docs.iterator();
 		while (docIt.hasNext()) {
 			DocumentPojo f = docIt.next();
 			
 			if ((null != f.getSourceUrl()) && (null == f.getUrl())) { // special case ... delete all these documents...
-				if (null == sourceUrlSet) {
-					sourceUrlSet = new TreeSet<String>();
+				if (null == sourceUrlToKeyMap) {
+					sourceUrlToKeyMap = new TreeMap<String,String>();
 				}
-				sourceUrlSet.add(f.getSourceUrl());				
+				sourceUrlToKeyMap.put(f.getSourceUrl(), f.getSourceKey());				
 				docIt.remove(); // (will get expanded into actual documents below)
 			}
 			else {
@@ -337,7 +384,9 @@ public class StoreAndIndexManager {
 			}
 		}
 		// Now we've deleted all the standard feeds, delete other sourceUrl feeds   
-		if (null != sourceUrlSet) for (String srcUrl: sourceUrlSet) {
+		if (null != sourceUrlToKeyMap) for (Map.Entry<String, String> entry: sourceUrlToKeyMap.entrySet()) {
+			String srcUrl = entry.getKey();
+			String srcKey = entry.getValue();
 			try {
 				DBCursor dbc = col.find(new BasicDBObject(DocumentPojo.sourceUrl_, srcUrl), new BasicDBObject(DocumentPojo.url_, 1));
 				Iterator<DBObject> dbcIt = dbc.iterator();
@@ -346,6 +395,7 @@ public class StoreAndIndexManager {
 					DocumentPojo toDel = new DocumentPojo();
 					toDel.setUrl(dbo.getString(DocumentPojo.url_));
 					toDel.setId((ObjectId) dbo.get(DocumentPojo._id_));
+					toDel.setSourceKey(srcKey);
 					toDel.setSourceUrl(srcUrl);
 					docs.add(toDel); 
 						// (this "add" is for removing things from the index, and also to keep count)
@@ -364,10 +414,21 @@ public class StoreAndIndexManager {
 		}
 	}//TESTED
 	
+	/**
+	 * Remove a doc from the data store
+	 * @param col
+	 * @param doc
+	 * @param fields - fields to retrieve
+	 * 
+	 * CALLED FROM:	removeFromDataStore_byId(List<doc>, bDeleteContent)
+	 * 					resizeDB()
+	 *  THIS FN SETS URL, INDEX, SOURCEKEY AS FIELDS 
+	 */
 	private void removeFromDatastore_byId(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
 		BasicDBObject fields = new BasicDBObject();
 		fields.put(DocumentPojo.url_, 1);
 		fields.put(DocumentPojo.index_, 1);
+		fields.put(DocumentPojo.sourceKey_, 1); // (set these here for performance)
 		
 		// Store the knowledge in the feeds collection in the harvester db			
 		for ( DocumentPojo f : docs) {
@@ -378,8 +439,12 @@ public class StoreAndIndexManager {
 	/**
 	 * Remove a doc from the data store
 	 * @param col
-	 * @param doc
-	 * @param fields - fields to retrieve
+	 * @param doc - assumes _id set
+	 * @param fields - fields to retrieve (set in outside the doc loop for performance, url, index, sourceKey)
+	 * 
+	 * CALLED FROM:	removeFromDataStore_byId(col, List<doc>, bDeleteContent) <- SETS URL,INDEX,SOURCEKEY AS FIELDS
+	 * 					removeFromDataStore_byId(List<doc>, bDeleteContent)
+	 * 						resizeDB()
 	 */
 	private void removeFromDatastore_byId(DBCollection col, DocumentPojo doc, BasicDBObject fields, boolean bDeleteContent) {
 		// Update Mongodb with the data
@@ -410,12 +475,16 @@ public class StoreAndIndexManager {
 			}
 		}
 		if (bDeleteContent) {
+			doc.setSourceKey(deadDoc.getString(DocumentPojo.sourceKey_));
+			
 			// Remove its content also:
 			if (!_diagnosticMode) {
-				DbManager.getDocument().getContent().remove(new BasicDBObject(DocumentPojo.url_, doc.getUrl()));
+				BasicDBObject contentQuery = new BasicDBObject(DocumentPojo.url_, doc.getUrl());
+				query.put(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())); // (handles legacy case)
+				DbManager.getDocument().getContent().remove(contentQuery);
 			}
 			else {
-				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete content: " + doc.getUrl());
+				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete content: " + doc.getUrl() + "/" + doc.getSourceKey());
 			}
 		}
 	}//TESTED
@@ -423,13 +492,23 @@ public class StoreAndIndexManager {
 	/**
 	 * Remove a doc from the data store
 	 * @param col
-	 * @param doc
-	 * @param fields - fields to retrieve
+	 * @param doc - needs  url, sourceKey set
+	 * @param fields - fields to retrieve (index, created), set in calling function outside of loop for performance
+	 * 
+	 * CALLED FROM: removeFromDatastore_byURL(col, List<doc>, bDeleteContent)
+	 * 					removeFromDatastore_bySourceKey(List<doc>, sourceKey, bDeleteContent)
+	 * 						deleteSource(...) <- ENSURES DOC HAS URL, SOURCEURL, SOURCEKEY, INDEX
+	 * 					removeFromDataStore_byURL(List<doc>, bDeleteContent) <- SETS INDEX, CREATED (ALSO SRC KEY FOR SRC URL CASES)
+	 * 						MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
+	 * 						processDocuments(...) [ always called after harvester, ie docs are fully populated ]
+	 * 						pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
+	 * 							updateHarvestStatus(...)
 	 */
 	private void removeFromDatastore_byURL(DBCollection col, DocumentPojo doc, BasicDBObject fields, boolean bDeleteContent) {
 		// Update Mongodb with the data
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, doc.getUrl());
+		query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));
 
 		// (Remove its content also:)
 		if (bDeleteContent) {
@@ -442,12 +521,9 @@ public class StoreAndIndexManager {
 				}
 			}
 		}
+		//TESTED
 		
 		// Now append source key (not present in content DB):
-		if (null != doc.getSourceKey()) {
-			query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
-		}
-		
 		BasicDBObject deadDoc = null;
 		if (!_diagnosticMode) {
 			BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
@@ -745,16 +821,23 @@ public class StoreAndIndexManager {
 		//  others like HTTP and Files can have large amounts of content that we don't want to store in the DB object)
 
 		static public boolean docHasExternalContent(String url, String srcUrl) {
-			if (null != srcUrl) {
+			//TODO: INF-1367: there's an issue with this .. suppose it's some enormous JSON file
+			// and we excise a bunch of JSON files from the metadata (after using them for processing)
+			// seems like we should have an optional keepExternalContent that defaults to the return value 
+			// of this function, but you can override from the SAH or whatever
+			
+			if (null != srcUrl) { // must be either JSON or XML
 				return false;
 			}
-			else if (null == url) {
+			else if (null == url) { // no idea, pathological case?!
 				return true;
 			}
-			else if (url.startsWith("jdbc:")) {
+			else if (url.startsWith("jdbc:")) { // DB entry
 				return false;
 			}
-			else if (url.startsWith("smb://") && (url.endsWith(".xml"))) {
+			else if ((url.startsWith("smb://") || url.startsWith("file:")) && // JSON/XML but 1 doc/file 
+									(url.endsWith(".xml") || url.endsWith(".json")))
+			{
 				return false;
 			}
 			return true;

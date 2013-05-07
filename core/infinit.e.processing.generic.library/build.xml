@@ -35,11 +35,11 @@
 	<property name="implementation.vendor" value="IKANOW"/>
 				
 	<path id="infinit.e.data_model.classpath">
-        <pathelement location="${infinit.e.data_model.location}/build/classes"/>
-    </path>
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	</path>
 	<path id="infinit.e.harvest.library.classpath">
-        <pathelement location="${infinit.e.harvest.library.location}/build/classes"/>
-    </path>
+	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>
+	</path>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">
     	<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">

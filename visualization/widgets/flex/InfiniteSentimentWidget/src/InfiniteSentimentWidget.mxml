@@ -48,29 +48,35 @@
 		<![CDATA[
 			import com.ikanow.infinit.e.widget.library.data.SelectedInstance;
 			import com.ikanow.infinit.e.widget.library.data.SelectedItem;
+			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.framework.InfiniteMaster;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.frameworkold.ModuleInterface;
 			import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
+			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			
 			import flexlib.mdi.containers.MDIWindow;
 			
-			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
+			import ilog.charts3d.series.ColumnSeries3D;
 			import ilog.charts3d.series.items.ColumnSeries3DItem;
 			
+			import mx.charts.ChartItem;
 			import mx.charts.HitData;
 			import mx.charts.chartClasses.Series;
 			import mx.charts.effects.SeriesEffect;
 			import mx.charts.events.ChartItemEvent;
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
+			import mx.core.DragSource;
 			import mx.core.UITextField;
 			import mx.events.FlexEvent;
 			import mx.managers.CursorManager;
+			import mx.managers.DragManager;
 			
 			import org.alivepdf.pdf.PDF;
 			
@@ -276,6 +282,34 @@
 						
 					}//(end widget save non null)
 				}//(end widget options non null)
+			}
+			
+			protected function widgetheaderdragimage1_mouseDownHandler(event:MouseEvent):void
+			{
+				var docs:Array = new Array();
+				if (0 == chart.selectedChartItems.length)
+				{
+					for each ( var doc:Object in topEntitiesCombo )
+					{					
+						docs.push(doc.entity);
+					}
+				}
+				else 
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					for each ( var chartIndex:int in temp )
+					{
+						doc = this.topEntitiesCombo.getItemAt(chartIndex);
+						docs.push(doc.entity);
+					}
+				}
+				var dragObject:WidgetDragObject = new WidgetDragObject();
+				dragObject.entities = new ArrayCollection(docs);
+				
+				var ds:DragSource = new DragSource();
+				ds.addData(dragObject, WidgetDragUtil.WIDGET_DRAG_FORMAT );
+				
+				DragManager.doDrag(dragImage, ds, event);
 			}
 			
 			/**
@@ -501,7 +535,15 @@
 				}
 				if ( docids.isEmpty() )
 				{
-					Alert.show("No promoted documents with this attribute. \nTry refining the query by source or entity");
+					if ( -1 == sentiment ) 
+						this.send2Query_internal(entName, true, false, 0.0, true, -1e-7);
+					else if (1 == sentiment)
+						this.send2Query_internal(entName, true, true, 1e-7, false, 0.0);
+					else if (0 == sentiment)
+						this.send2Query_internal(entName, true);
+					else
+						this.send2Query_internal(entName);
+
 					return;
 				}
 				
@@ -531,7 +573,7 @@
 			 *
 			 * @param event The MouseEvent received when the chart legend is clicked on
 			 */
-			protected function chart_clickHandler( event:MouseEvent ):void
+			protected function chart_doubleClickHandler( event:MouseEvent ):void
 			{
 				var entName:String = "";
 				
@@ -547,7 +589,7 @@
 					}
 					else if ( ent.entity.hasOwnProperty("notPromoted") )
 					{
-						this.send2Query_internal(ent.entity.index);								
+						this.send2Query_internal(ent.entity.index, true);								
 					}
 					else
 					{
@@ -566,7 +608,22 @@
 				var isPromoted:Boolean = !data.item.entity.hasOwnProperty("notPromoted");
 				if ( !isPromoted )
 				{
-					send2Query_internal(entName);
+					if ( item.yValue == data.item.positiveSentiment )
+					{
+						this.send2Query_internal(entName, true, true, 1e-7, false, 0.0);
+					}
+					else if ( item.yValue == data.item.negativeSentiment )
+					{
+						this.send2Query_internal(entName, true, false, 0.0, true, -1e-7);
+					}
+					else if ( item.yValue == data.item.aggregateSentiment )
+					{
+						send2Query_internal(entName, true);
+					}
+					else
+					{
+						send2Query_internal(entName);
+					}
 					return;
 				}				
 				
@@ -613,11 +670,11 @@
 							}
 							else if ( ent.entity.hasOwnProperty("notPromoted") )
 							{
-								textfield.toolTip = str + "\n[Mouse: add entity to query]";								
+								textfield.toolTip = str + "\n[Double Click: add entity to query]";								
 							}
 							else
 							{
-								textfield.toolTip = str + "\n[Mouse: add documents with sentiment for this entity to filter]";								
+								textfield.toolTip = str + "\n[Double Click: add documents with sentiment for this entity to filter]";								
 							}							
 						}
 					}
@@ -672,7 +729,21 @@
 			 */
 			private function createExternalSearch( event:MouseEvent ):void
 			{
-				var urlComp:String = encodeURIComponent( '"' + entityToSend.selectedItem.entity.disambiguated_name + '"' );
+				var urlComp:String = null;
+				if (-1 != entityToSend.selectedIndex)
+				{
+					urlComp = encodeURIComponent( '"' + entityToSend.selectedItem.entity.disambiguated_name + '"' );
+				}
+				else 
+				{
+					urlComp = "";
+					var temp:ArrayCollection = getSelectedIndexes();
+					for each ( var chartIndex:int in temp )
+					{
+						var doc:Object = this.topEntitiesCombo.getItemAt(chartIndex);
+						urlComp += encodeURIComponent( '"' +doc.entity.disambiguated_name + '"' ) + "%20";
+					}
+				}
 				var externalUrl:String = ExternalInterface.call( 'getSearchUrl', urlComp );
 				var url:URLRequest = new URLRequest( externalUrl );
 				navigateToURL( url, '_blank' );
@@ -760,24 +831,71 @@
 				
 				if ( !isPromoted )
 				{
-					info += "[Mouse: add entity to query]";					
+					info += "[Double Click: add entity to query]";					
 				}
 				else if ( filterOption )
 				{
 					if ( 1 == sentiment )
-						info += "[Mouse: add documents with positive sentiment for this entity to filter]";
+						info += "[Double Click: add documents with positive sentiment for this entity to filter]";
 					else if ( -1 == sentiment )
-						info += "[Mouse: add documents with negative sentiment for this entity to filter]";
+						info += "[Double Click: add documents with negative sentiment for this entity to filter]";
 					else
-						info += "[Mouse: add documents containing highest positive and negative sentiment for this entity to filter]";						
+						info += "[Double Click: add documents containing highest positive and negative sentiment for this entity to filter]";						
 				}
 				else
 				{
-					info += "[Mouse: add documents with sentiment for this entity to filter]";
+					info += "[Double Click: add documents with sentiment for this entity to filter]";
 				}
 				
 				info += "</FONT></HTML?>";
 				return info;
+			}
+			protected function chart_clickHandler( event:mx.charts.events.ChartEvent ):void
+			{
+				chart_itemSelectedHandler(null);
+			}
+			
+			private function getSelectedIndexes():ArrayCollection
+			{
+				// Get an intial set of selected/unselected items...
+				var items:Array = new Array(this.topEntitiesCombo.length);
+				for (var i:int = 0; i < items.length; ++i) items[i] = 0;
+				for each (var chartObj:ChartItem in chart.selectedChartItems)
+				{
+					items[chartObj.index]++;
+				}
+				var temp:ArrayCollection = new ArrayCollection();
+				for (var j:int = 0; j < items.length; ++j) {
+					if (items[j] > 0) { 
+						temp.addItem(j);
+					}
+				}
+				return temp;
+			}
+			
+			protected function chart_itemSelectedHandler( event:mx.charts.events.ChartItemEvent ):void
+			{	
+				if (chart.selectedChartItems.length > 0)
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					
+					dragImage.toolTip = "Drag this to another widget/the query bar to send selected entities";
+					
+					if (1 == temp.length)
+					{
+						entityToSend.selectedIndex = temp.getItemAt(0) as int;
+					}
+					else {
+						entityToSend.prompt = "Multiple";
+						entityToSend.selectedIndex = -1;						
+					}
+				}
+				else 
+				{
+					dragImage.toolTip = "Drag this to another widget/the query bar to send all visible entities";
+					entityToSend.prompt = "Entities";
+					entityToSend.selectedIndex = -1;
+				}
 			}
 			private function doneChangingFilter( event:TimerEvent ):void
 			{
@@ -1003,6 +1121,9 @@
 			}
 			private function renderGraph():void
 			{
+				// (remove selection)
+				chart_itemSelectedHandler(null);
+				
 				if ( this.currData_entities != null && this.currData_entities.length > 0 )
 				{ // Use entities if we can...					
 					
@@ -1127,7 +1248,6 @@
 					}
 					entityToSend.dataProvider = this.topEntitiesCombo;
 					entityToSend.validateNow();
-					entityToSend.selectedIndex = 0;
 					
 					setSeriesEffect( interpolateIn );
 					chart.dataProvider = topEntities;
@@ -1227,15 +1347,81 @@
 			 */
 			private function send2Query( event:MouseEvent ):void
 			{
-				send2Query_internal( entityToSend.selectedItem.entity.index );
+				if ( -1 != this.entityToSend.selectedIndex )
+				{
+					var sentimentDir:int = getSentimentDir(this.entityToSend.selectedIndex);
+					if ( sentimentDir > 0 )
+						send2Query_internal( entityToSend.selectedItem.entity.index, true, true, 0.0000001, false, 0.0 );
+					else if ( sentimentDir < 0 )
+						send2Query_internal( entityToSend.selectedItem.entity.index, true, false, 0.0, true, -0.0000001 );
+					else
+						send2Query_internal( entityToSend.selectedItem.entity.index, true );
+				}
+				else // multiple or none 
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					if (temp.length > 0)
+					{
+						send2Query_internal_multiple(temp, true);
+					}					
+				}
 			}
-			private function send2Query_internal( index:String ):void
+			private function getSentimentDir(index:int):int
+			{
+				if ( (chart.series[0] as ColumnSeries3D).selectedIndex == index )
+					return 1;
+				else if ( (chart.series[2] as ColumnSeries3D).selectedIndex == index )
+					return -1;
+				else
+					return 0;				
+			}
+			
+			private function send2Query_internal( index:String, specSent:Boolean = false, specMinSent:Boolean = false, minSent:Number = 0.0, specMaxSent:Boolean = false, maxSent:Number = 0.0 ):void
 			{
 				var query:Object = _context.getCurrentQuery();
 				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
 				var newTerm:Object = new Object();
 				newTerm[ "entity" ] = index;
+				if (specSent)
+				{
+					var sent:Object = new Object();
+					if (specMinSent)
+					{
+						sent[ "min" ] = minSent;
+					}
+					if (specMaxSent)
+					{
+						sent[ "max" ] = maxSent;
+					}
+					newTerm[ "sentiment" ] = sent;
+				}
 				queryTerms.addItem( newTerm );
+				_context.setCurrentQuery( query, "qt" );
+			}
+			private function send2Query_internal_multiple( indexArray:ArrayCollection, specSent:Boolean = false ):void
+			{
+				var query:Object = _context.getCurrentQuery();
+				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
+				for each ( var index:int in indexArray ) {
+					var ent:Object = this.topEntitiesCombo.getItemAt(index);
+					var newTerm:Object = new Object();
+					newTerm[ "entity" ] = ent.entity.index;
+					if ( specSent )
+					{
+						var sent:Object = new Object();
+						var sentimentDir:int = getSentimentDir(index);
+						if ( sentimentDir > 0 )
+						{
+							sent[ "min" ] = 0.0000001;
+						}
+						else if ( sentimentDir < 0 ) 
+						{
+							sent[ "max" ] = -0.0000001;							
+						}
+						newTerm[ "sentiment" ] = sent;
+					}
+					queryTerms.addItem( newTerm );
+				}
 				_context.setCurrentQuery( query, "qt" );
 			}
 			
@@ -1294,6 +1480,12 @@
 
 		<s:HGroup gap="-3">
 
+			<!-- Drag icon -->
+			<components:WidgetHeaderDragImage
+				id="dragImage"  
+				mouseDown="widgetheaderdragimage1_mouseDownHandler(event)" 
+				toolTip="Drag this to another widget/the query bar to send visible entities" />
+			
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
 				toolTip="Ignore Workspace Filtering - Show All Results"
@@ -1310,7 +1502,7 @@
 
 			<!-- Add to Query Button -->
 			<components:WidgetPlusButton id="addToQueryButton"
-				toolTip="Add to Query"
+				toolTip="Add to Query (including +/-/* sentiment)"
 				click="send2Query(event)" />
 
 			<!-- External search button -->
@@ -1401,9 +1593,13 @@
 						x="0"
 						color="0xFFFFFF"
 						top="50"
-						click="chart_clickHandler(event)"
-						itemClick="chart_itemClickHandler(event)"
-						mouseOver="chart_mouseOver(event)"
+						selectionMode="multiple"
+						doubleClickEnabled="true"
+						itemClick="chart_itemSelectedHandler(event)"
+						doubleClick="chart_doubleClickHandler(event)"
+						chartClick="chart_clickHandler(event)"
+						itemDoubleClick="chart_itemClickHandler(event)"						
+						mouseOver="chart_mouseOver(event)"						
 						columnWidthRatio="0.9"
 						dataTipCalloutStroke="{ seriesStroke }"
 						dataTipFunction="dataTipFunction"

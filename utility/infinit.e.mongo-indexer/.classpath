@@ -4,8 +4,6 @@
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
-	<classpathentry kind="lib" path="lib/gson-1.6.jar"/>
-	<classpathentry kind="lib" path="lib/mongo-2.10.1.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
 	<classpathentry kind="output" path="bin"/>

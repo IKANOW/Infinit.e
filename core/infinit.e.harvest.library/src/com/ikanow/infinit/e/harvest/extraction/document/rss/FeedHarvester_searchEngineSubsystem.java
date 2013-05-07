@@ -195,8 +195,13 @@ public class FeedHarvester_searchEngineSubsystem {
 					//TESTED (including RSS-level value being written back again and applied in SAH/UAH code)
 					
 					DocumentPojo searchDoc = new DocumentPojo();
+					// Required terms:
 					searchDoc.setUrl(url);
 					searchDoc.setScore((double)nIteratingDepth); // (spidering param)
+					// Handy terms
+					if (null != src.getHarvestStatus()) {
+						searchDoc.setModified(src.getHarvestStatus().getHarvested()); // the last time the source was harvested - can use to determine how far back to go
+					}
 					// If these exist (they won't normally), fill them:
 					searchDoc.setFullText(currFullText);
 					searchDoc.setDescription(currDesc);

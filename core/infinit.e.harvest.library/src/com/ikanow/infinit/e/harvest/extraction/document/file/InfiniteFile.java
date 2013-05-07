@@ -20,7 +20,8 @@ import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.net.MalformedURLException;
-import java.net.URL;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 
 import jcifs.smb.NtlmPasswordAuthentication;
@@ -34,7 +35,23 @@ public class InfiniteFile {
 
 	// Constructors:
 	
-	public InfiniteFile(String url) throws MalformedURLException, SmbException {
+	public static InfiniteFile create(String url) throws MalformedURLException, SmbException {
+		return new InfiniteFile(url);
+	}
+	public static InfiniteFile create(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
+		if (url.startsWith("s3://")) {
+			return new AwsInfiniteFile(url, auth);
+		}
+		else {
+			return new InfiniteFile(url, auth);
+		}
+	}
+	
+	////////////////////////////
+	
+	protected InfiniteFile() {}
+	
+	protected InfiniteFile(String url) throws MalformedURLException, SmbException {
 		if (url.startsWith("file://")) {
 			_localFile = new File(url.substring(7)); // ie "file://", path is relative to ~tomcat I guess
 		}
@@ -48,16 +65,16 @@ public class InfiniteFile {
 			}
 		}
 	}
-	public InfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
+	protected InfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
 		_smbFile = new SmbFile(url, auth);
 		if (!_smbFile.exists()) {
 			throw new MalformedURLException(url + " NOT FOUND");
 		}
 	}
-	public InfiniteFile(SmbFile smbFile) {
+	private InfiniteFile(SmbFile smbFile) {
 		_smbFile = smbFile;
 	}
-	public InfiniteFile(File localFile) {
+	private InfiniteFile(File localFile) {
 		_localFile = localFile;
 	}
 	
@@ -67,9 +84,10 @@ public class InfiniteFile {
 		if (null != _smbFile) {
 			return new SmbFileInputStream(_smbFile);
 		}
-		else { // _localFile
+		else if (null != _localFile) {
 			return new FileInputStream(_localFile);
 		}
+		return null;
 	}
 	
 	public InfiniteFile[] listFiles() throws SmbException {
@@ -96,6 +114,10 @@ public class InfiniteFile {
 		return fileList;
 	}
 	
+	public boolean isLocal() {
+		return null != _localFile;
+	}
+	
 	public boolean isDirectory() throws SmbException {
 		if (null != _smbFile) {
 			return _smbFile.isDirectory(); 
@@ -104,13 +126,12 @@ public class InfiniteFile {
 			return _localFile.isDirectory();
 		}
 	}
-	@SuppressWarnings("deprecation")
-	public URL getURL() throws MalformedURLException {
+	public URI getURL() throws MalformedURLException, URISyntaxException {
 		if (null != _smbFile) {
-			return _smbFile.getURL(); 
+			return _smbFile.getURL().toURI(); 
 		}
 		else {
-			return _localFile.toURL();
+			return _localFile.toURI();
 		}
 	}
 	public String getName() {
@@ -131,8 +152,8 @@ public class InfiniteFile {
 	}
 	
 	// Internal state
-	
+		
+	// SMB/local
 	private SmbFile _smbFile;
 	private File _localFile;
-	
 }

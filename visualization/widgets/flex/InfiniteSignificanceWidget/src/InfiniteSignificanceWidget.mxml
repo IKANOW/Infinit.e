@@ -33,9 +33,11 @@
 
 	<fx:Script>
 		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
 			import com.ikanow.infinit.e.widget.library.utility.XmlEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
@@ -44,14 +46,18 @@
 			
 			import ilog.charts3d.series.items.ColumnSeries3DItem;
 			
+			import mx.charts.ChartItem;
 			import mx.charts.HitData;
 			import mx.charts.chartClasses.Series;
 			import mx.charts.effects.SeriesEffect;
 			import mx.charts.events.ChartItemEvent;
 			import mx.collections.ArrayCollection;
+			import mx.controls.AdvancedDataGrid;
 			import mx.controls.Alert;
+			import mx.core.DragSource;
 			import mx.core.UITextField;
 			import mx.events.FlexEvent;
+			import mx.managers.DragManager;
 			
 			import org.alivepdf.pdf.PDF;
 			
@@ -245,6 +251,34 @@
 						
 					}//(end widget save non null)
 				}//(end widget options non null)
+			}
+			
+			protected function widgetheaderdragimage1_mouseDownHandler(event:MouseEvent):void
+			{
+				var docs:Array = new Array();
+				if (0 == chart.selectedChartItems.length)
+				{
+					for each ( var doc:Object in topEntitiesCombo )
+					{					
+						docs.push(doc.entity);
+					}
+				}
+				else 
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					for each ( var chartIndex:int in temp )
+					{
+						doc = this.topEntitiesCombo.getItemAt(chartIndex);
+						docs.push(doc.entity);
+					}
+				}
+				var dragObject:WidgetDragObject = new WidgetDragObject();
+				dragObject.entities = new ArrayCollection(docs);
+				
+				var ds:DragSource = new DragSource();
+				ds.addData(dragObject, WidgetDragUtil.WIDGET_DRAG_FORMAT );
+				
+				DragManager.doDrag(dragImage, ds, event);
 			}
 			
 			/**
@@ -451,6 +485,54 @@
 				_context.filterByDocFieldAndEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, docids, docmap, "_id", "_id", desc );
 			}
 			
+			protected function chart_clickHandler( event:mx.charts.events.ChartEvent ):void
+			{
+				chart_itemSelectedHandler(null);
+			}
+			
+			private function getSelectedIndexes():ArrayCollection
+			{
+				// Get an intial set of selected/unselected items...
+				var items:Array = new Array(this.topEntitiesCombo.length);
+				for (var i:int = 0; i < items.length; ++i) items[i] = 0;
+				for each (var chartObj:ChartItem in chart.selectedChartItems)
+				{
+					items[chartObj.index]++;
+				}
+				var temp:ArrayCollection = new ArrayCollection();
+				for (var j:int = 0; j < items.length; ++j) {
+					if (items[j] > 0) { 
+						temp.addItem(j);
+					}
+				}
+				return temp;
+			}
+				
+			protected function chart_itemSelectedHandler( event:mx.charts.events.ChartItemEvent ):void
+			{	
+				if (chart.selectedChartItems.length > 0)
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					
+					dragImage.toolTip = "Drag this to another widget/the query bar to send selected entities";
+				
+					if (1 == temp.length)
+					{
+						entityToSend.selectedIndex = temp.getItemAt(0) as int;
+					}
+					else {
+						entityToSend.prompt = "Multiple";
+						entityToSend.selectedIndex = -1;						
+					}
+				}
+				else 
+				{
+					dragImage.toolTip = "Drag this to another widget/the query bar to send all visible entities";
+					entityToSend.prompt = "Entities";
+					entityToSend.selectedIndex = -1;
+				}
+			}
+			
 			protected function chart_itemClickHandler( event:mx.charts.events.ChartItemEvent ):void
 			{
 				var data:HitData = event.hitData;
@@ -536,7 +618,21 @@
 			 */
 			private function createExternalSearch( event:MouseEvent ):void
 			{
-				var urlComp:String = encodeURIComponent( '"' + entityToSend.selectedItem.entity.disambiguated_name + '"' );
+				var urlComp:String = null;
+				if (-1 != entityToSend.selectedIndex)
+				{
+					urlComp = encodeURIComponent( '"' + entityToSend.selectedItem.entity.disambiguated_name + '"' );
+				}
+				else 
+				{
+					urlComp = "";
+					var temp:ArrayCollection = getSelectedIndexes();
+					for each ( var chartIndex:int in temp )
+					{
+						var doc:Object = this.topEntitiesCombo.getItemAt(chartIndex);
+						urlComp += encodeURIComponent( '"' +doc.entity.disambiguated_name + '"' ) + "%20";
+					}
+				}
 				var externalUrl:String = ExternalInterface.call( 'getSearchUrl', urlComp );
 				var url:URLRequest = new URLRequest( externalUrl );
 				navigateToURL( url, '_blank' );
@@ -617,15 +713,15 @@
 
 				if ( !isPromoted )
 				{
-					info += "[Mouse: add entity to query]";					
+					info += "[Double Click: add entity to query]";					
 				}
 				else if ( filterOption )
 				{
-					info += "[Mouse: add documents containing max promoted value to filter]";
+					info += "[Double Click: add documents containing max promoted value to filter]";
 				}
 				else
 				{
-					info += "[Mouse: add entity to filter]";
+					info += "[Double Click: add entity to filter]";
 				}
 				
 				info += "</FONT></HTML?>";
@@ -847,6 +943,9 @@
 			}
 			private function renderGraph():void
 			{
+				// (remove selection)
+				chart_itemSelectedHandler(null);
+				
 				if ( this.currData_entities != null && this.currData_entities.length > 0 )
 				{ // Use entities if we can...
 					
@@ -1049,7 +1148,24 @@
 			 */
 			private function send2Query( event:MouseEvent ):void
 			{
-				send2Query_internal( entityToSend.selectedItem.entity.index );
+				if ( -1 != this.entityToSend.selectedIndex )
+				{
+					send2Query_internal( entityToSend.selectedItem.entity.index );
+				}
+				else // multiple or none 
+				{
+					var temp:ArrayCollection = getSelectedIndexes();
+					var temp2:ArrayCollection = new ArrayCollection;
+					for each ( var chartIndex:int in temp )
+					{
+						var doc:Object = this.topEntitiesCombo.getItemAt(chartIndex);
+						temp2.addItem(doc.entity);
+					}
+					if (temp2.length > 0)
+					{
+						send2Query_internal_multiple(temp2);
+					}
+				}
 			}
 			private function send2Query_internal( index:String ):void
 			{
@@ -1058,6 +1174,17 @@
 				var newTerm:Object = new Object();
 				newTerm[ "entity" ] = index;
 				queryTerms.addItem( newTerm );
+				_context.setCurrentQuery( query, "qt" );
+			}
+			private function send2Query_internal_multiple( indexArray:ArrayCollection ):void
+			{
+				var query:Object = _context.getCurrentQuery();
+				var queryTerms:ArrayCollection = new ArrayCollection( query[ "qt" ] );
+				for each ( var ent:Object in indexArray ) {
+					var newTerm:Object = new Object();
+					newTerm[ "entity" ] = ent.index;
+					queryTerms.addItem( newTerm );
+				}
 				_context.setCurrentQuery( query, "qt" );
 			}
 			/**
@@ -1117,6 +1244,12 @@
 
 		<s:HGroup gap="-3">
 
+			<!-- Drag icon -->
+			<components:WidgetHeaderDragImage
+				id="dragImage"  
+				mouseDown="widgetheaderdragimage1_mouseDownHandler(event)" 
+				toolTip="Drag this to another widget/the query bar to send all visible entities" />
+			
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
 				toolTip="Ignore Workspace Filtering - Show All Results"
@@ -1224,7 +1357,12 @@
 						x="0"
 						color="0xFFFFFF"
 						top="50"
-						itemClick="chart_itemClickHandler(event)"
+						selectionMode="multiple"
+						doubleClickEnabled="true"
+						itemClick="chart_itemSelectedHandler(event)"
+						chartClick="chart_clickHandler(event)"
+						 
+						itemDoubleClick="chart_itemClickHandler(event)"
 						columnWidthRatio="0.9"
 						dataTipCalloutStroke="{ seriesStroke }"
 						dataTipFunction="dataTipFunction"

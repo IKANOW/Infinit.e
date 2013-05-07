@@ -1,0 +1,84 @@
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/maven-v4_0_0.xsd">
+	<modelVersion>4.0.0</modelVersion>
+	<groupId>kundera-core-with-deps</groupId>
+	<artifactId>kundera-core-with-deps</artifactId>
+	<version>2.4</version>
+	<build>
+		<plugins>
+			<!-- USE THIS TO GET ALL THE KUNDERA DEPENDENCIES
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-dependency-plugin</artifactId>
+				<version>2.4</version>
+				<executions>
+					<execution>
+						<id>copy-dependencies</id>
+						<phase>package</phase>
+						<goals>
+							<goal>copy-dependencies</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
+			 -->
+			<!-- USE THIS TO GENERATE A SINGLE JAR CONTAINING THE KUNDERA DEPENDENCIES
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-shade-plugin</artifactId>
+				<version>1.2.2</version>
+				<executions>
+					<execution>
+						<phase>package</phase>
+						<goals>
+							<goal>shade</goal>
+						</goals>
+						<configuration>
+							<artifactSet>
+								<excludes>
+									<exclude>classworlds:classworlds</exclude>
+									<exclude>junit:junit</exclude>
+									<exclude>jmock:jmock</exclude>
+									<exclude>xml-apis:xml-apis</exclude>
+								</excludes>
+							</artifactSet>
+						</configuration>
+					</execution>
+				</executions>
+			</plugin>
+			 -->
+		</plugins>
+	</build>
+	<repositories>
+		<repository>
+			<id>sonatype-nexus</id>
+			<name>Kundera Public Repository</name>
+			<url>https://oss.sonatype.org/content/repositories/releases</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>false</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>riptano</id>
+			<name>riptano</name>
+			<url>http://mvn.riptano.com/content/repositories/public</url>
+		</repository>
+	</repositories>
+	<dependencies>
+		<!-- ALWAYS USE THIS -->
+		<dependency>
+			<groupId>com.impetus.core</groupId>
+			<artifactId>kundera-core</artifactId>
+			<version>2.4</version>
+		</dependency>
+		<!-- SELECT THE NOSQL DATABASES TO SUPPORT -->
+		<dependency>
+			<groupId>com.impetus.client</groupId>
+			<artifactId>kundera-mongo</artifactId>
+			<version>2.4</version>
+		</dependency>
+	</dependencies>
+</project>

@@ -1,3 +1,5 @@
+<!--  TODO by default limit to first 100 elements -->
+
 <!--
 Copyright 2012 The Infinit.e Open Source Project
 
@@ -116,6 +118,7 @@ limitations under the License.
 		float mapProgress;
 		float reduceProgress;
 		Boolean appendResults;
+		Boolean exportToHdfs;
 		Double appendAgeOutInDays;
 		String[] jobDependencies;
 		String[] waitingOn;
@@ -256,13 +259,14 @@ limitations under the License.
     	return null;
 	}
 	
-	public static String postUrl(String addr, String userarguments, HttpServletRequest request, HttpServletResponse response)
+	public static String postUrl(String addr, String userarguments, String exportToHdfs, HttpServletRequest request, HttpServletResponse response)
 	{
 		String charset = "UTF-8";		
 		try
 		{
 			jobPojo postObj = new jobPojo();
 			postObj.arguments = userarguments;
+			postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
 			
 			//if ( userarguments.equals("") )
 			//	userarguments = "null";
@@ -672,7 +676,7 @@ limitations under the License.
 			Long nextruntime, String inputcollection, 
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
-			String appendResults, String ageout,
+			String appendResults, String ageout, String exportToHdfs,
 			Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
@@ -682,7 +686,7 @@ limitations under the License.
 		
 		String s = null;
 		if((null == (s = installTask(pluginId, title, description, frequency, nextruntime, inputcollection, currJarUrl, 
-						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, jobdepend, userarguments,
+						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, exportToHdfs, jobdepend, userarguments,
 				communities, request, response))))
 		{
 			return "Task Added/Updated Successfully!";
@@ -707,7 +711,7 @@ limitations under the License.
 			Long nextruntime, String inputcollection, 
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
-			String appendResults, String ageout, Set<String> jobdepend, String userarguments,
+			String appendResults, String ageout, String exportToHdfs, Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		String charset = "UTF-8";
@@ -771,7 +775,7 @@ limitations under the License.
 		//if (true) return false;		
 		
 		//String json = stringOfUrl(url, request, response);
-		String json = postUrl(url,userarguments,request,response);
+		String json = postUrl(url,userarguments,exportToHdfs,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
              
         if ( resp == null )
@@ -943,7 +947,9 @@ else if (isLoggedIn == true)
 		    		String combiner = request.getAttribute("combiner").toString();
 		    		String reducer = request.getAttribute("reducer").toString();	 		    		
 			    		
-					if ((classes.contains(mapper)) && (classes.contains(combiner)) && classes.contains(reducer))
+					if ((classes.contains(mapper) || mapper.equals("none")) && 
+							(classes.contains(combiner) || combiner.equals("none")) && 
+							(classes.contains(reducer) || reducer.equals("none")))
 					{
 						// If we're here then it must be a valid archive	 		    			 		    		
 	 		    		fileDS = "application/java-archive";	 		    		
@@ -1099,6 +1105,7 @@ else if (isLoggedIn == true)
 							request.getAttribute("outputvalue").toString(), 
 							request.getAttribute("appendResults").toString(),
 							request.getAttribute("ageout").toString(),
+							request.getAttribute("exportToHdfs").toString(),							
 							jobdeps,
 							request.getAttribute("userarguments").toString(),
 							communities, request, response));
@@ -1211,6 +1218,7 @@ else if (isLoggedIn == true)
 			var select = document.getElementById( 'communities' );
 			appendResults = document.getElementById( 'appendResults' );
 			ageout = document.getElementById( 'ageout' );
+			exportToHdfs = document.getElementById( 'exportToHdfs' );			
 			var jobdepend = document.getElementById( 'jobdepend' );
 
 			// Other misc entries			
@@ -1255,6 +1263,7 @@ else if (isLoggedIn == true)
 				outputKey.value = "com.mongodb.hadoop.io.BSONWritable";
 				outputValue.value = "com.mongodb.hadoop.io.BSONWritable";
 				appendResults.value = "false";
+				exportToHdfs.value = "false";
 				ageout.value = "0";
 				query.value = "{}";
 				userarguments.value = "";
@@ -1272,6 +1281,8 @@ else if (isLoggedIn == true)
 				status_form.style.display = 'none';
 				
 				useUrlJar();
+				onChangeExportMode();
+				hideShowAgeOut();
 				clearCommList();
 				clearJobDepList();
 				return;
@@ -1343,6 +1354,18 @@ else if (isLoggedIn == true)
 			{
 				inputcollection.value = "DOC_METADATA";
 			}
+			else if (jsonObj.inputCollection == "doc_content.gzip_content")
+			{
+				inputcollection.value = "DOC_CONTENT";
+			}
+			else if (jsonObj.inputCollection == "feature.entity")
+			{
+				inputcollection.value = "FEATURE_ENTITIES";
+			}
+			else if (jsonObj.inputCollection == "feature.association")
+			{
+				inputcollection.value = "FEATURE_ASSOCS";
+			}
 			else 
 			{
 				inputcollection.value = jsonObj.inputCollection;
@@ -1369,6 +1392,9 @@ else if (isLoggedIn == true)
 			outputValue.value = jsonObj.outputValue;
 			appendResults.value = jsonObj.appendResults
 			ageout.value = jsonObj.appendAgeOutInDays;
+			if (null == jsonObj.exportToHdfs)
+				jsonObj.exportToHdfs = false;
+			exportToHdfs.value = jsonObj.exportToHdfs;
 			query.value = jsonObj.query;
 			userarguments.value = jsonObj.arguments;
 			if ( jsonObj.arguments == null )
@@ -1409,6 +1435,8 @@ else if (isLoggedIn == true)
 				reusejar_checked.checked = false;
 			}
 			useUrlJar();
+			onChangeExportMode();
+			hideShowAgeOut();
 			highlightComms(jsonObj.communityIds);
 			highlightJobDeps(jsonObj.jobDependencies);
 			
@@ -1502,6 +1530,24 @@ else if (isLoggedIn == true)
 				jar_url.style.display = "none";
 			}
 		}		
+		function onChangeExportMode()
+		{
+			// Nothing to do
+		}
+		function hideShowAgeOut()
+		{
+			ageOutLabel = document.getElementById('ageoutLabel');
+			ageOutValue = document.getElementById('ageout');
+			if (document.getElementById('appendResults').value == "false") {
+				ageOutLabel.style.display = "none";
+				ageOutValue.style.display = "none";				
+			}
+			else {
+				ageOutLabel.style.display = "";
+				ageOutValue.style.display = "";												
+			}
+		}
+		
 		function validate_fields()
 		{			
 			title = document.getElementById('title').value;
@@ -1517,6 +1563,7 @@ else if (isLoggedIn == true)
 			outputKey = document.getElementById('outputkey').value;
 			outputValue = document.getElementById('outputvalue').value;
 			appendResults = document.getElementById('appendResults').value;
+			exportToHdfs = document.getElementById('exportToHdfs').value;
 			ageout = document.getElementById('ageout').value;
 			query = document.getElementById('query').value;	
 			userarguments = document.getElementById('userarguments');
@@ -1575,11 +1622,16 @@ else if (isLoggedIn == true)
 				document.getElementById('query').value = "{}";
 			}
 			
-			if ((mapper == "") || (combiner == "") || (reducer == ""))
+			if (mapper == "")
 			{
-				alert('Please provide a mapper, combiner, and reducer.');
-				return false;
+				document.getElementById('mapper').value = "none";
 			}			
+			if (combiner == "") {
+				document.getElementById('combiner').value = "none";
+			}
+			if (reducer == "") {
+				document.getElementById('reducer').value = "none";
+			}
 			if ((outputKey == "") || (outputValue == ""))
 			{
 				alert('Please provide an output key and value.');
@@ -1607,16 +1659,9 @@ else if (isLoggedIn == true)
 			// Validate time (do this last since if it works we change the value):
 			if ("null" == frequency) // don't want to run again 
 			{
-				// Two cases: either it's a new task, just set it to run once in the future
-				if ((null == DBId) || ("" == DBId)) 
-				{					
-					document.getElementById('nextruntime').value = 4070908800000;
-					document.getElementById('frequency').value = "NONE";
-				}//TESTED
-				else
-				{
-					document.getElementById('nextruntime').value = "-1";					
-				}//TESTED
+				document.getElementById('nextruntime').value = 4070908800000;
+				document.getElementById('frequency').value = "NONE";
+				//TESTED
 			}
 			else if ("ASAP" == nextruntime)
 			{
@@ -1660,7 +1705,7 @@ else if (isLoggedIn == true)
 		function showResults()
 		{
 			var title = document.getElementById('title').value;
-			var url = getEndPointUrl() + "custom/mapreduce/getresults/" + title;
+			var url = getEndPointUrl() + "custom/mapreduce/getresults/" + title + "?limit=100";
 			window.open(url, '_blank');
 			window.focus();			
 		}
@@ -1738,6 +1783,9 @@ else if (isLoggedIn == true)
 						<td>
 							<select name="inputcollection" id="inputcollection" onchange="auto_add_jobdep()">
 								<option value="DOC_METADATA">Document Metadata Collection</option>
+								<option value="DOC_CONTENT">Document Content Collection</option>
+								<option value="FEATURE_ENTITIES">Aggregated Entity Collection</option>
+								<option value="FEATURE_ASSOCS">Aggregated Association Collection</option>
 								<% out.print(inputCollectionList); %>
 							</select>
 						</td>
@@ -1762,8 +1810,9 @@ else if (isLoggedIn == true)
 	                    <td>Reducer Class:</td>
 	                    <td><input type="text" name="reducer" id="reducer" size="60" /></td>
 	                  </tr>
+	                  <!-- TODO: DISABLE THESE IF EXPORT TO HDFS SET -->
 	                  <tr>
-	                    <td>Output Key Class:</td>
+	                    <td id="outputkeylabel">Output Key Class:</td>
 						<td>
 							<select name="outputkey" id="outputkey">
 								<option value="org.apache.hadoop.io.Text">org.apache.hadoop.io.Text</option>
@@ -1775,7 +1824,7 @@ else if (isLoggedIn == true)
 						</td>
 	                  </tr>
 	                  <tr>
-	                    <td>Output Value Class:</td>
+	                    <td id="outputvaluelabel">Output Value Class:</td>
 						<td>
 							<select name="outputvalue" id="outputvalue">
 								<option value="org.apache.hadoop.io.Text">org.apache.hadoop.io.Text</option>
@@ -1783,20 +1832,31 @@ else if (isLoggedIn == true)
 								<option value="org.apache.hadoop.io.LongWritable">org.apache.hadoop.io.LongWritable</option>
 								<option value="org.apache.hadoop.io.DoubleWritable">org.apache.hadoop.io.DoubleWritable</option>
 								<option value="com.mongodb.hadoop.io.BSONWritable">com.mongodb.hadoop.io.BSONWritable</option>
+								<option value="org.apache.mahout.math.VectorWritable">org.apache.mahout.math.VectorWritable</option>
 							</select>
 						</td>
 	                  </tr>
+	                  <!-- TODO: THIS ISN'T GETTING SAVED -->
 	                  <tr>
-	                    <td>Append Results:</td>
+	                    <td>Export to HFDS:</td>
 						<td>
-							<select name="appendResults" id="appendResults">																
+							<select name="exportToHdfs" id="exportToHdfs" onchange="onChangeExportMode()">																
 								<option value="true">true</option>
 								<option value="false">false</option>
 							</select>
 						</td>
 	                  </tr>
 	                  <tr>
-	                    <td>Age out in days:</td>
+	                    <td>Append Results:</td>
+						<td>
+							<select name="appendResults" id="appendResults" onchange="hideShowAgeOut()">																
+								<option value="true">true</option>
+								<option value="false">false</option>
+							</select>
+						</td>
+	                  </tr>
+	                  <tr>
+	                    <td id="ageoutLabel">Age out in days:</td>
 	                    <td><input type="text" name="ageout" id="ageout" size="10" /></td>
 	                  </tr>
 	                  <tr>

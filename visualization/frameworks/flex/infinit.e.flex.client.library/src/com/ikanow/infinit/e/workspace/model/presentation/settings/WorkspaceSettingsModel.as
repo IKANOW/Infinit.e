@@ -69,7 +69,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			dispatchEvent( new Event( "documentOptionsChanged" ) );
 		}
 		
-		public var documentOptionsFormValues:QueryOutputDocumentOptions;
+		public var documentOptionsFormValues:QueryOutputDocumentOptions; // (a pointer to an object delcared in WorkspaceSettings.mxml)
 		
 		// Output aggregation options
 		
@@ -91,7 +91,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			dispatchEvent( new Event( "aggregationOptionsChanged" ) );
 		}
 		
-		public var aggregationOptionsFormValues:QueryOutputAggregationOptions;
+		public var aggregationOptionsFormValues:QueryOutputAggregationOptions; // (a pointer to an object delcared in WorkspaceSettings.mxml)
 		
 		// Output filter options
 		
@@ -113,7 +113,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			dispatchEvent( new Event( "filterOptionsChanged" ) );
 		}
 		
-		public var filterOptionsFormValues:QueryOutputFilterOptions;
+		public var filterOptionsFormValues:QueryOutputFilterOptions; // (a pointer to an object delcared in WorkspaceSettings.mxml)
 		
 		// Scoring options
 		
@@ -135,7 +135,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			dispatchEvent( new Event( "scoreOptionsChanged" ) );
 		}
 		
-		public var scoreOptionsFormValues:QueryScoreOptions;
+		public var scoreOptionsFormValues:QueryScoreOptions; // (a pointer to an object delcared in WorkspaceSettings.mxml)
 		
 		[Bindable]
 		public var adjustAggregationSigOptions:ArrayCollection = new ArrayCollection( [ ResourceManager.getInstance().getString( 'infinite', 'workspaceSettings.adjustAggregationSig.Auto' ),

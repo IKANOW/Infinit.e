@@ -1,26 +1,32 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 package com.ikanow.infinit.e.widget.library.components
 {
 	import com.ikanow.infinit.e.widget.library.assets.skins.WidgetModuleSkin;
+	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+	import com.ikanow.infinit.e.widget.library.events.WidgetDropEvent;
+	import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetModule;
 	import flash.events.DataEvent;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
+	import mx.collections.ArrayCollection;
 	import mx.events.CloseEvent;
+	import mx.events.DragEvent;
+	import mx.managers.DragManager;
 	import spark.components.Group;
 	import spark.components.HGroup;
 	import spark.events.IndexChangeEvent;
@@ -41,45 +47,51 @@ package com.ikanow.infinit.e.widget.library.components
 	/**
 	 *  Dispatched when the user selects the maximise button.
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "maximize", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the user selects the minimize button.
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "minimize", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the user selects the next button.
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "next", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the user selects the previous button.
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "previous", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the mouse is over the header
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "headerMouseOver", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the mouse leaves the header
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "headerMouseOut", type = "flash.events.Event" )]
 	/**
 	 *  Dispatched when the mouse is released when over the header
 	 *
-	 *  @eventType flase.events.Event
+	 *  @eventType flash.events.Event
 	 */
 	[Event( name = "headerMouseUp", type = "flash.events.Event" )]
+	/**
+	 * Dispatched when an appropriate item is dropped on widget
+	 *
+	 * @eventType com.ikanow.infinit.e.widget.library.events.WidgetDropEvent
+	 */
+	[Event( name = "widgetDrop", type = "com.ikanow.infinit.e.widget.library.events.WidgetDropEvent" )]
 	public class WidgetModule extends Module implements IWidgetModule
 	{
 		
@@ -420,6 +432,9 @@ package com.ikanow.infinit.e.widget.library.components
 		public function WidgetModule()
 		{
 			super();
+			this.addEventListener( DragEvent.DRAG_ENTER, widgetDragEnterHandler );
+			this.addEventListener( DragEvent.DRAG_DROP, widgetDragDropHandler );
+			this.addEventListener( DragEvent.DRAG_OVER, widgetDragOverHandler );
 		}
 		
 		
@@ -839,6 +854,41 @@ package com.ikanow.infinit.e.widget.library.components
 		protected function previousButton_clickHandler( event:MouseEvent ):void
 		{
 			dispatchEvent( new Event( "previous" ) );
+		}
+		
+		//======================================
+		// private methods 
+		//======================================
+		
+		private function widgetDragDropHandler( event:DragEvent ):void
+		{
+			var dragObject:WidgetDragObject = event.dragSource.dataForFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) as WidgetDragObject;
+			var widgetDropEvent:WidgetDropEvent = new WidgetDropEvent( "widgetDrop", dragObject.entities, dragObject.associations, dragObject.documents, dragObject.dragSource );
+			this.dispatchEvent( widgetDropEvent );
+		}
+		
+		private function widgetDragEnterHandler( event:DragEvent ):void
+		{
+			if ( this.hasEventListener( "widgetDrop" ) )
+			{
+				if ( event.dragSource.hasFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) )
+				{
+					DragManager.acceptDragDrop( this );
+					return;
+				}
+			}
+		}
+		
+		private function widgetDragOverHandler( event:DragEvent ):void
+		{
+			if ( this.hasEventListener( "widgetDrop" ) )
+			{
+				if ( event.dragSource.hasFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) )
+				{
+					DragManager.acceptDragDrop( this );
+					return;
+				}
+			}
 		}
 	}
 }

@@ -63,6 +63,11 @@ public class HarvestControllerPipeline {
 				source.setDatabaseConfig(pxPipe.database);
 				source.setExtractType("Database");
 			}
+			if (null != pxPipe.nosql) {
+				source.setAuthentication(pxPipe.nosql.getAuthentication());
+				source.setNoSql(pxPipe.nosql);
+				source.setExtractType("Database");				
+			}
 			else if (null != pxPipe.file) {
 				source.setFileConfig(pxPipe.file);
 				source.setExtractType("File");
@@ -119,7 +124,7 @@ public class HarvestControllerPipeline {
 			
 			// 1] Is this a starting point:
 			
-			if ((null != pxPipe.database) || (null != pxPipe.file) || (null != pxPipe.feed) || (null != pxPipe.web)) {
+			if ((null != pxPipe.database) || (null != pxPipe.nosql) || (null != pxPipe.file) || (null != pxPipe.feed) || (null != pxPipe.web)) {
 				continue; // Already handled this
 			}
 			

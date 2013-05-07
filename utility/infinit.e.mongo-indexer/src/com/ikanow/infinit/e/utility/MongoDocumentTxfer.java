@@ -17,11 +17,13 @@ package com.ikanow.infinit.e.utility;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
@@ -34,15 +36,20 @@ import com.google.gson.Gson;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
+import com.ikanow.infinit.e.processing.generic.aggregation.AssociationBackgroundAggregationManager;
+import com.ikanow.infinit.e.processing.generic.aggregation.EntityBackgroundAggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 
 public class MongoDocumentTxfer {
@@ -57,7 +64,7 @@ public class MongoDocumentTxfer {
 	 * @throws NumberFormatException 
 	 * @throws IOException 
 	 */
-	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, boolean bVerifyIndex, int nSkip, int nLimit) throws NumberFormatException, MongoException, IOException {
+	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, boolean bVerifyIndex, boolean bUpdateFeatures, int nSkip, int nLimit) throws NumberFormatException, MongoException, IOException {
 		
 		// Command line processing
 		com.ikanow.infinit.e.data_model.Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
@@ -92,7 +99,7 @@ public class MongoDocumentTxfer {
 			query = (BasicDBObject) com.mongodb.util.JSON.parse(sQuery);
 		}		
 		if (!bDelete) {
-			txferManager.doTransfer(query, nSkip, nLimit);
+			txferManager.doTransfer(query, nSkip, nLimit, bUpdateFeatures);
 		}
 		else {
 			txferManager.doDelete(query, nLimit);
@@ -111,7 +118,7 @@ public class MongoDocumentTxfer {
 	private Map<String, SourcePojo> _sourceCache = new HashMap<String, SourcePojo>();
 	private TreeSet<String> _deletedIndex = null;
 	
-	private void doTransfer(BasicDBObject query, int nSkip, int nLimit) throws IOException
+	private void doTransfer(BasicDBObject query, int nSkip, int nLimit, boolean bAggregate) throws IOException
 	{		
 		PropertiesManager pm = new PropertiesManager();
 		int nMaxContentSize_bytes = pm.getMaxContentSize();
@@ -133,6 +140,11 @@ public class MongoDocumentTxfer {
 		if (null == query.get(DocumentPojo.sourceKey_)) {
 			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
 		}
+		// If aggregating, kick off the background aggregation thread
+		if (bAggregate) {
+			EntityBackgroundAggregationManager.startThread();
+			AssociationBackgroundAggregationManager.startThread();
+		}
 		
 		//Debug:
 		DBCursor dbc = null;
@@ -148,6 +160,8 @@ public class MongoDocumentTxfer {
 		
 		int nSynced = 0;
 		LinkedList<DocumentPojo> docsToTransfer = new LinkedList<DocumentPojo>(); 
+		Map<ObjectId, LinkedList<DocumentPojo>> communityList = null;
+		ObjectId currCommunityId = null;
 		while (dbc.hasNext()) {
 			BasicDBObject dbo = (BasicDBObject)dbc.next();
 			DocumentPojo doc = DocumentPojo.fromDb(dbo, DocumentPojo.class);
@@ -169,10 +183,13 @@ public class MongoDocumentTxfer {
 			// Get the content:
 			if ((0 != nMaxContentSize_bytes) && StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl()))
 			{
-				BasicDBObject contentQ = new BasicDBObject(DocumentPojo.url_, doc.getUrl());
-				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
+				BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl());
+				contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));
+				BasicDBObject fields = new BasicDBObject(CompressedFullTextPojo.gzip_content_, 1);
+
+				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ, fields);
 				if (null != dboContent) {
-					byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				
+					byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));
 					ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
 					GZIPInputStream gzip = new GZIPInputStream(in);				
 					int nRead = 0;
@@ -215,16 +232,51 @@ public class MongoDocumentTxfer {
 						docsDB.update(new BasicDBObject(DocumentPojo._id_, doc.getId()), 
 								new BasicDBObject(DbManager.set_, new BasicDBObject(DocumentPojo.tags_, tagsTidied)));
 					}
-					doc.setTags(tagsTidied);
+					if ((null == src.getAppendTagsToDocs()) || src.getAppendTagsToDocs()) {					
+						doc.setTags(tagsTidied);
+					}
 				}
 			}
 
 // 2. Update the index with the new document				
 			
+			// (Optionally also update entity and assoc features)
+			
+			if (bAggregate) {
+				if (null == currCommunityId) {
+					currCommunityId = doc.getCommunityId();
+				}
+				else if (!currCommunityId.equals(doc.getCommunityId())) {					
+					LinkedList<DocumentPojo> perCommunityDocList = null;
+					if (null == communityList) { // (very first time we see > 1 community)
+						communityList = new TreeMap<ObjectId, LinkedList<DocumentPojo>>();
+						perCommunityDocList = new LinkedList<DocumentPojo>();
+						perCommunityDocList.addAll(docsToTransfer);	//(NOT including doc, this hasn't been added to docsToTransfer yet)
+						communityList.put(currCommunityId, perCommunityDocList);
+					}
+					currCommunityId = doc.getCommunityId();
+					perCommunityDocList = communityList.get(currCommunityId);
+					if (null == perCommunityDocList) {
+						perCommunityDocList = new LinkedList<DocumentPojo>();
+						communityList.put(currCommunityId, perCommunityDocList);
+					}
+					perCommunityDocList.add(doc);
+				}
+			}//TESTED
+			
 			nSynced++;
 			docsToTransfer.add(doc);
-			if (0 == (nSynced % 10000)) {					
+			if (0 == (nSynced % 10000)) {
 				StoreAndIndexManager manager = new StoreAndIndexManager();
+				
+				if (bAggregate) {
+					// Loop over communities and aggregate each one then store the modified entities/assocs					
+					doAggregation(communityList, docsToTransfer);
+					communityList = null; // (in case the next 10,000 docs are all in the same community!)
+					currCommunityId = null;
+
+				}//TOTEST				
+				
 				manager.addToSearch(docsToTransfer);
 				docsToTransfer.clear();
 				System.out.println("(Synced " + nSynced + " records)");
@@ -235,10 +287,68 @@ public class MongoDocumentTxfer {
 		// Sync remaining docs
 		
 		if (!docsToTransfer.isEmpty()) {
+			if (bAggregate) {
+				// Loop over communities and aggregate each one then store the modified entities/assocs					
+				doAggregation(communityList, docsToTransfer);				
+			}
+			
 			StoreAndIndexManager manager = new StoreAndIndexManager();
 			manager.addToSearch(docsToTransfer);				
 		}
+		
+		if (bAggregate) {
+			System.out.println("Completed. You can hit CTRL+C at any time."); 
+			System.out.println("By default it will keep running for 5 minutes while the background aggregation runs to update the documents' entities.");
+			try {
+				Thread.sleep(300000);
+			} catch (InterruptedException e) {}
+			
+			// Turn off so we can exit
+			EntityBackgroundAggregationManager.stopThreadAndWait();
+			AssociationBackgroundAggregationManager.stopThreadAndWait();
+		}
 	}
+	//___________________________________________________________________________________________________
+	
+	private void doAggregation(Map<ObjectId, LinkedList<DocumentPojo>> communityList, LinkedList<DocumentPojo> singleList) {
+		if (null == communityList) { // just one community this one is easy
+			AggregationManager aggManager = new AggregationManager();
+			aggManager.doAggregation(singleList, new LinkedList<DocumentPojo>());			
+			aggManager.createOrUpdateFeatureEntries(); 				
+			aggManager.applyAggregationToDocs(singleList);
+			aggManager.runScheduledDocumentUpdates();
+			aggManager.runScheduledSynchronization();
+		}
+		else {					
+			for (Map.Entry<ObjectId, LinkedList<DocumentPojo>> entry: communityList.entrySet()) {
+				AggregationManager aggManager = new AggregationManager();
+				aggManager.doAggregation(entry.getValue(), new LinkedList<DocumentPojo>());
+				aggManager.createOrUpdateFeatureEntries();
+				aggManager.applyAggregationToDocs(entry.getValue());
+				aggManager.runScheduledDocumentUpdates();
+				aggManager.runScheduledSynchronization();
+			}
+		}//TESTED
+		
+		// Finally, need to update all the docs (ick)
+		DocumentPojo dummy = new DocumentPojo();
+		for (DocumentPojo doc: singleList) {
+			boolean bEnts = (null != doc.getEntities()) && !doc.getEntities().isEmpty();
+			boolean bAssocs = (null != doc.getAssociations()) && !doc.getAssociations().isEmpty();
+			
+			if (bEnts || bAssocs) {				
+				dummy.setEntities(doc.getEntities());
+				dummy.setAssociations(doc.getAssociations());
+				DBObject toWrite = dummy.toDb();
+				MongoDbManager.getDocument().getMetadata().update(new BasicDBObject(DocumentPojo._id_, doc.getId()), 
+						new BasicDBObject(MongoDbManager.set_, toWrite), false, true); 
+							// (need the multi-update in case we change the shard key later in life)
+			}//TESTED
+			
+		}// (end loop over docs)
+		
+	}//TESTED
+	
 	//___________________________________________________________________________________________________
 	
 	// Utility function for the above, rebuilds an index
@@ -385,7 +495,8 @@ public class MongoDocumentTxfer {
 				System.out.println("Getting content..." + doc.getTitle() + " / " + doc.getUrl());
 				
 				// Get the content:
-				BasicDBObject contentQ = new BasicDBObject("url", doc.getUrl());
+				BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl());
+				contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));
 				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ);
 				if (null != dboContent) {
 					byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				

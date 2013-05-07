@@ -84,13 +84,15 @@ public class SearchHandler
 	//TODO (INF-1660): here and for assoc, should enforce doc_count>0? (or should i remove from entity feature when freq hits 0??)
 	// (or both?)
 	
+	private static final String entityIndex_ = EntityFeaturePojoIndexMap.indexCollectionName_ + "/" + EntityFeaturePojoIndexMap.indexName_;
+	
 	public ResponsePojo getSuggestions(String userIdStr, String term, String communityIdStrList, boolean bIncludeGeo, boolean bIncludeLinkdata, boolean bWantNoAlias) 
 	{
 		long nSysTime = System.currentTimeMillis();		
 		
 		ResponsePojo rp = new ResponsePojo();
 
-		ElasticSearchManager gazIndex = ElasticSearchManager.getIndex(EntityFeaturePojoIndexMap.indexName_);
+		ElasticSearchManager gazIndex = ElasticSearchManager.getIndex(entityIndex_);
 		
 		// Need to do a quick decomposition of the term to fit in with analyzed strings
 		String escapedterm = null;
@@ -357,6 +359,8 @@ public class SearchHandler
 	
 	// Event suggestions code
 	
+	private static final String assocIndex_ = AssociationFeaturePojoIndexMap.indexCollectionName_ + "/" + AssociationFeaturePojoIndexMap.indexName_;
+	
 	public ResponsePojo getAssociationSuggestions(String userIdStr, String ent1, String verb, String ent2, String field, String communityIdStrList, boolean bWantNoAlias) 
 	{
 		ResponsePojo rp = new ResponsePojo();
@@ -375,7 +379,7 @@ public class SearchHandler
 				}
 			}//TESTED										
 			
-			ElasticSearchManager esm = ElasticSearchManager.getIndex(AssociationFeaturePojoIndexMap.indexName_);
+			ElasticSearchManager esm = ElasticSearchManager.getIndex(assocIndex_);
 			SearchRequestBuilder searchOptions = esm.getSearchOptions();
 			BoolQueryBuilder boolQuery = QueryBuilders.boolQuery();
 			String term = "";

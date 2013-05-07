@@ -51,6 +51,8 @@ public class BaseDbPojo {
 		return new GsonBuilder()
 			.registerTypeAdapter(ObjectId.class, new ObjectIdDeserializer())
 			.registerTypeAdapter(Date.class, new DateDeserializer())			
+			.registerTypeAdapter(Long.class, new LongDeserializer())			
+			.registerTypeAdapter(Integer.class, new IntegerDeserializer())			
 			.registerTypeAdapter(ObjectId.class, new ObjectIdSerializer())
 			.registerTypeAdapter(Date.class, new DateSerializer());
 	}
@@ -246,4 +248,31 @@ public class BaseDbPojo {
 			return jo;
 		}
 	}	
+	// OK MongoDB is very keen on turning Long/Integer into doubles (eg from the console) - these converts them back 
+	protected static class LongDeserializer implements JsonDeserializer<Long> 
+	{
+		@Override
+		public Long deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
+		{
+			try {
+				return json.getAsLong();
+			}
+			catch (Exception e) {
+				return (long)json.getAsNumber().doubleValue();
+			}
+		}
+	}
+	protected static class IntegerDeserializer implements JsonDeserializer<Integer> 
+	{
+		@Override
+		public Integer deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
+		{
+			try {
+				return json.getAsInt();
+			}
+			catch (Exception e) {
+				return (int)json.getAsNumber().doubleValue();
+			}
+		}
+	}
 }

@@ -46,8 +46,10 @@ import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
@@ -986,9 +988,11 @@ public class HarvestController implements HarvestContext
 			// Get the full text:
 			byte[] storageArray = new byte[200000];
 			BasicDBObject contentQ = new BasicDBObject("url", docToReplace.getUrl());
-			BasicDBObject dboContent = (BasicDBObject) DbManager.getDocument().getContent().findOne(contentQ);
+			contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, docToReplace.getSourceKey())));
+			BasicDBObject fields = new BasicDBObject(CompressedFullTextPojo.gzip_content_, 1);
+			BasicDBObject dboContent = (BasicDBObject) DbManager.getDocument().getContent().findOne(contentQ, fields);
 			if (null != dboContent) {
-				byte[] compressedData = ((byte[])dboContent.get("gzip_content"));				
+				byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));				
 				ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
 				GZIPInputStream gzip = new GZIPInputStream(in);				
 				int nRead = 0;
