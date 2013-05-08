@@ -335,10 +335,10 @@ public class FileHarvester implements HarvesterInterface {
 		if (bIsXml || bIsJson || bIsLineOriented)
 		{
 			//fast check to see if the file has changed before processing (or if it never existed)
-			if(needsUpdated_SourceUrl(modDate, f.getURL().toString(), source))
+			if(needsUpdated_SourceUrl(modDate, f.getUrlString(), source))
 			{
 				DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
-				docRepresentingSrcUrl.setSourceUrl(f.getURL().toString());
+				docRepresentingSrcUrl.setSourceUrl(f.getUrlString());
 				if (null != sourceUrlsGettingUpdated) {
 					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
 				}
@@ -428,23 +428,23 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
 							if (bIsXml && ((null == fileSystem.XmlRootLevelValues) || fileSystem.XmlRootLevelValues.isEmpty())) {
-								doctoAdd.setUrl(f.getURL().toString());
+								doctoAdd.setUrl(f.getUrlString());
 							}
 							else if (null == doctoAdd.getMetadata()) { // Line oriented case
-								doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(nIndex).append('.').append(urlType).toString());
+								doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(nIndex).append('.').append(urlType).toString());
 							}
 							else {
 								if (null == md5) { // Will never happen, MD5 always exists
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(doctoAdd.getMetadata().hashCode()).append('.').append(urlType).toString());
+									doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(doctoAdd.getMetadata().hashCode()).append('.').append(urlType).toString());
 								}
 								else { // This is the standard call if the XML parser has not been configured to build the URL
-									doctoAdd.setUrl(new StringBuffer(f.getURL().toString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append('.').append(urlType).toString());
+									doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append('.').append(urlType).toString());
 								}
 							}//TESTED
 						}
 						doctoAdd.setTitle(f.getName().toString());
 						doctoAdd.setPublishedDate(new Date(fileTimestamp));
-						doctoAdd.setSourceUrl(f.getURL().toString());
+						doctoAdd.setSourceUrl(f.getUrlString());
 
 						// Always add to files because I'm deleting the source URL
 						files.add(doctoAdd);						
@@ -470,7 +470,7 @@ public class FileHarvester implements HarvesterInterface {
 		else //Tika supports Excel,Word,Powerpoint,Visio, & Outlook Documents
 		{
 			// (This dedup tells me if it's an add/update vs ignore - qr.isDuplicate higher up tells me if I need to add or update)
-			if(needsUpdated_Url(modDate, f.getURL().toString(), source))
+			if(needsUpdated_Url(modDate, f.getUrlString(), source))
 			{
 
 				Metadata metadata = null;
@@ -511,7 +511,7 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setDescription(fullText.substring(0,descCap));
 					doc.setModified(new Date(fileTimestamp));
 					doc.setCreated(new Date());
-					doc.setUrl(f.getURL().toString());
+					doc.setUrl(f.getUrlString());
 					doc.setTitle(f.getName().toString());
 					doc.setPublishedDate(new Date(fileTimestamp));
 					
@@ -643,7 +643,7 @@ public class FileHarvester implements HarvesterInterface {
 					}
 					if( l[i].isDirectory() ) {
 						// Directories: included unless explicity exclude:
-						String path = l[i].getURL().getPath();
+						String path = l[i].getUrlPath();
 						boolean bProcess = true;
 						if (null != excludeRegex) {
 							if (excludeRegex.matcher(path).matches()) {
@@ -656,7 +656,7 @@ public class FileHarvester implements HarvesterInterface {
 					}
 					else {
 						// Files: check both include and exclude
-						String path = l[i].getURL().getPath();
+						String path = l[i].getUrlPath();
 						boolean bProcess = true;
 						if (null != includeRegex) {
 							if (!includeRegex.matcher(path).matches()) {

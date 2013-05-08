@@ -19,9 +19,11 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.net.UnknownHostException;
 
 import jcifs.smb.NtlmPasswordAuthentication;
@@ -126,14 +128,36 @@ public class InfiniteFile {
 			return _localFile.isDirectory();
 		}
 	}
-	public URI getURL() throws MalformedURLException, URISyntaxException {
+	@SuppressWarnings("deprecation")
+	public String getUrlString() throws MalformedURLException, URISyntaxException
+	{
 		if (null != _smbFile) {
-			return _smbFile.getURL().toURI(); 
+			return _smbFile.toURL().toString(); // (confirmed spaces in paths works here)
+		}		
+		else {
+			return _localFile.toURL().toString(); // (confirmed spaces in paths works here)
+		}
+	}//TESTED
+	@SuppressWarnings("deprecation")
+	public String getUrlPath() throws MalformedURLException, URISyntaxException, UnsupportedEncodingException
+	{
+		if (null != _smbFile) {
+			return _smbFile.toURL().getPath(); // (confirmed spaces in paths works here)
+		}		
+		else {
+			return _localFile.toURL().getPath(); // (confirmed spaces in paths works here)
+		}
+	}//TESTED
+	public URI getURI() throws MalformedURLException, URISyntaxException { // (note this doesn't work nicely with spaces)
+		if (null != _smbFile) {
+			URL url = _smbFile.getURL(); 
+			return new URI(url.getProtocol(), url.getHost(), url.getPath(), url.getQuery(), null);
+				// (this odd construct is needed to handle spaces in paths)
 		}
 		else {
-			return _localFile.toURI();
+			return _localFile.toURI(); // (confirmed spaces in paths works here)
 		}
-	}
+	}//TESTED
 	public String getName() {
 		if (null != _smbFile) {
 			return _smbFile.getName(); 

@@ -17,9 +17,11 @@ package com.ikanow.infinit.e.harvest.extraction.document.file;
 
 import java.io.FileNotFoundException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.Date;
 
@@ -79,11 +81,13 @@ public class AwsInfiniteFile extends InfiniteFile {
 	
 	// Accessors:
 	
+	@Override
 	public InputStream getInputStream() throws SmbException, MalformedURLException, UnknownHostException, FileNotFoundException {
 		S3Object s3Obj = ((AmazonS3Client)_awsClient).getObject(_awsBucketName, _awsObjectName);
 		return s3Obj.getObjectContent();
 	}
 	
+	@Override
 	public InfiniteFile[] listFiles()  {
 		InfiniteFile[] fileList = null;
 		ObjectListing list = null;
@@ -104,19 +108,33 @@ public class AwsInfiniteFile extends InfiniteFile {
 		return fileList;
 	}//TESTED (with and without prefixes)
 	
+	@Override
 	public boolean isDirectory() throws SmbException {
 		return (null == _awsFileMeta_lastDate);
 	}	
 	
-	public URI getURL() throws MalformedURLException, URISyntaxException {
-		URI url = new URI(new StringBuffer("s3://").append(_awsBucketName).append('/').append(_awsObjectName).toString());
-		return url;
+	@Override
+	public String getUrlString() throws MalformedURLException, URISyntaxException
+	{
+		return new StringBuffer("s3://").append(_awsBucketName).append('/').append(_awsObjectName).toString();
+	}//TESTED
+	@Override
+	public String getUrlPath() throws MalformedURLException, URISyntaxException, UnsupportedEncodingException
+	{
+		return URLDecoder.decode(getURI().getPath(), "UTF-8");
+	}//TESTED
+	@Override
+	public URI getURI() throws MalformedURLException, URISyntaxException {
+		URI uri = new URI("s3", _awsBucketName, "/" + _awsObjectName, null);
+		return uri;
 	}//TESTED
 	
+	@Override
 	public String getName() {
 		return _awsObjectName.replaceAll(".*/", ""); // remove the leading path
 	}//TESTED
 
+	@Override
 	public long getDate() {
 		return _awsFileMeta_lastDate.getTime();
 	}//TESTED
