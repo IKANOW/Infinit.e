@@ -988,8 +988,8 @@ public class StructuredAnalysisHarvester
 									}
 									// (any creation criteria script indicates user accepts it can be either) 
 								}
-								if (null != esp.getDisambiguated_name()) {
-									EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
+								if (null != subEsp.getDisambiguated_name()) {
+									EntityPojo entity = getEntity(subEsp, field, String.valueOf(i), f);
 									if (entity != null) entities.add(entity);	
 								}
 							}										
@@ -1331,7 +1331,13 @@ public class StructuredAnalysisHarvester
 				// (sentiment is optional, even if specified)
 				if (null != sentiment) {
 					try {
-						e.setSentiment(Double.parseDouble(sentiment));
+						double d = Double.parseDouble(sentiment);
+						if (_context.isStandalone()) { // (minor message, while debugging only)
+							if ((d <= -1.1) || (d >= 1.1)) {
+								_context.getHarvestStatus().logMessage(new StringBuffer("Sentiment outside bounds [-1.0,1.0]: ").append(sentiment).toString(), true);
+							}
+						}
+						e.setSentiment(d);
 					}
 					catch (Exception e1) {
 						this._context.getHarvestStatus().logMessage(e1.getMessage(), true);
@@ -1637,7 +1643,7 @@ public class StructuredAnalysisHarvester
 												}
 												// (any creation criteria script indicates user accepts it can be either) 
 											}
-											else {
+											if (null != subEsp.getVerb_category()) { // (ie a mandatory field is present)										
 												AssociationPojo association = getAssociation(subEsp, field, nIndex, f);
 												if (association != null) associations.add(association);
 											}
@@ -2847,7 +2853,7 @@ public class StructuredAnalysisHarvester
 						}
 
 						gfp.setCountry_code(countryCode);
-						if (gfp.getSearch_field() == null) gfp.setSearch_field(countryCode);
+						// (Don't set to search field for country code - it will be equal to country...)
 					}
 
 					// Send the GeoReferencePojo to enrichGeoInfo to attempt to get lat and lon values

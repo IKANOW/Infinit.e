@@ -34,9 +34,11 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.util.JSON;
 
@@ -394,15 +396,21 @@ public class ShareInterface extends ServerResource
 							 }						 
 						 }
 						 else if (!bBinary && jsonOnly) {
-							 BasicDBObject dbo = (BasicDBObject) com.mongodb.util.JSON.parse(share.getShare());
-							 rp.setData(dbo, null);
+							 try {
+								 BasicDBObject dbo = (BasicDBObject) com.mongodb.util.JSON.parse(share.getShare());
+								 rp.setData(dbo, null);
+							 }
+							 catch (Exception e) { // Try a list instead
+								 BasicDBList dbo = (BasicDBList) com.mongodb.util.JSON.parse(share.getShare());
+								 rp.setData(dbo, (BasePojoApiMap<BasicDBList>)null);								 
+							 }
 						 }
 					 }
 					 //(else error)
 				 }
 				 else if (action.equals("searchShares"))
 				 {
-					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin);
+					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin, returnContent);
 				 }	 
 			 }
 		 }

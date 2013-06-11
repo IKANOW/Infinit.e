@@ -46,6 +46,7 @@
 	<target name="clean" description="Removing the all generated files.">
 		<delete dir="${dir.build}"/>
 		<delete dir="${dir.dist}"/>
+		<delete file="${dir.lib}/infinit.e.data_model.jar"/>		
 	</target>
 
 	<!-- ================================= 
@@ -53,6 +54,7 @@
 	================================= -->
 	<target name="prepare" depends="clean">
 		<mkdir dir="${dir.build}"/>
+		<copy file="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar" tofile="${dir.lib}/infinit.e.data_model.jar"/>
 	</target>
 	
 	<!-- ================================= 
@@ -131,8 +133,7 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}"/>
 
-	  		<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions or RangeMap.jar -->
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="RangeMap.jar jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
 		</jar>
 	</target>
 	

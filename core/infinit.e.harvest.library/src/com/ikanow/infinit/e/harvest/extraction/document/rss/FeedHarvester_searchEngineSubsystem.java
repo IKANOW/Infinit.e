@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.harvest.extraction.document.rss;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.regex.Matcher;
@@ -58,6 +59,7 @@ public class FeedHarvester_searchEngineSubsystem {
 		
 		UnstructuredAnalysisConfigPojo savedUAHconfig = src.getUnstructuredAnalysisConfig(); // (can be null)
 		String savedUserAgent = feedConfig.getUserAgent();
+		LinkedHashMap<String, String> savedHttpFields = feedConfig.getHttpFields();
 		Integer savedWaitTimeOverride_ms = feedConfig.getWaitTimeOverride_ms();
 
 		// Create a deduplication set to ensure URLs derived from the search pages don't duplicate the originals
@@ -66,8 +68,12 @@ public class FeedHarvester_searchEngineSubsystem {
 		if (null != src.getRssConfig().getExtraUrls()) {
 			Iterator<ExtraUrlPojo> itDedupUrls = src.getRssConfig().getExtraUrls().iterator();
 			while (itDedupUrls.hasNext()) {
-				String dedupUrl = itDedupUrls.next().url;
-				dedupSet.add(dedupUrl);
+				ExtraUrlPojo itUrl = itDedupUrls.next();
+				if (null != itUrl.title) {
+					String dedupUrl = itUrl.url;
+					dedupSet.add(dedupUrl);
+					maxDocsPerCycle++; // (ensure we get as far as adding these)
+				}
 			}
 		}//TESTED
 		
@@ -104,6 +110,7 @@ public class FeedHarvester_searchEngineSubsystem {
 				if (0 == nIteratingDepth) {
 					if (null != urlPojo.title) { // Also harvest this
 						src.getRssConfig().getExtraUrls().add(urlPojo);
+						maxDocsPerCycle--; // (now added, can remove)
 					}
 				}
 				currTitle = urlPojo.title;
@@ -145,6 +152,9 @@ public class FeedHarvester_searchEngineSubsystem {
 					if (dedupSet.size() >= maxDocsPerCycle) {
 						break;
 					}
+					// Will use this to check if we reached a page limit (eg some sites will just repeat the same page over and over again)
+					int nLinksFound = 0;
+					int nCurrDedupSetSize = dedupSet.size();
 					
 					String url = savedUrl;	
 					
@@ -179,6 +189,7 @@ public class FeedHarvester_searchEngineSubsystem {
 					if (null != feedConfig.getSearchConfig().getExtraMeta()) {
 						dummyUAHconfig.CopyMeta(feedConfig.getSearchConfig().getExtraMeta());
 					}
+					dummyUAHconfig.setScript(feedConfig.getSearchConfig().getGlobals());
 					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.All, feedConfig.getSearchConfig().getScript(), "javascript", feedConfig.getSearchConfig().getScriptflags());
 					src.setUnstructuredAnalysisConfig(dummyUAHconfig);
 					if (null != searchConfig.getProxyOverride()) {
@@ -186,6 +197,9 @@ public class FeedHarvester_searchEngineSubsystem {
 					}
 					if (null != searchConfig.getUserAgent()) {
 						feedConfig.setUserAgent(searchConfig.getUserAgent());
+					}
+					if (null != searchConfig.getHttpFields()) {
+						feedConfig.setHttpFields(searchConfig.getHttpFields());
 					}
 					if (null != searchConfig.getWaitTimeBetweenPages_ms()) {
 						// Web etiquette: don't hit the same site too often
@@ -218,7 +232,7 @@ public class FeedHarvester_searchEngineSubsystem {
 			// Create extraUrl entries from the metadata
 			
 					Object[] searchResults = searchDoc.getMetaData().get("searchEngineSubsystem");
-					if (null != searchResults) {
+					if ((null != searchResults) && (searchResults.length > 0)) {
 						for (Object searchResultObj: searchResults) {
 							try {
 								BasicDBObject bsonObj = (BasicDBObject)searchResultObj;
@@ -226,8 +240,9 @@ public class FeedHarvester_searchEngineSubsystem {
 								// 3 fields: url, title, description(=optional)
 								String linkUrl = bsonObj.getString(DocumentPojo.url_);
 								
+								nLinksFound++;
 								if (!dedupSet.contains(linkUrl)) {
-									dedupSet.add(linkUrl);
+									dedupSet.add(linkUrl);									
 								
 									String linkTitle = bsonObj.getString(DocumentPojo.title_);
 									String linkDesc = bsonObj.getString(DocumentPojo.description_);
@@ -271,11 +286,37 @@ public class FeedHarvester_searchEngineSubsystem {
 							}
 						}
 					}//TESTED
+					else if (0 == nPage) { //returned no links, log an error if this is page 1 and one has been saved
+						Object[] onError = searchDoc.getMetaData().get("_ONERROR_");
+						if ((null != onError) && (onError.length > 0)) {
+							context.getHarvestStatus().logMessage("_ONERROR_: " + onError[0], true);						
+						}
+					}//TESTED
 
+					if (context.isStandalone()) { // debug mode, will display some additional logging
+						Object[] onDebug = searchDoc.getMetaData().get("_ONDEBUG_");
+						if ((null != onDebug) && (onDebug.length > 0)) {
+							for (Object debug: onDebug) {
+								if (debug instanceof String) {
+									context.getHarvestStatus().logMessage("_ONDEBUG_: " + (String)debug, true);															
+								}
+								else {
+									context.getHarvestStatus().logMessage("_ONDEBUG_: " + new com.google.gson.Gson().toJson(debug), true);
+								}
+							}
+						}
+					}//TESTED
+					
 					//DEBUG
 					//System.out.println("LINKS_SIZE=" + feedConfig.getExtraUrls().size());
 					//System.out.println("LINKS=\n"+new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(feedConfig.getExtraUrls()));
-				
+									
+					if ((nLinksFound >= 10) && (dedupSet.size() == nCurrDedupSetSize)) { // Found links and all of them were duplicate
+						//DEBUG
+						//System.out.println("FOUND " + nLinksFound + " duplicate URLs (" + nCurrDedupSetSize + ")");
+						break;
+					}//TESTED
+					
 				}// end loop over pages
 				
 			}
@@ -287,6 +328,7 @@ public class FeedHarvester_searchEngineSubsystem {
 				// Fix any temp changes we made to the source
 				src.setUnstructuredAnalysisConfig(savedUAHconfig);
 				feedConfig.setUserAgent(savedUserAgent);
+				feedConfig.setHttpFields(savedHttpFields);
 				feedConfig.setWaitTimeOverride_ms(savedWaitTimeOverride_ms);
 				feedConfig.setProxyOverride(savedProxyOverride);
 			}			

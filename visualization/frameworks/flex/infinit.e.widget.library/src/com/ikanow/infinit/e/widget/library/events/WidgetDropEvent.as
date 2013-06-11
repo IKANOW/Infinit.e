@@ -18,17 +18,23 @@ package com.ikanow.infinit.e.widget.library.events
 		
 		public var dragSource:String;
 		
+		public var dragWidgetName:String;
+		
+		public var dragWidgetClass:String;
+		
 		//======================================
 		// constructor 
 		//======================================
 		
-		public function WidgetDropEvent( type:String, entities:ArrayCollection, associations:ArrayCollection, documents:ArrayCollection, dragSource:String )
+		public function WidgetDropEvent( type:String, entities:ArrayCollection, associations:ArrayCollection, documents:ArrayCollection, dragSource:String, dragWidgetName:String, dragWidgetClass:String )
 		{
 			super( type );
 			this.entities = entities;
 			this.associations = associations;
 			this.documents = documents;
 			this.dragSource = dragSource;
+			this.dragWidgetName = dragWidgetName;
+			this.dragWidgetClass = dragWidgetClass;
 		}
 	}
 }

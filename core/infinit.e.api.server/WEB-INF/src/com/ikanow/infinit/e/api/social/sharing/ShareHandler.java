@@ -119,7 +119,7 @@ public class ShareHandler
 	
 	//TODO (): be able to specify not returning content? 
 	
-	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin)
+	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin, boolean returnContent)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -142,8 +142,7 @@ public class ShareHandler
 		{
 			if (idStrList != null && idStrList.length() > 0)
 			{
-				idStrList = allowCommunityRegex(personIdStr, idStrList); // (allows regex)
-				
+				idStrList = allowCommunityRegex(personIdStr, idStrList, true); // (allows regex, plus multiple communities)
 				// List of communities to search on
 				String[] idStrArray = idStrList.split(",");
 				List<ObjectId> communityIds = new ArrayList<ObjectId>();
@@ -236,6 +235,9 @@ public class ShareHandler
 		
 		//REMOVING BINARY, if you want to return it you can't do deserialize on it
 		BasicDBObject removeFields = new BasicDBObject("binaryData",false);
+		if (!returnContent) {
+			removeFields.put("share", false);
+		}
 		
 		try 
 		{
@@ -1196,12 +1198,24 @@ public class ShareHandler
 	}
 	
 	// Utility: make life easier in terms of adding/update/inviting/leaving from the command line
-	
 	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
+		return allowCommunityRegex(userIdStr, communityIdStr, false);
+	}
+	private static String allowCommunityRegex(String userIdStr, String communityIdStr, boolean bAllowMulti) {
 		if (communityIdStr.startsWith("*")) {
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
 			if (1 == communityIdStrs.length) {
 				communityIdStr = communityIdStrs[0]; 
+			}
+			else if ((bAllowMulti) && (communityIdStrs.length > 1)) {
+				StringBuffer sb = new StringBuffer();
+				for (String str: communityIdStrs) {
+					if (sb.length() > 0) {
+						sb.append(',');
+					}
+					sb.append(str);
+				}
+				return sb.toString();
 			}
 			else {
 				throw new RuntimeException("Invalid community pattern");

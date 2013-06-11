@@ -55,6 +55,7 @@ import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -72,6 +73,10 @@ public class SourceHandler
 	private boolean isOwnerOrModerator = false;
 	private boolean isSysAdmin = false;
 	
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	
+	// ACTIONS ON INDIVIDUAL SOURCES
+		
 	/**
 	 * getInfo
 	 * Retrieve a source
@@ -143,8 +148,6 @@ public class SourceHandler
 		}
 		return rp;
 	}
-	
-	
 	
 	/**
 	 * addSource
@@ -740,6 +743,9 @@ public class SourceHandler
 		return rp;
 	}
 	
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	
+	// BULK SOURCE ACCESS
 	
 	/**
 	 * getGoodSources
@@ -755,7 +761,8 @@ public class SourceHandler
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
-			if (!RESTTools.adminLookup(userIdStr)) {
+			boolean bAdmin = RESTTools.adminLookup(userIdStr);
+			if (!bAdmin) {
 				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
 			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
@@ -784,7 +791,12 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);
 			
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
+			if (bStrip && sanityCheckStrippedSources(dbc.toArray(), bAdmin)) {
+				rp.setData(dbc.toArray(), (BasePojoApiMap<DBObject>)null);
+			}
+			else {
+				rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));
+			}
 			rp.setResponse(new ResponseObject("Good Sources",true,"successfully returned good sources"));
 		} 
 		catch (Exception e)
@@ -797,28 +809,6 @@ public class SourceHandler
 		return rp;
 	}
 		
-	private static void setStrippedFields(BasicDBObject fields) {
-		fields.put(SourcePojo.created_, 1);
-		fields.put(SourcePojo.modified_, 1);
-		fields.put(SourcePojo.url_, 1);
-		fields.put(SourcePojo.title_, 1);
-		fields.put(SourcePojo.isPublic_, 1);
-		fields.put(SourcePojo.ownerId_, 1);
-		fields.put(SourcePojo.author_, 1);
-		fields.put(SourcePojo.mediaType_, 1);
-		fields.put(SourcePojo.key_, 1);
-		fields.put(SourcePojo.description_, 1);
-		fields.put(SourcePojo.tags_, 1);
-		fields.put(SourcePojo.communityIds_, 1);
-		fields.put(SourcePojo.harvest_, 1);
-		fields.put(SourcePojo.isApproved_, 1);
-		fields.put(SourcePojo.extractType_, 1);
-		fields.put(SourcePojo.searchCycle_secs_, 1);
-		fields.put(SourcePojo.maxDocs_, 1);
-		fields.put(SourcePojo.duplicateExistingUrls_, 1);
-		fields.put(SourcePojo.maxDocs_, 1);		
-	}
-
 	/**
 	 * getBadSources
 	 * Get a list of sources with harvester errors for a list of one or more
@@ -833,7 +823,8 @@ public class SourceHandler
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
-			if (!RESTTools.adminLookup(userIdStr)) {
+			boolean bAdmin = RESTTools.adminLookup(userIdStr);
+			if (!bAdmin) {
 				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
 			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
@@ -860,7 +851,12 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);			
 
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
+			if (bStrip && sanityCheckStrippedSources(dbc.toArray(), bAdmin)) {
+				rp.setData(dbc.toArray(), (BasePojoApiMap<DBObject>)null);
+			}
+			else {
+				rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));
+			}
 			rp.setResponse(new ResponseObject("Bad Sources",true,"Successfully returned bad sources"));
 		} 
 		catch (Exception e)
@@ -888,7 +884,8 @@ public class SourceHandler
 		{
 			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
-			if (!RESTTools.adminLookup(userIdStr)) {
+			boolean bAdmin = RESTTools.adminLookup(userIdStr);
+			if (!bAdmin) {
 				userId = new ObjectId(userIdStr); // (ie not admin, may not see 
 			}
 			Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
@@ -915,7 +912,12 @@ public class SourceHandler
 			DBCursor dbc = DbManager.getIngest().getSource().find(query, fields);
 			
 			// Remove communityids we don't want the user to see:
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));			
+			if (bStrip && sanityCheckStrippedSources(dbc.toArray(), bAdmin)) {
+				rp.setData(dbc.toArray(), (BasePojoApiMap<DBObject>)null);
+			}
+			else {
+				rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(userId, communityIdSet, ownedOrModeratedCommunityIdSet));
+			}
 			rp.setResponse(new ResponseObject("Pending Sources",true,"successfully returned pending sources"));
 		} 
 		catch (Exception e)
@@ -972,7 +974,12 @@ public class SourceHandler
 				query2.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, ownedOrModeratedCommunityIdSet));
 				dbc = DbManager.getIngest().getSource().find(new BasicDBObject(MongoDbManager.or_, Arrays.asList(query, query2)), fields);
 			}			
-			rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(null, userCommunities, null));
+			if (bStrip && sanityCheckStrippedSources(dbc.toArray(), bAdmin)) {
+				rp.setData(dbc.toArray(), (BasePojoApiMap<DBObject>)null);
+			}
+			else {
+				rp.setData(SourcePojo.listFromDb(dbc, SourcePojo.listType()), new SourcePojoApiMap(null, userCommunities, null));
+			}
 			rp.setResponse(new ResponseObject("User's Sources", true, "successfully returned user's sources"));
 		} 
 		catch (Exception e)
@@ -985,7 +992,52 @@ public class SourceHandler
 	}
 
 
+	// Source performance utils
 	
+	private static void setStrippedFields(BasicDBObject fields) {
+		fields.put(SourcePojo.created_, 1);
+		fields.put(SourcePojo.modified_, 1);
+		fields.put(SourcePojo.url_, 1);
+		fields.put(SourcePojo.title_, 1);
+		fields.put(SourcePojo.isPublic_, 1);
+		fields.put(SourcePojo.ownerId_, 1);
+		fields.put(SourcePojo.author_, 1);
+		fields.put(SourcePojo.mediaType_, 1);
+		fields.put(SourcePojo.key_, 1);
+		fields.put(SourcePojo.description_, 1);
+		fields.put(SourcePojo.tags_, 1);
+		fields.put(SourcePojo.communityIds_, 1);
+		fields.put(SourcePojo.harvest_, 1);
+		fields.put(SourcePojo.isApproved_, 1);
+		fields.put(SourcePojo.extractType_, 1);
+		fields.put(SourcePojo.searchCycle_secs_, 1);
+		fields.put(SourcePojo.maxDocs_, 1);
+		fields.put(SourcePojo.duplicateExistingUrls_, 1);
+	}//TESTED
+	
+	private static boolean sanityCheckStrippedSources(List<DBObject> dbc, boolean bAdmin)
+	{
+		bAdmin = false;
+		if (bAdmin) {
+			return true;
+		}
+		else {
+			for (DBObject dbo: dbc) {
+				BasicDBList commList = (BasicDBList) dbo.get(SourcePojo.communityIds_);
+				if (null != commList) {
+					if (commList.size() > 1) {
+						return false;
+					}
+				}
+			}
+		}
+		return true;
+	}//TESTED (bAdmin false and true)
+
+	///////////////////////////////////////////////////////////////////////////////////////////////
+	
+	// SOURCE TEST CODE
+		
 	/**
 	 * testSource
 	 * @param sourceJson
@@ -1019,6 +1071,9 @@ public class SourceHandler
 			}
 			
 			HarvestController harvester = new HarvestController();
+			if (nNumDocsToReturn > 100) { // (seems reasonable)
+				nNumDocsToReturn = 100;
+			}
 			harvester.setStandaloneMode(nNumDocsToReturn, bRealDedup);
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toUpdate = new LinkedList<DocumentPojo>();
@@ -1061,7 +1116,13 @@ public class SourceHandler
 		{
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Test Source",false,"error testing source: " + e.getMessage()));			
+			rp.setResponse(new ResponseObject("Test Source",false,"Error testing source: " + e.getMessage()));			
+		}
+		catch (Error e)
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Test Source",false,"Configuration/Installation error: " + e.getMessage()));						
 		}
 		return rp;
 	}
@@ -1071,8 +1132,6 @@ public class SourceHandler
 	//////////////////////////////////////////////////////////////////////////
 	//////////////////////// Helper Functions ////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
-	
-	
 
 	/**
 	 * isOwnerModeratorOrSysAdmin

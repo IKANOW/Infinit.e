@@ -72,7 +72,7 @@ public class MongoDocumentTxfer {
 			com.ikanow.infinit.e.data_model.Globals.overrideConfigLocation(sConfigPath);
 		}
 		boolean bRebuildIndexOnFly = false;
-		if (bRebuildIndex && (null == sQuery)) { // (else will do them 1-by-1)
+		if (bRebuildIndex && ((null == sQuery) || sQuery.equals("{}"))) { // (else will do them 1-by-1)
 			new GenericProcessingController().InitializeIndex(true, false, false);
 		}
 		else { 

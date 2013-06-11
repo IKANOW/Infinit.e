@@ -102,7 +102,11 @@ package com.ikanow.infinit.e.shared.control
 		 */
 		public function getSetup_resultHandler( event:ResultEvent ):void
 		{
-			setupManager.setSetup( ServiceResult( event.result ).data as Setup );
+			// (Override widgets here, query/communities are overridden in the QueryManager)			
+			var setup:Setup = ServiceResult( event.result ).data as Setup;
+			
+			setupManager.overrideWidgetSetup( setup );
+			setupManager.setSetup( setup );
 		}
 		
 		[EventHandler( event = "SetupEvent.GET_WIDGET_OPTIONS" )]

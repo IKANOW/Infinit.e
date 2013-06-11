@@ -46,6 +46,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public GlobalScriptPojo globals;
 	public LinkedHashMap<String, ObjectId> lookupTables;
 	public LinkedHashMap<String, ObjectId> aliases;
+	public HarvestControlSettings harvest;
 	
 	// 1.3] Text and Linked-Document extraction
 	
@@ -57,6 +58,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	
 	public DocumentSpecPojo docMetadata;
 	public List<MetadataSpecPojo> contentMetadata;
+	//TODO (INF-1922) put update scripts here
 	
 	// 1.5] Entities and Associations
 
@@ -68,6 +70,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	// 1.6] Finishing steps
 	
 	public SourcePojo.SourceSearchIndexFilter storeAndIndex;
+	//TODO (INF-1922) need to put the document creation criteria here
 	
 	////////////////////////////////////////////////////////
 	
@@ -76,59 +79,69 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	// 2.2] Global operations
 	
 	public static class GlobalScriptPojo {
-		public List<String> imports;
-		public List<String> scripts;
-		public String scriptlang;		
+		public List<String> imports; // An optional list of URLs that get imported before the scripts below are run
+		public List<String> scripts; // A list of (java)script code blocks that are evaluated in order (normally only need to specify one)
+		public String scriptlang; // Currently only "javascript" is supported
+	}
+	
+	public static class HarvestControlSettings {
+		//TODO (INF-1922): support this in the code
+		public Integer searchCycle_secs; // How often to run the harvester (copied to SourcePojo when published)
+		public Boolean duplicateExistingUrls; // If false (defaults to true) then documents matching the URL of any existing document in the community is ignored (copied to SourcePojo when published)
+		public Integer maxDocs; // If specified, limits the number of documents that can be harvested for a given source
+		public String onUpdateScript; // If specified, this script allows information from the previous version of the document to be saved in the new one
 	}
 	
 	// 2.3] Text and Linked-Document extraction
 	
 	public static class AutomatedTextExtractionSpecPojo {
-		public String criteria;
-		public String engineName;
-		public LinkedHashMap<String, String> engineConfig;
+		public String criteria; // A javascript expression that is passed the document as _doc - if returns false then this pipeline element is bypassed
+		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
+		public LinkedHashMap<String, String> engineConfig; // The configuration object to be passed to the engine
 		
 	}
 	
 	public static class ManualTextExtractionSpecPojo {
-		public String fieldName;
-		public String script;
-		public String flags;
-		public String replacement;
-		public String scriptlang;
+		public String fieldName; // One of "fullText", "description", "title"
+		public String script; // The script/xpath/javascript expression (see scriptlang below)
+		public String flags; // Standard Java regex field (regex/xpath only), plus "H" to decode HTML
+		public String replacement; // Replacement string for regex/xpath+regex matches, can include capturing groups as $1 etc
+		public String scriptlang; // One of "javascript", "regex", "xpath"
 		//(note headers and footers are no longer supported - you can just do this manually anyway now)
 	}
 	
 	// 2.4] Document-level field (including metadata extraction)
 	
 	public static class DocumentSpecPojo {
-		public String title;
-		public String description;
-		public String publishedDate;
-		public String fullText;
-		public String displayUrl;
+		public String title; // The string expression or $SCRIPT(...) specifying the document title
+		public String description; // The string expression or $SCRIPT(...) specifying the document description
+		public String publishedDate; // The string expression or $SCRIPT(...) specifying the document publishedDate
+		public String fullText; // The string expression or $SCRIPT(...) specifying the document fullText
+		public String displayUrl; // The string expression or $SCRIPT(...) specifying the document displayUrl
 		public Boolean appendTagsToDocs; // if true (*NOT* default) source tags are appended to the document 
-		public StructuredAnalysisConfigPojo.GeoSpecPojo docGeo;
+		public StructuredAnalysisConfigPojo.GeoSpecPojo docGeo; // Specify a document level geo-tag
 	}
 	
 	public static class MetadataSpecPojo {
-		public String fieldName;
-		public String scriptlang;
-		public String script;
-		public String flags;
-		public String replace;
-		public Boolean store;
-		public Boolean index;
+		public String fieldName; // Any string, the key for generated array in "doc.metadata"
+		public String scriptlang; // One of "javascript", "regex", "xpath"
+		public String script; // The script that will generate the array in "doc.metadata" (under fieldName)
+		public String flags; // Standard Java regex field (regex/xpath only), plus "H" to decode HTML, "D": will allow duplicate strings (by default they are de-duplicated), plus the following custom flags:
+								// For javascript (defaults to "t" if none specified), "t" the script receives the doc fullText ("text"), "d" the script receives the entire doc (_doc), "m" the script receives the doc.metadata (_metadata)
+								// For xpath: "o": if the XPath expression points to an HTML (/XML) object, then this object is converted to JSON and stored as an object in the corresponding metadata field array. (Can also be done via the deprecated "groupNum":-1)
+		public String replace; // Replacement string for regex/xpath+regex matches, can include capturing groups as $1 etc
+		public Boolean store; // Whether this field should be stored in the DB or discarded after the harvet processing
+		public Boolean index; // Whether this field should be full-text indexed or just stored in the DB
 	}
 	
 	// 2.5] Entities and Associations
 	
 	public static class AutomatedEntityExtractionSpecPojo {
-		public String criteria;
-		public String engineName;
-		public LinkedHashMap<String, String> engineConfig;
-		public String entityFilter;
-		public String assocFilter;
+		public String criteria; // A javascript expression that is passed the document as _doc - if returns false then this pipeline element is bypassed
+		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
+		public LinkedHashMap<String, String> engineConfig; // The configuration object to be passed to the engine
+		public String entityFilter; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		public String assocFilter; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only) 
 	}
 	
 	// 2.6] Finishing steps

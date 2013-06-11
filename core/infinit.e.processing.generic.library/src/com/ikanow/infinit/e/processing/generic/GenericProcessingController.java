@@ -83,13 +83,16 @@ public class GenericProcessingController {
 		{
 			PropertiesManager pm = new PropertiesManager();
 			
-			DbManager.getDocument().getContent().ensureIndex(new BasicDBObject(CompressedFullTextPojo.sourceKey_, 2), new BasicDBObject(CompressedFullTextPojo.url_, 2)); // (annoyingly necessary)
+			BasicDBObject compIndex = new BasicDBObject(CompressedFullTextPojo.sourceKey_, 2);
+			compIndex.put(CompressedFullTextPojo.url_, 2);
+			DbManager.getDocument().getContent().ensureIndex(compIndex); // (annoyingly necessary)
 			dropIndexIfItExists(DbManager.getDocument().getContent(), CompressedFullTextPojo.url_, 1);
+			dropIndexIfItExists(DbManager.getDocument().getContent(), CompressedFullTextPojo.sourceKey_, 2);
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.sourceUrl_, 1);
 			
 			// Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey}
-			BasicDBObject compIndex = new BasicDBObject(DocumentPojo.url_, 1);
+			compIndex = new BasicDBObject(DocumentPojo.url_, 1);
 			compIndex.put(DocumentPojo.sourceKey_, 1);
 			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
 			// Add {_id:-1} to "standalone" sourceKey, sort docs matching source key by "time" (sort of!) 
@@ -149,11 +152,11 @@ public class GenericProcessingController {
 	private void dropIndexIfItExists(DBCollection coll, String indexName, int nIndexIndex)
 	{
 		StringBuffer indexNameStrBuff = new StringBuffer(indexName).append("_").append(nIndexIndex);
-		indexName = indexNameStrBuff.toString();
+		String indexName2 = indexNameStrBuff.toString();
 		List<DBObject> list = coll.getIndexInfo();
 		for (DBObject dbo: list) {
 			String name = (String) dbo.get("name");
-			if (indexName.equalsIgnoreCase(name)) {
+			if (indexName2.equalsIgnoreCase(name)) {
 				try { 
 					coll.dropIndex(new BasicDBObject(indexName, nIndexIndex)); 
 				} 
@@ -199,6 +202,9 @@ public class GenericProcessingController {
 				//event feature
 				String eventGazMapping = new Gson().toJson(new AssociationFeaturePojoIndexMap.Mapping(), AssociationFeaturePojoIndexMap.Mapping.class);	
 				ElasticSearchManager eventIndex = IndexManager.createIndex(AssociationFeaturePojoIndexMap.indexName_, null, false, null, eventGazMapping, localSettingsEvent);
+				if (null == eventIndex) { // (if has been previously referenced in this process space)
+					eventIndex = IndexManager.getIndex(AssociationFeaturePojoIndexMap.indexName_);
+				}
 				eventIndex.createAlias(AssociationFeaturePojoIndexMap.indexCollectionName_);
 				if (bDeleteEventFeature) {
 					eventIndex.deleteMe();
@@ -207,6 +213,9 @@ public class GenericProcessingController {
 				//entity feature
 				String gazMapping = new Gson().toJson(new EntityFeaturePojoIndexMap.Mapping(), EntityFeaturePojoIndexMap.Mapping.class);	
 				ElasticSearchManager entityIndex = IndexManager.createIndex(EntityFeaturePojoIndexMap.indexName_, null, false, null, gazMapping, localSettingsGaz);
+				if (null == entityIndex) { // (if has been previously referenced in this process space)
+					entityIndex = IndexManager.getIndex(EntityFeaturePojoIndexMap.indexName_);
+				}
 				entityIndex.createAlias(EntityFeaturePojoIndexMap.indexCollectionName_);
 				if (bDeleteEntityFeature) {
 					entityIndex.deleteMe();
@@ -346,6 +355,9 @@ public class GenericProcessingController {
 				}//TESTED
 
 				ElasticSearchManager docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);
+				if (null == docIndex) { // index has already been referenced, hence createIndex returns null
+					docIndex = IndexManager.getIndex(sGroupIndex);
+				}
 				if (bClearIndex) {
 					docIndex.deleteMe();
 					docIndex = IndexManager.createIndex(sGroupIndex, DocumentPojoIndexMap.documentType_, false, null, docMapping, localSettingsGroupIndex);

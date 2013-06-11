@@ -9,8 +9,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/j-calais-0.2.1-jar-with-dependencies.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/georss-rome-0.9.8.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/jasypt-1.6.jar"/>
-	<classpathentry exported="true" kind="lib" path="lib/rome-1.0.jar"/>
-	<classpathentry exported="true" kind="lib" path="lib/rome-fetcher-1.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/jdom.jar"/>
 	<classpathentry exported="true" kind="lib" path="standalone_libs/mysql-connector-java-5.1.15-bin.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/boilerpipe-1.2.0.jar"/>
@@ -21,6 +19,8 @@
 	<classpathentry exported="true" kind="lib" path="lib/httpclient-4.1.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/httpcore-4.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/kundera-core-with-deps-2.4.jar"/>
+	<classpathentry kind="lib" path="lib/rome-1.0.jar"/>
+	<classpathentry kind="lib" path="lib/rome-fetcher-1.0.jar"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-logging-1.1.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/tika-app-1.0.jar" sourcepath="C:/Users/acp/.m2/repository/org/apache/tika/tika-app/1.0/tika-app-1.0-sources.jar"/>

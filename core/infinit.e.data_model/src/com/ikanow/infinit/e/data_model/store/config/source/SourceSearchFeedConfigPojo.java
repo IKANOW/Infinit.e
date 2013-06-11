@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.config.source;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 
 public class SourceSearchFeedConfigPojo {
@@ -22,6 +23,7 @@ public class SourceSearchFeedConfigPojo {
 	// JSON fields
 	
 	private String userAgent = null; // Optional, if present is used for the "User-Agent:" HTTP field
+	private LinkedHashMap<String, String> httpFields = null; // Optinal, to override other HTTP fields, eg Cookie, Authorization, X-*)
 	
 	private String script = null; // Mandatory, processes the search results and returns an array of the following JSON objects:
 									// { "description: string, // (optionally)
@@ -30,6 +32,7 @@ public class SourceSearchFeedConfigPojo {
 									//	 "url": string }
 									// These links are then harvested as if they were "rss.extraUrls"
 	private String scriptlang = null; // Currently only "javascript" is supported
+	private String globals = null; // Optional Javascript that is evaluated before script or extraMeta (ie to define global functions)
 	private String scriptflags = null; // flags to apply to above script, to select the variables - see meta.flags for more details
 	
 	private String pageChangeRegex = null; // If non-null, this regex should be used to match the pagination URL parameter (which will be replaced by pageChangeReplace)
@@ -118,6 +121,18 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public List<UnstructuredAnalysisConfigPojo.metaField> getExtraMeta() {
 		return extraMeta;
+	}
+	public void setGlobals(String globals) {
+		this.globals = globals;
+	}
+	public String getGlobals() {
+		return globals;
+	}
+	public void setHttpFields(LinkedHashMap<String, String> httpFields) {
+		this.httpFields = httpFields;
+	}
+	public LinkedHashMap<String, String> getHttpFields() {
+		return httpFields;
 	}
 	
 }

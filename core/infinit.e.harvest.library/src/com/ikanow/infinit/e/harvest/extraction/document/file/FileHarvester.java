@@ -381,6 +381,7 @@ public class FileHarvester implements HarvesterInterface {
 						JsonReader jsonReader = null;
 						try {							
 							jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
+							jsonReader.setLenient(true);
 							partials = jsonParser.parseDocument(jsonReader);
 						}
 						finally {

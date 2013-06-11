@@ -28,9 +28,11 @@ limitations under the License.
 	//
 	String shareid = "";
 	String sourceid = "";
+	String sourceShowRss = "style=\"display: none\";";
 	String formShareId = "";
 	String shareJson = "";
 	String sourceJson = "";
+	String enableOrDisable = "Disable Source";
 	String communityId = "";
 	String shareCreated = "";
 	String shareTitle = "";
@@ -117,6 +119,7 @@ limitations under the License.
 			sourceid = (request.getParameter("sourceid") != null) ? request.getParameter("sourceid") : "";
 			communityId = (request.getParameter("Community_ID") != null) ? request.getParameter("Community_ID") : "";
 			shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
+			shareTitle = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTitle);
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
 			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
 			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
@@ -177,6 +180,7 @@ limitations under the License.
 			}
 			else if (action.equals("clearfilter")) 
 			{
+				currentPage = 1;
 				listFilter = "";
 				populateEditForm(shareid, request, response);
 			}
@@ -218,6 +222,9 @@ limitations under the License.
 				logOut(request, response);
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
 			}
+			else {
+				populateEditForm(shareid, request, response);				
+			}
 			
 			createCommunityIdSelect(request, response);
 		}
@@ -233,16 +240,349 @@ limitations under the License.
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	
 	<link rel="stylesheet" type="text/css" href="inc/manager.css" />
+	
 	<script type="text/javascript" src="inc/utilities.js"></script>
 	<link rel="shortcut icon" href="image/favicon.ico" />
-	<title>Infinit.e.Manager - Sources</title>
+	
+   <script src="lib/jquery.js"></script>
+   <script src="lib/jquery.cookie.js"></script>
+   
+    <script src="lib/splitter.js"></script>
+    
+   	<script type="text/javascript" src="lib/codemirror.js"></script>
+   	<script type="text/javascript" src="lib/languages/javascript.js"></script>
+	<link rel="stylesheet" type="text/css" href="lib/codemirror.css" />
+    <script src="lib/codemirror_extra/dialog/dialog.js"></script>
+    <link rel="stylesheet" href="lib/codemirror_extra/dialog/dialog.css"/>
+    <script src="lib/codemirror_extra/search/searchcursor.js"></script>
+    <script src="lib/codemirror_extra/search/search.js"></script>
+    <script src="lib/codemirror_extra/edit/matchbrackets.js"></script>
+    <script src="lib/codemirror_extra/fold/foldcode.js"></script>
+    <script src="lib/codemirror_extra/fold/brace-fold.js"></script>
+    
+    <script src="lib/jshint.js"></script>
+	
+<style media="screen" type="text/css">
+
+input.rightButton {
+    float: right;
+}
+	
+#lrSplitter {
+	width: 100%;
+	height: 750px;
+}
+#tbSplitter {
+	height: 700px;
+}
+#lrSplitter .Pane {
+	overflow: auto;
+}
+#Right {
+	overflow: hidden;
+}
+.vsplitbar {
+	width: 3px;
+	background: #999999 no-repeat center;
+	/* No margin, border, or padding allowed */
+}
+.vsplitbar.active, .vsplitbar:hover {
+	background: #e88 no-repeat center;
+}
+.hsplitbar {
+	height: 3px;
+	background: #999999 no-repeat center;
+	/* No margin, border, or padding allowed */
+}
+.hsplitbar.active, .hsplitbar:hover {
+	background: #e88 no-repeat center;
+}
+.CodeMirror { border-width:1px; border-style: solid; border-color:#DBDFE6; }
+.CodeMirror-foldmarker {
+        color: blue;
+        text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+        font-family: arial;
+        line-height: .3;
+        cursor: pointer;
+      }
+</style>
+	
+<script type="text/javascript">
+$().ready(function() {
+	$("#lrSplitter").splitter({
+		type: "v",
+		sizeLeft: 400, maxLeft: 500,
+		outline: true,
+		cookie: "lrSplitter"
+	});
+});
+$().ready(function() {
+	$("#tbSplitter").splitter({
+		type: "h",
+		sizeTop: 255, minTop: 62, maxTop: 255,
+		outline: true,
+		cookie: "tbSplitter"
+	});
+});
+</script>
+<script language=javascript>
+
+var currWidth = 0;
+var currHeight = 0;
+
+var int=self.setInterval(function(){clock()},50);
+function clock()
+  {	
+	var newHeight = $('#Bottom').height() - 45;
+	var newWidth = $('#Right').width() - 25;
+	
+	if ((currWidth != newWidth) || (currHeight != newHeight)) {
+		currWidth = newWidth;
+		currHeight = newHeight;
+		$("#tbSplitter").css("width", ($('#Right').width() - 20)+"px").trigger("resize");
+		$("#Top").css("width", ($('#Right').width() - 20)+"px");
+		sourceJsonEditor.setSize(newWidth, newHeight);
+		sourceJsonEditor_sah.setSize(newWidth, newHeight);
+		sourceJsonEditor_uah.setSize(newWidth, newHeight);
+		sourceJsonEditor_rss.setSize(newWidth, newHeight);
+	}
+  }
+  $(window).resize(function(){
+  	var leftWidth = $('#Left').width();
+  	var winWidth = $(window).width();
+  	$("#Right").css("width", (winWidth - leftWidth - 20)+"px");
+  });
+</script>
+<script language=javascript>
+	function checkFormat(alertOnSuccess, alertOnFailure)
+	{
+		alertOnFailure = (typeof alertOnFailure != 'undefined') ? alertOnFailure : true;
+		var editor = sourceJsonEditor;
+		if (alertOnSuccess) { // this is manual mode, work out which editor to check...
+			if ("none" != sourceJsonEditor_sah.display.wrapper.style.display) {
+				editor = sourceJsonEditor_sah;
+			}
+			else if ("none" != sourceJsonEditor_uah.display.wrapper.style.display) {
+				editor = sourceJsonEditor_uah;
+			}			
+			else if ("none" != sourceJsonEditor_rss.display.wrapper.style.display) {
+				editor = sourceJsonEditor_rss;
+			}			
+		}
+		
+		var success = JSHINT(editor.getValue());
+		var output = '';
+		if (!success) {
+			output = 'Errors:\n\n'
+			for (var i in JSHINT.errors) {
+				var err = JSHINT.errors[i];
+				if (null != err) {
+					output += err.line + '[' + err.character + ']: ' + err.reason + '\n';
+				}
+				else {
+					output += 'Unknown catastrophic error\n';
+				}
+			}
+		}
+		if (success && (editor == sourceJsonEditor)) {
+			var json = eval('('+sourceJsonEditor.getValue()+')');
+			if ((null == json.title) || (json.title == "")) {
+				output = ("Title must be non-zero length\n");
+				success = false;
+			}
+			if ((null == json.description) || (json.description == "")) {
+				output += ("Description must be non-zero length\n");
+				success = false;
+			}
+		}
+		if (alertOnSuccess || !success) {
+			if (output == "") {
+				output = "No errors.\n";
+			}
+			if (success || alertOnFailure) {
+				alert(output);
+			}
+		}
+		return success;
+	}//TESTED
+	function switchToEditor(the_editor, alertOnFailure)
+	{
+		alertOnFailure = (typeof alertOnFailure != 'undefined') ? alertOnFailure : true;
+		
+		// Check overall JSON format is OK first
+		if (!checkFormat(false, alertOnFailure)) {
+			return;
+		}
+		// Convert source JSON text into JSON
+		var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+
+		// Are we leaving the JSON page?
+		var old_editor = null;
+		if ("none" != sourceJsonEditor.display.wrapper.style.display) {
+			old_editor = sourceJsonEditor;
+		}//TESTED
+		
+		// Write results back into JSON editor if we're leaving a JS page
+		if (null == old_editor) {
+			var sah = sourceJsonEditor_sah.getValue();
+			var uah = sourceJsonEditor_uah.getValue();
+			var rss = sourceJsonEditor_rss.getValue();
+
+			if ((null != sah) && (sah.trim() != "")) {
+				if (null == srcObj.structuredAnalysis) {
+					srcObj.structuredAnalysis = {};
+				}
+				srcObj.structuredAnalysis.script = sah;
+				srcObj.structuredAnalysis.scriptEngine = "javascript";
+			}
+
+			if ((null != uah) && (uah.trim() != "")) {
+				if (null == srcObj.unstructuredAnalysis) {
+					srcObj.unstructuredAnalysis = {};
+				}
+				srcObj.unstructuredAnalysis.script = uah;
+			}
+
+			if ((null != rss) && (rss.trim() != "")) {
+				if (null == srcObj.rss) {
+					srcObj.rss = {};
+				}
+				if (null == srcObj.rss.searchConfig) {
+					srcObj.rss.searchConfig = {};
+				}
+				srcObj.rss.searchConfig.globals = rss;
+			}
+			sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+		}//TESTED
+		else { // If we are leaving then set the JS contents from the source
+			
+			// Get script from source
+			if ((null != srcObj.structuredAnalysis) && (null != srcObj.structuredAnalysis.script)) {
+				sourceJsonEditor_sah.setValue(srcObj.structuredAnalysis.script);				
+			}
+			else {
+				sourceJsonEditor_sah.setValue("");
+			}			
+			// Get script from source
+			if ((null != srcObj.unstructuredAnalysis) && (null != srcObj.unstructuredAnalysis.script)) {
+				sourceJsonEditor_uah.setValue(srcObj.unstructuredAnalysis.script);				
+			}
+			else {
+				sourceJsonEditor_uah.setValue("");
+			}			
+			// Get script from source
+			if ((null != srcObj.rss) && (null != srcObj.rss.searchConfig) && (null != srcObj.rss.searchConfig.globals)) {
+				sourceJsonEditor_rss.setValue(srcObj.rss.searchConfig.globals);				
+			}
+			else {
+				sourceJsonEditor_rss.setValue("");
+			}			
+		}//TESTED
+		
+		// Set the display:
+		sourceJsonEditor.display.wrapper.style.display = "none";
+		sourceJsonEditor_sah.display.wrapper.style.display = "none";
+		sourceJsonEditor_uah.display.wrapper.style.display = "none";			
+		sourceJsonEditor_rss.display.wrapper.style.display = "none";
+		the_editor.display.wrapper.style.display = null;
+		
+		if (the_editor == sourceJsonEditor) {
+			$("#toJson").css("font-weight", "bold");
+			$("#toJsS").css("font-weight", "normal");
+			$("#toJsU").css("font-weight", "normal");
+			$("#toJsRss").css("font-weight", "normal");			
+		}
+		if (the_editor == sourceJsonEditor_sah) {
+			$("#toJson").css("font-weight", "normal");
+			$("#toJsS").css("font-weight", "bold");
+			$("#toJsU").css("font-weight", "normal");
+			$("#toJsRss").css("font-weight", "normal");			
+		}
+		if (the_editor == sourceJsonEditor_uah) {
+			$("#toJson").css("font-weight", "normal");
+			$("#toJsS").css("font-weight", "normal");
+			$("#toJsU").css("font-weight", "bold");
+			$("#toJsRss").css("font-weight", "normal");			
+		}
+		if (the_editor == sourceJsonEditor_rss) {
+			$("#toJson").css("font-weight", "normal");
+			$("#toJsS").css("font-weight", "normal");
+			$("#toJsU").css("font-weight", "normal");
+			$("#toJsRss").css("font-weight", "bold");			
+		}
+		sourceJsonEditor.refresh();
+		sourceJsonEditor_sah.refresh();
+		sourceJsonEditor_uah.refresh();
+		sourceJsonEditor_rss.refresh();
+		the_editor.focus();
+	}//TESTED
+	function removeStatusFields()
+	{
+		// Check overall JSON format is OK first
+		if (!checkFormat(false)) {
+			return false;
+		}
+		// Convert source JSON text into JSON
+		var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+		
+		// Remove fields we don't care about for config
+		delete srcObj._id;
+		delete srcObj.communityIds;
+		delete srcObj.created;
+		delete srcObj.harvest;
+		delete srcObj.harvestBadSource;
+		delete srcObj.isApproved;
+		delete srcObj.key;
+		delete srcObj.modified;
+		delete srcObj.ownerId;
+		delete srcObj.shah256Hash;		
+		
+		sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+		return true;
+	}
+	function invertEnabledOrDisabled()
+	{
+		// Check overall JSON format is OK first
+		if (!checkFormat(false)) {
+			return false;
+		}
+		// Convert source JSON text into JSON
+		var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+
+		if (srcObj.hasOwnProperty('searchCycle_secs')) {
+			if (srcObj.searchCycle_secs == -1) {
+				delete srcObj.searchCycle_secs;
+				enableOrDisable.value = "Disable Source";
+			}
+			else {
+				srcObj.searchCycle_secs = -srcObj.searchCycle_secs;
+				if (srcObj.searchCycle_secs > 0) {
+					enableOrDisable.value = "Disable Source";					
+				}
+				else {
+					enableOrDisable.value = "Enable Source";										
+				}
+			}
+		}
+		else {
+			srcObj.searchCycle_secs = -1;
+			enableOrDisable.value = "Enable Source";
+		}
+		sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+	}
+	
+</script>
+<title>Infinit.e.Manager - Sources</title>
 </head>
 <body>
 
 <%
 	// !-- Create JavaScript Popup --
-	if (messageToDisplay.length() > 0) { 
+	if ((messageToDisplay.length() > 0) && 
+			(action.equals("deleteDocs") || action.equals("publishSource") || action.equals("saveSourceAsTemplate") || action.equals("delete") || action.equals("deletesource")))
+	{ 
 %>
 	<script language="javascript" type="text/javascript">
 		alert('<%=messageToDisplay %>');
@@ -280,10 +620,8 @@ limitations under the License.
 	{
 %>
 	
-	<table class="standardTable" cellpadding="5" cellspacing="0" width="100%">
-	<tr valign="top">
-		<td width="30%" bgcolor="#ffffff">
-		
+	 <div id="lrSplitter">
+		 <div id="Left" class="Pane">
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">Sources</td>
@@ -297,11 +635,8 @@ limitations under the License.
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
 			</table>
-
-		</td>
-		
-		<td width="70%" bgcolor="#ffffff">
-		
+		</div><!-- Left -->
+		<div id="Right">
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">Edit Source</td>
@@ -309,38 +644,41 @@ limitations under the License.
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white">
+					<div id="tbSplitter">
+					<div id="Top" class="Pane">
 					<table class="standardSubTable" cellpadding="3" cellspacing="1" width="100%" >
 <% if (!shareid.equalsIgnoreCase("")) { %>
 						<tr>
 							<td bgcolor="white" width="30%">Source Functions:</td>
 							<td bgcolor="white" width="70%">
 
-								<button name="testSource" value="testSource">Test Source</button>
-								<button name="saveSource" value="saveSource">Save Source</button>
-								<button name="saveSourceAsTemplate" value="saveSourceAsTemplate">Save Source as Template</button>
+								<input type="button" onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false)) invertEnabledOrDisabled()" id="enableOrDisable" value="<%= enableOrDisable %>" />
+								<button name="testSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="testSource">Test Source</button>
+								<button name="saveSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="saveSource">Save Source</button>
+								<button name="saveSourceAsTemplate" onclick="switchToEditor(sourceJsonEditor, false); return removeStatusFields()" value="saveSourceAsTemplate">Save As Template</button>
 								
 								<button name="publishSource" value="publishSource"
-									onclick="if (confirm('Are you sure you want to publish this source?'))  return true; return false;"
+									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false) && confirm('Are you sure you want to publish this source?'))  return true; return false;"
 									>Publish Source</button>
 									
 <% if ((null != sourceid) && !sourceid.equalsIgnoreCase("")) { %>
 								<button name="deleteDocs" value="deleteDocs" 
-									onclick="if (confirm('Are you sure you want to delete all documents for this source?')) return true; return false;"
+									onclick="switchToEditor(sourceJsonEditor, false); if (confirm('Are you sure you want to delete all documents for this source?')) return true; return false;"
 									>Delete docs</button>
 <% } %>
 							</td>		
 						</tr>
 <% } %>
 						<tr>
-							<td bgcolor="white" width="30%">Share ID:</td>
+							<td bgcolor="white" width="30%">Title:</td>
 							<td bgcolor="white" width="70%">
-								<input type="text" id="shareId" name="shareId" value="<%=shareid%>" size="35" READONLY />
+								<input type="text" id="shareTitle" name="shareTitle" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTitle)%>" size="60" />
 							</td>		
 						</tr>
 						<tr>
-							<td bgcolor="white" width="30%">Title:</td>
+							<td bgcolor="white" width="30%">Share ID:</td>
 							<td bgcolor="white" width="70%">
-								<input type="text" id="shareTitle" name="shareTitle" value="<%=shareTitle%>" size="60" />
+								<input type="text" id="shareId" name="shareId" value="<%=shareid%>" size="35" READONLY />
 							</td>		
 						</tr>
 						<tr valign="top">
@@ -366,35 +704,84 @@ limitations under the License.
 							<td bgcolor="white" width="70%" style="height:21px">
 								Full Text: <input type="checkbox" name="fullText" value="true" <%=getFullTextChecked %>/>
 								Number of Documents: <input type="text" id="numOfDocs" name="numOfDocs" value="<%=numberOfDocuments %>"
-									size="3" title="Maximum of 10" />
+									size="3" title="Maximum of 100" />
 								Update Test Mode: <input type="checkbox" name="testUpdateLogic" value="true" <%=getTestUpdateLogicChecked %>/>							
 							</td>		
 						</tr>
-						<tr>
-							<td bgcolor="white" width="100%" colspan="2">
-								<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
-							</td>		
-						</tr>
-						<tr>
-							<td bgcolor="white" width="30%">Created:</td>
-							<td bgcolor="white" width="70%"><%=shareCreated%></td>		
-						</tr>
-						<tr>
-							<td bgcolor="white" width="30%">Modified:</td>
-							<td bgcolor="white" width="70%"><%=shareModified%></td>		
-						</tr>
 					</table>
-					
+					</div>
+					<div id="Bottom" class="Pane">					
+						<input type="button" title="Show full source JSON" style="font-weight:bold" onclick="switchToEditor(sourceJsonEditor)" id="toJson" value="JSON" />
+						<input type="button" title="Show unstructuredAnalysis.script" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
+						<input type="button" title="Show structuredAnalysis.script" onclick="switchToEditor(sourceJsonEditor_sah)" id="toJsS" value="JS-S" />
+						<input type="button" title="Show rss.searchConfig.globals" onclick="switchToEditor(sourceJsonEditor_rss)" id="toJsRss" value="JS-RSS" <%=sourceShowRss%> />
+						<input type="button" onclick="checkFormat(true)" value="Check Format" class="rightButton" />
+						<input type="button" title="Remove status fields added by server" onclick="removeStatusFields()" value="Scrub" class="rightButton" />
+						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
+						<textarea id="Source_JSON_uahScript" name="Source_JSON_uahScript"></textarea>
+						<textarea id="Source_JSON_sahScript" name="Source_JSON_sahScript"></textarea>
+						<textarea id="Source_JSON_rssScript" name="Source_JSON_rssScript"></textarea>
+					</div>
+					</div>
 				</td>
 			</tr>
 			</table>
-		
-		</td>
-		
-	<tr>
-	</table>
+		</div><!--  Right -->
+	</div><!-- lrSplitter -->
 	<input type="hidden" name="sourceid" id="sourceid" value="<%=sourceid%>"/>
 	</form>
+	
+	
+<!---------- CodeMirror JavaScripts ---------->
+<script>
+	var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
+	var sourceJsonEditor_uah = CodeMirror.fromTextArea(document.getElementById("Source_JSON_uahScript"), {
+		mode: "javascript",
+		lineNumbers: true,
+		matchBrackets: true,
+		indentUnit: 4,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor_uah.setSize("100%", "100%");
+	sourceJsonEditor_uah.display.wrapper.style.display = "none";
+	sourceJsonEditor_uah.on("gutterClick", foldFunc);
+
+	var sourceJsonEditor_sah = CodeMirror.fromTextArea(document.getElementById("Source_JSON_sahScript"), {
+		mode: "javascript",
+		lineNumbers: true,
+		matchBrackets: true,
+		indentUnit: 4,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor_sah.setSize("100%", "100%");
+	sourceJsonEditor_sah.display.wrapper.style.display = "none";
+	sourceJsonEditor_sah.on("gutterClick", foldFunc);
+	
+	var sourceJsonEditor_rss = CodeMirror.fromTextArea(document.getElementById("Source_JSON_rssScript"), {
+		mode: "javascript",
+		lineNumbers: true,
+		matchBrackets: true,
+		indentUnit: 4,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor_rss.setSize("100%", "100%");
+	sourceJsonEditor_rss.display.wrapper.style.display = "none";
+	sourceJsonEditor_rss.on("gutterClick", foldFunc);
+	
+	var sourceJsonEditor = CodeMirror.fromTextArea(document.getElementById("Source_JSON"), {
+		mode: "application/json",
+		lineNumbers: true,
+		matchBrackets: true,
+		indentUnit: 4,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor.setSize("100%", "100%");
+	sourceJsonEditor.on("gutterClick", foldFunc);
+	
+	sourceJsonEditor.focus();
+</script>
+	
+	
 <% } %>
 
 <%@ include file="inc/footer.jsp" %>
@@ -651,6 +1038,18 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			if ((null == shareDescription) || shareDescription.isEmpty()) {
 				shareDescription = source.getString("description");				
 			}
+			if (source.has("searchCycle_secs")) {
+				int searchCycle_secs = source.getInt("searchCycle_secs");
+				if (searchCycle_secs >= 0) {
+					enableOrDisable = "Disable Source";
+				}
+				else {
+					enableOrDisable = "Enable Source";
+				}
+			} 
+			else {
+				enableOrDisable = "Disable Source";
+			}
 			shareType = data.getString("type");
 			if (shareType.equalsIgnoreCase("source"))
 			{
@@ -680,6 +1079,21 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 				shareid = "";
 				shareJson = "";
 			}
+			
+			// Finally, decide whether to show JS-RSS tab
+			sourceShowRss = "style=\"display: none\";";
+			try {
+				String sourceType = source.getString("extractType"); 
+				if ((null != sourceType) && sourceType.equalsIgnoreCase("Feed")) {
+					JSONObject rss = source.getJSONObject("rss");
+					if (null != rss) {
+						JSONObject searchConfig = rss.getJSONObject("searchConfig");
+						if (null != searchConfig) {
+							sourceShowRss = "";
+						}
+					}
+				}
+			}catch (Exception e) {} // do nothing, this block doesn't exist
 		} 
 		catch (Exception e) 
 		{
@@ -711,29 +1125,14 @@ private void clearForm()
 private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
 	StringBuffer sources = new StringBuffer();
-	Map<String, String> listOfSources = getUserSourcesAndShares(request, response);
+	TreeMultimap<String, String> listOfSources = getUserSourcesAndShares(request, response, listFilter);
 	
 	if (listOfSources.size() > 0)
 	{
 		sources.append("<table class=\"listTable\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
 
 		// Sort the sources alphabetically
-		List<String> sortedKeys = new ArrayList<String>(listOfSources.keySet());
-		Collections.sort( sortedKeys, String.CASE_INSENSITIVE_ORDER );
-		
-		// Filter the list
-		List<String> sortedAndFilteredKeys = new ArrayList<String>();
-		for (String key : sortedKeys)
-		{
-			if ( listFilter.length() > 0 )
-			{
-				if ( key.toLowerCase().contains( listFilter.toLowerCase() ) ) sortedAndFilteredKeys.add( key );
-			}
-			else
-			{
-				sortedAndFilteredKeys.add( key );
-			}
-		}
+		SortedSet<String> sortedKeys = listOfSources.keySet();
 		
 		// If the user has filtered the list down we might need to adjust our page calculations
 		// e.g. 20 total items might = 2 pages but filtered down to 5 items there would only be 1
@@ -749,45 +1148,53 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		}
 
 		int currentItem = 1;
-		for (String key : sortedAndFilteredKeys)
+		for (String key : sortedKeys)
 		{
 			String name = key;
-			if (currentItem >= startItem && currentItem <= endItem)
-			{
-				String id = listOfSources.get(key).toString();
-				String editLink = "";
-				String deleteLink = "";
-				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				
-				if (name.contains("*"))
+			SortedSet<String> vals = listOfSources.get(key);
+			for (String val: vals) {
+				if (currentItem >= startItem && currentItem <= endItem)
 				{
-					editLink = "<a href=\"sources.jsp?action=edit&shareid=" + id + "&page=" + currentPage 
-							+ listFilterString + "\" title=\"Edit Share\">" + name + "</a>";
-
-					deleteLink = "<a href=\"sources.jsp?action=delete&shareid=" + id + "&page=" + currentPage 
-							+ listFilterString + "\" title=\"Delete Share\" "
-							+ "onclick='return confirm(\"Do you really wish to delete the share: "
-							+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
-				}
-				else
-				{
-					editLink = "<a href=\"sources.jsp?action=sharefromsource&sourceid=" + id + "&page=" + currentPage 
-							+ listFilterString + "\" title=\"Create Share from Source\">" + name + "</a>";
-							
-					deleteLink = "<a href=\"sources.jsp?action=deletesource&sourceid=" + id + "&page=" + currentPage 
-							+ listFilterString + "\" title=\"Delete Source\" "
-							+ "onclick='return confirm(\"Do you really wish to delete the source: "
-							+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
-				}
+					String id = val.toString();
+					String editLink = "";
+					String deleteLink = "";
+					String listFilterString = "";
+					if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+					
+					if (name.contains("*"))
+					{
+						editLink = "<a href=\"sources.jsp?action=edit&shareid=" + id + "&page=" + currentPage 
+								+ listFilterString + "\" title=\"Edit Share\">" + name + "</a>";
 	
-				// Create the HTML table row
-				sources.append("<tr valign=\"top\">");
-				sources.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
-				sources.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
-				sources.append("</tr>");
+						deleteLink = "<a href=\"sources.jsp?action=delete&shareid=" + id + "&page=" + currentPage 
+								+ listFilterString + "\" title=\"Delete Share\" "
+								+ "onclick='return confirm(\"Do you really wish to delete the share: "
+								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
+					}
+					else
+					{
+						editLink = "<a href=\"sources.jsp?action=sharefromsource&sourceid=" + id + "&page=" + currentPage 
+								+ listFilterString + "\" title=\"Create Share from Source\">" + name + "</a>";
+								
+						deleteLink = "<a href=\"sources.jsp?action=deletesource&sourceid=" + id + "&page=" + currentPage 
+								+ listFilterString + "\" title=\"Delete Source\" "
+								+ "onclick='return confirm(\"Do you really wish to delete the source: "
+								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
+					}
+		
+					// Create the HTML table row
+					sources.append("<tr valign=\"top\">");
+					if (id.equals(shareid)) {
+						sources.append("<td bgcolor=\"white\" width=\"100%\"><b>" + editLink + "</b></td>");						
+					}
+					else {
+						sources.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
+					}
+					sources.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
+					sources.append("</tr>");
+				}
+				currentItem++;
 			}
-			currentItem++;
 		}
 		
 		sources.append("<tr valign=\"top\">");
@@ -802,15 +1209,11 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// --------------------------------------------------------------------------------
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
-		baseUrl.append("sources.jsp?");
-		String actionString = (action.length() > 0) ? "action=" + action : "";
-		String shareIdString = (shareid.length() > 0) ? "shareid=" + shareid : "";
-		if (actionString.length() > 0) baseUrl.append(actionString);
-		if (actionString.length() > 0 && shareIdString.length() > 0) baseUrl.append("&");
-		if (shareIdString.length() > 0) baseUrl.append(shareIdString);
-		if (actionString.length() > 0 || shareIdString.length() > 0) baseUrl.append("&");
-		baseUrl.append("page=");
-		sources.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
+		baseUrl.append("sources.jsp?action=page");
+		if (listFilter.length() > 0) baseUrl.append('&').append("listFilterStr=").append(listFilter);
+		if (shareid.length() > 0) baseUrl.append('&').append("shareid=").append(shareid);
+		baseUrl.append("&page=");
+		sources.append( createPageString( sortedKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
 		sources.append("</td></tr>");
 		// --------------------------------------------------------------------------------
 		sources.append("</table>");
@@ -842,7 +1245,12 @@ private String createShareFromSource(String sourceId, HttpServletRequest request
 		{
 			urlShareDescription = URLEncoder.encode("Share description goes here", "UTF-8");
 		}
-		
+		if (0 == urlShareTitle.length()) {
+			urlShareTitle = "Share+title+goes+here";
+		}
+		if (0 == urlShareDescription.length()) {
+			urlShareDescription = "Share+description+goes+here";
+		}		
 		String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
 		JSONObject jsonObject = new JSONObject( postToRestfulApi(apiAddress, sourceJson.toString(4), request, response) );
 		JSONObject json_response = jsonObject.getJSONObject("response");
@@ -901,7 +1309,7 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 	try
 	{
 		numDocs = Integer.parseInt(numberOfDocuments);
-		if (numDocs < 1 || numDocs > 10) numDocs = 10;
+		if (numDocs < 1 || numDocs > 100) numDocs = 10;
 	}
 	catch (Exception e)
 	{

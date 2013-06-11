@@ -195,8 +195,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 			
 			if ( responseCode == HttpStatus.SC_OK)
 			{
-				String response = method.getResponseBodyAsString();	
-				//System.out.println(response);
+				byte[] responseBytes = method.getResponseBody();
+				String response = new String(responseBytes, "UTF-8");
 				List<EntityPojo> entities = new ArrayList<EntityPojo>();				
 				List<AssociationPojo> events = new ArrayList<AssociationPojo>();
 				ObjectMapper mapper = new ObjectMapper();

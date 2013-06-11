@@ -16,6 +16,7 @@ limitations under the License.
 
 <%@ page import="java.io.*" %>
 <%@ page import="java.util.*" %>
+<%@ page import="com.google.common.collect.TreeMultimap" %>
 <%@ page import="java.net.*" %>
 <%@ page import="javax.naming.*" %>
 <%@ page import="javax.servlet.jsp.*" %>
@@ -33,6 +34,7 @@ limitations under the License.
 <%@ page import="org.apache.commons.httpclient.methods.PostMethod" %>
 <%@ page import="java.io.BufferedReader" %>
 <%@ page import="java.io.InputStreamReader" %>
+<%@ page import="org.apache.commons.lang.StringEscapeUtils.*" %>
 
 <%!
 	// !----------  ----------!
@@ -530,14 +532,15 @@ limitations under the License.
 	// getSourceShares - 
 	private String getSourceShares(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("social/share/search/?type=source,source_published",request, response);
+
+		return callRestfulApi("social/share/search/?type=source,source_published&searchby=community&id=*",request, response);
 	} // TESTED
 	
 	
 	// getUserSources - 
-	private Map<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response)
+	private TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
 	{
-		Map<String,String> userSources = new HashMap<String,String>();
+		TreeMultimap<String,String> userSources = TreeMultimap.create();
 		String userIdStr = null;
 		
 		// publishedSources - array of source._ids of published sources
@@ -567,6 +570,10 @@ limitations under the License.
 					{
 						JSONObject shareObj = data.getJSONObject(i);
 						String tempTitle = shareObj.getString("title");
+						if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
+						{
+							continue;
+						}
 						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
 						if (sourceObj.has("_id")) publishedSources.add( sourceObj.getString("_id") );
@@ -597,6 +604,10 @@ limitations under the License.
 							if (!publishedSources.contains( sourceObj.getString("_id") ))
 							{
 								String tempTitle = sourceObj.getString("title");
+								if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
+								{
+									continue;
+								}
 								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
 								userSources.put(tempTitle, sourceObj.getString("_id"));
 							}

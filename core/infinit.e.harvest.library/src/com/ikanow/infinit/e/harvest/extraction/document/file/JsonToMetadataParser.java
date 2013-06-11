@@ -111,7 +111,7 @@ public class JsonToMetadataParser {
 						getDocumentsFromJson(reader, parser, docList, false);
 					}//TESTED (single and multiple doc case)	
 				}
-				else if ((JsonToken.END_DOCUMENT == tok) || (JsonToken.END_ARRAY == tok))  {
+				else if ((JsonToken.END_DOCUMENT == tok) || (JsonToken.END_ARRAY == tok) || (JsonToken.END_OBJECT == tok))  {
 					return docList;
 				}
 			} // (end loop forever - exception out)

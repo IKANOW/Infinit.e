@@ -15,18 +15,25 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.widget.library.components
 {
+	import com.ikanow.infinit.e.widget.library.assets.skins.WidgetMaximizeButtonSkin;
 	import com.ikanow.infinit.e.widget.library.assets.skins.WidgetModuleSkin;
 	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 	import com.ikanow.infinit.e.widget.library.events.WidgetDropEvent;
 	import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetModule;
+	
 	import flash.events.DataEvent;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
+	import flash.utils.getQualifiedClassName;
+	
 	import mx.collections.ArrayCollection;
+	import mx.core.IUIComponent;
+	import mx.core.UIComponent;
 	import mx.events.CloseEvent;
 	import mx.events.DragEvent;
 	import mx.managers.DragManager;
+	
 	import spark.components.Group;
 	import spark.components.HGroup;
 	import spark.events.IndexChangeEvent;
@@ -92,6 +99,12 @@ package com.ikanow.infinit.e.widget.library.components
 	 * @eventType com.ikanow.infinit.e.widget.library.events.WidgetDropEvent
 	 */
 	[Event( name = "widgetDrop", type = "com.ikanow.infinit.e.widget.library.events.WidgetDropEvent" )]
+	/**
+	 * Dispatched when a widget is being closed
+	 *
+	 * @eventType flash.events.Event
+	 */
+	[Event( name = "widgetClose", type = "flash.events.Event" )]
 	public class WidgetModule extends Module implements IWidgetModule
 	{
 		
@@ -462,6 +475,8 @@ package com.ikanow.infinit.e.widget.library.components
 		 */
 		protected function closeButton_clickHandler( event:MouseEvent ):void
 		{
+			//try to dispatch our close widget event first
+			dispatchEvent( new Event( "widgetClose" ) );
 			dispatchEvent( new CloseEvent( CloseEvent.CLOSE ) );
 		}
 		
@@ -860,10 +875,42 @@ package com.ikanow.infinit.e.widget.library.components
 		// private methods 
 		//======================================
 		
+		/**
+		 * Recursively climbs up the ui tree until it finds a widgetmodule, no parent, or hits max_level
+		 **/
+		private function getWidgetModule( root:Object, curr_level:int, max_level:int ):WidgetModule
+		{			
+			if ( curr_level < max_level )
+			{
+				if ( root != null )
+				{
+					var module:WidgetModule = root as WidgetModule;
+					if ( module != null )
+					{
+						return module;
+					}
+					else
+					{
+						return getWidgetModule(root.parent as UIComponent, curr_level++, max_level);
+					}
+				}
+			}
+			return null;
+		}
+		
 		private function widgetDragDropHandler( event:DragEvent ):void
 		{
 			var dragObject:WidgetDragObject = event.dragSource.dataForFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) as WidgetDragObject;
-			var widgetDropEvent:WidgetDropEvent = new WidgetDropEvent( "widgetDrop", dragObject.entities, dragObject.associations, dragObject.documents, dragObject.dragSource );
+			var widgetName:String = "unknown";
+			var widgetClass:String = "unknown";
+			var module:WidgetModule = getWidgetModule( event.dragInitiator, 0, 30 );
+			
+			if ( module != null )
+			{
+				widgetName = module.title;
+				widgetClass = flash.utils.getQualifiedClassName( module );
+			}
+			var widgetDropEvent:WidgetDropEvent = new WidgetDropEvent( "widgetDrop", dragObject.entities, dragObject.associations, dragObject.documents, dragObject.dragSource, widgetName, widgetClass );
 			this.dispatchEvent( widgetDropEvent );
 		}
 		

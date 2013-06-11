@@ -86,6 +86,8 @@ public class GeoReference
 			if (exactMatchOnly)
 			{
 				query = getQuery(hasGeoindex, 1);
+				/**/
+				System.out.println(query);
 				result = getGeoReference(geoDb, query, nMaxReturns);
 			}
 			// Loose match, broaden/modify search on each of up to 4 attempts
@@ -168,6 +170,10 @@ public class GeoReference
 				if (city != null) query.put("city", city);
 				if (region != null) query.put("region", region);
 				if (country != null) query.put("country", country);
+				if (null == searchField) { // only country code specified...
+					query.put("city", new BasicDBObject(DbManager.exists_, false));
+					query.put("region", new BasicDBObject(DbManager.exists_, false));
+				}
 				if (countryCode != null) query.put("country_code", countryCode);
 				break;
 
@@ -216,7 +222,7 @@ public class GeoReference
 		if (hasGeoindex)
 		{
 			BasicDBObject ne = new BasicDBObject();
-			ne.append("$ne", null);
+			ne.append(DbManager.exists_, true);
 			query.put("geoindex", ne);
 		}
 

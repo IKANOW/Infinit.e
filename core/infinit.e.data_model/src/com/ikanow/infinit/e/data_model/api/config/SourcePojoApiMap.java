@@ -104,6 +104,9 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 				if ((null != url) && ((nIndex = url.indexOf('?')) >= 0)) {
 					source.setUrl(url.substring(0, 1 + nIndex));
 				}
+				if (null != rss) {
+					rss.setHttpFields(null); // (remove cookie information)
+				}
 				if ((null != rss) && (null != rss.getExtraUrls())) {
 					SourceRssConfigPojo newRss = new SourceRssConfigPojo();
 					ArrayList<SourceRssConfigPojo.ExtraUrlPojo> newList = new ArrayList<SourceRssConfigPojo.ExtraUrlPojo>(rss.getExtraUrls().size());

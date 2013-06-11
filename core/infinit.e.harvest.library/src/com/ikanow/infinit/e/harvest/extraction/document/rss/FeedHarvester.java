@@ -174,13 +174,17 @@ public class FeedHarvester implements HarvesterInterface
 						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
 							feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
 						}
-						return feedFetcher.retrieveFeed(new URL(url));
+						SyndFeed retVal = feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(url)));
+						if (null == retVal) {
+							handleRssError(new RuntimeException("Unknown RSS error") , source);							
+						}
+						return retVal;
 					} 
 					catch (Exception e) {
+						System.out.println(i + "  " + url);
+						
 						if (1 == i) { // else just try again
-							if (null == url) { // can only error on primary RSS, makes life simpler
-								handleRssError(e, source);
-							}
+							handleRssError(e, source);
 						}
 					}
 				}
@@ -193,14 +197,16 @@ public class FeedHarvester implements HarvesterInterface
 						if ((null != source.getRssConfig()) && (null != source.getRssConfig().getUserAgent())) {
 							feedFetcher.setUserAgent(source.getRssConfig().getUserAgent());
 						}
-						return feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(url)));
+						SyndFeed retVal = feedFetcher.retrieveFeed(new URL(this.cleanUrlStart(url)));
+						if (null == retVal) {
+							handleRssError(new RuntimeException("Unknown RSS error") , source);							
+						}
+						return retVal;
 					} 
 					catch (Exception e) 
 					{
 						if (1 == i) { // else just try again
-							if (null == url) { // can only error on primary RSS, makes life simpler
-								handleRssError(e, source);
-							}
+							handleRssError(e, source);
 						}
 					}
 				}
@@ -231,8 +237,13 @@ public class FeedHarvester implements HarvesterInterface
 					bSuspendSource = true;
 				}
 			}
-		}
-		_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, sNewMessage, bSuspendSource, false);
+		}//TESTED
+		if (null != source.getUrl()) {
+			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, sNewMessage, bSuspendSource, false);
+		}//TESTED
+		else {
+			_context.getHarvestStatus().logMessage(sNewMessage, true);
+		}//TESTED
 		
 		// If an exception occurs log the error
 		logger.error("Exception Message: " + e.getMessage(), e);		
@@ -251,7 +262,7 @@ public class FeedHarvester implements HarvesterInterface
 			SyndFeed feed = getFeed(source, null);
 			if (null != feed) {
 				feeds.add(feed);
-			}			
+			}
 		}
 		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
 		{

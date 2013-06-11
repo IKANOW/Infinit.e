@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.config.source;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -49,6 +50,7 @@ public class SourceRssConfigPojo {
 	private List<ExtraUrlPojo> extraUrls; 
 	
 	private String userAgent = null; // (if present, used to override the userAgent)
+	private LinkedHashMap<String, String> httpFields; // (for other HTTP fields, eg Cookie, Authorization, X-*)
 	
 	// Using a set of search results to generate the feed:
 	
@@ -147,5 +149,11 @@ public class SourceRssConfigPojo {
 	}
 	public void setAuthentication(AuthenticationPojo authentication) {
 		this.authentication = authentication;
+	}
+	public void setHttpFields(LinkedHashMap<String, String> httpFields) {
+		this.httpFields = httpFields;
+	}
+	public LinkedHashMap<String, String> getHttpFields() {
+		return httpFields;
 	}
 }

@@ -1,21 +1,22 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
 package com.ikanow.infinit.e.shared.util
 {
 	import flash.external.ExternalInterface;
+	import mx.controls.Alert;
 	
 	public class ExternalInterfaceUtility
 	{
@@ -46,5 +47,36 @@ package com.ikanow.infinit.e.shared.util
 			// 3. Execute the composed javascript to perform the binding of the external event to the specified callBack function
 			ExternalInterface.call( jsBindEvent );
 		}
+		/**
+		 * Function to create a map of key/value pairs from the URL browser
+		 *
+		 * @returns an object of decoded key/value pairs
+		*/
+		public static function getUrlParams():Object
+		{
+			var kvObj:Object = new Object();
+			
+			var paramStr:String = ExternalInterface.call( "window.location.search.substring", 1 );
+			
+			if ( ( null != paramStr ) && ( paramStr.length > 0 ) )
+			{
+				var paramPairs:Array = paramStr.split( "&" );
+				
+				for each ( var paramPair:String in paramPairs )
+				{
+					var keyVal:Array = paramPair.split( "=" );
+					var key:String = decodeURIComponent( keyVal[ 0 ] );
+					var val:String = null;
+					
+					if ( 2 == keyVal.length )
+					{
+						val = decodeURIComponent( keyVal[ 1 ] );
+					}
+					kvObj[ key ] = val;
+					
+				}
+			}
+			return kvObj;
+		}//TESTED
 	}
 }

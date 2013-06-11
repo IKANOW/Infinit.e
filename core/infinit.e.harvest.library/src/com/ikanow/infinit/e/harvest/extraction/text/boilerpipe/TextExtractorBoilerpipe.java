@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.harvest.extraction.text.boilerpipe;
 import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.Map;
 import java.util.Scanner;
 
 import org.apache.log4j.Logger;
@@ -57,10 +58,17 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						}						
 						URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, proxyOverride));
 						if ((null != partialDoc.getTempSource()) && 
-								(null != partialDoc.getTempSource().getRssConfig()) && 
-									(null != partialDoc.getTempSource().getRssConfig().getUserAgent()))
+								(null != partialDoc.getTempSource().getRssConfig()))
+									
 						{
-							urlConnect.setRequestProperty("User-Agent", partialDoc.getTempSource().getRssConfig().getUserAgent());
+							if (null != partialDoc.getTempSource().getRssConfig().getUserAgent()) {
+								urlConnect.setRequestProperty("User-Agent", partialDoc.getTempSource().getRssConfig().getUserAgent());
+							}
+							if (null != partialDoc.getTempSource().getRssConfig().getHttpFields()) {
+								for (Map.Entry<String, String> httpFieldPair: partialDoc.getTempSource().getRssConfig().getHttpFields().entrySet()) {
+									urlConnect.setRequestProperty(httpFieldPair.getKey(), httpFieldPair.getValue());														
+								}
+							}//TESTED
 						}// TESTED
 						
 						InputStream urlStream = null;

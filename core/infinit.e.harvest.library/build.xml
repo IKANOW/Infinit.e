@@ -168,6 +168,7 @@
 			</mapper>
 			<path>
 				<!-- Get a list of all the excluded files, add manually to classpath -->
+				<!-- NOTE: tika is a special case - it contains different versions of many other JARs, leave it unbundled to force it to the end of the classpath -->
 				<fileset 
 					dir="${dir.lib}"
 					includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar aws-java*.jar kundera-*.jar" />
@@ -191,7 +192,8 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}" />
 
-			<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions -->
+			<!-- Can't distribute jcifs.jar jtds.jar jsr*.jar j-calais in JAR due to OSS restrictions -->
+			<!-- NOTE: tika is a special case - it contains different versions of many other JARs, leave it unbundled to force it to the end of the classpath -->			
 			<zipgroupfileset 
 				dir="${dir.lib}"
 				excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar aws-java*.jar kundera-*.jar"

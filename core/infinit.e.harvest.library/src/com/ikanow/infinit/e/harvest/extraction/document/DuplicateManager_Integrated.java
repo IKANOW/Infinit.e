@@ -345,13 +345,20 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			if (null != sourceKey) {
 				// Extract source key (multi-community case)
 				int nCompositeSourceKey = sourceKey.indexOf('#'); // (handle <key>#<id> case)
+				String originalKey = null; // (need this to handle a legacy case)
 				if (-1 != nCompositeSourceKey) {
+					originalKey = sourceKey;
 					sourceKey = sourceKey.substring(0, nCompositeSourceKey);
 				}//TESTED
 				
 				// Check for exact duplicates, in which case can bypass horrible functional duplicate logic:
 				boolean bFoundExactDuplicate = sourceKey.equals(parentSourceKey);
-				
+				if ((null != originalKey) && !bFoundExactDuplicate) {
+					bFoundExactDuplicate = originalKey.equals(parentSourceKey);
+					if (bFoundExactDuplicate) { // change back to original key
+						sourceKey = originalKey;
+					}
+				}
 				// Update logic:
 				if (bUpdate && bFoundExactDuplicate) {
 					_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);

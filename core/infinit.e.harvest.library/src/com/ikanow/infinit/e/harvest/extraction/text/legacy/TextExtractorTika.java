@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Date;
+import java.util.Map;
 
 import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
@@ -50,10 +51,15 @@ public class TextExtractorTika implements ITextExtractor {
 				proxyOverride = partialDoc.getTempSource().getRssConfig().getProxyOverride();
 			}						
 			URLConnection urlConnect = url.openConnection(ProxyManager.getProxy(url, proxyOverride));
-			if (null != partialDoc.getTempSource()) {
-				if ((null != partialDoc.getTempSource().getRssConfig()) && (null != partialDoc.getTempSource().getRssConfig().getUserAgent())) {
+			if (null != partialDoc.getTempSource() && (null != partialDoc.getTempSource().getRssConfig())) {
+				if (null != partialDoc.getTempSource().getRssConfig().getUserAgent()) {
 					urlConnect.setRequestProperty("User-Agent", partialDoc.getTempSource().getRssConfig().getUserAgent());
 				}// TESTED
+				if (null != partialDoc.getTempSource().getRssConfig().getHttpFields()) {
+					for (Map.Entry<String, String> httpFieldPair: partialDoc.getTempSource().getRssConfig().getHttpFields().entrySet()) {
+						urlConnect.setRequestProperty(httpFieldPair.getKey(), httpFieldPair.getValue());														
+					}
+				}//TESTED
 			}
 			
 			InputStream urlStream = null;

@@ -17,7 +17,10 @@ package com.ikanow.infinit.e.widget.model.manager
 {
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
 	import com.ikanow.infinit.e.shared.model.vo.Setup;
-	import flash.events.Event;
+	import com.ikanow.infinit.e.shared.model.vo.WidgetSummary;
+	
+	import flash.events.Event;	
+	
 	import mx.collections.ArrayCollection;
 	
 	/**
@@ -66,11 +69,11 @@ package com.ikanow.infinit.e.widget.model.manager
 		 * Set the widget summaries from the UI setup openModules
 		 */
 		public function setWidgetSummariesFromSetup( value:Setup ):void
-		{
+		{			
 			if ( value )
 				widgetSummaries = value.openModules;
 			else
-				widgetSummaries = new ArrayCollection();
+				widgetSummaries = new ArrayCollection();				
 		}
 		
 		[Inject( "setupManager.widgets", bind = "true" )]

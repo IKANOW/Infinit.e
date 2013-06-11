@@ -81,8 +81,8 @@ limitations under the License.
 						<ul>
 							<li><b><a href="people.jsp" title="Add/Edit Users">People</a></b> - Add/Edit Users</li>
 							<li><b><a href="communities.jsp" title="Add/Edit Users">Communities</a></b> - Add/Edit Communities and Membership</li>
-							<li><b><a href="sources.jsp" title="Add/Edit Users">Sources</a></b> - Add/Edit Sources
-								<ul><li><b><a href="sourcemonitor.jsp" title="Monitor Sources" target="_blank">Source Monitoring</a></b> (new tab)</li></ul>
+							<li><b><a href="sources.jsp" title="Add/Edit Sources">Source Editor</a></b> - Add/Edit/Delete Sources
+								<ul><li><b><a href="sourcemonitor.jsp" title="Monitor Sources" target="_blank">Source Monitor</a></b> - Check Source Status (new tab)</li></ul>
 							</li>
 						</ul>
 						<ul>

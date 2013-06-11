@@ -1,5 +1,4 @@
-<!--  TODO by default limit to first 100 elements -->
-
+<!-- TODO LET QUERY BAR BE RESIZABLE? -->
 <!--
 Copyright 2012 The Infinit.e Open Source Project
 
@@ -39,7 +38,8 @@ limitations under the License.
 	static String inputCollectionList = null; // (generated from populateExistingTasks)
 	static String jobDependList = null; // (generated from populateExistingTasks)
 	static CookieManager cm = new CookieManager();
-	static String selectedJson = null; // If want to preserve pages across submit/refresh calls	
+	static String selectedJson = null; // If want to preserve pages across submit/refresh calls
+	static int nStatusHeight = 140; // (or 300 if something is selected)
 
 	static class keepAlive
 	{
@@ -788,38 +788,9 @@ limitations under the License.
         	return resp.response.message;
 	}
 %>
-<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
-<html xmlns="http://www.w3.org/1999/xhtml">
-<head>
-<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
-<title>Infinit.e MapReduce Plugin Manager</title>
-<style media="screen" type="text/css">
-
-body 
-{
-	font: 14px Arial,sans-serif;
-}
-h2
-{
-	font-family: "Times New Roman";
-	font-style: italic;
-	font-variant: normal;
-	font-weight: normal;
-	font-size: 24px;
-	line-height: 29px;
-	font-size-adjust: none;
-	font-stretch: normal;
-	-x-system-font: none;
-	color: #d2331f;
-	margin-bottom: 25px;
-}
-
-</style>
-<script language="javascript" src="AppConstants.js"> </script>
-</head>
-
-<body>
 <%
+nStatusHeight = 140; // (default)
+
 if (API_ROOT == null)
 {
 	ServletContext context = session.getServletContext();
@@ -972,7 +943,8 @@ else if (isLoggedIn == true)
 	 		}//TESTED
 	 		else if (request.getAttribute("refreshId") != null)
 	 		{
-				title = request.getAttribute("refreshId").toString();	 			
+				title = request.getAttribute("refreshId").toString();
+				nStatusHeight = 300; // (show the entire status)
 	 		}
 	 		else if (bContinueAfterFileUpload)
 	 		{
@@ -1135,7 +1107,104 @@ else if (isLoggedIn == true)
 		taskList = populateExistingTasks(request, response, title);
 		jarList = populatePreviousJarUploads(request, response);
 	%>
-	
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8" />
+<title>Infinit.e MapReduce Plugin Manager</title>
+
+   <script src="lib/jquery.js"></script>
+   
+    <script src="lib/splitter.js"></script>
+    
+   	<script type="text/javascript" src="lib/codemirror.js"></script>
+   	<script type="text/javascript" src="lib/languages/javascript.js"></script>
+	<link rel="stylesheet" type="text/css" href="lib/codemirror.css" />
+    <script src="lib/codemirror_extra/dialog/dialog.js"></script>
+    <link rel="stylesheet" href="lib/codemirror_extra/dialog/dialog.css"/>
+    <script src="lib/codemirror_extra/search/searchcursor.js"></script>
+    <script src="lib/codemirror_extra/search/search.js"></script>
+    <script src="lib/codemirror_extra/edit/matchbrackets.js"></script>
+    <script src="lib/codemirror_extra/fold/foldcode.js"></script>
+    <script src="lib/codemirror_extra/fold/brace-fold.js"></script>
+
+    <script src="lib/jshint.js"></script>
+
+<style media="screen" type="text/css">
+
+body 
+{
+	font: 14px Arial,sans-serif;
+}
+h2
+{
+	font-family: "Times New Roman";
+	font-style: italic;
+	font-variant: normal;
+	font-weight: normal;
+	font-size: 24px;
+	line-height: 29px;
+	font-size-adjust: none;
+	font-stretch: normal;
+	x-system-font: none;
+	color: #d2331f;
+	margin-bottom: 25px;
+}
+
+#uploader_div {
+	height: 775px;
+}
+#uploader_div .Pane {
+	overflow: auto;
+}
+.hsplitbar {
+	height: 3px;
+	background: #999999 no-repeat center;
+	/* No margin, border, or padding allowed */
+}
+.hsplitbar.active, .hsplitbar:hover {
+	background: #e88 no-repeat center;
+}
+.CodeMirror { border-width:1px; border-style: solid; border-color:#DBDFE6; }
+.CodeMirror-foldmarker {
+        color: blue;
+        text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+        font-family: arial;
+        line-height: .3;
+        cursor: pointer;
+      }
+</style>
+<script language="javascript" src="AppConstants.js"> </script>
+
+<script language=javascript>
+var currHeight = 0;
+var int=self.setInterval(function(){clock()},50);
+function clock()
+  {
+	var newHeight = $('#BottomPane').height() - 30;
+	if (newHeight != currHeight) {
+		currHeight = newHeight;
+		argsEditor.setSize("775px", newHeight);
+	}
+  }
+</script>
+<script type="text/javascript">
+$().ready(function() {
+	$("#uploader_div").splitter({
+		splitHorizontal: true,
+		outline: true,
+		sizeTop: <% out.print(nStatusHeight); %>, minTop: 102, maxTop: 300
+	});
+	$("#LowerSplitter").splitter({
+		splitHorizontal: true,
+		outline: true,
+		sizeBottom: 100, minBottom: 75, minTop: 30
+	});
+});
+</script>
+</head>
+
+<body>	
 	<script>
 		function clearCommList()
 		{
@@ -1209,9 +1278,7 @@ else if (isLoggedIn == true)
 			combiner = document.getElementById('combiner');
 			reducer = document.getElementById('reducer');
 			outputKey = document.getElementById('outputkey');
-			outputValue = document.getElementById('outputvalue');
-			query = document.getElementById('query');	
-			userarguments = document.getElementById('userarguments');
+			outputValue = document.getElementById('outputvalue');				
 			file = document.getElementById('file');
 			reusejar_checked = document.getElementById('reusejar_check');
 			jar_url = document.getElementById('jar_url');
@@ -1265,8 +1332,8 @@ else if (isLoggedIn == true)
 				appendResults.value = "false";
 				exportToHdfs.value = "false";
 				ageout.value = "0";
-				query.value = "{}";
-				userarguments.value = "";
+				queryEditor.setValue("{}");
+				argsEditor.setValue("");
 				jar_url.value = "";
 				reusejar_checked.checked = false;
 				
@@ -1395,11 +1462,24 @@ else if (isLoggedIn == true)
 			if (null == jsonObj.exportToHdfs)
 				jsonObj.exportToHdfs = false;
 			exportToHdfs.value = jsonObj.exportToHdfs;
-			query.value = jsonObj.query;
-			userarguments.value = jsonObj.arguments;
-			if ( jsonObj.arguments == null )
-				userarguments.value = "";
-			
+			if (null != jsonObj.query) {
+				queryEditor.setValue(jsonObj.query);
+			}
+			else {
+				queryEditor.setValue("{}");
+			}			
+			if (null != jsonObj.arguments) {
+				if (0 == jsonObj.arguments.indexOf('{')) {
+					argsEditor.setOption("mode", "application/json");
+				}
+				else {
+					argsEditor.setOption("mode", "javascript");					
+				}				
+				argsEditor.setValue(jsonObj.arguments);
+			}
+			else {
+				argsEditor.setValue("");
+			}			
 			DBId.value = jsonObj._id;
 			deleteId.value = jsonObj._id;
 			deletejob.value = jsonObj.jobtitle;
@@ -1567,6 +1647,8 @@ else if (isLoggedIn == true)
 			ageout = document.getElementById('ageout').value;
 			query = document.getElementById('query').value;	
 			userarguments = document.getElementById('userarguments');
+			userarguments_internal = document.getElementById('userarguments_internal');
+			userarguments.value = argsEditor.getValue(); 
 			file = document.getElementById('file').value;
 			reusejar_checked = document.getElementById('reusejar_check').checked;
 			jar_url = document.getElementById('jar_url').value;
@@ -1709,11 +1791,30 @@ else if (isLoggedIn == true)
 			window.open(url, '_blank');
 			window.focus();			
 		}
+		function testQuery(editor)
+		{
+			var success = JSHINT(editor.getValue());
+			var output = 'No errors.';
+			if (!success) {
+				output = 'Errors:\n\n'
+				for (var i in JSHINT.errors) {
+					var err = JSHINT.errors[i];
+					if (null != err) {
+						output += err.line + '[' + err.character + ']: ' + err.reason + '\n';
+					}
+					else {
+						output += 'Unknown catastrophic error\n';
+					}
+				}
+			}
+			alert(output);			
+		}
 		// -->
 		</script>
 	</script>
-		<div id="uploader_outter_div" name="uploader_outter_div" align="center" style="width:100%" >
-	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:800px; margin:auto">
+		<div id="uploader_outter_div" name="uploader_outter_div" align="center" style="width:100%;" >
+	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:800px; margin:auto; overflow:hidden">
+	            <div id="TopPane" class="TopPane Pane">
 	        	<h2>MapReduce Plugin Manager</h2>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
 	        		<select id="upload_info" onchange="populate(null)" name="upload_info">
@@ -1747,18 +1848,22 @@ else if (isLoggedIn == true)
 	                </tr></table>
 		        	<input type="hidden" name="refreshId" id="refreshId" />
 		        </form>
+		        </div><!--  TopPane -->
+		        <div id="LowerSplitter">
+	            <div class="CenterPane Pane">
 	            <form id="upload_form" name="upload_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return validate_fields();" >
-	                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding-left:10px; padding-right:10px">
+	                <table width="100%" border="0" cellspacing="0" cellpadding="0" style="padding-left:10px; padding-right:10px; padding-top:5px; padding-bottom:5px;">
 	                  <tr>
 	                    <td colspan="2" align="center"></td>
 	                  </tr>
 	                  <tr>
 	                    <td width="150">Title:</td>
-	                    <td><input type="text" name="title" id="title" size="35" /></td>
+	                    <td><input type="text" name="title" id="title" size="60" /></td>
+	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" /></td>
 	                  </tr>
 	                  <tr>
 	                    <td>Description:</td>
-	                    <td><textarea rows="4" cols="30" name="description" id="description" ></textarea></td>
+	                    <td><textarea rows="2" cols="60" name="description" id="description" ></textarea></td>
 	                  </tr>
 	                  <tr>
 	                    <td>Next scheduled time:</td>
@@ -1792,7 +1897,8 @@ else if (isLoggedIn == true)
 	                  </tr>
 	                  <tr>
 	                    <td>Query:</td>
-	                    <td><textarea rows="4" cols="60" name="query" id="query" ></textarea></td>
+	                    <td><textarea rows="2" cols="60" name="query" id="query" ></textarea></td>
+	                    <td colspan="2" style="text-align:right"><input type="button" onclick="testQuery(queryEditor)" value="Check" /></td>
 	                  </tr>
 	                  <tr>
 	                  	<td>Communities:</td>
@@ -1810,7 +1916,6 @@ else if (isLoggedIn == true)
 	                    <td>Reducer Class:</td>
 	                    <td><input type="text" name="reducer" id="reducer" size="60" /></td>
 	                  </tr>
-	                  <!-- TODO: DISABLE THESE IF EXPORT TO HDFS SET -->
 	                  <tr>
 	                    <td id="outputkeylabel">Output Key Class:</td>
 						<td>
@@ -1836,7 +1941,6 @@ else if (isLoggedIn == true)
 							</select>
 						</td>
 	                  </tr>
-	                  <!-- TODO: THIS ISN'T GETTING SAVED -->
 	                  <tr>
 	                    <td>Export to HFDS:</td>
 						<td>
@@ -1868,27 +1972,36 @@ else if (isLoggedIn == true)
 						</td>
 	                  </tr>
 	                  <tr>
-	                    <td>User Arguments:</td>
-	                    <td><textarea rows="4" cols="60" name="userarguments" id="userarguments" ></textarea></td>
-	                  </tr>
-	                  <tr>
 	                    <td>JAR file:</td>
 	                    <td>
-	                    	<input type="file" name="file" id="file" size="60"/>
+	                    	<input type="file" name="file" id="file" size="30"/>
 							<select name="jar_url" id="jar_url"><% out.print(jarList); %></select>
 	                    	<input type="checkbox" id="reusejar_check" name="reusejar_check" onchange="useUrlJar()" /> 
 	                    	<span id="reusejar_provide" name="reusejar_provide"> Reuse existing JAR </span>
 	                    </td>
 	                  </tr>
-	                  <tr>
-	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" /></td>
-	                  </tr>
+	                  </table>
 	                </table>
 					<input type="hidden" name="DBId" id="DBId" />
 					<input type="hidden" name="currTitle" id="currTitle" />
 					<input type="hidden" name="currJarUrl" id="currJarUrl" />
 					<input type="hidden" name="currJarTitle" id="currJarTitle" />
+					<input type="hidden" name="userarguments" id="userarguments" />
 				</form>
+				</div><!-- id=CenterPane -->
+				<div id="BottomPane" class="BottomPane Pane" style="padding-top: 5px; vertical-align:middle; text-align:left;padding-left: 5px;">
+					<div style="float:top">
+					<label>User arguments:</label>
+					
+	                   <input style="text-align:right" type="button" onclick="testQuery(argsEditor)" value="Check" />
+	                   </div>
+	                   <span style="display:block">
+					<textarea
+							style="height: 80%; vertical-align: middle; resize: none;"
+							cols="80" name="userarguments_internal" id="userarguments_internal"></textarea> 
+	                   </span>
+				</div> <!--  id="BottomPane" -->
+				</div> <!--  lower panes -->
 	        </div>
 	        <form id="logout_form" name="logout_form" method="post">
 	        	<input type="submit" name="logout" id = "logout" value="Log Out" />
@@ -1896,9 +2009,34 @@ else if (isLoggedIn == true)
 	    </div>
 	    </p>
 	    
+<!---------- CodeMirror JavaScripts ---------->
+<script>
+var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
+	var queryEditor = CodeMirror.fromTextArea(document.getElementById("query"), {
+		mode: "application/json",
+		lineNumbers: true,
+		matchBrackets: true,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	queryEditor.setSize(500, 70);
+	queryEditor.on("gutterClick", foldFunc);
+
+	var argsEditor = CodeMirror.fromTextArea(document.getElementById("userarguments_internal"), {
+		mode: "javascript",
+		lineNumbers: true,
+		matchBrackets: true,
+		smartIndent: true,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	argsEditor.setSize(775, "100%");
+	argsEditor.on("gutterClick", foldFunc);
+
+</script>
+	
 	    <script>		
 		populate(<% out.print("'" + selectedJson + "'"); %>);
 	    </script>
+	
 	
 <%
 	}
@@ -1970,7 +2108,6 @@ else if (isLoggedIn == false)
 	<div style="color: red; text-align: center;"> <%=errorMsg %> </div>
 <%
 } %>
-    
     
 </body>
 </html>

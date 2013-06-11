@@ -100,6 +100,7 @@ limitations under the License.
 			shareTitle = "Title";
 			shareDescription = "Description";
 			shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
+			shareTitle = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTitle);
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
 			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
 			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
@@ -171,9 +172,140 @@ limitations under the License.
 <html>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	
 	<link rel="stylesheet" type="text/css" href="inc/manager.css" />
+	
 	<script type="text/javascript" src="inc/utilities.js"></script>
 	<link rel="shortcut icon" href="image/favicon.ico" />
+	
+   <script src="lib/jquery.js"></script>
+   <script src="lib/jquery.cookie.js"></script>
+   
+    <script src="lib/splitter.js"></script>
+    
+   	<script type="text/javascript" src="lib/codemirror.js"></script>
+   	<script type="text/javascript" src="lib/languages/javascript.js"></script>
+	<link rel="stylesheet" type="text/css" href="lib/codemirror.css" />
+    <script src="lib/codemirror_extra/dialog/dialog.js"></script>
+    <link rel="stylesheet" href="lib/codemirror_extra/dialog/dialog.css"/>
+    <script src="lib/codemirror_extra/search/searchcursor.js"></script>
+    <script src="lib/codemirror_extra/search/search.js"></script>
+    <script src="lib/codemirror_extra/edit/matchbrackets.js"></script>
+    <script src="lib/codemirror_extra/fold/foldcode.js"></script>
+    <script src="lib/codemirror_extra/fold/brace-fold.js"></script>
+    
+    <script src="lib/jshint.js"></script>
+	
+<style media="screen" type="text/css">
+	
+#lrSplitter {
+	width: 100%;
+	height: 750px;
+}
+#tbSplitter {
+	height: 700px;
+}
+#lrSplitter .Pane {
+	overflow: auto;
+}
+#Right {
+	overflow: hidden;
+}
+.vsplitbar {
+	width: 3px;
+	background: #999999 no-repeat center;
+	/* No margin, border, or padding allowed */
+}
+.vsplitbar.active, .vsplitbar:hover {
+	background: #e88 no-repeat center;
+}
+.hsplitbar {
+	height: 3px;
+	background: #999999 no-repeat center;
+	/* No margin, border, or padding allowed */
+}
+.hsplitbar.active, .hsplitbar:hover {
+	background: #e88 no-repeat center;
+}
+.CodeMirror { border-width:1px; border-style: solid; border-color:#DBDFE6; }
+.CodeMirror-foldmarker {
+        color: blue;
+        text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+        font-family: arial;
+        line-height: .3;
+        cursor: pointer;
+      }
+</style>
+	
+<script type="text/javascript">
+$().ready(function() {
+	$("#lrSplitter").splitter({
+		type: "v",
+		sizeLeft: 400, maxLeft: 400,
+		outline: true,
+		cookie: "lrSplitterNew"
+	});
+});
+$().ready(function() {
+	$("#tbSplitter").splitter({
+		type: "h",
+		sizeTop: 150, minTop: 33, maxTop: 150,
+		outline: true,
+		cookie: "tbSplitterNew"
+	});
+});
+</script>
+<script language=javascript>
+
+var currWidth = 0;
+var currHeight = 0;
+
+var int=self.setInterval(function(){clock()},50);
+function clock()
+  {
+	var newHeight = $('#Bottom').height() - 20;
+	var newWidth = $('#Right').width() - 25;
+	
+	if ((currWidth != newWidth) || (currHeight != newHeight)) {
+		currWidth = newWidth;
+		currHeight = newHeight;
+		$("#tbSplitter").css("width", ($('#Right').width() - 20)+"px").trigger("resize");
+		$("#Top").css("width", ($('#Right').width() - 20)+"px");
+		sourceJsonEditor.setSize(newWidth, newHeight);
+	}
+  }
+  $(window).resize(function(){
+  	var leftWidth = $('#Left').width();
+  	var winWidth = $(window).width();
+  	$("#Right").css("width", (winWidth - leftWidth - 20)+"px");
+  });
+</script>
+<script language=javascript>
+	function checkFormat(alertOnSuccess)
+	{
+		var success = JSHINT(sourceJsonEditor.getValue());
+		var output = 'No errors.';
+		if (!success) {
+			output = 'Errors:\n\n'
+			for (var i in JSHINT.errors) {
+				var err = JSHINT.errors[i];
+				if (null != err) {
+					output += err.line + '[' + err.character + ']: ' + err.reason + '\n';
+				}
+				else {
+					output += 'Unknown catastrophic error\n';
+				}
+			}
+		}
+		if (alertOnSuccess || !success) {
+			if (output == "") {
+				output = "No errors.\n";
+			}
+			alert(output);
+		}
+		return success;
+	}
+</script>	
 	<title>Infinit.e.Manager - Create New Source</title>
 </head>
 <body>
@@ -195,9 +327,8 @@ limitations under the License.
 		<%@ include file="inc/login_form.jsp" %>
 <% } else { %>
 	
-	<table class="standardTable" cellpadding="5" cellspacing="0" width="100%">
-	<tr valign="top">
-		<td width="30%" bgcolor="#ffffff">
+	 <div id="lrSplitter">
+		 <div id="Left" class="Pane">
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
@@ -218,22 +349,23 @@ limitations under the License.
 			</tr>
 			</table>
 
-		</td>
-		
-		<td width="70%" bgcolor="#ffffff">
+		</div><!-- Left -->
+		<div id="Right">
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">New Source</td>
-				<td align="right"></td>
+				<td align="right"><button onclick="return checkFormat(false)" name="saveSource" value="saveSource">Save Source</button></td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white">
+					<div id="tbSplitter">
+					<div id="Top" class="Pane">
 					<table class="standardSubTable" cellpadding="3" cellspacing="1" width="100%" >
 						<tr>
 							<td bgcolor="white" width="30%">Title:</td>
 							<td bgcolor="white" width="70%">
-								<input type="text" id="shareTitle" name="shareTitle" value="<%=shareTitle%>" size="60" />
+								<input type="text" id="shareTitle" name="shareTitle" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTitle)%>" size="60" />
 							</td>		
 						</tr>
 						<tr valign="top">
@@ -246,28 +378,38 @@ limitations under the License.
 							<td bgcolor="white" width="30%">Community:</td>
 							<td bgcolor="white" width="70%"><%=communityIdSelect%></td>		
 						</tr>
-						<tr>
-							<td bgcolor="white" width="100%" colspan="2">
-								<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
-							</td>		
-						</tr>
-						<tr>
-							<td bgcolor="white" width="30%">&nbsp;</td>
-							<td bgcolor="white" width="70%">
-								<button name="saveSource" value="saveSource">Save Source</button>
-							</td>		
-						</tr>
 					</table>
+					</div>
+					<div id="Bottom" class="Pane">					
+						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
+					</div>
+					</div>
+					
 					
 				</td>
 			</tr>
 			</table>
 		
-		</td>
-		
-	<tr>
-	</table>
+		</div><!--  Right -->
+	</div><!-- lrSplitter -->
+	
 	</form>
+	
+<!---------- CodeMirror JavaScripts ---------->
+<script>
+var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
+	var sourceJsonEditor = CodeMirror.fromTextArea(document.getElementById("Source_JSON"), {
+		mode: "application/json",
+		lineNumbers: true,
+		matchBrackets: true,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor.setSize("100%", "100%");
+	sourceJsonEditor.on("gutterClick", foldFunc);
+</script>
+	
+	
+	
 <% } %>
 
 <%@ include file="inc/footer.jsp" %>

@@ -46,11 +46,13 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	import com.ikanow.infinit.e.shared.util.ExternalInterfaceUtility;
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+	import flash.external.*;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
@@ -769,33 +771,6 @@ package com.ikanow.infinit.e.query.model.manager
 		 */
 		public function updateQueryFromWidgetDragDrop( widgetInfo:WidgetDragObject ):void
 		{
-			// DOCS
-			
-			if ( ( null != widgetInfo.documents ) && ( widgetInfo.documents.length > 0 ) )
-				for each ( var doc:Object in widgetInfo.documents )
-				{
-					var newQuery:Object = QueryUtil.getQueryStringObject( currentQueryStringRequest );
-					var qts:ArrayCollection = new ArrayCollection();
-					
-					var entities:ArrayCollection = new ArrayCollection( doc[ 'entities' ] );
-					
-					for each ( var ent:Object in entities )
-					{
-						var qt:Object = new Object();
-						qt[ 'entity' ] = ent[ 'index' ];
-						qts.addItem( qt );
-					}
-					newQuery[ 'qt' ] = qts;
-					var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
-					
-					// Call update and navigate once per doc
-					var queryEvent:QueryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
-					queryEvent.widgetInfo = widgetInfo;
-					queryEvent.searchType = null;
-					queryEvent.queryString = queryString;
-					dispatcher.dispatchEvent( queryEvent );
-				}
-			
 			//ENTS
 			
 			if ( ( null != widgetInfo.entities ) && ( widgetInfo.entities.length > 0 ) )
@@ -820,6 +795,35 @@ package com.ikanow.infinit.e.query.model.manager
 				queryEvent.searchType = null;
 				queryEvent.queryString = queryString;
 				dispatcher.dispatchEvent( queryEvent );
+			}
+			
+			// DOCS (ONLY IF ENTS NOT SPECIFIED)
+			
+			else if ( ( null != widgetInfo.documents ) && ( widgetInfo.documents.length > 0 ) )
+			{
+				for each ( var doc:Object in widgetInfo.documents )
+				{
+					var newQuery:Object = QueryUtil.getQueryStringObject( currentQueryStringRequest );
+					var qts:ArrayCollection = new ArrayCollection();
+					
+					var entities:ArrayCollection = new ArrayCollection( doc[ 'entities' ] );
+					
+					for each ( var ent:Object in entities )
+					{
+						var qt:Object = new Object();
+						qt[ 'entity' ] = ent[ 'index' ];
+						qts.addItem( qt );
+					}
+					newQuery[ 'qt' ] = qts;
+					var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+					
+					// Call update and navigate once per doc
+					var queryEvent:QueryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
+					queryEvent.widgetInfo = widgetInfo;
+					queryEvent.searchType = null;
+					queryEvent.queryString = queryString;
+					dispatcher.dispatchEvent( queryEvent );
+				}
 			}
 			
 			// ASSOCS
@@ -946,7 +950,6 @@ package com.ikanow.infinit.e.query.model.manager
 			return suggestionsNew;
 		}
 		
-		
 		/**
 		 * Initialize the query strings and run the first query
 		 */
@@ -961,14 +964,17 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			initRecentQueries();
 			
+			overrideSetupQuery(); // from URL params if possible
+			
 			if ( !setup.queryString )
 				return;
+			
+			// OK if I'm here then I'm going to issue the query ... here's a chance to override the saved options
+			// from the URL:
 			
 			// create a query string request (also updates aggregationOptions, documentOptions, filterOptions, scoreOptions)
 			var queryString:QueryStringRequest = this.updateQuery( setup.queryString );
 			
-			//if ( communityIds.length > 0 && communityIds[ 0 ] != "" )
-			//{
 			// set the community ids
 			queryString.communityIds = setup.communityIds;
 			
@@ -1006,6 +1012,64 @@ package com.ikanow.infinit.e.query.model.manager
 			sortOrderSortField.numeric = true;
 			sortOrderSortField.descending = true;
 			CollectionUtil.applySort( recentQueries, [ sortOrderSortField ] );
+		}
+		
+		protected function overrideSetupQuery():void
+		{
+			var params:Object = ExternalInterfaceUtility.getUrlParams();
+			
+			if ( params.hasOwnProperty( "communityIds" ) )
+			{
+				setup.communityIds = params[ "communityIds" ].split( "," );
+			}
+			
+			if ( params.hasOwnProperty( "query" ) )
+			{
+				var newQuery:Object = JSONUtil.decode( params[ "query" ] );
+				var tmpQueryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+				
+				// Reset setup fields
+				
+				if ( !params.hasOwnProperty( "userSettings" ) ) // Use the existing userSettings
+				{
+					var basicQueryString:QueryStringRequest = new QueryStringRequest( scoreOptions, documentOptions, QueryUtil.getAggregationOptionsObject( aggregationOptions ), filterOptions );
+					setup.queryString = basicQueryString.getOptions();
+				}
+				
+				// Copy fields across
+				
+				setup.queryString.qt = tmpQueryString.qt;
+				setup.queryString.logic = tmpQueryString.logic;
+				
+				if ( null == setup.queryString.logic )
+				{
+					setup.queryString.logic = "";
+					
+					for ( var i:int = 1; i <= tmpQueryString.qt.length; i++ )
+					{
+						if ( 1 != i )
+						{
+							setup.queryString.logic += " AND ";
+						}
+						setup.queryString.logic += i.toString();
+					}
+				}
+				
+				if ( null != tmpQueryString.input )
+				{
+					setup.queryString.input = tmpQueryString.input;
+				}
+				
+				if ( null != tmpQueryString.output )
+				{
+					setup.queryString.output = tmpQueryString.output;
+				}
+				
+				if ( null != tmpQueryString.score )
+				{
+					setup.queryString.score = tmpQueryString.score;
+				}
+			}
 		}
 		
 		/**

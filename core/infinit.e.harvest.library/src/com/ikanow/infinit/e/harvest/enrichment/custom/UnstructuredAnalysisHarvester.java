@@ -27,6 +27,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -158,6 +159,11 @@ public class UnstructuredAnalysisHarvester {
 				if (null != feedConfig.getUserAgent()) {
 					urlConnect.setRequestProperty("User-Agent", feedConfig.getUserAgent());
 				}// TESTED
+				if (null != feedConfig.getHttpFields()) {
+					for (Map.Entry<String, String> httpFieldPair: feedConfig.getHttpFields().entrySet()) {
+						urlConnect.setRequestProperty(httpFieldPair.getKey(), httpFieldPair.getValue());														
+					}
+				}//TOTEST
 			}
 			else {
 				urlConnect = url.openConnection();				
@@ -172,6 +178,11 @@ public class UnstructuredAnalysisHarvester {
 					if (null != feedConfig.getUserAgent()) {
 						urlConnect.setRequestProperty("User-Agent", feedConfig.getUserAgent());
 					}// TESTED
+					if (null != feedConfig.getHttpFields()) {
+						for (Map.Entry<String, String> httpFieldPair: feedConfig.getHttpFields().entrySet()) {
+							urlConnect.setRequestProperty(httpFieldPair.getKey(), httpFieldPair.getValue());														
+						}
+					}//TESTED
 				}
 				else {
 					urlConnect = url.openConnection();				
@@ -602,6 +613,10 @@ public class UnstructuredAnalysisHarvester {
 	//TODO: source+uap are just used in the setup js engine code - should probably be able to fix that
 	private void processMeta(DocumentPojo f, metaField m, String text, SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 
+		boolean bAllowDuplicates = false;
+		if ((null != m.flags) && m.flags.contains("D")) {
+			bAllowDuplicates = true;
+		}		
 		if ((null == m.scriptlang) || m.scriptlang.equalsIgnoreCase("regex")) {
 
 			Pattern metaPattern = createRegex(m.script, m.flags);
@@ -630,7 +645,9 @@ public class UnstructuredAnalysisHarvester {
 
 					if (!regexDuplicates.contains(dupCheck)) {
 						Llist.add(toAdd);
-						regexDuplicates.add(dupCheck);
+						if (!bAllowDuplicates) {
+							regexDuplicates.add(dupCheck);
+						}
 					}
 				}
 				if (null != Llist) {
@@ -798,7 +815,9 @@ public class UnstructuredAnalysisHarvester {
 										info = StringEscapeUtils.unescapeHtml(info);
 									}
 									Llist.add(info);
-									regexDuplicates.add(dupCheck);
+									if (!bAllowDuplicates) {
+										regexDuplicates.add(dupCheck);
+									}
 								}
 							} 
 							else { // Apply regex to the string
@@ -820,7 +839,9 @@ public class UnstructuredAnalysisHarvester {
 											toAdd = StringEscapeUtils.unescapeHtml(toAdd);
 										}
 										Llist.add(toAdd);
-										regexDuplicates.add(dupCheck);
+										if (!bAllowDuplicates) {
+											regexDuplicates.add(dupCheck);
+										}
 									}
 	
 									result = dataMatcher.find();

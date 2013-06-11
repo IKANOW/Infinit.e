@@ -133,13 +133,16 @@ public class SourcePojo extends BaseDbPojo {
 	private Boolean appendTagsToDocs = null; // if true (default) source tags are appended to the document
 	final public static String appendTagsToDocs_ = "appendTagsToDocs";
 	
-	public static class SourceSearchIndexFilter {
+	public static class SourceSearchIndexFilter {		
 		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocFilter = null; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String entityGeoFilter = null; // (regex applied to entity indexes if the entity has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocGeoFilter = null; // (regex applied to new-line separated association indexes if the association has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String fieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String metadataFieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		
+		//TODO (INF-1922) for source pipeline px only, need to have a creation criteria
+		public String docCreationCriteria = null; // A script, if it returns non-true then the document is dropped (the return value is used as an error)
 		
 		// temp:
 		public transient Pattern entityFilterRegex;
@@ -444,7 +447,7 @@ public class SourcePojo extends BaseDbPojo {
 		}
 		//TESTED (urls with and without ?)
 		
-		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[/:+?&(),]", ".");
+		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[/:+?&(),#]", ".");
 		if (s.startsWith(".")) s = s.substring(1);
 		return s;
 	}

@@ -18,8 +18,11 @@ package com.ikanow.infinit.e.data_model.test;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.bson.types.ObjectId;
@@ -40,16 +43,19 @@ import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
+import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
+import com.ikanow.infinit.e.data_model.driver.InfiniteDriver;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -68,6 +74,128 @@ public class TestCode {
 		System.out.println(Arrays.toString(args));
 		Globals.setIdentity(Identity.IDENTITY_SERVICE);
 		Globals.overrideConfigLocation(args[0]);
+		
+/////////////////////////////////////////////////////////////////////////////
+		
+// SOME DRIVER TESTING
+		
+		// Aliases:		
+		
+		boolean bTestAliases = true;
+		if (bTestAliases) { // will need to set some variables...
+		
+			String rootUrl = "http://infinite.ROOT.com/api/";
+			String apiKey = "API_KEY";
+			
+			InfiniteDriver infDriver = new InfiniteDriver(rootUrl, apiKey);
+			
+			String aliasCommIdStr = "4d38b72c054548f038a0414a";
+			String emptyAliasCommIdStr = "506afc85e4b01d98fcf9bf5f";
+			ResponseObject response = new ResponseObject(); 
+			Map<String, List<SharePojo>> aliasMapping = new HashMap<String, List<SharePojo>>();
+			Map<String, EntityFeaturePojo> aliases = infDriver.getAliases(aliasCommIdStr, aliasMapping, response);
+			
+			if (response.isSuccess()) {
+				System.out.println("ALIASES: " + new com.google.gson.Gson().toJson(aliases));
+				System.out.println("ALIAS MAPPINGS: " + new com.google.gson.Gson().toJson(aliasMapping));
+			}
+			else {
+				System.out.println("FAIL: " + response.getMessage());
+			}
+			// Change 1 of the aliases
+			Iterator<EntityFeaturePojo> it = aliases.values().iterator();
+			EntityFeaturePojo alias = it.next();
+			alias.addToSemanticLinks(Arrays.asList("AlexTest"));
+			EntityFeaturePojo alias2 = it.next();
+			alias2.addAlias("XXXXX/person");
+			Set<String> failures = infDriver.updateAliases(Arrays.asList(alias, alias2), aliasCommIdStr, false, response);
+			if (!response.isSuccess()) {
+				System.out.println("UPDATE TOTAL FAILURE: " + response.getMessage());
+			}
+			else if (!failures.isEmpty()) {
+				System.out.println("UPDATE FAILURES: " + Arrays.toString(failures.toArray()));
+			}
+			else {
+				System.out.println("UPDATED " + alias.getIndex() + " AND " + alias2.getIndex());
+			}
+			// Check upserting (failure and success) into an existing share
+			// upsert fail:
+			String savedAlias = alias.getIndex();
+			alias.setIndex("testXXX/person");
+			if (aliases.containsKey("testXXX/person")) {
+				System.out.println("(skipping upsert fail, target index exists)");
+			}
+			else {
+				failures = infDriver.updateAliases(Arrays.asList(alias, alias2), aliasCommIdStr, false, response);
+				if (!response.isSuccess()) {
+					System.out.println("UPDATE TOTAL FAILURE (CORRECT IF ONLY 1 ALIAS SPECIFIED): " + response.getMessage() + " " + Arrays.toString(failures.toArray()));
+				}
+				else if (!failures.isEmpty()) {
+					System.out.println("UPSERT CORRECTLY FAILS: " + Arrays.toString(failures.toArray()));
+				}
+				else {
+					System.out.println("INCORRECTLY UPDATED " + alias.getIndex());
+				}
+			}
+			// upsert success:
+			failures = infDriver.updateAliases(Arrays.asList(alias), aliasCommIdStr, true, response);
+			if (!response.isSuccess()) {
+				System.out.println("UPDATE TOTAL FAILURE: " + response.getMessage());
+			}
+			else if (!failures.isEmpty()) {
+				System.out.println("UPDATE FAILURES: " + Arrays.toString(failures.toArray()));
+			}
+			else {
+				System.out.println("UPDATED " + alias.getIndex());
+			}
+			// Check upserting into a new community			
+			failures = infDriver.updateAliases(Arrays.asList(alias), emptyAliasCommIdStr, true, response);
+			if (!response.isSuccess()) {
+				System.out.println("UPDATE TOTAL FAILURE: " + response.getMessage());
+			}
+			else if (!failures.isEmpty()) {
+				System.out.println("UPDATE FAILURES: " + Arrays.toString(failures.toArray()));
+			}
+			else {
+				System.out.println("UPDATED " + alias.getIndex());
+			}
+			// Check removal
+			boolean bRemoval = true;
+			if (bRemoval) {
+				failures = infDriver.removeAliases(Arrays.asList(alias.getIndex()), emptyAliasCommIdStr, response);
+				if (!response.isSuccess()) {
+					System.out.println("REMOVE TOTAL FAILURE: " + response.getMessage());
+				}
+				else if (!failures.isEmpty()) {
+					System.out.println("REMOVE FAILURES: " + Arrays.toString(failures.toArray()));
+				}
+				else {
+					System.out.println("REMOVE " + alias.getIndex());
+				}
+				failures = infDriver.removeAliases(Arrays.asList(alias.getIndex()), aliasCommIdStr, response);
+				if (!response.isSuccess()) {
+					System.out.println("REMOVE TOTAL FAILURE: " + response.getMessage());
+				}
+				else if (!failures.isEmpty()) {
+					System.out.println("REMOVE FAILURES: " + Arrays.toString(failures.toArray()));
+				}
+				else {
+					System.out.println("REMOVE " + alias.getIndex());
+				}
+				// Reset old shares back again
+				alias.setIndex(savedAlias);
+				if (null != alias.getSemanticLinks()) {
+					alias.getSemanticLinks().remove("AlexTest");
+				}
+				alias.getAlias().remove("XXXXX/person");
+				if (null != alias2.getSemanticLinks()) {
+					alias2.getSemanticLinks().remove("AlexTest");
+				}
+				alias2.getAlias().remove("XXXXX/person");
+				failures = infDriver.updateAliases(Arrays.asList(alias, alias2), aliasCommIdStr, false, response);
+				System.out.println("RESET: " + response.isSuccess() + " " + (2 - failures.size()));
+			}
+		}//(end alias testing)
 		
 /////////////////////////////////////////////////////////////////////////////
 		
