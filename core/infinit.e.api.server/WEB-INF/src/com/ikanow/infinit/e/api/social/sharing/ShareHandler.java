@@ -137,6 +137,11 @@ public class ShareHandler
 		HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(personIdStr);
 			// (need this to sanitize share communities even if searching explicitly by community) 
 		
+		boolean bAdmin = false;
+		if (!ignoreAdmin) {
+			bAdmin = RESTTools.adminLookup(personIdStr);
+		}
+		
 		// Community search, supports one or more communities._id values
 		if ((searchby != null) && (searchby.equalsIgnoreCase("community") || searchby.equalsIgnoreCase("communities")))
 		{
@@ -150,8 +155,13 @@ public class ShareHandler
 				{
 					try {
 						ObjectId id = new ObjectId(idStr);
-						if ((null != memberOf) && (memberOf.contains(id))) {
-							communityIds.add(id); 
+						if (ignoreAdmin || !bAdmin) {									
+							if ((null != memberOf) && (memberOf.contains(id))) {
+								communityIds.add(id); 
+							}
+						}
+						else { // admin, allowed it
+							communityIds.add(id); 							
 						}
 					}
 					catch (Exception e) {}
@@ -172,7 +182,7 @@ public class ShareHandler
 		}
 		else if ((searchby != null) && searchby.equalsIgnoreCase("person"))
 		{
-			if ((ignoreAdmin && !RESTTools.adminLookup(personIdStr)) || (null == idStrList)) { // not admin or no ids spec'd
+			if ((ignoreAdmin || !bAdmin) || (null == idStrList)) { // not admin or no ids spec'd
 				
 				query.put("owner._id", new ObjectId(personIdStr));
 			}//TESTED
@@ -204,7 +214,7 @@ public class ShareHandler
 		}
 		else { // Defaults to all communities to which a user belongs (or everything for admins)
 			
-			if (ignoreAdmin || !RESTTools.adminLookup(personIdStr)) {			
+			if (ignoreAdmin || !bAdmin) {			
 				if (null != memberOf) {
 					query.put("communities._id", new BasicDBObject("$in", memberOf));
 				}

@@ -42,3 +42,11 @@ function getSearchUrl(encodedSearchTerms) {
 function getLogoUrl() {
 	return "LOGO_URL";
 }
+
+function getCaseManagerApiUrl() {
+	return "CASE_MANAGER_API_URL";	
+}
+
+function getCaseManagerUrl() {
+	return "CASE_MANAGER_URL";
+}

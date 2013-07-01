@@ -1126,7 +1126,7 @@ visibility: hidden;
 		function showResults()
 		{
 			var title = document.getElementById('DBId').value;
-			var url = getEndPointUrl() + "share/get/" + title;
+			var url = getEndPointUrl() + "share/get/" + title + "?nometa=true";
 			window.open(url, '_blank');
 			window.focus();			
 		}

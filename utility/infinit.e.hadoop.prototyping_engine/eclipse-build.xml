@@ -9,11 +9,8 @@
                 <attribute name="Class-Path" value="."/>
             </manifest>
             <fileset dir="bin"/>
-            <zipfileset excludes="META-INF/*.SF" src="lib/hadoop-core-0.20.2-cdh3u2.jar"/>
             <fileset dir="lib"/>
-            <zipfileset excludes="META-INF/*.SF" src="lib/mongo-2.7.2.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="lib/mongo-hadoop-core.jar"/>
-            <zipfileset excludes="META-INF/*.SF" src="lib/infinit.e.data_model-v0.1-5776.jar"/>
+            <zipfileset excludes="META-INF/*.SF" src="../infinit.e.data_model/dist/infinit.e.data_model.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-cli-1.2.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-httpclient-3.1.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-logging-1.1.1.jar"/>

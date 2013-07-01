@@ -23,6 +23,7 @@ package com.ikanow.infinit.e.community.model.manager
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
 	import com.ikanow.infinit.e.shared.model.vo.Community;
 	import com.ikanow.infinit.e.shared.model.vo.CommunityApproval;
+	import com.ikanow.infinit.e.shared.model.vo.CommunityAttribute;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.Setup;
 	import com.ikanow.infinit.e.shared.model.vo.Source;
@@ -31,8 +32,10 @@ package com.ikanow.infinit.e.community.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
+	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
+	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -392,15 +395,25 @@ package com.ikanow.infinit.e.community.model.manager
 		 */
 		protected function isPublicCommunity( userCommunity:Community ):Boolean
 		{
+			if ( userCommunity.communityAttributes != null )
+			{
+				for each ( var commAttr:CommunityAttribute in userCommunity.communityAttributes )
+				{
+					if ( commAttr.isPublic.value == "true" )
+					{
+						return true;
+					}
+				}
+			}
 			// if the community is found in the public communities, return true
-			if ( currentUser && currentUser.communities )
+			/*if ( currentUser && currentUser.communities )
 			{
 				for each ( var community:Community in communities )
 				{
 					if ( userCommunity._id == community._id )
 						return true;
 				}
-			}
+			}*/
 			
 			return false;
 		}
@@ -415,6 +428,10 @@ package com.ikanow.infinit.e.community.model.manager
 			// if the community is found in the user's communities, return true
 			if ( currentUser && currentUser.communities )
 			{
+				if ( community._id == currentUser._id )
+					return true;
+				else if ( community.isPersonalCommunity )
+					return false;
 				for each ( var userCommunity:Community in currentUser.communities )
 				{
 					if ( userCommunity._id == community._id )
@@ -441,6 +458,7 @@ package com.ikanow.infinit.e.community.model.manager
 				communities.refresh();
 				
 				// create the userCommunities collection and set properties
+				var tempCommList:ArrayCollection = new ArrayCollection();
 				for each ( var community:Community in communities )
 				{
 					if ( isUserCommunity( community ) )
@@ -449,30 +467,16 @@ package com.ikanow.infinit.e.community.model.manager
 						community.selected = isCommunitySelected( community );
 						community.sortOrder = 0;
 						userCommunitiesNew.addItem( community );
+						tempCommList.addItem(community);
 					}
-					else
+					else if ( isPublicCommunity( community ) )
 					{
 						community.isUserMember = false;
 						community.sortOrder = 1;
+						tempCommList.addItem(community);
 					}
 				}
-				
-				// if the community is found in the user's communities, return true
-				if ( currentUser && currentUser.communities )
-				{
-					for each ( var userCommunity:Community in currentUser.communities )
-					{
-						if ( !isPublicCommunity( userCommunity ) )
-						{
-							userCommunity.isUserMember = true;
-							userCommunity.selected = isCommunitySelected( userCommunity );
-							userCommunity.sortOrder = 0;
-							userCommunitiesNew.addItem( userCommunity );
-							communities.addItem( userCommunity );
-						}
-					}
-				}
-				
+				communities.source = tempCommList.source;
 				// sort the communities
 				communities.filterFunction = filter; //put the filter back on
 				CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, false, true ), new SortField( Constants.NAME_PROPERTY, true ) ] );

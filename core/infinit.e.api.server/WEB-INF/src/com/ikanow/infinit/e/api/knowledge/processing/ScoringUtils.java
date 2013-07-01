@@ -211,7 +211,7 @@ public class ScoringUtils
 			// (ALSO USED FOR ALIASES) (BOTH)
 		
 		// For low accuracy geo
-		public BasicDBObject geotaggedEntity = null;
+		public BasicDBObject geotaggedEntity = null; // (store the entire ent object so we don't need to pay the deser cost unless it's promoted...)
 		public BasicDBObject geotag = null; // (need both of these for onto type + geotag)
 	};
 
@@ -261,6 +261,8 @@ public class ScoringUtils
 	
 	// Some support for low accuracy geo:
 	LinkedList<EntSigHolder>[] _s3_geoBuckets = null;
+	boolean _s3_bLowAccuracyGeo = false;
+	boolean _s3_bExtraAliasGeo = false;
 	private static final int _s3_nGEO_BUCKETS = 100;
 	private static final int _s3_nGEO_BUCKETS_1 = 99;
 	private static final double _s3_dGEO_BUCKETS = 100.0;
@@ -279,6 +281,7 @@ public class ScoringUtils
 														LinkedList<BasicDBObject> standaloneEventsReturn,
 														LinkedList<BasicDBObject> lowAccuracyAggregatedEnts,
 														AggregationUtils.GeoContainer lowAccuracyAggregatedGeo,
+														AggregationUtils.GeoContainer extraAliasAggregatedGeo,
 														LinkedList<BasicDBObject> lowAccuracyAggregatedEvents,
 														LinkedList<BasicDBObject> lowAccuracyAggregatedFacts)
 	{
@@ -407,6 +410,13 @@ public class ScoringUtils
 		{
 			// Initialize the buckets
 			_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 
+			_s3_bLowAccuracyGeo = true;
+		}
+		if ((null != extraAliasAggregatedGeo) && (null != outParams.aggregation) 
+				&& (null != outParams.aggregation.geoNumReturn) && (outParams.aggregation.geoNumReturn > 0))
+		{
+			_s3_bExtraAliasGeo = true; 
+			// (don't initialize _s3_geoBuckets until we have to)
 		}
 		if (bLowAccuracyDecay) {
 			_s1_dManualGeoDecay_latLonInvdecay = QueryHandler.parseGeoDecay(scoreParams);
@@ -478,6 +488,10 @@ public class ScoringUtils
 			finalizeLowAccuracyGeoAggregation(lowAccuracyAggregatedGeo, outParams.aggregation.geoNumReturn);
 				// (outParams.aggregation.geoNumReturn must exist if (null != lowAccuracyAggregatedGeo)) 
 		}
+		else if ((null != extraAliasAggregatedGeo) && (null != _s3_geoBuckets)) {
+			finalizeLowAccuracyGeoAggregation(extraAliasAggregatedGeo, Long.MAX_VALUE);
+				//(at most 1 per alias so size shouldn't be an issue)
+		}
 		return returnList;
 	}
 
@@ -520,6 +534,7 @@ public class ScoringUtils
 		
 	// Logic:
 	
+	@SuppressWarnings("unchecked")
 	private void stage1_initialCountingLoop(DBCursor docs, 
 										AdvancedQueryPojo.QueryScorePojo scoreParams, 
 										StatisticsPojo scores,
@@ -553,7 +568,7 @@ public class ScoringUtils
 			
 			TempDocBucket docBucket = new TempDocBucket();
 			docBucket.dbo = f;
-			ObjectId id = (ObjectId) f.get("_id");
+			ObjectId id = (ObjectId) f.get(DocumentPojo._id_);
 			
 			// If we're going to weight relevance in, or we need the geo temporal decay:
 			if ((0 != scoreParams.relWeight) || (null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
@@ -586,7 +601,7 @@ public class ScoringUtils
 					BasicDBObject e = (BasicDBObject)e0.next();
 
 					BasicDBObject tmpGeotag = null;
-					if ((null != _s3_geoBuckets) || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
+					if (_s3_bLowAccuracyGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
 						// low accuracy geo, need to look for geotag
 						tmpGeotag = (BasicDBObject) e.get(EntityPojo.geotag_);
 					}
@@ -640,7 +655,10 @@ public class ScoringUtils
 					
 					// Retrieve entity (create/initialzie if necessary)
 					EntSigHolder shp = _s1_entitiesInDataset.get(entity_index);
-					if (null == shp) {							
+					if (null == shp) {		
+						if (ntotaldoccount > (long)_s0_globalDocCount) { // obviously can't have more entities-in-dos than docs... 
+							ntotaldoccount = (long)_s0_globalDocCount;
+						}
 						shp = new EntSigHolder(entity_index, ntotaldoccount, _s0_multiCommunityHandler);						
 						
 						// Stage 1a alias handling: set up infrastructure, calculate doc overlap
@@ -672,11 +690,39 @@ public class ScoringUtils
 								nEntsInDoc--;
 								continue;
 							}
-						}//TESTED
+							
+						}//TESTED (end entity filter)
+						
+						// Geo:
+						if (null != shp.aliasInfo) {
+							if (null != shp.aliasInfo.getGeotag()) { //Geo, overwrite/create tmpGeotag
+								if (_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
+									// Always capture alias geo, even if not in low accuracy mode because we add it to the 
+									// legitimate geo:
+									if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && 
+											(null == _s3_geoBuckets))
+									{
+										// Initialize the buckets if this is for aggregation not just decay
+										_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 									
+									}
+									
+									if (null == tmpGeotag) {
+										tmpGeotag = new BasicDBObject();
+									}
+									tmpGeotag.put(GeoPojo.lat_, shp.aliasInfo.getGeotag().lat);
+									tmpGeotag.put(GeoPojo.lon_, shp.aliasInfo.getGeotag().lon);
+	
+									if (null != shp.aliasInfo.getOntology_type()) {
+										e.put(EntityPojo.ontology_type_, shp.aliasInfo.getOntology_type());
+									}
+								}
+							}
+						}//TESTED (end geo for aggregation or decay)
 						
 						_s1_entitiesInDataset.put(entity_index, shp);
 						// end Stage 1a alias handling
-					}			
+					}//(end if is alias)
+					
 					// Stage 1b alias handling: calculate document counts (taking overlaps into account)
 					if (null != shp.masterAliasSH) {
 						// Counts:
@@ -699,7 +745,7 @@ public class ScoringUtils
 							shp.masterAliasSH.nTotalSentimentValues++;
 						}
 						
-					}//TESTED
+					}//TESTED (end if is alias)
 					// end Stage 1b
 										
 					// Pan-community logic (this needs to be before the entity object is updated)
@@ -707,7 +753,7 @@ public class ScoringUtils
 						_s0_multiCommunityHandler.community_updateCorrelations(shp, ntotaldoccount, entity_index);
 					}		
 					else { // (Once we've started multi-community logic, this is no longer desirable)
-						if (ntotaldoccount > shp.nTotalDocCount) {
+						if ((ntotaldoccount > shp.nTotalDocCount) && (ntotaldoccount <= _s0_globalDocCount)) {
 							shp.nTotalDocCount = ntotaldoccount;
 						}						
 						//(note there used to be some cases where we adjusted for dc/tf==0, but the 
@@ -729,9 +775,9 @@ public class ScoringUtils
 					shp.entityInstances.add(entBucket);
 					if (null != tmpGeotag) { // (only needed for low accuracy geo aggregation)
 						
-						if (null != _s3_geoBuckets) {
+						if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && (null == shp.geotag)) { // (first time for shp only)
 							shp.geotag = tmpGeotag;
-							shp.geotaggedEntity = e; // (ie for onto type)
+							shp.geotaggedEntity = e; // (ie for onto type, which has been overwritten in the alias case...)
 						}						
 						if (null != _s1_dManualGeoDecay_latLonInvdecay) {
 							// Emulate scripted Lucene calculations
@@ -746,7 +792,7 @@ public class ScoringUtils
 								dBestGeoScore = dDecay;
 							}
 						}//TESTED
-					}
+					}//(end if entity has geo and need to process entity geo)
 					
 					if (freq > shp.maxFreq) {
 						shp.maxFreq = freq;
@@ -827,11 +873,12 @@ public class ScoringUtils
 		double dScaleFactor = 100.0/Math.log10((_s0_globalDocCount*_s0_nQuerySetDocCount+0.5)/0.25);
 			// (note this isn't quite right anymore because of the adjustments performed below, but it does a reasonable
 			//  job and the actual value is now very complicated...)
+		double dHalfScaleFactor2 = 0.5*((0.5 + (double)_s0_nQuerySetDocCount)/(0.5 + _s0_globalDocCount)); 
 		
-		// Other pre-calculated scalors to use in IDF calcs
-		double dScaleFactor1 = (0.5 + (double)_s0_nQuerySetDocCount)/(0.5 + (double)_s0_nQuerySubsetDocCount); // (case 2.1 below)
-		double dHalfScaleFactor2 = 0.5*((0.5 + (double)_s0_nQuerySetDocCount)/(0.5 + _s0_globalDocCount)); // (case 2.2 below)
-				
+		// Pre-calculated scalors to use in query coverage
+		double halfQueryDocSubsetInv = 0.5/(0.5 + _s0_nQuerySubsetDocCount); // (case 2.1 below - needs multipled by the entity's query count)
+		double halfGlobalDocCountInv = 0.5/(0.5 + _s0_globalDocCount); // (case 2.2 below - needs multipled by the entity's total count)
+						
 		_s2_dApproxAverageDocumentSig = 0.0; // (used to normalize vs the relevance)
 		
 		// Some TF-related numbers
@@ -862,7 +909,8 @@ public class ScoringUtils
 			// Transform from a ratio involving nQuery*Subset*DocCount to a ratio of nQuery*Set*DocCount
 			double estEntityDocCountInQuery = (double)shp.nDocCountInQuerySubset; // (case 1 below)
 			// Cases 
-				// 1] if "shp.nTotalDocCount <= shp.nDocCountInQuerySubset" then know that all instances were in nQuery*Set*DocCount
+				// 1] if "shp.nTotalDocCount <= shp.nDocCountInQuerySubset" OR "shp.nTotalDocCount == shp.nDocCountInQuerySubset" 
+				//    then know that all instances were in nQuery*Set*DocCount (else the available entities is the smaller of the 2 diffs, see below)
 				// 2] Otherwise we don't know, maybe we can guess:
 					// 2.1] If the subset-ratio is correct then it will be 
 						// MIN[nQuerySetDocCount*(shp.nDocCountInQuerySubset/nQuerySubsetDocCount),nDocCountDiff] + shp.nDocCountInQuerySubset  
@@ -870,9 +918,13 @@ public class ScoringUtils
 						// (nQuerySetDocCount/globalDocCount)*nDocCountDiff + shp.nDocCountInQuerySubset
 					// So we'll average the 2 and call it a day
 			if ((shp.nTotalDocCount > shp.nDocCountInQuerySubset) && (_s0_nQuerySetDocCount > _s0_nQuerySubsetDocCount)) {
-				double docCountDiff = (double)(shp.nTotalDocCount - shp.nDocCountInQuerySubset);
-				estEntityDocCountInQuery += 0.5*Math.min((double)shp.nDocCountInQuerySubset*dScaleFactor1, docCountDiff);
-				estEntityDocCountInQuery += dHalfScaleFactor2*docCountDiff;
+				double docCountDiff = (double)(_s0_nQuerySetDocCount - _s0_nQuerySubsetDocCount);
+				docCountDiff = Math.min(docCountDiff, (double)(shp.nTotalDocCount - shp.nDocCountInQuerySubset));
+					// ie there are 2 differences:	the number of available entities in the total doc count
+					//								the number of available documents in the un-queried dataset
+				
+				estEntityDocCountInQuery += halfQueryDocSubsetInv*shp.nDocCountInQuerySubset*docCountDiff;
+				estEntityDocCountInQuery += halfGlobalDocCountInv*shp.nTotalDocCount*docCountDiff;
 			}//TESTED
 						
 			// IDF component of entity
@@ -919,7 +971,7 @@ public class ScoringUtils
 			shp.queryCoverage = (100.0*(estEntityDocCountInQuery*s0_nQuerySetDocCountInv));
 			shp.avgFreqOverQuerySubset *= s0_nQuerySubsetDocCountInv;
 
-			if (null != shp.geotaggedEntity) { // (only happens for low accuracy geo aggregation)
+			if (null != shp.geotag) { // (only happens for low accuracy geo aggregation)
 				if (shp.queryCoverage > _s2_maxGeoQueryCoverage) {
 					_s2_maxGeoQueryCoverage = shp.queryCoverage;
 				}
@@ -1241,7 +1293,7 @@ public class ScoringUtils
 			//TESTED
 			
 			// Handle geo:
-			if (null != shp.geotaggedEntity) {
+			if (null != shp.geotag) {
 				loadLowAccuracyGeoBuckets(shp);
 			}
 			
@@ -1509,7 +1561,17 @@ public class ScoringUtils
 									e.put(EntityPojo.index_, shp.aliasInfo.getIndex());
 									e.put(EntityPojo.disambiguated_name_, shp.aliasInfo.getDisambiguatedName());
 									e.put(EntityPojo.type_, shp.aliasInfo.getType());
-									e.put(EntityPojo.dimension_, shp.aliasInfo.getDimension());								
+									e.put(EntityPojo.dimension_, shp.aliasInfo.getDimension());			
+									
+									if (null != shp.aliasInfo.getGeotag()) {
+										BasicDBObject aliasedGeoTag = new BasicDBObject();
+										aliasedGeoTag.put(GeoPojo.lat_, shp.aliasInfo.getGeotag().lat);
+										aliasedGeoTag.put(GeoPojo.lon_, shp.aliasInfo.getGeotag().lon);
+										e.put(EntityPojo.geotag_, aliasedGeoTag);
+										if (null != shp.aliasInfo.getOntology_type()) {
+											e.put(EntityPojo.ontology_type_, shp.aliasInfo.getOntology_type());
+										}
+									}//TESTED
 								}
 							}//TESTED
 							// end Stage 4x of alias processing						
@@ -1599,7 +1661,16 @@ public class ScoringUtils
 							ent.put(EntityPojo.index_, qsf.aliasInfo.getIndex());
 							ent.put(EntityPojo.disambiguated_name_, qsf.aliasInfo.getDisambiguatedName());
 							ent.put(EntityPojo.type_, qsf.aliasInfo.getType());
-							ent.put(EntityPojo.dimension_, qsf.aliasInfo.getDimension());								
+							ent.put(EntityPojo.dimension_, qsf.aliasInfo.getDimension());			
+							if (null != qsf.aliasInfo.getGeotag()) {
+								BasicDBObject aliasedGeoTag = new BasicDBObject();
+								aliasedGeoTag.put(GeoPojo.lat_, qsf.aliasInfo.getGeotag().lat);
+								aliasedGeoTag.put(GeoPojo.lon_, qsf.aliasInfo.getGeotag().lon);
+								ent.put(EntityPojo.geotag_, aliasedGeoTag);
+								if (null != qsf.aliasInfo.getOntology_type()) {
+									ent.put(EntityPojo.ontology_type_, qsf.aliasInfo.getOntology_type());
+								}
+							}//TESTED
 						}
 					}//TESTED
 					
@@ -1665,7 +1736,7 @@ public class ScoringUtils
 				BasicDBObject dbo = (BasicDBObject) dbc.next();
 				Iterator<?> it = dbo.values().iterator();
 				if (it.hasNext()) {
-					nDocCount += (Double)it.next(); // (from _s0_docCountFields, doccount is only return variable)
+					nDocCount += (double)((Long)it.next()).longValue(); // (from _s0_docCountFields, doccount is only return variable)
 				}
 			}
 			if (0 == nDocCount) { // (Probably shouldn't happen if a harvest has occurred, just don't bomb out
@@ -1782,12 +1853,15 @@ public class ScoringUtils
 					// Estimated count:
 					
 					try {
-						if (null != shp.geotaggedEntity) { // will always be the case...
+						if (null != shp.geotag) { // will always be the case...
 							GeoAggregationPojo geo = new GeoAggregationPojo();
 							
 							geo.lat = shp.geotag.getDouble(GeoPojo.lat_);
 							geo.lon = shp.geotag.getDouble(GeoPojo.lon_);
-							geo.type = shp.geotaggedEntity.getString(EntityPojo.ontology_type_);
+							geo.type = shp.geotaggedEntity.getString(EntityPojo.ontology_type_); 
+							if (null == geo.type) {
+								geo.type = "point";
+							}
 							geo.count = (int)(0.01*shp.queryCoverage*_s0_nQuerySetDocCount);
 								// (query coverage is a %)
 							

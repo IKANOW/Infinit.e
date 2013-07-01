@@ -22,6 +22,7 @@
 											 height.baseState="30" width.baseState="100"
 											 height.expanded="{this.owner.height - 80}" width.expanded="{this.owner.width - 80}" 
 											 x.expanded="40" y.expanded="40" 
+											 dataChange="onDataChange(event)"
 											 depth.expanded="2" click.baseState="highlightSkin(event)" 
 											 includeInLayout.expanded="false" highlighted="false" creationComplete="init()" 
 											 xmlns:actionscript="actionscript.*">
@@ -62,7 +63,12 @@
 				//if necessary
 				try
 				{
-					var timelinemod:InfiniteTimelineEventWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineEventWidget;
+					var parent:DisplayObjectContainer = this.parent;
+					var timelinemod:InfiniteTimelineEventWidget = null;
+					while ((timelinemod == null) && (parent != null)) {
+						timelinemod = parent as InfiniteTimelineEventWidget;
+						parent = parent.parent;
+					}	
 					timelinemod.addNode(this);
 					updateWidth();
 				}
@@ -70,6 +76,12 @@
 				{
 					//the parent.parent etc fails because TimelineEventInfinite (about the 6th parent) is not initialized yet
 					//this gets called again i think so it doesnt seem to effect anything? we will see
+				}
+			}
+			private function onDataChange(event:Event):void
+			{
+				if (null != data) {
+					updateWidth();
 				}
 			}
 			
@@ -153,8 +165,10 @@
 			{
 				validateSize(false);
 				var stringSig:String = "";
-				if ( includeSig )
-					stringSig += " (Significance: " + assoc_sig.toFixed(2) + ")";
+
+				//REMOVE THIS TO MINIMIZE TEST
+				//if ( includeSig )
+				//	stringSig += " (Significance: " + assoc_sig.toFixed(2) + ")";
 				var MAXLENGTH:int = int.MAX_VALUE;
 				if ( mindWidth )
 					MAXLENGTH = (this.width/3);// - stringDoccount.length;
@@ -166,13 +180,14 @@
 					for each ( var ent1:String in entity1.split(" ",2) )
 						text += ent1 + " ";
 				}
-					
-				if (verb != null)
-				{
-					text += verb + " ("+verb_category+") ";
-				}
-				else //(verb_category != null )
-					text += verb_category + " ";
+
+				//REMOVE THIS TO MINIMIZE TEST
+				//if (verb != null)
+				//{
+				//	text += verb + " ("+verb_category+") ";
+				//}
+				//else //(verb_category != null )
+				text += verb_category + " ";
 				
 				if ( entity2 != null ) 
 				{
@@ -181,17 +196,7 @@
 				}
 						
 				text += stringSig;
-				/*if ( text.length > MAXLENGTH )
-				{
-					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH-3)) + "...";
-				}
-				else
-				{
-					text = HtmlConvert.convertEntities_txt(text.substring(0,MAXLENGTH));
-				}*/
 				MINWIDTH = text.length*6;
-				//updateWidth();
-				//updateWidth(text.length*2);
 				return text;
 			}
 			
@@ -288,13 +293,25 @@
 				}
 			}
 			
+			[Bindable] private var timeSpanIndicatorVisible:Boolean = false;
+			[Bindable] private var timeSpanIndicatorLeft:int = 0;
+			[Bindable] private var timeSpanIndicatorRight:int = 0;
+			
 			public function updateWidth(setWidth:int=-1):void
 			{
 				if ( setWidth > 0 )
 				{
 					//MINWIDTH = setWidth;
 				}
-				var timelinemod:InfiniteTimelineEventWidget = this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineEventWidget;
+				var parent:DisplayObjectContainer = this.parent;
+				var timelinemod:InfiniteTimelineEventWidget = null;
+				while ((timelinemod == null) && (parent != null)) {
+					timelinemod = parent as InfiniteTimelineEventWidget;
+					parent = parent.parent;
+				}	
+					
+				
+				//this.parent.parent.parent.parent.parent.parent.parent.parent.parent.parent as InfiniteTimelineEventWidget;
 				var timespan:Number = timelinemod.timeline.endTime.time - timelinemod.timeline.startTime.time;
 				var timespanDays:Number = timespan / 86400000; //1000ms * 60s * 60m * 24h 
 				var timelinepixelwidth:Number = timelinemod.timeline.width;
@@ -306,10 +323,21 @@
 				else
 					endDateLong = startDateLong;
 				var eventTimeSpan:Number = endDateLong - startDateLong;
-				var eventTimeSpanInDays:Number = eventTimeSpan / 86400000; //1000ms * 60s * 60m * 24h 
+				var eventTimeSpanInDays:Number = eventTimeSpan / 86400000; //1000ms * 60s * 60m * 24h
+
 				this.width = widthPerDay * eventTimeSpanInDays;	
+											
 				if ( width < MINWIDTH )
-					this.width = MINWIDTH;				
+				{
+					this.timeSpanIndicatorVisible = true;
+					var delta:int = MINWIDTH - width;
+					timeSpanIndicatorLeft = delta/2;
+					timeSpanIndicatorRight = MINWIDTH - delta/2;
+					this.width = MINWIDTH;
+				}
+				else
+					this.timeSpanIndicatorVisible = false;
+
 			}
 			
 			private function setupLinks():void
@@ -348,10 +376,22 @@
 				</s:entries>
 			</s:LinearGradient>
 		</s:backgroundFill>		
-			<s:HGroup  id="topgroup" width="100%" height="100%" horizontalAlign="center" verticalAlign="middle" includeIn="baseState" contentBackgroundColor="{getEventColor(data.event_type)}" paddingLeft="2">				
-				<s:Label  id="article" width="100%" height="12" textAlign="center" text="{formatText(data.entity1, data.entity2, data.verb_category, data.verb, data.assoc_sig, false)}" fontWeight="normal" fontSize="10" lineBreak="explicit" includeIn="baseState"/>
-				<s:Button id="expandWindow" width="15" click="setOldWidth(this.width); switchStates(event);" includeIn="baseState" skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin"/>				
-			</s:HGroup>	
+		<!-- Have 2 lines showing where the time span actually occurs -->
+		<s:Line height="100%" x="{timeSpanIndicatorLeft}" visible="{timeSpanIndicatorVisible}" >
+			<s:stroke>
+				<s:SolidColorStroke color="0xFF0000" weight="1"/>
+			</s:stroke>
+		</s:Line>
+		<s:Line height="100%" x="{timeSpanIndicatorRight}" visible="{timeSpanIndicatorVisible}">
+			<s:stroke>
+				<s:SolidColorStroke color="0xFF0000" weight="1"/>
+			</s:stroke>
+		</s:Line>
+		<!-- Text -->
+		<s:HGroup  id="topgroup" width="100%" height="100%" horizontalAlign="center" verticalAlign="middle" includeIn="baseState" contentBackgroundColor="{getEventColor(data.event_type)}" paddingLeft="2">				
+			<s:Label  id="article" width="100%" height="12" textAlign="center" text="{formatText(data.entity1, data.entity2, data.verb_category, data.verb, data.assoc_sig, false)}" fontWeight="normal" fontSize="10" lineBreak="explicit" includeIn="baseState"/>
+			<s:Button id="expandWindow" width="15" click="setOldWidth(this.width); switchStates(event);" includeIn="baseState" skinClass.baseState="skins.InfiniteEntityAliasesButtonSkin"/>				
+		</s:HGroup>	
 	</s:BorderContainer>
 	<s:BorderContainer id="bContainerExpanded" cornerRadius="8" borderStyle="solid" borderWeight="3" contentBackgroundColor="0xFFFFFF" includeIn="expanded"
 					   width="100%" height="100%" backgroundColor="0xFFFFFF" borderColor="{getEventColor(data.event_type)}" >		

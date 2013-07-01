@@ -23,6 +23,7 @@ package com.ikanow.infinit.e.community.service
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.service.base.InfiniteDelegate;
 	import com.ikanow.infinit.e.shared.util.ObjectTranslatorUtil;
+	
 	import mx.collections.ArrayCollection;
 	import mx.rpc.AsyncToken;
 	import mx.rpc.http.HTTPService;
@@ -49,6 +50,20 @@ package com.ikanow.infinit.e.community.service
 		//======================================
 		// public methods 
 		//======================================
+		/**
+		 * Get Communities Public
+		 * Retrieves the public communities
+		 * @param event
+		 * @return AsyncToken
+		 */
+		public function getCommunitiesAll( event:CommunityEvent ):AsyncToken
+		{
+			var url:String = ServiceConstants.GET_COMMUNITIES_ALL_URL;
+			var params:Object = { action: ServiceConstants.GET_COMMUNITIES_ALL_URL_ACTION, dialogControl: event.dialogControl };
+			var token:AsyncToken = makeCall( service, url, params, default_resultHandler, default_faultHandler );
+			
+			return token;
+		}
 		
 		/**
 		 * Get Communities Public

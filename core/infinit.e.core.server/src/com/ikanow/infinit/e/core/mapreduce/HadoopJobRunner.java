@@ -1111,7 +1111,10 @@ public class HadoopJobRunner
 			long nNew = 0;
 			long nTotal = 0;
 			if ( isComplete )
-			{				
+			{		
+				long runtime = new Date().getTime() - cmr.lastRunTime.getTime();
+				long timeFromSchedule = cmr.lastRunTime.getTime() - cmr.nextRunTime;				
+				
 				updates.append(CustomMapReduceJobPojo.jobidS_, null);
 				updates.append(CustomMapReduceJobPojo.jobidN_,0);
 				try 
@@ -1150,6 +1153,14 @@ public class HadoopJobRunner
 				{
 					nNew = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).count();					
 					
+					String completionStatus = "Schedule Delta: " + timeFromSchedule + "ms\nCompletion Time: " + runtime + "ms\nNew Records: " + nNew + "\nTotal Records: " + nTotal;
+					if (null == errorMessage) { // (I think will always be the case?)
+						errorMessage = completionStatus;
+					}
+					else {
+						errorMessage += "\n" + completionStatus;
+					}
+					
 					updates.append(CustomMapReduceJobPojo.errorMessage_, errorMessage); // (will often be null)
 					moveTempOutput(cmr);
 					//if job was successfully, mark off dependencies
@@ -1164,8 +1175,6 @@ public class HadoopJobRunner
 					incs.append(CustomMapReduceJobPojo.timesFailed_,1);					
 				}
 				update.append(MongoDbManager.inc_, incs);
-				long runtime = new Date().getTime() - cmr.lastRunTime.getTime();
-				long timeFromSchedule = cmr.lastRunTime.getTime() - cmr.nextRunTime;
 				
 				if (null != cmr.jobidS) 
 				{

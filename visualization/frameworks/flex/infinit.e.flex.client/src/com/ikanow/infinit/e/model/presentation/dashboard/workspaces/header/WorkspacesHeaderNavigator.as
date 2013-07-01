@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -41,6 +41,8 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 		private static const EXPORT_JSON_ID:String = NavigationConstants.WORKSPACES_HEADER_EXPORT_JSON_ID;
 		
 		private static const EXPORT_RSS_ID:String = NavigationConstants.WORKSPACES_HEADER_EXPORT_RSS_ID;
+		
+		private static const EXPORT_WORKSPACE_LINK:String = NavigationConstants.WORKSPACES_EXPORT_WORKSPACE_LINK;
 		
 		
 		//======================================
@@ -121,6 +123,14 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 			navigationItem.label = resourceManager.getString( 'infinite', 'workspacesHeader.workspaceSettings' );
 			navActions.addItem( navigationItem );
 			
+			// share workspace link
+			navigationItem = new NavigationItem();
+			navigationItem.navigatorId = navigatorId;
+			navigationItem.id = EXPORT_WORKSPACE_LINK;
+			navigationItem.type = NavigationItemTypes.ACTION;
+			navigationItem.label = resourceManager.getString( 'infinite', 'workspacesHeader.share' );
+			navActions.addItem( navigationItem );
+			
 			// export pdf
 			navigationItem = new NavigationItem();
 			navigationItem.navigatorId = navigatorId;
@@ -159,6 +169,11 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 				case WORKSPACE_SETTIINGS:
 				{
 					showWorkspaceSettings();
+					break;
+				}
+				case EXPORT_WORKSPACE_LINK:
+				{
+					model.shareLink();
 					break;
 				}
 				case EXPORT_PDF_ID:

@@ -24,6 +24,12 @@ package com.ikanow.infinit.e.widget.library.assets
 		// public static properties 
 		//======================================
 		
+		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Add_Query_Term.png" )]
+		public static const ADD_QUERY_TERM_BUTTON:Class;
+		
+		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Add_Widget_Button.png" )]
+		public static const ADD_WIDGET_BUTTON:Class;
+		
 		[Embed( source = "/com/ikanow/infinit/e/widget/library/assets/imgs/Widget_Decay_Button_On.png" )]
 		public static const WIDGET_DECAY_BUTTON_ON:Class;
 		

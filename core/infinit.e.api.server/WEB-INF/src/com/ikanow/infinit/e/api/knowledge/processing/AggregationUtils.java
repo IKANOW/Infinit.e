@@ -72,7 +72,8 @@ public class AggregationUtils {
 	
 	public static void loadAggregationResults(ResponsePojo rp, Map<String, Facet> facets, AggregationOutputPojo aggOutParams, 
 												ScoringUtils scoreStats, AliasLookupTable aliasLookup,
-												String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
+												String[] entityTypeFilterStrings, String[] assocVerbFilterStrings,
+												AggregationUtils.GeoContainer extraAliasAggregatedGeo)
 	{
 		HashMap<String, List<? extends Entry>> moments = null;
 		
@@ -82,9 +83,18 @@ public class AggregationUtils {
 			
 			if (facet.getKey().equals("geo")) {
 				TermsFacet geoFacet = (TermsFacet)facet.getValue();
-				Set<GeoAggregationPojo> geoCounts = new TreeSet<GeoAggregationPojo>();
+				Set<GeoAggregationPojo> geoCounts = null;
 				int nHighestCount = -1;
 				int nLowestCount = Integer.MAX_VALUE;
+				// If we've got some geotags from the alias masters then start with them:
+				if ((null != extraAliasAggregatedGeo) && (null != extraAliasAggregatedGeo.geotags)) {
+					geoCounts = extraAliasAggregatedGeo.geotags;
+					nHighestCount = (int) extraAliasAggregatedGeo.minCount;
+					nLowestCount = (int) extraAliasAggregatedGeo.maxCount;
+				}
+				else {
+					geoCounts = new TreeSet<GeoAggregationPojo>();					
+				}
 				for (TermsFacet.Entry geo: geoFacet.entries()) {										
 					String geohash = geo.term().substring(2);
 					double[] loc =  GeoHashUtils.decode(geohash);

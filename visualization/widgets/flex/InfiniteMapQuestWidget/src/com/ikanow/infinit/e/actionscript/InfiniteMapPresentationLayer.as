@@ -30,10 +30,13 @@ package com.ikanow.infinit.e.actionscript
 	import com.mapquest.LatLng;
 	import com.mapquest.tilemap.RectLL;
 	import com.mapquest.tilemap.TilemapComponent;
+	
 	import flash.geom.Point;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
+	
 	import system.data.sets.HashSet;
 	
 	/**
@@ -559,11 +562,13 @@ package com.ikanow.infinit.e.actionscript
 		
 		// State processing (Only when model data changes)
 		
-		private function doHeatMapProcessing_StateChange( geo:ArrayCollection, maxValue:Number, minValue:Number ):void
+		private function doHeatMapProcessing_StateChange( geo:ArrayCollection, minValue:Number, maxValue:Number ):void
 		{
 			_geoCounts = geo;
-			_maxGeoValue = maxValue;
-			_minGeoValue = minValue;
+			if (null != geo) {
+				_maxGeoValue = maxValue;
+				_minGeoValue = minValue;
+			}
 			
 			if ( null != _geoCounts )
 			{

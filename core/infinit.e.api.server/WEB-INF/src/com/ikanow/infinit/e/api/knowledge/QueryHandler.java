@@ -374,10 +374,10 @@ public class QueryHandler {
 		// Facets
 		
 		// (These are needed for the case where we need to perform aggregations manually)
-		Integer tmpEntsNumReturn = null;
-		Integer tmpEventsNumReturn = null;
-		Integer tmpFactsNumReturn = null;
-		Integer tmpGeoNumReturn = null;
+		Integer manualEntsNumReturn = null;
+		Integer manualEventsNumReturn = null;
+		Integer manualFactsNumReturn = null;
+		Integer manualGeoNumReturn = null;
 		
 		//DEBUG
 		//System.out.println(new Gson().toJson(query.output.aggregation));
@@ -400,10 +400,10 @@ public class QueryHandler {
 			if (!_aggregationAccuracy.equals("full")) {
 				if (null != query.output.aggregation) {
 					if (_aggregationAccuracy.equals("low")) {
-						tmpEntsNumReturn = query.output.aggregation.entsNumReturn;
-						tmpEventsNumReturn = query.output.aggregation.eventsNumReturn;
-						tmpFactsNumReturn = query.output.aggregation.factsNumReturn;
-						tmpGeoNumReturn = query.output.aggregation.geoNumReturn;
+						manualEntsNumReturn = query.output.aggregation.entsNumReturn;
+						manualEventsNumReturn = query.output.aggregation.eventsNumReturn;
+						manualFactsNumReturn = query.output.aggregation.factsNumReturn;
+						manualGeoNumReturn = query.output.aggregation.geoNumReturn;
 					}										
 					query.output.aggregation.entsNumReturn = null;
 					query.output.aggregation.eventsNumReturn = null;
@@ -416,17 +416,17 @@ public class QueryHandler {
 			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
 
 			// In partial accuracy case, restore aggregation
-			if (null != tmpEntsNumReturn) {
-				query.output.aggregation.entsNumReturn = tmpEntsNumReturn;
+			if (null != manualEntsNumReturn) {
+				query.output.aggregation.entsNumReturn = manualEntsNumReturn;
 			}
-			if (null != tmpEventsNumReturn) {
-				query.output.aggregation.eventsNumReturn = tmpEventsNumReturn;
+			if (null != manualEventsNumReturn) {
+				query.output.aggregation.eventsNumReturn = manualEventsNumReturn;
 			}
-			if (null != tmpFactsNumReturn) {
-				query.output.aggregation.factsNumReturn = tmpFactsNumReturn;
+			if (null != manualFactsNumReturn) {
+				query.output.aggregation.factsNumReturn = manualFactsNumReturn;
 			}
-			if (null != tmpGeoNumReturn) {
-				query.output.aggregation.geoNumReturn = tmpGeoNumReturn;
+			if (null != manualGeoNumReturn) {
+				query.output.aggregation.geoNumReturn = manualGeoNumReturn;
 			}
 			//TESTED
 		}
@@ -489,6 +489,7 @@ public class QueryHandler {
 		LinkedList<BasicDBObject> lowAccuracyAggregatedEvents = null;
 		LinkedList<BasicDBObject> lowAccuracyAggregatedFacts = null;
 		AggregationUtils.GeoContainer lowAccuracyAggregatedGeo = null;
+		AggregationUtils.GeoContainer extraAliasAggregatedGeo = null;
 		
 		ScoringUtils scoreStats = null;
 		if (null != stats.getIds()) {
@@ -510,14 +511,20 @@ public class QueryHandler {
 			
 			// Low accuracy aggregations:
 			
-			if ((null != tmpEventsNumReturn) && (tmpEventsNumReturn > 0)) {
+			if ((null != manualEventsNumReturn) && (manualEventsNumReturn > 0)) {
 				lowAccuracyAggregatedEvents = new LinkedList<BasicDBObject>();
 			}
-			if ((null != tmpFactsNumReturn) && (tmpFactsNumReturn > 0)) {
+			if ((null != manualFactsNumReturn) && (manualFactsNumReturn > 0)) {
 				lowAccuracyAggregatedFacts = new LinkedList<BasicDBObject>();				
 			}
-			if ((null != tmpGeoNumReturn) && (tmpGeoNumReturn > 0)) {
+			
+			if ((null != manualGeoNumReturn) && (manualGeoNumReturn > 0)) {
 				lowAccuracyAggregatedGeo = new AggregationUtils.GeoContainer();								
+			}
+			else if ((null != query.output.aggregation) && (null != query.output.aggregation.geoNumReturn) && (query.output.aggregation.geoNumReturn > 0))
+			{
+				// (only if not using low accuracy aggregation ... otherwise it all gets dumped in lowAccuracyAggregatedGeo)
+				extraAliasAggregatedGeo = new AggregationUtils.GeoContainer();				
 			}
 			
 			scoreStats = new ScoringUtils();
@@ -528,7 +535,8 @@ public class QueryHandler {
 																communityIdStrs,
 																entityTypeFilterStrings, assocVerbFilterStrings,
 																standaloneEvents, 
-																lowAccuracyAggregatedEntities, lowAccuracyAggregatedGeo,
+																lowAccuracyAggregatedEntities, 
+																lowAccuracyAggregatedGeo, extraAliasAggregatedGeo,
 																lowAccuracyAggregatedEvents, lowAccuracyAggregatedFacts);
 			nProcTime += (System.currentTimeMillis() - nProcTime_tmp);
 		}
@@ -571,7 +579,7 @@ public class QueryHandler {
 			if (0.0 == query.score.sigWeight) {
 				scoreStats = null; // (don't calculate event/fact aggregated significance if it's not wanted)
 			}
-			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings);
+			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings, extraAliasAggregatedGeo);
 			
 		} // (end facets not overwritten)			
 		

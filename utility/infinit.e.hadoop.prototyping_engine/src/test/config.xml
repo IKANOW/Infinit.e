@@ -2,12 +2,12 @@
 <configuration>
 	<!--  NAME AND LOCATION -->
 	<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>LinkedIn analytics example phase 1</value></property>
-	<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://ec2-184-72-206-97.compute-1.amazonaws.com/doc_metadata.metadata</value></property>  
-	<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://ec2-184-72-206-97.compute-1.amazonaws.com/test.hadoop_js_test</value>  </property>
+	<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://ec2-23-22-186-135.compute-1.amazonaws.com/doc_metadata.metadata</value></property>  
+	<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://ec2-23-22-186-135.compute-1.amazonaws.com/test.hadoop_js_test</value>  </property>
 	
 	<!-- QUERY PARAMETERS -->	
 	<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>
-		{ "sourceKey": { "$in": [ "www.linkedin.com.pub.steve-whitney.43.300.a1", "www.linkedin.com.pub.steve-whitney.43.300.a1.1" ] } }
+		{ "sourceKey": { "$in": [ "modus.139.modus_datasets.cgi_demo..1.2" ] } }
 	</value></property>
 	<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value></value></property>
 	<property><!-- A JSON sort specification for read [OPTIONAL] --><name>mongo.input.sort</name><value></value></property>	
@@ -34,11 +34,12 @@
 	<!-- LEAVE THESE ALONE -->
 	<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>
 	<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>
-	<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.mongodb.hadoop.MongoInputFormat</value></property>
+	<property><!-- InputFormat Class --><name>mongo.job.input.format</name><value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat</value></property>
 	<property><!-- OutputFormat Class --><name>mongo.job.output.format</name><value>com.mongodb.hadoop.MongoOutputFormat</value></property>
 	<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>
 	<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>
 	<property><!-- Output key class for the mapper [optional] --><name>mongo.job.mapper.output.key</name><value></value></property>
 	<property><!-- Output value class for the mapper [optional] --><name>mongo.job.mapper.output.value</name><value></value></property>
-	
+	<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>10</value></property>
+	<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>2</value></property>
 </configuration>

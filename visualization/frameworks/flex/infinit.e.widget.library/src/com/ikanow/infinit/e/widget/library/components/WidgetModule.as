@@ -22,17 +22,24 @@ package com.ikanow.infinit.e.widget.library.components
 	import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetModule;
 	
+	import flash.desktop.Clipboard;
+	import flash.desktop.ClipboardFormats;
+	import flash.display.BitmapData;
 	import flash.events.DataEvent;
 	import flash.events.Event;
 	import flash.events.MouseEvent;
 	import flash.utils.getQualifiedClassName;
+	import flash.external.ExternalInterface;
+	import mx.graphics.codec.JPEGEncoder;
 	
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.core.IUIComponent;
 	import mx.core.UIComponent;
 	import mx.events.CloseEvent;
 	import mx.events.DragEvent;
 	import mx.managers.DragManager;
+	import mx.utils.Base64Encoder;
 	
 	import spark.components.Group;
 	import spark.components.HGroup;
@@ -377,6 +384,12 @@ package com.ikanow.infinit.e.widget.library.components
 		
 		[SkinPart( required = "false" )]
 		/**
+		 *  The snapshot button
+		 */
+		public var snapshotButton:WidgetHeaderIconButton;
+		
+		[SkinPart( required = "false" )]
+		/**
 		 *  The move button
 		 */
 		public var moveButton:WidgetHeaderIconButton;
@@ -687,6 +700,11 @@ package com.ikanow.infinit.e.widget.library.components
 					moveButton.enabled = false;
 				}
 			}
+			if ( snapshotButton )
+			{
+				snapshotButton.visible = false;
+				snapshotButton.enabled = false;
+			}
 		}
 		
 		/**
@@ -705,6 +723,12 @@ package com.ikanow.infinit.e.widget.library.components
 					moveButton.enabled = true;
 				}
 			}
+			if ( snapshotButton )
+			{
+				snapshotButton.visible = true;
+				snapshotButton.enabled = true;
+			}
+			
 		}
 		
 		/**
@@ -722,6 +746,11 @@ package com.ikanow.infinit.e.widget.library.components
 					moveButton.visible = true;
 					moveButton.enabled = true;
 				}
+			}
+			if ( snapshotButton )
+			{
+				snapshotButton.visible = true;
+				snapshotButton.enabled = true;
 			}
 		}
 		
@@ -787,6 +816,9 @@ package com.ikanow.infinit.e.widget.library.components
 				case nextButton:
 					nextButton.addEventListener( MouseEvent.CLICK, nextButton_clickHandler );
 					break;
+				case snapshotButton:
+					snapshotButton.addEventListener( MouseEvent.CLICK, snapshotButton_clickHandler );
+					break;
 				case moveButton:
 					moveButton.addEventListener( MouseEvent.MOUSE_OVER, header_mouseOverHandler );
 					moveButton.addEventListener( MouseEvent.MOUSE_OUT, header_mouseOutHandler );
@@ -836,6 +868,9 @@ package com.ikanow.infinit.e.widget.library.components
 				case nextButton:
 					nextButton.removeEventListener( MouseEvent.CLICK, nextButton_clickHandler );
 					break;
+				case snapshotButton:
+					snapshotButton.removeEventListener( MouseEvent.CLICK, snapshotButton_clickHandler );
+					break;
 				case moveButton:
 					moveButton.removeEventListener( MouseEvent.MOUSE_OVER, header_mouseOverHandler );
 					moveButton.removeEventListener( MouseEvent.MOUSE_OUT, header_mouseOutHandler );
@@ -874,6 +909,22 @@ package com.ikanow.infinit.e.widget.library.components
 		//======================================
 		// private methods 
 		//======================================
+		
+		protected function snapshotButton_clickHandler( event:MouseEvent ):void
+		{
+			try {
+				var bmpData:BitmapData = new BitmapData(this.width, this.height);
+				bmpData.draw(this);
+				var jencoder:JPEGEncoder = new JPEGEncoder(100);				
+				var encoder:Base64Encoder = new Base64Encoder();
+				encoder.encodeBytes(jencoder.encode(bmpData));
+				var widgetoffset:int = this.width/2;
+				ExternalInterface.call("expandPhoto",encoder.flush(), widgetoffset.toString());
+			}
+			catch (e:Error) {
+				mx.controls.Alert.show(e.message);				
+			}
+		}
 		
 		/**
 		 * Recursively climbs up the ui tree until it finds a widgetmodule, no parent, or hits max_level

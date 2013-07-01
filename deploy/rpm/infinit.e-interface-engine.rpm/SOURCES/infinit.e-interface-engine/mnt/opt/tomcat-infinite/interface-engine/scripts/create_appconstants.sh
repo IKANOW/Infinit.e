@@ -32,6 +32,9 @@ LOGOUT_URL=$(getParam					"^ui.logout=" $PROPERTY_CONFIG_FILE)
 EXTERNAL_SEARCH_NAME=$(getParam			"^ui.externalsearch.name=" $PROPERTY_CONFIG_FILE)
 EXTERNAL_SEARCH_URL=$(getParam			"^ui.externalsearch.url=" $PROPERTY_CONFIG_FILE)
 LOGO_URL=$(getParam						"^ui.logo.url=" $PROPERTY_CONFIG_FILE)
+#(enterprise constants)
+CASE_MANAGER_API_URL=$(getParam			"^app.case.api.url=" $PROPERTY_CONFIG_FILE)
+CASE_MANAGER_URL=$(getParam				"^app.case.url=" $PROPERTY_CONFIG_FILE)
 	
 cp $CONSTANTS_TEMPLATE $CONSTANTS_CONF_LOCATION
 if [ "$END_POINT_URL" != "" ]; then
@@ -77,6 +80,10 @@ fi
 
 #Logo (can be empty)
 sed -i "s|LOGO_URL|$LOGO_URL|" $CONSTANTS_CONF_LOCATION
+
+#(enterprise constants)
+sed -i "s|CASE_MANAGER_API_URL|$CASE_MANAGER_API_URL|g" $CONSTANTS_CONF_LOCATION
+sed -i "s|CASE_MANAGER_URL|$CASE_MANAGER_URL|g" $CONSTANTS_CONF_LOCATION
 
 chown tomcat.tomcat $CONSTANTS_CONF_LOCATION
 

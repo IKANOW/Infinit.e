@@ -256,7 +256,7 @@
 				userEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'userService.getUser' ) );
 				dispatcher.dispatchEvent( userEvent );
 				
-				//Next call out to the public communities, will list any new public communities below user
+				//Next call out to get all communities
 				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.REFRESH );
 				communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
 				dispatcher.dispatchEvent( communityEvent );

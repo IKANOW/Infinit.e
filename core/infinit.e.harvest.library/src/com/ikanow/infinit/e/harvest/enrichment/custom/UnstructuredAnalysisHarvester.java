@@ -1215,19 +1215,19 @@ public class UnstructuredAnalysisHarvester {
 				factory = new ScriptEngineManager();
 				engine = factory.getEngineByName("JavaScript");		
 				//grab any json cache and make it available to the engine
-				try
-				{
-					if (null != uap.getCaches()) {
-						CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
-					}
-				}
-				catch (Exception ex)
-				{
-					_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
-					logger.error("JSONcache: " + ex.getMessage(), ex);
-				}
 			}
 			//once engine is created, do some initialization
+			try
+			{
+				if (null != uap.getCaches()) {
+					CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
+				}
+			}
+			catch (Exception ex)
+			{
+				_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+				logger.error("JSONcache: " + ex.getMessage(), ex);
+			}
 			if ( null != engine )
 			{
 				// Script code embedded in source

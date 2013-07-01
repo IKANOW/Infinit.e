@@ -52,14 +52,17 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
+	
 	import flash.display.DisplayObject;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.resources.IResourceManager;
 	import mx.resources.ResourceManager;
 	import mx.rpc.events.ResultEvent;
 	import mx.rpc.http.mxml.HTTPService;
+	
 	import system.data.Map;
 	import system.data.maps.HashMap;
 	
@@ -114,6 +117,9 @@ package com.ikanow.infinit.e.shared.model.manager
 		 * The current user
 		 */
 		public var currentUser:User;
+		
+		[Inject( "communityManager.communities", bind = "true" )]
+		public var communities:ArrayCollection;
 		
 		[Bindable]
 		/**
@@ -270,7 +276,20 @@ package com.ikanow.infinit.e.shared.model.manager
 		 */
 		public function getCommunityById( id:String ):Object
 		{
-			return null;
+			var community_to_return:Object = null;
+			if ( communities != null && communities.length > 0 )
+			{
+				for each ( var community:Community in communities )
+				{
+					if ( community._id == id )
+					{
+						//found it, create anon object and return
+						community_to_return = community;
+						break;
+					}
+				}
+			}
+			return community_to_return;
 		}
 		
 		public function getCurrentQuery():Object

@@ -21,6 +21,8 @@
 			   dateField="eventDate" 	   			   
 			   majorTickTimeStep="1" majorTickTimeUnit="month"
 			   minorTickTimeStep="7" minorTickTimeUnit="day"
+			   minDurationTimeStep="1"
+			   minDurationTimeUnit="day"							  
 			   backgroundColor="0x2E2E2E"
 			   priorityField="assoc_sig" itemRenderer="TimelineRangeColorBubble" 
 			   useVirtualLayout="false">

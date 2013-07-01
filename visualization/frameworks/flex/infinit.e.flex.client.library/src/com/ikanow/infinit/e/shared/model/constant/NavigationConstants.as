@@ -95,6 +95,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		public static const WORKSPACES_HEADER_EXPORT_RSS_ID:String = WORKSPACES_HEADER_ID + "ExportRSS";
 		
+		public static const WORKSPACES_EXPORT_WORKSPACE_LINK:String = WORKSPACES_HEADER_ID + "ExportWorkspaceLink";
+		
 		// workspaces body
 		
 		public static const WORKSPACES_BODY_DRAWER_OPEN_ID:String = WORKSPACES_BODY_ID + "Open";

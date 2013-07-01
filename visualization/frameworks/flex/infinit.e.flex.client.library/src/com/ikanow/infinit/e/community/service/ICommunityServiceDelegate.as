@@ -22,6 +22,14 @@ package com.ikanow.infinit.e.community.service
 	public interface ICommunityServiceDelegate
 	{
 		/**
+		 * Get Communities All
+		 * Retrieves the All communities
+		 * @param event
+		 * @return AsyncToken
+		 */
+		function getCommunitiesAll( event:CommunityEvent ):AsyncToken;
+		
+		/**
 		 * Get Communities Public
 		 * Retrieves the public communities
 		 * @param event

@@ -1783,8 +1783,11 @@ public class CommunityHandler
 			if (1 == communityIdStrs.length) {
 				communityIdStr = communityIdStrs[0]; 
 			}
+			else if (communityIdStrs.length > 0) {
+				throw new RuntimeException("Invalid community pattern (many): " + Arrays.toString(communityIdStrs));				
+			}
 			else {
-				throw new RuntimeException("Invalid community pattern");
+				throw new RuntimeException("Invalid community pattern (none)");
 			}
 		}	
 		return communityIdStr;

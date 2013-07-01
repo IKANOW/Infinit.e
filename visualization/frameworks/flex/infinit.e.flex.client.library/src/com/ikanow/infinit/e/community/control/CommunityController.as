@@ -46,6 +46,26 @@ package com.ikanow.infinit.e.community.control
 		// public methods 
 		//======================================
 		
+		[EventHandler( event = "CommunityEvent.GET_COMMUNITIES_ALL" )]
+		/**
+		 * Get Communities Public
+		 * @param event
+		 */
+		public function getCommunitiesAll( event:CommunityEvent ):void
+		{
+			executeServiceCall( "CommunityController.getCommunitiesAll()", event, communityServiceDelegate.getCommunitiesAll( event ), getCommunitiesAll_resultHandler, defaultFaultHandler );
+		}
+		
+		/**
+		 * Get Communities Public Result Handler
+		 * @param event
+		 */
+		public function getCommunitiesAll_resultHandler( event:ResultEvent ):void
+		{
+			if ( verifyServiceResponseSuccess( "getCommunitiesAll()", event.result as ServiceResult ) )
+				communityManager.setCommunities( ServiceResult( event.result ).data as ArrayCollection );
+		}
+		
 		[EventHandler( event = "CommunityEvent.GET_COMMUNITIES_PUBLIC" )]
 		/**
 		 * Get Communities Public
@@ -74,7 +94,8 @@ package com.ikanow.infinit.e.community.control
 		public function getCommunitiesRefresh( event:CommunityEvent ):void
 		{
 			communityManager.refreshing = true;
-			getCommunitiesPublic( event );
+			//getCommunitiesPublic( event );
+			getCommunitiesAll(event);
 		}
 		
 		[EventHandler( event = "CommunityEvent.JOIN_COMMUNITY" )]

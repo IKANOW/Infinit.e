@@ -28,6 +28,8 @@ package com.ikanow.infinit.e.shared.event
 		// public static properties 
 		//======================================
 		
+		public static const GET_COMMUNITIES_ALL:String = "getCommunitiesAllEvent";
+		
 		public static const GET_COMMUNITIES_PUBLIC:String = "getCommunitiesPublicEvent";
 		
 		public static const SELECT_COMMUNITY:String = "selectCommunityEvent";

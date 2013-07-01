@@ -16,7 +16,9 @@
 package com.ikanow.infinit.e.shared.model.vo
 {
 	import com.ikanow.infinit.e.shared.model.vo.ui.ISelectable;
+	
 	import flash.events.EventDispatcher;
+	
 	import mx.collections.ArrayCollection;
 	
 	[Bindable]
@@ -38,6 +40,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		public var description:String;
 		
 		public var isSystemCommunity:Boolean;
+		
+		public var isPersonalCommunity:Boolean;
 		
 		[ArrayCollectionElementType( "String" )]
 		public var tags:ArrayCollection;

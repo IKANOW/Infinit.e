@@ -467,6 +467,27 @@ public class InfiniteDriver
 		return false;
 	}
 	
+	public Boolean updateCommunityMemberType(String communityId, String personId, String userType, ResponseObject responseObject)
+	{
+		try
+		{
+			String updateCommunityMemberUrl = apiRoot + "social/community/member/update/type/" + URLEncoder.encode(communityId,"UTF-8") + 
+			"/" + URLEncoder.encode(personId,"UTF-8") + "/" + URLEncoder.encode(userType,"UTF-8");
+			String updateResult = sendRequest(updateCommunityMemberUrl, null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(updateResult, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+
+			return responseObject.isSuccess();
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return false;
+	}
+	
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// SOCIAL - SHARES
@@ -530,7 +551,8 @@ public class InfiniteDriver
 	
 	public SharePojo addShareJSON(String title, String description, String type, String jsonString , ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String addShareAddress = apiRoot + "social/share/add/json/" + URLEncoder.encode(type, "UTF-8") + "/" + URLEncoder.encode(title,"UTF-8") + "/" + URLEncoder.encode(description,"UTF-8");
 			String addResult = sendRequest(addShareAddress, jsonString);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(addResult, ResponsePojo.class, SharePojo.class, new SharePojoApiMap(null)); 
@@ -590,7 +612,8 @@ public class InfiniteDriver
 	
 	public Boolean addShareToCommunity(String shareId, String comment, String communityId, ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String addCommunityAddress = apiRoot + "social/share/add/community/" + shareId + "/" + URLEncoder.encode(comment,"UTF-8") + "/" + URLEncoder.encode(communityId,"UTF-8");
 			String updateResult = sendRequest(addCommunityAddress, null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(updateResult, ResponsePojo.class); 
@@ -1481,6 +1504,11 @@ public class InfiniteDriver
 			}
 		}
 		return false;
+	}
+		
+	public boolean isAdmin()
+	{
+		return this.sendKeepalive(true);
 	}
 	
 	///////// Request Calls	

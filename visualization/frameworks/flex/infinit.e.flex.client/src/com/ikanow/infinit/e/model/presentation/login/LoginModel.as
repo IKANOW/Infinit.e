@@ -214,7 +214,8 @@ package com.ikanow.infinit.e.model.presentation.login
 		 */
 		protected function getCommunities():void
 		{
-			var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
+			//var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_PUBLIC );
+			var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.GET_COMMUNITIES_ALL );
 			communityEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'communityService.getCommunities' ) );
 			dispatcher.dispatchEvent( communityEvent );
 		}
