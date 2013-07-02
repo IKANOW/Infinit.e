@@ -129,6 +129,7 @@ start_apps() {
   if [ $RETVAL -ne 0 ]; then
   	stop_apps
   fi
+  touch /var/lock/subsys/infinite-px-engine
   return $RETVAL
 }
 
@@ -143,6 +144,7 @@ stop_apps() {
   while pgrep -f /opt/infinite-home/bin/infinite-px-engine.sh > /dev/null; do
   	sleep 1
   done
+  rm -f /var/lock/subsys/infinite-px-engine
   
   log_end_msg 0
   

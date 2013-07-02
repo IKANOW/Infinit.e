@@ -60,8 +60,7 @@ start()
 				echo "Ten minutes has passed and all config servers have not come up...exiting"
 				return 0;
 			fi
-		done
-
+		done		
 	else
 		echo "Note: This is not a configuration Server."
 	fi
@@ -304,13 +303,13 @@ EOF
 						infdb kill_db 27017 > /dev/null
 						sleep 5
 						runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
-					fi
-					
+					fi					
 			else
 				echo "Mongo Already Running On Port $port.... Skipping"
 			fi			
 	done
 
+	touch /var/lock/subsys/mongo_infinite
 	echo "mongo_infinite start complete"
 }
 
@@ -414,6 +413,7 @@ stop()
 		echo "Stop was run but there are still mongo processes running:"
 		ps -ef | grep -P "\s+mongo[sd]\s+--" | grep -v grep | grep -v mongo_infinite
 	fi	
+	rm -f /var/lock/subsys/mongo_infinite
 }
 
 ulimit -n 12000
