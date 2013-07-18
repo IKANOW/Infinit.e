@@ -126,7 +126,7 @@ public class JsonToMetadataParser {
 		JsonElement meta = parser.parse(reader);
 		
 		// Check if all required fields exist:
-		if (!checkIfMandataryFieldsExist(meta)) {
+		if (!checkIfMandatoryFieldsExist(meta)) {
 			return null;
 		}
 		//TESTED
@@ -170,7 +170,7 @@ public class JsonToMetadataParser {
 				JsonElement meta = parser.parse(reader);
 				
 				if (meta.isJsonObject()) { // (basically duplicates logic from convertJsonToDocument)
-					if (checkIfMandataryFieldsExist(meta)) {
+					if (checkIfMandatoryFieldsExist(meta)) {
 						DocumentPojo doc = new DocumentPojo();
 						if ((null != primaryKey) && (null != sourceName)) {
 							String primaryKey = getPrimaryKey(meta);
@@ -180,14 +180,17 @@ public class JsonToMetadataParser {
 						}
 						doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
 						docList.add(doc);
-						if (nCurrDocs++ > nMaxDocs) {
+						if (nCurrDocs++ >= nMaxDocs) {
+							while (reader.hasNext()) {
+								reader.skipValue();
+							}
 							return;
 						}
 					}
 				}//TESTED
 				else if (meta.isJsonArray()) {
 					for (JsonElement meta2: meta.getAsJsonArray()) {
-						if (checkIfMandataryFieldsExist(meta2)) {
+						if (checkIfMandatoryFieldsExist(meta2)) {
 							DocumentPojo doc = new DocumentPojo();
 							if ((null != primaryKey) && (null != sourceName)) {
 								String primaryKey = getPrimaryKey(meta2);
@@ -197,7 +200,10 @@ public class JsonToMetadataParser {
 							}
 							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject()));
 							docList.add(doc);						
-							if (nCurrDocs++ > nMaxDocs) {
+							if (nCurrDocs++ >= nMaxDocs) {
+								while (reader.hasNext()) {
+									reader.skipValue();
+								}
 								return;
 							}
 						}
@@ -246,7 +252,7 @@ public class JsonToMetadataParser {
 
 	// Check the object is well formed
 	
-	private boolean checkIfMandataryFieldsExist(JsonElement meta) {
+	private boolean checkIfMandatoryFieldsExist(JsonElement meta) {
 		if ((null != this.fieldsThatNeedToExist) && !this.fieldsThatNeedToExist.isEmpty())
 		{
 			boolean fieldsExist = false;
