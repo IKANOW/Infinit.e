@@ -235,7 +235,7 @@
 				var urlStr;
 				if ( null != repeaterItem.displayUrl && (repeaterItem.displayUrl is String) && ( (repeaterItem.displayUrl as String).length > 0 ) )
 				{
-					if ( repeaterItem.displayUrl.indexOf( "http://" ) > -1 )
+					if ( repeaterItem.displayUrl.indexOf( "http://" ) > -1 || repeaterItem.displayUrl.indexOf( "https://" ) > -1 )
 					{			
 						urlStr = repeaterItem.displayUrl;
 					}
@@ -245,7 +245,7 @@
 							repeaterItem.displayUrl;
 					}
 				}
-				else if ( repeaterItem.url.indexOf( "http://" ) > -1 )
+				else if ( repeaterItem.url.indexOf( "http://" ) > -1 || repeaterItem.url.indexOf( "https://" ) > -1 )
 				{
 					urlStr = repeaterItem.url;
 				}

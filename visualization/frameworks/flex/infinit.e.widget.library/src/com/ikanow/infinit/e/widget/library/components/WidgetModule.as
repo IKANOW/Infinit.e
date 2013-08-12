@@ -25,20 +25,32 @@ package com.ikanow.infinit.e.widget.library.components
 	import flash.desktop.Clipboard;
 	import flash.desktop.ClipboardFormats;
 	import flash.display.BitmapData;
+	import flash.display.DisplayObject;
+	import flash.display.DisplayObjectContainer;
 	import flash.events.DataEvent;
 	import flash.events.Event;
+	import flash.events.KeyboardEvent;
 	import flash.events.MouseEvent;
-	import flash.utils.getQualifiedClassName;
 	import flash.external.ExternalInterface;
-	import mx.graphics.codec.JPEGEncoder;
+	import flash.geom.Matrix;
+	import flash.geom.Rectangle;
+	import flash.geom.Point;
+	import flash.ui.Keyboard;
+	import flash.utils.getQualifiedClassName;
 	
+	import mx.charts.chartClasses.ChartBase;
+	import mx.charts.chartClasses.DataTip;
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.core.IUIComponent;
 	import mx.core.UIComponent;
 	import mx.events.CloseEvent;
 	import mx.events.DragEvent;
+	import mx.graphics.codec.JPEGEncoder;
 	import mx.managers.DragManager;
+	import mx.managers.ISystemManager;
+	import mx.managers.SystemManager;
+	import mx.managers.ToolTipManager;
 	import mx.utils.Base64Encoder;
 	
 	import spark.components.Group;
@@ -461,6 +473,19 @@ package com.ikanow.infinit.e.widget.library.components
 			this.addEventListener( DragEvent.DRAG_ENTER, widgetDragEnterHandler );
 			this.addEventListener( DragEvent.DRAG_DROP, widgetDragDropHandler );
 			this.addEventListener( DragEvent.DRAG_OVER, widgetDragOverHandler );
+			this.addEventListener ( KeyboardEvent.KEY_DOWN, widget_keyDownHandler );
+		}
+		
+		
+		protected function widget_keyDownHandler(event:KeyboardEvent):void
+		{
+			if (event.ctrlKey && event.shiftKey) 
+			{
+				if (event.keyCode == Keyboard.C)
+				{
+					snapshotButton_clickHandler(null);
+				}				
+			}			
 		}
 		
 		
@@ -910,11 +935,75 @@ package com.ikanow.infinit.e.widget.library.components
 		// private methods 
 		//======================================
 		
+		private function findDatatips(container:ISystemManager):DisplayObject
+		{
+			for (var i:int = 0; i < container.rawChildren.numChildren; i++) {
+				var thisChild:DisplayObject = container.rawChildren.getChildAt(i);
+				
+				if (thisChild is DataTip) {
+					return thisChild;
+				}
+			}			
+			return null;
+		}
+		
 		protected function snapshotButton_clickHandler( event:MouseEvent ):void
 		{
 			try {
 				var bmpData:BitmapData = new BitmapData(this.width, this.height);
 				bmpData.draw(this);
+				
+				// If a tooltip is enabled, then draw it:
+				if ((null == event) && (null != ToolTipManager.currentToolTip))
+				{
+					// Translate tooltip, adjust for screen clip and render: 
+					var point:Point = new Point();
+					point.x = ToolTipManager.currentToolTip.x;
+					point.y = ToolTipManager.currentToolTip.y;
+					point = this.globalToLocal(point);					
+					if (point.x + ToolTipManager.currentToolTip.width > this.width)
+					{
+						point.x = this.width - ToolTipManager.currentToolTip.width;
+					}					
+					if (point.x < 0) 
+						point.x = 0;
+					if (point.y + ToolTipManager.currentToolTip.height > this.height)
+					{
+						point.y = this.height - ToolTipManager.currentToolTip.height;
+					}
+					if (point.y < 0) 
+						point.y = 0;
+					var translateMatrix:Matrix = new Matrix();
+					translateMatrix.tx = point.x;
+					translateMatrix.ty = point.y;
+					bmpData.draw(ToolTipManager.currentToolTip, translateMatrix);					
+				}
+				if (null == event) {
+					var datatip:DisplayObject = findDatatips(this.systemManager.getTopLevelRoot() as ISystemManager);
+					if (null != datatip) {
+						// Translate datatip, adjust for screen clip and render: 
+						point = new Point();
+						point.x = datatip.x;
+						point.y = datatip.y;
+						point = this.globalToLocal(point);					
+						if (point.x + datatip.width > this.width)
+						{
+							point.x = this.width - datatip.width;
+						}					
+						if (point.x < 0) 
+							point.x = 0;
+						if (point.y + datatip.height > this.height)
+						{
+							point.y = this.height - datatip.height;
+						}
+						if (point.y < 0) 
+							point.y = 0;
+						translateMatrix = new Matrix();
+						translateMatrix.tx = point.x;
+						translateMatrix.ty = point.y;
+						bmpData.draw(datatip, translateMatrix);											
+					}
+				}				
 				var jencoder:JPEGEncoder = new JPEGEncoder(100);				
 				var encoder:Base64Encoder = new Base64Encoder();
 				encoder.encodeBytes(jencoder.encode(bmpData));

@@ -79,10 +79,14 @@ public class SynchronizationController {
 		        
 		        logger.debug("Syncing: " + sourceBatch.size());
 		        
-				fixes_db += syncManager.syncDB(time_of_this_cleanse, dbCache);
+		        // Find things in the DB that don't have an index
+		        //TODO (INF-2114): For now remove this ... actually should call it but then 
+		        // synch to the index instead of deleting from the DB
+				//fixes_db += syncManager.syncDB(time_of_this_cleanse, dbCache);
 				
 		        logger.debug("Syncing DB: " + fixes_db);
 				
+		        // Find things in the index that don't have a DB entry
 				fixes_search += syncManager.syncSearch(time_of_this_cleanse, dbCache);
 				
 		        logger.debug("Syncing Index: " + fixes_search);		        

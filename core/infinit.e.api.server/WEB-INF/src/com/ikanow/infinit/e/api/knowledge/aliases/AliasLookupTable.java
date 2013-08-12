@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.api.knowledge.aliases;
 
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -142,6 +143,9 @@ public class AliasLookupTable {
 		return _reverseAliasTable.get(index);
 	}
 	
+	public synchronized Collection<EntityFeaturePojo> masters() {
+		return _reverseAliasTable.values();
+	}
 	/////////////////////////////////
 	
 	// Return last update time (null for never)

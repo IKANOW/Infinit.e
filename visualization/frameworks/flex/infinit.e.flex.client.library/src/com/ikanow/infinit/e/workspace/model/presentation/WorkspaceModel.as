@@ -55,9 +55,10 @@ package com.ikanow.infinit.e.workspace.model.presentation
 				var dragObj:Vector.<Object> = event.dragSource.dataForFormat( "itemsByIndex" ) as Vector.<Object>;
 				var widget:Widget = dragObj[ 0 ] as Widget;
 				
+				/**/
 				// make sure either there is capacity in the workspace
 				// or an existing widget is being moved
-				if ( !workspaceIsFull || selectedWidgets.contains( widget ) )
+				//if ( !workspaceIsFull || selectedWidgets.contains( widget ) )
 				{
 					navigator.showLayoutView();
 					navigator.closeWidgetDrawer();

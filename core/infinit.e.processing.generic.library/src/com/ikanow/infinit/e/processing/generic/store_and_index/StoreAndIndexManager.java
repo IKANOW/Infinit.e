@@ -36,6 +36,7 @@ import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
@@ -92,7 +93,7 @@ public class StoreAndIndexManager {
 	 * Add a list of doc documents to the data store
 	 * @param feeds
 	 */
-	public void addToDatastore(List<DocumentPojo> docs, boolean bSaveContent) {
+	public void addToDatastore(List<DocumentPojo> docs, boolean bSaveContent, SourcePojo source) {
 		try {
 			// Create collection manager
 			// Add to data store
@@ -105,7 +106,15 @@ public class StoreAndIndexManager {
 		if (bSaveContent) {
 			saveContent(docs);
 		}
-		this.addToSearch(docs);
+		boolean index = true;
+		if ((null != source) && (null != source.getSearchIndexFilter())) {
+			if (null != source.getSearchIndexFilter().indexOnIngest) {
+				index = source.getSearchIndexFilter().indexOnIngest;
+			}
+		}
+		if (index) {
+			this.addToSearch(docs);
+		}
 		
 	}//TESTED
 	
@@ -619,6 +628,9 @@ public class StoreAndIndexManager {
 	private void sendToIndex(ElasticSearchManager indexManager, LinkedList<DocumentPojo> docsToAdd) {
 		try {
 			if (!docsToAdd.isEmpty()) {
+				//TODO if index list is completely empty then don't actually add...
+				
+				
 				if (!_diagnosticMode) {
 					indexManager.bulkAddDocuments(IndexManager.mapListToIndex(docsToAdd, new TypeToken<LinkedList<DocumentPojo>>(){}, 
 							new DocumentPojoIndexMap()), DocumentPojo._id_, null, true);
@@ -816,17 +828,24 @@ public class StoreAndIndexManager {
 
 // Utility
 
-		// Utility function to decide if we need to remove content
+		// Utility function to decide if we need to add/remove content via the external table 
 		// (ie JDBC and XML have their content as part of their metadata, eg fields
 		//  others like HTTP and Files can have large amounts of content that we don't want to store in the DB object)
 
+		// Called from: (noted here because this needs to be tidied up at some point)
+		// StoreAndIndexManager.addToDatastore
+		// MongoDocumentTxfer.doTransfer
+		// SourceUtils.pruneSource
+		// StoreAndIndexManager.removeFromDataStore_by(Id|SourceKey|Url)
+		// StoreAndIndexManager.saveContent
+	
 		static public boolean docHasExternalContent(String url, String srcUrl) {
 			//TODO: INF-1367: there's an issue with this .. suppose it's some enormous JSON file
 			// and we excise a bunch of JSON files from the metadata (after using them for processing)
 			// seems like we should have an optional keepExternalContent that defaults to the return value 
 			// of this function, but you can override from the SAH or whatever
 			
-			if (null != srcUrl) { // must be either JSON or XML
+			if (null != srcUrl) { // must be either JSON or XML or *sv
 				return false;
 			}
 			else if (null == url) { // no idea, pathological case?!
@@ -835,8 +854,12 @@ public class StoreAndIndexManager {
 			else if (url.startsWith("jdbc:")) { // DB entry
 				return false;
 			}
-			else if ((url.startsWith("smb://") || url.startsWith("file:")) && // JSON/XML but 1 doc/file 
-									(url.endsWith(".xml") || url.endsWith(".json")))
+			else if (url.startsWith("inf://custom/")) { // custom entry
+				return false;
+			}
+			else if ((url.startsWith("smb://") || url.startsWith("file:") || url.startsWith("s3://") || url.startsWith("inf://")) && 
+									(url.endsWith(".xml") || url.endsWith(".json") || url.endsWith("sv")))
+				// JSON/XML/*sv but 1 doc/file 				
 			{
 				return false;
 			}

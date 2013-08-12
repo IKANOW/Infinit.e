@@ -308,12 +308,13 @@ public class HarvestThenProcessController {
 					// (toAdd includes toUpdate)
 				
 				if (HarvestEnum.error != _sourceToProcess.getHarvestStatus().getHarvest_status()) {
-					_genericController.get().processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove);
+					_genericController.get().processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove, _sourceToProcess);
 						// (toRemove includes toUpdate)
 					
 					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, toRemove.size());
 						// (note also releases the "in_progress" lock)
 						// (note also prunes sources based on "maxDocs")
+						// (also handles the intra-source distribution logic)
 				}
 				// (if we've declared error, then "in_progress" lock already released so nothing to do)
 			}

@@ -39,6 +39,20 @@ import com.mongodb.hadoop.io.BSONWritable;
 
 public class MongoDbUtil {
 
+	@SuppressWarnings("unchecked")
+	public static <T> T getProperty(DBObject dbo, String fieldInDotNotation) {
+	    final String[] keys = fieldInDotNotation.split( "\\." );
+	    DBObject current = dbo;
+	    Object result = null;
+	    for ( int i = 0; i < keys.length; i++ ) {
+	        result = current.get( keys[i] );
+	        if ( i + 1 < keys.length ) {
+	            current = (DBObject) result;
+	        }
+	    }
+	    return (T) result;		
+	}//TESTED
+	
     public static JsonElement encode(DBCursor cursor) {
         JsonArray result = new JsonArray();
     	while (cursor.hasNext()) {
@@ -46,14 +60,14 @@ public class MongoDbUtil {
     		result.add(encode(dbo));
     	}
     	return result;
-    }
+    }//TESTED
     public static JsonElement encode(List<DBObject> listOfObjects) {
         JsonArray result = new JsonArray();
     	for (DBObject dbo: listOfObjects) {    		
     		result.add(encode(dbo));
     	}
     	return result;
-    }
+    }//TESTED
     public static JsonElement encode(BasicBSONList a) {
         JsonArray result = new JsonArray();
         for (int i = 0; i < a.size(); ++i) {
@@ -95,7 +109,7 @@ public class MongoDbUtil {
             }
         }
         return result;
-    }
+    }//TESTED
     
     public static JsonElement encode(BSONObject o) {
         JsonObject result = new JsonObject();
@@ -140,7 +154,7 @@ public class MongoDbUtil {
             }
         }
         return result;
-    }
+    }//TESTED
     private static ThreadSafeSimpleDateFormat _format = new ThreadSafeSimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 
     public static Object encodeUnknown(JsonElement from) {
@@ -177,7 +191,7 @@ public class MongoDbUtil {
 			}//TESTED
 		}//TESTED
     	return null;
-    }
+    }//TESTED
     public static BasicDBList encodeArray(JsonArray a) {
     	BasicDBList dbl = new BasicDBList();
     	for (JsonElement el: a) {

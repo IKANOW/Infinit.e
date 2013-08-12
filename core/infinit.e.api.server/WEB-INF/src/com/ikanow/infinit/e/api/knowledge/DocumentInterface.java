@@ -128,11 +128,12 @@ public class DocumentInterface extends ServerResource
 					 try
 					 {
 						 //return the bytes like we do in shares
-						 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();						
-						 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
-						 rep.setOutputBytes(dfp.bytes);
-						 //rep.setSize(dfp.bytes.length);
-						 return rep;
+						 DocumentFileInterface dfp = (DocumentFileInterface) rp.getData();
+						 if (null != dfp) {
+							 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(dfp.mediaType));
+							 rep.setOutputBytes(dfp.bytes);
+							 return rep;
+						 }
 					 }
 					 catch (Exception ex )
 					 {

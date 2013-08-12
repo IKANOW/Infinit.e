@@ -23,6 +23,7 @@ limitations under the License.
 		<![CDATA[
 			import com.adobe.serialization.json.JSONDecoder;
 			import com.adobe.utils.StringUtil;
+			import flash.utils.Timer;
 			import mx.collections.ArrayCollection;
 			import mx.collections.IList;
 			import mx.collections.Sort;
@@ -67,6 +68,8 @@ limitations under the License.
 			
 			[Embed( source = "assets/yellowexclamation.png" )]
 			public var yellowexclamation:Class;
+			
+			private var refreshTimer:Timer = null;
 			
 			[Bindable]
 			private var currsourceData:ArrayCollection = new ArrayCollection();
@@ -197,7 +200,20 @@ limitations under the License.
 				goodSourceService.send();
 				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/" + commString + "?stripped=true";
 				pendingSourceService.send();
+				
+				if ( null == refreshTimer )
+				{
+					refreshTimer = new Timer( 180000 ); // (5mins)
+					refreshTimer.addEventListener( TimerEvent.TIMER, onRefreshTimerComplete );
+					refreshTimer.start();
+				}
+				else
+				{
+					refreshTimer.stop();
+					refreshTimer.start();
+				}
 			}
+			
 			
 			protected function communitiesButton_clickHandler( event:MouseEvent ):void
 			{
@@ -292,6 +308,12 @@ limitations under the License.
 			protected function goodSourceService_faultHandler( event:FaultEvent ):void
 			{
 				Alert.show( "Error: Could not contact api server to get good sources" );
+				
+				if ( null != refreshTimer )
+				{
+					refreshTimer.stop();
+				}
+			
 			}
 			
 			protected function goodSourceService_resultHandler( event:ResultEvent ):void
@@ -344,6 +366,12 @@ limitations under the License.
 						o.statusImage = redx;
 						o.statusColor = 0xFF0000;
 						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
+					}
+					
+					// Distribution
+					if ( ( null != o.harvest ) && ( null != o.distributionFactor ) && ( null != o.harvest.distributionTokensFree ) && ( null != o.harvest.distributionTokensComplete ) )
+					{
+						o.activeThreads = ( ( o.distributionFactor as Number ) - ( o.harvest.distributionTokensComplete as Number ) - ( o.harvest.distributionTokensFree as Number ) ) as int;
 					}
 					
 					if ( ( null != o.searchCycle_secs ) && ( ( o.searchCycle_secs as Number ) < 0 ) )
@@ -407,106 +435,26 @@ limitations under the License.
 				}
 			}
 			
+			protected function onRefreshTimerComplete( event:TimerEvent ):void
+			{
+				refreshButton_clickHandler( null );
+			}
+			
 			
 			protected function pendingSourceService_faultHandler( event:FaultEvent ):void
 			{
 				Alert.show( "Error: Could not contact api server to get pending sources" );
+				
+				if ( null != refreshTimer )
+				{
+					refreshTimer.stop();
+				}
 			}
 			
 			
 			protected function pendingSourceService_resultHandler( event:ResultEvent ):void
 			{
-				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
-				var data:Object = json.getValue();
-				var sourceItems:ArrayCollection = new ArrayCollection( data.data );
-				var pendingSources:ArrayCollection = new ArrayCollection();
-				
-				for each ( var o:Object in sourceItems )
-				{
-					o.communityName = setCommunityName( o.communityIds[ 0 ] );
-					o.communityID = o.communityIds[ 0 ];
-					
-					if ( o.title == null )
-						o.title = "";
-					o.title = StringUtil.trim( o.title.toString() );
-					
-					if ( o.harvest == null || o.harvest.harvest_status == null || o.isApproved == false )
-					{
-						o.statusImage = yellowexclamation;
-						o.statusColor = 0xEEEE00;
-						o.harvestDate = null;
-					}
-					else if ( o.harvest.harvest_status == "success" )
-					{
-						o.statusImage = greencheck;
-						o.statusColor = 0x00FF00;
-						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
-					}
-					else if ( o.harvest.harvest_status == "in_progress" )
-					{
-						o.statusImage = yellowexclamation;
-						o.statusColor = 0x0000EE;
-						
-						if ( null == o.harvest.harvested )
-							o.harvestDate = null;
-						else
-							o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
-					}
-					else if ( o.harvest.harvest_status == "success_iteration" )
-					{
-						o.statusImage = yellowexclamation;
-						o.statusColor = 0x0000EE;
-						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
-					}
-					else
-					{
-						o.statusImage = redx;
-						o.statusColor = 0xFF0000;
-						o.harvestDate = DateConverter.parseDate( o.harvest.harvested );
-					}
-					
-					if ( ( null != o.searchCycle_secs ) && ( ( o.searchCycle_secs as Number ) < 0 ) )
-					{
-						o.title = "[SUSPENDED] " + o.title;
-					}
-					
-					if ( o.harvest != null && null != o.harvest.harvest_message )
-					{
-						var truncatedMessageForPerformance:String = o.harvest.harvest_message as String;
-						
-						if ( null == truncatedMessageForPerformance )
-						{
-							o.harvest.harvest_message_trunc = "";
-						}
-						else if ( truncatedMessageForPerformance.length > 64 )
-						{
-							o.harvest.harvest_message_trunc = truncatedMessageForPerformance.substr( 0, 64 ) + "...";
-						}
-						else
-						{
-							o.harvest.harvest_message_trunc = truncatedMessageForPerformance;
-						}
-					}
-					else if ( o.harvest != null )
-					{
-						o.harvest.harvest_message_trunc = "";
-					}
-					
-					if ( !doesCollectionContainItem( sourceData, o ) )
-						pendingSources.addItem( o );
-					else
-					{
-						replaceItemById( sourceData, o );
-						replaceItemById( currsourceData, o );
-					}
-				}
-				
-				sourceData.addAll( pendingSources );
-				currsourceData.addAll( pendingSources );
-				
-				currsourceData.refresh();
-				
-				checkFilter();
+				goodSourceService_resultHandler( event );
 			}
 			
 			protected function positionCommunitiesPopup():void

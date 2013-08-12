@@ -26,6 +26,7 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
      */
     public static final String MAX_SPLITS = "max.splits";
     public static final String MAX_DOCS_PER_SPLIT = "max.docs.per.split";
+    public static final String UPDATE_MODE = "update.incremental";
     
     public static int getMaxSplits( Configuration conf ){
     	return conf.getInt(MAX_SPLITS, 0);
@@ -35,6 +36,10 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     {
     	conf.setInt(MAX_SPLITS, maxSplits);
     }
+    
+    public static boolean getUpdateModeIncremental( Configuration conf ){
+    	return conf.getBoolean(UPDATE_MODE, false);
+    }//TODO (INF-2126) TOTEST
     
     public static int getMaxDocsPerSplit( Configuration conf ){
     	return conf.getInt(MAX_DOCS_PER_SPLIT, 0);

@@ -27,10 +27,10 @@ import org.apache.log4j.xml.DOMConfigurator;
 
 import com.ikanow.infinit.e.core.execute_harvest.HarvestThenProcessController;
 import com.ikanow.infinit.e.core.execute_synchronization.SynchronizationController;
-import com.ikanow.infinit.e.core.mapreduce.HadoopJobRunner;
 import com.ikanow.infinit.e.core.utils.SourceUtils;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
+import com.ikanow.infinit.e.processing.custom.CustomProcessingController;
 
 public class CoreMain {
 
@@ -133,9 +133,9 @@ public class CoreMain {
 			if (cliOpts.hasOption("jobtitle")) {
 				jobOverride = (String) cliOpts.getOptionValue("jobtitle");
 			}
-			HadoopJobRunner hjr = new HadoopJobRunner();
-			hjr.runScheduledJobs(jobOverride);
-			hjr.updateJobStatus();
+			CustomProcessingController customPxController = new CustomProcessingController();
+			customPxController.checkScheduledJobs(jobOverride);
+			customPxController.checkRunningJobs();
 		}
 		else {
 			//Test code for distribution:

@@ -340,8 +340,7 @@ public class GenericProcessingController {
 				parentCommunityIdStr = parentCommunityId.toString();
 			}
 			
-			if ((null == parentCommunityIdStr) || (parentCommunityIdStr.equals("4c927585d591d31d7b37097a"))) {
-				// (system community is hardwired - children of this community are ignored)
+			if (null == parentCommunityIdStr) {
 			
 				int nShards = bSystemGroup? 10 : 5 ; // (system group is largest)
 				
@@ -472,8 +471,7 @@ public class GenericProcessingController {
 			dummyGroupIndex.removeAlias(sAliasIndex);
 			dummyGroupIndex.removeAlias(sGroupIndex);
 		}
-		else if ((null != parentCommunityId) && (!parentCommunityId.equals(new ObjectId("4c927585d591d31d7b37097a")))) {
-			// (system community is hardwired)
+		else if (null != parentCommunityId) {
 			
 			String sParentGroupIndex = new StringBuffer("doc_").append(parentCommunityId.toString()).toString();
 			ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
@@ -546,10 +544,14 @@ public class GenericProcessingController {
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	//
-	// Enrich and store documents
+	// Enrich and store documents (source is optional - can choose not to index if set)
 	// (and remove any documents)
 	
 	public void processDocuments(int harvestType, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate_subsetOfAdd, List<DocumentPojo> toDelete)
+	{
+		processDocuments(harvestType, toAdd, toUpdate_subsetOfAdd, toDelete, null);
+	}
+	public void processDocuments(int harvestType, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate_subsetOfAdd, List<DocumentPojo> toDelete, SourcePojo source)
 	{
 		PropertiesManager props = new PropertiesManager();
 		
@@ -590,7 +592,7 @@ public class GenericProcessingController {
 			perSourceAggregation.applyAggregationToDocs(toAdd);
 				// (First save aggregated statistics back to the docs' entity/event instances)
 		}
-		storeFeeds(toAdd, (harvestType != InfiniteEnums.DATABASE));
+		storeFeeds(toAdd, (harvestType != InfiniteEnums.DATABASE), source);
 
 		// Then finish aggregation:
 		
@@ -615,12 +617,12 @@ public class GenericProcessingController {
 	 * 
 	 * @param feeds list of feeds to be added to db
 	 */
-	private void storeFeeds(List<DocumentPojo> docs, boolean bSaveContent)
+	private void storeFeeds(List<DocumentPojo> docs, boolean bSaveContent, SourcePojo source)
 	{
 		if ( null != docs && docs.size() > 0 )
 		{
 			StoreAndIndexManager store = new StoreAndIndexManager();
-			store.addToDatastore(docs, bSaveContent);
+			store.addToDatastore(docs, bSaveContent, source);
 		}
 	}//TESTED (by eye)
 	

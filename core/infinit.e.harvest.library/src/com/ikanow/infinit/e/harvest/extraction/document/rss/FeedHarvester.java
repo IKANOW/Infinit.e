@@ -333,6 +333,9 @@ public class FeedHarvester implements HarvesterInterface
 		long nWaitTime_ms = props.getWebCrawlWaitTime();
 		long nMaxTime_ms = props.getMaxTimePerFeed(); // (can't override this, too easy to break the system...)
 		int nMaxDocsPerSource = props.getMaxDocsPerSource();
+		if (_context.isStandalone()) {
+			nMaxDocsPerSource = _context.getStandaloneMaxDocs();
+		}		
 		long nNow = new Date().getTime();
 		if (null != source.getRssConfig()) {
 			if (null != source.getRssConfig().getWaitTimeOverride_ms()) {
@@ -345,6 +348,10 @@ public class FeedHarvester implements HarvesterInterface
 		}
 		if (nMaxDocs > nMaxDocsPerSource) { // (another limit, take the smaller of the 2)
 			nMaxDocs = nMaxDocsPerSource;
+		}
+		// Can override system settings if less:
+		if ((null != source.getThrottleDocs()) && (source.getThrottleDocs() < nMaxDocs)) {
+			nMaxDocs = source.getThrottleDocs();
 		}
 		// (end per feed configuration)
 		
@@ -417,6 +424,14 @@ public class FeedHarvester implements HarvesterInterface
 				{
 					String url = this.cleanUrlStart(entry.getLink());
 
+					// Intra-source distribution logic:
+					if ((null != source.getDistributionTokens()) && (null != source.getDistributionFactor())) {
+						int split = Math.abs(url.hashCode()) % source.getDistributionFactor();
+						if (!source.getDistributionTokens().contains(split)) {
+							continue;
+						}
+					}//TESTED (copy and paste from FileHarvester)
+					
 					if (null != source.getRssConfig()) { // Some RSS specific logic
 						// If an include is specified, must match
 						Matcher includeMatcher = source.getRssConfig().getIncludeMatcher(url);

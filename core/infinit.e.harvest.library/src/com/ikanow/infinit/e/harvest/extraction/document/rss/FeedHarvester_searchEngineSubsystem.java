@@ -48,6 +48,10 @@ public class FeedHarvester_searchEngineSubsystem {
 		if (context.isStandalone()) {
 			maxDocsPerCycle = context.getStandaloneMaxDocs();
 		}		
+		// Can override system settings if less:
+		if ((null != src.getThrottleDocs()) && (src.getThrottleDocs() < maxDocsPerCycle)) {
+			maxDocsPerCycle = src.getThrottleDocs();
+		}
 		
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		

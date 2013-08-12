@@ -92,6 +92,12 @@ limitations under the License.
 		String comment;
 	}
 
+	static class shareReference {
+		String _id;
+		String database;
+		String collection;		
+	}
+	
 	static class shareData {
 		String _id;
 		String created;
@@ -101,6 +107,7 @@ limitations under the License.
 		String title;
 		String description;
 		String mediaType;
+		shareReference documentLocation;
 		shareCommunity[] communities;
 		String binaryId;
 
@@ -323,13 +330,30 @@ limitations under the License.
 	//ID is provided, then it updates the widget containing that shareID
 	private String UpdateToShare(byte[] bytes, String mimeType, String title,
 			String description, String prevId, Set<String> communities, boolean isJson, 
-			String type, boolean newShare,
+			String type, boolean newShare, boolean isRef, String docloc, String docid,
 			HttpServletRequest request, HttpServletResponse response) {
 		String charset = "UTF-8";
 		String url = "";
 		try 
 		{
-			if ( isJson )
+			if ( isRef )
+			{
+				if (newShare)
+					url = API_ROOT + "social/share/add/ref/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(docloc, charset) + "/"
+							+ URLEncoder.encode(docid, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+				else
+					url = API_ROOT + "social/share/update/ref/" + prevId + "/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(docloc, charset) + "/"
+							+ URLEncoder.encode(docid, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";				
+			}
+			else if ( isJson )
 			{
 				//first check if bytes are actually json
 				try
@@ -606,14 +630,18 @@ limitations under the License.
 					if ((null != info.owner) && (null != info.owner.email)) {
 						owner = info.owner.email;
 					}
+					String docRefId = "null" + delim + "null";
+					if (null != info.documentLocation)
+						docRefId = info.documentLocation.database + "." + info.documentLocation.collection + delim + info.documentLocation._id; // (type contains the other params anyway)
+					
 					if (ext == null) {
 						String value = info._id + delim + info.created + delim
 								+ info.title + delim + info.description + delim
-								+ SHARE_ROOT + info._id + delim;
+								+ SHARE_ROOT + info._id + delim ;
 						for (shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
-						value += delim + owner + delim + info.binaryId + delim + info.type;
+						value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 						toReturn += "<option value=\"" + value
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
@@ -638,7 +666,7 @@ limitations under the License.
 								for (shareCommunity scomm : info.communities) {
 									value += scomm._id + ",";
 								}
-								value += delim + owner + delim + info.binaryId + delim + info.type;
+								value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 								toReturn += "<option value=\"" + value
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
@@ -656,7 +684,7 @@ limitations under the License.
 							for (shareCommunity scomm : info.communities) {
 								value += scomm._id + ",";
 							}
-							value += delim + owner + delim + info.binaryId + delim + info.type;
+							value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 							toReturn += "<option value=\"" + value
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
@@ -907,17 +935,33 @@ visibility: hidden;
 					String shareId = request.getAttribute("DBId").toString();
 					String fileUrl = "";
 					String fileId = "";
+					String ref = request.getAttribute("reference").toString();
+					if (null == ref) {
+						ref = "null";
+					}
 					String bin = request.getAttribute("binary").toString();		
 					if (request.getAttribute("title") != null
 							&& request.getAttribute("description") != null
 							&& fileBytes != null) 
 					{						
-						if ( !isFileSet ) //if not a binary file or file was not changed
+						if ( !isFileSet && ref.equals("null") ) //if not a binary file or file was not changed
 						{												
 							fileId = shareId;
 							if (shareId != null && shareId != "")
 								addRemoveCommunities(shareId, communities, request, response);							
-							out.println("File was not set, just updated communities.");
+							out.println("File was not set, just updated communities (can't edit type/title/etc without also re-uploading the file).");
+						}
+						else if ( !ref.equals("null")  )
+						{
+							String docLoc = request.getAttribute("ref_loc").toString();
+							String docId = request.getAttribute("ref_id").toString();
+							
+							fileId = UpdateToShare(fileBytes, fileDS, request
+									.getAttribute("title").toString(),
+									request.getAttribute("description")
+											.toString(), shareId,
+									communities, false, request.getAttribute("type")
+									.toString(), newUpload, true, docLoc, docId, request, response);							
 						}
 						else if ( bin.equals("null")) //is a json file, make sure its okay and upload it
 						{
@@ -926,7 +970,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, true, request.getAttribute("type")
-									.toString(), newUpload, request, response);
+									.toString(), newUpload, false, null, null, request, response);
 						}
 						else //is a binary, do normal
 						{
@@ -935,7 +979,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, request, response);
+									.toString(), newUpload, false, null, null, request, response);
 						}
 
 						if (fileId.contains("Failed")) 
@@ -1009,6 +1053,9 @@ visibility: hidden;
 		var dropdown = document.getElementById("upload_info");
 		var list = dropdown.options[dropdown.selectedIndex].value;
 		var binary = document.getElementById("binary");
+		var reference = document.getElementById("reference");
+		var ref_id = document.getElementById("ref_id");
+		var ref_loc = document.getElementById("ref_loc");
 		
 		if (list == "new")
 		{
@@ -1026,7 +1073,11 @@ visibility: hidden;
 			owner_text.className = "hide";
 			deleteButton.className = "hide";
 			clearCommList();
+			file_row.className = "show";
+			ref_row.className = "hide";
+			refid_row.className = "hide";
 			binary.value = "";
+			reference.value = "null";
 			return;
 		}
 		
@@ -1046,8 +1097,37 @@ visibility: hidden;
 			owner_text.className = "hide";
 			deleteButton.className = "hide";
 			clearCommList();
+			file_row.className = "show";
+			ref_row.className = "hide";
+			refid_row.className = "hide";
 			binary.value = "null";
+			reference.value = "null";
 			return;
+		}
+		
+		if (list == "newRef")
+		{
+			title.value = "";
+			description.value = "";
+			type.value = "";
+			created.value = "";
+			DBId.value = "";
+			deleteId.value = "";
+			share_url.value = "";
+			owner.value = "";
+			typerow.className = "show";
+			typerow.className = "show";
+			url_row.className = "hide";
+			owner.className = "hide";
+			owner_text.className = "hide";
+			deleteButton.className = "hide";
+			clearCommList();
+			file_row.className = "hide";
+			ref_row.className = "show";
+			refid_row.className = "show";
+			binary.value = "null";
+			reference.value = "";
+			return;			
 		}
 		
 		//_id, created, title, description
@@ -1061,15 +1141,42 @@ visibility: hidden;
 		communities = split[5];
 		res_owner = split[6];
 		res_binary = split[7];		
-		res_type = split[8];			
+		res_type = split[8];		
+		res_docloc = split[9];
+		res_docid = split[10];
 		
-		if ( res_binary == "null" )
+		if ( res_docloc != "null" ) // reference
 		{
 			typerow.className = "show";
+			
+			file_row.className = "hide";
+			ref_row.className = "show";
+			refid_row.className = "show";
+			
+			ref_loc.value = res_docloc;
+			ref_id.value = res_docid;
+			
+			reference.value = "";
 		}
-		else
+		else if ( res_binary == "null" ) //json
+		{			
+			typerow.className = "show";
+			
+			file_row.className = "show";
+			ref_row.className = "hide";
+			refid_row.className = "hide";
+			
+			reference.value = "null";
+		}
+		else //binary
 		{
 			typerow.className = "hide";
+			
+			file_row.className = "show";
+			ref_row.className = "hide";
+			refid_row.className = "hide";
+			
+			reference.value = "null";
 		}
 		title.value = res_title;
 		description.value = res_description;
@@ -1092,7 +1199,9 @@ visibility: hidden;
 			description = document.getElementById('description').value;
 			file = document.getElementById('file').value;
 			binary = document.getElementById("binary").value;
+			reference = document.getElementById("reference").value;
 			type = document.getElementById("type").value;
+			docid = document.getElementById("ref_id").value;
 			//share_url = document.getElementById('share_url').value;
 			//file_url = document.getElementById('file_url').value;
 			//file_check = document.getElementById('file_check').checked;
@@ -1111,6 +1220,10 @@ visibility: hidden;
 			{
 				alert('Please provide a type.');
 				return false;
+			}
+			if ( reference != "null" && docid == "") {
+				alert('Please provide a referenced doc id.');
+				return false;				
 			}
 			
 			
@@ -1151,7 +1264,11 @@ visibility: hidden;
 					 %>	        		
 	        	</form>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
-	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New File</option><option value="newJSON">Upload New JSON</option> <%
+	        		<select id="upload_info" onchange="populate()" name="upload_info">
+	        		<option value="new">Upload New File</option>
+	        		<option value="newJSON">Upload New JSON</option>
+	        		<option value=newRef>Share existing object</option> 
+	        		<%
  	out.print(populatePreviousUploads(request, response));
  %></select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" class="hidden" value="Delete" />
@@ -1191,9 +1308,24 @@ visibility: hidden;
 	                    <input type="text" name="owner" id="owner" readonly="readonly" size="25" />
 	                  	</td>
 	                  </tr>
-	                  <tr>
+	                  <tr id="file_row">
 	                    <td>File:</td>
 	                    <td><input type="file" name="file" id="file" /></td>
+	                  </tr>
+	                  <tr id="ref_row">
+	                    <td>Reference location:</td>
+	                  	<td>
+	                  	<select id="ref_loc" name="ref_loc">
+			        		<option value="custommr.customlookup">Custom Plugin Collection</option>
+			        		<option value="doc_metadata.metadata">Document Metadata Collection</option>
+			        		<option value="feature.entity">Aggregated Entity Collection</option>
+			        		<option value="feature.association">Aggregated Association Collection</option>
+	                  	</select>
+	                  	</td>
+	                  </tr>
+	                  <tr id="refid_row">
+	                    <td>Reference doc id:</td>
+	                  	<td><input type="text" name="ref_id" id="ref_id" size="38"/></td>
 	                  </tr>
 	                  <tr id="url_row" class="hide">
 	                  	<td>Share URL:</td>
@@ -1210,6 +1342,7 @@ visibility: hidden;
 					<input type="hidden" name="DBId" id="DBId" />
 					<input type="hidden" name="fileUrl" id="fileUrl" />
 					<input type="hidden" name="binary" id="binary" />
+					<input type="hidden" name="reference" id="reference" />
 					 <%
 					 	if (showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");

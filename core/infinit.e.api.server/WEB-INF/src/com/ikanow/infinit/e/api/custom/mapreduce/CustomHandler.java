@@ -40,7 +40,10 @@ import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJob
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
+import com.ikanow.infinit.e.processing.custom.CustomProcessingController;
+import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
 import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
+import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
@@ -49,6 +52,14 @@ import com.mongodb.DBObject;
 public class CustomHandler 
 {
 	private static final Logger logger = Logger.getLogger(CustomHandler.class);
+	
+	public CustomHandler() {
+		this(null);
+	}
+	public CustomHandler(Integer debugLimit) {
+		_debugLimit = debugLimit;
+	}
+	private Integer _debugLimit = null;
 	
 	/**
 	 * Returns the results of a map reduce job if it has completed
@@ -92,17 +103,28 @@ public class CustomHandler
 							fieldsDbo = (BasicDBObject) com.mongodb.util.JSON.parse("{" + fields + "}");
 						}
 
-						//return the results: 
+						//return the results:
+						
+						// Need to handle sorting...
+						String sortField = "_id";
+						int sortDir = 1;
+						BasicDBObject postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(cmr.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
+						if ( postProcObject != null )
+						{
+							sortField = postProcObject.getString("sortField", "_id");
+							sortDir = postProcObject.getInt("sortDirection", 1);
+						}//TESTED (post proc and no post proc)
+						BasicDBObject sort = new BasicDBObject(sortField, sortDir);
 						
 						// Case 1: DB
 						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
 						if ((null == cmr.exportToHdfs) || !cmr.exportToHdfs) {
 							DBCursor resultCursor = null;
 							if (limit > 0) {
-								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(new BasicDBObject("_id",1)).limit(limit);
+								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(sort).limit(limit);
 							}
 							else {
-								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo);
+								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(sort);
 							}
 							CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
 							cmrr.lastCompletionTime = cmr.lastCompletionTime;
@@ -175,7 +197,7 @@ public class CustomHandler
 	 * @param userid
 	 * @return
 	 */
-	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs)
+	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		List<ObjectId> commids = new ArrayList<ObjectId>(); 
@@ -226,12 +248,15 @@ public class CustomHandler
 					
 					cmr.submitterID = new ObjectId(userid);
 					long nextRun = Long.parseLong(nextRunTime);
-					//if this job is set up to run before now, just set the next run time to now
-					//so we can schedule jobs appropriately
-					if ( nextRun < new Date().getTime() )
-						nextRun = new Date().getTime();
 					cmr.firstSchedule = new Date(nextRun);					
 					cmr.nextRunTime = nextRun;
+					//if this job is set up to run before now, just set the next run time to now
+					//so we can schedule jobs appropriately
+					long nNow = new Date().getTime();
+					if ( cmr.nextRunTime < nNow )
+						cmr.nextRunTime = nNow - 1;
+					//TESTED
+					
 					cmr.scheduleFreq = SCHEDULE_FREQUENCY.valueOf(schedFreq);
 					if ( (null != mapperClass) && !mapperClass.equals("null"))
 						cmr.mapper = mapperClass;
@@ -296,14 +321,23 @@ public class CustomHandler
 					DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject("jobtitle",title));
 					if ( dbo == null )
 					{
-						DbManager.getCustom().getLookup().insert(cmr.toDb());		
 						Date nextRunDate = new Date(nextRun);
 						Date now = new Date();
 						String nextRunString = nextRunDate.toString();
-						if ( nextRunDate.getTime() > now.getTime() )
-							nextRunString = " next available timeslot";
+						boolean bRunNowIfPossible = false;
+						if ( nextRunDate.getTime() < now.getTime() ) {
+							nextRunString = "next available timeslot";
+							bRunNowIfPossible = true;
+						}
 						rp.setResponse(new ResponseObject("Schedule MapReduce Job",true,"Job scheduled successfully, will run on: " + nextRunString));
 						rp.setData(cmr._id.toString(), null);
+												
+						if (bRunNowIfPossible) {
+							runJobAndWaitForCompletion(cmr, bQuickRun);
+						}//TESTED
+						else {
+							DbManager.getCustom().getLookup().save(cmr.toDb());							
+						}
 					}
 					else
 					{					
@@ -334,7 +368,7 @@ public class CustomHandler
 		return rp;
 	}
 	
-	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs)
+	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
@@ -432,7 +466,11 @@ public class CustomHandler
 					if ( (null != nextRunTime) && !nextRunTime.equals("null"))
 					{
 						cmr.nextRunTime = Long.parseLong(nextRunTime);
+						long nNow = new Date().getTime();
 						cmr.firstSchedule = new Date(cmr.nextRunTime);
+						if (cmr.nextRunTime < nNow) { // ie leave firstSchedule alone since that affects when we next run, but just set this to now...
+							cmr.nextRunTime = nNow - 1;
+						}//TESTED
 						cmr.timesRan = 0;
 						cmr.timesFailed = 0;
 					}
@@ -530,12 +568,25 @@ public class CustomHandler
 					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"error scheduling job: " + e.getMessage()));
 					return rp;
 				}
-							
-				//update succeeded, right back to db over existing
-				DbManager.getCustom().getLookup().save(cmr.toDb());
-				rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Job updated successfully, will run on: " + new Date(cmr.nextRunTime).toString()));
+
+				// Setup post-processing 
+				
+				String nextRunString = new Date(cmr.nextRunTime).toString();
+				boolean bRunNowIfPossible = false;
+				if ( cmr.nextRunTime < new Date().getTime() ) {
+					nextRunString = "next available timeslot";
+					bRunNowIfPossible = true;
+				}
+				
+				rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Job updated successfully, will run on: " + nextRunString));
 				rp.setData(cmr._id.toString(), null);
 
+				if (bRunNowIfPossible) {
+					runJobAndWaitForCompletion(cmr, bQuickRun);
+				}//TESTED
+				else {
+					DbManager.getCustom().getLookup().save(cmr.toDb());					
+				}
 			}
 			else
 			{
@@ -775,6 +826,11 @@ public class CustomHandler
 		return rp;
 	}
 	
+	//////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////
+	
+	// UTILITIES
+	
 	/**
 	 * Checks if any other custom jobs use the same jar and attempts to remove using the share handler.
 	 * 
@@ -845,7 +901,54 @@ public class CustomHandler
 		}		
 		return dependencies;
 	}
+
+	// UTILITY FUNCTION FOR SCHEDULE/UPDATE JOB
 	
+	private void runJobAndWaitForCompletion(CustomMapReduceJobPojo job, boolean bQuickRun) {
+		com.ikanow.infinit.e.processing.custom.utils.PropertiesManager customProps = new com.ikanow.infinit.e.processing.custom.utils.PropertiesManager();
+		boolean bLocalMode = customProps.getHadoopLocalMode();
+		if (!bLocalMode || bQuickRun || (null != _debugLimit)) {			
+			// (if local mode is running then initializing job is bad because it will wait until the job is complete
+			//  ... except if quickRun is set then this is what we want anyway!)
+			
+			// Check there are available timeslots:
+			if (CustomScheduleManager.availableSlots(customProps)) {
+				job.lastRunTime = new Date();
+				job.jobidS = "";
+				DbManager.getCustom().getLookup().save(job.toDb());							
+				
+				// Run the job
+				CustomProcessingController pxController = null;
+				if (null != _debugLimit) {
+					pxController = new CustomProcessingController(true, _debugLimit);					
+				}
+				else {
+					pxController = new CustomProcessingController();
+				}
+				pxController.initializeJob(job); // (sets job.jobid*)
+				
+				// In quick run mode, keep checking until the job is done (5s intervals)
+				if (bQuickRun) {
+					int nRuns = 0;
+					while (!pxController.checkRunningJobs(job)) {
+						try { Thread.sleep(5000); } catch (Exception e) {}
+						if (++nRuns > 120) { // bail out after 10 minutes 
+							break;
+						}
+					}
+				}
+			}
+			else { // (no available timeslots - just save as is and let the px engine start it)
+				DbManager.getCustom().getLookup().save(job.toDb());							
+				
+			}
+		}		
+		
+	}//TESTED: (local mode on/off, quick mode on/off) //TESTED (local/quick, local/!quick)
+
+	//////////////////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////////////////
+
 	// REMOVED THIS BECAUSE THE DATABASES ARE ALL SHARDED
 	/*
 	public ResponsePojo runAggregation(String userid, String key, String cond, String initial, String reduce, String collection) 

@@ -122,6 +122,7 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/auth/keepalive",LoginInterface.class);
         attach(router, "/auth/keepalive/admin",LoginInterface.class);
         attach(router, "/auth/logout",LoginInterface.class);
+        attach(router, "/auth/logout/admin",LoginInterface.class);
         attach(router, "/auth/forgotpassword",LoginInterface.class);
         attach(router, "/auth/deactivate",LoginInterface.class);
         
@@ -293,9 +294,11 @@ public class EmbeddedRestletApp extends Application
         //BETA NAMING
         router.attach("/person/get/", PersonInterface.class);
         router.attach("/person/get/{personid}", PersonInterface.class);
+        router.attach("/person/list", PersonInterface.class);
         //V0 NAMING
         attach(router, "/social/person/get", PersonInterface.class);
         attach(router, "/social/person/get/{personid}", PersonInterface.class);
+        attach(router, "/social/person/list", PersonInterface.class);
 
         //WORDPRESS CALLS, wordpress still calls the old /people/ but i now route thru personResource
         //BETA NAMING
@@ -331,8 +334,8 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/social/share/save/json/{id}/{type}/{title}/{description}", ShareInterface.class);
         attach(router, "/social/share/add/json/{type}/{title}/{description}", ShareInterface.class);
         attach(router, "/social/share/update/json/{id}/{type}/{title}/{description}", ShareInterface.class);
-        attach(router, "/social/share/add/ref/{type}/{documentid}/{title}/{description}", ShareInterface.class);
-        attach(router, "/social/share/update/ref/{id}/{type}/{documentid}/{title}/{description}", ShareInterface.class);
+        attach(router, "/social/share/add/ref/{type}/{documentloc}/{documentid}/{title}/{description}", ShareInterface.class);
+        attach(router, "/social/share/update/ref/{id}/{type}/{documentloc}/{documentid}/{title}/{description}", ShareInterface.class);
         
         // Communities
         //BETA NAMING

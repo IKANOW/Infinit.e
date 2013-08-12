@@ -123,9 +123,11 @@ Infinit.e harvesting and cleansing services
 %dir /mnt/opt/infinite-home/bin
 %dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/bin/STOPFILE
+/mnt/opt/infinite-home/bin/STOP_SYNC_FILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
+%config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite-px-engine.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/sync_features.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/generate_temporal_aggregations.sh
@@ -159,6 +161,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/jcifs-1.3.17.jar
 /mnt/opt/infinite-home/lib/tika-app-1.0.jar
+/mnt/opt/infinite-home/lib/GridFSZipFile.jar
 /mnt/opt/infinite-home/lib/j-calais-0.2.1-jar-with-dependencies.jar
 /mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar
 /mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar

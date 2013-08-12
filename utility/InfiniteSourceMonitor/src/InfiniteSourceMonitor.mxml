@@ -74,7 +74,7 @@
 				var data:Object = json.getValue();
 				communities.addAll( new ArrayCollection( ObjectTranslatorUtil.translateArrayObjects( data.data, Community ) ) );
 				// sort the communities
-				//CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, true ), new SortField( Constants.NAME_PROPERTY, true ) ] );
+				//CollectionUtil.applySort( communities, [ new SortField( Constants.NAME_PROPERTY, false ) ] );
 				//communities.refresh();
 				
 				//communities.addAllAt(userCommunities, 0);
@@ -358,12 +358,12 @@
 					}
 					
 					// sort the communities
-					CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, true ), new SortField( Constants.NAME_PROPERTY, true ) ] );
+					CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, true ), new SortField( Constants.NAME_PROPERTY, false ) ] );
 					communities.refresh();
 					
 					// set and sort the user communities
 					userCommunities = userCommunitiesNew;
-					CollectionUtil.applySort( userCommunities, [ new SortField( Constants.NAME_PROPERTY, true ) ] );
+					CollectionUtil.applySort( userCommunities, [ new SortField( Constants.NAME_PROPERTY, false ) ] );
 					userCommunities.refresh();
 				}
 			}

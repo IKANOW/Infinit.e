@@ -82,8 +82,18 @@ fi
 sed -i "s|LOGO_URL|$LOGO_URL|" $CONSTANTS_CONF_LOCATION
 
 #(enterprise constants)
-sed -i "s|CASE_MANAGER_API_URL|$CASE_MANAGER_API_URL|g" $CONSTANTS_CONF_LOCATION
-sed -i "s|CASE_MANAGER_URL|$CASE_MANAGER_URL|g" $CONSTANTS_CONF_LOCATION
+#(case app server)
+if [ "$CASE_MANAGER_API_URL" = "local" ]; then
+	sed -i "s|\"CASE_MANAGER_API_URL\"|'http://'+document.location.hostname+':'+(document.location.port==''?80:document.location.port)+'/caseserver/'|" $CONSTANTS_CONF_LOCATION
+else
+	sed -i "s|CASE_MANAGER_API_URL|$CASE_MANAGER_API_URL|g" $CONSTANTS_CONF_LOCATION
+fi
+#(case manager gui)
+if [ "$CASE_MANAGER_URL" = "local" ]; then
+	sed -i "s|\"CASE_MANAGER_URL\"|'http://'+document.location.hostname+':8090/casemanager/'|" $CONSTANTS_CONF_LOCATION
+else
+	sed -i "s|CASE_MANAGER_URL|$CASE_MANAGER_URL|g" $CONSTANTS_CONF_LOCATION
+fi
 
 chown tomcat.tomcat $CONSTANTS_CONF_LOCATION
 

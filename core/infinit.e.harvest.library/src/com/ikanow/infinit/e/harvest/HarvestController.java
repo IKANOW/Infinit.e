@@ -19,11 +19,13 @@
 package com.ikanow.infinit.e.harvest;
 
 import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -52,7 +54,10 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
+import com.ikanow.infinit.e.data_model.utils.JarAsByteArrayClassLoader;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.TextRankExtractor;
@@ -71,9 +76,11 @@ import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
+import com.ikanow.infinit.e.harvest.utils.AuthUtils;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
+import com.mongodb.gridfs.GridFSDBFile;
 
 /**
  * @author cmorgan
@@ -84,17 +91,18 @@ import com.mongodb.BasicDBObject;
 public class HarvestController implements HarvestContext
 {
 	private HarvestControllerPipeline procPipeline;
-	
+
 	private PropertiesManager pm = new PropertiesManager();
 	private IEntityExtractor default_entity_extractor = null;
 	private ITextExtractor default_text_extractor = null;
 	private ArrayList<HarvesterInterface> harvesters = new ArrayList<HarvesterInterface>();
 	private static Set<String> urlsThatError = new TreeSet<String>();
 	private static final Logger logger = Logger.getLogger(HarvestController.class);
-	
+
 	private HashMap<String, IEntityExtractor> entity_extractor_mappings = null;
 	private HashMap<String, ITextExtractor> text_extractor_mappings = null;
-	
+	private HashSet<String> failedDynamicExtractors = null;
+
 	private int _nMaxDocs = Integer.MAX_VALUE; 
 	private DuplicateManager _duplicateManager = new DuplicateManager_Integrated();
 	private HarvestStatus _harvestStatus = new HarvestStatus_Integrated(); // (can either be standalone or integrated, defaults to standalone)
@@ -120,7 +128,7 @@ public class HarvestController implements HarvestContext
 		return _nMaxDocs;
 	}
 	private long nBetweenFeedDocs_ms = 10000; // (default 10s)
-	
+
 	//statistics variables
 	private static AtomicInteger num_sources_harvested = new AtomicInteger(0);
 	private static AtomicInteger num_docs_extracted = new AtomicInteger(0);
@@ -128,9 +136,9 @@ public class HarvestController implements HarvestContext
 	private static AtomicInteger num_error_url = new AtomicInteger(0);
 	private static AtomicInteger num_ent_extracted = new AtomicInteger(0);
 	private static AtomicInteger num_event_extracted = new AtomicInteger(0);
-	
+
 	private int nUrlErrorsThisSource = 0;
-	
+
 	/**
 	 * Used to find out the sources harvest of information is successful
 	 * @return
@@ -145,14 +153,14 @@ public class HarvestController implements HarvestContext
 	public static boolean isHarvestKilled() { return bIsKilled; }
 
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	// TOP LEVEL LOGICAL
-	
+
 	// Utility objects for loading custom text and entity extractors across all threads just once
 	@SuppressWarnings("rawtypes")
 	private static HashMap<String, Class> customExtractors = null; 
 	private static ClassLoader customExtractorClassLoader = HarvestController.class.getClassLoader();
-	
+
 	/**
 	 *  Constructor for Harvest Controller class
 	 *  
@@ -164,7 +172,7 @@ public class HarvestController implements HarvestContext
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
 		String sType[] = sTypes.split("\\s*,\\s*");
-		
+
 		// Add a harvester for each data type
 		for (String s: sType) {
 			if (s.equalsIgnoreCase("database")) {
@@ -184,7 +192,7 @@ public class HarvestController implements HarvestContext
 				// this is needed to avoid java.lang.OutOfMemoryError (intermittent - for me at least, it's happened for exactly 1 source, but consistently when it does)
 				System.setProperty("jcifs.resolveOrder", "DNS");
 				System.setProperty("jcifs.smb.client.dfs.disabled", "true");
-				
+
 				try {
 					this.harvesters.add(new FileHarvester());
 				}
@@ -207,11 +215,11 @@ public class HarvestController implements HarvestContext
 				}				
 			} 
 		}
-		
+
 		// Load all the extractors, set up defaults
 		entity_extractor_mappings = new HashMap<String, IEntityExtractor>();
 		text_extractor_mappings = new HashMap<String, ITextExtractor>();
-				
+
 		// Load custom text/entity extractors
 		synchronized (HarvestController.class) {
 			if (null == customExtractors) {
@@ -289,7 +297,7 @@ public class HarvestController implements HarvestContext
 				}
 			}//TESTED
 		}
-		
+
 		try {
 			entity_extractor_mappings.put("opencalais", new ExtractorOpenCalais());
 		}
@@ -302,7 +310,7 @@ public class HarvestController implements HarvestContext
 		catch (Exception e) {
 			logger.warn("Can't use textrank as entity extractor: " + e.getMessage());			
 		}
-		
+
 		try {
 			ExtractorAlchemyAPI both = new ExtractorAlchemyAPI();
 			entity_extractor_mappings.put("alchemyapi", both);
@@ -326,7 +334,7 @@ public class HarvestController implements HarvestContext
 		catch (Exception e) {
 			logger.warn("Can't use Tika as text extractor: " + e.getMessage());			
 		}
-		
+
 		if (null != pm.getDefaultEntityExtractor()) {
 			default_entity_extractor = entity_extractor_mappings.get(pm.getDefaultEntityExtractor().toLowerCase());
 		}
@@ -346,7 +354,7 @@ public class HarvestController implements HarvestContext
 		}
 		nBetweenFeedDocs_ms = props.getWebCrawlWaitTime();
 	}
-	
+
 	/**
 	 * Handles going through what to do with a source for harvesting
 	 * The process currently is:
@@ -358,7 +366,7 @@ public class HarvestController implements HarvestContext
 	public void harvestSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
 		nUrlErrorsThisSource = 0;
-		
+
 		// Can override the default (feed) wait time from within the source (eg for sites that we know 
 		// don't get upset about getting hammered)
 		if (null != source.getRssConfig()) {
@@ -367,18 +375,18 @@ public class HarvestController implements HarvestContext
 			}
 		}
 		LinkedList<DocumentPojo> toDuplicate = new LinkedList<DocumentPojo>(); 
-		
+
 		// Reset any state that might have been generated from the previous source
 		getDuplicateManager().resetForNewSource();
-		
+
 		// New Harvest Pipeline logic
 		if (null != source.getProcessingPipeline()) {
 			procPipeline = new HarvestControllerPipeline();
 			procPipeline.extractSource_preProcessingPipeline(source, this);
-				//(just copy the config into the legacy source fields since the 
-				// actual processing is the same in both cases)
+			//(just copy the config into the legacy source fields since the 
+			// actual processing is the same in both cases)
 		}
-		
+
 		//First up, Source Extraction (could spawn off some threads to do source extraction)
 		// Updates will be treated as follows:
 		// - extract etc etc (since they have changed)
@@ -386,14 +394,16 @@ public class HarvestController implements HarvestContext
 		// - remove them (including their child objects, eg events) ...
 		//   ... - but retain "created" date (and in the future artefacts like comments)]
 		extractSource(source, toAdd, toUpdate, toRemove, toDuplicate);
-			// (^^^ this adds toUpdate to toAdd) 
-		
+		// (^^^ this adds toUpdate to toAdd) 
+
 		if (null != procPipeline) {
 			procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
 		}
 		else { // Old logic (more complex, less functional)
 			enrichSource(source, toAdd, toUpdate, toRemove);
 		}
+		completeEnrichmentProcess(source, toAdd, toUpdate, toRemove);
+
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
 		LinkedList<DocumentPojo> groupedDups = new LinkedList<DocumentPojo>(); // (ie clones)
 		DocumentPojo masterDoc = null; // (just looking for simple pointer matching here)
@@ -421,7 +431,7 @@ public class HarvestController implements HarvestContext
 			}
 		}//end loop over duplicates
 		//TESTED, included case where the master doc errors during extraction (by good fortune!) 
-		
+
 		if (null != groupedDups) { // (Leftover group)
 			groupedDups = enrichDocByCloning(groupedDups);
 			if (null != groupedDups) {
@@ -451,7 +461,7 @@ public class HarvestController implements HarvestContext
 					List<DocumentPojo> tmpToUpdate = new LinkedList<DocumentPojo>();
 					List<DocumentPojo> tmpToRemove = new LinkedList<DocumentPojo>();
 					harvester.executeHarvest(this, source, tmpToAdd, tmpToUpdate, tmpToRemove);
-					
+
 					int nDocs = 0;
 					for (List<DocumentPojo> docList: Arrays.asList(tmpToAdd, tmpToUpdate)) {
 						for (DocumentPojo doc : docList) {
@@ -462,10 +472,10 @@ public class HarvestController implements HarvestContext
 							boolean bDuplicated = false; 
 							if (null != doc.getDuplicateFrom() && (null == doc.getUpdateId())) {
 								DocumentPojo newDoc = enrichDocByDuplicating(doc);
-									// (Note this is compatible with the cloning case whose logic is below:
-									//  this document gets fully populated here then added to dup list (with dupFrom==null), with a set of slaves
-									//  with dupFrom==sourceKey#comm. When the dup list is traversed (after bypassing enrichment), the slaves are
-									//	then created from this master)
+								// (Note this is compatible with the cloning case whose logic is below:
+								//  this document gets fully populated here then added to dup list (with dupFrom==null), with a set of slaves
+								//  with dupFrom==sourceKey#comm. When the dup list is traversed (after bypassing enrichment), the slaves are
+								//	then created from this master)
 								if (null != newDoc) {
 									doc = newDoc;
 									bDuplicated = true;
@@ -508,7 +518,7 @@ public class HarvestController implements HarvestContext
 										if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
 											cloneDoc.setTags(source.getTags());
 										}
-										
+
 										cloneDoc.setCloneFrom(doc);
 										toDup.add(cloneDoc);
 									}
@@ -523,13 +533,13 @@ public class HarvestController implements HarvestContext
 							}
 						}
 					}//(end loop over docs to add/update)
-					
+
 					num_docs_extracted.addAndGet(tmpToAdd.size() > _nMaxDocs ? _nMaxDocs : tmpToAdd.size());
 					toUpdate.addAll(tmpToUpdate);
 					toRemove.addAll(tmpToRemove);
 				}
 				catch (Exception e) {
-					
+
 					e.printStackTrace();
 					logger.error("Error extracting source=" + source.getKey() + ", type=" + source.getExtractType() + ", reason=" + e.getMessage());					
 					_harvestStatus.update(source, new Date(), HarvestEnum.error, "Extraction error: " + e.getMessage(), false, false);					
@@ -542,17 +552,17 @@ public class HarvestController implements HarvestContext
 	// 
 	// (LEGACY) Gets metadata using the extractors and appends to documents
 	//
-	
+
 	private void enrichSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
 		StructuredAnalysisHarvester sah = null;
 		UnstructuredAnalysisHarvester usah = null;
-		
+
 		// Create metadata from the text using regex (also calculate header/footer information if desired)
 		if (source.getUnstructuredAnalysisConfig() != null)
 		{
 			usah = new UnstructuredAnalysisHarvester();
-			
+
 			// If performing structured analysis also then need to mux them
 			// since the UAH will run on the body/description potentially created by the SAH
 			// and the SAH will take the metadata generated by UAH to create entities and events
@@ -564,7 +574,7 @@ public class HarvestController implements HarvestContext
 				toAdd = usah.executeHarvest(this, source, toAdd);
 			}
 		}
-				
+
 		// For sources that generate structured data, we can turn that into entities and events
 		// and fill in document fields from the metadata (that can be used by entity extraction)
 		if (source.getStructuredAnalysisConfig() != null)
@@ -573,12 +583,12 @@ public class HarvestController implements HarvestContext
 				sah = new StructuredAnalysisHarvester();
 			}
 			toAdd = sah.executeHarvest(this, source, toAdd);
-				// (if usah exists then this runs usah)
-			
+			// (if usah exists then this runs usah)
+
 			// Get doc entity and event count
 			getFeedEntityAndEventCount(toAdd);
 		}
-		
+
 		// Perform text and entity extraction
 		if (source.getStructuredAnalysisConfig() == null) // (Else is performed during SAH above)
 		{
@@ -593,7 +603,7 @@ public class HarvestController implements HarvestContext
 				}
 			}
 		} // (end if no SAH)
-		
+
 		// Finish processing:
 		// Complete batches
 		if (isEntityExtractionRequired(source))
@@ -603,44 +613,48 @@ public class HarvestController implements HarvestContext
 			}
 			catch (Exception e) {}
 		}		
+	}
+
+	private void completeEnrichmentProcess(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
+	{
 		// Map ontologies:
-		
+
 		completeDocumentBuilding(toAdd, toUpdate);
-		
+
 		// Log the number of feeds extracted for the current source
 		if ((toAdd.size() > 0) || (toUpdate.size() > 0) || (toRemove.size() > 0) || (nUrlErrorsThisSource > 0)) {
 			StringBuffer sLog = new StringBuffer("source=").append((null==source.getUrl()?source.getKey():source.getUrl())).
-									append(" extracted=").append(toAdd.size()).append(" updated=").append(toUpdate.size()).
-									append(" deleted=").append(toRemove.size()).append(" urlerrors=").append(nUrlErrorsThisSource);
-			
+			append(" extracted=").append(toAdd.size()).append(" updated=").append(toUpdate.size()).
+			append(" deleted=").append(toRemove.size()).append(" urlerrors=").append(nUrlErrorsThisSource);
+
 			logger.info(sLog.toString());
 			getHarvestStatus().logMessage(sLog.toString(), false);
 		}//TOTEST
-		
+
 		// May need to update status again:
 		if (getHarvestStatus().moreToLog()) {
 			SourceHarvestStatusPojo prevStatus = source.getHarvestStatus();
 			if (null != prevStatus) { // (just for robustness, should never happen)
 				getHarvestStatus().update(source, new Date(), 
 						source.getHarvestStatus().getHarvest_status(), prevStatus.getHarvest_message(), false, false);
-					// (if we've got this far, the source can't have been so bad we were going to disable it...)
+				// (if we've got this far, the source can't have been so bad we were going to disable it...)
 			}
 		}
-		
-		num_sources_harvested.incrementAndGet();
+
+		num_sources_harvested.incrementAndGet();		
 	}
-		
+
 	// Quick utility to return if entity extraction has been specified by the user
-	
+
 	public boolean isEntityExtractionRequired(SourcePojo source) {
 		return (((null == source.useExtractor()) && (null != default_entity_extractor)) 
-					|| ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")))
+				|| ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")))
 				||
 				(((null == source.useTextExtractor()) && (null != default_text_extractor)) 
-					|| ((null != source.useTextExtractor()) && !source.useTextExtractor().equalsIgnoreCase("none")))
-		;		
+						|| ((null != source.useTextExtractor()) && !source.useTextExtractor().equalsIgnoreCase("none")))
+						;		
 	}
-	
+
 	/**
 	 * Takes a list of toAdd and extracts each ones full text and entities/events/sentiment (metadata)
 	 * 
@@ -649,25 +663,29 @@ public class HarvestController implements HarvestContext
 	 * @throws ExtractorSourceLevelTransientException 
 	 */
 	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source, boolean bFinalizeBatchOnly)
-		throws ExtractorDocumentLevelException, ExtractorSourceLevelException, 
-				ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException
+	throws ExtractorDocumentLevelException, ExtractorSourceLevelException, 
+	ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException
 	{
 		IEntityExtractor currentEntityExtractor = null;
 		try {
 			int error_on_feed_count = 0, feed_count = 0;
-			
-		// EXTRACTOR SELECTION LOGIC
-			
+
+			// EXTRACTOR SELECTION LOGIC
+
 			if (null != source.useExtractor()) {
 				currentEntityExtractor = entity_extractor_mappings.get(source.useExtractor().toLowerCase());
+				if (null == currentEntityExtractor) { // (second chance)
+					currentEntityExtractor = (IEntityExtractor) lookForDynamicExtractor(source, false);
+				}
 			}
 			if (currentEntityExtractor == null) // none specified or didn't find it (<-latter is error)
 			{
-				if ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")) { 
+				if ((null != source.useExtractor()) && !source.useExtractor().equalsIgnoreCase("none")) {					
+
 					// ie specified one but it doesn't exist....
 					StringBuffer errMsg = new StringBuffer("Skipping source=").append(source.getKey()).append(" no_extractor=").append(source.useExtractor());
 					logger.warn(errMsg.toString());
-					
+
 					// No point trying this for the rest of the day
 					throw new ExtractorSourceLevelException(errMsg.toString());					
 				}
@@ -675,7 +693,7 @@ public class HarvestController implements HarvestContext
 					currentEntityExtractor = default_entity_extractor;
 				}
 			}//TESTED					
-			
+
 			if (bFinalizeBatchOnly) {
 				try {
 					currentEntityExtractor.extractEntities(null);
@@ -683,24 +701,30 @@ public class HarvestController implements HarvestContext
 				catch (Exception e) {} // do nothing, eg handle entity extractors that don't handle things well
 				return;
 			}
-			
+
 			// A teeny bit of complex logic:
 			// toAdd by default use a text extractor
 			// DB/Files by default don't (but can override)
-	
+
 			ITextExtractor currentTextExtractor = null;
 			boolean bUseRawContentWhereAvailable = false; // (only applies for feeds)
 			if (null != source.useTextExtractor()) {
 				currentTextExtractor = text_extractor_mappings.get(source.useTextExtractor().toLowerCase());
+				if (null == currentTextExtractor) { // (second chance)
+					currentTextExtractor = (ITextExtractor) lookForDynamicExtractor(source, true);
+				}
 			}
-			if (null == currentTextExtractor) { // none specified or didn't find it (<-latter is error)
-				if (null != source.useTextExtractor()) {					
-					if ((null == source.getStructuredAnalysisConfig()) && (null == source.getUnstructuredAnalysisConfig())) {
-						//(UAH and SAH get raw access to the data if they need it, so can carry on)
-					
+			if (null == currentTextExtractor) { // none specified or didn't find it (<-latter is error)				
+				if (null != source.useTextExtractor()) {										
+
+					if ((null == source.getStructuredAnalysisConfig()) && (null == source.getUnstructuredAnalysisConfig())
+							&& (null == source.getProcessingPipeline()))
+					{
+						//(UAH and SAH get raw access to the data if they need it, so can carry on - ditto processing pipeline)
+
 						StringBuffer errMsg = new StringBuffer("Skipping source=").append(source.getKey()).append(" no_txt_extractor=").append(source.useTextExtractor());
 						logger.warn(errMsg.toString());
-						
+
 						// No point trying this for the rest of the day
 						throw new ExtractorSourceLevelException(errMsg.toString());
 					}
@@ -723,16 +747,16 @@ public class HarvestController implements HarvestContext
 					}
 				}//TESTED		
 			}
-			
-		// EXTRACTION
+
+			// EXTRACTION
 			Iterator<DocumentPojo> i = toAdd.iterator(); //iterator created so that elements in the toAdd list can be 
-													// removed within the loop
+			// removed within the loop
 			while ( i.hasNext() )
 			{
 				long nTime_ms = System.currentTimeMillis();
 				DocumentPojo doc = i.next();
 				boolean bExtractedText = false;
-			
+
 				// If I've been stopped then just remove all remaining documents
 				// (pick them up next time through)
 				if (bIsKilled) {
@@ -740,11 +764,11 @@ public class HarvestController implements HarvestContext
 					doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 					continue;
 				}
-				
+
 				if ( !urlsThatError.contains(doc.getUrl()) ) //only attempt if url is okay
 				{				
 					feed_count++;
-					
+
 					try {
 						if (null != currentTextExtractor)
 						{	
@@ -753,7 +777,7 @@ public class HarvestController implements HarvestContext
 							if (null != currentEntityExtractor) {
 								currentEntityExtractor.extractEntities(doc);
 							}
-	
+
 						}//TESTED
 						else //db/filesys should already have full text extracted (unless otherwise specified)
 						{
@@ -776,20 +800,20 @@ public class HarvestController implements HarvestContext
 								}
 							}//TESTED
 						}
-						
+
 						//statistics counting
 						if ( doc.getEntities() != null )
 							num_ent_extracted.addAndGet(doc.getEntities().size());
 						if ( doc.getAssociations() != null )
 							num_event_extracted.addAndGet(doc.getAssociations().size());
-						
+
 					}
 					catch (ExtractorDailyLimitExceededException e) {
-						
+
 						//extractor can't do anything else today, return
 						i.remove();
 						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
-						
+
 						// Source error, ignore all other documents
 						while (i.hasNext()) {
 							doc = i.next();
@@ -797,18 +821,18 @@ public class HarvestController implements HarvestContext
 							i.remove();
 						}
 						//TESTED
-						
+
 						throw e; // (ie stop processing this source)
 					}//TESTED
 					catch (Exception e) { // Anything except daily limit exceeded, expect it to be ExtractorDocumentLevelException
-						
+
 						// This can come from (sort-of/increasingly) "user" code so provide a bit more information
 						StringBuffer errMessage = HarvestExceptionUtils.createExceptionMessage(e);
 						_harvestStatus.logMessage(errMessage.toString(), true);
-						
+
 						num_error_url.incrementAndGet();
 						nUrlErrorsThisSource++;
-						
+
 						error_on_feed_count++;
 						i.remove();
 						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
@@ -816,16 +840,17 @@ public class HarvestController implements HarvestContext
 					}
 					//TESTED
 				}
+				//TODO (INF-1922) ... might be calling this multiple times so need to ensure the logic for this is sensible...
 				if ((null != source.getExtractType()) && (source.getExtractType().equalsIgnoreCase("feed"))) {
 					if (i.hasNext() && bExtractedText) {
 						nTime_ms = nBetweenFeedDocs_ms - (System.currentTimeMillis() - nTime_ms); // (ie delay time - processing time)
 						if (nTime_ms > 0) {
 							try { Thread.sleep(nTime_ms); } catch (Exception e) {}; 
-								// (wait 10s between web-site accesses for politeness)
+							// (wait 10s between web-site accesses for politeness)
 						}
 					}
 				}//(TESTED)
-				
+
 			} // end loop over documents	
 			//check if all toAdd were erroring, or more than 20 (arbitrary number)
 			if ((error_on_feed_count == feed_count) && (feed_count > 5))
@@ -856,13 +881,13 @@ public class HarvestController implements HarvestContext
 			logger.error(errMsg.toString(), e);
 			throw new ExtractorSourceLevelTransientException(errMsg.toString());
 		}//TESTED
-		
+
 	}//TESTED
-	
+
 	//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-	
+
 	// UTILITY FUNCTIONS
-	
+
 	/**
 	 * Decides what to do with a source when an error is returned from the
 	 * extractor process.
@@ -904,7 +929,7 @@ public class HarvestController implements HarvestContext
 			}//TESTED
 		}
 	}//TESTED (just that the instanceofs work)
-	
+
 	/**
 	 * getFeedEntityAndEventCount
 	 * Iterate over a list of DocumentPojos and count the number of entities and events
@@ -934,11 +959,11 @@ public class HarvestController implements HarvestContext
 		sb.append(" num_of_url_errors=" + num_error_url.get());
 		logger.info(sb.toString());
 	}
-	
+
 	// Utility to handle the various multiple community problems:
 	// - Different sources, name URL ("duplicates") ... get the doc from the DB (it's there by definition)
 	// - Same source, multiple communities ("clones") ... get the doc from the first community processed
-	
+
 	private static DocumentPojo enrichDocByDuplicating(DocumentPojo docToReplace) {
 		DocumentPojo newDoc = null;
 		BasicDBObject dbo = getDocumentMetadataFromWhichToDuplicate(docToReplace);
@@ -946,19 +971,19 @@ public class HarvestController implements HarvestContext
 			String sContent = getDocumentContentFromWhichToDuplicate(docToReplace);
 			if (null != sContent) {
 				newDoc = duplicateDocument(docToReplace, dbo, sContent, false);
-					// (Note this erases the "duplicateFrom" field - this is important because it distinguishes "clones" and "duplicates")
+				// (Note this erases the "duplicateFrom" field - this is important because it distinguishes "clones" and "duplicates")
 			}
 		}
 		return newDoc;		
 	}//TESTED
-		
+
 	private static LinkedList<DocumentPojo> enrichDocByCloning(List<DocumentPojo> docsToReplace) {
 		DocumentPojo newDoc = null;
 		BasicDBObject dbo = null;
 		String sContent = null;
 		LinkedList<DocumentPojo> newDocs = new LinkedList<DocumentPojo>(); 
 		for (DocumentPojo docToReplace: docsToReplace) {
-		
+
 			if (null == dbo) { // First time through...
 				sContent = docToReplace.getCloneFrom().getFullText();
 				docToReplace.getCloneFrom().setFullText(null);
@@ -969,20 +994,20 @@ public class HarvestController implements HarvestContext
 			newDocs.add(newDoc);
 		}
 		return newDocs;
-		
+
 	}//TESTED
 
 	// Sub-utility
-	
+
 	private static BasicDBObject getDocumentMetadataFromWhichToDuplicate(DocumentPojo docToReplace) {
 		BasicDBObject query = new BasicDBObject("url", docToReplace.getUrl());
 		query.put("sourceKey", new BasicDBObject("$regex", new StringBuffer().append('^').append(docToReplace.getDuplicateFrom()).append("(#|$)").toString()));
-			//(slight complication because searching for either <sourceKey> or <sourceKey>#<community>)
+		//(slight complication because searching for either <sourceKey> or <sourceKey>#<community>)
 		BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
-		
+
 		return dbo;
 	}//TESTED
-	
+
 	private static String getDocumentContentFromWhichToDuplicate(DocumentPojo docToReplace) {
 		try {
 			// Get the full text:
@@ -1016,12 +1041,12 @@ public class HarvestController implements HarvestContext
 		}		
 		return null;
 	}//TESTED
-	
+
 	private static DocumentPojo duplicateDocument(DocumentPojo docToReplace, BasicDBObject dbo, String content, boolean bClone) {
 		DocumentPojo newDoc = DocumentPojo.fromDb(dbo, DocumentPojo.class);
 		newDoc.setFullText(content);
 		newDoc.setId(null); // (ie ensure it's unique)
-		
+
 		if (bClone) { // Cloned docs have special source key formats (and also need to update their community)
 			ObjectId docCommunity = docToReplace.getCommunityId();
 			newDoc.setSourceKey(new StringBuffer(docToReplace.getSourceKey()).append('#').append(docCommunity).toString());
@@ -1036,16 +1061,16 @@ public class HarvestController implements HarvestContext
 		}
 		return newDoc;
 	}//TESTED
-	
+
 	//
 	// Any documents that have got this far are going to get processed
 	//
-	
+
 	// Processing:
 	//Attempt to map entity types to set of ontology types
 	//eventually the plan is to allow extractors to set the ontology_type of
 	//entities to anything found in the opencyc ontology	
-	
+
 	static public void completeDocumentBuilding(List<DocumentPojo> docs, List<DocumentPojo> updateDocs)
 	{		
 		// Handle documents to be added
@@ -1080,4 +1105,124 @@ public class HarvestController implements HarvestContext
 			}
 		}
 	}
+
+	///////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////
+
+	// Dynamic extraction utilities
+
+	@SuppressWarnings({ "rawtypes" })
+	private Object lookForDynamicExtractor(SourcePojo source, boolean bTextExtractor)
+	{
+		String extractorName = bTextExtractor ? source.useTextExtractor() : source.useExtractor();
+		if (null == extractorName) {
+			return null;
+		}
+		Object outClassInstance = null;
+		
+		if (null != failedDynamicExtractors) { // (cache for failed shares)
+			if (failedDynamicExtractors.contains(extractorName)) {
+				return null;
+			}
+		}
+		ClassLoader savedClassLoader = null;
+		try {
+			ObjectId extractorId = null;
+			if (extractorName.startsWith("/")) { // allow /<id>/free text..
+				extractorName = extractorName.substring(1).replaceFirst("/.*", "");
+			}//TOTEST
+			try {
+				extractorId = new ObjectId(extractorName);
+			}
+			catch (Exception e) { // not a dynamic share that's fine, just exit no harm done
+				return null;
+			} 
+			// If we're here then it was a share
+
+			BasicDBObject query = new BasicDBObject("_id", extractorId);
+			SharePojo extractorInfo = SharePojo.fromDb(MongoDbManager.getSocial().getShare().findOne(query), SharePojo.class);
+			if ((null != extractorInfo) && (null != extractorInfo.getBinaryId())) {
+				// Check share owned by an admin:
+				if (!AuthUtils.isAdmin(extractorInfo.getOwner().get_id())) {
+					throw new RuntimeException("Extractor share owner must be admin");
+				}//TESTED
+				// Check all source communities are in the share communities
+				int nMatches = source.getCommunityIds().size();
+				for (ShareCommunityPojo commObj: extractorInfo.getCommunities()) {
+					if (source.getCommunityIds().contains(commObj.get_id())) {
+						nMatches--;
+						if (0 == nMatches) break;
+					}
+				}
+				if (nMatches > 0) {
+					throw new RuntimeException("Extractor not shared across source communities");					
+				}//TESTED
+				
+				byte[] jarBytes = getGridFile(extractorInfo.getBinaryId());
+				
+				savedClassLoader = Thread.currentThread().getContextClassLoader();
+				
+				JarAsByteArrayClassLoader child = new JarAsByteArrayClassLoader (jarBytes, savedClassLoader);
+				
+				Thread.currentThread().setContextClassLoader(child);
+				Class classToLoad = Class.forName(extractorInfo.getTitle(), true, child);
+
+				if (bTextExtractor) {
+					ITextExtractor txtExtractor = (ITextExtractor )classToLoad.newInstance();
+					text_extractor_mappings.put(source.useTextExtractor(), txtExtractor);
+					outClassInstance = txtExtractor;
+				}
+				else {
+					IEntityExtractor entExtractor = (IEntityExtractor)classToLoad.newInstance();
+					entity_extractor_mappings.put(source.useExtractor(), entExtractor);					
+					outClassInstance = entExtractor;
+				}
+			}
+		}
+		catch (Exception e) {
+			getHarvestStatus().logMessage("custom extractor error: " + e.getMessage(), false);
+			if (null == failedDynamicExtractors) {
+				failedDynamicExtractors = new HashSet<String>();
+				failedDynamicExtractors.add(extractorName);
+			}
+			//e.printStackTrace();
+		} // General fail just carry on 
+		catch (Error err) {
+			getHarvestStatus().logMessage("custom extractor error: " + err.getMessage(), false);
+			if (null == failedDynamicExtractors) {
+				failedDynamicExtractors = new HashSet<String>();
+				failedDynamicExtractors.add(extractorName);
+			}
+			//err.printStackTrace();
+			
+		} // General fail just carry on
+		finally {
+			if (null != savedClassLoader) {
+				Thread.currentThread().setContextClassLoader(savedClassLoader);				
+			}
+		}
+		return outClassInstance;
+	}//TOTEST
+
+	/**
+	 * Finds the gridfile given by id and returns the bytes
+	 * 
+	 * @param id the object id of the gridfile to lookup (stored in sharepojo)
+	 * @return bytes of file stored in gridfile
+	 */	
+	private static byte[] getGridFile(ObjectId id)
+	{
+		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		try
+		{
+			GridFSDBFile file = DbManager.getSocial().getShareBinary().find(id);						
+			file.writeTo(out);
+			byte[] toReturn = out.toByteArray();
+			out.close();
+			return toReturn;
+		}
+		catch (Exception ex){}		
+		return null;
+	}
+
 }

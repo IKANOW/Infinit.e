@@ -53,7 +53,7 @@
         </fileset>
     </path>
 	
-    <path id="infinit.e.api.classpath">
+    <path id="infinit.e.api.classpath-war">
         <pathelement location="${dir.build.classes}"/>
     	
     	<fileset dir="${dir.lib}">
@@ -63,6 +63,17 @@
         <path refid="infinit.e.harvest.library.classpath"/>
         <path refid="infinit.e.processing.custom.library.classpath"/>
         <path refid="infinit.e.processing.generic.library.classpath"/>
+    	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
+        <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
+	</path>
+	
+    <path id="infinit.e.api.classpath-jar">
+        <pathelement location="${dir.build.classes}"/>
+    	
+    	<fileset dir="${dir.lib}">
+        	<include name="**/*.jar"/>
+        </fileset>
+        <path refid="infinit.e.data_model.classpath"/>
     	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
         <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
 	</path>
@@ -81,7 +92,7 @@
 	<target name="prepare" depends="clean">
 		<mkdir dir="${dir.build}"/>
 		<copy file="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar" tofile="${dir.lib}/infinit.e.harvest.library.jar"/>
-		<copy file="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar" tofile="${dir.lib}/infinit.e.processing.custom.library.jar"/>
+		<copy file="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar" tofile="${dir.lib}/infinit.e.processing.custom.library.jar" failonerror="false"/>
 		<copy file="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar" tofile="${dir.lib}/infinit.e.processing.generic.library.jar"/>
 		<copy file="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar" tofile="${dir.lib}/infinit.e.data_model.jar"/>
 	</target>
@@ -101,10 +112,19 @@
 	  target: compile  
 	  compile the source code using javac            
 	================================= -->
-	<target name="compile" depends="resolve" description="Compilation of all source code.">
+	<target name="compile-war" depends="resolve" description="Compilation of all source code.">
 		<mkdir dir="${dir.build.classes}"/>
 		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
-			<classpath refid="infinit.e.api.classpath"/>
+			<classpath refid="infinit.e.api.classpath-war"/>
+		</javac>
+	</target>
+	<target name="compile-jar" depends="resolve" description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}"/>
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+			<classpath refid="infinit.e.api.classpath-jar"/>
+			<include name="com/ikanow/infinit/e/api/knowledge/**" />
+			<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/**" />
+			<include name="com/ikanow/infinit/e/api/utils/**" />
 		</javac>
 	</target>
 	
@@ -117,13 +137,45 @@
 	==================================-->	
 	
 	<!-- ================================= 
-			     target: jar              
+			     target: jar (standalone jar)       
 		================================= -->
-	<target name="jar" depends="compile" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+	<target name="jar" depends="compile-jar" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
 		<mkdir dir="${dir.build.jar}"/>
 		<mkdir dir="${dir.dist}"/>
 		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
 		
+		<!-- Bundled Jar for custom processing -->
+		<jar destFile="${dir.dist}/infinit.e.query.library.jar"   filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". "/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Specification-Vendor" value="${specification.vendor}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}">
+				<!-- Just include classes required for querying -->
+				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/aliases/*.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />
+				<include name="com/ikanow/infinit/e/api/utils/*.class" />
+			</fileset>
+			<!-- No libraries, they should all be present in the classpath already -->
+		</jar>
+		
+	</target>
+	
+	<!-- ================================= 
+			     target: jar2 (standalone jar)       
+		================================= -->
+	<target name="jar2" depends="compile-war" description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
+		<mkdir dir="${dir.build.jar}"/>
+		<mkdir dir="${dir.dist}"/>
+		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->		
 
 		<!-- Bundled Jar for harvest with required libraries -->
 		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
@@ -166,14 +218,36 @@
 			</fileset>
 			<!-- No libraries, they should all be present in the classpath already -->
 		</jar>
-		
 	</target>
 	
 	<!-- =================================
 	target: war
 	create the war file
 	================================= -->
-	<target name="war" depends="jar" description="Generates ${ant.project.name}.war file in to the '${dir.build.war}' directory.">
+	<target name="war" depends="jar2" description="Generates ${ant.project.name}.war file in to the '${dir.build.war}' directory.">
+		
+		<mkdir dir="${dir.build.jar}"/>
+		<mkdir dir="${dir.dist}"/>
+		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->		
+
+		<!-- Bundled Jar for harvest with required libraries -->
+		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
+			<manifest>
+				<attribute name="Built-By" value="${user.name}"/>
+				<attribute name="Class-Path" value=". "/>
+				<attribute name="Specification-Title" value="${specification.title}"/>
+				<attribute name="Specification-Version" value="${specification.version}"/>
+				<attribute name="Specification-Vendor" value="${specification.vendor}"/>
+				<attribute name="Implementation-Title" value="${implementation.title}"/>
+				<attribute name="Implementation-Version" value="${implementation.version}"/>
+				<attribute name="Implementation-Vendor" value="${implementation.vendor}"/>
+			</manifest>
+			<fileset dir="${dir.build.classes}">
+				<include name="**/QueryDecayFactory.class" />
+				<include name="**/QueryDecayScript.class" />
+			</fileset>	
+		</jar>
+		<copy file="${dir.build.jar}/querydecayscript.jar" tofile="${dir.dist}/querydecayscript.jar"/>
 		
 		<delete file="${dir.lib}/infinit.e.harvest.library.jar"/>
 		<delete file="${dir.lib}/infinit.e.processing.custom.library.jar"/>
@@ -199,7 +273,5 @@
 			<lib dir="${infinit.e.data_model.location}/dist" includes="**/*.jar" />
 		</war>
 	</target>
-	
-	
 	
 </project>

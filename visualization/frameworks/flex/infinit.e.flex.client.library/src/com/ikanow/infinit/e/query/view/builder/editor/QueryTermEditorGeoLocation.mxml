@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -79,7 +79,8 @@
 		styleName="infTextInput"
 		text="{ model.editorQueryTerm.geo.centerLatLong.lat == 0 ? '' : model.editorQueryTerm.geo.centerLatLong.lat.toString() }"
 		enter="updateQueryTerm()"
-		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lat' ) }" />
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lat' ) }"
+		restrict="0-9." />
 
 	<!-- Longitude -->
 	<textInput:InfTextInput id="geoLon"
@@ -88,7 +89,8 @@
 		styleName="infTextInput"
 		text="{ model.editorQueryTerm.geo.centerLatLong.lng == 0 ? '' : model.editorQueryTerm.geo.centerLatLong.lng.toString() }"
 		enter="updateQueryTerm()"
-		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lon' ) }" />
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.lon' ) }"
+		restrict="0-9." />
 
 	<!-- Radius (Distance) -->
 	<textInput:InfTextInput id="geoRadius"
@@ -97,6 +99,7 @@
 		height="40"
 		text="{ model.editorQueryTerm.geo.dist == 0 ? '' : model.editorQueryTerm.geo.dist.toString() }"
 		enter="updateQueryTerm()"
-		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.radius' ) }" />
+		prompt="{ resourceManager.getString( 'infinite', 'queryTermEditor.geolocation.radius' ) }"
+		restrict="0-9." />
 
 </s:HGroup>

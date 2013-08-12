@@ -37,6 +37,8 @@ public class XmlToMetadataParser {
 	public String XmlSourceName;
 	public String PKElement;
 	public String AttributePrefix;
+	private int nMaxDocs = Integer.MAX_VALUE;
+	private int nCurrDocs = 0;
 
 	public XmlToMetadataParser()
 	{
@@ -49,9 +51,12 @@ public class XmlToMetadataParser {
 	 * @param ignoreFields the ignoreFields to set
 	 */
 	public XmlToMetadataParser(List<String> levelOneFields, List<String> ignoreFields, 
-								String XmlSourceName, String XmlPrimaryKey, String XmlAttributePrefix, Boolean XmlPreserveCase)
+								String XmlSourceName, String XmlPrimaryKey, String XmlAttributePrefix, Boolean XmlPreserveCase, int nMaxDocs)
 	{
 		this();
+		if (nMaxDocs > 0) {
+			this.nMaxDocs = nMaxDocs;
+		}
 		if (null != XmlPreserveCase) {
 			this.bPreserveCase = XmlPreserveCase;
 		}
@@ -162,6 +167,7 @@ public class XmlToMetadataParser {
 		List<DocumentPojo> docList = new ArrayList<DocumentPojo>();
 		boolean justIgnored = false;
 		boolean hitIdentifier = false;
+		nCurrDocs = 0;
 
 		while (reader.hasNext()) {
 			int eventCode = reader.next();
@@ -274,6 +280,9 @@ public class XmlToMetadataParser {
 						}
 						sb.delete(0, sb.length());
 						docList.add(doc);
+						if (++nCurrDocs >= nMaxDocs) {
+							return docList;
+						}						
 					}
 					else{
 						if (this.bPreserveCase) {

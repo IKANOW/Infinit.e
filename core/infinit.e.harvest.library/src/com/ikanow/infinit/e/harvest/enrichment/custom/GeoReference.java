@@ -86,8 +86,8 @@ public class GeoReference
 			if (exactMatchOnly)
 			{
 				query = getQuery(hasGeoindex, 1);
-				/**/
-				System.out.println(query);
+				//DEBUG
+				//System.out.println(query);
 				result = getGeoReference(geoDb, query, nMaxReturns);
 			}
 			// Loose match, broaden/modify search on each of up to 4 attempts

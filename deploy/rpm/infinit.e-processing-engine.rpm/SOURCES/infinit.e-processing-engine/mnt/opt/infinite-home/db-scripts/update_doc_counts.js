@@ -12,7 +12,7 @@ print("Phase 1: " + new Date().toString());
 
 var my_query = {};
 	// ^^^(change for debug)
-var my_limit = 0;
+var my_limit = 0; // (use with limit: for debugging but only in unsharded collections)
 
 m = function() {
 	var initial_doccount = 0;
@@ -30,13 +30,14 @@ r = function(k, vals) {
 
 // 1.1: CREATE THE LIST IN THE INGEST COLLECTION
 
-res = db.source.mapReduce(m, r, { out: { replace: "tmpDocCounts", db: "doc_metadata" }, query: my_query, limit: my_limit } );
+res = db.source.mapReduce(m, r, { out: { replace: "tmpDocCounts", db: "doc_metadata" }, query: my_query } );
 
 ////////////////////////////////////////////////////////////
 
 // PHASE 2: COUNT THE DOCUMENTS PER SOURCE AND PER COMMUNITY
 
 print("Phase 2: " + new Date().toString());
+db = db.getMongo().getDB( "doc_metadata" );
 
 ///////////////////////////////
 //2a: enrich tmpDocCounts with document counts

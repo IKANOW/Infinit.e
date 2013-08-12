@@ -30,7 +30,9 @@ public class JsonToMetadataParser {
 	
 	JsonToMetadataParser(String sourceName, List<String> objectIdentifiers, String primaryKey, List<String> fieldsThatNeedToExist, int nMaxDocs)
 	{
-		this.nMaxDocs = nMaxDocs;
+		if (nMaxDocs > 0) {
+			this.nMaxDocs = nMaxDocs;
+		}
 		this.primaryKey = primaryKey;
 		this.sourceName = sourceName;
 		if (null != objectIdentifiers) {
@@ -85,7 +87,7 @@ public class JsonToMetadataParser {
 							DocumentPojo doc = convertJsonToDocument(reader, parser);
 							if (null != doc) {
 								docList.add(doc);
-								if (nCurrDocs++ > nMaxDocs) {
+								if (++nCurrDocs >= nMaxDocs) {
 									return docList;
 								}
 							}
@@ -102,7 +104,7 @@ public class JsonToMetadataParser {
 						DocumentPojo doc = convertJsonToDocument(reader, parser);
 						if (null != doc) {
 							docList.add(doc);
-							if (nCurrDocs++ > nMaxDocs) {
+							if (++nCurrDocs >= nMaxDocs) {
 								return docList;
 							}
 						}
@@ -180,7 +182,7 @@ public class JsonToMetadataParser {
 						}
 						doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
 						docList.add(doc);
-						if (nCurrDocs++ >= nMaxDocs) {
+						if (++nCurrDocs >= nMaxDocs) {
 							while (reader.hasNext()) {
 								reader.skipValue();
 							}
@@ -200,7 +202,7 @@ public class JsonToMetadataParser {
 							}
 							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject()));
 							docList.add(doc);						
-							if (nCurrDocs++ >= nMaxDocs) {
+							if (++nCurrDocs >= nMaxDocs) {
 								while (reader.hasNext()) {
 									reader.skipValue();
 								}

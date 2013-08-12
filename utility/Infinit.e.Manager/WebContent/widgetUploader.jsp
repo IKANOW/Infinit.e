@@ -1,4 +1,5 @@
 <!--
+//TODO have a copy widget function
 Copyright 2012 The Infinit.e Open Source Project
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -417,9 +418,6 @@ limitations under the License.
             output.close();
             responseStream.close();
             
-            /**/
-            System.out.println("JSON! " + json);
-            
             modResponse mr = new Gson().fromJson(json, modResponse.class);
     		if (mr == null)
     		{
@@ -529,6 +527,7 @@ limitations under the License.
 				return false;
 			}
 				//return "Json was null: " + json + "\n " + API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" + URLEncoder.encode(comment,charset) + "/";
+
 			if(DEBUG_MODE)
 				System.out.println("Share: " + shareId + "   CommunityId: " + communityId + " Shared:" + gm.response.success + "  Message: " + gm.response.message);
 			return gm.response.success;
@@ -842,7 +841,7 @@ else if (isLoggedIn == true)
 	 			
 	 			out.println(deleteWidget(request.getAttribute("deleteId").toString(), request, response));
 	 		}
-	 		else
+	 		else // Install widget
 	 		{
 	 		
 		 	//////////////////////////////////////////////////////////////////////////////////
@@ -951,14 +950,15 @@ else if (isLoggedIn == true)
 								fileId = AddToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), request, response);
 							else
 							{
-								UpdateToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), fileId, request, response);
-								removeShareFromAllUserCommunities(fileId, request, response);
+								fileId = UpdateToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), fileId, request, response);
+								if (!fileId.contains("Failed"))
+									removeShareFromAllUserCommunities(fileId, request, response);
 							}
 						}
 						if (fileId.contains("Failed"))
 						{
 							removeFromShare(iconId, request, response);
-							out.println("SWF File Upload Failed. Please Try again.");
+							out.println("SWF File Upload Failed. Please Try again: " + fileId);
 							fileUrl = null;
 						}
 						else
@@ -1034,16 +1034,24 @@ else if (isLoggedIn == true)
 					else
 						DBId = request.getAttribute("DBId").toString();
 					
-					out.println(sendWidgetToDb(request.getAttribute("title").toString(), request.getAttribute("description").toString(), request.getAttribute("version").toString(), fileUrl, iconUrl, DBId, created,communities, request, response));
 					
+					String retval = sendWidgetToDb(request.getAttribute("title").toString(), request.getAttribute("description").toString(), request.getAttribute("version").toString(), fileUrl, iconUrl, DBId, created,communities, request, response);
 					
+					if (!retval.contains("Widget Uploaded Successfully") && newWidget)
+					{
+						removeFromShare(fileId, request, response);
+						removeFromShare(iconId, request, response);
+						out.println("Upload Failed - file and icon shares deleted: " + retval);						
+					}		
+					else 
+						out.println(retval);
 					
 				}
 				else
 				{
 					removeFromShare(fileId, request, response);
 					removeFromShare(iconId, request, response);
-					out.println("Upload Failed");
+					out.println("Upload Failed - file and icon shares deleted: invalid entry");
 				}	
 				
 				out.println("</div>");
@@ -1129,6 +1137,19 @@ else if (isLoggedIn == true)
 				useUrlSwf();
 				useUrlIcon();
 				clearCommList();
+				return;
+			}
+			else if (list == "copy")
+			{
+				title.value = title.value + " (COPY)";
+				DBId.value = "";
+				deleteId.value = "";
+				deleteFile.value = "";
+				deleteIcon.value = "";
+				
+				owner.className = "hide";
+				owner_text.className = "hide";
+				deleteButton.className = "hide";
 				return;
 			}
 			//_id,url,title,description,created,modified,version,imageurl,communities
@@ -1281,7 +1302,11 @@ else if (isLoggedIn == true)
 	    	<div id="uploader_div" name="uploader_div" style="border-style:solid; border-color:#999999; border-radius: 10px; width:450px; margin:auto">
 	        	<h2>Widget Uploader</h2>
 	        	<form id="delete_form" name="delete_form" method="post" enctype="multipart/form-data" onsubmit="javascript:return confirmDelete()" >
-	        		<select id="upload_info" onchange="populate()" name="upload_info"><option value="new">Upload New Widget</option> <% out.print(populatePreviousUploads(request, response)); %></select>
+	        		<select id="upload_info" onchange="populate()" name="upload_info">
+	        			<option value="new">Upload New Widget</option> 
+	        			<option value="copy">Copy Current Widget</option> 
+	        			<% out.print(populatePreviousUploads(request, response)); %>
+	        		</select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" class="hidden" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
 	        		<input type="hidden" name="deleteFile" id="deleteFile" />

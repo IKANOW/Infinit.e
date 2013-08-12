@@ -20,6 +20,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
@@ -89,7 +90,7 @@ public class FileHarvester implements HarvesterInterface {
 	private List<DocumentPojo> docsToRemove = null;
 
 	private HashSet<String> sourceUrlsGettingUpdated = null; 
-		// (only need to start filling this if I'm persisting metadata across updates)
+		// (tells us source URLs that are being deleted)
 	
 	private HarvestContext _context;
 	
@@ -114,6 +115,9 @@ public class FileHarvester implements HarvesterInterface {
 			{
 				//found the file, return the bytes
 				in = searchFile.getInputStream();
+				if (null == in)
+					return null;
+				
 				ByteArrayOutputStream buffer = new ByteArrayOutputStream();
 				
 				int read;
@@ -157,7 +161,30 @@ public class FileHarvester implements HarvesterInterface {
 		InfiniteFile f;
 		synchronized (FileHarvester.class) {
 			try {
-				if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
+				if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
+					NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getCommunityIds().iterator().next().toString(), source.getOwnerId().toString(), null);
+					f = InfiniteFile.create(source.getUrl(), auth);
+					
+					if (f.isDirectory()) {
+						InfiniteFile subs[] = f.listFiles();
+						for (InfiniteFile sub: subs) {
+							if (sub.isDirectory()) { // (can only nest once)
+								InfiniteFile subs2[] = sub.listFiles();
+								for (InfiniteFile sub2: subs2) {
+									if (sub2.getUrlString().equals(searchFile)) {
+										return sub2;
+									}//TOTEST
+								}								
+							}//(end loop ove sub-dirs)
+							else if (sub.getUrlString().equals(searchFile)) {
+								return sub;
+							}//TOTEST
+						}//(end loop over dirs)
+						
+					}//TOTEST
+					
+				}//TODO (INF-2122): TOTEST
+				else if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 				{
 					f = InfiniteFile.create(searchFile);
 				}
@@ -194,8 +221,24 @@ public class FileHarvester implements HarvesterInterface {
 		InfiniteFile file = null;
 		try 
 		{
-			if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
+			if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
+				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getCommunityIds().iterator().next().toString(), source.getOwnerId().toString(), null);
+				file = InfiniteFile.create(source.getUrl(), auth);	
+				
+				// Quick check of share/custom date vs last imported doc in this case:
+				if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
+					return files;
+				}//TESTED
+				
+			}//TESTED
+			else if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 			{
+				// Local file: => must be admin to continue
+				if (source.getUrl().startsWith("file:")) {
+					if (!AuthUtils.isAdmin(source.getOwnerId())) {
+						throw new ExtractorSourceLevelMajorException("Permission denied");
+					}
+				}//TODO (INF-2119): TOTEST
 				file = InfiniteFile.create(source.getUrl());
 			}
 			else
@@ -206,11 +249,6 @@ public class FileHarvester implements HarvesterInterface {
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
 				file = InfiniteFile.create(source.getUrl(), auth);
 			}
-			if (file.isLocal()) { // Local files can only be harvested by admin users: check this...
-				if (!AuthUtils.isAdmin(source.getOwnerId())) {
-					throw new ExtractorSourceLevelMajorException("Permission denied");
-				}
-			}//TESTED
 			traverse(file, source, maxDepth);
 		} 
 		catch (Exception e) {
@@ -238,6 +276,10 @@ public class FileHarvester implements HarvesterInterface {
 	// Process the doc
 	private void processFiles(SourcePojo source) throws Exception {
 
+		// Can override system settings if less:
+		if ((null != source.getThrottleDocs()) && (source.getThrottleDocs() < maxDocsPerCycle)) {
+			maxDocsPerCycle = source.getThrottleDocs();
+		}		
 		sourceUrlsGettingUpdated = new HashSet<String>();
 		LinkedList<String> duplicateSources = new LinkedList<String>(); 		
 		try {			
@@ -271,10 +313,13 @@ public class FileHarvester implements HarvesterInterface {
 						docsToAdd.add(doc);	
 
 						// However still need to check for duplicates so can update entities correctly
-						// (though obviously only if the the sourceUrl is not new...)
+						// We only do this if the source URL changes ... note that we don't currently handle
+						// adding existing docs to different files ... if that happens then you'll end up with duplicate
+						// documents with the same URL but different sourceUrls
 						
 						if (sourceUrlsGettingUpdated.contains(doc.getSourceUrl()))
 						{
+							// (only if the the sourceUrl is not new...)
 							if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
 								doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)								
 									// (still don't add this to updates because we've added the source URL to the delete list)
@@ -309,9 +354,13 @@ public class FileHarvester implements HarvesterInterface {
 
 	private void parse( InfiniteFile f, SourcePojo source ) throws MalformedURLException, URISyntaxException {
 
+		//NOTE: we only ever break out of here because of max docs in standalone mode
+		// (because we don't know how to continue reading)
+		
 		DocumentPojo doc = null;		
 		//Determine File Extension
 		String fileName = f.getName().toString();
+		
 		int mid= fileName.lastIndexOf(".");
 		String extension = fileName.substring(mid+1,fileName.length()); 
 
@@ -334,15 +383,19 @@ public class FileHarvester implements HarvesterInterface {
 		
 		if (bIsXml || bIsJson || bIsLineOriented)
 		{
+			int debugMaxDocs =  Integer.MAX_VALUE; // by default don't set this, it's only for debug mode
+			if (_context.isStandalone()) { // debug mode
+				debugMaxDocs = maxDocsPerCycle; 
+			}
+			
 			//fast check to see if the file has changed before processing (or if it never existed)
 			if(needsUpdated_SourceUrl(modDate, f.getUrlString(), source))
 			{
-				DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
-				docRepresentingSrcUrl.setSourceUrl(f.getUrlString());
-				if (null != sourceUrlsGettingUpdated) {
-					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
-				}
 				if (0 != modDate.getTime()) { // if it ==0 then sourceUrl doesn't exist at all, no need to delete
+					DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
+					docRepresentingSrcUrl.setSourceUrl(f.getUrlString());
+					docRepresentingSrcUrl.setSourceKey(source.getKey());
+					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
 					this.docsToRemove.add(docRepresentingSrcUrl);
 						// (can add documents with just source URL, are treated differently in the core libraries)
 				}
@@ -357,10 +410,10 @@ public class FileHarvester implements HarvesterInterface {
 				if (bIsXml) {
 					xmlParser = new XmlToMetadataParser(fileSystem.XmlRootLevelValues, 
 										fileSystem.XmlIgnoreValues, fileSystem.XmlSourceName, fileSystem.XmlPrimaryKey, 
-										fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase);
+										fileSystem.XmlAttributePrefix, fileSystem.XmlPreserveCase, debugMaxDocs);
 				}//TESTED
 				else if (bIsJson) {
-					jsonParser = new JsonToMetadataParser(fileSystem.XmlSourceName, fileSystem.XmlRootLevelValues, fileSystem.XmlPrimaryKey, fileSystem.XmlIgnoreValues, maxDocsPerCycle);
+					jsonParser = new JsonToMetadataParser(fileSystem.XmlSourceName, fileSystem.XmlRootLevelValues, fileSystem.XmlPrimaryKey, fileSystem.XmlIgnoreValues, debugMaxDocs);
 				}//TESTED
 				
 				List<DocumentPojo> partials = null;
@@ -389,27 +442,16 @@ public class FileHarvester implements HarvesterInterface {
 						}
 					}//TESTED
 					else if (bIsLineOriented) { // Just generate a document for every line
+						
 						BufferedReader lineReader = null;
 						try {
 							lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
-							String line;
-							partials = new LinkedList<DocumentPojo>();
-							while ((line = lineReader.readLine()) != null) {
-								DocumentPojo newDoc = new DocumentPojo();
-								newDoc.setFullText(line);
-								if (line.length() > 128) {
-									newDoc.setDescription(line.substring(0, 128));
-								}
-								else {
-									newDoc.setDescription(line);
-								}
-								partials.add(newDoc);
-							}
+							partials = new CsvToMetadataParser(debugMaxDocs).parseDocument(lineReader, source);
 						}
 						finally {
 							if (null != lineReader) lineReader.close();
 						}
-					}
+					}//TESTED
 
 					MessageDigest md5 = null; // (generates unique urls if the user doesn't below)
 					try {
@@ -418,7 +460,7 @@ public class FileHarvester implements HarvesterInterface {
 						// Do nothing, unlikely to happen...
 					}					
 					int nIndex = 0;
-					
+					int numPartials = partials.size();
 					for (DocumentPojo doctoAdd : partials)
 					{
 						nIndex++;
@@ -428,8 +470,10 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setModified(new Date(fileTimestamp));
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
-							if (bIsXml && ((null == fileSystem.XmlRootLevelValues) || fileSystem.XmlRootLevelValues.isEmpty())) {
-								doctoAdd.setUrl(f.getUrlString());
+							if (1 == numPartials) {
+								doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append('.').append(urlType).toString());
+									// (we always set sourceUrl as the true url of the file, so want to differentiate the URL with
+									//  some useful information)
 							}
 							else if (null == doctoAdd.getMetadata()) { // Line oriented case
 								doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(nIndex).append('.').append(urlType).toString());
@@ -442,15 +486,16 @@ public class FileHarvester implements HarvesterInterface {
 									doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(DigestUtils.md5Hex(doctoAdd.getMetadata().toString())).append('.').append(urlType).toString());
 								}
 							}//TESTED
-						}
+						}						
 						doctoAdd.setTitle(f.getName().toString());
 						doctoAdd.setPublishedDate(new Date(fileTimestamp));
 						doctoAdd.setSourceUrl(f.getUrlString());
 
 						// Always add to files because I'm deleting the source URL
-						files.add(doctoAdd);						
-					}//TESTED (apart from TOTEST)
-
+						files.add(doctoAdd);
+						
+					}//TESTED 
+					
 				} catch (XMLStreamException e1) {
 					errors++;
 					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
@@ -634,11 +679,11 @@ public class FileHarvester implements HarvesterInterface {
 				
 				for(int i = 0; l != null && i < l.length; i++ ) {
 					if (null == l[i]) break; // (reached the end of the list)
-					
+				
 					// Check to see if the item is a directory or a file that needs to parsed
 					// if it is a file then parse the sucker using tika 
 					// if it is a directory then use recursion to dive into the directory
-					if (files.size() > this.maxDocsPerCycle) {
+					if (files.size() >= this.maxDocsPerCycle) {
 						source.setReachedMaxDocs();
 						break;
 					}
@@ -656,10 +701,19 @@ public class FileHarvester implements HarvesterInterface {
 						}
 					}
 					else {
-						// Files: check both include and exclude
-						String path = l[i].getUrlPath();
 						boolean bProcess = true;
-						if (null != includeRegex) {
+						// Files: check both include and exclude and distribution logic
+						String path = l[i].getUrlPath();
+						
+						// Intra-source distribution logic:
+						if ((null != source.getDistributionTokens()) && (null != source.getDistributionFactor())) {
+							int split = Math.abs(path.hashCode()) % source.getDistributionFactor();
+							if (!source.getDistributionTokens().contains(split)) {
+								bProcess = false;
+							}
+						}//TESTED
+						
+						if (bProcess && (null != includeRegex)) {
 							if (!includeRegex.matcher(path).matches()) {
 								bProcess = false;
 							}
@@ -672,6 +726,23 @@ public class FileHarvester implements HarvesterInterface {
 						if (bProcess) {
 							parse( l[i], source);
 								// (Adds to this.files)
+							
+							// If we've got here, check what we should do with the file
+							if (!_context.isStandalone()) {
+								if ((null != source.getFileConfig()) && (null != source.getFileConfig().renameAfterParse)) {
+									try {
+										if (0 == source.getFileConfig().renameAfterParse.length()) { // delete it
+											l[i].delete();
+										}//TESTED
+										else {
+											l[i].rename(createNewName(l[i], source.getFileConfig().renameAfterParse));
+										}//TESTED
+									}
+									catch (IOException e) { // doesn't seem worth bombing out but should error
+										_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);									
+									}
+								}//TESTED
+							}
 						}
 					}
 				}
@@ -747,6 +818,15 @@ public class FileHarvester implements HarvesterInterface {
 			errors++;
 			_context.getHarvestStatus().update(source,new Date(),HarvestEnum.error,e.getMessage(), true, false);
 		}		
+	}
+	
+	// Renaming utility
+	
+	private static String createNewName(InfiniteFile subFile, String replacement) throws MalformedURLException, UnsupportedEncodingException, URISyntaxException {
+		String path = subFile.getUrlString(); // (currently the entire string)
+		String name = subFile.getName();
+		int startOfName = path.lastIndexOf(name);
+		return replacement.replace("$name", name).replace("$path", path.substring(0, startOfName - 1));
 	}
 
 }

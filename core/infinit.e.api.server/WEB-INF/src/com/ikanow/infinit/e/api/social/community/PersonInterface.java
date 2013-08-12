@@ -96,6 +96,10 @@ public class PersonInterface extends ServerResource
 				 personId = RESTTools.decodeRESTParam("personid", attributes);
 				 action = "getPerson";			 
 			 }
+			 else if (urlStr.contains("/person/list"))
+			 {
+				 action = "listPerson";
+			 }
 			 else if ( urlStr.contains("/person/register") || urlStr.contains("/people/register"))
 			 {
 				 needCookie = false;
@@ -235,6 +239,10 @@ public class PersonInterface extends ServerResource
 					 {
 						 rp = this.person.getPerson(personId, false);
 					 }
+				 }
+				 else if (action.equals("listPerson"))
+				 {
+					 rp = this.person.listPerson(cookieLookup);					 
 				 }
 			 }
 		 }

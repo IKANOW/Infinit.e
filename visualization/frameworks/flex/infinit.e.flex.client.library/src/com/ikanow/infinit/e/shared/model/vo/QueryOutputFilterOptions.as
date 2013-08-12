@@ -21,7 +21,6 @@ package com.ikanow.infinit.e.shared.model.vo
 {
 	import com.ikanow.infinit.e.shared.model.constant.settings.QueryAdvancedSettingsConstants;
 	import flash.events.EventDispatcher;
-	/**/
 	import mx.controls.Alert;
 	
 	[Bindable]

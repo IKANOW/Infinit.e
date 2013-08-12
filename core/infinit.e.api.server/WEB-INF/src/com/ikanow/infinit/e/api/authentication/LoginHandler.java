@@ -172,16 +172,28 @@ public class LoginHandler
 	 */
 	public ResponsePojo keepAlive(String cookieLookup) 
 	{
+		return keepAlive(cookieLookup, null);
+	}
+	public ResponsePojo keepAlive(String cookieLookup, Boolean bActiveAdmin) 
+	{
 		ResponsePojo rp = new ResponsePojo();
 		if ( cookieLookup == null )
 		{
 			//user has been logged out/has no cookie return error
 			rp.setResponse(new ResponseObject("Keep Alive",false,"User has been inactive too long, \nor is not logged in, \nor is logged in elsewhere"));
 		}
-		else
+		else if (null == bActiveAdmin)
 		{
 			//cookie was found successfully, time was updated during cookieLookup()
 			rp.setResponse(new ResponseObject("Keep Alive",true,"Cookie kept alive, 15min left."));
+		}
+		else if (bActiveAdmin) {
+			//cookie was found successfully, time was updated during cookieLookup()
+			rp.setResponse(new ResponseObject("Keep Alive",true,"Active Admin: Cookie kept alive, 15min left."));			
+		}
+		else if (!bActiveAdmin) {
+			//cookie was found successfully, time was updated during cookieLookup()
+			rp.setResponse(new ResponseObject("Keep Alive",true,"Inactive Admin: Cookie kept alive, 15min left."));			
 		}
 		return rp;
 	}

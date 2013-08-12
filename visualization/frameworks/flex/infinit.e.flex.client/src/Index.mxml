@@ -21,7 +21,7 @@
 	xmlns:view="com.ikanow.infinit.e.view.*"
 	width="100%"
 	height="100%"
-	backgroundColor="#363E41"
+	backgroundColor="#363E41" addedToStage="application1_addedToStageHandler(event)"
 	initialize="initializeHandler()">
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -53,9 +53,11 @@
 	<fx:Script>
 		<![CDATA[
 			import com.ikanow.infinit.e.shared.util.BrowserUtil;
+			import com.ikanow.infinit.e.utility.MouseWheelEnabler;
 			
 			protected function initializeHandler():void
 			{
+				//mouseSupport = new MouseWheelSupport();
 				// listen for uncaught errors
 				systemManager.loaderInfo.uncaughtErrorEvents.addEventListener( UncaughtErrorEvent.UNCAUGHT_ERROR, uncaughtErrorHandler );
 				
@@ -92,6 +94,13 @@
 				
 				trace( s );
 			}
+
+			protected function application1_addedToStageHandler(event:Event):void
+			{
+				//turn on mousewheel so it works in firefox
+				MouseWheelEnabler.init( this.stage );
+			}
+
 		]]>
 	</fx:Script>
 

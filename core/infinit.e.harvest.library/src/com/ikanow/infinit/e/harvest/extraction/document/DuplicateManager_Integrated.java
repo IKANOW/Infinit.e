@@ -235,6 +235,10 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			}
 		}//TESTED
 		
+		if (null == url) { // use this call with url==null to just check the modified file...
+			return true;
+		}
+		
 		// No short cut, go the long way round:
 		
 		DBCollection collection = DbManager.getDocument().getMetadata();

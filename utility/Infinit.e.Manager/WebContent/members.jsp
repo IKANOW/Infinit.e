@@ -22,6 +22,7 @@ limitations under the License.
 	int currentPage = 1;
 	int itemsToShowPerPage = 10;
 	String action = "";
+	String lastaction = "";
 	String logoutAction = "";
 	String listFilter = "";
 		
@@ -63,9 +64,11 @@ limitations under the License.
 		// Determine which action to perform on postback/request
 		action = "";
 		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
+		lastaction = action;
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
 		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
+		if (request.getParameter("removeSelected") != null) action = request.getParameter("removeSelected").toLowerCase();
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
 		communityid = (request.getParameter("communityid") != null) ? request.getParameter("communityid") : "";
@@ -130,13 +133,39 @@ limitations under the License.
 				removePersonFromCommunity(personid, communityid, request, response);
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=members.jsp?communityid=" + communityid + "\">");
 			}
+			else if (action.equals("removeselected")) 
+			{
+				String[] ids= request.getParameterValues("peopleToRemove");
+				
+				int nRemoved = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					
+					if (!removePersonFromCommunity(id, communityid, request, response)) {
+						nFailed++;
+					}
+					else 
+						nRemoved++;
+				}
+				messageToDisplay = "Bulk community removal: removed " + nRemoved + ", failed: " + nFailed; 
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=members.jsp?communityid=" + communityid);
+				if (currentPage > 1) {
+					out.print("&page=" + currentPage);
+				}
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
 			else if (action.equals("filterlist")) 
 			{
-				currentPage = 1;
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				populateEditForm(personid, request, response);
 			}
 			else if (action.equals("clearfilter")) 
 			{
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				listFilter = "";
 				populateEditForm(personid, request, response);
 			}
@@ -170,7 +199,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay %>');
+		alert("<%=messageToDisplay.replace("\"", "\\\"") %>");
 	</script>
 <% 
 	} 
@@ -206,6 +235,12 @@ limitations under the License.
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
+			</tr>
+			<tr>
+				<td colspan="2" >
+				<button name="removeSelected" onclick="return confirm('Do you really wish to remove the selected people from this community?');" name="removeSelected" value="removeSelected">Remove selected people</button>
+				<div style="float: right"><a align="right" href='communities.jsp?action=edit&communityid=<%=communityid %>'>Back</a></div>
+				</td>
 			</tr>
 			</table>
 
@@ -334,12 +369,12 @@ private boolean updateMember(String person, String community, String status, Str
 			}
 			else
 			{
-				messageToDisplay = "Error: Unable to update member."; return false;
+				messageToDisplay = "Error: Unable to update member: " +  updateResponse.getString("message"); return false;
 			}
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to update member."; return false;
+			messageToDisplay = "Error: Unable to update member: " +  updateResponse.getString("message"); return false;
 		}
 	}
 	catch (Exception e)
@@ -518,6 +553,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				// Create the HTML table row
 				people.append("<tr>");
 				people.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
+				people.append("<td align=\"center\" bgcolor=\"white\"><input type=\"checkbox\" name=\"peopleToRemove\" value=\"" + id + "\"/></td>");
 				people.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
 				people.append("</tr>");
 			}
@@ -529,13 +565,17 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// --------------------------------------------------------------------------------
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
-		baseUrl.append("people.jsp?");
-		String actionString = (action.length() > 0) ? "action=" + action : "";
+		baseUrl.append("members.jsp?");
+		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append('&');
+		
+		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";
 		String personIdString = (personid.length() > 0) ? "personid=" + personid : "";
+		
 		if (actionString.length() > 0) baseUrl.append(actionString);
 		if (actionString.length() > 0 && personIdString.length() > 0) baseUrl.append("&");
 		if (personIdString.length() > 0) baseUrl.append(personIdString);
 		if (actionString.length() > 0 || personIdString.length() > 0) baseUrl.append("&");
+		
 		baseUrl.append("page=");
 		people.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
 		people.append("</td></tr>");

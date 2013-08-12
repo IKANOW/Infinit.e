@@ -631,7 +631,7 @@ public class DocumentPojo extends BaseDbPojo {
 			if (null != metadata) {				
 				for (Entry<String, JsonElement> entry: metadata.entrySet()) {
 					if (entry.getValue().isJsonArray()) {
-						doc.addToMetadata(entry.getKey(), MongoDbUtil.encodeArray(entry.getValue().getAsJsonArray()));
+						doc.addToMetadata(entry.getKey(), MongoDbUtil.encodeArray(entry.getValue().getAsJsonArray()).toArray());
 					}
 					else {
 						BasicDBList dbl = new BasicDBList();

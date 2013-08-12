@@ -79,6 +79,11 @@ public class StructuredAnalysisHarvester
 		}
 	}
 	
+	public void resetDocumentCache() {
+		//TODO (can I instead refresh only the bit I need?!)
+		this.document = null;
+	}
+	
 	// Load global functions
 	// (scriptLang currently ignored)
 	
@@ -225,38 +230,32 @@ public class StructuredAnalysisHarvester
 		}
 		//TOTEST
 	}
-	//TOTEST
+	//TOTEST (tested - normal replacement, fields except docGeo and publishedDate)
 	
 	// Set the entities
 	
 	public void setEntities(DocumentPojo doc, List<EntitySpecPojo> entSpecs) throws JSONException, ScriptException {
 		intializeDocIfNeeded(doc, _gson);
 		List<EntityPojo> ents = getEntities(entSpecs, doc);
-		if (null != doc.getEntities()) {
-			doc.getEntities().addAll(ents);
-		}
-		else {
-			doc.setEntities(ents);			
+		if (null == doc.getEntities()) { // (else has already been added by getEntities)
+			doc.setEntities(ents);
 		}
 	}
-	//TOTEST
+	//TESTED (both first time through, and when adding to existing entities)
 	
 	// Set the associations
 	
 	public void setAssociations(DocumentPojo doc, List<AssociationSpecPojo> assocSpecs) throws JSONException, ScriptException {
 		
-		//TODO (INF-1938): Allow setting of directed sentiment (here and in legacy code)
+		//TODO (INF-1922): Allow setting of directed sentiment (here and in legacy code)
 		
 		intializeDocIfNeeded(doc, _gson);
 		List<AssociationPojo> assocs = getAssociations(assocSpecs, doc);
-		if (null != doc.getAssociations()) {
-			doc.getAssociations().addAll(assocs);
-		}
-		else {
-			doc.setAssociations(assocs);		
+		if (null == doc.getAssociations()) { // (else has already been added by getAssociations)
+			doc.setAssociations(assocs);
 		}
 	}
-	//TOTEST
+	//TESTED (both first time through, and when adding to existing associations)
 	
 	///////////////////////////////////////////////////////////////////////////////////////////
 	
@@ -283,7 +282,7 @@ public class StructuredAnalysisHarvester
 	
 	// Intialize script engine - currently only Java script is supported
 	
-	private void intializeScriptEngine()
+	public void intializeScriptEngine()
 	{
 		if (null == engine) {
 			//set up the security manager
@@ -1332,12 +1331,12 @@ public class StructuredAnalysisHarvester
 				if (null != sentiment) {
 					try {
 						double d = Double.parseDouble(sentiment);
-						if (_context.isStandalone()) { // (minor message, while debugging only)
-							if ((d <= -1.1) || (d >= 1.1)) {
-								_context.getHarvestStatus().logMessage(new StringBuffer("Sentiment outside bounds [-1.0,1.0]: ").append(sentiment).toString(), true);
-							}
-						}
 						e.setSentiment(d);
+						if (null == e.getSentiment()) {
+							if (_context.isStandalone()) { // (minor message, while debugging only)
+								_context.getHarvestStatus().logMessage(new StringBuffer("Invalid sentiment: ").append(sentiment).toString(), true);
+							}							
+						}
 					}
 					catch (Exception e1) {
 						this._context.getHarvestStatus().logMessage(e1.getMessage(), true);
@@ -2892,6 +2891,7 @@ public class StructuredAnalysisHarvester
 				for (GeoSpecPojo altIn: gsp.getAlternatives()) {
 					GeoPojo altOut =  getEntityGeo(altIn, f, field);
 					if (null != altOut) {
+						gsp.setOntology_type(altIn.getOntology_type());
 						return altOut;
 					}
 				}

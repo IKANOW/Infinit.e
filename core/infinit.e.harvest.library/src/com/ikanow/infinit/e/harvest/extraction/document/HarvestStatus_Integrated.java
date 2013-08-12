@@ -57,7 +57,9 @@ public class HarvestStatus_Integrated implements HarvestStatus {
 		
 		BasicDBObject update = new BasicDBObject();
 			// (annoyingly need to do this in raw format because otherwise overwrite any existing fields eg synced,doccount)
-		update.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
+		if ((null == sourceToUpdate.getDistributionFactor()) || (HarvestEnum.in_progress != harvestStatus)) {
+			update.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
+		}
 		update.put(SourceHarvestStatusPojo.sourceQuery_harvested_, harvestDate);
 		sourceToUpdate.getHarvestStatus().setHarvest_status(harvestStatus);
 		sourceToUpdate.getHarvestStatus().setHarvested(harvestDate);
@@ -89,6 +91,12 @@ public class HarvestStatus_Integrated implements HarvestStatus {
 		if (sourceToUpdate.getHarvestStatus().getHarvest_message().length() > 0) {
 			// (only overwrite the previous message if there's actually something to say...)
 			update.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, sourceToUpdate.getHarvestStatus().getHarvest_message());
+			
+			if ((null != sourceToUpdate.getDistributionTokens()) && !sourceToUpdate.getDistributionTokens().isEmpty()) {
+				for (Integer token: sourceToUpdate.getDistributionTokens()) {
+					update.put(SourceHarvestStatusPojo.sourceQuery_distributedStatus_ + "." + token.toString(), sourceToUpdate.getHarvestStatus().getHarvest_message());
+				}
+			}//TESTED
 		}
 		if (bTempDisable) {
 			sourceToUpdate.setHarvestBadSource(true);

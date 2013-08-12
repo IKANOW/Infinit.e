@@ -51,7 +51,10 @@ public class InfiniteMongoSplitter
 		}
 		//if maxdocssplit and maxsplits is set and there are less documents than splits*docspersplit then use the new splitter
 		//otherwise use the old splitter
-		if ( conf.getMaxDocsPerSplit() > 0 && conf.getMaxSplits() > 0 && ( count < nMaxCount ) )
+		if (conf.getLimit() > 0) {
+			return calculateManualSplits(conf, 1, conf.getLimit(), coll);			
+		}
+		else if ( conf.getMaxDocsPerSplit() > 0 && conf.getMaxSplits() > 0 && ( count < nMaxCount ) )
 		{
 			_logger.debug("Calculating splits manually");
 			int splits_needed = (count/conf.getMaxDocsPerSplit()) + 1;

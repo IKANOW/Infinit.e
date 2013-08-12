@@ -160,7 +160,7 @@ public class EntityPojo
 		return sentiment;
 	}
 	public void setSentiment(Double sentiment) {
-		if ((null != sentiment) && (Math.abs(sentiment) <= 1.1)) { // (actually 1.0)
+		if ((null != sentiment) && (Math.abs(sentiment) <= 1.0e7)) { 
 			// (for some reason seeing the occasional corrupt sentiment from entity extractors, here's a handy central spot to sanity check)
 			this.sentiment = sentiment;
 		}

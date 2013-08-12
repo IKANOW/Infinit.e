@@ -24,6 +24,7 @@ limitations under the License.
 	
 	//
 	String action = "";
+	String lastaction = "";
 	String logoutAction = "";
 	
 	// 
@@ -47,10 +48,9 @@ limitations under the License.
 	String listOfCommunities = "";
 	String password = "";
 	String passwordConfirmation = "";
-	// No way of knowing if I'm admin, so leave as visible for now, later change to:
-	//String accountTypeHidden = "style=\"display:none;\"";
-	String accountTypeHidden = "";
-	
+	String accountTypeHidden = "style=\"display:none;\"";
+	String isRequestAdminVisible = "style=\"display:none;\"";
+	String isDemoteAdminVisible = "style=\"display:none;\"";
 		
 %>
 
@@ -77,11 +77,13 @@ limitations under the License.
 		// Determine which action to perform on postback/request
 		action = "";
 		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
+		lastaction = action;
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
 		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
 		
 		// Capture values sent by button clicks, these will override the action value as appropriate 
 		String saveAccount = "";
@@ -89,12 +91,16 @@ limitations under the License.
 		String updatePassword = "";
 		String addto = "";
 		String removefrom = "";
+		boolean bRequestAdmin = false;
+		boolean bDemoteAdmin = false;
 		if (request.getParameter("createAccount") != null) createAccount = request.getParameter("createAccount").toLowerCase();
 		if (request.getParameter("saveAccount") != null) saveAccount = request.getParameter("saveAccount").toLowerCase();
 		if (request.getParameter("updatePassword") != null) updatePassword = request.getParameter("updatePassword").toLowerCase();
 		if (request.getParameter("addto") != null) addto = request.getParameter("addto");
 		if (request.getParameter("removefrom") != null) removefrom = request.getParameter("removefrom");
-		
+		if (request.getParameter("requestAdmin") != null) bRequestAdmin = true;
+		if (request.getParameter("demoteAdmin") != null) bDemoteAdmin = true;
+
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
 		{
@@ -103,6 +109,28 @@ limitations under the License.
 		else
 		{
 			currentPage = 1;
+		}
+		
+		Boolean bIsAdmin = null;
+		
+		if (bDemoteAdmin) {
+			adminLogOut(request, response);
+		}
+		bIsAdmin = isLoggedInAsAdmin_GetAdmin(bRequestAdmin, request, response);
+		if (null == bIsAdmin) { //inactive admin
+			accountTypeHidden = "style=\"display:none;\"";
+			isRequestAdminVisible = "";			
+			isDemoteAdminVisible = "style=\"display:none;\"";
+		}
+		else if (bIsAdmin) { // admin active
+			accountTypeHidden = "";
+			isRequestAdminVisible = "style=\"display:none;\"";	
+			isDemoteAdminVisible = "";
+		}
+		else { // not admin
+			accountTypeHidden = "style=\"display:none;\"";
+			isRequestAdminVisible = "style=\"display:none;\"";
+			isDemoteAdminVisible = "style=\"display:none;\"";
 		}
 		
 		try
@@ -181,15 +209,40 @@ limitations under the License.
 			else if (action.equals("delete")) 
 			{
 				deleteAccount(personid, request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp\">");
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
+			else if (action.equals("deleteselected")) 
+			{
+				String[] ids= request.getParameterValues("peopleToDelete");
+				
+				int nDeleted = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					if (!deleteAccount(id, request, response)) {
+						nFailed++;
+					}
+					else nDeleted++;
+				}
+				messageToDisplay = "Bulk person deletion: deleted " + nDeleted + ", failed: " + nFailed; 
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
 			}
 			else if (action.equals("filterlist")) 
 			{
-				currentPage = 1;
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				populateEditForm(personid, request, response);
 			}
 			else if (action.equals("clear")) 
 			{
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				listFilter = "";
 				populateEditForm(personid, request, response);
 			}
@@ -260,6 +313,15 @@ limitations under the License.
 			<tr>
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
+			<tr>
+				<td colspan="2" ><button name="deleteSelected" onclick="return confirm('Do you really wish to delete the selected people?');" name="deleteSelected" value="deleteSelected">Delete selected people</button></td>
+			</tr>
+			<tr <%= isRequestAdminVisible %>>
+				<td colspan="2" ><button name="requestAdmin" name="requestAdmin" value="requestAdmin">Grab temp admin rights</button></td>
+			</tr>
+			<tr  <%= isDemoteAdminVisible %> >
+				<td colspan="2" ><button name="demoteAdmin" name="demoteAdmin" value="demoteAdmin">Relinquish temp admin rights</button></td>
+			</tr>			
 			</table>
 
 		</td>
@@ -278,12 +340,13 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="30%">Account Status:</td>
 						<td bgcolor="#ffffff" width="70%"><%=accountStatus %></td>
 					</tr>
-					<tr>
+					<tr <%=accountTypeHidden %>>
 						<td bgcolor="#ffffff" width="30%">Account Type (Admin Only):</td>
 						<td bgcolor="#ffffff" width="70%">
-							<select name="accounttype" id="accounttype" <%=accountTypeHidden %>>
+							<select name="accounttype" id="accounttype">
 								<option value="Unknown">Unknown</option>
 								<option value="admin">Admin</option>
+								<option value="admin-enabled">Admin-On-Request</option>
 								<option value="user">User</option>
 							</select>
 						</td>							
@@ -301,11 +364,11 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="70%"><input type="text" id="lastName" name="lastName" value="<%=lastName%>" size="50" /></td>
 					</tr>
 					<tr>
-						<td bgcolor="#ffffff" width="30%">Display Name:*</td>
+						<td bgcolor="#ffffff" width="30%">Display Name:</td>
 						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="displayName" name="displayName" value="<%=displayName%>" size="50" /></td>
 					</tr>
 					<tr>
-						<td bgcolor="#ffffff" width="30%">Phone Number:*</td>
+						<td bgcolor="#ffffff" width="30%">Phone Number:</td>
 						<td bgcolor="#ffffff" width="70%"><input type="text" id="phone" name="phone" value="<%=phone%>" size="30" /></td>
 					</tr>
 					<tr>
@@ -541,7 +604,9 @@ private boolean addPersonToCommunity(String person, String community, HttpServle
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Person added to community."; return true;
+			// Don't output a message, the visual feedback is sufficient
+			//messageToDisplay = "Success: Person added to community."; 
+			return true;
 		}
 		else
 		{
@@ -563,7 +628,9 @@ private boolean removePersonFromCommunity(String person, String community, HttpS
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( removeFromCommunity(community, person, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Person removed from community."; return true;
+			// Don't output a message, the visual feedback is sufficient
+			//messageToDisplay = "Success: Person removed from community."; 
+			return true;
 		}
 		else
 		{
@@ -654,8 +721,14 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 		
 		int column = 1;
 		
+		String lastName = null;
 		for (String communityName : listOfCommunityNames)
 		{
+			if ((null != lastName) && lastName.equals(communityName)) {
+				continue;
+			}
+			lastName = communityName;
+			
 			// Iterate over the list of all communities
 			for (int i = 0; i < communities.length(); i++)
 			{
@@ -675,9 +748,8 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 						
 						String deleteLink = "<a href=\"people.jsp?action=edit&personid=" + personid
 								+ pageString + listFilterString + "&removefrom=" + community.getString("_id") 
-								+ "\" title=\"Remove User from Community\" "
-								+ "onclick='return confirm(\"Do you really wish to remove the user account from: "
-								+ community.getString("name") + "?\");'><img src=\"image/minus_button.png\" border=0></a>";
+								+ "\" title=\"Remove User from Community\" >"
+								+ "<img src=\"image/minus_button.png\" border=0></a>";
 								
 						String addLink = "<a href=\"people.jsp?action=edit&personid=" + personid
 								+ pageString + listFilterString + "&addto=" + community.getString("_id") 
@@ -796,7 +868,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				
 				editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
 						+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
-				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id
+				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id+ "&page=" + currentPage
 						+ listFilterString + "\" title=\"Delete User Account\" "
 						+ "onclick='return confirm(\"Do you really wish to delete the user account for: "
 						+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
@@ -804,6 +876,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				// Create the HTML table row
 				people.append("<tr>");
 				people.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
+				people.append("<td align=\"center\" bgcolor=\"white\"><input type=\"checkbox\" name=\"peopleToDelete\" value=\"" + id + "\"/></td>");
 				people.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
 				people.append("</tr>");
 			}
@@ -816,12 +889,16 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("people.jsp?");
-		String actionString = (action.length() > 0) ? "action=" + action : "";
+		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append('&');
+		
+		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";
 		String personIdString = (personid.length() > 0) ? "personid=" + personid : "";
+		
 		if (actionString.length() > 0) baseUrl.append(actionString);
 		if (actionString.length() > 0 && personIdString.length() > 0) baseUrl.append("&");
 		if (personIdString.length() > 0) baseUrl.append(personIdString);
 		if (actionString.length() > 0 || personIdString.length() > 0) baseUrl.append("&");
+		
 		baseUrl.append("page=");
 		people.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
 		people.append("</td></tr>");

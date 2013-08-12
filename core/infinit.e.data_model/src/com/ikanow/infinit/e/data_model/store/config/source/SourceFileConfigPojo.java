@@ -26,6 +26,7 @@ public class SourceFileConfigPojo {
 	public String type = null; // null == decide based on file type, otherwise "json", "xml", "tika", "Xsv" (eg "tsv", "csv")
 	public String pathInclude = null; // optional regex (files only) - must match entire path
 	public String pathExclude = null; // optional regex (files and directories) - must match entire path, note directories end with "/"
+	public String renameAfterParse = null; // If "" deletes the file after processing; otherwise if non-null renames to specified string with escapes $path and $name
 	
 	// For samba shares
 	public String username = null;

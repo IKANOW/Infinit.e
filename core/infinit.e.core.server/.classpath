@@ -9,7 +9,5 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.harvest.library"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
-	<classpathentry kind="lib" path="lib/log4j-1.2.16.jar"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.api.server"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

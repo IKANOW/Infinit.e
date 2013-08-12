@@ -1,4 +1,3 @@
-<!-- TODO LET QUERY BAR BE RESIZABLE? -->
 <!--
 Copyright 2012 The Infinit.e Open Source Project
 
@@ -14,6 +13,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
+
 <%@page import="javax.xml.ws.Response"%>
 <%@page import="org.apache.jasper.JasperException"%>
 <%@page import="javax.script.ScriptException"%>
@@ -40,6 +40,9 @@ limitations under the License.
 	static CookieManager cm = new CookieManager();
 	static String selectedJson = null; // If want to preserve pages across submit/refresh calls
 	static int nStatusHeight = 140; // (or 300 if something is selected)
+	static Boolean quickRun = false;
+	static Integer debugLimit = null;
+	static int nDefaultDebugLimit = 10;
 
 	static class keepAlive
 	{
@@ -768,6 +771,12 @@ limitations under the License.
 			n++;
 			url += job;
 		}
+		if (null != debugLimit) {
+			url += "?debugLimit=" + debugLimit.toString();			
+		}
+		else if (quickRun) {
+			url += "?quickRun=true";
+		}
 		
 		//DEBUG
 		//System.out.println("arg: " + userarguments);
@@ -932,7 +941,21 @@ else if (isLoggedIn == true)
 					}
 			    }//end if file is specified
  			}//end if URL not specified
- 				 		
+ 			
+ 			debugLimit = null;
+ 			nDefaultDebugLimit = 10;
+ 			if ((null != request.getAttribute("debugLimit")) && (((String)request.getAttribute("debugLimit")).length() > 0)) {
+ 				debugLimit = Integer.parseInt((String) request.getAttribute("debugLimit"));
+ 	 			nDefaultDebugLimit = debugLimit;
+				nStatusHeight = 300; // (show the entire status)
+ 			}
+			quickRun = false;
+ 			if ((request.getAttribute("quickRunId") != null) && (request.getAttribute("quickRunId").equals("1"))) {
+ 				quickRun = true;
+				nStatusHeight = 300; // (show the entire status)
+ 			}
+ 			
+ 			
 	 		////////////////////////////////////Delete Task ////////////////////////////////
 	 		if (request.getAttribute("deleteId") != null)
 	 		{
@@ -1151,6 +1174,9 @@ h2
 	margin-bottom: 25px;
 }
 
+#jobid  {
+	font: 12px Arial,sans-serif;
+}
 #uploader_div {
 	height: 775px;
 }
@@ -1214,7 +1240,7 @@ $().ready(function() {
 			  o = mult_comms.options[i];
 			  o.selected = false;
 			}
-		}
+		}//TESTED
 		function clearJobDepList()
 		{
 			mult_deps = document.getElementById('jobdepend');
@@ -1223,7 +1249,7 @@ $().ready(function() {
 			  o = mult_deps.options[i];
 			  o.selected = false;
 			}
-		}
+		}//TESTED
 		function highlightComms(commList)
 		{
 			commListStr = JSON.stringify(commList);
@@ -1237,7 +1263,7 @@ $().ready(function() {
 			  else  
 			  	o.selected = true;
 			}
-		}
+		}//TESTED
 		function highlightJobDeps(depList)
 		{
 			depListStr = JSON.stringify(depList);
@@ -1251,7 +1277,7 @@ $().ready(function() {
 			  else  
 			  	o.selected = true;
 			}
-		}
+		}//TESTED
 		function auto_add_jobdep()
 		{
 			inputcollection = document.getElementById('inputcollection').value;
@@ -1264,7 +1290,7 @@ $().ready(function() {
 		        	jobdepend[i].selected = false;
 		        }
 		    }			
-		}
+		}//TESTED
 		
 		function populate(selectedJson)
 		{			
@@ -1287,6 +1313,7 @@ $().ready(function() {
 			ageout = document.getElementById( 'ageout' );
 			exportToHdfs = document.getElementById( 'exportToHdfs' );			
 			var jobdepend = document.getElementById( 'jobdepend' );
+			jobid = document.getElementById('jobid');
 
 			// Other misc entries			
 			refreshId = document.getElementById('refreshId');
@@ -1317,6 +1344,8 @@ $().ready(function() {
 			
 			if (json == "new")
 			{
+				jobid.innerHTML = "";
+				
 				title.value = "(New Plugin)";
 				description.value = "(Description Here)";
 				frequency.value = "NONE";
@@ -1356,6 +1385,8 @@ $().ready(function() {
 			}
 			else if (json == "copy")
 			{
+				jobid.innerHTML = "";
+
 				title.value = title.value + " (COPY)";
 				
 				DBId.value = "";
@@ -1371,6 +1402,8 @@ $().ready(function() {
 				return;				
 			}
 			var jsonObj = eval('(' + json + ')');
+			
+			jobid.innerHTML = "(" + jsonObj._id + ")";
 			
 			deleteButton.style.visibility = '';			
 			status_form.style.display = '';
@@ -1592,7 +1625,7 @@ $().ready(function() {
 			{
 				joberror.value = jsonObj.errorMessage;
 			}
-		}
+		}//TESTED
 		
 		function useUrlJar()
 		{
@@ -1609,7 +1642,7 @@ $().ready(function() {
 				file.style.display = "";
 				jar_url.style.display = "none";
 			}
-		}		
+		}//TESTED
 		function onChangeExportMode()
 		{
 			// Nothing to do
@@ -1626,7 +1659,7 @@ $().ready(function() {
 				ageOutLabel.style.display = "";
 				ageOutValue.style.display = "";												
 			}
-		}
+		}//TESTED
 		
 		function validate_fields()
 		{			
@@ -1770,12 +1803,20 @@ $().ready(function() {
 				alert('Age out must be a numeric value (Must start with a number, can be a decimal e.g. 0.006)');
 				return false;
 			}
+			
+			// Disable everything before submitting to stop people hitting the refresh button
+			$( "#quickRunButton" ).attr("disabled", "disabled");
+			$( "#deleteButton" ).attr("disabled", "disabled");
+			$( "#refreshButton" ).attr("disabled", "disabled");
+			$( "#submitButton" ).attr("disabled", "disabled");
+			$( "#debugButton" ).attr("disabled", "disabled");
+
 			return true;
-		}
+		}//TESTED
 		function refreshStatus()
 		{
 			return true;
-		}
+		}//TESTED
 		function confirmDelete()
 		{
 			var agree=confirm("Are you sure you wish to delete this MapReduce task?");
@@ -1783,14 +1824,14 @@ $().ready(function() {
 				return true ;
 			else
 				return false ;
-		}
+		}//TESTED
 		function showResults()
 		{
 			var title = document.getElementById('title').value;
 			var url = getEndPointUrl() + "custom/mapreduce/getresults/" + title + "?limit=100";
 			window.open(url, '_blank');
 			window.focus();			
-		}
+		}//TESTED
 		function testQuery(editor)
 		{
 			var success = JSHINT(editor.getValue());
@@ -1808,7 +1849,40 @@ $().ready(function() {
 				}
 			}
 			alert(output);			
-		}
+		}//TESTED
+		function addOptions(editor)
+		{
+			var obj = eval('(' + editor.getValue() + ')');
+			if (null == obj) {
+				testQuery(editor); // (must be an error)
+			}
+			if (null == obj['$fields']) {
+				obj['$fields'] = {};
+			}
+			if (null == obj['$output']) {
+				obj['$output'] =  { 'limitAllData': false, 'limit': 0, 'sortField': null, 'sortDirection': 1 };
+			}
+			editor.setValue(JSON.stringify(obj, null, 2)); // (will get formatted by the text editor i think)
+		}//TESTED
+		function quickRun()
+		{
+			//Just set the frequency to "once only", time to "now"
+			document.getElementById('frequency').value = "NONE";
+			document.getElementById('nextruntime').value = "ASAP";
+			document.getElementById('quickRunId').value = "1";
+		}//TESTED
+		function runInDebugMode()
+		{
+			document.getElementById('frequency').value = "NONE";
+			document.getElementById('nextruntime').value = "ASAP";
+			
+			document.getElementById('debugLimit').value = document.getElementById('debugRecordSize').value.toString();
+			
+			if (!validate_fields()) {
+				return; 
+			}
+			document.forms['upload_form'].submit();		
+		}//TESTED
 		// -->
 		</script>
 	</script>
@@ -1831,7 +1905,7 @@ $().ready(function() {
 	                <table><tr>
 		                <td>Run status:</td>
 		                <td><input type="text" name="jobstatus" id="jobstatus" readonly="readonly" size="60" /></td>
-			        	<td><input type="submit" name="refresh" id = "refresh" value="Refresh" /></td>
+			        	<td><input type="submit" name="refresh" id="refreshButton" value="Refresh" /></td>
 	                </tr>
 	                <tr>
 	                	<td>Map Progress</td>
@@ -1858,8 +1932,8 @@ $().ready(function() {
 	                  </tr>
 	                  <tr>
 	                    <td width="150">Title:</td>
-	                    <td><input type="text" name="title" id="title" size="60" /></td>
-	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" /></td>
+	                    <td><input type="text" name="title" id="title" size="40" />&nbsp;&nbsp;&nbsp;&nbsp;<span id="jobid"></span></td>
+	                    <td colspan="2" style="text-align:right"><input type="submit" value="Submit" id="submitButton"/></td>
 	                  </tr>
 	                  <tr>
 	                    <td>Description:</td>
@@ -1876,12 +1950,14 @@ $().ready(function() {
 						<td>
 							<select name="frequency" id="frequency">
 								<option value="NONE">Once Only</option>
+								<option value="HOURLY">Hourly</option>
 								<option value="DAILY">Daily</option>
 								<option value="WEEKLY">Weekly</option>
 								<option value="MONTHLY">Monthly</option>
 								<option value="null">Don't Run</option>
 							</select>
 						</td>
+	                    <td colspan="2" style="text-align:right"><input id="quickRunButton" onclick="quickRun();" type="submit" value="QuickRun" /></td>
 	                  </tr>
 	                  <tr>
 	                    <td>Input collection:</td>
@@ -1898,7 +1974,10 @@ $().ready(function() {
 	                  <tr>
 	                    <td>Query:</td>
 	                    <td><textarea rows="2" cols="60" name="query" id="query" ></textarea></td>
-	                    <td colspan="2" style="text-align:right"><input type="button" onclick="testQuery(queryEditor)" value="Check" /></td>
+	                    <td colspan="2" style="text-align:right">
+	                    	<input type="button" onclick="testQuery(queryEditor)" value="Check" />
+	                    	<input type="button" onclick="addOptions(queryEditor)" value="Add Options" />
+	                    </td>
 	                  </tr>
 	                  <tr>
 	                  	<td>Communities:</td>
@@ -1942,7 +2021,7 @@ $().ready(function() {
 						</td>
 	                  </tr>
 	                  <tr>
-	                    <td>Export to HFDS:</td>
+	                    <td>Export to HDFS:</td>
 						<td>
 							<select name="exportToHdfs" id="exportToHdfs" onchange="onChangeExportMode()">																
 								<option value="true">true</option>
@@ -1987,15 +2066,20 @@ $().ready(function() {
 					<input type="hidden" name="currJarUrl" id="currJarUrl" />
 					<input type="hidden" name="currJarTitle" id="currJarTitle" />
 					<input type="hidden" name="userarguments" id="userarguments" />
+	        		<input type="hidden" name="quickRunId" id="quickRunId" />
+	        		<input type="hidden" name="debugLimit" id="debugLimit" />
 				</form>
 				</div><!-- id=CenterPane -->
 				<div id="BottomPane" class="BottomPane Pane" style="padding-top: 5px; vertical-align:middle; text-align:left;padding-left: 5px;">
-					<div style="float:top">
-					<label>User arguments:</label>
-					
-	                   <input style="text-align:right" type="button" onclick="testQuery(argsEditor)" value="Check" />
-	                   </div>
-	                   <span style="display:block">
+					<div style="float:top;">
+						<label>User arguments:</label>					
+    	               <input style="text-align:right" type="button" onclick="testQuery(argsEditor)" value="Check" />
+    	               <div style="display:inline;float:right; padding-right:25px; ">
+		                   <input type="button" onclick="runInDebugMode();" id="debugButton" value="Save and Debug" /> on 
+		                   <input type="text" name="debugRecordSize" id="debugRecordSize" size="6" value="<%=nDefaultDebugLimit%>"/> records
+    	               </div>
+	               </div>
+	                <span style="display:block">
 					<textarea
 							style="height: 80%; vertical-align: middle; resize: none;"
 							cols="80" name="userarguments_internal" id="userarguments_internal"></textarea> 

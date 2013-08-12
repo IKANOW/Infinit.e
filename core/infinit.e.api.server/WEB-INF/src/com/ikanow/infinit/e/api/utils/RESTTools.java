@@ -207,7 +207,12 @@ public class RESTTools
 		return null;
 	}
 
+	// By default, admin must be enabled
 	public static boolean adminLookup(String personIdStr) 
+	{
+		return adminLookup(personIdStr, true);
+	}
+	public static boolean adminLookup(String personIdStr, boolean mustBeEnabled) 
 	{
 		if ( null == personIdStr)
 			return false;
@@ -218,11 +223,24 @@ public class RESTTools
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getAuthentication().findOne(authQuery.toDb());
 			if (null != dbo) {
 				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);			
-				return (null != ap.getAccountType()) && ap.getAccountType().equalsIgnoreCase("admin");
+				if (null != ap.getAccountType()) {
+					if (ap.getAccountType().equalsIgnoreCase("admin")) {
+						return true;
+					}
+					else if (ap.getAccountType().equalsIgnoreCase("admin-enabled")) {
+						if (!mustBeEnabled) {
+							return true;
+						}
+						else if (null != ap.getLastSudo()) {
+							if ((ap.getLastSudo().getTime() + 10*60*1000) > new Date().getTime()) {
+								// (ie admin rights last 10 minutes)
+								return true;
+							}
+						}
+					}
+				}//TESTED
 			}
-			else { 
-				return false;
-			}
+			return false;
 		}
 		catch (Exception e )
 		{

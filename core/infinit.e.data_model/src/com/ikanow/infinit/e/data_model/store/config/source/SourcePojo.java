@@ -126,6 +126,8 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String searchCycle_secs_ = "searchCycle_secs";
 	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
 	final public static String maxDocs_ = "maxDocs";
+	private Integer throttleDocs = null; // Limits the number of docs that can be harvested in one cycle (cannot be higher than system setting in harvest.maxdocs_persource)
+	final public static String throttleDocs_ = "throttleDocs";
 	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
 	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
 
@@ -133,16 +135,15 @@ public class SourcePojo extends BaseDbPojo {
 	private Boolean appendTagsToDocs = null; // if true (default) source tags are appended to the document
 	final public static String appendTagsToDocs_ = "appendTagsToDocs";
 	
-	public static class SourceSearchIndexFilter {		
+	public static class SourceSearchIndexFilter {
+		//TODO (INF-1922): add this to the GUI
+		public Boolean indexOnIngest = null; // (if specified and false, default:true, then don't index the docs at all)
 		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocFilter = null; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String entityGeoFilter = null; // (regex applied to entity indexes if the entity has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocGeoFilter = null; // (regex applied to new-line separated association indexes if the association has geo, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String fieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String metadataFieldList = null; // (comma-separated list of doc fields, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
-		
-		//TODO (INF-1922) for source pipeline px only, need to have a creation criteria
-		public String docCreationCriteria = null; // A script, if it returns non-true then the document is dropped (the return value is used as an error)
 		
 		// temp:
 		public transient Pattern entityFilterRegex;
@@ -159,6 +160,12 @@ public class SourcePojo extends BaseDbPojo {
 	// TODO (INF-1922) source pipeline
 	private List<SourcePipelinePojo> processingPipeline;
 	final public static String processingPipeline_ = "processingPipeline";
+	
+	//TODO (INF-2120) enhanced distribution
+	private Integer distributionFactor;
+	final public static String distributionFactor_ = "distributionFactor";
+	// (temporary internal state):
+	private transient Set<Integer> distributionTokens;
 	
 	// Gets and sets
 	
@@ -606,6 +613,27 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public SourceNoSqlConfigPojo getNoSql() {
 		return nosql;
+	}
+
+	public void setDistributionFactor(Integer distributionFactor) {
+		this.distributionFactor = distributionFactor;
+	}
+	public Integer getDistributionFactor() {
+		return distributionFactor;
+	}
+
+	public void setDistributionTokens(Set<Integer> distributionTokens) {
+		this.distributionTokens = distributionTokens;
+	}
+	public Set<Integer> getDistributionTokens() {
+		return distributionTokens;
+	}
+
+	public void setThrottleDocs(Integer throttleDocs) {
+		this.throttleDocs = throttleDocs;
+	}
+	public Integer getThrottleDocs() {
+		return throttleDocs;
 	}
 
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 

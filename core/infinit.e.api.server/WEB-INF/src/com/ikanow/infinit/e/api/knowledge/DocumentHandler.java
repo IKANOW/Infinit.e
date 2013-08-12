@@ -97,7 +97,8 @@ public class DocumentHandler
 			//TESTED (update case, normal case, and intermediate case where both update and original still exist)
 			
 			if (null == dbo) {
-				throw new RuntimeException("Document not found");
+				rp.setResponse(new ResponseObject("Doc Info",true,"Document not found"));
+				return rp;
 			}
 			DocumentPojo dp = DocumentPojo.fromDb(dbo, DocumentPojo.class);
 			if (bReturnFullText) 
@@ -145,8 +146,15 @@ public class DocumentHandler
 					byte[] bytes = FileHarvester.getFile(fileURL, source);
 					if ( bytes == null )
 					{
-						//fail
-						rp.setResponse(new ResponseObject("Doc Info",false,"Could not find document"));
+						// Try returning JSON instead
+						String json = ApiManager.mapToApi(dp, new DocumentPojoApiMap());
+						DocumentFileInterface dfp = new DocumentFileInterface();
+						
+						dfp.bytes = json.getBytes();
+						dfp.mediaType = "application/json";
+						
+						rp.setResponse(new ResponseObject("Doc Info",true,"Document bytes returned successfully"));
+						rp.setData(dfp, null);
 						return rp;
 					}
 					else
@@ -179,7 +187,7 @@ public class DocumentHandler
 		{
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Doc Info",false,"error returning feed"));
+			rp.setResponse(new ResponseObject("Doc Info",false,"error returning feed: " + e.getMessage()));
 		}
 		// Return Json String representing the user
 		return rp;

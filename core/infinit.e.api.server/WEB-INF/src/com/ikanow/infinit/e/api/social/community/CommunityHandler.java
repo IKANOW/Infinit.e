@@ -95,7 +95,9 @@ public class CommunityHandler
 				
 				if ( dbc.count() > 0 )
 				{
-					rp.setData(CommunityPojo.listFromDb(dbc, CommunityPojo.listType()), new CommunityPojoApiMap());
+					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
+					filterCommunityMembers(communities, isSysAdmin, userIdStr);
+					rp.setData(communities, new CommunityPojoApiMap());
 					rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));				
 				}
 				else
@@ -114,7 +116,9 @@ public class CommunityHandler
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);				
 				if ( dbc.count() > 0 )
 				{
-					rp.setData(CommunityPojo.listFromDb(dbc, CommunityPojo.listType()), new CommunityPojoApiMap());
+					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
+					filterCommunityMembers(communities, isSysAdmin, userIdStr);
+					rp.setData(communities, new CommunityPojoApiMap());
 					rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));				
 				}
 				else
@@ -162,7 +166,9 @@ public class CommunityHandler
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 			if ( dbc.count() > 0 )
 			{
-				rp.setData(CommunityPojo.listFromDb(dbc, CommunityPojo.listType()), new CommunityPojoApiMap());
+				List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
+				filterCommunityMembers(communities, isSysAdmin, userIdStr);
+				rp.setData(communities, new CommunityPojoApiMap());
 				rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));				
 			}
 			else
@@ -209,7 +215,8 @@ public class CommunityHandler
 			
 			if (dbo != null)
 			{
-				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);			
+				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);	
+				community = filterCommunityMembers(community, RESTTools.adminLookup(userIdStr), userIdStr);
 				rp.setData(community, new CommunityPojoApiMap());
 				rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));
 			}
@@ -268,16 +275,37 @@ public class CommunityHandler
 				// Parent Community is Optional 
 				if (parentIdStr != null)
 				{
-					DBObject dboparent = DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(parentIdStr)));
-					if ( dboparent != null )
-					{
-						CommunityPojo cp = CommunityPojo.fromDb(dboparent, CommunityPojo.class);
-						parentName = cp.getName();
+					try {
+						DBObject dboparent = DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(parentIdStr)));
+						if ( dboparent != null )
+						{
+							CommunityPojo cp = CommunityPojo.fromDb(dboparent, CommunityPojo.class);
+							parentName = cp.getName();
+							
+							if (cp.getIsPersonalCommunity()) {
+								return new ResponsePojo(new ResponseObject("Add Community", false, "Can't create sub-community of personal community"));							
+							}//TESTED
+							if ((null == cp.getCommunityStatus()) || !cp.getCommunityStatus().equalsIgnoreCase("active")) {
+								return new ResponsePojo(new ResponseObject("Add Community", false, "Can't create sub-community of inactive community"));							
+							}//TESTED
+							// Check attributes
+							if (null != cp.getCommunityAttributes()) {
+								CommunityAttributePojo attr = cp .getCommunityAttributes().get("usersCanCreateSubCommunities");
+								if ((null == attr) || (null== attr.getValue()) || (attr.getValue().equals("false"))) {
+									if (!cp.isOwner(person.get_id()) && !isModerator(userIdStr, cp) && !RESTTools.adminLookup(userIdStr)) {
+										return new ResponsePojo(new ResponseObject("Add Community", false, "Can't create sub-community when not permitted by parent"));
+									}//TESTED (owner+admin+mod)
+								}
+							}						
+						}//TESTED - different restrictions as above 
+						else
+						{
+							return new ResponsePojo(new ResponseObject("Add Community", false, "Parent community does not exist"));
+						}//TESTED
 					}
-					else
-					{
-						return new ResponsePojo(new ResponseObject("Add Community", false, "Parent community does not exist"));
-					}
+					catch (Exception e) {
+						return new ResponsePojo(new ResponseObject("Add Community", false, "Invalid parent community id"));
+					}//TESTED
 				}
 			}
 			else
@@ -566,10 +594,17 @@ public class CommunityHandler
 				}
 				// OK from here on, personId is the object Id...
 								
-				CommunityPojo cp = CommunityPojo.fromDb(dbo,CommunityPojo.class);
-				if ( cp.isOwner(new ObjectId(callerIdStr)) || callerIdStr.equals(personIdStr) || isSysAdmin)
-				{
-					if ( cp.isMember(new ObjectId(personIdStr)) )
+				boolean bAuthorized = isSysAdmin || CommunityHandler.isOwnerOrModerator(communityIdStr, callerIdStr);
+				if (bAuthorized) {
+					
+					CommunityPojo cp = CommunityPojo.fromDb(dbo,CommunityPojo.class);
+					ObjectId personId = new ObjectId(personIdStr);
+					
+					if ( cp.isOwner(personId) && !userStatus.equalsIgnoreCase("active")) {						
+						rp.setResponse(new ResponseObject("Update member status",false,"Can't change owner status, remove their ownership first"));
+						return rp;
+					}//TESTED (tried as owner+admin (failed both times), tested owner works fine if setting/keeping active)
+					else if ( cp.isMember(personId) )
 					{
 						// Remove user:
 						if (userStatus.equalsIgnoreCase("remove")) 
@@ -602,8 +637,8 @@ public class CommunityHandler
 				}
 				else
 				{
-					rp.setResponse(new ResponseObject("Update member status",false,"Caller must be owner of community, or member changing"));
-				}
+					rp.setResponse(new ResponseObject("Update member status",false,"Caller must be admin, or a community owner or moderator"));
+				}//TESTED - tried to update my status as member (failed), as admin (succeeded), as moderator (succeeded), as owner (succeeded)  
 			}
 			else
 			{
@@ -615,7 +650,7 @@ public class CommunityHandler
 			rp.setResponse(new ResponseObject("Update member status",false,"General Error, bad params maybe? " + ex.getMessage()));
 		}
 		return rp;
-	}
+	}//TESTED
 
 	// (Note supports personId as either Id or username (email) both are unique indexes)
 
@@ -628,6 +663,12 @@ public class CommunityHandler
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
+			if (!userType.equalsIgnoreCase("owner") && !userType.equalsIgnoreCase("moderator") && !userType.equalsIgnoreCase("member") && !userType.equalsIgnoreCase("content_publisher"))
+			{
+				rp.setResponse(new ResponseObject("Update member type",false,"Invalid user type: " + userType));
+				return rp;
+			}//TESTED - tested all the types work, hacked members.jsp to insert invalid type
+			
 			//verify user is in this community, then update status
 			communityIdStr = allowCommunityRegex(callerIdStr, communityIdStr);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
@@ -645,26 +686,71 @@ public class CommunityHandler
 				// OK from here on, personId is the object Id...
 
 				CommunityPojo cp = CommunityPojo.fromDb(dbo,CommunityPojo.class);
-				if ( cp.isOwner(new ObjectId(callerIdStr)) || callerIdStr.equals(personIdStr) || isSysAdmin)
+				
+				boolean bOwnershipChangeRequested = userType.equalsIgnoreCase("owner");
+				boolean bAuthorized = isSysAdmin;
+				if (!bAuthorized) {
+					if (bOwnershipChangeRequested) { // must be owner or admin				
+						bAuthorized = cp.isOwner(new ObjectId(callerIdStr));
+					}//TESTED - tried to update myself as moderator to owner (failed), gave up my community (succeeded), changed ownership as admin (FAILED) 
+					else { // Can also be moderator
+						bAuthorized = CommunityHandler.isOwnerOrModerator(communityIdStr, callerIdStr);					
+					}//TESTED - tried to update my role as member (failed), as admin->moderator (succeeded), as moderator (succeeded)
+				}
+				
+				if (bAuthorized) // (see above)
 				{
 					if ( cp.isMember(new ObjectId(personIdStr)))
 					{
-						ObjectId userID = new ObjectId(personIdStr);
+						boolean bChangedMembership = false;
+						boolean bChangedOwnership = !bOwnershipChangeRequested;
+						
+						ObjectId personId = new ObjectId(personIdStr);
+						
+						// Check that not trying to downgrade owner...
+						if (cp.isOwner(personId) && !bOwnershipChangeRequested) {
+							rp.setResponse(new ResponseObject("Update member type",false,"To change ownership, set new owner, will automatically downgrade existing owner to moderator"));
+							return rp;
+						}//TESTED
+						
+						String personDisplayName = null;
 						//verified user, update status
 						for ( CommunityMemberPojo cmp : cp.getMembers())
 						{
-							if ( cmp.get_id().equals(userID) )
+							if ( cmp.get_id().equals(personId) )
 							{
-								cmp.setUserType(userType);		
-								/////////////////////////////////////////////////////////////////////////////////////////////////
-								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
-								// Caleb: this means change update to $set
-								/////////////////////////////////////////////////////////////////////////////////////////////////
-								DbManager.getSocial().getCommunity().update(query, cp.toDb());
-								rp.setResponse(new ResponseObject("Update member type",true,"Updated member type successfully"));
-								break;
-							}
+								cmp.setUserType(userType);	
+								personDisplayName = cmp.getDisplayName();
+								bChangedMembership = true;
+								
+								if (bChangedOwnership) { // (includes case where didn't need to)
+									break;
+								}
+								
+							}//TESTED 
+							if (bOwnershipChangeRequested && cmp.get_id().equals(cp.getOwnerId())) {
+								cmp.setUserType("moderator");
+								bChangedOwnership = true;
+								
+								if (bChangedMembership) {
+									break;
+								}
+								
+							}//TESTED
 						}
+						if (bChangedMembership) {
+							if (bOwnershipChangeRequested) {
+								cp.setOwnerId(personId);
+								cp.setOwnerDisplayName(personDisplayName);
+							}//TESTED
+							
+							/////////////////////////////////////////////////////////////////////////////////////////////////
+							// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+							// Caleb: this means change update to $set
+							/////////////////////////////////////////////////////////////////////////////////////////////////
+							DbManager.getSocial().getCommunity().update(query, cp.toDb());
+							rp.setResponse(new ResponseObject("Update member type",true,"Updated member type successfully"));
+						}//TESTED									
 					}
 					else
 					{
@@ -673,7 +759,7 @@ public class CommunityHandler
 				}
 				else
 				{
-					rp.setResponse(new ResponseObject("Update member type",false,"Caller must be owner of community, or member changing"));
+					rp.setResponse(new ResponseObject("Update member type",false,"Caller must be admin/owner/moderator (unless changing ownership)"));
 				}
 			}
 			else
@@ -686,7 +772,7 @@ public class CommunityHandler
 			rp.setResponse(new ResponseObject("Update member type",false,"General Error, bad params maybe? " + ex.getMessage()));
 		}
 		return rp;
-	}
+	}//TESTED (see sub-clauses for details)
 
 	/**
 	 * joinCommunity (REST)
@@ -1165,6 +1251,14 @@ public class CommunityHandler
 				// name:
 				if (null != updateCommunity.getName()) 
 				{
+					// If you're changing name then ensure it's unique for consistency
+					//TODO (INF-1214): see addCommunity, this is currently something of a security hole
+					BasicDBObject nameCheck = new BasicDBObject("name", updateCommunity.getName());
+					nameCheck.put("_id", new BasicDBObject(MongoDbManager.ne_, cp.getId()));
+					if (null != MongoDbManager.getSocial().getCommunity().findOne(nameCheck)) {
+						rp.setResponse(new ResponseObject("Update Community",false,"Can't change name to an existing community"));
+						return rp;						
+					}//TESTED (tested changing names of existing community works...)		
 					originalName = cp.getName();
 					cp.setName(updateCommunity.getName());
 				}
@@ -1182,23 +1276,12 @@ public class CommunityHandler
 				{
 					cp.setCommunityUserAttribute(updateCommunity.getCommunityUserAttribute());					
 				}
-				// Change owner: slighly meatier:
-				if ((null != updateCommunity.getOwnerId()) && updateCommunity.getOwnerId().equals(cp.getOwnerId()))
+				// Change owner: not allowed here, use community/update/status
+				if ((null != updateCommunity.getOwnerId()) && !updateCommunity.getOwnerId().equals(cp.getOwnerId()))
 				{
-					cp.setOwnerId(null);
-					// Must be currently a member:
-					for (CommunityMemberPojo member: cp.getMembers()) {
-						if (member.get_id().equals(updateCommunity.getOwnerId())) {
-							cp.setOwnerId(member.get_id());
-							cp.setOwnerDisplayName(member.getDisplayName());
-							break;
-						}
-					}// (end loop over community members)
-					if (null == cp.getOwnerId()) {
-						rp.setResponse(new ResponseObject("Update Community",false,"Tried to change owner to a non-member"));
-						return rp;
-					}
-				}
+					rp.setResponse(new ResponseObject("Update Community",false,"Use community/update/status to change ownership"));
+					return rp;
+				}//TESTED
 								
 				DbManager.getSocial().getCommunity().update(query, cp.toDb());
 								
@@ -1538,19 +1621,32 @@ public class CommunityHandler
 		return  isOwnerOrModerator(communityIdStr, personIdStr, false);
 	}
 	private static boolean isOwnerOrModerator(String communityIdStr, String personIdStr, boolean bAllowContentPublisher) 
-	{	
-		boolean isOwnerOrModerator = false;
-		
+	{		
+		CommunityPojo community = null;
 		try
 		{
-
 			BasicDBObject query = new BasicDBObject("_id", new ObjectId(communityIdStr));
 			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getCommunity().findOne(query);
 			
 			if ((null != dbo) && !dbo.isEmpty())
 			{
-				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);
-				if (community.getIsPersonalCommunity() && communityIdStr.equals(personIdStr))
+				community = CommunityPojo.fromDb(dbo, CommunityPojo.class);				
+			}
+		} 
+		catch (Exception e)
+		{
+			logger.error("Exception Message: " + e.getMessage(), e);
+		}
+		return isOwnerOrModerator(community, personIdStr, bAllowContentPublisher);
+	}
+	private static boolean isOwnerOrModerator(CommunityPojo community, String personIdStr, boolean bAllowContentPublisher)
+	{
+		boolean isOwnerOrModerator = false;		
+		try
+		{			
+			if (community != null)
+			{				
+				if (community.getIsPersonalCommunity() && community.getId().toString().equals(personIdStr))
 				{
 					isOwnerOrModerator = true;					
 				}
@@ -1560,14 +1656,7 @@ public class CommunityHandler
 				}
 				else
 				{
-					Set<CommunityMemberPojo> members = community.getMembers();
-					for (CommunityMemberPojo c : members)
-					{
-						if (c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("moderator"))
-							isOwnerOrModerator = true;
-						else if (bAllowContentPublisher && c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("content_publisher"))
-							isOwnerOrModerator = true;
-					}
+					isOwnerOrModerator = isModerator(personIdStr, community, bAllowContentPublisher);
 				}
 			}
 		} 
@@ -1576,6 +1665,20 @@ public class CommunityHandler
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
 		return isOwnerOrModerator;
+	}
+	private static boolean isModerator(String personIdStr, CommunityPojo community) {
+		return isModerator(personIdStr, community, false);
+	}
+	private static boolean isModerator(String personIdStr, CommunityPojo community, boolean bAllowContentPublisher) {
+		Set<CommunityMemberPojo> members = community.getMembers();
+		for (CommunityMemberPojo c : members)
+		{
+			if (c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("moderator"))
+				return true;
+			else if (bAllowContentPublisher && c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("content_publisher"))
+				return true;
+		}		
+		return false;
 	}
 
 	/**
@@ -1773,6 +1876,40 @@ public class CommunityHandler
 		v.setAllowOverride(false);
 		c.put("publishCommentsPublicly", v);
 		return c;
+	}
+	
+	/**
+	 * Utility function to remove members if users are not suppose to see them
+	 * 
+	 * @param inputCommunities
+	 * @param isAdminModerator
+	 * @return
+	 */
+	private CommunityPojo filterCommunityMembers(CommunityPojo community, boolean isAdmin, String userId)
+	{
+		//an admin can see everything
+		if ( !(isAdmin || isOwnerOrModerator(community.getId().toString(), userId) ) )
+		{
+			//if community has publish members turned off, remove the members
+			if ( community.getCommunityAttributes().containsKey("publishMemberOverride") && 
+					community.getCommunityAttributes().get("publishMemberOverride").getValue().equals("false") )
+			{
+				community.setMembers(null);
+			}				
+		}
+		return community;
+	}
+	private List<CommunityPojo> filterCommunityMembers(List<CommunityPojo> inputCommunities, boolean isAdmin, String userId)
+	{
+		//an admin can see everything
+		if ( !isAdmin )
+		{
+			for ( CommunityPojo community : inputCommunities )
+			{
+				filterCommunityMembers(community, isAdmin, userId);
+			}			
+		}
+		return inputCommunities;
 	}
 	
 	// Utility: make life easier in terms of adding/update/inviting/leaving from the command line

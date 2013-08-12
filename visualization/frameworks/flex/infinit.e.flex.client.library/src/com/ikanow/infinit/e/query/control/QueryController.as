@@ -320,8 +320,6 @@ package com.ikanow.infinit.e.query.control
 		 */
 		public function updateQueryAndNavigate( event:QueryEvent ):void
 		{
-			/**/
-			//			mx.controls.Alert.show( JSONUtil.encode( event.queryString ) );
 			var queryString:QueryString = event.queryString as QueryString;
 			queryBuilderModel.addQueryTermsToQuery( queryString.qt, ( event.widgetInfo != null ) ); // if widget info is non null then group... 
 			queryManager.updateQueryAndNavigate( queryString, event.searchType );

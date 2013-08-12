@@ -64,13 +64,14 @@ public class SourcePipelinePojo extends BaseDbPojo {
 
 	public AutomatedEntityExtractionSpecPojo featureEngine;
 	public List<StructuredAnalysisConfigPojo.EntitySpecPojo> entities;
-	public List<StructuredAnalysisConfigPojo.AssociationSpecPojo> assocs;
+	public List<StructuredAnalysisConfigPojo.AssociationSpecPojo> associations;
 	//TODO (INF-1922) need to add store/index to these guys?
 	
 	// 1.6] Finishing steps
 	
-	public SourcePojo.SourceSearchIndexFilter storeAndIndex;
-	//TODO (INF-1922) need to put the document creation criteria here
+	public SourcePojo.SourceSearchIndexFilter searchIndex; 
+	//TODO (INF-1922) need storage equivalent (can occur anywhere/multiple times, includes rejectDocCriteria)
+	//TODO (INF-1922) put on update script here?
 	
 	////////////////////////////////////////////////////////
 	
@@ -85,11 +86,15 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	}
 	
 	public static class HarvestControlSettings {
-		//TODO (INF-1922): support this in the code
+		//TODO (INF-1922): support this in the code (Also have + enforce global max time setting)
 		public Integer searchCycle_secs; // How often to run the harvester (copied to SourcePojo when published)
 		public Boolean duplicateExistingUrls; // If false (defaults to true) then documents matching the URL of any existing document in the community is ignored (copied to SourcePojo when published)
-		public Integer maxDocs; // If specified, limits the number of documents that can be harvested for a given source
-		public String onUpdateScript; // If specified, this script allows information from the previous version of the document to be saved in the new one
+		
+		public Integer maxDocs_global; // If specified, limits the number of documents that can be harvested for a given source (state remains in SUCCESS_ITERATION until harvest complete - this is to limit time/resource consumption)
+		public Integer throttleDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate)
+		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate)
+		
+		public Integer distributionFactor; // (EXPERIMENTAL) If specified, attempts to distribute the source across many threads
 	}
 	
 	// 2.3] Text and Linked-Document extraction

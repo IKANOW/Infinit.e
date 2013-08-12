@@ -604,6 +604,7 @@ public class QueryHandler {
 		_logMsg.setLength(0);
 		_logMsg.append("knowledge/query querylen=").append(querySummary.length());
 		_logMsg.append(" query=").append(querySummary.toString());
+		_logMsg.append(" userid=").append(userIdStr);
 		_logMsg.append(" groups=").append(communityIdStrList);
 		_logMsg.append(" found=").append(stats.found);
 		_logMsg.append(" luceneTime=").append(nLuceneTime).append(" ms");

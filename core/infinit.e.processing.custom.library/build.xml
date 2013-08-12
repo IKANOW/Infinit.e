@@ -13,6 +13,7 @@
 	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
+	<property name="infinit.e.query.library.location" value="../infinit.e.api.server"/>
 	
 	<property name="target" value="1.6"/>
 	<property name="source" value="1.6"/>
@@ -36,6 +37,9 @@
 	<path id="infinit.e.data_model.classpath">
 	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
 	</path>
+	<path id="infinit.e.query.library.classpath">
+	     <pathelement location="${infinit.e.query.library.location}/dist/infinit.e.query.library.jar"/>
+	</path>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">
     	<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
@@ -51,6 +55,7 @@
         </fileset>
 
         <path refid="infinit.e.data_model.classpath"/>
+        <path refid="infinit.e.query.library.classpath"/>
     	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
         <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
 	</path>

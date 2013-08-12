@@ -61,8 +61,13 @@
 				if ( logo_url != null && logo_url != "" )
 				{
 					logo.source = logo_url;
-					logo_poweredby.visible = true;
+						// Previously: only displayed the powered by logo if Infinit.e wasn't displayed, but
+						// changing this because IKANOW is now our brand more than Infinit.e, so it should
+						// appear somewhere...
+						//logo_poweredby.visible = true;
 				}
+				//(see comments above)
+				logo_poweredby.visible = true;
 			}
 			
 			protected function hideHandler():void

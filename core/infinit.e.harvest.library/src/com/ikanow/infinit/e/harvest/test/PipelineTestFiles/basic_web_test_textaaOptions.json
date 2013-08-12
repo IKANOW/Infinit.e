@@ -1,0 +1,38 @@
+[
+    {
+        "web": {
+            "waitTimeOverride_ms": 100,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        },
+        "display": "Web test"
+    },
+    {
+        "textEngine": {
+            "engineName": "AlchemyAPI",
+            "engineConfig": {
+                "app.alchemyapi.concepts": "true"
+            }
+        },
+        "display": "AlchemyAPI (default)"
+    },
+    {
+        "display": "OpenCalais (default)",
+        "featureEngine": {
+            "engineName": "default",
+            "engineConfig": {
+                "app.opencalais.store_raw_events": "false"
+            }
+        }
+    }
+]

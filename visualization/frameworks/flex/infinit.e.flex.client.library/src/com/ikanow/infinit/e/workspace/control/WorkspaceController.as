@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -60,6 +60,14 @@ package com.ikanow.infinit.e.workspace.control
 		{
 			// remove from collection
 			workspaceManager.removeWidget( widget );
+		}
+		
+		[EventHandler( "WorkspaceEvent.REPLACE_WIDGET", properties = "widget, index, widgetToReplace" )]
+		public function replaceWidget( widget:Widget, index:int, widgetToReplace:Widget ):void
+		{
+			// add to collection at specified index
+			workspaceManager.removeWidget( widgetToReplace, false );
+			workspaceManager.addWidget( widget, index );
 		}
 		
 		[EventHandler( event = "WorkspaceEvent.RESET" )]

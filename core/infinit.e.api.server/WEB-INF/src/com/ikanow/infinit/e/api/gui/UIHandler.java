@@ -313,23 +313,25 @@ public class UIHandler
 			else {
 				boolean bAdmin = RESTTools.adminLookup(userIdStr);
 
-				if (!bAdmin) { // need to be owner or moderator to add to a source
+				if (!bAdmin) { // need to be owner or moderator to add to a community
 					if (null == module.getCommunityIds() || module.getCommunityIds().isEmpty()) {
 						module.addToCommunityIds(new ObjectId(userIdStr)); // (ie adds to personal community)
 					}
 					else {
 						HashSet<ObjectId> newSet = new HashSet<ObjectId>();
 						for (ObjectId communityId: module.getCommunityIds()) {
-							if (CommunityHandler.isOwnerOrModerator(communityId.toString(), userIdStr)) {
-								newSet.add(communityId);
+							if (!CommunityHandler.isOwnerOrModerator(communityId.toString(), userIdStr)) {
+								rp.setResponse(new ResponseObject("Install Module",false,"Don't have permission to update one or more communities: " + communityId.toString()));
+								return rp;
 							}
+							newSet.add(communityId);
 						}
 						if (newSet.isEmpty()) {
 							newSet.add(new ObjectId(userIdStr)); // (ie adds to personal community)
 						}
 						module.setCommunityIds(newSet);
 					}
-				}//TOTEST
+				}//TESTED
 				
 				// Get username from profile id:
 				AuthenticationPojo userQuery = new AuthenticationPojo();

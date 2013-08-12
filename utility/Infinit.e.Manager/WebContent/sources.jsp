@@ -90,6 +90,8 @@ limitations under the License.
 		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
+		if (request.getParameter("deleteDocsFromSelected") != null) action = request.getParameter("deleteDocsFromSelected").toLowerCase();
 		
 		if (request.getParameter("testSource") != null) action = "testSource";
 		if (request.getParameter("saveSource") != null) action = "saveSource";
@@ -97,6 +99,7 @@ limitations under the License.
 		if (request.getParameter("publishSource") != null) action = "publishSource";
 		if (request.getParameter("deleteDocs") != null) action = "deleteDocs";
 		if (request.getParameter("newSource") != null) action = "newSource";
+		if (request.getParameter("revertSource") != null) action = "revertSource";
 		
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
@@ -143,7 +146,7 @@ limitations under the License.
 			
 			if (action.equals("clearform")) 
 			{
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp\">");
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage + "\">");
 			}
 			else if (action.equals("edit")) 
 			{
@@ -159,19 +162,91 @@ limitations under the License.
 				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + currentPage;
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?" + urlArgs + "\">");
 			}
+			else if (action.equals("revertSource"))
+			{				
+				// First delete the existing share:
+				deleteShare(shareid, request, response);
+				
+				// Then Create a new share from the source object
+				String newshareid = createShareFromSource(sourceid, request, response);
+				// redirect user to edit source page
+				String listFilterString = "";
+				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + currentPage;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?" + urlArgs + "\">");
+			}
 			else if (action.equals("delete")) 
 			{
 				deleteShare(shareid, request, response);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
 			}
 			else if (action.equals("deletesource")) 
 			{
 				deleteSourceObject(sourceid, false, request, response);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+			}
+			else if (action.equals("deleteselected")) 
+			{
+				String[] ids= request.getParameterValues("sourcesToProcess");
+				
+				int nDeletedShares = 0;
+				int nDeletedSources = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					if (id.startsWith("_")) {
+						id = id.substring(1);
+						if (!deleteSourceObject(id, false, request, response)) {
+							nFailed++;
+						}
+						else nDeletedSources++;						
+					}
+					else {
+						if (!deleteShare(id, request, response)) {
+							nFailed++;
+						}
+						else nDeletedShares++;						
+					}
+				}
+				messageToDisplay = "Bulk deletion: deleted " + nDeletedSources + " sources, " + nDeletedShares + " temp copies, failed: " + nFailed; 
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
+			else if (action.equals("deletedocsfromselected")) 
+			{
+				String[] ids= request.getParameterValues("sourcesToProcess");
+				
+				int nDeletedShares = 0;
+				int nDeletedSources = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					if (id.startsWith("_")) {
+						id = id.substring(1);
+						if (!deleteSourceObject(id, true, request, response)) {
+							nFailed++;
+						}
+						else nDeletedSources++;						
+					}
+					else {
+						nFailed++;
+					}
+				}
+				messageToDisplay = "Bulk document deletion: deleted " + nDeletedSources + " sources, failed: " + nFailed;
+				if (nFailed > 0) {
+					messageToDisplay += " (normally because you have a temporary copy - delete that first)";
+				}				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
 			}
 			else if (action.equals("filterlist")) 
 			{
@@ -198,15 +273,15 @@ limitations under the License.
 			{
 				publishSource(request, response);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
 			}
 			else if (action.equals("deleteDocs")) 
 			{
 				deleteSourceObject(sourceid, true, request, response);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "?listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + listFilterString + "\">");
+				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?action=edit&shareid=" + shareid + "&page=" + currentPage + listFilterString + "\">");
 			}
 			else if (action.equals("newSource")) 
 			{
@@ -571,6 +646,7 @@ function clock()
 			enableOrDisable.value = "Enable Source";
 		}
 		sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+		$( "#publishSource" ).click();
 	}
 	
 </script>
@@ -581,7 +657,10 @@ function clock()
 <%
 	// !-- Create JavaScript Popup --
 	if ((messageToDisplay.length() > 0) && 
-			(action.equals("deleteDocs") || action.equals("publishSource") || action.equals("saveSourceAsTemplate") || action.equals("delete") || action.equals("deletesource")))
+			(action.equalsIgnoreCase("deleteDocs") || action.equalsIgnoreCase("publishSource") || action.equalsIgnoreCase("saveSourceAsTemplate") 
+					|| action.equalsIgnoreCase("delete") || action.equalsIgnoreCase("deletesource")
+					|| action.equalsIgnoreCase("deleteSelected") || action.equalsIgnoreCase("deletedocsfromselected")
+					))
 	{ 
 %>
 	<script language="javascript" type="text/javascript">
@@ -634,6 +713,12 @@ function clock()
 			<tr>
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
+			<tr>
+				<td colspan="2" >
+					<button name="deleteSelected" onclick="return confirm('Do you really wish to delete the selected sources/copies?');" name="deleteSelected" value="deleteSelected">Delete selected sources/copies</button>
+					<button name="deleteDocsFromSelected" onclick="return confirm('Do you really wish to delete all documents from the selected sources?');" name="deleteDocsFromSelected" value="deleteDocsFromSelected">Delete docs from selected sources</button>				
+				</td>
+			</tr>
 			</table>
 		</div><!-- Left -->
 		<div id="Right">
@@ -652,12 +737,14 @@ function clock()
 							<td bgcolor="white" width="30%">Source Functions:</td>
 							<td bgcolor="white" width="70%">
 
-								<input type="button" onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false)) invertEnabledOrDisabled()" id="enableOrDisable" value="<%= enableOrDisable %>" />
+								<input type="button" 
+									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false)) invertEnabledOrDisabled();" 
+									id="enableOrDisable" value="<%= enableOrDisable %>" />
 								<button name="testSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="testSource">Test Source</button>
 								<button name="saveSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="saveSource">Save Source</button>
 								<button name="saveSourceAsTemplate" onclick="switchToEditor(sourceJsonEditor, false); return removeStatusFields()" value="saveSourceAsTemplate">Save As Template</button>
 								
-								<button name="publishSource" value="publishSource"
+								<button name="publishSource" value="publishSource" id="publishSource"  
 									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false) && confirm('Are you sure you want to publish this source?'))  return true; return false;"
 									>Publish Source</button>
 									
@@ -715,6 +802,8 @@ function clock()
 						<input type="button" title="Show unstructuredAnalysis.script" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
 						<input type="button" title="Show structuredAnalysis.script" onclick="switchToEditor(sourceJsonEditor_sah)" id="toJsS" value="JS-S" />
 						<input type="button" title="Show rss.searchConfig.globals" onclick="switchToEditor(sourceJsonEditor_rss)" id="toJsRss" value="JS-RSS" <%=sourceShowRss%> />
+						
+						<input type="submit" class="rightButton" name="revertSource" value="Revert" onclick="return confirm('Do you really wish to discard all changes and revert to the published source?');" value="revertSource"/>				
 						<input type="button" onclick="checkFormat(true)" value="Check Format" class="rightButton" />
 						<input type="button" title="Remove status fields added by server" onclick="removeStatusFields()" value="Scrub" class="rightButton" />
 						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
@@ -945,7 +1034,7 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 
 
 // deleteShare -
-private void deleteShare(String shareId, HttpServletRequest request, HttpServletResponse response)
+private boolean deleteShare(String shareId, HttpServletRequest request, HttpServletResponse response)
 {
 	if (shareId != null && shareId != "") 
 	{
@@ -957,17 +1046,21 @@ private void deleteShare(String shareId, HttpServletRequest request, HttpServlet
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 			{
 				messageToDisplay = "Success: " + JSONresponse.getString("message");
+				return true;
 			}
 			else
 			{
 				messageToDisplay = "Error: " + JSONresponse.getString("message");
+				return false;
 			}
 		}
 		catch (Exception e)
 		{
 			messageToDisplay = "Error: " + e.getMessage() + " " + e.getStackTrace().toString();
+			return false;
 		}
 	}
+	return false;
 } // TESTED
 
 
@@ -1156,23 +1249,25 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				if (currentItem >= startItem && currentItem <= endItem)
 				{
 					String id = val.toString();
+					String prefixedid = id;
 					String editLink = "";
 					String deleteLink = "";
 					String listFilterString = "";
 					if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
 					
-					if (name.contains("*"))
+					if (name.endsWith(" (*)"))
 					{
 						editLink = "<a href=\"sources.jsp?action=edit&shareid=" + id + "&page=" + currentPage 
 								+ listFilterString + "\" title=\"Edit Share\">" + name + "</a>";
 	
 						deleteLink = "<a href=\"sources.jsp?action=delete&shareid=" + id + "&page=" + currentPage 
-								+ listFilterString + "\" title=\"Delete Share\" "
+								+ listFilterString + "\" title=\"Delete Temporary Copy (leave source alone)\" "
 								+ "onclick='return confirm(\"Do you really wish to delete the share: "
-								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
+								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/minus_button.png\" border=0></a>";
 					}
 					else
 					{
+						prefixedid = "_" + id; // (so we know in the JSP what we're deleting...)
 						editLink = "<a href=\"sources.jsp?action=sharefromsource&sourceid=" + id + "&page=" + currentPage 
 								+ listFilterString + "\" title=\"Create Share from Source\">" + name + "</a>";
 								
@@ -1190,6 +1285,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 					else {
 						sources.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
 					}
+					sources.append("<td align=\"center\" bgcolor=\"white\"><input type=\"checkbox\" name=\"sourcesToProcess\" value=\"" + prefixedid + "\"/></td>");
 					sources.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
 					sources.append("</tr>");
 				}
@@ -1198,8 +1294,8 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		}
 		
 		sources.append("<tr valign=\"top\">");
-		sources.append("<td bgcolor=\"white\" width=\"100%\" colspan=\"2\">");
-		sources.append("(*) Share<br>");
+		sources.append("<td bgcolor=\"white\" width=\"100%\" colspan=\"3\">");
+		sources.append("(*) Temporary copy for editing<br>");
 		sources.append("(+) Source owned by someone else");
 		sources.append("</td>");
 		sources.append("</tr>");
@@ -1357,7 +1453,7 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 
 
 // deleteSourceObject -
-private void deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletRequest request, HttpServletResponse response)
+private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletRequest request, HttpServletResponse response)
 {
 	if (sourceId != null && sourceId != "") 
 	{
@@ -1374,17 +1470,21 @@ private void deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletR
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 			{
 				messageToDisplay = "Success: " + JSONresponse.getString("message");
+				return true;
 			}
 			else
 			{
 				messageToDisplay = "Error: " + JSONresponse.getString("message");
+				return false;
 			}
 		}
 		catch (Exception e)
 		{
 			messageToDisplay = "Error: " + e.getMessage() + " " + e.getStackTrace().toString();
+			return false;
 		}
 	}
+	return false;
 }
 
 

@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -22,6 +22,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 	import com.ikanow.infinit.e.shared.util.WidgetUtil;
 	import flash.events.Event;
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.core.UIComponent;
 	import mx.events.DragEvent;
 	import mx.managers.DragManager;
@@ -54,6 +55,8 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 		// private properties 
 		//======================================
 		
+		private var workspaceFull:Boolean = false;
+		
 		private var view:UIComponent;
 		
 		private var quadrants:Array = [ [ 0, 2 ], [ 1, 3 ] ];
@@ -64,6 +67,9 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 		// widget being dragged into workspace
 		private var targetWidget:Widget;
 		
+		// the widget that will be replaced when the workspace is full
+		private var widgetToReplace:Widget;
+		
 		
 		//======================================
 		// public methods 
@@ -73,7 +79,12 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 		{
 			navigator.closeWidgetsDrawer();
 			
-			dispatcher.dispatchEvent( new WorkspaceEvent( WorkspaceEvent.ADD_WIDGET, targetWidget, targetIndex ) );
+			if ( workspaceFull )
+			{
+				dispatcher.dispatchEvent( new WorkspaceEvent( WorkspaceEvent.REPLACE_WIDGET, targetWidget, targetIndex, widgetToReplace ) );
+			}
+			else
+				dispatcher.dispatchEvent( new WorkspaceEvent( WorkspaceEvent.ADD_WIDGET, targetWidget, targetIndex ) );
 			
 			killEnterFrame();
 		}
@@ -87,6 +98,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 			if ( !targetWidget )
 				return;
 			
+			workspaceFull = false;
 			targetWidget.isBeingDragged = true;
 			view = event.target as UIComponent;
 			
@@ -104,7 +116,11 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 			if ( !CollectionUtil.doesCollectionContainItem( layoutTiles, targetWidget ) )
 			{
 				targetWidget.positionIndex = selectedWidgets.length;
-				layoutTiles.addItem( targetWidget.clone() );
+				
+				if ( layoutTiles.length < 4 )
+					layoutTiles.addItem( targetWidget.clone() );
+				else
+					workspaceFull = true;
 			}
 			
 			DragManager.acceptDragDrop( view );
@@ -138,6 +154,23 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 			if ( layoutTiles.length == 3 && targetIndex == 3 )
 				targetIndex = 2;
 			
+			if ( workspaceFull )
+			{
+				for each ( var widget2:Widget in layoutTiles )
+				{
+					if ( widget2.positionIndex == targetIndex )
+					{
+						widgetToReplace = widget2;
+						widgetToReplace.isBeingReplaced = true;
+					}
+					else
+						widget2.isBeingReplaced = false;
+					
+					widget2.positionIndex = widget2.positionIndex; // (to try to force the change in color...)
+				}
+				return;
+			}
+			
 			var widget:Widget = CollectionUtil.getItemById( layoutTiles, targetWidget._id ) as Widget;
 			
 			// if the widget is already in the right place, bail out
@@ -157,6 +190,12 @@ package com.ikanow.infinit.e.workspace.model.presentation.layout
 			targetWidget.isBeingDragged = false;
 			targetWidget = null;
 			layoutTiles = null;
+			
+			if ( workspaceFull )
+			{
+				widgetToReplace.isBeingReplaced = false;
+				widgetToReplace = null;
+			}
 		}
 	}
 }

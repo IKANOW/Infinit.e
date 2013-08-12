@@ -26,6 +26,11 @@ public class InfiniteMongoConfig extends MongoConfig
 		super(conf);		
 	}
 	
+	public boolean getUpdateModeIncremental()
+	{
+		return InfiniteMongoConfigUtil.getUpdateModeIncremental( _conf );
+	}//TODO (INF-2126) TOTEST
+	
 	public int getMaxSplits()
 	{
 		return InfiniteMongoConfigUtil.getMaxSplits( _conf );

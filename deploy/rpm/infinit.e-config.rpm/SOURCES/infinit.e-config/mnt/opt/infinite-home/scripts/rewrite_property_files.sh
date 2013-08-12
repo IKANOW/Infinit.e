@@ -219,6 +219,7 @@ else
 	
 	setParam HADOOP_DIR "$HADOOP_DIR" $API_PROPERTY_FILE
 	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $API_PROPERTY_FILE
+	setParam HADOOP_MAX_CONCURRENT "$HADOOP_MAX_CONCURRENT" $API_PROPERTY_FILE
 	
 	chown tomcat.tomcat $API_PROPERTY_FILE
 	################### End infinite.api.properties ###########################

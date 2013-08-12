@@ -75,11 +75,16 @@
 		<ant antfile="${infinit.e.processing.generic.library.location}/build.xml">
 			<property name="basedir" value="${infinit.e.processing.generic.library.location}"/>
 		</ant>
+		<ant antfile="${infinit.e.api.server.location}/build.xml" target="jar">
+		    <!-- First call: just builds the query library JAR (do this to avoid circular deps vs custom library)  -->
+			<property name="basedir" value="${infinit.e.api.server.location}"/>
+		</ant>
 		<ant antfile="${infinit.e.processing.custom.library.location}/build.xml">
 			<property name="basedir" value="${infinit.e.processing.custom.library.location}"/>
 		</ant>
 		<ant antfile="${infinit.e.api.server.location}/build.xml">
-			<property name="basedir" value="${infinit.e.api.server.location}"/>
+		    <!-- Second call: builds WAR and es JAR (do this to avoid circular deps vs custom library)  -->
+		    <property name="basedir" value="${infinit.e.api.server.location}"/>
 		</ant>
 		<ant antfile="${infinit.e.core.server.location}/build.xml">
 			<property name="basedir" value="${infinit.e.core.server.location}"/>

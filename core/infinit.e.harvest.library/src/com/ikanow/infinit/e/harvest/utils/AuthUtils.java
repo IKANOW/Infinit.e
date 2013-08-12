@@ -28,12 +28,17 @@ public class AuthUtils {
 			authQuery.setProfileId(userId);
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getAuthentication().findOne(authQuery.toDb());
 			if (null != dbo) {
-				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);			
-				return (null != ap.getAccountType()) && ap.getAccountType().equalsIgnoreCase("admin");
+				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);
+				if (null != ap.getAccountType()) {
+					if (ap.getAccountType().equalsIgnoreCase("admin")) {
+						return true;
+					}
+					else if (ap.getAccountType().equalsIgnoreCase("admin-enabled")) {
+						return true; // (these are offline so always allow this also)
+					}
+				}//TOTEST (INF-2025)
 			}
-			else { 
-				return false;
-			}
+			return false;
 		}
 		catch (Exception e) {} // fail out and return false
 		return false;

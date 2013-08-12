@@ -75,6 +75,9 @@ package com.ikanow.infinit.e.shared.model.vo
 		[Transient]
 		public var isBeingDragged:Boolean = false;
 		
+		[Transient]
+		public var isBeingReplaced:Boolean = false;
+		
 		
 		//======================================
 		// public methods 
@@ -103,6 +106,7 @@ package com.ikanow.infinit.e.shared.model.vo
 			clone.positionIndex = positionIndex;
 			clone.maximized = maximized;
 			clone.isBeingDragged = isBeingDragged;
+			clone.isBeingReplaced = isBeingReplaced;
 			
 			return clone;
 		}

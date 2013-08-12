@@ -1,15 +1,15 @@
 /*******************************************************************************
  * Copyright 2012, The Infinit.e Open Source Project.
- * 
+ *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License, version 3,
  * as published by the Free Software Foundation.
- * 
+ *
  * This program is distributed in the hope that it will be useful,
  * but WITHOUT ANY WARRANTY; without even the implied warranty of
  * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
  * GNU Affero General Public License for more details.
- * 
+ *
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  ******************************************************************************/
@@ -30,6 +30,7 @@ package com.ikanow.infinit.e.workspace.model.manager
 	import mx.collections.ListCollectionView;
 	import mx.collections.Sort;
 	import mx.collections.SortField;
+	import mx.controls.AdvancedDataGrid;
 	import mx.events.CollectionEvent;
 	import mx.resources.ResourceManager;
 	
@@ -150,7 +151,7 @@ package com.ikanow.infinit.e.workspace.model.manager
 			selectedWidgetsSorted = null;
 		}
 		
-		public function removeWidget( targetWidget:Widget ):void
+		public function removeWidget( targetWidget:Widget, saveTheWorkspace:Boolean = true ):void
 		{
 			var widget:Widget = CollectionUtil.getItemById( widgets, targetWidget._id ) as Widget;
 			var index:int = selectedWidgets.getItemIndex( widget );
@@ -170,7 +171,8 @@ package com.ikanow.infinit.e.workspace.model.manager
 			createSelectedWidgetsSorted();
 			
 			// save the workspace
-			saveWorkspace();
+			if ( saveTheWorkspace )
+				saveWorkspace();
 		}
 		
 		/**

@@ -92,6 +92,10 @@ public class DatabaseHarvester implements HarvesterInterface
 		if (_context.isStandalone()) {
 			maxDocsPerCycle = _context.getStandaloneMaxDocs();
 		}
+		// Can override system settings if less:
+		if ((null != source.getThrottleDocs()) && (source.getThrottleDocs() < maxDocsPerCycle)) {
+			maxDocsPerCycle = source.getThrottleDocs();
+		}
 		try 
 		{
 			processDatabase(source);
@@ -143,25 +147,37 @@ public class DatabaseHarvester implements HarvesterInterface
 		
 		// Some horrible logic to handle a DB cycle being >max records
 		int nNumRecordsToSkip = 0;
+		Integer distributionToken = null;
 		SourceHarvestStatusPojo lastHarvestInfo = source.getHarvestStatus();
 		if (null != lastHarvestInfo) { // either in delta query mode, or truncation mode of initial query
-			if (null != lastHarvestInfo.getHarvest_message()) {
-				if (lastHarvestInfo.getHarvest_message().startsWith("query:")) { // Initial query
+			String harvestMessage = null;
+			if ((null == source.getDistributionTokens()) || source.getDistributionTokens().isEmpty()) {
+				harvestMessage = lastHarvestInfo.getHarvest_message();
+			}
+			else { // (currently only support one slice per harvester)
+				distributionToken = source.getDistributionTokens().iterator().next();
+				if (null != lastHarvestInfo.getDistributedStatus()) {
+					harvestMessage = lastHarvestInfo.getDistributedStatus().get(distributionToken.toString());
+				}
+			}//TODO (INF-2120): TOTEST
+			
+			if (null != harvestMessage) {
+				if (harvestMessage.startsWith("query:")) { // Initial query
 					try {
-						int nEndOfNum = lastHarvestInfo.getHarvest_message().indexOf('.', 6);
+						int nEndOfNum = harvestMessage.indexOf('.', 6);
 						if (nEndOfNum > 0) {
-							nNumRecordsToSkip = Integer.parseInt(lastHarvestInfo.getHarvest_message().substring(6, nEndOfNum));
+							nNumRecordsToSkip = Integer.parseInt(harvestMessage.substring(6, nEndOfNum));
 						}
 					}
 					catch (Exception e) {} // Do nothing, just default to 0
 					lastHarvestInfo = null; // (go through initial query branch below)
 				}
 				else { // Delta query or error!
-					if (lastHarvestInfo.getHarvest_message().startsWith("deltaquery:")) { // Delta query, phew
+					if (harvestMessage.startsWith("deltaquery:")) { // Delta query, phew
 						try {
-							int nEndOfNum = lastHarvestInfo.getHarvest_message().indexOf('.', 11);
+							int nEndOfNum = harvestMessage.indexOf('.', 11);
 							if (nEndOfNum > 0) {
-								nNumRecordsToSkip = Integer.parseInt(lastHarvestInfo.getHarvest_message().substring(11, nEndOfNum));
+								nNumRecordsToSkip = Integer.parseInt(harvestMessage.substring(11, nEndOfNum));
 							}
 						}
 						catch (Exception e) {} // Do nothing, just default to 0							
@@ -204,12 +220,29 @@ public class DatabaseHarvester implements HarvesterInterface
 				rdbms.setRecordsToSkip(nNumRecordsToSkip);				
 			}
 			
+			// Distribution logic, currently manual:
+			if ((null != distributionToken) && deltaQuery.contains("!TOKEN!")) {
+				deltaQuery = deltaQuery.replace("!TOKEN!", distributionToken.toString());				
+			}//TODO (INF-2120): TOTEST		
+			if ((null != source.getDistributionFactor()) && deltaQuery.contains("!NTOKENS!")) {
+				deltaQuery = deltaQuery.replace("!NTOKENS!", source.getDistributionFactor().toString());				
+			}//TODO (INF-2120): TOTEST		
+			
 			// Delete docs from the index if they have been deleted from the source
 			// database. Designed to check a "deleted" table to get records that have been
 			// deleted to identify the records to remove form the index.
 			if ((source.getDatabaseConfig().getDeleteQuery() != null) && !source.getDatabaseConfig().getDeleteQuery().isEmpty()) 
 			{
 				deleteQuery = source.getDatabaseConfig().getDeleteQuery();
+				
+				// Distribution logic, currently manual:
+				if ((null != distributionToken) && deleteQuery.contains("!TOKEN!")) {
+					deleteQuery = deltaQuery.replace("!TOKEN!", distributionToken.toString());				
+				}//TODO (INF-2120): TOTEST		
+				if ((null != source.getDistributionFactor()) && deleteQuery.contains("!NTOKENS!")) {
+					deleteQuery = deleteQuery.replace("!NTOKENS!", source.getDistributionFactor().toString());				
+				}//TODO (INF-2120): TOTEST		
+				
 				// Replace '?' in the delete query with the date value retrieved via getHarvested()
 				if ((source.getHarvestStatus().getHarvested() != null) && (deleteQuery.contains("?")))
 				{
@@ -239,6 +272,15 @@ public class DatabaseHarvester implements HarvesterInterface
 			else {
 				rdbms.setRecordsToSkip(nNumRecordsToSkip);				
 			}
+			
+			// Distribution logic, currently manual:
+			if ((null != distributionToken) && query.contains("!TOKEN!")) {
+				query = query.replace("!TOKEN!", distributionToken.toString());				
+			}//TODO (INF-2120): TOTEST					
+			if ((null != source.getDistributionFactor()) && query.contains("!NTOKENS!")) {
+				query = query.replace("!NTOKENS!", source.getDistributionFactor().toString());				
+			}//TODO (INF-2120): TOTEST		
+			
 			// Set rdbs query = default source.database.query value
 			rdbms.setQuery(query);
 		}

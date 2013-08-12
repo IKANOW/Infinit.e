@@ -796,7 +796,7 @@
 				}
 				
 				var copyDoc:Object = new Object();
-				copyDoc["time"] = doc.time + documentTimeCountInterval*0.5;
+				copyDoc["time"] = doc.time + documentTimeCountInterval*0.5 + new Date(doc.time).getTimezoneOffset()*60*1000; 
 				copyDoc["count"] = doc.count;
 				addPointToGraph(visibleDocs, timeline.startTime, timeline.endTime, copyDoc, old_doc, visible_state);
 				if (redoEverything)
@@ -825,6 +825,8 @@
 
 			if (redoEverything)
 			{
+				//TODO update here? need to change both log and non-log version sigh...
+				
 				if (null != InfiniteOverviewBandSkin._allDocs)
 				{
 					InfiniteOverviewBandSkin._allDocs.removeAll();
@@ -834,7 +836,7 @@
 						for each (var logdoc:Object in allDocs)
 						{
 							var copyLogDoc:Object = new Object();
-							copyLogDoc["time"] = logdoc.time;
+							copyLogDoc["time"] = logdoc.time + new Date(logdoc.time).getTimezoneOffset()*60*1000; 
 							if (logdoc.count < 1)
 								copyLogDoc["count"] = 0;
 							else
@@ -843,8 +845,16 @@
 							InfiniteOverviewBandSkin._allDocs.addItem(copyLogDoc);
 						}
 					}//(end log display)
-					else 
-						InfiniteOverviewBandSkin._allDocs.addAll(allDocs.list);
+					else {
+						for each (var normdoc:Object in allDocs)
+						{
+							var copyNormDoc:Object = new Object();
+							copyNormDoc["time"] = normdoc.time + new Date(normdoc.time).getTimezoneOffset()*60*1000; 
+							copyNormDoc["count"] = normdoc.count;
+							//3*count +base10 means that 1 doc will be ~5 pixels (~0.5) up assuming a dynamic range of 1-100K)
+							InfiniteOverviewBandSkin._allDocs.addItem(copyNormDoc);
+						}
+					}//(end normal display)
 				}
 			}//(end if redo overview band)
 		}
@@ -870,7 +880,7 @@
 	
 	/**
 	 * dataTipFunction
-	 * Creates custom data tips for the line chart control
+	 * Creates custom data tips for the line chart control - date, hours and minutes
 	 * @param HitData
 	 * @return String
 	 */
@@ -880,7 +890,7 @@
 		try
 		{
 			var d:Date = new Date( data.item.time );
-			info += "Date: " + d.toLocaleDateString() + "<br>";
+			info += "Date: " + d.toString().replace(/:[0-9][0-9][^:]+/, "") + " UTC<br>";
 		}
 		catch (e:Error) {}
 		
@@ -910,8 +920,8 @@
 			var nMaxCount:int = 0;
 			for each (var docCount:Object in documentCount) {
 				if (docCount.count > nMaxCount) {
-					nMinTime = docCount.time;
-					nMaxTime = docCount.time;
+					nMinTime = docCount.time; 
+					nMaxTime = docCount.time; 
 					nMaxCount = docCount.count;
 					this.globalMaxDocuments = nMaxCount;
 				}
@@ -922,7 +932,7 @@
 			for each (docCount in documentCount) {
 				if (docCount.count >= nMaxCount) {
 					if (docCount.time < nMinTime) {
-						nMinTime = docCount.time;
+						nMinTime = docCount.time; 
 					}
 					if (docCount.time > nMaxTime) {
 						nMaxTime = docCount.time;									
@@ -948,7 +958,9 @@
 			for each(var feed:Object in currData)
 			{
 				feed["highlighted"] = false;
-				feed["published"] = DateConverter.parseDate(feed.publishedDate);
+				feed["published"] = DateConverter.parseDate(feed.publishedDate).toUTCString().replace("UTC", "");
+					// (sigh flex forces everything into the user timezone so I set to UTC and then remove UTC to
+					//  fool the component into thinking that 
 				feed["ranking"] = ranking++;
 				//check if the new dates are greater than the minDate and less than the maxDate and 
 				//change them accordingly
@@ -1399,10 +1411,9 @@
 			timeline.minDurationTimeUnit="hour";
 			timeline.overviewMajorTickTimeUnit="year";
 		}
-		/**/
 		onTimelineChange(null);
 		// (redraws line chart)
-		/**/
+
 		//Alert.show("" + this.timeline.overviewStartTime + "/" + maxOffset_msec);
 	}
 

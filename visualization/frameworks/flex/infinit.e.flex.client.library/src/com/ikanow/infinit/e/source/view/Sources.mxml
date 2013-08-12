@@ -401,10 +401,6 @@
 			protected function sources_sortApplied( event:spark.events.GridSortEvent ):void
 			{
 				sourceManager.currSortOrder = event.newSortFields;
-			
-			/**/
-				//var item:ISortField = sourceManager.currSortOrder.pop() as ISortField;
-				//sourceManager.currSortOrder.push( item );
 			}
 			
 			protected function startSearch():void

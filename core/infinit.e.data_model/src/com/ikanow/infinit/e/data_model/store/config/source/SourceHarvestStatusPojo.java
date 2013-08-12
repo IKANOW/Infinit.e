@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.store.config.source;
 
 import java.util.Date;
+import java.util.LinkedHashMap;
 import java.util.List;
 
 import com.google.gson.reflect.TypeToken;
@@ -45,6 +46,19 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	private String lastHarvestedBy = null; // (last hostname to modify this source)
 	final public static String lastHarvestedBy_ = "lastHarvestedBy";
 	final public static String sourceQuery_lastHarvestedBy_ = "harvest.lastHarvestedBy";
+	// Distribution logic:
+	private Integer distributionTokensFree = null;
+	final public static String distributionTokensFree_ = "distributionTokensFree";
+	final public static String sourceQuery_distributionTokensFree_ = "harvest.distributionTokensFree";
+	private Integer distributionTokensComplete = null;
+	final public static String distributionTokensComplete_ = "distributionTokensComplete";
+	final public static String sourceQuery_distributionTokensComplete_ = "harvest.distributionTokensComplete";
+	private Boolean distributionReachedLimit = null;
+	final public static String distributionReachedLimit_ = "distributionReachedLimit";
+	final public static String sourceQuery_distributionReachedLimit_ = "harvest.distributionReachedLimit";
+	private LinkedHashMap<String, String> distributedStatus = null;
+	final public static String distributedStatus_ = "distributedStatus";
+	final public static String sourceQuery_distributedStatus_ = "harvest.distributedStatus";
 	
 	public Long getDoccount() {
 		return doccount;
@@ -81,5 +95,29 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	}
 	public String getLastHarvestedBy() {
 		return lastHarvestedBy;
+	}
+	public void setDistributionTokensFree(Integer distributionTokensFree) {
+		this.distributionTokensFree = distributionTokensFree;
+	}
+	public Integer getDistributionTokensFree() {
+		return distributionTokensFree;
+	}
+	public void setDistributionTokensComplete(Integer distributionTokensComplete) {
+		this.distributionTokensComplete = distributionTokensComplete;
+	}
+	public Integer getDistributionTokensComplete() {
+		return distributionTokensComplete;
+	}
+	public void setDistributionReachedLimit(Boolean distributionReachedLimit) {
+		this.distributionReachedLimit = distributionReachedLimit;
+	}
+	public Boolean getDistributionReachedLimit() {
+		return distributionReachedLimit;
+	}
+	public void setDistributedStatus(LinkedHashMap<String, String> distributedStatus) {
+		this.distributedStatus = distributedStatus;
+	}
+	public LinkedHashMap<String, String> getDistributedStatus() {
+		return distributedStatus;
 	}
 }

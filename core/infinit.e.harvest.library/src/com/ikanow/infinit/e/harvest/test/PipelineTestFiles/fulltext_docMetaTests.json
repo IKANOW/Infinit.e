@@ -1,0 +1,50 @@
+[
+    {
+        "web": {
+            "waitTimeOverride_ms": 0,
+            "extraUrls": [
+                {
+                    "description": "Dummy doc 1 12345",
+                    "title": "Dummy doc 1 abcde",
+                    "url": "http://alex.com",
+                    "fullText": "The quick brown fox jumped over the SOMETHING dog"
+                }
+            ]
+        },
+        "display": "Dummy text test"
+    },
+    {
+        "text": [
+            {
+                "scriptlang": "regex",
+                "script": "abcde",
+                "replacement": "replaced_title",
+                "fieldName": "title"
+            },
+            {
+                "scriptlang": "regex",
+                "script": "12345",
+                "replacement": "replaced_desc",
+                "fieldName": "description"
+            },
+            {
+                "scriptlang": "regex",
+                "script": "something",
+                "replacement": "LAZY",
+                "flags": "i",
+                "fieldName": "fullText"
+            }
+        ],
+        "display": "Regex string replacement tests"
+    },
+    {
+        "docMetadata": {
+            "displayUrl": "http://alex.com/displayURL",
+            "description": "DESC: $description",
+            "title": "TITLE: $title",
+            "fullText": "NEW TEXT...",
+            "appendTagsToDocs": false
+        },
+        "display": "Simple replacement in the SAH"
+    }
+]

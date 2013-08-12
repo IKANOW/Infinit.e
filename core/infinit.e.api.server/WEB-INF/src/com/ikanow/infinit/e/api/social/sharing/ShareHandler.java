@@ -19,6 +19,7 @@ import java.io.ByteArrayOutputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -29,6 +30,9 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
+import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
@@ -36,6 +40,7 @@ import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.DocumentLocationPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -85,6 +90,17 @@ public class ShareHandler
 				if ( ( share.getBinaryId() != null ) && returnContent ) {
 					share.setBinaryData(getGridFile(share.getBinaryId()));
 				}
+				
+				// References are a bit of a pain...
+				if (returnContent && (null != share.getDocumentLocation())) {
+					try {
+						share.setShare(getReferenceString(share));
+					}
+					catch (Exception e) {
+						rp.setResponse(new ResponseObject("Get Share", false, "Unable to get share reference: " + e.getMessage()));						
+						return rp;
+					}
+				}//TESTED			
 				else if (!returnContent) {
 					share.setShare(null);
 				}
@@ -279,6 +295,20 @@ public class ShareHandler
 			
 			List<SharePojo> shares = SharePojo.listFromDb(dbc, SharePojo.listType());
 			if (!shares.isEmpty()) {
+				
+				Iterator<SharePojo> shareIt = shares.iterator();
+				while (shareIt.hasNext()) {
+					SharePojo share = shareIt.next();
+					if (null != share.getDocumentLocation()) {
+						try {
+							share.setShare(this.getReferenceString(share));
+						}
+						catch (Exception e) { // couldn't access data, just remove data from list
+							share.setShare("{}");
+						}
+					}
+				}//TESTED
+				
 				rp.setData(shares, new SharePojoApiMap(memberOf));
 				rp.setResponse(new ResponseObject("Share", true, "Shares returned successfully"));				
 			}
@@ -320,6 +350,7 @@ public class ShareHandler
 			{
 				// Create a new SharePojo object
 				SharePojo share = new SharePojo();
+				share.set_id(new ObjectId());
 				share.setCreated(new Date());
 				share.setModified(new Date());
 				share.setType(type);
@@ -338,7 +369,8 @@ public class ShareHandler
 				// Serialize the ID and Dates in the object to MongoDB format
 				// Save the document to the share collection
 				DbManager.getSocial().getShare().save(share.toDb());
-				rp.setResponse(new ResponseObject("Share", true, "New share added successfully."));
+				rp.setResponse(new ResponseObject("Share", true, "New share added successfully. ID in data field."));
+				rp.setData(share.get_id().toString(), null);
 			}
 		}
 		catch (Exception e)
@@ -447,6 +479,12 @@ public class ShareHandler
 					}					
 				}//end if not owner
 				
+				// Check: am I trying to update a reference or json?
+				if (null == share.getBinaryId()) {
+					rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: this is not a binary share"));
+					return rp;					
+				}
+
 				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
 				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
 					if (null == share.getEndorsed()) {
@@ -553,6 +591,12 @@ public class ShareHandler
 					}					
 				}//end if not owner
 				
+				// Check: am I trying to update a reference or binary?
+				if ((null != share.getDocumentLocation()) || (null != share.getBinaryId())) {
+					rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: this is not a JSON share"));
+					return rp;					
+				}
+				
 				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
 				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
 					if (null == share.getEndorsed()) {
@@ -633,7 +677,7 @@ public class ShareHandler
 	 * @param description
 	 * @return
 	 */
-	public ResponsePojo addRef(String ownerIdStr, String type, String idStr, String title, String description)
+	public ResponsePojo addRef(String ownerIdStr, String type, String location, String idStr, String title, String description)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -652,28 +696,17 @@ public class ShareHandler
 			// Create DocumentLocationPojo and add to the share
 			DocumentLocationPojo documentLocation = new DocumentLocationPojo();
 			documentLocation.set_id(new ObjectId(idStr));
-			documentLocation.setCollection(type.toLowerCase());
-			
-			// This should be a type from the published data model
-			documentLocation.setDatabase(type.toLowerCase());
-			//////////////////////////////////////////////////////////////////////////
-			// TODO (INF-1299): Implement code to validate that document referenced exists
-//			if (isValidRef(documentLocation))
-//			{
-//				share.setDocumentLocation(documentLocation);
-//			}
-//			else
-//			{
-//				rp.setResponse(new ResponseObject("Share", false, "Unable to add new share: the reference specified "+
-//						" (Type: " + type + ", ID: " + id + ") does not exist in the database"));
-//				return rp;
-//			}
-			
+			setRefLocation(location, documentLocation);
 			share.setDocumentLocation(documentLocation);
 			
 			// Get ShareOwnerPojo object
 			PersonPojo owner = getPerson(new ObjectId(ownerIdStr));
 			share.setOwner(getOwner(owner));
+			
+			// Endorsements:
+			HashSet<ObjectId> endorsedSet = new HashSet<ObjectId>();
+			share.setEndorsed(endorsedSet); // (you're always endorsed within your own community)
+			endorsedSet.add(new ObjectId(ownerIdStr));				
 
 			// Set Personal Community
 			share.setCommunities(getPersonalCommunity(owner));
@@ -681,18 +714,19 @@ public class ShareHandler
 			// Serialize the ID and Dates in the object to MongoDB format
 			// Save the document to the share collection
 			DbManager.getSocial().getShare().save(share.toDb());
-			rp.setResponse(new ResponseObject("Share", true, "New share added successfully."));
+			rp.setResponse(new ResponseObject("Share", true, "New share added successfully. ID in data field."));
+			rp.setData(share.get_id().toString(), null);
 		}
 		catch (Exception e)
 		{
-			logger.error("Exception Message: " + e.getMessage(), e);
+			//logger.error("Exception Message: " + e.getMessage(), e);
 			rp.setResponse(new ResponseObject("Share", false, "Unable to add new share: " + e.getMessage()));
 		}
 		return rp;
 	}
 	
 	
-	public ResponsePojo updateRef(String ownerIdStr, String shareIdStr, String type, String idStr, String title, String description)
+	public ResponsePojo updateRef(String ownerIdStr, String shareIdStr, String type, String location, String idStr, String title, String description)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -705,15 +739,59 @@ public class ShareHandler
 			if (dbo != null)
 			{
 				SharePojo share = SharePojo.fromDb(dbo, SharePojo.class);
+				
 				// Check ... am I the owner?
 				ObjectId ownerId = new ObjectId(ownerIdStr);
-				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin
-					if (!RESTTools.adminLookup(ownerIdStr)) {
-						rp.setResponse(new ResponseObject("Share", false, "Unable to update share: only the owner of the share or admin can update it."));
-						return rp;
+				boolean bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr);
+				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin (except for one special case)
+					if (!bAdminOrModOfAllCommunities) {
+						// Special case: I am also community admin/moderator of every community to which this share belongs
+						bAdminOrModOfAllCommunities = true;
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+								bAdminOrModOfAllCommunities = false;
+							}
+						}//TESTED
+						
+						if (!bAdminOrModOfAllCommunities) {						
+							rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
+							return rp;
+						}
 					}					
+				}//end if not owner
+				
+				// Check: am I trying to update a reference or json?
+				if (null == share.getDocumentLocation()) {
+					rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: this is not a reference share"));
+					return rp;					
 				}
-
+				
+				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
+				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
+					if (null == share.getEndorsed()) {
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+					}//TESTED
+					for (ShareCommunityPojo comm: share.getCommunities()) {
+						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							share.getEndorsed().add(comm.get_id());
+						}//TESTED
+						else {
+							share.getEndorsed().remove(comm.get_id());
+						}//TESTED						
+					}//TESTED
+				}//TESTED
+				else {
+					if (null == share.getEndorsed()) { // fill this with all communities
+						share.setEndorsed(new HashSet<ObjectId>());
+						share.getEndorsed().add(share.getOwner().get_id());
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							share.getEndorsed().add(comm.get_id());							
+						}
+					}
+					//(else just leave with the same set of endorsements as before)
+				}//TESTED
+				
 				share.setType(type);
 				share.setTitle(title);
 				share.setDescription(description);
@@ -722,23 +800,7 @@ public class ShareHandler
 				// Create DocumentLocationPojo and add to the share
 				DocumentLocationPojo documentLocation = new DocumentLocationPojo();
 				documentLocation.set_id(new ObjectId(idStr));
-				documentLocation.setCollection(type.toLowerCase());
-
-				// This should be a type from the published data model
-				documentLocation.setDatabase(type.toLowerCase());
-				//////////////////////////////////////////////////////////////////////////
-				// TODO (INF-1299): Implement code to validate that document referenced exists
-				//			if (isValidRef(documentLocation))
-				//			{
-				//				share.setDocumentLocation(documentLocation);
-				//			}
-				//			else
-				//			{
-				//				rp.setResponse(new ResponseObject("Share", false, "Unable to add new share: the reference specified "+
-				//						" (Type: " + type + ", ID: " + id + ") does not exist in the database"));
-				//				return rp;
-				//			}
-
+				setRefLocation(location, documentLocation);
 				share.setDocumentLocation(documentLocation);
 
 				// Get ShareOwnerPojo object
@@ -761,7 +823,7 @@ public class ShareHandler
 		}
 		catch (Exception e)
 		{
-			logger.error("Exception Message: " + e.getMessage(), e);
+			//logger.error("Exception Message: " + e.getMessage(), e);
 			rp.setResponse(new ResponseObject("Share", false, "Unable to update share: " + e.getMessage()));
 		}
 		return rp;
@@ -1189,16 +1251,18 @@ public class ShareHandler
 	{
 		try
 		{
-			//remove old file if exists
-			if ( binaryId != null )
-				DbManager.getSocial().getShareBinary().remove(binaryId);
 			//create new file
 			GridFSInputFile file = DbManager.getSocial().getShareBinary().createFile(bytes);
 			file.save();
+			
+			//remove old file if exists (this way if file throws an exception we don't lose the old file)
+			if ( binaryId != null )
+				DbManager.getSocial().getShareBinary().remove(binaryId);
+			
 			return (ObjectId) file.getId();
 		}
 		catch (Exception ex){}
-		return null;
+		return binaryId;
 	}
 
 	static private void mustBeOwnerOrAdmin(String userIdStr, BasicDBObject query) {
@@ -1232,5 +1296,90 @@ public class ShareHandler
 			}
 		}	
 		return communityIdStr;
-	}	
+	}
+	
+	//////////////////////////////////////////////////
+	
+	// Ref utils
+	
+	private void setRefLocation(String type, DocumentLocationPojo documentLocation) {
+		if (type.equalsIgnoreCase("doc_metadata.metadata")) {
+			documentLocation.setDatabase("doc_metadata");
+			documentLocation.setCollection("metadata");
+		}
+		else if (type.equalsIgnoreCase("custommr.customlookup")) {
+			documentLocation.setDatabase("custommr");
+			documentLocation.setCollection("customlookup");				
+		}
+		else if (type.equalsIgnoreCase("feature.entity")) {
+			documentLocation.setDatabase("feature");
+			documentLocation.setCollection("entity");								
+		}
+		else if (type.equalsIgnoreCase("feature.association")) {
+			documentLocation.setDatabase("feature");
+			documentLocation.setCollection("association");
+		}	
+		else{
+			throw new RuntimeException("Invalid share reference: " + type);
+		}
+	}//TESTED (all 4 types)
+	
+	private String getReferenceString(SharePojo share) {
+		HashSet<String> shareIdStrs = new HashSet<String>();
+		for (ShareCommunityPojo commIds: share.getCommunities()) {
+			shareIdStrs.add(commIds.get_id().toString());
+		}
+		String retVal = null;
+		BasicDBObject query = new BasicDBObject(DocumentPojo._id_, share.getDocumentLocation().get_id()); // (same for all artifacts)
+		String dbName = share.getDocumentLocation().getDatabase();
+		String collectionName = share.getDocumentLocation().getCollection();
+		BasicDBObject returnVal = (BasicDBObject) MongoDbManager.getCollection(dbName, collectionName).findOne(query);
+		try {
+			BasicDBList communities = null;
+			boolean bCustomJob = dbName.equals("custommr"); // (a bit different)
+			boolean bFoundOverlap = false;
+			if (!bCustomJob) {
+				ObjectId communityId = (ObjectId) returnVal.get(DocumentPojo.communityId_); // (same for other artifacts)
+				bFoundOverlap = shareIdStrs.contains(communityId.toString());
+			}
+			else {
+				communities = (BasicDBList) returnVal.get("communityIds"); // (shared across multiple json types)
+				for (Object commIdObj: communities) {
+					ObjectId commId = (ObjectId)commIdObj;
+					if (shareIdStrs.contains(commId.toString())) {
+						bFoundOverlap = true;
+						break;
+					}
+				}
+			}
+			if (!bFoundOverlap) {
+				throw new RuntimeException(""); // (turned into the common message below)
+			}
+			if (!bCustomJob) { // everything but custom jobs
+				Date modifiedTime = returnVal.getDate(DocumentPojo.modified_); // (same for other artifacts)
+				if (null != modifiedTime) {
+					share.setModified(modifiedTime);
+				}
+				retVal = returnVal.toString();
+			}
+			else { // custom jobs
+				String database = returnVal.getString(CustomMapReduceJobPojo.outputDatabase_);
+				if (null == database) {
+					database = dbName;
+				}
+				Date modifiedTime = returnVal.getDate(CustomMapReduceJobPojo.lastCompletionTime_);
+				if (null != modifiedTime) {
+					share.setModified(modifiedTime);
+				}
+				String collection = returnVal.getString(CustomMapReduceJobPojo.outputCollection_);
+				BasicDBObject returnVal2 = (BasicDBObject) MongoDbManager.getCollection(database, collection).findOne();
+				retVal = returnVal2.toString();
+			}
+		}
+		catch (Exception e) {
+			throw new RuntimeException("Document not found or permission issue (no overlapping communities)");
+		}
+		return retVal;
+	}//TESTED (normal + custom)
+	
 }

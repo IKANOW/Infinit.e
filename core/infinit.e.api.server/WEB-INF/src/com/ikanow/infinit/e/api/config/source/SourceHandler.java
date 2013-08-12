@@ -21,6 +21,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -251,23 +252,23 @@ public class SourceHandler
 	 * Adds a new, or updates an existing, source where sourceString
 	 * is a JSON representation or a SourcePojo
 	 * @param sourceString
-	 * @param ownerIdStr
+	 * @param userIdStr
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo saveSource(String sourceString, String ownerIdStr, String communityIdStr)
+	public ResponsePojo saveSource(String sourceString, String userIdStr, String communityIdStr)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
-		if (ownerIdStr.equals(communityIdStr)) { // Don't allow personal sources
+		if (userIdStr.equals(communityIdStr)) { // Don't allow personal sources
 			rp.setResponse(new ResponseObject("Source", false, "No longer allowed to create sources in personal communities"));
 			return rp;			
 		}
 		//TESTED
 		
 		try {
-			communityIdStr = allowCommunityRegex(ownerIdStr, communityIdStr);
-			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, ownerIdStr);
+			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, userIdStr);
 			
 			///////////////////////////////////////////////////////////////////////
 			// Try parsing the json into a SourcePojo object
@@ -303,7 +304,7 @@ public class SourceHandler
 				///////////////////////////////////////////////////////////////////////
 				// Note: Overwrite the following fields regardless of what was sent in
 				source.setId(new ObjectId());
-				source.setOwnerId(new ObjectId(ownerIdStr));
+				source.setOwnerId(new ObjectId(userIdStr));
 				source.setApproved(isApproved);
 				source.setCreated(new Date());
 				source.setModified(new Date());
@@ -409,15 +410,22 @@ public class SourceHandler
 					// Note: Only an Infinit.e administrator, source owner, community owner
 					// or moderator can update/edit a source
 					if (null == oldSource.getOwnerId()) { // (internal error, just correct)
-						oldSource.setOwnerId(new ObjectId(ownerIdStr));
+						oldSource.setOwnerId(new ObjectId(userIdStr));
 					}
-					boolean isSourceOwner = oldSource.getOwnerId().toString().equalsIgnoreCase(ownerIdStr);
-					if (!isApproved && !isSourceOwner)
-					{
-						rp.setResponse(new ResponseObject("Source", false, "User does not have permissions to "
-								+ "edit sources shared by this community."));
-						return rp;
-					}
+					boolean isSourceOwner = oldSource.getOwnerId().toString().equalsIgnoreCase(userIdStr);
+					
+					if (!isSourceOwner) {
+						boolean ownerModOrApprovedSysAdmin = isApproved &&
+										(CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr) || RESTTools.adminLookup(userIdStr));
+						
+						if (!ownerModOrApprovedSysAdmin)
+						{
+							rp.setResponse(new ResponseObject("Source", false, "User does not have permissions to edit this source"));
+							return rp;
+						}
+					}//TESTED - works if owner or moderator, or admin (enabled), not if not admin-enabled
+					
+					//isOwnerOrModerator
 					
 					String oldHash = source.getShah256Hash();
 					
@@ -460,6 +468,29 @@ public class SourceHandler
 					//(else oldSource.getHarvestStatus is null, just retain the updated version)
 					
 					//TESTED: no original harvest status, failing to edit existing harvest status, delete status (except doc count), update deleted status (except doc count)
+					
+					// If we're changing the distribution factor, need to keep things a little bit consistent:
+					if ((null == source.getDistributionFactor()) && (null != oldSource.getDistributionFactor())) {
+						// Removing it:
+						if (null != source.getHarvestStatus()) {
+							source.getHarvestStatus().setDistributionReachedLimit(null);
+							source.getHarvestStatus().setDistributionTokensComplete(null);
+							source.getHarvestStatus().setDistributionTokensFree(null);							
+						}
+					}//TESTED
+					else if ((null != source.getDistributionFactor()) && (null != oldSource.getDistributionFactor())
+							&& (source.getDistributionFactor() != oldSource.getDistributionFactor()))
+					{
+						// Update the number of available tokens:
+						if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getDistributionTokensFree()))
+						{
+							int n = source.getHarvestStatus().getDistributionTokensFree() + 
+										(source.getDistributionFactor() - oldSource.getDistributionFactor());
+							if (n < 0) n = 0;
+							
+							source.getHarvestStatus().setDistributionTokensFree(n);
+						}
+					}//TESTED
 					
 					// RSS search harvest types tend to be computationally expensive and therefore
 					// should be done less frequently (by default once/4-hours seems good):
@@ -1005,6 +1036,7 @@ public class SourceHandler
 		fields.put(SourcePojo.mediaType_, 1);
 		fields.put(SourcePojo.key_, 1);
 		fields.put(SourcePojo.description_, 1);
+		fields.put(SourcePojo.distributionFactor_, 1);
 		fields.put(SourcePojo.tags_, 1);
 		fields.put(SourcePojo.communityIds_, 1);
 		fields.put(SourcePojo.harvest_, 1);
@@ -1058,12 +1090,32 @@ public class SourceHandler
 
 			// This is the only field that you don't normally need to specify in save but will cause 
 			// problems if it's not populated in test.
+			ObjectId userId = new ObjectId(userIdStr);
 			if (null == source.getCommunityIds()) {
 				source.setCommunityIds(new TreeSet<ObjectId>());
 			}
 			if (source.getCommunityIds().isEmpty()) {
-				source.addToCommunityIds(new ObjectId(userIdStr)); // (ie user's personal community, always has same _id - not that it matters)
+				source.addToCommunityIds(userId); // (ie user's personal community, always has same _id - not that it matters)
 			}
+			else { // need to check that I'm allowed the specified community...
+				if ((1 == source.getCommunityIds().size()) && (userId.equals(source.getCommunityIds().iterator().next())))
+				{
+					// we're OK only community id is user community
+				}//TESTED
+				else {
+					HashSet<ObjectId> communities = RESTTools.getUserCommunities(userIdStr);
+					Iterator<ObjectId> it = source.getCommunityIds().iterator();
+					while (it.hasNext()) {
+						ObjectId src = it.next();
+						if (!communities.contains(src)) {
+							rp.setResponse(new ResponseObject("Test Source",false,"Authentication error: you don't belong to this community: " + src));						
+							return rp;
+						}//TESTED
+					}
+				}//TESTED
+			}
+			// Set owner (overwrite, for security reasons)
+			source.setOwnerId(userId);
 			if (bRealDedup) { // Want to test update code, so ignore update cycle
 				if (null != source.getRssConfig()) {
 					source.getRssConfig().setUpdateCycle_secs(1); // always update
@@ -1134,8 +1186,8 @@ public class SourceHandler
 	//////////////////////////////////////////////////////////////////////////
 
 	/**
-	 * isOwnerModeratorOrSysAdmin
-	 * If the user is a system administrator, community owner, or 
+	 * isOwnerModeratorOrContentPublisherOrSysAdmin
+	 * If the user is a system administrator (DOESN'T HAVE TO BE ENABLED), community owner, or 
 	 * moderator they can add a source and isApproved will be true, otherwise 
 	 * it will == false and the owner/moderator will need to approve it
 	 * @param communityIdStr
@@ -1146,11 +1198,20 @@ public class SourceHandler
 	{
 		isOwnerOrModerator = CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr);
 		if (!isOwnerOrModerator) {
-			isSysAdmin = RESTTools.adminLookup(ownerIdStr);
+			isSysAdmin = RESTTools.adminLookup(ownerIdStr, false); // (admin doesn't need to be enabled if "admin-on-request")
 		}
 		boolean isApproved = (isOwnerOrModerator || isSysAdmin) ? true : false;
 		return isApproved;
 	}	
+	/**
+	 * isOwnerModeratorOrSysAdmin
+	 * If the user is a system administrator (MUST BE ENABLED), community owner, or 
+	 * moderator they can add a source and isApproved will be true, otherwise 
+	 * it will == false and the owner/moderator will need to approve it
+	 * @param communityIdStr
+	 * @param ownerIdStr
+	 * @return
+	 */
 	private boolean isOwnerModeratorOrSysAdmin(String communityIdStr, String ownerIdStr)
 	{
 		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);

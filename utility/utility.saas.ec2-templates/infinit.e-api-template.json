@@ -5,6 +5,13 @@
 
 	"Parameters" : {
 		
+		"ImageName" : {
+			"Description" : "MANDATORY: Infinit.e EC2 image id: ami-69a62000 (4x400GB eph), ami-df5c2ab6 (4x250GB EBS), ami-7d582e14 (root=200GB EBS)",
+			"Type" : "String",
+			"Default" : "ami-df5c2ab6",
+			"AllowedValues" : [ "ami-69a62000", "ami-df5c2ab6", "ami-7d582e14" ],
+			"ConstraintDescription" : "ami-69a62000 (4x400GB eph), ami-df5c2ab6 (4x250GB EBS), ami-7d582e14 (root=200GB EBS)"
+		},
 		"NodeName" : {
 			"Description" : "MANDATORY: The name used to display the node in the EC2 instances list (eg <projectname>-<function>-node. It is recommended that this be given the same name as the stack.",
 			"Type" : "String"
@@ -66,7 +73,7 @@
 			
 			"Properties" : {
 				
-				"ImageId" : "ami-69a62000",
+				"ImageId" : { "Ref": "ImageName" },
 				"InstanceType": { "Ref": "InstanceType" },
 				"KeyName": { "Ref": "KeyName" },
 				"SecurityGroups": [ { "Ref": "SecurityGroups" } ],
@@ -119,8 +126,8 @@
 							               "yum -y --nogpgcheck install infinit.e-processing-engine;",
 							               "yum -y --nogpgcheck install infinit.e-interface-engine;",
 						                   
-						                   "sed -i 's/^curl/#curl/' /etc/rc.local;",  
-							               "grep -q 'modprobe capability' /etc/rc.local || echo 'modprobe capability' >> /etc/rc.local"
+						                   "sed -i 's/^curl/#curl/' /etc/rc.d/rc.local;",  
+							               "grep -q 'modprobe capability' /etc/rc.d/rc.local || echo 'modprobe capability' >> /etc/rc.d/rc.local"
 							               ]]}
 				}
 			}

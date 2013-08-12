@@ -22,6 +22,7 @@ limitations under the License.
 	int currentPage = 1;
 	int itemsToShowPerPage = 10;
 	String action = "";
+	String lastaction = "";
 	String logoutAction = "";
 	String listFilter = "";
 
@@ -31,6 +32,7 @@ limitations under the License.
 	String visibleCommunityId = "";
 	String name = "";
 	String description = "";
+	String parentId = "";
 	String tags = "";
 	String isSystemCommunity = "";
 	String isPersonalCommunity = "";
@@ -43,15 +45,18 @@ limitations under the License.
 	String usersCanCreateSubCommunitiesChecked = "";
 	String registrationRequiresApproval = "";
 	String registrationRequiresApprovalChecked = "";
+	String publishMemberOverride = "";
+	String publishMemberOverrideChecked = "";
 	String isPublic = "";
 	String isPublicChecked = "";
 	String usersCanSelfRegister = "";
 	String usersCanSelfRegisterChecked = "";
 	
-	String communityAttributesAreReadonly = "disabled=\"disabled\"";
 	String userAttributesAreReadonly = "disabled=\"disabled\"";
+	String parentIdIsReadonly="";
 	
 	String editMembersLink = "";
+	String addMembersLink = "";
 
 %>
 
@@ -78,11 +83,13 @@ limitations under the License.
 		// Determine which action to perform on postback/request
 		action = "";
 		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
+		lastaction = action; // (preserve this - normally edit)
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
 		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
 		
 		// Capture values sent by button clicks, these will override the action value as appropriate 
 		String save = "";
@@ -108,11 +115,13 @@ limitations under the License.
 			// Read in values from the edit form
 			communityid = (request.getParameter("communityid") != null) ? request.getParameter("communityid") : "";
 			name = (request.getParameter("name") != null) ? request.getParameter("name") : "";
+			parentId = (request.getParameter("parentId") != null) ? request.getParameter("parentId") : "";
 			description = (request.getParameter("description") != null) ? request.getParameter("description") : "";
 			tags = (request.getParameter("tags") != null) ? request.getParameter("tags") : "";
 			isPublic = (request.getParameter("isPublic") != null) ? request.getParameter("isPublic") : "";
 			usersCanCreateSubCommunities = (request.getParameter("usersCanCreateSubCommunities") != null) ? request.getParameter("usersCanCreateSubCommunities") : "";
 			registrationRequiresApproval = (request.getParameter("registrationRequiresApproval") != null) ? request.getParameter("registrationRequiresApproval") : "";
+			publishMemberOverride = (request.getParameter("publishMemberOverride") != null) ? request.getParameter("publishMemberOverride") : "";
 			usersCanSelfRegister = (request.getParameter("usersCanSelfRegister") != null) ? request.getParameter("usersCanSelfRegister") : "";
 
 			Boolean redirect = false;
@@ -146,26 +155,52 @@ limitations under the License.
 			
 			if (action.equals("clearform")) 
 			{
-				communityAttributesAreReadonly = "disabled=\"disabled\"";
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=communities.jsp\">");
 			}
 			else if (action.equals("edit")) 
 			{
-				communityAttributesAreReadonly = "";
+				if (communityid.length() > 0) {
+					parentIdIsReadonly="readonly";
+				}
 				populateEditForm(communityid, request, response);
 			}
 			else if (action.equals("delete")) 
 			{
 				deleteCommunity(communityid, request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=communities.jsp\">");
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=communities.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
+			else if (action.equals("deleteselected")) 
+			{
+				String[] ids= request.getParameterValues("docsToDelete");
+				
+				int nDeleted = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					if (!deleteCommunity(id, request, response)) {
+						nFailed++;
+					}
+					else nDeleted++;
+				}
+				messageToDisplay = "Bulk community deletion: deleted " + nDeleted + ", failed: " + nFailed; 
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=communities.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
 			}
 			else if (action.equals("filterlist")) 
 			{
-				currentPage = 1;
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				populateEditForm(communityid, request, response);
 			}
 			else if (action.equals("clearfilter")) 
 			{
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				listFilter = "";
 				populateEditForm(communityid, request, response);
 			}
@@ -191,6 +226,7 @@ limitations under the License.
 	<script type="text/javascript" src="inc/utilities.js"></script>
 	<link rel="shortcut icon" href="image/favicon.ico" />
 	<title>Infinit.e.Manager - Communities</title>
+	
 </head>
 <body>
 
@@ -227,17 +263,22 @@ limitations under the License.
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">Communities</td>
-				<td align="right"><input type="text" id="listFilter" 
+				<td align="right">
+					<input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
 					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
-					value="filterList">Filter</button><button name="clearFilter" value="clearFilter">Clear</button></td>
+					value="filterList">Filter</button>
+					<button name="clearFilter" value="clearFilter">Clear</button>
+					</td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
+			<tr>
+				<td colspan="2" ><button name="deleteSelected" onclick="return confirm('Do you really wish to delete the selected communities?');" name="deleteSelected" value="deleteSelected">Delete selected communities</button></td>
+			</tr>
 			</table>
-
 		</td>
 		
 		<td width="70%" bgcolor="#ffffff">
@@ -269,6 +310,10 @@ limitations under the License.
 						</td>
 					</tr>
 					<tr valign="top">
+						<td bgcolor="#ffffff" width="30%">Parent Id (optional):</td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" <%=parentIdIsReadonly%> id="parentId" name="parentId" value="<%=parentId%>" size="50" /></td>
+					</tr>
+					<tr valign="top">
 						<td bgcolor="#ffffff" width="30%">Tags:*</td>
 						<td bgcolor="#ffffff" width="70%">
 							<textarea cols="60" rows="3" id="tags" name="tags"><%=tags %></textarea>
@@ -284,19 +329,23 @@ limitations under the License.
 							<table cellpadding="5" cellspacing="1" width="100%">
 								<tr>
 									<td><input type="checkbox" name="isPublic" <%=isPublicChecked %> 
-										<%=communityAttributesAreReadonly %> /> Is Public</td>
+										 /> Is Public</td>
 								</tr>
 								<tr>
 									<td><input type="checkbox" name="usersCanSelfRegister" <%=usersCanSelfRegisterChecked %>
-										<%=communityAttributesAreReadonly %> /> Users Can Self Register</td>
+										 /> Users Can Self Register</td>
 								</tr>
 								<tr>
 									<td><input type="checkbox" name="registrationRequiresApproval" <%=registrationRequiresApprovalChecked %>
-										<%=communityAttributesAreReadonly %> /> Registration Requires Approval</td>
+										 /> Registration Requires Approval</td>
 								</tr>
 								<tr>
 									<td><input type="checkbox" name="usersCanCreateSubCommunities" <%=usersCanCreateSubCommunitiesChecked %>
-										<%=communityAttributesAreReadonly %> /> Users Can Create Subcommunites</td>
+										 /> Users Can Create Subcommunites</td>
+								</tr>
+								<tr>
+									<td><input type="checkbox" name="publishMemberOverride" <%=publishMemberOverrideChecked %>
+										 /> Members are visible to other members</td>
 								</tr>
 							</table>
 						</td>
@@ -329,7 +378,7 @@ limitations under the License.
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Members:</td>
-						<td bgcolor="#ffffff" width="70%"><%=editMembersLink %></td>
+						<td bgcolor="#ffffff" width="70%"><%=editMembersLink %> <br/> <%=addMembersLink %></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%"></td>
@@ -451,6 +500,13 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			usersCanCreateSubCommunitiesObject.put("type", "Boolean");
 			usersCanCreateSubCommunitiesObject.put("value", valueStr);
 			communityProperties.put("usersCanCreateSubCommunities", usersCanCreateSubCommunitiesObject);
+			// publishMemberOverride
+			valueStr = (publishMemberOverride.equalsIgnoreCase("on")) ? "true" : "false";
+			JSONObject publishMemberOverrideObject = new JSONObject();
+			publishMemberOverrideObject.put("type", "Boolean");
+			publishMemberOverrideObject.put("value", valueStr);
+			communityProperties.put("publishMemberOverride", publishMemberOverrideObject);
+			//replace attributes
 			community.remove("communityAttributes");
 			community.put("communityAttributes", communityProperties);
 			
@@ -472,7 +528,7 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			}
 			else
 			{
-				messageToDisplay = "Error: Unable to update the community.";
+				messageToDisplay = "Error: Unable to update the community: " + responseVal.getString("message");
 				return false;
 			}
 		}
@@ -482,8 +538,16 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			String nameStr = URLEncoder.encode(name, "UTF-8");
 			String descriptionStr = URLEncoder.encode(description, "UTF-8");
 			String tagsStr = URLEncoder.encode(tags, "UTF-8");
-			actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
-					"/" + descriptionStr + "/" + tagsStr, request, response));
+			String parentIdStr = null;
+			if ((null != parentId) && (parentId.length() > 0)) {
+				parentIdStr = URLEncoder.encode(parentId, "UTF-8");
+				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
+						"/" + descriptionStr + "/" + tagsStr + "/" + parentIdStr, request, response));
+			}//TESTED - valid-works, invalid id, valid-but-not-allowed, valid-but-pending-delete, personal-community
+			else {
+				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
+						"/" + descriptionStr + "/" + tagsStr, request, response));
+			}
 			
 			responseVal = new JSONObject(actionResponse.getString("response"));
 			if (responseVal.getString("success").equalsIgnoreCase("true"))
@@ -494,7 +558,7 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			}
 			else
 			{
-				messageToDisplay = "Error: Unable to add the community.";
+				messageToDisplay = "Error: Unable to add the community: " + responseVal.getString("message");
 				return false;
 			}
 		}
@@ -522,7 +586,8 @@ private boolean deleteCommunity( String id, HttpServletRequest request, HttpServ
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to Delete Community."; return false;
+			messageToDisplay = "Error: Unable to Delete Community: " + updateResponse.getString("message"); 
+			return false;
 		}
 	}
 	catch (Exception e)
@@ -536,7 +601,6 @@ private boolean deleteCommunity( String id, HttpServletRequest request, HttpServ
 // populateEditForm - 
 private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response) 
 {
-	clearForm();
 	if (id != null && id != "") 
 	{
 		try 
@@ -550,6 +614,12 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			communityStatus =  status;
 			visibleCommunityId = id;
 			name = community.getString("name");
+			if (community.has("parentId")) {
+				parentId = community.getString("parentId");
+			}
+			else {
+				parentId = "";
+			}
 			description = community.getString("description");
 			numberOfMembers = community.getString("numberOfMembers");
 			ownerDisplayName = community.getString("ownerDisplayName");
@@ -572,7 +642,12 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			JSONObject registrationRequiresApproval = communityAttributes.getJSONObject("registrationRequiresApproval");
 			registrationRequiresApprovalChecked = (registrationRequiresApproval.getString("value").equalsIgnoreCase("true")) ? "checked=\"checked\"" : "";
 			JSONObject usersCanSelfRegister = communityAttributes.getJSONObject("usersCanSelfRegister");
-			usersCanSelfRegisterChecked = (usersCanSelfRegister.getString("value").equalsIgnoreCase("true")) ? "checked=\"checked\"" : "";
+			usersCanSelfRegisterChecked = (usersCanSelfRegister.getString("value").equalsIgnoreCase("false")) ? "" : "checked=\"checked\"";
+			if ( communityAttributes.has("publishMemberOverride"))
+			{
+				JSONObject publishMemberOverride = communityAttributes.getJSONObject("publishMemberOverride");
+				publishMemberOverrideChecked = (publishMemberOverride.getString("value").equalsIgnoreCase("true")) ? "checked=\"checked\"" : "";
+			}
 			
 			// Get an array of members
 			JSONArray members = community.getJSONArray("members");
@@ -586,6 +661,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			}
 
 			editMembersLink = "<a href='members.jsp?communityid=" + communityid + "' title='Edit Community Members'>Edit Community Members</a>";
+			addMembersLink = "<a href='addmembers.jsp?communityid=" + communityid + "' title='Add Community Members'>Add Community Members</a>";
 		} 
 		catch (Exception e) 
 		{
@@ -601,19 +677,23 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 private void clearForm()
 {
 	editTableTitle = "Add New Community";
+	parentIdIsReadonly="";
 	communityStatus = "";
 	visibleCommunityId = "";
 	name =  "";
+	parentId = "";
 	description = "";
 	tags = "";
 	numberOfMembers = "";
 	isPublicChecked = "";
 	usersCanCreateSubCommunitiesChecked = "";
-	registrationRequiresApprovalChecked = "";
-	usersCanSelfRegisterChecked = "";
+	registrationRequiresApprovalChecked = "checked=\"checked\"";
+	usersCanSelfRegisterChecked = "checked=\"checked\"";
+	publishMemberOverrideChecked = "checked=\"checked\"";
 	ownerDisplayName = "";
 	ownerEmail = "";
 	editMembersLink = "";
+	addMembersLink = "";
 }  // TESTED
 
 
@@ -622,15 +702,14 @@ private void clearForm()
 private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
 	StringBuffer communities = new StringBuffer();
-	Map<String, String> listOfCommunities = getListOfAllNonPersonalCommunities(request, response);
+	TreeMultimap<String, String> listOfCommunities = getListOfAllNonPersonalCommunities(request, response);
 	
 	if (listOfCommunities.size() > 0)
 	{
-		communities.append("<table class=\"listTable\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
+		communities.append("<table id=\"listTable\" class=\"listTable\" cellpadding=\"3\" cellspacing=\"1\" width=\"100%\" >");
 
 		// Sort the sources alphabetically
-		List<String> sortedKeys = new ArrayList<String>(listOfCommunities.keySet());
-		Collections.sort( sortedKeys, String.CASE_INSENSITIVE_ORDER );
+		SortedSet<String> sortedKeys = listOfCommunities.keySet();
 		
 		// Filter the list
 		List<String> sortedAndFilteredKeys = new ArrayList<String>();
@@ -663,28 +742,32 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		for (String key : sortedAndFilteredKeys)
 		{
 			String name = key;
-			if (currentItem >= startItem && currentItem <= endItem && !name.equalsIgnoreCase("Infinit.e System Community"))
-			{
-				String id = listOfCommunities.get(key).toString();
-				String editLink = "";
-				String deleteLink = "";
-				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				
-				editLink = "<a href=\"communities.jsp?action=edit&communityid=" + id + "&page=" + currentPage 
-						+ listFilterString + "\" title=\"Edit Community\">" + name + "</a>";
-				deleteLink = "<a href=\"communities.jsp?action=delete&communityid=" + id
-						+ listFilterString + "\" title=\"Delete Community\" "
-						+ "onclick='return confirm(\"Do you really wish to delete the following community: "
-						+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
-	
-				// Create the HTML table row
-				communities.append("<tr>");
-				communities.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
-				communities.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
-				communities.append("</tr>");
+			SortedSet<String> vals = listOfCommunities.get(key);
+			for (String val: vals) {
+				if (currentItem >= startItem && currentItem <= endItem)
+				{
+					String id = val;
+					String editLink = "";
+					String deleteLink = "";
+					String listFilterString = "";
+					if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+					
+					editLink = "<a href=\"communities.jsp?action=edit&communityid=" + id + "&page=" + currentPage 
+							+ listFilterString + "\" title=\"Edit Community\">" + name + "</a>";
+					deleteLink = "<a href=\"communities.jsp?action=delete&communityid=" + id + "&page=" + currentPage
+							+ listFilterString + "\" title=\"Delete Community\" "
+							+ "onclick='return confirm(\"Do you really wish to delete the following community: "
+							+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
+		
+					// Create the HTML table row
+					communities.append("<tr>");
+					communities.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
+					communities.append("<td align=\"center\" bgcolor=\"white\"><input type=\"checkbox\" name=\"docsToDelete\" value=\"" + id + "\"/></td>");
+					communities.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
+					communities.append("</tr>");
+				}
+				currentItem++;
 			}
-			currentItem++;
 		}
 		
 		// Calculate number of pages, current page, page links...
@@ -693,12 +776,16 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("communities.jsp?");
-		String actionString = (action.length() > 0) ? "action=" + action : "";
+		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append("&");
+		
+		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";
 		String communityIdString = (communityid.length() > 0) ? "communityid=" + communityid : "";
+		
 		if (actionString.length() > 0) baseUrl.append(actionString);
 		if (actionString.length() > 0 && communityIdString.length() > 0) baseUrl.append("&");
 		if (communityIdString.length() > 0) baseUrl.append(communityIdString);
 		if (actionString.length() > 0 || communityIdString.length() > 0) baseUrl.append("&");
+		
 		baseUrl.append("page=");
 		communities.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
 		communities.append("</td></tr>");
@@ -723,16 +810,19 @@ private boolean addPersonToCommunity(String person, String community, HttpServle
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Person added to community."; return true;
+			messageToDisplay = "Success: Person added to community."; 
+			return true;
 		}
 		else
-		{
-			messageToDisplay = "Error: Unable to add person to community."; return false;
+		{			
+			messageToDisplay = "Error: Unable to add person to community: " + updateResponse.getString("message"); 
+			return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; return false;
+		messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; 
+		return false;
 	}
 }  // TESTED
 
@@ -750,7 +840,8 @@ private boolean removePersonFromCommunity(String person, String community, HttpS
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to remove person from community."; return false;
+			messageToDisplay = "Error: Unable to remove person from community: " + updateResponse.getString("message");; 
+			return false;
 		}
 	}
 	catch (Exception e)

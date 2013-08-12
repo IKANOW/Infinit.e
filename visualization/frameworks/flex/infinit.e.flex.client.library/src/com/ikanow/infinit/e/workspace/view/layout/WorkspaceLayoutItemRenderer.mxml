@@ -1,16 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
-   
+
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU Affero General Public License, version 3,
    as published by the Free Software Foundation.
-   
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
    GNU Affero General Public License for more details.
-   
+
    You should have received a copy of the GNU Affero General Public License
    along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
@@ -24,6 +24,7 @@
 			import com.ikanow.infinit.e.shared.model.vo.Widget;
 			
 			private var _positionIndex:int;
+			
 			
 			[Bindable]
 			public function get positionIndex():int
@@ -61,9 +62,14 @@
 				// set the position index
 				positionIndex = widget.positionIndex;
 				
+				_color = widget.isBeingDragged ? 0x99CC66 : ( widget.isBeingReplaced ? 0x6699CC : 0x999999 );
+				
 				// update the parent layout
 				invalidateParentSizeAndDisplayList();
 			}
+			
+			[Bindable]
+			private var _color:int = 0x999999;
 		]]>
 	</fx:Script>
 
@@ -80,7 +86,7 @@
 			topRightRadiusY="8">
 			<s:fill>
 				<s:SolidColor 
-					color="{ data.isBeingDragged ? 0x99CC66 : 0x999999 }"
+					color="{ _color }"
 					alpha=".4" />
 			</s:fill>
 			<s:stroke>

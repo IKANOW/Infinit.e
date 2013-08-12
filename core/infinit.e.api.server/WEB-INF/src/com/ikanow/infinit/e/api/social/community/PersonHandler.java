@@ -26,6 +26,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
+import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -35,6 +36,7 @@ import com.ikanow.infinit.e.data_model.api.authentication.WordPressSetupPojo;
 import com.ikanow.infinit.e.data_model.api.authentication.WordPressUserPojo;
 import com.ikanow.infinit.e.data_model.api.social.person.PersonPojoApiMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
@@ -96,6 +98,87 @@ public class PersonHandler
 		}
 		return rp;
 	}	
+	
+	public ResponsePojo listPerson(String userId)
+	{
+		ResponsePojo rp = new ResponsePojo();
+		try
+		{
+			PersonPojo person = PersonHandler.getPerson(userId);	
+			boolean isAdmin = RESTTools.adminLookup(userId);
+			CommunityPojo system_comm = getSystemCommunity();
+			List<ObjectId> communityIds = new ArrayList<ObjectId>();
+			for ( PersonCommunityPojo community : person.getCommunities())
+			{
+				ObjectId comm_id = community.get_id();
+				if ( allowedToSeeCommunityMembers(comm_id, isAdmin, system_comm) )
+				{
+					communityIds.add(comm_id);
+				}
+			}
+			BasicDBObject query = new BasicDBObject();
+			query.put("communities._id", new BasicDBObject( MongoDbManager.in_, communityIds ));
+			DBCursor dbc = DbManager.getSocial().getPerson().find(query);
+			
+			
+			if (dbc.count() > 0)
+			{
+				rp.setData(PersonPojo.listFromDb(dbc, PersonPojo.listType()), new PersonPojoApiMap());
+				rp.setResponse(new ResponseObject("People List", true, "List returned successfully"));				
+			}
+			else
+			{
+				rp.setResponse(new ResponseObject("People List", true, "No list to return returned"));	
+			}
+			
+		} 
+		catch (Exception e)
+		{
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Person List", false, "Error returning person list: " + e.getMessage()
+					+ " - " + e.getStackTrace().toString()));
+		}
+		return rp;
+	}
+	
+	private boolean allowedToSeeCommunityMembers(ObjectId communityId, boolean isAdmin, CommunityPojo systemCommunity)
+	{
+		//admin can see everything, always return true
+		if ( isAdmin )
+			return true;
+		else
+		{
+			//if this is the system community, check if publicMemberOverride is true
+			if ( systemCommunity != null && systemCommunity.getId().equals(communityId))
+			{
+				if ( systemCommunity.getCommunityAttributes().containsKey("publishMemberOverride") && 
+						systemCommunity.getCommunityAttributes().get("publishMemberOverride").getValue().equals("true"))
+				{
+					return true;
+				}
+				else
+				{
+					return false;
+				}
+			}
+			else
+			{
+				//all other communities can show members for now
+				return true;
+			}
+		}
+	}
+	
+	private CommunityPojo getSystemCommunity()
+	{
+		BasicDBObject query = new BasicDBObject("isSystemCommunity", true);
+		BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getCommunity().findOne(query);
+		if (dbo != null)
+		{
+			return CommunityPojo.fromDb(dbo, CommunityPojo.class);	
+		}
+		return null;
+	}
 	
 	/**
 	 * getAllPeople (REST, CURRENTLY UNUSED)

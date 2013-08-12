@@ -22,6 +22,7 @@ import java.io.StringWriter;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -29,6 +30,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -48,6 +50,7 @@ import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.log4j.Logger;
+import org.bson.types.ObjectId;
 import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.DomSerializer;
 import org.htmlcleaner.HtmlCleaner;
@@ -107,7 +110,7 @@ public class UnstructuredAnalysisHarvester {
 		ArrayList<SimpleTextCleanserPojo> mappedTextExtractors = new ArrayList<SimpleTextCleanserPojo>(textExtractors.size());
 		for (ManualTextExtractionSpecPojo textExtractor: textExtractors) {
 			if (DocumentPojo.fullText_.equalsIgnoreCase(textExtractor.fieldName)) {
-				getRawTextFromUrl(doc, feedConfig);				
+				getRawTextFromUrlIfNeeded(doc, feedConfig);				
 					// (if transforming full text then grab the raw body from the URL if necessary)
 			}			
 			SimpleTextCleanserPojo mappedTextExtractor = new SimpleTextCleanserPojo();
@@ -120,33 +123,39 @@ public class UnstructuredAnalysisHarvester {
 		}
 		this.cleanseText(mappedTextExtractors, doc);
 		
-	}//TOTEST
+	}
+	//TESTED (fulltext_regexTests.json)
 	
-	public void processMetadataChain(DocumentPojo doc, List<MetadataSpecPojo> metadataFields)
+	public void processMetadataChain(DocumentPojo doc, List<MetadataSpecPojo> metadataFields, SourceRssConfigPojo feedConfig) throws IOException
 	{
-		//TODO: setup javascript engine
+		getRawTextFromUrlIfNeeded(doc, feedConfig);				
+			// (generally need full text for documents grab the raw body from the URL if necessary)
+		
 		// Map metadata list to a legacy meta format (they're really similar...)
 		UnstructuredAnalysisConfigPojo.metaField mappedEl = new UnstructuredAnalysisConfigPojo.metaField();
 		for (MetadataSpecPojo meta: metadataFields) {
 			mappedEl.fieldName = meta.fieldName;
 			mappedEl.context = Context.All;
 			mappedEl.flags = meta.flags;
+			if (null == mappedEl.flags) {
+				mappedEl.flags = "";
+			}
 			mappedEl.scriptlang = meta.scriptlang;
 			mappedEl.script = meta.script;
 			mappedEl.replace = meta.replace;
 			//(no group num - just use replace, and flags "o" for xpath/gN:-1)
 			
-			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);
+			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);						
 		}
-		//TODO (store/index)
+		//TODO (INF-1922) (store/index)
 	}
-	//TOTEST
+	//TESTED (fulltext_regexTests.json)
 	
 	///////////////////////////////////////////////////////////////////////////////////////////
 	
 	// PROCESSING PIPELINE - UTILITIES
 	
-	private void getRawTextFromUrl(DocumentPojo doc, SourceRssConfigPojo feedConfig) throws IOException {
+	public void getRawTextFromUrlIfNeeded(DocumentPojo doc, SourceRssConfigPojo feedConfig) throws IOException {
 		if (null != doc.getFullText()) { // Nothing to do
 			return;
 		}
@@ -241,6 +250,13 @@ public class UnstructuredAnalysisHarvester {
 	public UnstructuredAnalysisHarvester() {
 	}
 
+	// For harvest pipeline, just ensures duplicate map exists and is empty for each doc
+	public void resetForNewDoc() {
+		if ((null == regexDuplicates) || (!regexDuplicates.isEmpty())) {
+			regexDuplicates = new HashSet<String>();
+		}
+	}
+	
 	/**
 	 * executeHarvest(SourcePojo source, List<DocumentPojo> feeds)
 	 * 
@@ -314,7 +330,7 @@ public class UnstructuredAnalysisHarvester {
 							}
 						}
 						else {
-							this.getRawTextFromUrl(d, source.getRssConfig());
+							this.getRawTextFromUrlIfNeeded(d, source.getRssConfig());
 						}
 						bFetchedUrl = true;
 						
@@ -445,7 +461,7 @@ public class UnstructuredAnalysisHarvester {
 					}
 				}
 				else {
-					getRawTextFromUrl(doc, source.getRssConfig());
+					getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
 				}
 				bFetchedUrl = true;
 				
@@ -665,7 +681,7 @@ public class UnstructuredAnalysisHarvester {
 			//set the script engine up if necessary
 			if ((null != source) && (null != uap)) {
 				//(these are null if called from new processing pipeline vs legacy code)
-				setupJavascriptEngine(source, uap);
+				intializeScriptEngine(source, uap);
 			}
 			
 			try 
@@ -1097,7 +1113,7 @@ public class UnstructuredAnalysisHarvester {
 		else if (scriptLang.equalsIgnoreCase("javascript")) {
 			try {
 				SourcePojo src = f.getTempSource();
-				setupJavascriptEngine(src, src.getUnstructuredAnalysisConfig());
+				intializeScriptEngine(src, src.getUnstructuredAnalysisConfig());
 
 				// Setup input:
 				if (null == flags) {
@@ -1199,7 +1215,7 @@ public class UnstructuredAnalysisHarvester {
 	
 	// Javascript scripting utilities:
 	
-	private void setupJavascriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
+	public void intializeScriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 		if ( null == engine )
 		{
 			//use the passed in sah one if possible
@@ -1217,59 +1233,75 @@ public class UnstructuredAnalysisHarvester {
 				//grab any json cache and make it available to the engine
 			}
 			//once engine is created, do some initialization
-			try
-			{
-				if (null != uap.getCaches()) {
-					CacheUtils.addJSONCachesToEngine(uap.getCaches(), engine, source.getCommunityIds(), _context);
-				}
-			}
-			catch (Exception ex)
-			{
-				_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
-				logger.error("JSONcache: " + ex.getMessage(), ex);
-			}
 			if ( null != engine )
 			{
-				// Script code embedded in source
-				String script = (uap.getScript() != null) ? uap.getScript(): null;
+				if (null != source) {
+					loadLookupCaches(uap.getCaches(), source.getCommunityIds());
+					List<String> scriptFiles = null;
+					if (null != uap.getScriptFiles()) {
+						scriptFiles = Arrays.asList(uap.getScriptFiles());
+					}
+					loadGlobalFunctions(scriptFiles, uap.getScript());
+				}
 				
-				// scriptFiles - can contain String[] of script files to import into the engine
-				String[] scriptFiles = (uap.getScriptFiles() != null) ? uap.getScriptFiles(): null;
-				
-		        // Pass scripts into the engine
-		        try 
-		        {
-		        	// Eval script passed in s.script
-		        	if (script != null) securityManager.eval(engine, script);
-		        	
-		        	// Retrieve and eval script files in s.scriptFiles
-		        	if (scriptFiles != null)
-		        	{
-		        		for (String file : scriptFiles)
-		        		{
-		        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
-		        		}
-		        	}
-				} 
-		        catch (ScriptException e) 
-				{
-					this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
-					logger.error("ScriptException: " + e.getMessage(), e);
-				}
-		        
-				if (null == parsingScript) 
-				{
-					parsingScript = JavaScriptUtils.generateParsingScript();
-				}
-				try 
-				{
-					securityManager.eval(engine, parsingScript);						
-				} 
-				catch (ScriptException e) { // Just do nothing and log
-					e.printStackTrace();
-					logger.error(e.getMessage());
-				}
 			}
 		}//end start engine up		
+		
+	}
+	
+	//////////////////////////////////////////////////////
+	
+	// Utilities that in legacy mode are called from the initializeScriptEngine, but can be called
+	// standalone in the pipelined mode:
+	
+	public void loadLookupCaches(Map<String, ObjectId> caches, Set<ObjectId> communityIds)
+	{
+		try
+		{
+			if (null != caches) {
+				CacheUtils.addJSONCachesToEngine(caches, engine, communityIds, _context);
+			}
+		}
+		catch (Exception ex)
+		{
+			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+			logger.error("JSONcache: " + ex.getMessage(), ex);
+		}
+	}
+	public void loadGlobalFunctions(List<String> imports, String script) 
+	{
+        // Pass scripts into the engine
+        try 
+        {
+        	// Eval script passed in s.script
+        	if (script != null) securityManager.eval(engine, script);
+        	
+        	// Retrieve and eval script files in s.scriptFiles
+        	if (imports != null)
+        	{
+        		for (String file : imports)
+        		{
+        			securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file));
+        		}
+        	}
+		} 
+        catch (ScriptException e) 
+		{
+			this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
+			logger.error("ScriptException: " + e.getMessage(), e);
+		}
+        
+		if (null == parsingScript) 
+		{
+			parsingScript = JavaScriptUtils.generateParsingScript();
+		}
+		try 
+		{
+			securityManager.eval(engine, parsingScript);						
+		} 
+		catch (ScriptException e) { // Just do nothing and log
+			e.printStackTrace();
+			logger.error(e.getMessage());
+		}
 	}
 }

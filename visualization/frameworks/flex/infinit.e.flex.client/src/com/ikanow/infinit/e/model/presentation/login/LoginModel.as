@@ -27,6 +27,7 @@ package com.ikanow.infinit.e.model.presentation.login
 	import com.ikanow.infinit.e.shared.model.vo.Widget;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
+	import com.ikanow.infinit.e.shared.util.ExternalInterfaceUtility;
 	import flash.events.Event;
 	import flash.net.URLRequest;
 	import flash.net.navigateToURL;
@@ -180,6 +181,23 @@ package com.ikanow.infinit.e.model.presentation.login
 		// protected methods 
 		//======================================
 		
+		protected function bounceIfRedirecting():Boolean
+		{
+			var urlParams:Object = ExternalInterfaceUtility.getUrlParams();
+			
+			if ( urlParams.hasOwnProperty( "redirect" ) )
+			{
+				var targetURL:String = urlParams[ "redirect" ] as String;
+				
+				if ( null != targetURL )
+				{
+					navigateToURL( new URLRequest( targetURL ), "_self" );
+					return true;
+				}
+			}
+			return false;
+		}
+		
 		/**
 		 * Validates if the cookie was successful
 		 */
@@ -187,6 +205,10 @@ package com.ikanow.infinit.e.model.presentation.login
 		{
 			if ( cookieResponse.responseSuccess )
 			{
+				//If I have a redirect then go there now
+				if ( bounceIfRedirecting() )
+					return;
+				
 				// get the default data for the application
 				getApplicationData();
 			}
@@ -285,6 +307,10 @@ package com.ikanow.infinit.e.model.presentation.login
 		{
 			if ( loginResponse.responseSuccess )
 			{
+				//If I have a redirect then go there now
+				if ( bounceIfRedirecting() )
+					return;
+				
 				navigator.showLoadingDataView();
 				
 				// get the default data for the application

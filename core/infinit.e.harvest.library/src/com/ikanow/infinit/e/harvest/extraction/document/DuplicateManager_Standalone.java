@@ -52,11 +52,9 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	 * @param key
 	 * @return boolean (true/false)
 	 */
-	private int _nCount2 = 0;
-	final private int _nEvery2 = 10; 
 	public boolean isDuplicate_Url(String url, SourcePojo source, List<String> duplicateSources) {
-		//(test code)
-		return (++_nCount2 % _nEvery2) == 0;
+		//(removed debug/test code from here since this gets used quite a lot by the test api)
+		return false;
 	}	
 
 	/**
@@ -71,12 +69,9 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	 * @param title
 	 * @return boolean (true/false)
 	 */
-	private int _nCount1 = 0;
-	final private int _nEvery1 = 4; 
 	public boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source) {
-		if ((++_nCount1 % _nEvery1) == 0) {
-			modifiedDate.setTime(0);
-		}
+		//(removed debug/test code from here since this gets used quite a lot by the test api and the deleted=1 is confusing)
+		modifiedDate.setTime(0);
 		return true;
 	}	
 	

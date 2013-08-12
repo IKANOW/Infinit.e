@@ -94,6 +94,8 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public Boolean appendResults; // (defaults to null)
 	public static final String appendResults_ = "appendResults";
 	public Double appendAgeOutInDays;
+	public static final String incrementalMode_ = "incrementalMode";
+	public Boolean incrementalMode;
 	public static final String appendAgeOutInDays_ = "appendAgeOutInDays";
 	public Set<ObjectId> jobDependencies = new HashSet<ObjectId>(); //jobs this one depends on to run
 	public static final String jobDependencies_ = "jobDependencies";
@@ -112,6 +114,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public enum SCHEDULE_FREQUENCY
 	{
 		NONE,
+		HOURLY,
 		DAILY,
 		WEEKLY,
 		MONTHLY;

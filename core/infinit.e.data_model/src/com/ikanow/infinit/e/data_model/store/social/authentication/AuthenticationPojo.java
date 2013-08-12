@@ -40,7 +40,8 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	private ObjectId profileId = null;
 	private String username = null;
 	private String password = null;
-	private String accountType = null;
+	private String accountType = null; // "admin", "admin-enabled", anything else
+	private Date lastSudo = null; // (time when last request admin rights)
 	private AccountStatus accountStatus = null;
 	//private List<RolesPojo> roles = null;
 	private Date created = null;
@@ -165,6 +166,12 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	}
 	public String getApiKey() {
 		return apiKey;
+	}
+	public void setLastSudo(Date lastSudo) {
+		this.lastSudo = lastSudo;
+	}
+	public Date getLastSudo() {
+		return lastSudo;
 	}
 	
 }

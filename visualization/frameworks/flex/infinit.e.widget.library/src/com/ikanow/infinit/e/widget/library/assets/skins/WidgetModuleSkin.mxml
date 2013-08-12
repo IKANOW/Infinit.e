@@ -212,7 +212,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 					<!-- snapshot button -->
 					<components:WidgetHeaderIconButton id="snapshotButton"
 													   enabled="false"
-													   toolTip="Copy snapshot to clipboard"
+													   toolTip="Copy snapshot to clipboard (shift+control+c with focus)"
 													   verticalCenter="1"
 													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.AddQueryTermButtonSkin"
 													   visible="false" />

@@ -19,6 +19,7 @@ import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,8 @@ public class SourceUtils {
 
     private static Logger logger = Logger.getLogger(SourceUtils.class);
     
+    private static final long _ONEDAY = 24L*3600L*1000L;
+    
 /////////////////////////////////////////////////////////////////////////////////////
 
 // Utilities common to both harvester and synchronization
@@ -61,7 +64,7 @@ public class SourceUtils {
     		if (null != lastSyncObj) {
     			try {
     				Date last_sync = (Date) lastSyncObj;
-    				if (last_sync.getTime() + 3600*1000*24 > now.getTime()) {
+    				if (last_sync.getTime() + _ONEDAY > now.getTime()) {
     					
     					return true; // (ie sync object exists and is < 1 day old)
     				}
@@ -105,7 +108,7 @@ public class SourceUtils {
 			BasicDBObject adminUpdateQuery = new BasicDBObject();
 			if (bDistributed) {
 				Date now = new Date();
-				query = generateNotInProgressClause(now, bSync);
+				query = generateNotInProgressClause(now);
 					// (just don't waste time on things currently being harvested)
 				
 				// Also need to ignore any sources that have just been synced by a different node... 
@@ -163,18 +166,23 @@ public class SourceUtils {
 				fields.put(SourcePojo.key_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_harvested_, 1);
 				fields.put(SourceHarvestStatusPojo.sourceQuery_synced_, 1);
-				if (null == sSourceId) {
-					fields.put(SourcePojo.searchCycle_secs_, 1);
-					fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);
-				}
-				else if (bSync) { // (always get status for sync - need to know if it exists...)
-					fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);					
-				}
-				// (otherwise - effectively overriding this with null for "debug" calls)
+				fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);
+				if (null != sSourceId) {
+					//put a random field in just so we know it's a source override:
+					fields.put(SourcePojo.ownerId_, 1);
+					//(plus don't add searchCycle, we're just going to ignore it anyway)
+				}//TESTED
+				else {
+					fields.put(SourcePojo.searchCycle_secs_, 1);					
+				}//TESTED
+				
+				// (need these for distributed logic)
+				fields.put(SourcePojo.distributionFactor_, 1);
+				fields.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensFree_, 1);
 			}
 			// (first off, set the harvest/sync date for any sources that don't have it set,
 			//  needed because sort doesn't return records without the sorting field) 
-			Date yesteryear = new Date(new Date().getTime() - 365L*24L*3600L*1000L);
+			Date yesteryear = new Date(new Date().getTime() - 365L*_ONEDAY);
 				// (NOTE this time being >=1 yr is depended upon by applications, so you don't get to change it. Ever)
 			if (bSync) {
 				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.exists_, false));
@@ -207,6 +215,9 @@ public class SourceUtils {
 		Date now = new Date();
 		LinkedList<SourcePojo> nextSetToProcess = new LinkedList<SourcePojo>();
 		
+		// Some additional distributed logic
+		LinkedList<SourcePojo> putMeBackAtTheStart_distributed = null;
+		
 		PropertiesManager pm = new PropertiesManager();
 		int nBatchSize = pm.getDistributionBatchSize(bSync);
 		Long defaultSearchCycle_ms = pm.getMinimumHarvestTimePerSourceMs();
@@ -218,8 +229,14 @@ public class SourceUtils {
 
 		for (int nNumSourcesGot = 0; (nNumSourcesGot < nBatchSize) && (!uncheckedSources.isEmpty()); ) {
 			
-			BasicDBObject query = generateNotInProgressClause(now, bSync);
-			SourcePojo candidate = uncheckedSources.pop(); 
+			BasicDBObject query = generateNotInProgressClause(now);
+			SourcePojo candidate = null;
+			synchronized (SourceUtils.class) { // (can be called across multiple threads)
+				candidate = uncheckedSources.pop();
+			}		
+
+			//DEBUG
+			//System.out.println(" CANDIDATE=" + candidate.getKey() + " ..." + candidate.getId());			
 			
 			if ((null != sSourceType) && !candidate.getExtractType().equalsIgnoreCase(sSourceType)) {
 				continue;
@@ -231,10 +248,25 @@ public class SourceUtils {
 			if (bSync && (null == candidateStatus)) { // Don't sync unharvested sources, obviously!
 				continue;
 			}
-			if ((HarvestEnum.success_iteration != candidateStatus) || 
+			//(DISTRIBUTON LOGIC)
+			
+			// Checking whether to respect the searchCycle_secs for distributed sources is a bit more complex
+			boolean isDistributed = (null != candidate.getDistributionFactor());			
+			boolean distributedInProcess = isDistributed &&  
+				candidate.reachedMaxDocs() ||  // (<- only set inside a process)
+					((null != candidate.getHarvestStatus()) && // (robustness) 
+							(null != candidate.getHarvestStatus().getDistributionTokensFree()) && // (else starting out)
+								(candidate.getDistributionFactor() != candidate.getHarvestStatus().getDistributionTokensFree()));
+									// (else this is the start)
+			//(TESTED - local and distributed)
+			//(END DISTRIBUTON LOGIC)
+			
+			if (((HarvestEnum.success_iteration != candidateStatus) && !distributedInProcess) 
+					|| 
 					((null != candidate.getSearchCycle_secs()) && (candidate.getSearchCycle_secs() < 0)))
 			{
-				//(^^^ don't respect iteration if source manually disabled)
+				// (ie EITHER we're not iteration OR we're disabled)
+				//(^^^ don't respect iteration status if source manually disabled)
 				
 				if ((null != candidate.getSearchCycle_secs()) || (null != defaultSearchCycle_ms)) {
 					if (null == candidate.getSearchCycle_secs()) {
@@ -245,15 +277,16 @@ public class SourceUtils {
 					}
 					if ((null != candidate.getHarvestStatus()) && (null != candidate.getHarvestStatus().getHarvested())) {
 						//(ie the source has been harvested, and there is a non-default search cycle setting)
+						
 						if ((candidate.getHarvestStatus().getHarvested().getTime() + 1000L*candidate.getSearchCycle_secs())
 								> now.getTime())
 						{
-							if ((HarvestEnum.in_progress != candidate.getHarvestStatus().getHarvest_status()) && (null != candidate.getHarvestStatus().getHarvest_status()))
+							if ((HarvestEnum.in_progress != candidateStatus) && (null != candidateStatus) && (null == candidate.getOwnerId()))
 							{
-								//(^^ last test, if it's in_progress then it died recently (or hasn't started) so go ahead and harvest anyway) 
-								
+								//(^^ last test, if it's in_progress then it died recently (or hasn't started) so go ahead and harvest anyway)
+								// (also hacky use of getOwnerId just to see if this is a source override source or not)
 								continue; // (too soon since the last harvest...)
-							}
+							}//TESTED (including hacky use of ownerId)
 						}
 					}
 				}//TESTED
@@ -275,9 +308,131 @@ public class SourceUtils {
 			try {
 				BasicDBObject dbo = (BasicDBObject) DbManager.getIngest().getSource().findAndModify(query, modify);
 				if (null != dbo) {
-					nextSetToProcess.add(SourcePojo.fromDb(dbo, SourcePojo.class));
+					SourcePojo fullSource = SourcePojo.fromDb(dbo, SourcePojo.class);
+					nextSetToProcess.add(fullSource);
 					nNumSourcesGot++;
-				}
+					
+					////////////////////////////////////////////////////////////////////////
+					//
+					// DISTRIBUTION LOGIC:
+					// If distributionFactor set then grab one token and set state back to 
+					// success_iteration, to allow other threads/processes to grab me
+					if ((null != fullSource.getDistributionFactor()) && !bSync)
+					{
+						// Get the current distribution token
+						int distributionToken = 0;						
+						boolean bReset = false;
+						if ((null == fullSource.getHarvestStatus()) || (null == fullSource.getHarvestStatus().getDistributionTokensFree())) {
+							distributionToken = fullSource.getDistributionFactor();
+							// (also set up some parameters so don't need to worry about null checks later)
+							if (null == fullSource.getHarvestStatus()) {
+								fullSource.setHarvestStatus(new SourceHarvestStatusPojo());
+							}
+							fullSource.getHarvestStatus().setDistributionTokensFree(distributionToken);
+							fullSource.getHarvestStatus().setDistributionTokensComplete(0);
+						}
+						else {
+							distributionToken = fullSource.getHarvestStatus().getDistributionTokensFree();
+							
+							//Check last harvested time to ensure this isn't an old state (reset if so)
+							if ((distributionToken != fullSource.getDistributionFactor()) ||
+									(0 != fullSource.getHarvestStatus().getDistributionTokensComplete()))
+							{
+								if ((new Date().getTime() - fullSource.getHarvestStatus().getHarvested().getTime()) >
+										_ONEDAY) // (ie older than a day)
+								{
+									distributionToken = fullSource.getDistributionFactor(); // ie start again
+								}
+							}//TESTED
+						}//(end check for any existing state)					
+
+						if (distributionToken == fullSource.getDistributionFactor()) {
+							bReset = true; // (first time through, might as well go ahead and reset to ensure all the vars are present)
+						}
+
+						// If in error then just want to grab all remaining tokens and reset the status
+						if (HarvestEnum.error == fullSource.getHarvestStatus().getHarvest_status()) { // currently an error
+							if (distributionToken != fullSource.getDistributionFactor()) { // In the middle, ie just errored
+								fullSource.setDistributionTokens(new HashSet<Integer>());
+								while (distributionToken > 0) {
+									distributionToken--;
+									fullSource.getDistributionTokens().add(distributionToken);									
+								}
+								BasicDBObject dummy = new BasicDBObject();
+								bReset = updateHarvestDistributionState_tokenComplete(fullSource, HarvestEnum.error, dummy, dummy);
+									// (then finish off completion down below)								
+							}
+						}//TESTED (error mode, 2 cases: complete and incomplete)
+						
+						//DEBUG
+						//System.out.println(" DIST_SOURCE=" + fullSource.getKey() + "/" + fullSource.getDistributionFactor() + ": " + distributionToken + ", " + bReset);
+						
+						//(note we'll see this even if searchCycle is set because the "source" var (which still has the old
+						// state) is stuck back at the start of uncheckedList, so each harvester will see the source >1 time)
+						
+						if (0 != distributionToken) { // (else no available tokens for this cycle)
+							distributionToken--;
+							
+							fullSource.setDistributionTokens(new HashSet<Integer>());
+							fullSource.getDistributionTokens().add(distributionToken);
+							
+							// Remove one of the available tokens (they don't get reset until the source is complete)
+							updateHarvestDistributionState_newToken(fullSource.getId(), distributionToken, HarvestEnum.success_iteration, bReset);
+
+							// After this loop is complete, put back at the start of the unchecked list
+							// so another thread can pick up more tokens:
+							if (null == putMeBackAtTheStart_distributed) {
+								putMeBackAtTheStart_distributed = new LinkedList<SourcePojo>();
+							}
+							putMeBackAtTheStart_distributed.add(candidate);
+							
+							// Before adding back to list, set a transient field to ensure it bypasses any search cycle checks
+							// (for in process logic where we won't see the update status from the DB)
+							candidate.setReachedMaxDocs();
+							
+							// Reset full source's status so we know if we started in success/error/success_iteration
+							if (null == candidateStatus) {
+								candidateStatus = HarvestEnum.success;
+							}
+							fullSource.getHarvestStatus().setHarvest_status(candidateStatus);							
+							
+						} // (end if available tokens)
+						else { // (don't process, just set back to original status)
+							HarvestEnum harvestStatus = HarvestEnum.success;
+							if (null != fullSource.getHarvestStatus()) {
+								if (null != fullSource.getHarvestStatus().getHarvest_status()) {
+									harvestStatus = fullSource.getHarvestStatus().getHarvest_status();
+								}
+							}
+							if (bReset) { // resetting back to 10 
+								distributionToken = fullSource.getDistributionFactor();
+							}
+							updateHarvestDistributionState_newToken(fullSource.getId(), distributionToken, harvestStatus, bReset);
+								// (bReset can be true in the error case handled above)
+
+							nextSetToProcess.removeLast();
+							nNumSourcesGot--;							
+						}//TESTED						
+						
+					}//TESTED
+					else if (bSync) {
+						// Not allowed to sync "distributed in progress"
+						if ((null != fullSource.getHarvestStatus()) || (null != fullSource.getHarvestStatus().getDistributionTokensFree())) {
+							if (null == fullSource.getHarvestStatus().getHarvest_status()) { // (shouldn't ever happen)
+								fullSource.getHarvestStatus().setHarvest_status(HarvestEnum.success_iteration);
+							}
+							if (fullSource.getHarvestStatus().getDistributionTokensFree() != fullSource.getDistributionFactor()) {
+								updateHarvestDistributionState_newToken(fullSource.getId(), fullSource.getHarvestStatus().getDistributionTokensFree(), fullSource.getHarvestStatus().getHarvest_status(), false);
+								nextSetToProcess.removeLast();
+								nNumSourcesGot--;							
+							}
+						}
+					}//TESTED
+					//
+					//(end DISTRIBUTION LOGIC)
+					////////////////////////////////////////////////////////////////////////
+					
+				}//(end found source - note could have been gazumped by a different thread in the meantime, and that's fine)
 			}
 			catch (Exception e) {
 
@@ -294,6 +449,15 @@ public class SourceUtils {
 			
 		} // (end loop over unchecked sources until we have >20)
 
+		// Little bit more distribution logic:
+		if (null != putMeBackAtTheStart_distributed) {
+			synchronized (SourceUtils.class) { // (can be called across multiple threads)
+				for (SourcePojo distSource: putMeBackAtTheStart_distributed) {
+					uncheckedSources.addFirst(distSource);
+				}
+			}			
+		}//TESTED
+		
 		return nextSetToProcess;
 	} //TESTED
 
@@ -301,22 +465,18 @@ public class SourceUtils {
     
 	// Sub-utility function used by both the above functions
 	
-	private static BasicDBObject generateNotInProgressClause(Date date, boolean bSync) {
+	private static BasicDBObject generateNotInProgressClause(Date date) {
 		
 		//24hrs ago
-		Date oldDate = new Date(date.getTime() - 24*3600*1000);
+		Date oldDate = new Date(date.getTime() - _ONEDAY);
 		
 		// This query says: if the query isn't in progress [1] (or the harvest object doesn't exist [3,4]) ... or if it is but nothing's happened in 24 hours [2]
 		
 		BasicDBObject subclause1 = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 
 														new BasicDBObject(MongoDbManager.ne_, HarvestEnum.in_progress.toString()));
 		BasicDBObject subclause2 = new BasicDBObject();
-		if (bSync) {
-			subclause2.put(SourceHarvestStatusPojo.sourceQuery_synced_, new BasicDBObject(MongoDbManager.lt_, oldDate));
-		}
-		else {
-			subclause2.put(SourceHarvestStatusPojo.sourceQuery_harvested_, new BasicDBObject(MongoDbManager.lt_, oldDate));
-		}
+		subclause2.put(SourceHarvestStatusPojo.sourceQuery_harvested_, new BasicDBObject(MongoDbManager.lt_, oldDate));
+			// (always check for harvested, don't care if synced isn't happening regularly)
 		BasicDBObject subclause3 = new BasicDBObject(SourcePojo.harvest_, new BasicDBObject(MongoDbManager.exists_, false));
 		BasicDBObject subclause4 = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 
 														new BasicDBObject(MongoDbManager.exists_, false));
@@ -388,18 +548,26 @@ public class SourceUtils {
 		if ((harvestStatus == HarvestEnum.success) && (source.reachedMaxDocs())) {
 			harvestStatus = HarvestEnum.success_iteration;
 		}
-
 		// Always update status object in order to release the "in_progress" lock
 		// (make really really sure we don't exception out before doing this!)
 
 		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
-		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString()));
+		BasicDBObject setClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, setClause);
 
-		int nDocsAdded = 0;
+		int docsAdded = 0;
 		if (null != added) {
-			nDocsAdded = added.size();
+			docsAdded = added.size();
 		}
-		update.put(MongoDbManager.inc_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, nDocsAdded - nDocsDeleted));
+		BasicDBObject incClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, docsAdded - nDocsDeleted);
+		update.put(MongoDbManager.inc_, incClause);
+		
+		if (null != source.getDistributionTokens()) { // Distribution logic (specified and also enabled - eg ignore Feed/DB)
+			updateHarvestDistributionState_tokenComplete(source, harvestStatus, incClause, setClause);
+		}
+		if (setClause.isEmpty()) { // (ie got removed by the distribution logic above)
+			update.remove(MongoDbManager.set_);
+		}//TESTED
 		
 		long nTotalDocsAfterInsert = 0;
 		BasicDBObject fieldsToReturn = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, 1);
@@ -430,10 +598,10 @@ public class SourceUtils {
 		// (OK now the only thing we really had to do is complete, add some handy metadata)
 
 		// Also update the document count table in doc_metadata:
-		if (nDocsAdded > 0) {
+		if (docsAdded > 0) {
 			if (1 == source.getCommunityIds().size()) { // (simple/usual case, just 1 community)
 				query = new BasicDBObject(DocCountPojo._id_, source.getCommunityIds().iterator().next());
-				update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, nDocsAdded - nDocsDeleted));		
+				update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, docsAdded - nDocsDeleted));		
 				DbManager.getDocument().getCounts().update(query, update, true, false);
 			}
 			else if (!source.getCommunityIds().isEmpty()) { // Complex case since docs can belong to diff communities (but they're usually somewhat grouped)
@@ -569,5 +737,116 @@ public class SourceUtils {
 			}
 		}		
 		return _harvestHostname;
-	}//TOTEST	
+	}//TESTED
+
+
+	////////////////////////////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////////////////////////////
+
+	// DISTRIBUTION UTILITIES
+	
+	//
+	// Update the distibution state BEFORE the source is processed
+	// (note can set in here because currently the status is in_process so no other threads can touch it)
+	//	
+	
+	private static void updateHarvestDistributionState_newToken(ObjectId sourceId, int distributionTokensFree, HarvestEnum harvestStatus, boolean bResetOldState) {
+		BasicDBObject query = new BasicDBObject(SourcePojo._id_, sourceId);
+		BasicDBObject setClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_distributionTokensFree_, distributionTokensFree);
+		if (bResetOldState) {
+			setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, 0);
+			setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, false); 
+		}//TESTED
+		setClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
+		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, setClause);
+		MongoDbManager.getIngest().getSource().update(query, update, false, false);
+		
+		//DEBUG
+		//System.out.println(" NEW_TOKEN=" + query.toString() + " / " + update.toString());
+
+	}//TESTED
+	
+	//
+	// Update the distibution state AFTER the source is processed
+	// (note can set here if source is complete because that means no other thread can have control)
+	// returns true if harvest is complete
+	//	
+	// NOTE this isn't called if an error occurs during the ingest cycle (which is where almost all the errors are called)
+	// as a result, the source will linger with incomplete/unavailable tokens until it's seen by the getDistributedSourceList
+	// again - normally this will be quick because the sources keep getting put back on the uncheckedList
+	//
+	
+	private static boolean updateHarvestDistributionState_tokenComplete(SourcePojo source, HarvestEnum harvestStatus, BasicDBObject incClause, BasicDBObject setClause) {
+		
+		// Update tokens complete, and retrieve modified version 
+		int nTokensToBeCleared = source.getDistributionTokens().size(); 
+		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
+		BasicDBObject fields = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, nTokensToBeCleared);
+		BasicDBObject modify = new BasicDBObject(MongoDbManager.inc_, fields.clone());
+		fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);		
+		fields.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, 1);		
+		BasicDBObject partial = (BasicDBObject) MongoDbManager.getIngest().getSource().findAndModify(query, fields, null, false, modify, true, false);
+			//(return new version - ensures previous increments have been taken into account)
+		
+		// Two cases: source complete (all tokens obtained), source incomplete:
+		
+		if (null != partial) { // (else yikes!)
+			BasicDBObject partialStatus = (BasicDBObject) partial.get(SourcePojo.harvest_);
+			if (null != partialStatus) { // (else yikes!)
+				int nTokensComplete = partialStatus.getInt(SourceHarvestStatusPojo.distributionTokensComplete_, 0); 
+					// (note after increment)
+				
+				// COMPLETE: reset parameters, status -> error (if anything has errored), success (all done), success_iteration (more to do)
+				
+				if (nTokensComplete == source.getDistributionFactor()) {
+					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, 0);
+					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensFree_, source.getDistributionFactor());
+					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, false); // (resetting this)
+					// This source is now complete
+					String status = partialStatus.getString(SourceHarvestStatusPojo.harvest_status_, null);
+					Boolean reachedLimit = partialStatus.getBoolean(SourceHarvestStatusPojo.distributionReachedLimit_, false) || source.reachedMaxDocs();
+
+					if ((null != status) 
+							&& ((status.equalsIgnoreCase(HarvestEnum.error.toString()) || (HarvestEnum.error == harvestStatus))))
+					{
+						setClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString());
+					}//TESTED (current and previous state == error)
+					else if (reachedLimit || (HarvestEnum.success_iteration == harvestStatus)) {
+						
+						setClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.success_iteration.toString());							
+					}//TESTED (from previous or current state)
+						
+					// (else leave with default of success)
+					
+					//DEBUG
+					//System.out.println(Thread.currentThread().getName() + " COMPLETE_SRC COMPLETE_TOKEN=" + source.getKey() + " / " + setClause.toString() + " / " + incClause.toString() + " / " + nTokensComplete);
+					
+					return true;
+					
+				}//TESTED
+				else { // Not complete
+					
+					// If we're here then we're only allowed to update the status to error
+					if (HarvestEnum.error != harvestStatus) {
+						setClause.remove(SourceHarvestStatusPojo.sourceQuery_harvest_status_);
+					}//TESTED
+					if (source.reachedMaxDocs()) {
+						setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, true);
+					}//TESTED
+
+					//DEBUG
+					//System.out.println(Thread.currentThread().getName() + " COMPLETE_TOKEN=" + source.getKey() + " / " + setClause.toString() + " / " + incClause.toString() + " / " + nTokensComplete);
+					
+					return false;
+					
+				}//(end is complete or not)
+				//TESTED (reached max limit)
+				
+			}//(end found partial source status, else catastrophic failure)
+		}//(end found partial source, else catastrophic failure)
+				
+		return false;
+		
+	}//TESTED
+	
 }

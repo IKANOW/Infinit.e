@@ -1,0 +1,103 @@
+[
+    {
+        "web": {
+            "waitTimeOverride_ms": 0,
+            "extraUrls": [
+                {
+                    "description": "Dummy doc 1 12345",
+                    "title": "Dummy doc 1 abcde",
+                    "url": "http://alex.com",
+                    "fullText": "The quick brown fox jumped over the SOMETHING dog"
+                }
+            ]
+        },
+        "display": "Dummy text test"
+    },
+    {
+        "text": [
+            {
+                "scriptlang": "regex",
+                "script": "abcde",
+                "replacement": "replaced_title",
+                "fieldName": "title"
+            },
+            {
+                "scriptlang": "regex",
+                "script": "12345",
+                "replacement": "replaced_desc",
+                "fieldName": "description"
+            },
+            {
+                "scriptlang": "regex",
+                "script": "something",
+                "replacement": "LAZY",
+                "flags": "i",
+                "fieldName": "fullText"
+            }
+        ],
+        "display": "Regex string replacement tests"
+    },
+    {
+        "contentMetadata": [
+            {
+                "scriptlang": "regex",
+                "script": "quick (brown fox)",
+                "fieldName": "myMetadata",
+                "replace": "$1"
+            }
+        ],
+        "display": "Metadata generation via regex"
+    },
+    {
+        "display": "",
+        "entities": [
+            {
+                "disambiguated_name": ".",
+                "iterateOver": "myMetadata",
+                "dimension": "What",
+                "type": "Entity1"
+            },
+            {
+                "disambiguated_name": "$metadata.myMetadata",
+                "type": "Entity2",
+                "dimension": "Who"
+            }
+        ]
+    },
+    {
+        "display": "",
+        "entities": [
+            {
+                "disambiguated_name": "$metadata.myMetadata",
+                "type": "Entity3",
+                "dimension": "Where",
+                "actual_name": "$title"
+            }
+        ]
+    },
+    {
+        "display": "",
+        "associations": [
+            {
+                "assoc_type": "Fact",
+                "verb": "assoc1",
+                "verb_category": "assoc1",
+                "entity1": "Entity1",
+                "iterateOver": "entity1/entity2",
+                "entity2": "Entity2"
+            }
+        ]
+    },
+    {
+        "display": "",
+        "associations": [
+            {
+                "entity2_index": "$metadata.myMetadata/entity2",
+                "assoc_type": "Event",
+                "entity1_index": "$metadata.myMetadata/entity3",
+                "verb": "assoc2",
+                "verb_category": "assoc2"
+            }
+        ]
+    }
+]

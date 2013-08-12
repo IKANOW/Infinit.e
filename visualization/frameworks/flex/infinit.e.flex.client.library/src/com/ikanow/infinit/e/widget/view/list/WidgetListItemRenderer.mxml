@@ -35,6 +35,9 @@
 			import com.ikanow.infinit.e.shared.model.constant.WidgetConstants;
 			import com.ikanow.infinit.e.shared.model.manager.NavigationManager;
 			import com.ikanow.infinit.e.shared.model.vo.Widget;
+			import com.ikanow.infinit.e.widget.model.presentation.list.WidgetListModel;
+			
+			import mx.controls.Alert;
 			
 			override public function set data( value:Object ):void
 			{
@@ -50,6 +53,9 @@
 			
 			[Inject]
 			public var navigationManager:NavigationManager;
+			
+			[Inject]
+			public var model:WidgetListModel;			
 			
 			[Bindable]
 			protected var widgetToolTip:String;
@@ -94,6 +100,13 @@
 				
 				invalidateDisplayList();
 			}
+			
+			protected function image1_ioErrorHandler(event:IOErrorEvent):void
+			{
+				var index:int = model.widgets.getItemIndex(data);
+				model.widgets.removeItemAt(index);
+			}
+			
 		]]>
 	</fx:Script>
 
@@ -103,6 +116,7 @@
 		height="160"
 		mask="{ imgMask }"
 		scaleMode="stretch"
+		 ioError="image1_ioErrorHandler(event)"
 		source="{ data.imageurl }">
 		<s:filters>
 			<s:DropShadowFilter 
