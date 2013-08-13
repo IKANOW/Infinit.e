@@ -47,9 +47,6 @@ Infinit.e harvesting and cleansing services
 	cd $RPM_BUILD_DIR/mnt/opt/infinite-home/lib/plugins
 	ln -s -f infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.hadoop.prototyping_engine.jar
 
-	# Install Hadoop prototyping engine
-	mongo custommr $RPM_BUILD_DIR/mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js || echo "Mongo not configured, couldn't load Hadoop Prototyping Engine"
-
 %post
 #
 # INSTALL *ONLY*
@@ -71,9 +68,9 @@ Infinit.e harvesting and cleansing services
 		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
 	fi
 
-#
-# INSTALL *AND* UPGRADE
-#	
+	# Install Hadoop prototyping engine
+	mongo custommr /mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js || echo "Mongo not configured, couldn't load Hadoop Prototyping Engine"
+
 	# Handle relocation:
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 		echo "(Creating links from /opt to $RPM_INSTALL_PREFIX)"
