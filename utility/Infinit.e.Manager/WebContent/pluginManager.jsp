@@ -656,7 +656,7 @@ limitations under the License.
 			
 			for ( jobPojo info : gm.data)
 			{
-				if (showAll == true || info.submitterID.equalsIgnoreCase(user))
+				if (showAll == true || info.submitterID.equalsIgnoreCase(user) || info.jobtitle.equalsIgnoreCase("HadoopJavascriptTemplate"))
 				{						
 					String value1 = URLEncoder.encode(new Gson().toJson(info), charset);
 					toReturn1 += "<option value=\""+value1+"\" > <b>Edit:</b> " + info.jobtitle + "</option>";
