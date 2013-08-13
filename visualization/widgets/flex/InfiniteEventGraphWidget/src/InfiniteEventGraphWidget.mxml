@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   Copyright 2012, The Infinit.e Open Source Project
+Copyright 2012, The Infinit.e Open Source Project
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 <components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
-	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
-	xmlns:components1="components.*"
-	xmlns:layouterControls="org.un.cava.birdeye.ravis.components.ui.controls.layouterControls.*"
-	xmlns:vgraphControls="org.un.cava.birdeye.ravis.components.ui.controls.vgraphControls.*"
-	xmlns:visual="org.un.cava.birdeye.ravis.enhancedGraphLayout.visual.*"
-	xmlns:s="library://ns.adobe.com/flex/spark"
-	xmlns:mx="library://ns.adobe.com/flex/mx"
-	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
-	currentState="nodata"
-	creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:components1="components.*"
+						 xmlns:layouterControls="org.un.cava.birdeye.ravis.components.ui.controls.layouterControls.*"
+						 xmlns:vgraphControls="org.un.cava.birdeye.ravis.components.ui.controls.vgraphControls.*"
+						 xmlns:visual="org.un.cava.birdeye.ravis.enhancedGraphLayout.visual.*"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 currentState="nodata"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 	<fx:Style source="com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 	<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
@@ -252,12 +252,6 @@
 						if ( loadedQuery )
 							doneChangingFilter(null);
 					}
-					if(this.widgetOptions.filterOptionsIndex)
-					{
-						filterOptions.selectedIndex = this.widgetOptions.filterOptionsIndex;
-						if ( loadedQuery && ( visibleEvents.length > 0 ) )
-							filterOptions_changeHandler(null);
-					}
 					if(null != this.widgetOptions.optionsVisible)
 					{
 						optionsToggleButton.selected = this.widgetOptions.optionsVisible;
@@ -353,7 +347,7 @@
 					currentState = "dataviewOptionsVisible";
 				else
 					currentState = "dataviewOptionsHidden";
-
+				
 				currentResultSet_facts = _context.getQuery_AllResults();
 				currentResultSet_events = _context.getQuery_AllResults();
 				
@@ -366,7 +360,7 @@
 				
 				if ( null == this.widgetOptions.evtSliderValue ) // (else have saved options, use them)
 					evtSlider.value = 10;
-
+				
 				doneChangingFilter(null); // renders the graph
 			}
 			
@@ -383,7 +377,6 @@
 				if (null != this.vgraph)
 				{
 					saveOptions.buttonbarIndex = dataOptionsList.selectedIndex;
-					saveOptions.filterOptionsIndex = filterOptions.selectedIndex;
 					saveOptions.regexFilter = regexFilter.text;
 					saveOptions.optionsToggleButtonSelected = optionsToggleButton.selected;
 					saveOptions.evtSliderValue = evtSlider.value;
@@ -854,7 +847,7 @@
 				}
 				this.changeGraphSelection(); //cause graph to redraw
 			}
-
+			
 			private function drawGraph( xmlData:XML ):void
 			{
 				graph = new org.un.cava.birdeye.ravis.graphLayout.data.Graph( "XMLAsDocsGraph", false, xmlData );
@@ -994,7 +987,7 @@
 			
 			private function removeOldGraph():void
 			{
-			
+				
 			}
 			
 			/**
@@ -1096,21 +1089,21 @@
 		]]>
 	</fx:Script>
 	<fx:Declarations>
-
+		
 	</fx:Declarations>
-
+	
 	<!-- States -->
 	<components:states>
 		<s:State name="dataviewOptionsHidden"
-			stateGroups="dataSates" />
+				 stateGroups="dataSates" />
 		<s:State name="dataviewOptionsVisible"
-			stateGroups="dataSates" />
+				 stateGroups="dataSates" />
 		<s:State name="nodata" />
 	</components:states>
-
+	
 	<!-- Transitions -->
 	<components:transitions>
-
+		
 		<s:Transition 
 			autoReverse="true"
 			fromState="dataviewOptionsHidden"
@@ -1125,41 +1118,41 @@
 				<s:Move target="{ widgetOptionsGroup }" />
 			</s:Parallel>
 		</s:Transition>
-
+		
 	</components:transitions>
-
+	
 	<!-- Header -->
 	<components:headerContent>
-
+		
 		<s:HGroup gap="-3">
-
+			
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
-				toolTip="Ignore Workspace Filtering - Show All Results"
-				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
-
+													   toolTip="Ignore Workspace Filtering - Show All Results"
+													   click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+			
 			<!-- Filter Options Drop Down List -->
 			<components:WidgetPromptDropDownList id="filterOptions"
-				selectedIndex="-1"
-				width="82"
-				change="setTimeout( filterOptions_changeHandler, 100, event )"
-				listWidth="134"
-				prompt="Filter">
+												 selectedIndex="-1"
+												 width="82"
+												 change="setTimeout( filterOptions_changeHandler, 100, event )"
+												 listWidth="134"
+												 prompt="Filter">
 				<components:dataProvider>
 					<s:ArrayList source="[Filter visible nodes]" />
 				</components:dataProvider>
 			</components:WidgetPromptDropDownList>
-
+			
 			<!-- View Options Drop Down List -->
 			<components:WidgetDropDownList id="dataOptionsList"
-				width="82"
-				selectedIndex="0"
-				change="setTimeout( dataOptionsList_changeHandler, 100, event )">
+										   width="82"
+										   selectedIndex="0"
+										   change="setTimeout( dataOptionsList_changeHandler, 100, event )">
 				<components:dataProvider>
 					<s:ArrayList source="[All,Events,Facts]" />
 				</components:dataProvider>
 			</components:WidgetDropDownList>
-
+			
 			<!-- regex filtering box -->
 			<s:HGroup 
 				height="100%"
@@ -1169,56 +1162,56 @@
 				paddingTop="2"
 				verticalAlign="middle">
 				<components:WidgetTextInput id="regexFilter"
-					width="100"
-					toolTip="Enter a regex string to filter entities on name or type"
-					change="onChangeEntityFilter(event)"
-					prompt="Show only:" />
+											width="100"
+											toolTip="Enter a regex string to filter entities on name or type"
+											change="onChangeEntityFilter(event)"
+											prompt="Show only:" />
 			</s:HGroup>
-
+			
 			<!-- options -->
 			<components:WidgetOptionsToggleButton id="optionsToggleButton"
-				toolTip.dataviewOptionsHidden="Options"
-				change="optionsToggleButton_changeHandler(event)" />
+												  toolTip.dataviewOptionsHidden="Options"
+												  change="optionsToggleButton_changeHandler(event)" />
 		</s:HGroup>
-
-
+		
+		
 	</components:headerContent>
-
+	
 	<!-- Graph -->
 	<s:Group 
 		height="100%"
 		width="100%"
 		includeIn="dataSates">
-
+		
 		<s:Group id="vgraphGroup"
-			width="100%"
-			height="100%">
+				 width="100%"
+				 height="100%">
 			<visual:EnhancedVisualGraph id="vgraph"
-				width="100%"
-				height="100%"
-				 edgeRollOver="vgraph_edgeRollOverHandler(event)"
-				 edgeRollOut="vgraph_edgeRollOutHandler(event)"
-				backgroundColor="#F4F4F4"
-				resize="vgraph.draw(VisualGraph.DF_RESET_LL)"
-				alpha="1"				  
-				 mouseDown="vgraph_mouseDownHandler(event)"
-				edgeLabelRenderer="actionscript.EdgeLabelTooltipRenderer"
-				itemRenderer="actionscript.AlphaCircleNodeRenderer"
-				visibilityLimitActive="true"
-				visible="true">
+										width="100%"
+										height="100%"
+										edgeRollOver="vgraph_edgeRollOverHandler(event)"
+										edgeRollOut="vgraph_edgeRollOutHandler(event)"
+										backgroundColor="#F4F4F4"
+										resize="vgraph.draw(VisualGraph.DF_RESET_LL)"
+										alpha="1"				  
+										mouseDown="vgraph_mouseDownHandler(event)"
+										edgeLabelRenderer="actionscript.EdgeLabelTooltipRenderer"
+										itemRenderer="actionscript.AlphaCircleNodeRenderer"
+										visibilityLimitActive="true"
+										visible="true">
 			</visual:EnhancedVisualGraph>
 		</s:Group>
-
+		
 		<!-- Options -->
 		<components:WidgetOptionsGroup id="widgetOptionsGroup"
-			width="100%"
-			height="60"
-			y="-60"
-			y.dataviewOptionsVisible="0"
-			horizontalCenter="0"
-			alpha="0"
-			alpha.dataviewOptionsVisible="1"
-			mouseEnabled="{ optionsToggleButton.selected }">
+									   width="100%"
+									   height="60"
+									   y="-60"
+									   y.dataviewOptionsVisible="0"
+									   horizontalCenter="0"
+									   alpha="0"
+									   alpha.dataviewOptionsVisible="1"
+									   mouseEnabled="{ optionsToggleButton.selected }">
 			<components:layout>
 				<s:HorizontalLayout 
 					horizontalAlign="center"
@@ -1229,29 +1222,29 @@
 					verticalAlign="middle" />
 			</components:layout>
 			<s:VGroup id="evtContainer"
-				horizontalAlign="center"
-				verticalAlign="middle"
-				gap="5">
+					  horizontalAlign="center"
+					  verticalAlign="middle"
+					  gap="5">
 				<s:Label id="percentile"
-					text="Showing Top 10 events"
-					fontWeight="bold" />
+						 text="Showing Top 10 events"
+						 fontWeight="bold" />
 				<s:HGroup 
 					width="100%"
 					horizontalAlign="center"
 					verticalAlign="middle">
 					<s:Label id="minEvt"
-						text="0"
-						fontSize="9" />
+							 text="0"
+							 fontSize="9" />
 					<s:HSlider id="evtSlider"
-						snapInterval="1"
-						stepSize="5"
-						minimum="0"
-						maximum="100"
-						value="10"
-						change="updateEventsShown(event)" />
+							   snapInterval="1"
+							   stepSize="5"
+							   minimum="0"
+							   maximum="100"
+							   value="10"
+							   change="updateEventsShown(event)" />
 					<s:Label id="maxEvt"
-						text="100"
-						fontSize="9" />
+							 text="100"
+							 fontSize="9" />
 				</s:HGroup>
 			</s:VGroup>
 			<mx:Spacer width="5" />
@@ -1268,9 +1261,9 @@
 					text="Rank By"
 					fontWeight="bold" />
 				<s:DropDownList id="edgeRankDropDown"
-					selectedIndex="0"
-					height="25"
-					change="edgeRankDropDown_changeHandler(event)">
+								selectedIndex="0"
+								height="25"
+								change="edgeRankDropDown_changeHandler(event)">
 					<s:ArrayCollection>
 						<fx:String>Significance</fx:String>
 						<fx:String>Doc Count</fx:String>
@@ -1279,9 +1272,9 @@
 			</s:VGroup>
 			<!--<layouterControls:CommonLayoutControls vgraph="{vgraph}" width="100%" color="black" />-->
 		</components:WidgetOptionsGroup>
-
+		
 	</s:Group>
-
+	
 	<!-- No Data -->
 	<s:VGroup 
 		width="100%"
@@ -1293,5 +1286,5 @@
 			text="No data, try running a query"
 			includeIn="nodata" />
 	</s:VGroup>
-
+	
 </components:WidgetModule>
