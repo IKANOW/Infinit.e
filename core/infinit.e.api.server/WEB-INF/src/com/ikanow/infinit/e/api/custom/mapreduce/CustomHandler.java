@@ -939,10 +939,12 @@ public class CustomHandler
 				}
 			}
 			else { // (no available timeslots - just save as is and let the px engine start it)
-				DbManager.getCustom().getLookup().save(job.toDb());							
-				
+				DbManager.getCustom().getLookup().save(job.toDb());											
 			}
 		}		
+		else { // still need to save the job
+			DbManager.getCustom().getLookup().save(job.toDb());														
+		}
 		
 	}//TESTED: (local mode on/off, quick mode on/off) //TESTED (local/quick, local/!quick)
 
