@@ -98,6 +98,9 @@ public class FileHarvester implements HarvesterInterface {
 	private Pattern includeRegex = null; // files only
 	private Pattern excludeRegex = null; // files and paths
 	
+	// Security:
+	private boolean harvestSecureMode = false;
+	
 	/**
 	 * Get a specific doc to return the bytes for
 	 * @throws Exception 
@@ -234,11 +237,13 @@ public class FileHarvester implements HarvesterInterface {
 			else if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 			{
 				// Local file: => must be admin to continue
-				if (source.getUrl().startsWith("file:")) {
-					if (!AuthUtils.isAdmin(source.getOwnerId())) {
-						throw new ExtractorSourceLevelMajorException("Permission denied");
+				if (harvestSecureMode) { // secure mode, must be admin
+					if (source.getUrl().startsWith("file:")) {
+						if (!AuthUtils.isAdmin(source.getOwnerId())) {
+							throw new ExtractorSourceLevelMajorException("Permission denied");
+						}
 					}
-				}//TODO (INF-2119): TOTEST
+				}//TODO (INF-2119): come up with something better than this...(this is at least consistent with SAH/UAH security, apart from allowing admin more rights)
 				file = InfiniteFile.create(source.getUrl());
 			}
 			else
@@ -271,6 +276,7 @@ public class FileHarvester implements HarvesterInterface {
 
 		PropertiesManager pm = new PropertiesManager();
 		maxDocsPerCycle = pm.getMaxDocsPerSource();
+		harvestSecureMode = pm.getHarvestSecurity();
 	}
 
 	// Process the doc
