@@ -94,14 +94,12 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	 * @return boolean (true/false)
 	 */
 	public boolean isDuplicate_UrlTitleDescription(String url, String title, String description, SourcePojo source, List<String> duplicateSources) {
-		BasicDBObject query = new BasicDBObject(DocumentPojo.url_, url);
 		// Removing title/desc match for now, we mandate that for a given source key there be a unique URL
+		return isDuplicate_Url(url, source, duplicateSources);
 		// TODO (INF-1890): Actually for RSS, changes in title/desc/pub date should result in updates occurring
 		//BasicDBObject orQuery1 = new BasicDBObject(DocumentPojo.title_, title);
 		//BasicDBObject orQuery2 = new BasicDBObject(DocumentPojo.description_, description);
 		//query.put(MongoDbManager.or_, Arrays.asList(orQuery1, orQuery2));		
-		
-		return duplicationLogic(query, source, duplicateSources);
 	}
 	
 	/**
@@ -115,7 +113,14 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, url);
 
-		return duplicationLogic(query, source, duplicateSources);
+		if (null != duplicateSources) {
+			return duplicationLogic(query, source, duplicateSources);
+		}
+		else {
+			query.put(DocumentPojo.sourceKey_, source.getKey());
+			BasicDBObject fields = new BasicDBObject(DocumentPojo._id_, 1);
+			return null != MongoDbManager.getDocument().getMetadata().findOne(query, fields);
+		}
 	}	
 
 	public ObjectId getLastDuplicateId() {

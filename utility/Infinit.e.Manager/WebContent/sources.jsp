@@ -664,7 +664,7 @@ function clock()
 	{ 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay %>');
+		alert('<%=messageToDisplay.replace("'", "\\'") %>');
 	</script>
 <% } %>
 
@@ -931,8 +931,8 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 			JSONArray communityIds = new JSONArray();
 			communityIds.put(communityId);
 			source.put("communityIds", communityIds);
-			sourceJson = source.toString(4);
 		} //TESTED
+		sourceJson = source.toString(4);
 
 		// Post the update to our rest API and check the results of the post
 		JSONObject json_response = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
@@ -959,16 +959,20 @@ private void publishSource(HttpServletRequest request, HttpServletResponse respo
 {
 	try 
 	{
+		JSONObject source = new JSONObject(sourceJson);
+		source.remove("title");
+		source.put("title", shareTitle.trim());
+		source.remove("description");
+		source.put("description", shareDescription.trim());
 		// CommunityID Array - Delete and replace with id from community id dropdown list
 		if (communityId.length() > 0)
 		{
-			JSONObject source = new JSONObject(sourceJson);
 			source.remove("communityIds");
 			JSONArray communityIds = new JSONArray();
 			communityIds.put(communityId);
 			source.put("communityIds", communityIds);
-			sourceJson = source.toString(4);
 		} //TESTED
+		sourceJson = source.toString(4);
 		
 		String sourceApiString = "config/source/save/" + communityId;
 		
@@ -1011,6 +1015,26 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 {
 	try 
 	{
+		JSONObject source = new JSONObject(sourceJson);
+		source.remove("title");
+		source.put("title", shareTitle.trim());
+		source.remove("description");
+		source.put("description", shareDescription.trim());
+
+		// Remove any non-functional things:
+		source.remove("_id");
+		source.remove("communityIds");
+		source.remove("created");
+		source.remove("harvest");
+		source.remove("harvestBadSource");
+		source.remove("isApproved");
+		source.remove("key");
+		source.remove("modified");
+		source.remove("ownerId");
+		source.remove("shah256Hash");
+		
+		sourceJson = source.toString(4);
+		
 		String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
 		String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
 		String apiAddress = "social/share/add/json/source_template/" + urlShareTitle + "/" + urlShareDescription;

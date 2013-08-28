@@ -702,7 +702,7 @@ private void clearForm()
 private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
 	StringBuffer communities = new StringBuffer();
-	TreeMultimap<String, String> listOfCommunities = getListOfAllNonPersonalCommunities(request, response);
+	TreeMultimap<String, String> listOfCommunities = getListOfAllCommunities(request, response);
 	
 	if (listOfCommunities.size() > 0)
 	{

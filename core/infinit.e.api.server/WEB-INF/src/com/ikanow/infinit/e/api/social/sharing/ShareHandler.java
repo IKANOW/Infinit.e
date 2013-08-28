@@ -485,20 +485,29 @@ public class ShareHandler
 					return rp;					
 				}
 
+				if (!bAdminOrModOfAllCommunities) { // quick check whether I'm admin on-request - if so can endorse
+					bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr, false);
+				}//TESTED
+				
 				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
 				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
-					if (null == share.getEndorsed()) {
+					if (null == share.getEndorsed()) { // fill this with all allowed communities
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().add(comm.get_id());
+							}
+						}
 					}//TESTED
-					for (ShareCommunityPojo comm: share.getCommunities()) {
-						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
-							share.getEndorsed().add(comm.get_id());
-						}//TESTED
-						else {
-							share.getEndorsed().remove(comm.get_id());
-						}//TESTED						
-					}//TESTED
+					else {
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							// (leave it as is except remove anything that I can't endorse)
+							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().remove(comm.get_id());
+							}					
+						}
+					}//TESTED	
 				}//TESTED
 				else {
 					if (null == share.getEndorsed()) { // fill this with all communities
@@ -597,20 +606,29 @@ public class ShareHandler
 					return rp;					
 				}
 				
+				if (!bAdminOrModOfAllCommunities) { // quick check whether I'm admin on-request - if so can endorse
+					bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr, false);
+				}//TESTED
+								
 				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
 				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
-					if (null == share.getEndorsed()) {
+					if (null == share.getEndorsed()) { // fill this with all allowed communities
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().add(comm.get_id());
+							}
+						}
 					}//TESTED
-					for (ShareCommunityPojo comm: share.getCommunities()) {
-						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
-							share.getEndorsed().add(comm.get_id());
-						}//TESTED
-						else {
-							share.getEndorsed().remove(comm.get_id());
-						}//TESTED						
-					}//TESTED
+					else {
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							// (leave it as is except remove anything that I can't endorse)
+							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().remove(comm.get_id());
+							}					
+						}
+					}//TESTED	
 				}//TESTED
 				else {
 					if (null == share.getEndorsed()) { // fill this with all communities
@@ -766,20 +784,29 @@ public class ShareHandler
 					return rp;					
 				}
 				
+				if (!bAdminOrModOfAllCommunities) { // quick check whether I'm admin on-request - if so can endorse
+					bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr, false);
+				}//TESTED
+								
 				// Remove endorsements unless I'm admin (if I'm not admin I must be owner...)
 				if (!bAdminOrModOfAllCommunities) { // Now need to check if I'm admin/mod/content publisher for each community..
-					if (null == share.getEndorsed()) {
+					if (null == share.getEndorsed()) { // fill this with all allowed communities
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().add(comm.get_id());
+							}
+						}
 					}//TESTED
-					for (ShareCommunityPojo comm: share.getCommunities()) {
-						if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
-							share.getEndorsed().add(comm.get_id());
-						}//TESTED
-						else {
-							share.getEndorsed().remove(comm.get_id());
-						}//TESTED						
-					}//TESTED
+					else {
+						for (ShareCommunityPojo comm: share.getCommunities()) {
+							// (leave it as is except remove anything that I can't endorse)
+							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+								share.getEndorsed().remove(comm.get_id());
+							}					
+						}
+					}//TESTED	
 				}//TESTED
 				else {
 					if (null == share.getEndorsed()) { // fill this with all communities
@@ -848,10 +875,10 @@ public class ShareHandler
 
 			// Do I have permission to do any endorsing?
 			// I can be:
-			// Admin
+			// Admin (or admin on request, regardless of enabled state)
 			// Community owner
 			// Community moderator
-			boolean bAdmin = RESTTools.adminLookup(personIdStr);
+			boolean bAdmin = RESTTools.adminLookup(personIdStr, false);
 			if (!bAdmin) {
 				if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, personIdStr))  {	
 					rp.setResponse(new ResponseObject("Share", false, "Unable to endorse share: insufficient permissions"));
@@ -990,7 +1017,7 @@ public class ShareHandler
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // user's personal community always endorsed
 					}//TESTED
-					boolean bAdmin = RESTTools.adminLookup(ownerIdStr);
+					boolean bAdmin = RESTTools.adminLookup(ownerIdStr, false); // (can be admin-on-request and not enabled, the bar for endorsing is pretty low)
 					if (bAdmin || CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
 						share.getEndorsed().add(cp.get_id());
 					}

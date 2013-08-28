@@ -36,11 +36,11 @@ public class AuthUtils {
 					else if (ap.getAccountType().equalsIgnoreCase("admin-enabled")) {
 						return true; // (these are offline so always allow this also)
 					}
-				}//TOTEST (INF-2025)
+				}//TESTED
 			}
 			return false;
 		}
 		catch (Exception e) {} // fail out and return false
 		return false;
-	}
+	}//TODO (???): odd, in AMI test with harvester checking every minute, intermittently appeared to fail - not clear why
 }

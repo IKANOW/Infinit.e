@@ -31,10 +31,8 @@ package com.ikanow.infinit.e.community.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
-	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
-	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -72,7 +70,7 @@ package com.ikanow.infinit.e.community.model.manager
 		
 		[Bindable]
 		/**
-		 * The selected/highlighted source in the 
+		 * The selected/highlighted source in the
 		 * sources list
 		 */
 		public var selectedSource:Source;
@@ -122,6 +120,30 @@ package com.ikanow.infinit.e.community.model.manager
 		//======================================
 		// public methods 
 		//======================================
+		
+		/**
+		 * Get Sources Good
+		 */
+		public function getSourcesGood():void
+		{
+			var communityIDs:String = Constants.BLANK;
+			
+			for each ( var community:Community in communities )
+			{
+				if ( community.isUserMember )
+				{
+					if ( communityIDs != Constants.BLANK )
+						communityIDs += Constants.COMMA;
+					
+					communityIDs += community._id;
+				}
+			}
+			
+			var sourceEvent:SourceEvent = new SourceEvent( SourceEvent.GET_SOURCES_GOOD );
+			sourceEvent.communityIDs = communityIDs;
+			sourceEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'sourceService.getSourcesGood' ) );
+			dispatcher.dispatchEvent( sourceEvent );
+		}
 		
 		/**
 		 * Join Community result handler
@@ -223,7 +245,7 @@ package com.ikanow.infinit.e.community.model.manager
 			processCommunities();
 			
 			// get the sources
-			if ( value )
+			if ( value && currentUser )
 				getSourcesGood();
 		}
 		
@@ -291,30 +313,6 @@ package com.ikanow.infinit.e.community.model.manager
 		//======================================
 		// protected methods 
 		//======================================
-		
-		/**
-		 * Get Sources Good
-		 */
-		public function getSourcesGood():void
-		{
-			var communityIDs:String = Constants.BLANK;
-			
-			for each ( var community:Community in communities )
-			{
-				if ( community.isUserMember )
-				{
-					if ( communityIDs != Constants.BLANK )
-						communityIDs += Constants.COMMA;
-					
-					communityIDs += community._id;
-				}
-			}
-			
-			var sourceEvent:SourceEvent = new SourceEvent( SourceEvent.GET_SOURCES_GOOD );
-			sourceEvent.communityIDs = communityIDs;
-			sourceEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'sourceService.getSourcesGood' ) );
-			dispatcher.dispatchEvent( sourceEvent );
-		}
 		
 		/**
 		 * Creates the initial collection of selected communities from the current user

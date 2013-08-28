@@ -118,6 +118,12 @@ public class CommunityHandler
 				{
 					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
 					filterCommunityMembers(communities, isSysAdmin, userIdStr);
+					//add personal community
+					DBObject dbo = DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id",new ObjectId(userIdStr)));
+					if ( dbo != null )
+					{
+						communities.add(CommunityPojo.fromDb(dbo, CommunityPojo.class));
+					}
 					rp.setData(communities, new CommunityPojoApiMap());
 					rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));				
 				}

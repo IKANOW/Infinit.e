@@ -48,6 +48,8 @@ public class SourceSearchFeedConfigPojo {
 	private List<UnstructuredAnalysisConfigPojo.metaField> extraMeta = null; // For pre-generating other metadata to be used by "script" field (eg can use xpath)
 																				// Note the fieldname "searchEngineSubsystem" is reserved for the top-level (ie last to run) script
 	
+	private Boolean stopPaginatingOnDuplicate = null; // If true (default: false) then will stop paginating (or link following if no pagination set the first time it sees a duplicate record)
+	
 	// Getters and setters
 	
 	public String getUserAgent() {
@@ -133,6 +135,12 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public LinkedHashMap<String, String> getHttpFields() {
 		return httpFields;
+	}
+	public void setStopPaginatingOnDuplicate(Boolean stopPaginatingOnDuplicate) {
+		this.stopPaginatingOnDuplicate = stopPaginatingOnDuplicate;
+	}
+	public boolean getStopPaginatingOnDuplicate() {
+		return null == stopPaginatingOnDuplicate ? false : stopPaginatingOnDuplicate;
 	}
 	
 }

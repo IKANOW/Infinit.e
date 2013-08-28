@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
@@ -41,17 +42,16 @@ public class FeedHarvester_searchEngineSubsystem {
 
 	private static final Logger logger = Logger.getLogger(FeedHarvester_searchEngineSubsystem.class);
 	
-	private int maxDocsPerCycle = 1000; // (should never exceed this, anyway...)
+	private int maxDocsPerCycle = Integer.MAX_VALUE; // (should never exceed this, anyway...)
 	
 	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) {
 
 		if (context.isStandalone()) {
 			maxDocsPerCycle = context.getStandaloneMaxDocs();
 		}		
-		// Can override system settings if less:
-		if ((null != src.getThrottleDocs()) && (src.getThrottleDocs() < maxDocsPerCycle)) {
-			maxDocsPerCycle = src.getThrottleDocs();
-		}
+		// otherwise get everything and worry about max docs in the main feed harvester
+		// (probably slightly less efficient than checking duplicates here, but much simpler, can 
+		//  always change it later)
 		
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		
@@ -60,6 +60,11 @@ public class FeedHarvester_searchEngineSubsystem {
 		if ((null == feedConfig) || (null == searchConfig)) {
 			return;
 		}
+
+		// Now allowed to stop paginating on duplicate in success_iteration/error cases
+		if ((null == src.getHarvestStatus()) || (HarvestEnum.success != src.getHarvestStatus().getHarvest_status())) {
+			searchConfig.setStopPaginatingOnDuplicate(false);
+		}//TESTED		
 		
 		UnstructuredAnalysisConfigPojo savedUAHconfig = src.getUnstructuredAnalysisConfig(); // (can be null)
 		String savedUserAgent = feedConfig.getUserAgent();
@@ -76,7 +81,9 @@ public class FeedHarvester_searchEngineSubsystem {
 				if (null != itUrl.title) {
 					String dedupUrl = itUrl.url;
 					dedupSet.add(dedupUrl);
-					maxDocsPerCycle++; // (ensure we get as far as adding these)
+					if (maxDocsPerCycle != Integer.MAX_VALUE) {
+						maxDocsPerCycle++; // (ensure we get as far as adding these)
+					}
 				}
 			}
 		}//TESTED
@@ -114,7 +121,9 @@ public class FeedHarvester_searchEngineSubsystem {
 				if (0 == nIteratingDepth) {
 					if (null != urlPojo.title) { // Also harvest this
 						src.getRssConfig().getExtraUrls().add(urlPojo);
-						maxDocsPerCycle--; // (now added, can remove)
+						if (maxDocsPerCycle != Integer.MAX_VALUE) {
+							maxDocsPerCycle--; // (now added, can remove)
+						}
 					}
 				}
 				currTitle = urlPojo.title;
@@ -152,8 +161,16 @@ public class FeedHarvester_searchEngineSubsystem {
 					
 				}//TESTED
 	
-				for (int nPage = 0; nPage < nMaxPages; ++nPage) {
-					if (dedupSet.size() >= maxDocsPerCycle) {
+				// Page limit check (see also nLinksFound/nCurrDedupSetSize inside loop)
+				int nMinLinksToExitLoop = 10; // (use to check one iteration past the point at which nothing happens)
+				
+				// If checking vs duplicates then have a flag to exit (note: only applies to the current URL)
+				boolean stopPaginating = false;
+				boolean stopLinkFollowing = false; 
+					// (if set to stop paginating but only link following occurs, assume this is treated like pagination, eg nextUrl sort of thing)
+				
+				for (int nPage = 0; nPage < nMaxPages; ++nPage) {										
+					if ((dedupSet.size() >= maxDocsPerCycle) || stopPaginating) {
 						break;
 					}
 					// Will use this to check if we reached a page limit (eg some sites will just repeat the same page over and over again)
@@ -261,9 +278,9 @@ public class FeedHarvester_searchEngineSubsystem {
 										link.description = linkDesc;
 										link.publishedDate = linkPubDate;
 										link.fullText = linkFullText;
-										if ((null != itUrls) && (null != spiderOut) && spiderOut.equalsIgnoreCase("true")) { 
+										if (!stopLinkFollowing && (null != itUrls) && (null != spiderOut) && spiderOut.equalsIgnoreCase("true")) { 
 											// In this case, add it back to the original list for chained processing
-											
+						
 											if (null == waitingList) {
 												waitingList = new LinkedList<ExtraUrlPojo>();
 											}
@@ -272,12 +289,26 @@ public class FeedHarvester_searchEngineSubsystem {
 											 	//  dedupSet.size() and only allow links not already in dedupSet)
 											
 										} //TESTED
+
 										if (null != linkTitle) {
 											
-											if (null == feedConfig.getExtraUrls()) {
-												feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+											boolean isDuplicate = false;
+											if (!stopPaginating && searchConfig.getStopPaginatingOnDuplicate()) {
+												// Quick duplicate check (full one gets done later)
+												isDuplicate = context.getDuplicateManager().isDuplicate_Url(linkUrl, src, null);
+											}//TESTED											
+											if (!isDuplicate) {
+												if (null == feedConfig.getExtraUrls()) {
+													feedConfig.setExtraUrls(new ArrayList<ExtraUrlPojo>(searchResults.length));
+												}
+												feedConfig.getExtraUrls().add(link);
 											}
-											feedConfig.getExtraUrls().add(link);											
+											else {
+												stopPaginating = true;
+												if (null == feedConfig.getSearchConfig().getPageChangeRegex()) {
+													stopLinkFollowing = true;
+												}//TESTED											
+											}//TESTED
 										}
 										
 									}
@@ -311,14 +342,32 @@ public class FeedHarvester_searchEngineSubsystem {
 						}
 					}//TESTED
 					
+					// PAGINGATION BREAK LOGIC:
+					// 1: All the links are duplicates of links already in the DB
+					// 2: No new links from last page
+					
+					// LOGIC CASE 1: (All the links are duplicates of links already in the DB)
+					 
+					//(already handled above)
+					
+					// LOGIC CASE 2: (No new links from last page)
+					
 					//DEBUG
 					//System.out.println("LINKS_SIZE=" + feedConfig.getExtraUrls().size());
 					//System.out.println("LINKS=\n"+new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(feedConfig.getExtraUrls()));
-									
-					if ((nLinksFound >= 10) && (dedupSet.size() == nCurrDedupSetSize)) { // Found links and all of them were duplicate
+							
+					if (dedupSet.size() == nCurrDedupSetSize) { // All links were duplicate
 						//DEBUG
-						//System.out.println("FOUND " + nLinksFound + " duplicate URLs (" + nCurrDedupSetSize + ")");
-						break;
+						//System.out.println("FOUND " + nLinksFound + " vs " + nMinLinksToExitLoop + " duplicate URLs (" + nCurrDedupSetSize + ")");
+						if (nLinksFound >= nMinLinksToExitLoop) { // (at least 10 found so insta-quit)
+							break;							
+						}
+						else { // (fewer than 10 found - includ
+							nMinLinksToExitLoop = 0; // (also handles the no links found case)
+						}
+					}//TESTED
+					else {
+						nMinLinksToExitLoop = 10; // (reset)
 					}//TESTED
 					
 				}// end loop over pages

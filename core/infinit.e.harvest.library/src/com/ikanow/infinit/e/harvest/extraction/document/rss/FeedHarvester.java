@@ -422,7 +422,10 @@ public class FeedHarvester implements HarvesterInterface
 	
 				if ( null != entry.getLink() ) //if url returns null, skip this entry
 				{
-					String url = this.cleanUrlStart(entry.getLink());
+					String url = entry.getLink();
+					if ((nSyndEntries <= nRealSyndEntries) || (null == entry.getSource())) { // (else URL can be what it wants)
+						url = this.cleanUrlStart(entry.getLink());
+					}
 
 					// Intra-source distribution logic:
 					if ((null != source.getDistributionTokens()) && (null != source.getDistributionFactor())) {
@@ -546,7 +549,7 @@ public class FeedHarvester implements HarvesterInterface
 							if ((null != dupModDate) && (null != dupId)) {
 								if (dupModDate.getTime() + source.getRssConfig().getUpdateCycle_secs()*1000 < nNow) {
 									
-									DocumentPojo doc = buildDocument(entry, source, duplicateSources);
+									DocumentPojo doc = buildDocument(url, entry, source, duplicateSources);
 									if ((nSyndEntries > nRealSyndEntries) && (null != entry.getSource())) {
 										// (Use dummy TitleEx to create a "fake" full text block)
 										doc.setFullText(entry.getSource().getDescription());
@@ -563,7 +566,7 @@ public class FeedHarvester implements HarvesterInterface
 						}//TESTED (duplicates we update instead of ignoring)
 						
 						if (!duplicate) {
-							DocumentPojo doc = buildDocument(entry, source, duplicateSources);
+							DocumentPojo doc = buildDocument(url, entry, source, duplicateSources);
 							if ((nSyndEntries > nRealSyndEntries) && (null != entry.getSource())) {
 								// (Use dummy TitleEx to create a "fake" full text block)
 								doc.setFullText(entry.getSource().getDescription());
@@ -594,15 +597,12 @@ public class FeedHarvester implements HarvesterInterface
 		} 
 	}
 
-	private DocumentPojo buildDocument(SyndEntry entry, SourcePojo source, LinkedList<String> duplicateSources) {
-
-		String tmpURL = this.cleanUrlStart(entry.getLink().toString()); 
-		// (can't return null because called from code which checks this)
+	private DocumentPojo buildDocument(String cleansedUrl, SyndEntry entry, SourcePojo source, LinkedList<String> duplicateSources) {
 
 		// create the feed pojo
 		DocumentPojo doc = new DocumentPojo();
 
-		doc.setUrl(tmpURL);
+		doc.setUrl(cleansedUrl);
 		doc.setCreated(new Date());
 		doc.setModified(new Date());
 

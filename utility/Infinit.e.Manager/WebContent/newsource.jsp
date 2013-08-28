@@ -23,6 +23,9 @@ limitations under the License.
 	String logoutAction = "";
 
 	//
+	String templateShareId = "";
+	String sourceUpdateTemplateButton = "style=\"display: none\";";
+
 	String shareid = "";
 	String sourceJson = "";
 	String communityId = "";
@@ -90,11 +93,20 @@ limitations under the License.
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
 		if (request.getParameter("selectTemplate") != null) action = request.getParameter("selectTemplate");
 		if (request.getParameter("saveSource") != null) action = "saveSource";
+		if (request.getParameter("updateTemplate") != null) action = "updateTemplate";
 		
 		try
 		{
 
 			// Read in values from the edit form
+			templateShareId = (request.getParameter("templateShareId") != null) ? request.getParameter("templateShareId") : "";
+			if (templateShareId.length() > 0) {
+				sourceUpdateTemplateButton = "";
+			}
+			else {
+				sourceUpdateTemplateButton = "style=\"display: none\";";
+			}
+			
 			shareid = (request.getParameter("shareid") != null) ? request.getParameter("shareid") : "";
 			communityId = (request.getParameter("Community_ID") != null) ? request.getParameter("Community_ID") : "";
 			shareTitle = "Title";
@@ -107,6 +119,9 @@ limitations under the License.
 			
 			if (action.equals("selectTemplate")) 
 			{
+				templateShareId = "";
+				sourceUpdateTemplateButton = "style=\"display: none\";";
+
 				if (selectedSourceTemplate.equals("rss")) 
 				{
 					sourceJson = new JSONObject(starterSourceString_rss).toString(4);
@@ -141,7 +156,12 @@ limitations under the License.
 				}
 				else {
 					sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
+					sourceUpdateTemplateButton = "";
+					templateShareId = selectedSourceTemplate;
 				}
+			}
+			else if (action.equals("updateTemplate")) {
+				updateTemplate(request, response);
 			}
 			else if (action.equals("saveSource")) 
 			{
@@ -315,7 +335,7 @@ function clock()
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay %>');
+		alert('<%=messageToDisplay.replace("'", "\\'") %>');
 	</script>
 <% } %>
 
@@ -355,7 +375,10 @@ function clock()
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">New Source</td>
-				<td align="right"><button onclick="return checkFormat(false)" name="saveSource" value="saveSource">Save Source</button></td>
+				<td align="right">
+					<button <%=  sourceUpdateTemplateButton %> onclick="return checkFormat(false) && confirm('Are you sure you want to update this template?')" name="updateTemplate" value="updateTemplate">Update Template</button>				
+					<button onclick="return checkFormat(false)" name="saveSource" value="saveSource">Save Source</button>
+				</td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white">
@@ -392,7 +415,7 @@ function clock()
 		
 		</div><!--  Right -->
 	</div><!-- lrSplitter -->
-	
+	<input type="hidden" name="templateShareId" id="templateShareId" value="<%=templateShareId%>"/>	
 	</form>
 	
 <!---------- CodeMirror JavaScripts ---------->
@@ -596,13 +619,15 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		
 		JSONObject source = new JSONObject(data.getString("share"));
 		source.remove("_id");
+		source.remove("communityIds");
 		source.remove("created");
-		source.remove("modified");
 		source.remove("harvest");
+		source.remove("harvestBadSource");
+		source.remove("isApproved");
 		source.remove("key");
+		source.remove("modified");
 		source.remove("ownerId");
 		source.remove("shah256Hash");
-		source.remove("communityIds");
 		
 		shareTitle = source.getString("title");
 		shareDescription = source.getString("description");
@@ -614,5 +639,55 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		return null;
 	}
 }
+
+//saveSourceAsTemplate - 
+private void updateTemplate(HttpServletRequest request, HttpServletResponse response) 
+{
+	try 
+	{
+		if (validateFormFields() && validateSourceJson())
+		{
+			JSONObject source = new JSONObject(sourceJson);
+			source.remove("title");
+			source.put("title", shareTitle.trim());
+			source.remove("description");
+			source.put("description", shareDescription.trim());
+	
+			// Remove any non-functional things:
+			source.remove("_id");
+			source.remove("communityIds");
+			source.remove("created");
+			source.remove("harvest");
+			source.remove("harvestBadSource");
+			source.remove("isApproved");
+			source.remove("key");
+			source.remove("modified");
+			source.remove("ownerId");
+			source.remove("shah256Hash");
+			
+			sourceJson = source.toString(4);
+			
+			String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
+			String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
+			/**///Wrong way round doh
+			String apiAddress = "social/share/update/json/"+templateShareId+"/source_template/" + urlShareTitle + "/" + urlShareDescription;
+			JSONObject JSONresponse = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
+			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
+			{
+				messageToDisplay = "Success: " + JSONresponse.getString("message");
+			}
+			else
+			{
+				messageToDisplay = "Error: " + JSONresponse.getString("message");
+			}
+		}
+		
+	} 
+	catch (Exception e) 
+	{
+		messageToDisplay = "Error: " + e.getMessage() + " " + e.getStackTrace().toString();
+	}
+} //
+
 
 %>

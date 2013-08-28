@@ -32,10 +32,8 @@ package com.ikanow.infinit.e.community.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
-	
 	import flash.events.Event;
 	import flash.events.EventDispatcher;
-	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -250,7 +248,7 @@ package com.ikanow.infinit.e.community.model.manager
 			processCommunities();
 			
 			// get the sources
-			if ( value )
+			if ( value && currentUser )
 				getSourcesGood();
 		}
 		
@@ -432,6 +430,7 @@ package com.ikanow.infinit.e.community.model.manager
 					return true;
 				else if ( community.isPersonalCommunity )
 					return false;
+				
 				for each ( var userCommunity:Community in currentUser.communities )
 				{
 					if ( userCommunity._id == community._id )
@@ -459,6 +458,7 @@ package com.ikanow.infinit.e.community.model.manager
 				
 				// create the userCommunities collection and set properties
 				var tempCommList:ArrayCollection = new ArrayCollection();
+				
 				for each ( var community:Community in communities )
 				{
 					if ( isUserCommunity( community ) )
@@ -467,13 +467,13 @@ package com.ikanow.infinit.e.community.model.manager
 						community.selected = isCommunitySelected( community );
 						community.sortOrder = 0;
 						userCommunitiesNew.addItem( community );
-						tempCommList.addItem(community);
+						tempCommList.addItem( community );
 					}
 					else if ( isPublicCommunity( community ) )
 					{
 						community.isUserMember = false;
 						community.sortOrder = 1;
-						tempCommList.addItem(community);
+						tempCommList.addItem( community );
 					}
 				}
 				communities.source = tempCommList.source;
