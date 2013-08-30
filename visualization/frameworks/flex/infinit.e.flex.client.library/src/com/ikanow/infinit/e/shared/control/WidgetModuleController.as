@@ -67,6 +67,12 @@ package com.ikanow.infinit.e.shared.control
 			widgetModuleManager.loadWidget( widget, widgetUrl );
 		}
 		
+		[EventHandler( "WorkspaceEvent.REPLACE_WIDGET", properties = "widget" )]
+		public function handleWidgetReplaced( widget:Widget ):void
+		{
+			widgetModuleManager.unloadWidget( widget );
+		}
+		
 		[EventHandler( "WorkspaceEvent.REMOVE_WIDGET", properties = "widget" )]
 		public function handleWidgetUnloaded( widget:Widget ):void
 		{
