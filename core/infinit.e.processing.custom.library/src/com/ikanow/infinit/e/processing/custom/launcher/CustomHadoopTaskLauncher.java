@@ -316,9 +316,9 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			nSplits = oldQueryObj.getInt("$splits");
 			oldQueryObj.remove("$splits");
 		}
-		if (bLocalMode) { // If in local mode, then set this to infinity so we always run inside our limit/split version
+		if (bLocalMode) { // If in local mode, then set this to a large number so we always run inside our limit/split version
 			// (since for some reason MongoInputFormat seems to fail on large collections)
-			nSplits = Integer.MAX_VALUE;
+			nSplits = 10000000; // (10m)
 		}
 		if (oldQueryObj.containsField("$docsPerSplit")) {
 			nDocsPerSplit = oldQueryObj.getInt("$docsPerSplit");
