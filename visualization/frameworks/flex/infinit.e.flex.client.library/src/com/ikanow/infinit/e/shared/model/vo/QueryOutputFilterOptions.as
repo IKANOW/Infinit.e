@@ -61,9 +61,17 @@ package com.ikanow.infinit.e.shared.model.vo
 			entityTypes_cs = options.entityTypes_cs;
 			assocVerbs_cs = options.assocVerbs_cs;
 			
-			if ( ( null != entityTypes_cs ) && ( entityTypes_cs.length > 0 ) )
+			if ( null != entityTypes_cs)
 			{
-				entityTypes = entityTypes_cs.split( /\s*,\s*/ );
+				if ( entityTypes_cs.length > 0 )
+				{
+					entityTypes = entityTypes_cs.split( /\s*,\s*/ );				
+				}
+				else // There's just no filters to apply
+				{
+					entityTypes = null;
+					
+				}
 			}
 			else if ( null != options.entityTypes ) // Copying in other direction 
 			{
@@ -78,14 +86,17 @@ package com.ikanow.infinit.e.shared.model.vo
 					entityTypes_cs += entType;
 				}
 			}
-			else // There's just no filters to apply
-			{
-				entityTypes = null;
-			}
 			
-			if ( ( null != assocVerbs_cs ) && ( assocVerbs_cs.length > 0 ) )
+			if ( null != assocVerbs_cs)
 			{
-				assocVerbs = assocVerbs_cs.split( /\s*,\s*/ );
+				if ( assocVerbs_cs.length > 0 )
+				{
+					assocVerbs = assocVerbs_cs.split( /\s*,\s*/ );					
+				}
+				else // There's just no filters to apply
+				{
+					assocVerbs = null;					
+				}
 			}
 			else if ( null != options.assocVerbs ) // Copying in other direction 
 			{
@@ -99,10 +110,6 @@ package com.ikanow.infinit.e.shared.model.vo
 					}
 					assocVerbs_cs += assocVerb;
 				}
-			}
-			else // There's just no filters to apply
-			{
-				assocVerbs = null;
 			}
 		}
 		
@@ -118,8 +125,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			entityTypes = null;
 			assocVerbs = null;
-			entityTypes_cs = QueryAdvancedSettingsConstants.OUTPUT_FILTER_ENTTYPES;
-			assocVerbs_cs = QueryAdvancedSettingsConstants.OUTPUT_FILTER_ASSOCVERBS;
+			entityTypes_cs = null;
+			assocVerbs_cs = null;
 		}
 	}
 }

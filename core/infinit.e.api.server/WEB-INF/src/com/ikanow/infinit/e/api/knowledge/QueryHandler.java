@@ -31,7 +31,6 @@ import java.util.regex.Pattern;
 
 import org.apache.commons.lang.time.DateUtils;
 import org.apache.commons.lang.time.DateFormatUtils;
-
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.elasticsearch.action.search.SearchResponse;
@@ -1459,7 +1458,9 @@ public class QueryHandler {
 		boolean bFirstTerm = true;
 		BoolQueryBuilder query = QueryBuilders.boolQuery();	
 		sQueryTerm.append("association:(");
-		int nTerms = 0;
+		
+		@SuppressWarnings("unused")
+		int nTerms = 0; // (might be used later)
 		
 		if (null != assoc.entity1) {
 			bFirstTerm = false;

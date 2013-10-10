@@ -102,6 +102,7 @@ public class JavaScriptUtils
 	 * @param fileUrl - http://somewhere.com/javascript.js
 	 * @return
 	 */
+	//TODO (INF-1922): Note this bypasses security if prefaced with file:// ... 
 	public static String getJavaScriptFile(String fileUrl)
 	{
 		StringBuffer javaScript = new StringBuffer();
@@ -114,7 +115,10 @@ public class JavaScriptUtils
 			BufferedReader r = new BufferedReader(new InputStreamReader(url.openStream()));
 
 			// Read the contents of r line by line and append to our StringBuffer
-			while (javaScript.append(r.readLine()) != null) {}
+			String s;
+			while (null != (s = r.readLine())) {
+				javaScript.append(s);
+			}
 
 			// Close our reader
 			r.close();
@@ -123,7 +127,7 @@ public class JavaScriptUtils
 		{			
 		}
 		return javaScript.toString();
-	}
+	}//TESTED
 
 	// Generate a script to convert the native JS objects into something
 	// we can parse (NativeObject and NativeArrays can't be handled at the "user level" annoyingly)

@@ -1,0 +1,53 @@
+[
+    {
+        "display": "Testing raw text handling",
+        "web": {
+            "waitTimeOverride_ms": 5000,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        }
+    },
+    {
+        "display": "manualText",
+        "text": [
+            {
+                "script": "//a[@class=\"story\"][1]",
+                "scriptlang": "xpath",
+                "fieldName": "fullText",
+                "flags": "H"
+            }
+        ]
+    },
+    {
+        "display": "textRaw",
+        "textEngine": {
+            "engineName": "raw"
+        }
+    },
+    {
+        "display": "textDefault",
+        "textEngine": {
+            "engineName": "default"
+        }
+    },
+    {
+        "display": "checkFullText",
+        "entities": [
+            {
+                "disambiguated_name": "test",
+                "type": "test",
+                "iterateOver": "not_exist"
+            }
+        ]
+    }
+]

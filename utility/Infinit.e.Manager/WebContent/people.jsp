@@ -19,7 +19,7 @@ limitations under the License.
 
 <%!
 	// 
-	int currentPage = 1;
+	int currentPage = 1; 
 	int itemsToShowPerPage = 10;
 	
 	//
@@ -276,7 +276,7 @@ limitations under the License.
 	if (messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay %>');
+		alert("<%=messageToDisplay.replace('"', '\'') %>");
 	</script>
 <% 
 	} 
@@ -377,7 +377,7 @@ limitations under the License.
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Password:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="password" id="password" name="password" value="<%=password%>" size="20" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="password" id="password" name="password" autocomplete="off" value="<%=password%>" size="20" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Password Confirmation:</td>
@@ -540,7 +540,7 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to save the user's account information.";
+			messageToDisplay = "Error: Unable to save the user's account information. (" + responseVal.getString("message") + ")"; 
 			return false;
 		}
 	}

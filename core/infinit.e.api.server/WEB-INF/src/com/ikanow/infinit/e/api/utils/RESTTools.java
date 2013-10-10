@@ -26,6 +26,8 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.restlet.data.Form;
+import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
 import com.ikanow.infinit.e.api.social.community.PersonHandler;
@@ -223,33 +225,43 @@ public class RESTTools
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getAuthentication().findOne(authQuery.toDb());
 			if (null != dbo) {
 				AuthenticationPojo ap = AuthenticationPojo.fromDb(dbo, AuthenticationPojo.class);			
-				if (null != ap.getAccountType()) {
-					if (ap.getAccountType().equalsIgnoreCase("admin")) {
-						return true;
-					}
-					else if (ap.getAccountType().equalsIgnoreCase("admin-enabled")) {
-						if (!mustBeEnabled) {
-							return true;
-						}
-						else if (null != ap.getLastSudo()) {
-							if ((ap.getLastSudo().getTime() + 10*60*1000) > new Date().getTime()) {
-								// (ie admin rights last 10 minutes)
-								return true;
-							}
-						}
-					}
-				}//TESTED
+				return adminCheck(ap, mustBeEnabled);
 			}
 			return false;
 		}
 		catch (Exception e )
 		{
-			logger.error("Line: [" + e.getStackTrace()[2].getLineNumber() + "] " + e.getMessage());
+			logger.error("Line: [" + e.getStackTrace()[2].getLineNumber() + "] " + e.getMessage(), e);
 			e.printStackTrace();			
+		}
+		catch (Error e) {
+			logger.error("isAdminError", e);
+			e.printStackTrace();						
 		}
 		return false;
 	}
 
+	// Utility function for the two types of authentication
+	
+	private static boolean adminCheck(AuthenticationPojo ap, boolean mustBeEnabled) {
+		if (null != ap.getAccountType()) {
+			if (ap.getAccountType().equalsIgnoreCase("admin")) {
+				return true;
+			}
+			else if (ap.getAccountType().equalsIgnoreCase("admin-enabled")) {
+				if (!mustBeEnabled) {
+					return true;
+				}
+				else if (null != ap.getLastSudo()) {
+					if ((ap.getLastSudo().getTime() + 10*60*1000) > new Date().getTime()) {
+						// (ie admin rights last 10 minutes)
+						return true;
+					}
+				}
+			}
+		}//TESTED		
+		return false;
+	}
 	
 	/**
 	 * validateCommunityIds
@@ -386,11 +398,12 @@ public class RESTTools
 				 if (44 != admpass.length()) { // hash if in the clear
 					 admpass = PasswordEncryption.encrypt(admpass);
 				 }
-				 query.put("password", admpass); // Needs to be hashed
-				 query.put("accountType", "admin");
-				 if (DbManager.getSocial().getAuthentication().find(query).count() > 0) {
-					 allowedToRegisterUpdate = true;
-				 }
+				 query.put("password", admpass); 
+				 
+				 AuthenticationPojo ap = AuthenticationPojo.fromDb(DbManager.getSocial().getAuthentication().findOne(query), AuthenticationPojo.class); 
+				 if (null != ap) {
+					 allowedToRegisterUpdate = adminCheck(ap, true);
+				 }//TESTED (admin, admin-enabled, non-admin)
 			 }
 			 catch (Exception e) {
 				 // Do nothing
@@ -426,5 +439,14 @@ public class RESTTools
 			 return communityIdStrs;
 		}
 	} //TESTED
+
+	public static void logRequest(ServerResource requestHandle) {
+		Form headers = (Form) requestHandle.getResponseAttributes().get("org.restlet.http.headers");
+		if (null == headers) {
+			headers = new Form();
+			requestHandle.getResponseAttributes().put("org.restlet.http.headers", headers);
+		}
+		headers.add("X-infinit.e.log", "1");		
+	}//TESTED
 	
 }

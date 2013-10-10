@@ -1,0 +1,62 @@
+[
+    {
+        "display": "Import and lookup test",
+        "web": {
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ],
+            "waitTimeOverride_ms": 100
+        }
+    },
+    {
+        "display": "Imports only (UAH only)",
+        "globals": {
+            "scriptlang": "javascript",
+            "import": [
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test1.js",
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test2.js"
+            ]
+        }
+    },
+    {
+        "display": "Lookup test (UAH only)",
+        "lookupTables": {
+            "lookupTest2": "52420ed6700a469205ab07c2",
+            "lookupTest1": "52420eb4700a469205ab07c1"
+        }
+    },
+    {
+        "display": "Import and lookup test",
+        "contentMetadata": [
+            {
+                "script": "var x = import_test1; x;",
+                "fieldName": "import_test1",
+                "scriptlang": "javascript"
+            },
+            {
+                "script": "var x = import_test2; x;",
+                "fieldName": "import_test2",
+                "scriptlang": "javascript"
+            },
+            {
+                "script": "var y = _cache['lookupTest1'][\"test1\"]; y;",
+                "fieldName": "lookup_test1",
+                "scriptlang": "javascript"
+            },
+            {
+                "script": "var y = _cache['lookupTest2'][\"test2\"]; y;",
+                "fieldName": "lookup_test2",
+                "scriptlang": "javascript"
+            }
+        ]
+    }
+]

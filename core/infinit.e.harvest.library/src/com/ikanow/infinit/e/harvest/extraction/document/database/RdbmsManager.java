@@ -43,6 +43,7 @@ public class RdbmsManager {
 	private ResultSetMetaData metaData;
 	private String errorMessage = null;
 	private int recordsToSkip = 0;
+	private boolean oracleWorkaround = false;
 
 	// Initialize the Logger
 	private static final Logger logger = Logger.getLogger(RdbmsManager.class);
@@ -50,6 +51,9 @@ public class RdbmsManager {
 	public int getRecordsToSkip() { return recordsToSkip; }
 	public void setRecordsToSkip(int recordsToSkip) {
 		this.recordsToSkip = recordsToSkip;
+	}
+	public Connection getConnection() {
+		return con;
 	}
 	
 	/**
@@ -282,7 +286,14 @@ public class RdbmsManager {
 		    {
 		    	stmt = con.createStatement();
 		 		this.resultSet = stmt.executeQuery(this.query);
-	 			this.resultSet.relative(recordsToSkip);
+		 		if (oracleWorkaround) {
+			 		//avoid using scrollable methods due to jdbc limits - wtw
+			 		for(int i = 0; i < recordsToSkip; i++)
+			 			this.resultSet.next();		 			
+		 		}
+		 		else { // otherwise use JDBC
+		 			this.resultSet.relative(recordsToSkip);
+		 		}
 			    this.metaData = this.resultSet.getMetaData();
 			}
 		    catch (SQLException e) 
@@ -313,8 +324,13 @@ public class RdbmsManager {
 		// SQL Server - jdbc:jtds:sqlserver://host:port/database
 		// Sybase - jdbc:jtds:sybase://host:port/database
 		
-		if (databaseType.equalsIgnoreCase("oracle")) {
+		if (databaseType.equalsIgnoreCase("oracle") || databaseType.equalsIgnoreCase("oracle:thin")) {
 			return "jdbc:" + databaseType + ":@//" + hostname + ":" + port + "/" + databaseName;			
+		}
+		if (databaseType.equalsIgnoreCase("oracle:thin:sid")) {
+			databaseType = "oracle:thin";
+			oracleWorkaround = true;
+			return "jdbc:" + databaseType + ":@" + hostname + ":" + port + ":" + databaseName;			
 		}
 		else {
 			if ((hostname.length() > 0) && (port.length() > 0)) {

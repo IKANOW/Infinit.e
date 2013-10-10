@@ -256,6 +256,7 @@ public class QueryInterface extends ServerResource
 					rp = _queryController.doQuery(cookieLookup, _requestDetails, _communityIdStrList, errorString);
 				else {
 					errorString.append(": Community Ids are not valid for this user");
+					 RESTTools.logRequest(this);
 				}
 				
 				if (null == rp) { // Error handling including RSS

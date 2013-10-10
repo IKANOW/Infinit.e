@@ -1,0 +1,56 @@
+[
+    {
+        "display": "Entity cache test",
+        "web": {
+            "waitTimeOverride_ms": 100,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        }
+    },
+    {
+        "display": "Just ensure there is an old cache",
+        "entities": [
+            {
+                "disambiguated_name": "Test",
+                "type": "TestType",
+                "dimension": "What",
+                "actual_name": "Test"
+            },
+            {
+                "disambiguated_name": "Test",
+                "type": "TestType",
+                "dimension": "What",
+                "actual_name": "Test"
+            }
+        ]
+    },
+    {
+        "display": "Generate keywords",
+        "textEngine": {
+            "engineName": "alchemyapi-metadata"
+        }
+    },
+    {
+        "display": "Entity cache test",
+        "associations": [
+            {
+                "assoc_type": "Event",
+                "entity2": "Keyword",
+                "verb_category": "entity_cache_test",
+                "verb": "entity_cache_test",
+                "entity1": "Keyword",
+                "iterateOver": "entity1/entity2"
+            }
+        ]
+    }
+]

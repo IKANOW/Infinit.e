@@ -1,0 +1,57 @@
+[
+    {
+        "display": "Storage settings test",
+        "web": {
+            "waitTimeOverride_ms": 100,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        }
+    },
+    {
+        "display": "harvestControl",
+        "harvest": {
+            "maxDocs_perCycle": 1,
+            "throttleDocs_perCycle": 1,
+            "duplicateExistingUrls": true,
+            "maxDocs_global": 1
+        }
+    },
+    {
+        "display": "alchemyapi",
+        "featureEngine": {
+            "engineName": "alchemyapi-metadata",
+            "engineConfig": {
+                "app.alchemyapi-metadata.concepts": "true"
+            }
+        }
+    },
+    {
+        "display": "storage",
+        "storageSettings": {
+            "rejectDocCriteria": "return _doc.url.indexOf('23247470') > 0;",
+            "metadataFieldStorage": "-AlchemyAPI_concepts"
+        }
+    },
+    {
+        "display": "justSet",
+        "searchIndex": {
+            "entityFilter": "test",
+            "fieldList": "test",
+            "assocGeoFilter": "test",
+            "indexOnIngest": false,
+            "metadataFieldList": "test",
+            "entityGeoFilter": "test",
+            "assocFilter": "test"
+        }
+    }
+]

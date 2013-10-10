@@ -125,6 +125,7 @@ public class SearchHandler
 				}
 				sb.append(termAtt.term());
 			}
+			st.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}			
@@ -358,6 +359,7 @@ public class SearchHandler
 				}
 				sb.append(termAtt.term());
 			}
+			st.close();
 		} catch (IOException e) {
 			e.printStackTrace();
 		}			

@@ -12,6 +12,7 @@ import org.apache.tika.metadata.Metadata;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
@@ -136,4 +137,12 @@ public class TextExtractorTika implements ITextExtractor {
 		}
 	}
 	//TESTED (called from SAH, from UAH, and directly from HC) - pdf only but beyond that it's a tika problem not an Infinit.e one
+
+	@Override
+	public String getCapability(EntityExtractorEnum capability) {
+		if (capability == EntityExtractorEnum.URLTextExtraction_local)
+			return "false";
+		
+		return null;
+	}
 }

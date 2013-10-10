@@ -79,7 +79,7 @@
 
 		<!-- Haven't included these as normal for OSS reasons, but can bundle in RPM -->
 		<!--  (Note tika is a special case, we exclude it from bundling because it contains conflicts and we want it at the end of the classpath) -->
-		<copy todir="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/">
+		<copy todir="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/unbundled/">
 			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar j-calais*.jar GridFSZipFile.jar"/>
 		</copy>
 	</target>

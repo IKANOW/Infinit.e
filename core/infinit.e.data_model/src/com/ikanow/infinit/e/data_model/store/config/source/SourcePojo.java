@@ -30,6 +30,7 @@ import java.util.regex.Pattern;
 import org.apache.commons.codec.binary.Base64;
 import org.bson.types.ObjectId;
 
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
@@ -136,7 +137,6 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String appendTagsToDocs_ = "appendTagsToDocs";
 	
 	public static class SourceSearchIndexFilter {
-		//TODO (INF-1922): add this to the GUI
 		public Boolean indexOnIngest = null; // (if specified and false, default:true, then don't index the docs at all)
 		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocFilter = null; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
@@ -157,11 +157,9 @@ public class SourcePojo extends BaseDbPojo {
 	private LinkedHashMap<String, String> extractorOptions = null; // Optional, overrides the per-extractor configuration options, where permissible
 	final public static String extractorOptions_ = "extractorOptions";
 	
-	// TODO (INF-1922) source pipeline
 	private List<SourcePipelinePojo> processingPipeline;
 	final public static String processingPipeline_ = "processingPipeline";
 	
-	//TODO (INF-2120) enhanced distribution
 	private Integer distributionFactor;
 	final public static String distributionFactor_ = "distributionFactor";
 	// (temporary internal state):
@@ -431,14 +429,11 @@ public class SourcePojo extends BaseDbPojo {
 	 */
 	public String generateSourceKey()
 	{
-		String s = "";
-		if (null != this.url) {
-			s = this.url.toLowerCase();			
+		String s = getRepresentativeUrl(); // (supports all cases - note we are guaranteed to have a URL by this point)
+		if (null == s) {
+			return null;
 		}
-		else if ((null != this.rss) && (null != this.rss.getExtraUrls()) && (this.rss.getExtraUrls().size() > 0))
-		{
-			s = this.rss.getExtraUrls().get(0).url; 
-		}
+		
 		int nIndex = s.indexOf('?');
 		final int nMaxLen = 64; // (+24 for the object id, + random other stuff, keeps it in the <100 range)
 		if (nIndex >= 0) {
@@ -471,33 +466,52 @@ public class SourcePojo extends BaseDbPojo {
 		// Create StringBuffer with fields to use to establish source *processing* uniqueness
 		StringBuffer sb = new StringBuffer();
 
-		// (Note what I mean by "source processing uniqueness" is that, *for a specific doc URL* 2 sources would process it identically)
-		
+		// (Note what I mean by "source processing uniqueness" is that, *for a specific doc URL* 2 sources would process it identically)	
 		// So fields like key,URL,media type,tags,etc aren't included in the hash
 		
-		// Required Fields
-		sb.append(this.extractType);
-				
-		// Optional fields
-		if (this.extractType != null) sb.append(this.extractType);
-		if (this.useExtractor != null) sb.append(this.useExtractor);
-		if (this.useTextExtractor != null) sb.append(this.useTextExtractor);
+		if (null != processingPipeline) { // new processing pipeline contains all the logic that determines a source's processing
+			for (SourcePipelinePojo pxPipe: processingPipeline) {
+				if ((null == pxPipe.feed) && (null == pxPipe.web)) { // (these are too difficult to pull the URL out of)
+					String fileUrl = null;
+					if (null != pxPipe.file) {
+						fileUrl = pxPipe.file.getUrl();
+						pxPipe.file.setUrl(null);
+					}
+					// (don't both with DB because its URL is so intertwined with its processing)
+					sb.append(new Gson().toJson(pxPipe));
+					if (null != fileUrl) {
+						pxPipe.file.setUrl(fileUrl);
+					} // (stay idempotent)
+				}
+			}
+		}//TESTED
+		else { //legacy case
 		
-		// Generate a hash of all the objects using the ORM layer
-		SourcePojo newSrc = new SourcePojo();
-		newSrc.setId(null); // (in case this is auto set by the c'tor)
-		newSrc.setAuthentication(this.authentication);
-		newSrc.setDatabaseConfig(this.database);
-		newSrc.setFileConfig(this.file);
-		newSrc.setRssConfig(this.rss);
-		newSrc.setStructuredAnalysisConfig(this.structuredAnalysis);
-		newSrc.setUnstructuredAnalysisConfig(this.unstructuredAnalysis);
-		sb.append(((BasicDBObject)newSrc.toDb()).toString());
+			// Required Fields
+			sb.append(this.extractType);
+					
+			// Optional fields
+			if (this.extractType != null) sb.append(this.extractType);
+			if (this.useExtractor != null) sb.append(this.useExtractor);
+			if (this.useTextExtractor != null) sb.append(this.useTextExtractor);
+			
+			// Generate a hash of all the objects using the ORM layer
+			SourcePojo newSrc = new SourcePojo();
+			newSrc.setId(null); // (in case this is auto set by the c'tor)
+			newSrc.setAuthentication(this.authentication);
+			newSrc.setDatabaseConfig(this.database);
+			newSrc.setFileConfig(this.file);
+			// Don't include RSS config since it can contain URLs
+			newSrc.setStructuredAnalysisConfig(this.structuredAnalysis);
+			newSrc.setUnstructuredAnalysisConfig(this.unstructuredAnalysis);
+			sb.append(((BasicDBObject)newSrc.toDb()).toString());
+			
+		}//TESTED (legacy)
 		
 		// Create MessageDigest and set shah256Hash value
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
 		md.update(sb.toString().getBytes("UTF-8"));		
-		shah256Hash = Base64.encodeBase64String(md.digest());	
+		shah256Hash = Base64.encodeBase64String(md.digest());
 	}
 	public Integer getSearchCycle_secs() {
 		return searchCycle_secs;
@@ -584,16 +598,6 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	//TESTED
 
-	///////////////////////////////////////////////////////////////////
-	
-	// Serialization/deserialization utils:
-	// (Ugh needed because extractorOptions keys can contain "."s)
-	
-	public GsonBuilder extendBuilder(GsonBuilder gp) {
-		return gp.registerTypeAdapter(SourcePojo.class, new SourcePojoDeserializer()).
-				registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer());
-	}
-	
 	public void setProcessingPipeline(List<SourcePipelinePojo> processingPipeline) {
 		this.processingPipeline = processingPipeline;
 	}
@@ -636,6 +640,16 @@ public class SourcePojo extends BaseDbPojo {
 		return throttleDocs;
 	}
 
+	///////////////////////////////////////////////////////////////////
+	
+	// Serialization/deserialization utils:
+	// (Ugh needed because extractorOptions keys can contain "."s)
+	
+	public GsonBuilder extendBuilder(GsonBuilder gp) {
+		return gp.registerTypeAdapter(SourcePojo.class, new SourcePojoDeserializer()).
+				registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer());
+	}
+	
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 
 	{
 		@Override
@@ -643,26 +657,53 @@ public class SourcePojo extends BaseDbPojo {
 		{
 			SourcePojo src = BaseDbPojo.getDefaultBuilder().create().fromJson(json, SourcePojo.class);  
 			if (null != src.extractorOptions) {
-				LinkedHashMap<String, String> transformed = new LinkedHashMap<String, String>();
-				for (Map.Entry<String, String> entry: src.extractorOptions.entrySet()) {
-					transformed.put(entry.getKey().replace("%2e", "."), entry.getValue());
+				src.extractorOptions = decodeKeysForDatabaseStorage(src.extractorOptions);
+			}
+			if (null != src.processingPipeline) {
+				for (SourcePipelinePojo pxPipe: src.processingPipeline) {
+					if ((null != pxPipe.web) || (null != pxPipe.feed)) {
+						SourceRssConfigPojo webOrFeed = (null != pxPipe.web) ? pxPipe.web : pxPipe.feed;
+						if (null != webOrFeed.getHttpFields()) {
+							webOrFeed.setHttpFields(decodeKeysForDatabaseStorage(webOrFeed.getHttpFields()));
+						}
+					}//TESTED (added httpFields by hand)
+					// (don't do lookup tables, "."s aren't allowed in their keys)
+					if ((null != pxPipe.featureEngine) && (null != pxPipe.featureEngine.engineConfig)) {
+						pxPipe.featureEngine.engineConfig = decodeKeysForDatabaseStorage(pxPipe.featureEngine.engineConfig);						
+					}//TESTED (basic_web_test_ocOptions)
+					if ((null != pxPipe.textEngine) && (null != pxPipe.textEngine.engineConfig)) {
+						pxPipe.textEngine.engineConfig = decodeKeysForDatabaseStorage(pxPipe.textEngine.engineConfig);						
+					}//TESTED (c/p basic_web_test_ocOptions)
 				}
-				src.extractorOptions = transformed;
 			}
 			return src;
 		}//TESTED (with and without extractor options)
 	}
+	
 	protected static class SourcePojoSerializer implements JsonSerializer<SourcePojo> 
 	{
 		@Override
 		public JsonElement serialize(SourcePojo src, Type typeOfT, JsonSerializationContext context) throws JsonParseException
 		{
 			if (null != src.extractorOptions) {
-				LinkedHashMap<String, String> transformed = new LinkedHashMap<String, String>();
-				for (Map.Entry<String, String> entry: src.extractorOptions.entrySet()) {
-					transformed.put(entry.getKey().replace(".", "%2e"), entry.getValue());
+				src.extractorOptions = encodeKeysForDatabaseStorage(src.extractorOptions);
+			}
+			if (null != src.processingPipeline) {
+				for (SourcePipelinePojo pxPipe: src.processingPipeline) {
+					if ((null != pxPipe.web) || (null != pxPipe.feed)) {
+						SourceRssConfigPojo webOrFeed = (null != pxPipe.web) ? pxPipe.web : pxPipe.feed;
+						if (null != webOrFeed.getHttpFields()) {
+							webOrFeed.setHttpFields(encodeKeysForDatabaseStorage(webOrFeed.getHttpFields()));
+						}
+					}//TESTED (added httpFields by hand)
+					// (don't do lookup tables, "."s aren't allowed in their keys)
+					if ((null != pxPipe.featureEngine) && (null != pxPipe.featureEngine.engineConfig)) {
+						pxPipe.featureEngine.engineConfig = encodeKeysForDatabaseStorage(pxPipe.featureEngine.engineConfig);						
+					}//TESTED (basic_web_test_ocOptions)
+					if ((null != pxPipe.textEngine) && (null != pxPipe.textEngine.engineConfig)) {
+						pxPipe.textEngine.engineConfig = encodeKeysForDatabaseStorage(pxPipe.textEngine.engineConfig);						
+					}//TESTED (c/p basic_web_test_ocOptions)
 				}
-				src.extractorOptions = transformed;
 			}
 			// GSON transformation:
 			JsonElement je = SourcePojo.getDefaultBuilder().create().toJsonTree(src, typeOfT);
@@ -670,4 +711,75 @@ public class SourcePojo extends BaseDbPojo {
 			return je;
 		}//TESTED (with and without extractor options)
 	}	
+	// Utilities for handling processing pipeline
+	
+	// Decode/Encode utilities
+	
+	private static LinkedHashMap<String, String> decodeKeysForDatabaseStorage(LinkedHashMap<String, String> in) {
+		LinkedHashMap<String, String> transformed = new LinkedHashMap<String, String>();
+		for (Map.Entry<String, String> entry: in.entrySet()) {
+			transformed.put(entry.getKey().replace("%2e", "."), entry.getValue());
+		}		
+		return transformed;
+	}//TESTED (legacy)
+
+	private static LinkedHashMap<String, String> encodeKeysForDatabaseStorage(LinkedHashMap<String, String> in) {
+		LinkedHashMap<String, String> transformed = new LinkedHashMap<String, String>();
+		for (Map.Entry<String, String> entry: in.entrySet()) {
+			transformed.put(entry.getKey().replace(".", "%2e"), entry.getValue());
+		}		
+		return transformed;
+	}//TESTED (legacy)
+	
+	public String getRepresentativeUrl() {
+		if (null == this.getProcessingPipeline()) {
+			if (null != this.getUrl()) {
+				return this.getUrl();
+			}
+			else if ((null != this.getRssConfig()) && (null != this.getRssConfig().getExtraUrls()) && !this.getRssConfig().getExtraUrls().isEmpty()) {
+				return this.getRssConfig().getExtraUrls().get(0).url;
+			}
+		}
+		else if (!this.getProcessingPipeline().isEmpty()) {
+			SourcePipelinePojo px = this.getProcessingPipeline().get(0);
+			if (null != px.file) {
+				return px.file.getUrl();
+			}
+			else if (null != px.database) {
+				return px.database.getUrl();
+			}
+			else {
+				SourceRssConfigPojo webOrFeed = px.feed;
+				if (null == webOrFeed) {
+					webOrFeed = px.web;
+				}
+				if ((null != webOrFeed) && (null != webOrFeed.getExtraUrls()) && !webOrFeed.getExtraUrls().isEmpty()) {
+					return webOrFeed.getExtraUrls().get(0).url;					
+				}
+			}
+		}
+		return null;
+	}//TESTED (legacy+basic_web_test_ocOptions)
+	
+	public void fillInSourcePipelineFields() {
+		if (null != this.getProcessingPipeline()) {
+			for (SourcePipelinePojo px: this.getProcessingPipeline()) {
+				if (null != px.file) {
+					this.extractType = "File";
+				}
+				else if (null != px.database) {
+					this.extractType = "Database";					
+				}
+				else {
+					this.extractType = "Feed";					
+				}
+				if (null != px.harvest) {
+					if ((null == searchCycle_secs) || (searchCycle_secs > 0)) {
+						searchCycle_secs = px.harvest.searchCycle_secs;
+					}
+					break;
+				}
+			}
+		}//TESTED		
+	}
 }

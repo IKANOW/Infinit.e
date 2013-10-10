@@ -135,6 +135,17 @@ public class PropertiesManager {
 	public String getRemoteAccessDeny() {
 		return this.getProperty("remote.access.deny");
 	}
+	public boolean getApiLoggingEnabled() {
+		try {
+			return Boolean.parseBoolean(this.getProperty("ui.logging"));
+		}
+		catch (Exception e) {
+			return false;
+		}
+	}
+	public String getApiLoggingRegex() {
+		return this.getProperty("ui.logging.api.regex");
+	}
 	//ALIASING
 	public boolean getAliasingEnabled() {
 		String s = this.getProperty("api.aliasing.enabled");

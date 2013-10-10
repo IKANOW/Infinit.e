@@ -52,7 +52,10 @@ harvest.threads=HARVESTER_THREADS
 harvest.security=HARVESTER_SECURITY
 harvest.distribution.batch.harvest=HARVESTER_BATCH
 harvest.disable_aggregation=HARVEST_DISABLE_AGGREGATION
+harvest.aggregation.duty_cycle=HARVEST_DUTY_CYCLE
 store.maxcontent=STORE_MAXCONTENT
+store.rawcontent=STORE_RAWCONTENT
+store.metadata_as_content=STORE_METADATA
 harvest.proxy=HARVESTER_PROXY
 
 #####################################################
@@ -72,6 +75,7 @@ extractor.key.alchemyapi=ALCHEMY_KEY
 extractor.key.opencalais=OPENCALAIS_KEY
 extractor.entity.default=DEFAULT_ENTITY_EXTRACTOR
 extractor.text.default=DEFAULT_TEXT_EXTRACTOR
+extractor.entity.custom=CUSTOM_EXTRACTORS
 
 #####################################################
 # Alchemy Postproc Settings
@@ -88,8 +92,10 @@ hadoop.local_mode=HADOOP_LOCALMODE
 # JDBC Drives Supported by Infinit.e
 jdbc.db2.class=com.ibm.db2.jcc.DB2Driver
 jdbc.mysql.class=com.mysql.jdbc.Driver
-jdbc.oracle:thin.class=oracle.jdbc.driver.OracleDriver
-jdbc.oracle:thin.url=oracle:thin
+jdbc.oracle\:thin.class=oracle.jdbc.driver.OracleDriver
+jdbc.oracle\:thin.url=oracle:thin
+jdbc.oracle\:thin\:sid.class=oracle.jdbc.driver.OracleDriver
+jdbc.oracle\:thin\:sid.url=oracle:thin
 jdbc.jtds:sqlserver.class=net.sourceforge.jtds.jdbc.Driver
 jdbc.postgresql.class=org.postgresql.Driver
 jdbc.jtds:sybase.class=net.sourceforge.jtds.jdbc.Driver

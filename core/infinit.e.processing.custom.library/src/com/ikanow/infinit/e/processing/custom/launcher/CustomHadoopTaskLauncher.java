@@ -218,7 +218,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			String command = "";
 			for (String s : commands )
 				command += s + " ";
-			Process pr = rt.exec(commands);
+			Process pr = rt.exec(command);
 			
 			//Once we start running the command attach to stderr to
 			//receive the output to parse out the jobid

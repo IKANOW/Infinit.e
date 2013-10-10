@@ -75,14 +75,14 @@
 			
 			protected function showPreviosOrNextWidget( event:KeyboardEvent ):void
 			{
-				// show previous widget
-				if ( event.keyCode == Keyboard.LEFT && !( event.target is InfItemClickList ) )
+				// show previous widget (CTRL-LEFT)
+				if ( event.ctrlKey && event.keyCode == Keyboard.LEFT && !( event.target is InfItemClickList ) )
 				{
 					model.maximizePreviousWidget();
 				}
 				
-				// show next widget
-				if ( event.keyCode == Keyboard.RIGHT && !( event.target is InfItemClickList ) )
+				// show next widget (CTRL-RIGHT)
+				if ( event.ctrlKey && event.keyCode == Keyboard.RIGHT && !( event.target is InfItemClickList ) )
 				{
 					model.maximizeNextWidget();
 				}

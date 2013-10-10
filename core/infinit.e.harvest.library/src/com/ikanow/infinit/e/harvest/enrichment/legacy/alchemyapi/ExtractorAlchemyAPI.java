@@ -46,6 +46,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	private AlchemyAPI_JSON _alch = AlchemyAPI_JSON.GetInstanceFromProperties();
 	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();
 	
+	private static final int MAX_LENGTH = 145000;
 
 	// Post processing to clean up people and geo entities
 	AlchemyEntityPersonCleanser postProcPerson = null;
@@ -67,6 +68,7 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		_capabilities.put(EntityExtractorEnum.URLTextExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.SentimentExtraction, "true");
+		_capabilities.put(EntityExtractorEnum.MaxInputBytes, Integer.toString(MAX_LENGTH));
 		
 		// configuration done when the first document is received for this source
 	}
@@ -204,7 +206,11 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			
 		try
 		{
-			json_doc = _alch.TextGetRankedNamedEntities(partialDoc.getFullText());
+			String text = partialDoc.getFullText();
+			if (text.length() > MAX_LENGTH) {
+				text = text.substring(0, MAX_LENGTH);
+			}
+			json_doc = _alch.TextGetRankedNamedEntities(text);
 			checkAlchemyErrors(json_doc, partialDoc.getUrl());
 		}
 		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
@@ -448,7 +454,11 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 		String json_doc = null;
 		try
 		{
-			json_doc = _alch.TextGetRankedConcepts(partialDoc.getFullText());
+			String text = partialDoc.getFullText();
+			if (text.length() > MAX_LENGTH) {
+				text = text.substring(0, MAX_LENGTH);
+			}
+			json_doc = _alch.TextGetRankedConcepts(text);
 			checkAlchemyErrors(json_doc, partialDoc.getUrl());
 		}
 		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )

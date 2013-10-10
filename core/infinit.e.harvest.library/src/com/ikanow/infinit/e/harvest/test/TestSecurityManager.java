@@ -37,7 +37,8 @@ public class TestSecurityManager
 	public void setUp() throws Exception 
 	{		
 		Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
-		Globals.overrideConfigLocation("C:\\Users\\Burch\\Documents\\Ikanow\\IkanowV0\\utility.dev.ikanow.config\\core_config");
+		Globals.overrideConfigLocation(System.getProperty("CONFIG_LOCATION"));
+		
 		ScriptEngineManager factory = new ScriptEngineManager();
 		engine = factory.getEngineByName("JavaScript");		
 		
@@ -288,6 +289,7 @@ public class TestSecurityManager
 			String str;
 			while ((str = in.readLine()) != null)
 				sb.append(str);
+			in.close();
 			SourcePojo source = ApiManager.mapFromApi(sb.toString(), SourcePojo.class, new SourcePojoApiMap(null));
 			
 			harvester.setStandaloneMode(1, false);
@@ -318,6 +320,26 @@ public class TestSecurityManager
 			fail();
 		}
 	}
+	
+	//TODO (INF-2118): This didn't work, amongst other things it stopped regexes from working
+//	@Test
+//	public void testReflection()
+//	{	
+//		String js =
+//			"var person = java.lang.Class.forName(\"com.ikanow.infinit.e.data_model.store.social.person.PersonPojo\");" +
+//			"person.getDeclaredField(\"_id\").setAccessible(true);";
+//		String ret = null;
+//		try
+//		{
+//			ret = (String)jsm.eval(engine, js);
+//			System.out.println("testReflection: " + ret);
+//			fail();	//should have triggered security manager
+//		}
+//		catch (Exception ex)
+//		{
+//			//this should reach here
+//		}	
+//	}
 	
 	@Test
 	public void testLocalJavaAfterLocalJavascriptTest()
@@ -389,6 +411,7 @@ public class TestSecurityManager
 			String str;
 			while ((str = in.readLine()) != null)
 				sb.append(str);
+			in.close();
 			SourcePojo source = ApiManager.mapFromApi(sb.toString(), SourcePojo.class, new SourcePojoApiMap(null));
 			
 			harvester.setStandaloneMode(1, false);
@@ -432,6 +455,7 @@ public class TestSecurityManager
 			String str;
 			while ((str = in.readLine()) != null)
 				sb.append(str);
+			in.close();
 			SourcePojo source = ApiManager.mapFromApi(sb.toString(), SourcePojo.class, new SourcePojoApiMap(null));
 						
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
@@ -484,6 +508,7 @@ public class TestSecurityManager
 			String str;
 			while ((str = in.readLine()) != null)
 				sb.append(str);
+			in.close();
 			SourcePojo source = ApiManager.mapFromApi(sb.toString(), SourcePojo.class, new SourcePojoApiMap(null));
 			
 			harvester.setStandaloneMode(1, false);

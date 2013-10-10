@@ -110,4 +110,9 @@ if [ "$SSL_PASSPHRASE" != "" ] && [ -f /usr/share/tomcat6/tomcat.keystore ]; the
 	sed -i '/__INF_SSL_ENABLED/d' $SERVERCONF_CONF_LOCATION
 fi
 
+LOGGING_ENABLED=$(getParam	"^ui.logging=" $PROPERTY_CONFIG_FILE)
+if [ "$LOGGING_ENABLED" = "true" ]; then
+	sed -i '/__INF_LOGGING_ENABLED/d' $SERVERCONF_CONF_LOCATION
+fi 
+
 chown tomcat.tomcat $SERVERCONF_CONF_LOCATION

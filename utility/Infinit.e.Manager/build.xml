@@ -87,6 +87,11 @@
 			target="${target}">
 			<classpath refid="infinit.e.manager.classpath" />
 		</javac>
+		<copy todir="${dir.build.classes}">
+			<fileset 
+				dir="${dir.src}"
+				includes="**/*.properties" />
+		</copy>
 	</target>
 
 	<!-- =================================

@@ -396,32 +396,6 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 	}
 } // TESTED
 
-
-
-
-//deleteAccount -
-private boolean deleteAccount( String id, HttpServletRequest request, HttpServletResponse response )
-{
-	try
-	{
-		JSONObject updateResponse = new JSONObject ( new JSONObject ( deletePerson(id, request, response) ).getString("response") );
-		if (updateResponse.getString("success").equalsIgnoreCase("true"))
-		{
-			messageToDisplay = "Success: Account Deleted."; return true;
-		}
-		else
-		{
-			messageToDisplay = "Error: Unable to Delete Account."; return false;
-		}
-	}
-	catch (Exception e)
-	{
-		messageToDisplay = "Error: Unable to Delete Account. (" + e.getMessage() + ")"; return false;
-	}
-}  // TESTED
-
-
-
 // populateEditForm - 
 private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response) 
 {

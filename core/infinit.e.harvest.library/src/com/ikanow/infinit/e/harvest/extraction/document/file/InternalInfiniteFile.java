@@ -78,7 +78,8 @@ public class InternalInfiniteFile extends InfiniteFile {
 					throw new MalformedURLException("Not found (or not authorized): " + url);					
 				}//TESTED (7.1)
 				String mediaType = (String) _resultObj.get(SharePojo.mediaType_);
-				if ((null != mediaType) && mediaType.equalsIgnoreCase("application/x-zip-compressed")) {
+				if ((null != mediaType) && (mediaType.equalsIgnoreCase("application/x-zip-compressed") || mediaType.equalsIgnoreCase("application/zip")))
+				{
 					_isDirectory = true;
 					ObjectId fileId = _resultObj.getObjectId(SharePojo.binaryId_);
 					
@@ -274,6 +275,8 @@ public class InternalInfiniteFile extends InfiniteFile {
 					int splits = dbc.count();
 
 					if (splits < 2) { // Nothing to do (unsharded or 1 chunk)
+						dbc.close();
+						
 						outColl = MongoDbManager.getCollection(outputDatabase, outputCollection);
 						dbc = outColl.find();
 					}//TESTED (4.2)
@@ -301,6 +304,8 @@ public class InternalInfiniteFile extends InfiniteFile {
 								added++;
 							}//TESTED (5.2.2, 6.2.2)
 						}
+						dbc.close();
+						
 						if (added > 1) { // (might not be a perfect partition but still better than nothing) 
 							return virtualDirs;
 						}//TESTED (5.2.2, 6.2.2)

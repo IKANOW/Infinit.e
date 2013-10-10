@@ -15,7 +15,6 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.community.model.manager
 {
-	import com.adobe.utils.StringUtil;
 	import com.ikanow.infinit.e.shared.control.SetupController;
 	import com.ikanow.infinit.e.shared.event.SetupEvent;
 	import com.ikanow.infinit.e.shared.event.SourceEvent;
@@ -25,15 +24,11 @@ package com.ikanow.infinit.e.community.model.manager
 	import com.ikanow.infinit.e.shared.model.vo.CommunityApproval;
 	import com.ikanow.infinit.e.shared.model.vo.CommunityAttribute;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
-	import com.ikanow.infinit.e.shared.model.vo.Setup;
 	import com.ikanow.infinit.e.shared.model.vo.Source;
 	import com.ikanow.infinit.e.shared.model.vo.User;
 	import com.ikanow.infinit.e.shared.model.vo.ui.DialogControl;
-	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
-	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import flash.events.Event;
-	import flash.events.EventDispatcher;
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.resources.ResourceManager;
@@ -403,15 +398,6 @@ package com.ikanow.infinit.e.community.model.manager
 					}
 				}
 			}
-			// if the community is found in the public communities, return true
-			/*if ( currentUser && currentUser.communities )
-			{
-				for each ( var community:Community in communities )
-				{
-					if ( userCommunity._id == community._id )
-						return true;
-				}
-			}*/
 			
 			return false;
 		}

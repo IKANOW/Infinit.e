@@ -137,25 +137,29 @@
         <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
         -->
 
+        <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
+        	<!-- (allows X-F-F support eg in logging below) -->
+            	
         <!-- Access log processes all example.
              Documentation at: /docs/config/valve.html -->
-        <!--
-        <Valve className="org.apache.catalina.valves.AccessLogValve" directory="logs"  
+             Extended here to log only errors unless param "infinit.e.log" is set
+             
+	    <!--__INF_LOGGING_ENABLED
+        <Valve className="com.ikanow.infinit.e.utility.tomcat.ExtendedAccessLogValve" directory="logs"
                prefix="localhost_access_log." suffix=".txt" pattern="common" resolveHosts="false"/>
-        -->
+		__INF_LOGGING_ENABLED-->
 
     <!-- Search Engine webapp -->
-    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true" useHttpOnly="true">
-            <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
-            	<!-- (allows X-F-F support) -->
-    </Context>
+    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true" useHttpOnly="true"/>
+
+	<!-- Visualization GUI -->
 	<Context docBase="../infinit.e.web.war" path="" reloadable="true" useHttpOnly="true"/>
 
+	<!-- Manager -->
 	<Context docBase="../infinit.e.manager.war" path="/manager" reloadable="true" useHttpOnly="true"/>
 	
+	<!-- Manager, internal access -->
 	<Context docBase="../infinit.e.manager.war" path="/internal" reloadable="true" useHttpOnly="true">
-            <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
-            	<!-- (allows X-F-F support) -->
             <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="127\.0\.0\.1,0:0:0:0:0:0:0:1"/> 
 				<!-- (internal IP addresses only) -->
     </Context>

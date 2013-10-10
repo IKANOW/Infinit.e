@@ -32,6 +32,10 @@ package com.ikanow.infinit.e.widget.library.components
 	
 	public class InfiniteFlexIFrame extends IFrame
 	{
+		public function getDivId():String {
+			return _iframeId;
+		}
+		
 		//DEBUG: THIS IS NEEDED TO MAKE IT WORK IN FF LOCAL MODE...
 		override protected function childrenCreated():void{
 			IFrame.applicationId = "Index";

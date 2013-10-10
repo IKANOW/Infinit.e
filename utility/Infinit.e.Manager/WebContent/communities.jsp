@@ -702,7 +702,7 @@ private void clearForm()
 private String listItems(HttpServletRequest request, HttpServletResponse response)
 {
 	StringBuffer communities = new StringBuffer();
-	TreeMultimap<String, String> listOfCommunities = getListOfAllCommunities(request, response);
+	TreeMultimap<String, String> listOfCommunities = getListOfAllNonPersonalCommunities(request, response);
 	
 	if (listOfCommunities.size() > 0)
 	{
@@ -799,58 +799,5 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 
 	return communities.toString();
 }
-
-
-
-//addPersonToCommunity
-private boolean addPersonToCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
-{
-	try
-	{
-		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
-		if (updateResponse.getString("success").equalsIgnoreCase("true"))
-		{
-			messageToDisplay = "Success: Person added to community."; 
-			return true;
-		}
-		else
-		{			
-			messageToDisplay = "Error: Unable to add person to community: " + updateResponse.getString("message"); 
-			return false;
-		}
-	}
-	catch (Exception e)
-	{
-		messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; 
-		return false;
-	}
-}  // TESTED
-
-
-
-//removePersonFromCommunity
-private boolean removePersonFromCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
-{
-	try
-	{
-		JSONObject updateResponse = new JSONObject ( new JSONObject ( removeFromCommunity(community, person, request, response) ).getString("response") );
-		if (updateResponse.getString("success").equalsIgnoreCase("true"))
-		{
-			messageToDisplay = "Success: Person removed from community."; return true;
-		}
-		else
-		{
-			messageToDisplay = "Error: Unable to remove person from community: " + updateResponse.getString("message");; 
-			return false;
-		}
-	}
-	catch (Exception e)
-	{
-		messageToDisplay = "Error: Unable to remove person from community. (" + e.getMessage() + ")"; return false;
-	}
-}
-
-
-
 
 %>

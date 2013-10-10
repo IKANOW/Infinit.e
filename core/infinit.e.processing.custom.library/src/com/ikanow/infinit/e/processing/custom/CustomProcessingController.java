@@ -37,6 +37,7 @@ import com.ikanow.infinit.e.processing.custom.launcher.CustomSavedQueryTaskLaunc
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
 import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
 import com.ikanow.infinit.e.processing.custom.status.CustomStatusManager;
+import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -124,6 +125,12 @@ public class CustomProcessingController {
 			}
 			else {
 
+				if (prop_custom.getHarvestSecurity()) {
+					if (!AuthUtils.isAdmin(job.submitterID)) {
+						throw new RuntimeException("Permissions error: in secure mode, only admins can launch Hadoop");
+					}
+				}//TODO (INF-2118): TOTEST
+				
 				List<ObjectId> communityIds = InfiniteHadoopUtils.getUserCommunities(job.submitterID);
 				job.tempJarLocation = InfiniteHadoopUtils.downloadJarFile(job.jarURL, communityIds, prop_custom);		
 								

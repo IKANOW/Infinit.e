@@ -92,6 +92,12 @@ static String API_ROOT = null;
 		String comment;
 	}
 
+	static class shareReference {
+		String _id;
+		String database;
+		String collection;		
+	}
+	
 	static class shareData {
 		String _id;
 		String created;
@@ -101,6 +107,7 @@ static String API_ROOT = null;
 		String title;
 		String description;
 		String mediaType;
+		shareReference documentLocation;
 		shareCommunity[] communities;
 		String binaryId;
 
@@ -323,13 +330,30 @@ static String API_ROOT = null;
 	//ID is provided, then it updates the widget containing that shareID
 	private String UpdateToShare(byte[] bytes, String mimeType, String title,
 			String description, String prevId, Set<String> communities, boolean isJson, 
-			String type, boolean newShare,
+			String type, boolean newShare, boolean isRef, String docloc, String docid,
 			HttpServletRequest request, HttpServletResponse response) {
 		String charset = "UTF-8";
 		String url = "";
 		try 
 		{
-			if ( isJson )
+			if ( isRef )
+			{
+				if (newShare)
+					url = API_ROOT + "social/share/add/ref/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(docloc, charset) + "/"
+							+ URLEncoder.encode(docid, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";
+				else
+					url = API_ROOT + "social/share/update/ref/" + prevId + "/"
+							+ URLEncoder.encode(type, charset) + "/"
+							+ URLEncoder.encode(docloc, charset) + "/"
+							+ URLEncoder.encode(docid, charset) + "/"
+							+ URLEncoder.encode(title, charset) + "/"
+							+ URLEncoder.encode(description, charset) + "/";				
+			}
+			else if ( isJson )
 			{
 				//first check if bytes are actually json
 				try
@@ -606,14 +630,24 @@ static String API_ROOT = null;
 					if ((null != info.owner) && (null != info.owner.email)) {
 						owner = info.owner.email;
 					}
+					String docRefId = "null" + delim + "null";
+					if (null != info.documentLocation) {
+						if (null == info.documentLocation.database) {
+							docRefId = "local.file" + delim + info.documentLocation.collection;
+						}
+						else {
+							docRefId = info.documentLocation.database + "." + info.documentLocation.collection + delim + info.documentLocation._id; // (type contains the other params anyway)
+						}
+					}
+					
 					if (ext == null) {
 						String value = info._id + delim + info.created + delim
 								+ info.title + delim + info.description + delim
-								+ SHARE_ROOT + info._id + delim;
+								+ SHARE_ROOT + info._id + delim ;
 						for (shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
-						value += delim + owner + delim + info.binaryId + delim + info.type;
+						value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 						toReturn += "<option value=\"" + value
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
@@ -638,7 +672,7 @@ static String API_ROOT = null;
 								for (shareCommunity scomm : info.communities) {
 									value += scomm._id + ",";
 								}
-								value += delim + owner + delim + info.binaryId + delim + info.type;
+								value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 								toReturn += "<option value=\"" + value
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
@@ -656,7 +690,7 @@ static String API_ROOT = null;
 							for (shareCommunity scomm : info.communities) {
 								value += scomm._id + ",";
 							}
-							value += delim + owner + delim + info.binaryId + delim + info.type;
+							value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
 							toReturn += "<option value=\"" + value
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
@@ -757,74 +791,74 @@ static String API_ROOT = null;
       out = pageContext.getOut();
       _jspx_out = out;
 
-      out.write("<!--\n");
-      out.write("Copyright 2012 The Infinit.e Open Source Project\n");
-      out.write("\n");
-      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\n");
-      out.write("you may not use this file except in compliance with the License.\n");
-      out.write("You may obtain a copy of the License at\n");
-      out.write("\n");
-      out.write("  http://www.apache.org/licenses/LICENSE-2.0\n");
-      out.write("\n");
-      out.write("Unless required by applicable law or agreed to in writing, software\n");
-      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\n");
-      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n");
-      out.write("See the License for the specific language governing permissions and\n");
-      out.write("limitations under the License.\n");
-      out.write("-->\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\n");
-      out.write("<html xmlns=\"http://www.w3.org/1999/xhtml\">\n");
-      out.write("<head>\n");
-      out.write("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\n");
-      out.write("<title>Infinit.e File Upload Tool</title>\n");
-      out.write("<style media=\"screen\" type=\"text/css\">\n");
-      out.write("\n");
-      out.write("body \n");
-      out.write("{\n");
-      out.write("\tfont: 14px Arial,sans-serif;\n");
-      out.write("}\n");
-      out.write("h2\n");
-      out.write("{\n");
-      out.write("\tfont-family: \"Times New Roman\";\n");
-      out.write("\tfont-style: italic;\n");
-      out.write("\tfont-variant: normal;\n");
-      out.write("\tfont-weight: normal;\n");
-      out.write("\tfont-size: 24px;\n");
-      out.write("\tline-height: 29px;\n");
-      out.write("\tfont-size-adjust: none;\n");
-      out.write("\tfont-stretch: normal;\n");
-      out.write("\t-x-system-font: none;\n");
-      out.write("\tcolor: #d2331f;\n");
-      out.write("\tmargin-bottom: 25px;\n");
-      out.write("}\n");
-      out.write(".show {\n");
-      out.write("display: ;\n");
-      out.write("visibility: visible;\n");
-      out.write("}\n");
-      out.write(".hide {\n");
-      out.write("display: none;\n");
-      out.write("visibility: hidden;\n");
-      out.write("}\n");
-      out.write("</style>\n");
-      out.write("<script language=\"javascript\" src=\"AppConstants.js\"> </script>\n");
-      out.write("</head>\n");
-      out.write("\n");
-      out.write("<body onload=\"populate()\">\n");
+      out.write("<!--\r\n");
+      out.write("Copyright 2012 The Infinit.e Open Source Project\r\n");
+      out.write("\r\n");
+      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\r\n");
+      out.write("you may not use this file except in compliance with the License.\r\n");
+      out.write("You may obtain a copy of the License at\r\n");
+      out.write("\r\n");
+      out.write("  http://www.apache.org/licenses/LICENSE-2.0\r\n");
+      out.write("\r\n");
+      out.write("Unless required by applicable law or agreed to in writing, software\r\n");
+      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\r\n");
+      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\r\n");
+      out.write("See the License for the specific language governing permissions and\r\n");
+      out.write("limitations under the License.\r\n");
+      out.write("-->\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\" \"http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd\">\r\n");
+      out.write("<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n");
+      out.write("<head>\r\n");
+      out.write("<meta http-equiv=\"Content-Type\" content=\"text/html; charset=utf-8\" />\r\n");
+      out.write("<title>Infinit.e File Upload Tool</title>\r\n");
+      out.write("<style media=\"screen\" type=\"text/css\">\r\n");
+      out.write("\r\n");
+      out.write("body \r\n");
+      out.write("{\r\n");
+      out.write("\tfont: 14px Arial,sans-serif;\r\n");
+      out.write("}\r\n");
+      out.write("h2\r\n");
+      out.write("{\r\n");
+      out.write("\tfont-family: \"Times New Roman\";\r\n");
+      out.write("\tfont-style: italic;\r\n");
+      out.write("\tfont-variant: normal;\r\n");
+      out.write("\tfont-weight: normal;\r\n");
+      out.write("\tfont-size: 24px;\r\n");
+      out.write("\tline-height: 29px;\r\n");
+      out.write("\tfont-size-adjust: none;\r\n");
+      out.write("\tfont-stretch: normal;\r\n");
+      out.write("\t-x-system-font: none;\r\n");
+      out.write("\tcolor: #d2331f;\r\n");
+      out.write("\tmargin-bottom: 25px;\r\n");
+      out.write("}\r\n");
+      out.write(".show {\r\n");
+      out.write("display: ;\r\n");
+      out.write("visibility: visible;\r\n");
+      out.write("}\r\n");
+      out.write(".hide {\r\n");
+      out.write("display: none;\r\n");
+      out.write("visibility: hidden;\r\n");
+      out.write("}\r\n");
+      out.write("</style>\r\n");
+      out.write("<script language=\"javascript\" src=\"AppConstants.js\"> </script>\r\n");
+      out.write("</head>\r\n");
+      out.write("\r\n");
+      out.write("<body onload=\"populate()\">\r\n");
 
 	if (API_ROOT == null) 
 	{
@@ -980,17 +1014,33 @@ static String API_ROOT = null;
 					String shareId = request.getAttribute("DBId").toString();
 					String fileUrl = "";
 					String fileId = "";
+					String ref = request.getAttribute("reference").toString();
+					if (null == ref) {
+						ref = "null";
+					}
 					String bin = request.getAttribute("binary").toString();		
 					if (request.getAttribute("title") != null
 							&& request.getAttribute("description") != null
 							&& fileBytes != null) 
 					{						
-						if ( !isFileSet ) //if not a binary file or file was not changed
+						if ( !isFileSet && ref.equals("null") ) //if not a binary file or file was not changed
 						{												
 							fileId = shareId;
 							if (shareId != null && shareId != "")
 								addRemoveCommunities(shareId, communities, request, response);							
-							out.println("File was not set, just updated communities.");
+							out.println("File was not set, just updated communities (can't edit type/title/etc without also re-uploading the file).");
+						}
+						else if ( !ref.equals("null")  )
+						{
+							String docLoc = request.getAttribute("ref_loc").toString();
+							String docId = request.getAttribute("ref_id").toString();
+							
+							fileId = UpdateToShare(fileBytes, fileDS, request
+									.getAttribute("title").toString(),
+									request.getAttribute("description")
+											.toString(), shareId,
+									communities, false, request.getAttribute("type")
+									.toString(), newUpload, true, docLoc, docId, request, response);							
 						}
 						else if ( bin.equals("null")) //is a json file, make sure its okay and upload it
 						{
@@ -999,7 +1049,7 @@ static String API_ROOT = null;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, true, request.getAttribute("type")
-									.toString(), newUpload, request, response);
+									.toString(), newUpload, false, null, null, request, response);
 						}
 						else //is a binary, do normal
 						{
@@ -1008,7 +1058,7 @@ static String API_ROOT = null;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, request, response);
+									.toString(), newUpload, false, null, null, request, response);
 						}
 
 						if (fileId.contains("Failed")) 
@@ -1041,273 +1091,363 @@ static String API_ROOT = null;
 			{
 			}
 
-      out.write("\n");
-      out.write("\t\n");
-      out.write("\t<script>\n");
-      out.write("\tfunction clearCommList()\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\tmult_comms = document.getElementById('communities');\n");
-      out.write("\t\t\tfor ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )\n");
-      out.write("\t\t\t{\n");
-      out.write("\t\t\t  o = mult_comms.options[i];\n");
-      out.write("\t\t\t  o.selected = false;\n");
-      out.write("\t\t\t}\n");
-      out.write("\t\t}\n");
-      out.write("\t\tfunction highlightComms(commList)\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\tmult_comms = document.getElementById('communities');\n");
-      out.write("\t\t\tfor ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )\n");
-      out.write("\t\t\t{\n");
-      out.write("\t\t\t  o = mult_comms.options[i];\n");
-      out.write("\t\t\t  if(commList.indexOf(o.value) == -1)\n");
-      out.write("\t\t\t\to.selected = false;\n");
-      out.write("\t\t\t  else  \n");
-      out.write("\t\t\t  \to.selected = true;\n");
-      out.write("\t\t\t}\n");
-      out.write("\t\t}\n");
-      out.write("\tfunction populate()\n");
-      out.write("\t{\n");
-      out.write("\t\tvar typerow = document.getElementById('typerow');\n");
-      out.write("\t\tvar type = document.getElementById('type');\n");
-      out.write("\t\tvar title = document.getElementById('title');\n");
-      out.write("\t\tvar description = document.getElementById('description');\n");
-      out.write("\t\tvar file = document.getElementById('file');\n");
-      out.write("\t\tvar created = document.getElementById('created');\n");
-      out.write("\t\tvar DBId = document.getElementById('DBId');\n");
-      out.write("\t\tvar deleteId = document.getElementById('deleteId');\n");
-      out.write("\t\tvar deleteButton = document.getElementById('deleteButton');\n");
-      out.write("\t\tvar share_url = document.getElementById('share_url');\n");
-      out.write("\t\tvar owner_text = document.getElementById('owner_text');\n");
-      out.write("\t\tvar owner = document.getElementById('owner');\n");
-      out.write("\t\tvar url_row = document.getElementById('url_row');\n");
-      out.write("\t\tvar dropdown = document.getElementById(\"upload_info\");\n");
-      out.write("\t\tvar list = dropdown.options[dropdown.selectedIndex].value;\n");
-      out.write("\t\tvar binary = document.getElementById(\"binary\");\n");
-      out.write("\t\t\n");
-      out.write("\t\tif (list == \"new\")\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\ttitle.value = \"\";\n");
-      out.write("\t\t\tdescription.value = \"\";\n");
-      out.write("\t\t\ttype.value = \"binary\";\n");
-      out.write("\t\t\tcreated.value = \"\";\n");
-      out.write("\t\t\tDBId.value = \"\";\n");
-      out.write("\t\t\tdeleteId.value = \"\";\n");
-      out.write("\t\t\tshare_url.value = \"\";\n");
-      out.write("\t\t\towner.value = \"\";\n");
-      out.write("\t\t\ttyperow.className = \"hide\";\n");
-      out.write("\t\t\turl_row.className = \"hide\";\n");
-      out.write("\t\t\towner.className = \"hide\";\n");
-      out.write("\t\t\towner_text.className = \"hide\";\n");
-      out.write("\t\t\tdeleteButton.className = \"hide\";\n");
-      out.write("\t\t\tclearCommList();\n");
-      out.write("\t\t\tbinary.value = \"\";\n");
-      out.write("\t\t\treturn;\n");
-      out.write("\t\t}\n");
-      out.write("\t\t\n");
-      out.write("\t\tif ( list == \"newJSON\")\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\ttitle.value = \"\";\n");
-      out.write("\t\t\tdescription.value = \"\";\n");
-      out.write("\t\t\ttype.value = \"\";\n");
-      out.write("\t\t\tcreated.value = \"\";\n");
-      out.write("\t\t\tDBId.value = \"\";\n");
-      out.write("\t\t\tdeleteId.value = \"\";\n");
-      out.write("\t\t\tshare_url.value = \"\";\n");
-      out.write("\t\t\towner.value = \"\";\n");
-      out.write("\t\t\ttyperow.className = \"show\";\n");
-      out.write("\t\t\turl_row.className = \"hide\";\n");
-      out.write("\t\t\towner.className = \"hide\";\n");
-      out.write("\t\t\towner_text.className = \"hide\";\n");
-      out.write("\t\t\tdeleteButton.className = \"hide\";\n");
-      out.write("\t\t\tclearCommList();\n");
-      out.write("\t\t\tbinary.value = \"null\";\n");
-      out.write("\t\t\treturn;\n");
-      out.write("\t\t}\n");
-      out.write("\t\t\n");
-      out.write("\t\t//_id, created, title, description\n");
-      out.write("\t\tsplit = list.split(\"$$$\");\n");
-      out.write("\t\t\n");
-      out.write("\t\tres_id = split[0];\n");
-      out.write("\t\tres_created = split[1];\n");
-      out.write("\t\tres_title = split[2];\n");
-      out.write("\t\tres_description = split[3];\n");
-      out.write("\t\tres_url = split[4];\n");
-      out.write("\t\tcommunities = split[5];\n");
-      out.write("\t\tres_owner = split[6];\n");
-      out.write("\t\tres_binary = split[7];\t\t\n");
-      out.write("\t\tres_type = split[8];\t\t\t\n");
-      out.write("\t\t\n");
-      out.write("\t\tif ( res_binary == \"null\" )\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\ttyperow.className = \"show\";\n");
-      out.write("\t\t}\n");
-      out.write("\t\telse\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\ttyperow.className = \"hide\";\n");
-      out.write("\t\t}\n");
-      out.write("\t\ttitle.value = res_title;\n");
-      out.write("\t\tdescription.value = res_description;\n");
-      out.write("\t\tcreated.value = res_created;\n");
-      out.write("\t\tDBId.value = res_id;\n");
-      out.write("\t\tdeleteId.value = res_id;\n");
-      out.write("\t\tshare_url.value = res_url;\n");
-      out.write("\t\towner.value = res_owner;\t\t\n");
-      out.write("\t\tdeleteButton.className = \"show\";\n");
-      out.write("\t\towner.className = \"show\";\n");
-      out.write("\t\towner_text.className = \"show\";\n");
-      out.write("\t\turl_row.className = \"show\";\n");
-      out.write("\t\thighlightComms(communities);\t\t\n");
-      out.write("\t\tbinary.value = res_binary;\n");
-      out.write("\t\ttype.value = res_type;\n");
-      out.write("\t}\n");
-      out.write("\t\tfunction validate_fields()\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\ttitle = document.getElementById('title').value;\n");
-      out.write("\t\t\tdescription = document.getElementById('description').value;\n");
-      out.write("\t\t\tfile = document.getElementById('file').value;\n");
-      out.write("\t\t\tbinary = document.getElementById(\"binary\").value;\n");
-      out.write("\t\t\ttype = document.getElementById(\"type\").value;\n");
-      out.write("\t\t\t//share_url = document.getElementById('share_url').value;\n");
-      out.write("\t\t\t//file_url = document.getElementById('file_url').value;\n");
-      out.write("\t\t\t//file_check = document.getElementById('file_check').checked;\n");
-      out.write("\t\t\t\n");
-      out.write("\t\t\tif (title == \"\")\n");
-      out.write("\t\t\t{\n");
-      out.write("\t\t\t\talert('Please provide a title.');\n");
-      out.write("\t\t\t\treturn false;\n");
-      out.write("\t\t\t}\n");
-      out.write("\t\t\tif (description == \"\")\n");
-      out.write("\t\t\t{\n");
-      out.write("\t\t\t\talert('Please provide a description.');\n");
-      out.write("\t\t\t\treturn false;\n");
-      out.write("\t\t\t}\n");
-      out.write("\t\t\tif ( binary == \"null\" && type == \"\")\n");
-      out.write("\t\t\t{\n");
-      out.write("\t\t\t\talert('Please provide a type.');\n");
-      out.write("\t\t\t\treturn false;\n");
-      out.write("\t\t\t}\n");
-      out.write("\t\t\t\n");
-      out.write("\t\t\t\n");
-      out.write("\t\t}\n");
-      out.write("\t\tfunction confirmDelete()\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\tvar agree=confirm(\"Are you sure you wish to Delete this file from the File Share?\");\n");
-      out.write("\t\t\tif (agree)\n");
-      out.write("\t\t\t\treturn true ;\n");
-      out.write("\t\t\telse\n");
-      out.write("\t\t\t\treturn false ;\n");
-      out.write("\t\t}\n");
-      out.write("\t\tfunction showResults()\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\tvar title = document.getElementById('DBId').value;\n");
-      out.write("\t\t\tvar url = getEndPointUrl() + \"share/get/\" + title;\n");
-      out.write("\t\t\twindow.open(url, '_blank');\n");
-      out.write("\t\t\twindow.focus();\t\t\t\n");
-      out.write("\t\t}\n");
-      out.write("\t\t// -->\n");
-      out.write("\t\t</script>\n");
-      out.write("\t</script>\n");
-      out.write("\t\t<div id=\"uploader_outter_div\" name=\"uploader_outter_div\" align=\"center\" style=\"width:100%\" >\n");
-      out.write("\t    \t<div id=\"uploader_div\" name=\"uploader_div\" style=\"border-style:solid; border-color:#999999; border-radius: 10px; width:475px; margin:auto\">\n");
-      out.write("\t        \t<h2>File Uploader</h2>\n");
-      out.write("\t        \t<form id=\"search_form\" name=\"search_form\" method=\"get\">\n");
-      out.write("\t        \t\t<div align=\"center\"\">\n");
-      out.write("\t        \t\t<label for=\"ext\">Filter On</label>\n");
-      out.write("\t\t\t\t\t  <select name=\"ext\" id=\"ext\" onchange=\"this.form.submit();\">\n");
+      out.write("\r\n");
+      out.write("\t\r\n");
+      out.write("\t<script>\r\n");
+      out.write("\tfunction clearCommList()\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\tmult_comms = document.getElementById('communities');\r\n");
+      out.write("\t\t\tfor ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )\r\n");
+      out.write("\t\t\t{\r\n");
+      out.write("\t\t\t  o = mult_comms.options[i];\r\n");
+      out.write("\t\t\t  o.selected = false;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\tfunction highlightComms(commList)\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\tmult_comms = document.getElementById('communities');\r\n");
+      out.write("\t\t\tfor ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )\r\n");
+      out.write("\t\t\t{\r\n");
+      out.write("\t\t\t  o = mult_comms.options[i];\r\n");
+      out.write("\t\t\t  if(commList.indexOf(o.value) == -1)\r\n");
+      out.write("\t\t\t\to.selected = false;\r\n");
+      out.write("\t\t\t  else  \r\n");
+      out.write("\t\t\t  \to.selected = true;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\tfunction populate()\r\n");
+      out.write("\t{\r\n");
+      out.write("\t\tvar typerow = document.getElementById('typerow');\r\n");
+      out.write("\t\tvar type = document.getElementById('type');\r\n");
+      out.write("\t\tvar title = document.getElementById('title');\r\n");
+      out.write("\t\tvar description = document.getElementById('description');\r\n");
+      out.write("\t\tvar file = document.getElementById('file');\r\n");
+      out.write("\t\tvar created = document.getElementById('created');\r\n");
+      out.write("\t\tvar DBId = document.getElementById('DBId');\r\n");
+      out.write("\t\tvar deleteId = document.getElementById('deleteId');\r\n");
+      out.write("\t\tvar deleteButton = document.getElementById('deleteButton');\r\n");
+      out.write("\t\tvar share_url = document.getElementById('share_url');\r\n");
+      out.write("\t\tvar owner_text = document.getElementById('owner_text');\r\n");
+      out.write("\t\tvar owner = document.getElementById('owner');\r\n");
+      out.write("\t\tvar url_row = document.getElementById('url_row');\r\n");
+      out.write("\t\tvar dropdown = document.getElementById(\"upload_info\");\r\n");
+      out.write("\t\tvar list = dropdown.options[dropdown.selectedIndex].value;\r\n");
+      out.write("\t\tvar binary = document.getElementById(\"binary\");\r\n");
+      out.write("\t\tvar reference = document.getElementById(\"reference\");\r\n");
+      out.write("\t\tvar ref_id = document.getElementById(\"ref_id\");\r\n");
+      out.write("\t\tvar ref_loc = document.getElementById(\"ref_loc\");\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tif (list == \"new\")\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttitle.value = \"\";\r\n");
+      out.write("\t\t\tdescription.value = \"\";\r\n");
+      out.write("\t\t\ttype.value = \"binary\";\r\n");
+      out.write("\t\t\tcreated.value = \"\";\r\n");
+      out.write("\t\t\tDBId.value = \"\";\r\n");
+      out.write("\t\t\tdeleteId.value = \"\";\r\n");
+      out.write("\t\t\tshare_url.value = \"\";\r\n");
+      out.write("\t\t\towner.value = \"\";\r\n");
+      out.write("\t\t\ttyperow.className = \"hide\";\r\n");
+      out.write("\t\t\turl_row.className = \"hide\";\r\n");
+      out.write("\t\t\towner.className = \"hide\";\r\n");
+      out.write("\t\t\towner_text.className = \"hide\";\r\n");
+      out.write("\t\t\tdeleteButton.className = \"hide\";\r\n");
+      out.write("\t\t\tclearCommList();\r\n");
+      out.write("\t\t\tfile_row.className = \"show\";\r\n");
+      out.write("\t\t\tref_row.className = \"hide\";\r\n");
+      out.write("\t\t\trefid_row.className = \"hide\";\r\n");
+      out.write("\t\t\tbinary.value = \"\";\r\n");
+      out.write("\t\t\treference.value = \"null\";\r\n");
+      out.write("\t\t\treturn;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tif ( list == \"newJSON\")\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttitle.value = \"\";\r\n");
+      out.write("\t\t\tdescription.value = \"\";\r\n");
+      out.write("\t\t\ttype.value = \"\";\r\n");
+      out.write("\t\t\tcreated.value = \"\";\r\n");
+      out.write("\t\t\tDBId.value = \"\";\r\n");
+      out.write("\t\t\tdeleteId.value = \"\";\r\n");
+      out.write("\t\t\tshare_url.value = \"\";\r\n");
+      out.write("\t\t\towner.value = \"\";\r\n");
+      out.write("\t\t\ttyperow.className = \"show\";\r\n");
+      out.write("\t\t\turl_row.className = \"hide\";\r\n");
+      out.write("\t\t\towner.className = \"hide\";\r\n");
+      out.write("\t\t\towner_text.className = \"hide\";\r\n");
+      out.write("\t\t\tdeleteButton.className = \"hide\";\r\n");
+      out.write("\t\t\tclearCommList();\r\n");
+      out.write("\t\t\tfile_row.className = \"show\";\r\n");
+      out.write("\t\t\tref_row.className = \"hide\";\r\n");
+      out.write("\t\t\trefid_row.className = \"hide\";\r\n");
+      out.write("\t\t\tbinary.value = \"null\";\r\n");
+      out.write("\t\t\treference.value = \"null\";\r\n");
+      out.write("\t\t\treturn;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tif (list == \"newRef\")\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttitle.value = \"\";\r\n");
+      out.write("\t\t\tdescription.value = \"\";\r\n");
+      out.write("\t\t\ttype.value = \"\";\r\n");
+      out.write("\t\t\tcreated.value = \"\";\r\n");
+      out.write("\t\t\tDBId.value = \"\";\r\n");
+      out.write("\t\t\tdeleteId.value = \"\";\r\n");
+      out.write("\t\t\tshare_url.value = \"\";\r\n");
+      out.write("\t\t\towner.value = \"\";\r\n");
+      out.write("\t\t\ttyperow.className = \"show\";\r\n");
+      out.write("\t\t\ttyperow.className = \"show\";\r\n");
+      out.write("\t\t\turl_row.className = \"hide\";\r\n");
+      out.write("\t\t\towner.className = \"hide\";\r\n");
+      out.write("\t\t\towner_text.className = \"hide\";\r\n");
+      out.write("\t\t\tdeleteButton.className = \"hide\";\r\n");
+      out.write("\t\t\tclearCommList();\r\n");
+      out.write("\t\t\tfile_row.className = \"hide\";\r\n");
+      out.write("\t\t\tref_row.className = \"show\";\r\n");
+      out.write("\t\t\trefid_row.className = \"show\";\r\n");
+      out.write("\t\t\tbinary.value = \"null\";\r\n");
+      out.write("\t\t\treference.value = \"\";\r\n");
+      out.write("\t\t\treturn;\t\t\t\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\t//_id, created, title, description\r\n");
+      out.write("\t\tsplit = list.split(\"$$$\");\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tres_id = split[0];\r\n");
+      out.write("\t\tres_created = split[1];\r\n");
+      out.write("\t\tres_title = split[2];\r\n");
+      out.write("\t\tres_description = split[3];\r\n");
+      out.write("\t\tres_url = split[4];\r\n");
+      out.write("\t\tcommunities = split[5];\r\n");
+      out.write("\t\tres_owner = split[6];\r\n");
+      out.write("\t\tres_binary = split[7];\t\t\r\n");
+      out.write("\t\tres_type = split[8];\t\t\r\n");
+      out.write("\t\tres_docloc = split[9];\r\n");
+      out.write("\t\tres_docid = split[10];\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tif ( res_docloc != \"null\" ) // reference\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttyperow.className = \"show\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\tfile_row.className = \"hide\";\r\n");
+      out.write("\t\t\tref_row.className = \"show\";\r\n");
+      out.write("\t\t\trefid_row.className = \"show\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\tref_loc.value = res_docloc;\r\n");
+      out.write("\t\t\tref_id.value = res_docid;\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\treference.value = \"\";\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\telse if ( res_binary == \"null\" ) //json\r\n");
+      out.write("\t\t{\t\t\t\r\n");
+      out.write("\t\t\ttyperow.className = \"show\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\tfile_row.className = \"show\";\r\n");
+      out.write("\t\t\tref_row.className = \"hide\";\r\n");
+      out.write("\t\t\trefid_row.className = \"hide\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\treference.value = \"null\";\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\telse //binary\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttyperow.className = \"hide\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\tfile_row.className = \"show\";\r\n");
+      out.write("\t\t\tref_row.className = \"hide\";\r\n");
+      out.write("\t\t\trefid_row.className = \"hide\";\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\treference.value = \"null\";\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\ttitle.value = res_title;\r\n");
+      out.write("\t\tdescription.value = res_description;\r\n");
+      out.write("\t\tcreated.value = res_created;\r\n");
+      out.write("\t\tDBId.value = res_id;\r\n");
+      out.write("\t\tdeleteId.value = res_id;\r\n");
+      out.write("\t\tshare_url.value = res_url;\r\n");
+      out.write("\t\towner.value = res_owner;\t\t\r\n");
+      out.write("\t\tdeleteButton.className = \"show\";\r\n");
+      out.write("\t\towner.className = \"show\";\r\n");
+      out.write("\t\towner_text.className = \"show\";\r\n");
+      out.write("\t\turl_row.className = \"show\";\r\n");
+      out.write("\t\thighlightComms(communities);\t\t\r\n");
+      out.write("\t\tbinary.value = res_binary;\r\n");
+      out.write("\t\ttype.value = res_type;\r\n");
+      out.write("\t}\r\n");
+      out.write("\t\tfunction validate_fields()\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\ttitle = document.getElementById('title').value;\r\n");
+      out.write("\t\t\tdescription = document.getElementById('description').value;\r\n");
+      out.write("\t\t\tfile = document.getElementById('file').value;\r\n");
+      out.write("\t\t\tbinary = document.getElementById(\"binary\").value;\r\n");
+      out.write("\t\t\treference = document.getElementById(\"reference\").value;\r\n");
+      out.write("\t\t\ttype = document.getElementById(\"type\").value;\r\n");
+      out.write("\t\t\tdocid = document.getElementById(\"ref_id\").value;\r\n");
+      out.write("\t\t\t//share_url = document.getElementById('share_url').value;\r\n");
+      out.write("\t\t\t//file_url = document.getElementById('file_url').value;\r\n");
+      out.write("\t\t\t//file_check = document.getElementById('file_check').checked;\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\tif (title == \"\")\r\n");
+      out.write("\t\t\t{\r\n");
+      out.write("\t\t\t\talert('Please provide a title.');\r\n");
+      out.write("\t\t\t\treturn false;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\tif (description == \"\")\r\n");
+      out.write("\t\t\t{\r\n");
+      out.write("\t\t\t\talert('Please provide a description.');\r\n");
+      out.write("\t\t\t\treturn false;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\tif ( binary == \"null\" && type == \"\")\r\n");
+      out.write("\t\t\t{\r\n");
+      out.write("\t\t\t\talert('Please provide a type.');\r\n");
+      out.write("\t\t\t\treturn false;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\tif ( reference != \"null\" && docid == \"\") {\r\n");
+      out.write("\t\t\t\talert('Please provide a referenced doc id.');\r\n");
+      out.write("\t\t\t\treturn false;\t\t\t\t\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t\t\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\tfunction confirmDelete()\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\tvar agree=confirm(\"Are you sure you wish to Delete this file from the File Share?\");\r\n");
+      out.write("\t\t\tif (agree)\r\n");
+      out.write("\t\t\t\treturn true ;\r\n");
+      out.write("\t\t\telse\r\n");
+      out.write("\t\t\t\treturn false ;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\tfunction showResults()\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\tvar title = document.getElementById('DBId').value;\r\n");
+      out.write("\t\t\tvar url = getEndPointUrl() + \"share/get/\" + title + \"?nometa=true\";\r\n");
+      out.write("\t\t\twindow.open(url, '_blank');\r\n");
+      out.write("\t\t\twindow.focus();\t\t\t\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\t// -->\r\n");
+      out.write("\t\t</script>\r\n");
+      out.write("\t</script>\r\n");
+      out.write("\t\t<div id=\"uploader_outter_div\" name=\"uploader_outter_div\" align=\"center\" style=\"width:100%\" >\r\n");
+      out.write("\t    \t<div id=\"uploader_div\" name=\"uploader_div\" style=\"border-style:solid; border-color:#999999; border-radius: 10px; width:475px; margin:auto\">\r\n");
+      out.write("\t        \t<h2>File Uploader</h2>\r\n");
+      out.write("\t        \t<form id=\"search_form\" name=\"search_form\" method=\"get\">\r\n");
+      out.write("\t        \t\t<div align=\"center\"\">\r\n");
+      out.write("\t        \t\t<label for=\"ext\">Filter On</label>\r\n");
+      out.write("\t\t\t\t\t  <select name=\"ext\" id=\"ext\" onchange=\"this.form.submit();\">\r\n");
       out.write("\t\t\t\t\t    ");
 
 					    	out.print(populateMediaTypes(request, response));
 					    
-      out.write("\n");
-      out.write("\t\t\t\t\t  </select>\n");
-      out.write("\t\t\t\t\t </div>\n");
+      out.write("\r\n");
+      out.write("\t\t\t\t\t  </select>\r\n");
+      out.write("\t\t\t\t\t </div>\r\n");
       out.write("\t\t\t\t\t ");
 
 					 	if (showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 
-      out.write("\t        \t\t\n");
-      out.write("\t        \t</form>\n");
-      out.write("\t        \t<form id=\"delete_form\" name=\"delete_form\" method=\"post\" enctype=\"multipart/form-data\" onsubmit=\"javascript:return confirmDelete()\" >\n");
-      out.write("\t        \t\t<select id=\"upload_info\" onchange=\"populate()\" name=\"upload_info\"><option value=\"new\">Upload New File</option><option value=\"newJSON\">Upload New JSON</option> ");
+      out.write("\t        \t\t\r\n");
+      out.write("\t        \t</form>\r\n");
+      out.write("\t        \t<form id=\"delete_form\" name=\"delete_form\" method=\"post\" enctype=\"multipart/form-data\" onsubmit=\"javascript:return confirmDelete()\" >\r\n");
+      out.write("\t        \t\t<select id=\"upload_info\" onchange=\"populate()\" name=\"upload_info\">\r\n");
+      out.write("\t        \t\t<option value=\"new\">Upload New File</option>\r\n");
+      out.write("\t        \t\t<option value=\"newJSON\">Upload New JSON</option>\r\n");
+      out.write("\t        \t\t<option value=newRef>Share existing object</option> \r\n");
+      out.write("\t        \t\t");
 
  	out.print(populatePreviousUploads(request, response));
  
-      out.write("</select>\n");
-      out.write("\t        \t\t<input type=\"submit\" name=\"deleteButton\" id=\"deleteButton\" class=\"hidden\" value=\"Delete\" />\n");
-      out.write("\t        \t\t<input type=\"hidden\" name=\"deleteId\" id=\"deleteId\" />\n");
-      out.write("\t        \t\t<input type=\"hidden\" name=\"deleteFile\" id=\"deleteFile\" />\n");
+      out.write("</select>\r\n");
+      out.write("\t        \t\t<input type=\"submit\" name=\"deleteButton\" id=\"deleteButton\" class=\"hidden\" value=\"Delete\" />\r\n");
+      out.write("\t        \t\t<input type=\"hidden\" name=\"deleteId\" id=\"deleteId\" />\r\n");
+      out.write("\t        \t\t<input type=\"hidden\" name=\"deleteFile\" id=\"deleteFile\" />\r\n");
       out.write("\t\t\t\t\t ");
 
 					 	if (showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 
-      out.write("\t        \t\t\n");
-      out.write("\t        \t</form>\n");
-      out.write("\t            <form id=\"upload_form\" name=\"upload_form\" method=\"post\" enctype=\"multipart/form-data\" onsubmit=\"javascript:return validate_fields();\" >\n");
-      out.write("\t                <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding-left:10px; padding-right:10px\">\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                    <td colspan=\"2\" align=\"center\"></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                    <td>Title:</td>\n");
-      out.write("\t                    <td><input type=\"text\" name=\"title\" id=\"title\" size=\"39\" /></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                    <td>Description:</td>\n");
-      out.write("\t                    <td><textarea rows=\"4\" cols=\"30\" name=\"description\" id=\"description\" ></textarea></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr id=\"typerow\">\n");
-      out.write("\t                    <td>Type:</td>\n");
-      out.write("\t                    <td><input type=\"text\" name=\"type\" id=\"type\" size=\"39\" /></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                  \t<td>Communities:</td>\n");
+      out.write("\t        \t\t\r\n");
+      out.write("\t        \t</form>\r\n");
+      out.write("\t            <form id=\"upload_form\" name=\"upload_form\" method=\"post\" enctype=\"multipart/form-data\" onsubmit=\"javascript:return validate_fields();\" >\r\n");
+      out.write("\t                <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding-left:10px; padding-right:10px\">\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                    <td colspan=\"2\" align=\"center\"></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                    <td>Title:</td>\r\n");
+      out.write("\t                    <td><input type=\"text\" name=\"title\" id=\"title\" size=\"39\" /></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                    <td>Description:</td>\r\n");
+      out.write("\t                    <td><textarea rows=\"4\" cols=\"30\" name=\"description\" id=\"description\" ></textarea></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr id=\"typerow\">\r\n");
+      out.write("\t                    <td>Type:</td>\r\n");
+      out.write("\t                    <td><input type=\"text\" name=\"type\" id=\"type\" size=\"39\" /></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                  \t<td>Communities:</td>\r\n");
       out.write("\t                  \t<td>");
 
 	                  		out.print(communityList);
 	                  	
-      out.write("</td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                  \t<td id=\"owner_text\">Owner:</td>\n");
-      out.write("\t                  \t<td>\n");
-      out.write("\t                    <input type=\"text\" name=\"owner\" id=\"owner\" readonly=\"readonly\" size=\"25\" />\n");
-      out.write("\t                  \t</td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                    <td>File:</td>\n");
-      out.write("\t                    <td><input type=\"file\" name=\"file\" id=\"file\" /></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr id=\"url_row\" class=\"hide\">\n");
-      out.write("\t                  \t<td>Share URL:</td>\n");
-      out.write("\t                  \t<td><input type=\"text\" name=\"share_url\" id=\"share_url\" readonly=\"readonly\" size=\"38\"/>\n");
-      out.write("\t                  \t<input type=\"button\" onclick=\"showResults()\" value=\"View\"/>\n");
-      out.write("\t                  \t</td>\n");
-      out.write("\t                \t<td></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                  <tr>\n");
-      out.write("\t                    <td colspan=\"2\" style=\"text-align:right\"><input type=\"submit\" value=\"Submit\" /></td>\n");
-      out.write("\t                  </tr>\n");
-      out.write("\t                </table>\n");
-      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"created\" id=\"created\" />\n");
-      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"DBId\" id=\"DBId\" />\n");
-      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"fileUrl\" id=\"fileUrl\" />\n");
-      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"binary\" id=\"binary\" />\n");
+      out.write("</td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                  \t<td id=\"owner_text\">Owner:</td>\r\n");
+      out.write("\t                  \t<td>\r\n");
+      out.write("\t                    <input type=\"text\" name=\"owner\" id=\"owner\" readonly=\"readonly\" size=\"25\" />\r\n");
+      out.write("\t                  \t</td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr id=\"file_row\">\r\n");
+      out.write("\t                    <td>File:</td>\r\n");
+      out.write("\t                    <td><input type=\"file\" name=\"file\" id=\"file\" /></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr id=\"ref_row\">\r\n");
+      out.write("\t                    <td>Reference location:</td>\r\n");
+      out.write("\t                  \t<td>\r\n");
+      out.write("\t                  \t<select id=\"ref_loc\" name=\"ref_loc\">\r\n");
+      out.write("\t\t\t        \t\t<option value=\"custommr.customlookup\">Custom Plugin Collection</option>\r\n");
+      out.write("\t\t\t        \t\t<option value=\"doc_metadata.metadata\">Document Metadata Collection</option>\r\n");
+      out.write("\t\t\t        \t\t<option value=\"feature.entity\">Aggregated Entity Collection</option>\r\n");
+      out.write("\t\t\t        \t\t<option value=\"feature.association\">Aggregated Association Collection</option>\r\n");
+      out.write("\t\t\t        \t\t<option value=\"local.file\">Local File (admin only)</option>\r\n");
+      out.write("\t                  \t</select>\r\n");
+      out.write("\t                  \t</td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr id=\"refid_row\">\r\n");
+      out.write("\t                    <td>Reference doc id:</td>\r\n");
+      out.write("\t                  \t<td><input type=\"text\" name=\"ref_id\" id=\"ref_id\" size=\"38\"/></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr id=\"url_row\" class=\"hide\">\r\n");
+      out.write("\t                  \t<td>Share URL:</td>\r\n");
+      out.write("\t                  \t<td><input type=\"text\" name=\"share_url\" id=\"share_url\" readonly=\"readonly\" size=\"38\"/>\r\n");
+      out.write("\t                  \t<input type=\"button\" onclick=\"showResults()\" value=\"View\"/>\r\n");
+      out.write("\t                  \t</td>\r\n");
+      out.write("\t                \t<td></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                  <tr>\r\n");
+      out.write("\t                    <td colspan=\"2\" style=\"text-align:right\"><input type=\"submit\" value=\"Submit\" /></td>\r\n");
+      out.write("\t                  </tr>\r\n");
+      out.write("\t                </table>\r\n");
+      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"created\" id=\"created\" />\r\n");
+      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"DBId\" id=\"DBId\" />\r\n");
+      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"fileUrl\" id=\"fileUrl\" />\r\n");
+      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"binary\" id=\"binary\" />\r\n");
+      out.write("\t\t\t\t\t<input type=\"hidden\" name=\"reference\" id=\"reference\" />\r\n");
       out.write("\t\t\t\t\t ");
 
 					 	if (showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 
-      out.write("\t        \t\t\n");
-      out.write("\t\t\t\t</form>\n");
-      out.write("\t        </div>\n");
-      out.write("\t        <form id=\"logout_form\" name=\"logout_form\" method=\"post\">\n");
-      out.write("\t        \t<input type=\"submit\" name=\"logout\" id = \"logout\" value=\"Log Out\" />\n");
-      out.write("\t        </form>\n");
-      out.write("\t    </div>\n");
-      out.write("\t    </p>\n");
-      out.write("\t\n");
+      out.write("\t        \t\t\r\n");
+      out.write("\t\t\t\t</form>\r\n");
+      out.write("\t        </div>\r\n");
+      out.write("\t        <form id=\"logout_form\" name=\"logout_form\" method=\"post\">\r\n");
+      out.write("\t        \t<input type=\"submit\" name=\"logout\" id = \"logout\" value=\"Log Out\" />\r\n");
+      out.write("\t        </form>\r\n");
+      out.write("\t    </div>\r\n");
+      out.write("\t    </p>\r\n");
+      out.write("\t\r\n");
 
 		}
 		} else if (isLoggedIn == false) {
@@ -1328,60 +1468,60 @@ static String API_ROOT = null;
 
 			}
 	
-      out.write("\n");
-      out.write("\n");
-      out.write("<script>\n");
-      out.write("\tfunction validate_fields()\n");
-      out.write("\t{\n");
-      out.write("\t\tuname = document.getElementById('logintext').value;\n");
-      out.write("\t\tpword = document.getElementById('passwordtext').value;\n");
-      out.write("\t\t\n");
-      out.write("\t\tif (uname == \"\")\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\talert('Please provide your username.');\n");
-      out.write("\t\t\treturn false;\n");
-      out.write("\t\t}\n");
-      out.write("\t\tif (pword == \"\")\n");
-      out.write("\t\t{\n");
-      out.write("\t\t\talert('Please provide your password.');\n");
-      out.write("\t\t\treturn false;\n");
-      out.write("\t\t}\n");
-      out.write("\t}\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("</script>\n");
-      out.write("\t<div id=\"login_outter_div\" name=\"login_outter_div\" align=\"center\" style=\"width:100%\" >\n");
-      out.write("    \t<div id=\"login_div\" name=\"login_div\" style=\"border-style:solid; border-color:#999999; border-radius: 10px; width:450px; margin:auto\">\n");
-      out.write("        \t<h2>Login</h2>\n");
-      out.write("            <form id=\"login_form\" name=\"login_form\" method=\"post\" onsubmit=\"javascript:return validate_fields();\" >\n");
-      out.write("                <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding-left:10px\">\n");
-      out.write("                  <tr>\n");
-      out.write("                    <td>User Name</td>\n");
-      out.write("                    <td>&nbsp;</td>\n");
-      out.write("                    <td>Password</td>\n");
-      out.write("                  </tr>\n");
-      out.write("                  <tr>\n");
-      out.write("                    <td><input type=\"text\" name=\"logintext\" id=\"logintext\" width=\"190px\" /></td>\n");
-      out.write("                    <td>&nbsp;</td>\n");
-      out.write("                    <td><input type=\"password\" name=\"passwordtext\" id=\"passwordtext\" width=\"190px\" /></td>\n");
-      out.write("                  </tr>\n");
-      out.write("                  <tr>\n");
-      out.write("                    <td colspan=\"3\" align=\"right\"><input name=\"Login\" type=\"submit\" value=\"Login\" /></td>\n");
-      out.write("                  </tr>\n");
-      out.write("                </table>\n");
-      out.write("\t\t\t</form>\n");
-      out.write("        </div>\n");
-      out.write("    </div>\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("<script>\r\n");
+      out.write("\tfunction validate_fields()\r\n");
+      out.write("\t{\r\n");
+      out.write("\t\tuname = document.getElementById('logintext').value;\r\n");
+      out.write("\t\tpword = document.getElementById('passwordtext').value;\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\tif (uname == \"\")\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\talert('Please provide your username.');\r\n");
+      out.write("\t\t\treturn false;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\tif (pword == \"\")\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\talert('Please provide your password.');\r\n");
+      out.write("\t\t\treturn false;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t}\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("</script>\r\n");
+      out.write("\t<div id=\"login_outter_div\" name=\"login_outter_div\" align=\"center\" style=\"width:100%\" >\r\n");
+      out.write("    \t<div id=\"login_div\" name=\"login_div\" style=\"border-style:solid; border-color:#999999; border-radius: 10px; width:450px; margin:auto\">\r\n");
+      out.write("        \t<h2>Login</h2>\r\n");
+      out.write("            <form id=\"login_form\" name=\"login_form\" method=\"post\" onsubmit=\"javascript:return validate_fields();\" >\r\n");
+      out.write("                <table width=\"100%\" border=\"0\" cellspacing=\"0\" cellpadding=\"0\" style=\"padding-left:10px\">\r\n");
+      out.write("                  <tr>\r\n");
+      out.write("                    <td>User Name</td>\r\n");
+      out.write("                    <td>&nbsp;</td>\r\n");
+      out.write("                    <td>Password</td>\r\n");
+      out.write("                  </tr>\r\n");
+      out.write("                  <tr>\r\n");
+      out.write("                    <td><input type=\"text\" name=\"logintext\" id=\"logintext\" width=\"190px\" /></td>\r\n");
+      out.write("                    <td>&nbsp;</td>\r\n");
+      out.write("                    <td><input type=\"password\" name=\"passwordtext\" id=\"passwordtext\" width=\"190px\" /></td>\r\n");
+      out.write("                  </tr>\r\n");
+      out.write("                  <tr>\r\n");
+      out.write("                    <td colspan=\"3\" align=\"right\"><input name=\"Login\" type=\"submit\" value=\"Login\" /></td>\r\n");
+      out.write("                  </tr>\r\n");
+      out.write("                </table>\r\n");
+      out.write("\t\t\t</form>\r\n");
+      out.write("        </div>\r\n");
+      out.write("    </div>\r\n");
       out.write("\t<div style=\"color: red; text-align: center;\"> ");
       out.print(errorMsg);
-      out.write(" </div>\n");
+      out.write(" </div>\r\n");
 
 	}
 
-      out.write("\n");
-      out.write("    \n");
-      out.write("    \n");
-      out.write("</body>\n");
+      out.write("\r\n");
+      out.write("    \r\n");
+      out.write("    \r\n");
+      out.write("</body>\r\n");
       out.write("</html>");
     } catch (Throwable t) {
       if (!(t instanceof SkipPageException)){

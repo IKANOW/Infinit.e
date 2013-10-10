@@ -445,27 +445,18 @@
 			private function changeGraphSelection():void
 			{
 				removeOldGraph();
-				var currSel:Number = evtSlider.value;
 				
 				if ( dataOptionsList.selectedIndex == 1 )
 				{
 					var events:ArrayCollection = currentResultSet_events.getEvents(true);
-					maxEvt.text = events.length + "";
-					evtSlider.maximum = events.length;
-					
-					if ( events.length < currSel )
-						evtSlider.value = events.length;
+
 					sortData( events );
 					createGraph( events );
 				}
 				else if ( dataOptionsList.selectedIndex == 2 )
 				{
 					var facts:ArrayCollection = currentResultSet_facts.getFacts(true);
-					maxEvt.text = facts.length + "";
-					evtSlider.maximum = facts.length;
-					
-					if ( facts.length < currSel )
-						evtSlider.value = facts.length;
+
 					sortData( facts );
 					createGraph( facts );
 				}
@@ -476,20 +467,41 @@
 					var all:ArrayCollection = new ArrayCollection();
 					all.addAll( events1 );
 					all.addAll( facts1 );
-					maxEvt.text = all.length + "";
-					evtSlider.maximum = all.length;
-					
-					if ( all.length < currSel )
-						evtSlider.value = all.length;
+
 					sortData( all );
 					createGraph( all );
 				}
-				evtSlider.stepSize = Math.round( Number( maxEvt.text ) / 10 );
+				// (note create graph does most of the event slider processing and also maxEvt.text)
+				evtSlider.stepSize = Math.round( evtSlider.maximum / 10 );
 				percentile.text = "Showing top " + evtSlider.value + " events";
 			}
 			
 			private function createGraph( events:ArrayCollection ):void
 			{
+				// 1] Sort out the slider here, because I want to show the actual number of associations displayed after filtering:
+				
+				var prev_max = evtSlider.maximum; // (previous version - we'll check this is still valid each time)
+				
+				if (events.length > 200)
+				{
+					evtSlider.maximum = 200;
+					maxEvt.text = ">200";
+				}
+				else
+				{
+					evtSlider.maximum = events.length;
+					maxEvt.text = events.length + "";
+				}
+				if ( null != _regexFilter )
+				{
+					maxEvt.text += "?";
+				}
+				
+				if (evtSlider.value > evtSlider.maximum)
+					evtSlider.value = evtSlider.maximum;
+				
+				// 2] Graph rendering:
+						
 				var edgeDesc:String = "";
 				var edgeEnd:String = "\n[Drag edge to send to query/other widgets]";
 				var alpha:Number = 0.5;
@@ -512,6 +524,9 @@
 				
 				var num_events_max:int = evtSlider.value;
 				var egraph:EventGraph = new EventGraph();
+
+				if (num_events_max > 200)
+					num_events_max = 200; // (no point trying to render more than this...)
 				
 				if ( events != null && events.length > 0 )
 				{
@@ -546,7 +561,9 @@
 					//we want flow between 1-100
 					var flowRatio:Number = 100 / maxFlow;
 					visibleEvents.removeAll();
-					
+
+					var thereAreMoreNodes:Boolean = false;
+					var nodes_just_counted:Number = 0;
 					for each ( var event:Object in events )
 					{
 						if ( num_events < num_events_max )
@@ -556,6 +573,7 @@
 							{
 								visibleEvents.addItem( event );
 								num_events++;
+								nodes_just_counted++;
 								var lastNodeID:String = "1";
 								
 								if ( event.entity1_index != null )
@@ -816,13 +834,50 @@
 								}
 							}
 						}
-						else
-							break; //hit max num of events, break out
+						else if ( nodes_just_counted < prev_max ) // keep looking to check if we've hit the max or not
+						{
+							if ( matchesRegexFilter( event ) )
+							{
+								nodes_just_counted++;
+							}							
+						}
+						else { // are there more nodes beyond prev_max
+							if ( matchesRegexFilter( event ) )
+							{
+								nodes_just_counted++;
+								thereAreMoreNodes = true;
+								break; //hit max num of events, break out
+							}
+						}
 					}
 				}
 				
 				var xmlData:XML = egraph.getGraph();
 				drawGraph( xmlData );
+				
+				// 3] Complete event slider rendering
+				
+				evtSlider.value = num_events;
+				
+				// OK so here are the cases:
+				// we started with (0) .... (num_events_max) ... (prev_max) (for the moment we've overwritten slider.max as the number of events) 
+				// 1] we went through the entire array and never found more events than we'd selected anyway (and possibly fewer) 
+				//    - so adjust max downwards
+				// 2] we found nodes past "value" ie (nodes_just_counted > num_events) but nothing past prev_max (!thereAreMoreNodes) 
+				//    - use nodes_just_counted, ie prev_max or lower
+				// 3] we found nodes past prev_max - then just go back to guess about size
+				
+				if ( num_events == nodes_just_counted ) // fewer nodes now
+				{
+					evtSlider.maximum = num_events;
+					maxEvt.text = "" + num_events;										
+				}
+				else if ( !thereAreMoreNodes )
+				{
+					evtSlider.maximum = nodes_just_counted;
+					maxEvt.text = "" + nodes_just_counted;										
+				}
+				//else use the evtSlider.max we set at the top
 			}
 			
 			private function dataOptionsList_changeHandler( event:IndexChangeEvent ):void

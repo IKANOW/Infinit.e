@@ -105,13 +105,18 @@ public class UnstructuredAnalysisHarvester {
 	
 	// Transform the doc's text (go get it if necessary)
 	
-	public void doManualTextEnrichment(DocumentPojo doc, List<ManualTextExtractionSpecPojo> textExtractors, SourceRssConfigPojo feedConfig) throws IOException {
+	public String doManualTextEnrichment(DocumentPojo doc, List<ManualTextExtractionSpecPojo> textExtractors, SourceRssConfigPojo feedConfig) throws IOException {
+		String cachedFullText = null;
 		// Map to the legacy format and then call the legacy code 
 		ArrayList<SimpleTextCleanserPojo> mappedTextExtractors = new ArrayList<SimpleTextCleanserPojo>(textExtractors.size());
 		for (ManualTextExtractionSpecPojo textExtractor: textExtractors) {
 			if (DocumentPojo.fullText_.equalsIgnoreCase(textExtractor.fieldName)) {
-				getRawTextFromUrlIfNeeded(doc, feedConfig);				
-					// (if transforming full text then grab the raw body from the URL if necessary)
+				boolean fullTextNeeded = (null == doc.getFullText()); // (check here so we can cache it)
+				if (fullTextNeeded) {
+					getRawTextFromUrlIfNeeded(doc, feedConfig);				
+						// (if transforming full text then grab the raw body from the URL if necessary)
+					cachedFullText = doc.getFullText();
+				}//TOTEST
 			}			
 			SimpleTextCleanserPojo mappedTextExtractor = new SimpleTextCleanserPojo();
 			mappedTextExtractor.setField(textExtractor.fieldName);
@@ -123,6 +128,7 @@ public class UnstructuredAnalysisHarvester {
 		}
 		this.cleanseText(mappedTextExtractors, doc);
 		
+		return cachedFullText;		
 	}
 	//TESTED (fulltext_regexTests.json)
 	
@@ -1056,6 +1062,7 @@ public class UnstructuredAnalysisHarvester {
 		} else if (scriptLang.equalsIgnoreCase("xpath")) {
 			
 			try {
+				//TODO (INF-1929): Note this uses the outdated xpath code, should upgrade (see meta xpath code)
 				createHtmlCleanerIfNeeded();
 
 				TagNode node = cleaner.clean(new ByteArrayInputStream(field
@@ -1065,8 +1072,8 @@ public class UnstructuredAnalysisHarvester {
 
 				if (xpath.startsWith("/html/body/")) {
 					xpath = xpath.replace("/html/body/", "//body/");
-				} else if (xpath.startsWith("/html[1]/body[1]/")) {
-					xpath = xpath.replace("/html[1]/body[1]/", "//body/");
+				} else if (xpath.startsWith("/html[1]/body[1]")) {
+					xpath = xpath.replace("/html[1]/body[1]", "//body");
 				}
 
 				Object[] data_nodes = node.evaluateXPath(xpath);
@@ -1247,7 +1254,7 @@ public class UnstructuredAnalysisHarvester {
 			}
 		}//end start engine up		
 		
-	}
+	}//TESTED (legacy + imports_and_lookup_test.json + imports_and_lookup_test_uahSah.json)
 	
 	//////////////////////////////////////////////////////
 	
@@ -1267,7 +1274,8 @@ public class UnstructuredAnalysisHarvester {
 			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
 			logger.error("JSONcache: " + ex.getMessage(), ex);
 		}
-	}
+	}//TESTED (legacy + imports_and_lookup_test.json)
+	
 	public void loadGlobalFunctions(List<String> imports, String script) 
 	{
         // Pass scripts into the engine
@@ -1303,5 +1311,5 @@ public class UnstructuredAnalysisHarvester {
 			e.printStackTrace();
 			logger.error(e.getMessage());
 		}
-	}
+	}//TESTED (legacy + imports_and_lookup_test.json)
 }

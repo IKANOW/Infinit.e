@@ -30,6 +30,7 @@ limitations under the License.
 	String sourceJson = "";
 	String communityId = "";
 	String shareTitle = "";
+	String shareTags = "";
 	String shareDescription = "";
 	String shareType = "";
 	
@@ -78,6 +79,9 @@ limitations under the License.
 			"\"Record\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}, " +
 			"database: { databaseName: \"DATABASE\", databaseType: \"mysql\", deleteQuery: \"\", deltaQuery: \"select * from TABLE where TIME_FIELD >= (select adddate(curdate(),-7))\", " + 
 			"hostname: \"DB_HOST\", port: \"3306\", primaryKey: \"KEY_FIELD\", publishedDate: \"TIME_FIELD\", query: \"select * from TABLE\", snippet: \"DESC_FIELD\", title: \"TITLE_FIELD\" } }";
+
+	private static String starterSourceString_pipeline = "{ title: \"Title\", description: \"Description\", isPublic: true, mediaType: " +
+			"\"Record\", processingPipeline: [] }";
 %>
 
 <%
@@ -113,6 +117,8 @@ limitations under the License.
 			shareDescription = "Description";
 			shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
 			shareTitle = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTitle);
+			shareTags = (request.getParameter("shareTags") != null) ? request.getParameter("shareTags") : "";
+			shareTags = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTags);
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
 			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
 			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
@@ -153,6 +159,10 @@ limitations under the License.
 				else if (selectedSourceTemplate.equals("database")) 
 				{
 					sourceJson = new JSONObject(starterSourceString_database).toString(4);
+				}
+				else if (selectedSourceTemplate.equals("pipeline")) 
+				{
+					sourceJson = new JSONObject(starterSourceString_pipeline).toString(4);
 				}
 				else {
 					sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
@@ -269,7 +279,7 @@ $().ready(function() {
 $().ready(function() {
 	$("#tbSplitter").splitter({
 		type: "h",
-		sizeTop: 150, minTop: 33, maxTop: 150,
+		sizeTop: 170, minTop: 33, maxTop: 170,
 		outline: true,
 		cookie: "tbSplitterNew"
 	});
@@ -304,29 +314,29 @@ function clock()
 	function checkFormat(alertOnSuccess)
 	{
 		var success = JSHINT(sourceJsonEditor.getValue());
-		var output = 'No errors.';
+		var output = "<fmt:message key='source.result.check_format.success'/>";
 		if (!success) {
-			output = 'Errors:\n\n'
+			output = "<fmt:message key='source.result.check_format.error'/>\n\n";
 			for (var i in JSHINT.errors) {
 				var err = JSHINT.errors[i];
 				if (null != err) {
 					output += err.line + '[' + err.character + ']: ' + err.reason + '\n';
 				}
 				else {
-					output += 'Unknown catastrophic error\n';
+					output += "<fmt:message key='source.result.check_format.unknown_error'/>\n";
 				}
 			}
 		}
 		if (alertOnSuccess || !success) {
 			if (output == "") {
-				output = "No errors.\n";
+				output = "<fmt:message key='source.result.check_format.success'/>\n";
 			}
 			alert(output);
 		}
 		return success;
 	}
 </script>	
-	<title>Infinit.e.Manager - Create New Source</title>
+	<title><fmt:message key='newsource.title'/></title>
 </head>
 <body>
 
@@ -352,14 +362,14 @@ function clock()
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
-				<td class="headerLink">Source Templates</td>
+				<td class="headerLink"><fmt:message key='newsource.templates.title'/></td>
 				<td align="right"></td>
 			</tr>
 			<tr>
 				<td colspan="2" bgcolor="white">
 					<table class="listTable" cellpadding="3" cellspacing="1" width="100%">
 						<tr>
-							<td bgcolor="white"><%=sourceTemplateSelect %><button name="selectTemplate" value="selectTemplate">Select</button></td>
+							<td bgcolor="white"><%=sourceTemplateSelect %><button name="selectTemplate" value="selectTemplate"><fmt:message key='newsource.templates.action.select'/></button></td>
 						</tr>
 						<tr>
 							<td bgcolor="white">&nbsp;</td>
@@ -374,10 +384,10 @@ function clock()
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
-				<td class="headerLink">New Source</td>
+				<td class="headerLink"><fmt:message key='newsource.editor.title'/></td>
 				<td align="right">
-					<button <%=  sourceUpdateTemplateButton %> onclick="return checkFormat(false) && confirm('Are you sure you want to update this template?')" name="updateTemplate" value="updateTemplate">Update Template</button>				
-					<button onclick="return checkFormat(false)" name="saveSource" value="saveSource">Save Source</button>
+					<button <%=  sourceUpdateTemplateButton %> onclick="return checkFormat(false) && confirm('<fmt:message key='newsource.editor.action.update_template'/>')" name="updateTemplate" value="updateTemplate"><fmt:message key='newsource.editor.action.update_template'/></button>				
+					<button onclick="return checkFormat(false)" name="saveSource" value="saveSource"><fmt:message key='newsource.editor.action.save_source'/></button>
 				</td>
 			</tr>
 			<tr>
@@ -386,19 +396,25 @@ function clock()
 					<div id="Top" class="Pane">
 					<table class="standardSubTable" cellpadding="3" cellspacing="1" width="100%" >
 						<tr>
-							<td bgcolor="white" width="30%">Title:</td>
+							<td bgcolor="white" width="30%"><fmt:message key='newsource.editor.title.title'/></td>
 							<td bgcolor="white" width="70%">
 								<input type="text" id="shareTitle" name="shareTitle" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTitle)%>" size="60" />
 							</td>		
 						</tr>
 						<tr valign="top">
-							<td bgcolor="white" width="30%">Description:</td>
+							<td bgcolor="white" width="30%"><fmt:message key='newsource.editor.description.title'/></td>
 							<td bgcolor="white" width="70%">
 								<textarea cols="45" rows="3" id="shareDescription" name="shareDescription"><%=shareDescription%></textarea>
 							</td>		
 						</tr>
 						<tr>
-							<td bgcolor="white" width="30%">Community:</td>
+							<td bgcolor="white" width="30%"><fmt:message key='newsource.editor.tags.title'/></td>
+							<td bgcolor="white" width="70%">
+								<input type="text" id="shareTags" name="shareTags" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTags)%>" size="60" />
+							</td>		
+						</tr>
+						<tr>
+							<td bgcolor="white" width="30%"><fmt:message key='newsource.editor.community.title'/></td>
 							<td bgcolor="white" width="70%"><%=communityIdSelect%></td>		
 						</tr>
 					</table>
@@ -460,6 +476,10 @@ private String saveShare(HttpServletRequest request, HttpServletResponse respons
 			source.put("title", shareTitle.trim());
 			source.remove("description");
 			source.put("description", shareDescription.trim());
+			source.remove("tags");
+			String trimmedShareTags = shareTags.trim();
+			if (!trimmedShareTags.isEmpty())
+				source.put("tags", new JSONArray(trimmedShareTags.split("(?:\\s*,\\s*|\\s+)")));
 			
 			// CommunityID Array - Delete and replace with id from community id dropdown list
 			if (communityId.length() > 0)
@@ -567,6 +587,7 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 {
 	StringBuffer sources = new StringBuffer();
 	sources.append("<select name=\"sourceTemplateSelect\" id=\"sourceTemplateSelect\">");
+	sources.append("<option value=\"pipeline\">-- New Source Pipeline Demonstration Template --</option>");
 	sources.append("<option value=\"rss\">-- Basic RSS Source Template --</option>");
 	sources.append("<option value=\"web\">-- Basic Web Page Source Template --</option>");
 	sources.append("<option value=\"simpleApi\">-- Basic Simple JSON API Source Template --</option>");
@@ -631,6 +652,14 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		
 		shareTitle = source.getString("title");
 		shareDescription = source.getString("description");
+		if (source.has("tags")) {
+			StringBuilder stags = new StringBuilder();
+			JSONArray arrTags = source.getJSONArray("tags");
+			for (int i = 0; i < arrTags.length(); ++i) {
+				stags.append(arrTags.get(i)).append(' ');
+			}
+			shareTags = stags.toString();
+		}
 		
 		return source;
 	}

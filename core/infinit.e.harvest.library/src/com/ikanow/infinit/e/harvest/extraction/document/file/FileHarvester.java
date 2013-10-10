@@ -20,7 +20,9 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
 import java.net.UnknownHostException;
@@ -30,6 +32,7 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -37,16 +40,29 @@ import javax.xml.stream.FactoryConfigurationError;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
+import javax.xml.transform.OutputKeys;
+import javax.xml.transform.sax.SAXTransformerFactory;
+import javax.xml.transform.sax.TransformerHandler;
+import javax.xml.transform.stream.StreamResult;
 
 import jcifs.smb.NtlmPasswordAuthentication;
 import jcifs.smb.SmbException;
 
 import org.apache.tika.Tika;
+import org.apache.tika.config.TikaConfig;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.mime.MediaType;
+import org.apache.tika.parser.AutoDetectParser;
+import org.apache.tika.parser.CompositeParser;
+import org.apache.tika.parser.ParseContext;
+import org.apache.tika.parser.Parser;
 import org.bson.types.ObjectId;
+import org.xml.sax.ContentHandler;
 import org.apache.commons.codec.digest.DigestUtils;
 
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParser;
 import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
@@ -93,6 +109,13 @@ public class FileHarvester implements HarvesterInterface {
 		// (tells us source URLs that are being deleted)
 	
 	private HarvestContext _context;
+	
+	// Formatting office docs: allows HTML/XML output and to push options from the parsers into the tika instance
+	private Tika _tika = null;
+	ContentHandler _tikaOutputFormat = null;
+	StringWriter _tikaXmlFormatWriter;
+	ParseContext _tikaOutputParseContext = null;
+	
 	
 	// Can specify regexes to select which files to ignore
 	private Pattern includeRegex = null; // files only
@@ -295,6 +318,9 @@ public class FileHarvester implements HarvesterInterface {
 			}
 			if ((null != source.getFileConfig()) && (null != source.getFileConfig().pathExclude)) {
 				excludeRegex = Pattern.compile(source.getFileConfig().pathExclude, Pattern.CASE_INSENSITIVE);				
+			}
+			if ((null != source.getFileConfig()) && (null != source.getFileConfig().maxDepth)) {
+				this.maxDepth = source.getFileConfig().maxDepth;
 			}
 			
 			// Process the fileshare
@@ -526,20 +552,24 @@ public class FileHarvester implements HarvesterInterface {
 			{
 
 				Metadata metadata = null;
-				Tika tika = null;
 				InputStream in = null;
 				try {
 
 					doc = new DocumentPojo();
-					// Create a tika object
-					tika = new Tika();
+					
+					// Create a tika object (first time only)
+					if (null == _tika) {
+						this.initializeTika(_context, source);
+					}
+					
 					// BUGGERY
 					// NEED TO LIKELY SET LIMIT TO BE 30MB or 50MB and BYPASS ANYTHING OVER THAT BELOW IS THE CODE TO DO THAT
 					// tika.setMaxStringLength(30*1024*1024);
 					// Disable the string length limit
-					tika.setMaxStringLength(-1);
+					_tika.setMaxStringLength(-1);
 					//input = new FileInputStream(new File(resourceLocation));
 					// Create a metadata object to contain the metadata
+					
 					metadata = new Metadata();
 					// Parse the file and get the text of the file
 					doc.setSource(source.getTitle());
@@ -549,7 +579,14 @@ public class FileHarvester implements HarvesterInterface {
 					
 					in = f.getInputStream();
 					try {
-						fullText = tika.parseToString(in, metadata);
+						if (null == _tikaOutputFormat) { // text only
+							fullText = _tika.parseToString(in, metadata);
+						}//TESTED
+						else { // XML/HMTL
+							_tika.getParser().parse(in, _tikaOutputFormat, metadata, _tikaOutputParseContext);
+							fullText = _tikaXmlFormatWriter.toString();
+							_tikaXmlFormatWriter.getBuffer().setLength(0);
+						}//TESTED
 					}
 					finally {
 						if (null != in) in.close();
@@ -835,4 +872,164 @@ public class FileHarvester implements HarvesterInterface {
 		return replacement.replace("$name", name).replace("$path", path.substring(0, startOfName - 1));
 	}
 
+
+	/////////////////////////////////////////////////////////////////////////////////////
+	
+	// Get tika options:
+	// Bonus option output:xhtml|text
+	// Example option: "application/pdf:{setEnableAutoSpace:false}", ie format is mediaType:JSON
+	// where JSON is key/value pairs for the function name and the arg (only String, bool, int/long/double types are possible)
+	
+	private void initializeTika(HarvestContext context, SourcePojo source)
+	{
+		AutoDetectParser autoDetectParser = new AutoDetectParser();
+		
+		if (null != source.getFileConfig().XmlRootLevelValues) {
+			for (String s: source.getFileConfig().XmlRootLevelValues) {
+				int separator = s.indexOf(':');
+				String jsonStr = s.substring(separator + 1);
+				
+				if (separator > 0) {
+					String mediaType = s.substring(0, separator);
+					if (mediaType.equalsIgnoreCase("output")) { //special case, just going to configure output
+						if (jsonStr.equalsIgnoreCase("xml") || jsonStr.equalsIgnoreCase("xhtml")) {
+							_tikaXmlFormatWriter = new StringWriter();
+							_tikaOutputFormat = getTransformerHandler("xml", _tikaXmlFormatWriter);
+							_tikaOutputParseContext = new ParseContext();
+						}
+						if (jsonStr.equalsIgnoreCase("html")) {
+							_tikaXmlFormatWriter = new StringWriter();
+							_tikaOutputFormat = getTransformerHandler("html", _tikaXmlFormatWriter);
+							_tikaOutputParseContext = new ParseContext();
+						}
+						continue;
+					}//TESTED
+					
+					// Try to get media type parser:
+					
+					Parser p = autoDetectParser.getParsers().get(MediaType.parse(mediaType));
+					while (p instanceof CompositeParser) {
+						p = ((CompositeParser)p).getParsers().get(MediaType.parse(mediaType));
+					}
+					if (null == p) {
+						context.getHarvestStatus().logMessage("Failed to find application type " + mediaType + " in tika option: " + s, true);
+						continue;
+					}//TESTED
+					
+					// Get JSON objects and try to apply
+					
+					try {
+						JsonElement jsonObj = new JsonParser().parse(jsonStr);
+						for (Map.Entry<String, JsonElement> keyVal: jsonObj.getAsJsonObject().entrySet()) {
+							if (keyVal.getValue().getAsJsonPrimitive().isBoolean()) { //boolean
+								try {
+									Method method = p.getClass().getMethod(keyVal.getKey(), Boolean.class);
+									method.invoke(p, (Boolean)keyVal.getValue().getAsJsonPrimitive().getAsBoolean());
+								}
+								catch (Exception e) { 
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Boolean.TYPE);
+										method.invoke(p, keyVal.getValue().getAsJsonPrimitive().getAsBoolean());
+									}
+									catch (Exception e2) { 
+										context.getHarvestStatus().logMessage("Failed to invoke " + keyVal.getKey() + " in tika option: " + s, true);
+										continue;
+									}//TESTED
+								}								
+							}//TESTED
+							if (keyVal.getValue().getAsJsonPrimitive().isString()) { //string
+								try {
+									Method method = p.getClass().getMethod(keyVal.getKey(), String.class);
+									method.invoke(p, keyVal.getValue().getAsJsonPrimitive().getAsString());
+								}
+								catch (Exception e) { 
+									context.getHarvestStatus().logMessage("Failed to invoke " + keyVal.getKey() + " in tika option: " + s, true);
+									continue;
+								}
+							}//TESTED (cut and paste)
+							if (keyVal.getValue().getAsJsonPrimitive().isNumber()) { // number: int/long/double
+								// Loads of options: Integer.class, Integer.TYPE, Long.class, Long.TYPE, Double.long, Double.TYPE
+								boolean invoked = false;
+								if (!invoked) { // Int.class
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Integer.class);
+										method.invoke(p, (Integer)keyVal.getValue().getAsJsonPrimitive().getAsInt());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+								if (!invoked) { // Int.type
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Integer.TYPE);
+										method.invoke(p, keyVal.getValue().getAsJsonPrimitive().getAsInt());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+								if (!invoked) { // Long.class
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Long.class);
+										method.invoke(p, (Long)keyVal.getValue().getAsJsonPrimitive().getAsLong());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+								if (!invoked) { // Long.type
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Long.TYPE);
+										method.invoke(p, keyVal.getValue().getAsJsonPrimitive().getAsLong());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+								if (!invoked) { // Double.class
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Double.class);
+										method.invoke(p, (Double)keyVal.getValue().getAsJsonPrimitive().getAsDouble());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+								if (!invoked) { // Double.type
+									try {
+										Method method = p.getClass().getMethod(keyVal.getKey(), Double.TYPE);
+										method.invoke(p, keyVal.getValue().getAsJsonPrimitive().getAsDouble());
+										invoked = true;
+									}
+									catch (Exception e) {}
+								}
+							}//TOTEST (all the different options)
+							
+						}//(end loop over options)
+					}
+					catch (Exception e) {
+						context.getHarvestStatus().logMessage("Failed to parse JSON in tika option: " + s, true);						
+					}//TESTED
+				}
+				else {
+					context.getHarvestStatus().logMessage("Failed to parse tika option: " + s, true);
+				}//TESTED
+				
+			}//TESTED
+		}//(end if has options)
+		
+		_tika = new Tika(TikaConfig.getDefaultConfig().getDetector(), autoDetectParser);
+		
+	}//TESTED (apart from unused number option configuration)
+	
+	// (See http://stackoverflow.com/questions/9051183/how-to-use-tikas-xwpfwordextractordecorator-class)
+	 private static TransformerHandler getTransformerHandler(String method, StringWriter sw) 
+	 {
+		 try {
+	        SAXTransformerFactory factory = (SAXTransformerFactory)SAXTransformerFactory.newInstance();
+	        TransformerHandler handler = factory.newTransformerHandler();
+	        handler.getTransformer().setOutputProperty(OutputKeys.METHOD, method);
+	        handler.getTransformer().setOutputProperty(OutputKeys.INDENT, "yes");
+	        handler.setResult(new StreamResult(sw));
+	        return handler;
+		 }
+		 catch (Exception e) {
+			 return null;
+		 }
+	 }//TESTED	
 }

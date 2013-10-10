@@ -43,6 +43,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
+import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
@@ -397,6 +398,7 @@ public class PersonHandler
 			
 			// OK we're all good, finally for API key users create a persistent cookie:
 			if (null != ap.getApiKey()) {
+				// (if we're here then we're already admin so can always do this - unlike the update)
 				CookiePojo cp = new CookiePojo();
 				cp.set_id(profileId);
 				cp.setCookieId(cp.get_id());
@@ -577,6 +579,7 @@ public class PersonHandler
 			if ((null != wpa.getApiKey()) && (0 == wpa.getApiKey().length()) && (null != ap.getApiKey()))			
 			{
 				// Delete existing API key
+				// (We'll allow a user to update their own API key - just not create it, see below)
 				CookiePojo removeMe = new CookiePojo();
 				removeMe.setApiKey(ap.getApiKey());
 				ap.setApiKey(null);				
@@ -584,6 +587,16 @@ public class PersonHandler
 			}
 			else if (null != wpa.getApiKey()) {
 				// Change or create API key
+				// Only admins can do this:
+				if (null != personIdStr) { // (this is != null iff user isn't admin)
+					// Check security settings
+					PropertiesManager pm = new PropertiesManager(); 
+					if (pm.getHarvestSecurity()) {
+						rp.setResponse(new ResponseObject("WP Update User",false,"You must be admin in secure mode to set an API key"));
+						return rp;
+					}
+				}//TESTED (admin, admin-enabled, non-admin - harvest.secure on and off)
+				
 				ap.setApiKey(wpa.getApiKey());
 				CookiePojo cp = new CookiePojo();
 				cp.set_id(ap.getProfileId());
@@ -592,8 +605,7 @@ public class PersonHandler
 				cp.setStartDate(ap.getCreated());
 				cp.setProfileId(ap.getProfileId());
 				DbManager.getSocial().getCookies().save(cp.toDb());								
-			}
-			//TOTEST
+			}//TESTED
 			//else if api key is null then leave alone, assume hasn't changed
 			
 			//update old entries
@@ -603,13 +615,19 @@ public class PersonHandler
 			rp.setData(ap, new AuthenticationPojoApiMap());
 			
 			//update communities if necessary
-			if (bNeedToUpdateCommunities) {
-
+			if (bNeedToUpdateCommunities) 
+			{
+				//set community members name and email, if they match on id
 				BasicDBObject query = new BasicDBObject("members._id", pp.get_id());
 				BasicDBObject update = new BasicDBObject("members.$.email", pp.getEmail());
 				update.put("members.$.displayName", pp.getDisplayName());
 				DbManager.getSocial().getCommunity().update(query, new BasicDBObject("$set", update), false, true);
 					// (don't upsert, many times)
+				
+				//INF-1314 if the ownerid == pp_id, set new username
+				BasicDBObject query1 = new BasicDBObject("ownerId", pp.get_id());
+				BasicDBObject update1 = new BasicDBObject("ownerDisplayName", pp.getDisplayName());
+				DbManager.getSocial().getCommunity().update(query1, new BasicDBObject("$set", update1), false, true);
 			}//TOTEST
 			
 			// Just recreate personal community if necessary (means if something goes wrong can always just update user...)

@@ -250,6 +250,9 @@ public class PersonInterface extends ServerResource
 		 Date endTime = new Date();
 		 if (null != rp.getResponse()) {
 			 rp.getResponse().setTime(endTime.getTime() - startTime.getTime());
+			 if (!rp.getResponse().isSuccess()) {
+				 RESTTools.logRequest(this);
+			 }//TOTEST (TODO-2194)
 		 }
 		 return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
 	}

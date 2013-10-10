@@ -36,6 +36,12 @@ limitations under the License.
 <%@ page import="java.io.InputStreamReader" %>
 <%@ page import="org.apache.commons.lang.StringEscapeUtils.*" %>
 
+<%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
+<%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
+<c:set var="language" value="${not empty param.language ? param.language : not empty language ? language : pageContext.request.locale}" />
+<fmt:setLocale value="${language}" />
+<fmt:setBundle basename="infinit.e.web.localization.text" />
+
 <%!
 	// !----------  ----------!
 	String API_ROOT = null;
@@ -231,6 +237,7 @@ limitations under the License.
 			ByteArrayOutputStream output = new ByteArrayOutputStream();
 			URL url = new URL(API_ROOT + addr);
 			URLConnection urlConnection = url.openConnection();
+    		urlConnection.addRequestProperty("X-Forwarded-For", request.getRemoteAddr());
 			String cookieVal = getBrowserInfiniteCookie(request);
         	if (cookieVal != null)
         	{
@@ -257,7 +264,7 @@ limitations under the License.
 	
 	// postToRestfulApi - 
 	// Note: params in the addr field need to be URLEncoded
-	private String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response) 
+	public String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response) 
 	{
 		if(localCookie)
 			CookieHandler.setDefault(cm);
@@ -364,13 +371,13 @@ limitations under the License.
 	
 	
 	// logOut -
-	private String logOut(HttpServletRequest request, HttpServletResponse response) 
+	public String logOut(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("auth/logout/", request, response);
 	} // TESTED
 	
 	// Admin logOut - note doesn't actually log you out, just relinquishes admin
-	private String adminLogOut(HttpServletRequest request, HttpServletResponse response) 
+	public String adminLogOut(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("auth/logout/admin/", request, response);
 	} // TESTED
@@ -383,7 +390,7 @@ limitations under the License.
 	
 	
 	// getShareObject - 
-	private JSONObject getShareObject(String id, HttpServletRequest request, HttpServletResponse response) 
+	public JSONObject getShareObject(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		try 
 		{
@@ -410,7 +417,7 @@ limitations under the License.
 	}
 	
 	// getSystemCommunity - 
-	private String getSystemCommunity(HttpServletRequest request, HttpServletResponse response) 
+	public String getSystemCommunity(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/getsystem/", request, response);
 	}
@@ -423,7 +430,7 @@ limitations under the License.
 	
 	
 	// getPublicCommunities - 
-	private String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
+	public String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/getpublic/", request, response);
 	}
@@ -436,14 +443,14 @@ limitations under the License.
 	}
 	
 	// getCommunity - 
-	private String removeCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
+	public String removeCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/remove/" + id, request, response);
 	}
 	
 	
 	// updateCommunityMemberStatus - 
-	private String updateCommunityMemberStatus(String communityid, String personid, String status,
+	public String updateCommunityMemberStatus(String communityid, String personid, String status,
 			HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/member/update/status/" + communityid + "/" 
@@ -452,7 +459,7 @@ limitations under the License.
 	
 	
 	// updateCommunityMemberType - 
-	private String updateCommunityMemberType(String communityid, String personid, String type,
+	public String updateCommunityMemberType(String communityid, String personid, String type,
 			HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/member/update/type/" + communityid + "/" 
@@ -461,14 +468,14 @@ limitations under the License.
 	
 	
 	// getSource - 
-	private String getSource(String sourceId, HttpServletRequest request, HttpServletResponse response) 
+	public String getSource(String sourceId, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("config/source/get/" + sourceId, request, response);
 	}
 	
 	
 	// deleteSource
-	private String deleteSource(String sourceId, boolean bDocsOnly, String communityId, HttpServletRequest request, HttpServletResponse response)
+	public String deleteSource(String sourceId, boolean bDocsOnly, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
 		if (bDocsOnly) {
 			return callRestfulApi("config/source/delete/docs/" + sourceId + "/" + communityId, request, response);
@@ -481,7 +488,7 @@ limitations under the License.
 	
 	
 	// getListOfAllShares - 
-	private Map<String,String> getListOfAllShares(HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfAllShares(HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allShares = new HashMap<String,String>();
 		
@@ -522,7 +529,7 @@ limitations under the License.
 	
 	
 	// getListOfSharesByType -
-	private Map<String,String> getListOfSharesByType(String type, HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfSharesByType(String type, HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allShares = new HashMap<String,String>();
 		
@@ -570,7 +577,7 @@ limitations under the License.
 	
 	
 	// getUserSources - 
-	private TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
+	public TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
 	{
 		TreeMultimap<String,String> userSources = TreeMultimap.create();
 		String userIdStr = null;
@@ -657,7 +664,7 @@ limitations under the License.
 	
 	
 	// getListOfAllPeople
-	private Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
 	{
 		return getListOfAllPeople(request, response, null);
 	}
@@ -697,7 +704,7 @@ limitations under the License.
 	
 	
 	// getListOfCommunityMembers
-	private Map<String,String> getListOfCommunityMembers(String id, HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfCommunityMembers(String id, HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allPeople = new HashMap<String,String>();
 		try
@@ -733,32 +740,7 @@ limitations under the License.
 	
 	
 	// getListOfAllCommunities
-	private TreeMultimap<String, String> getListOfAllCommunities(HttpServletRequest request, HttpServletResponse response)
-	{
-		TreeMultimap<String,String> allCommunities = TreeMultimap.create();
-		try
-		{
-			JSONObject communitiesObj = new JSONObject ( getAllCommunities(request, response) );
-			if ( communitiesObj.has("data") )
-			{
-				JSONArray communities = communitiesObj.getJSONArray("data");
-				for (int i = 0; i < communities.length(); i++) 
-				{
-					JSONObject community = communities.getJSONObject(i);
-					allCommunities.put( community.getString("name"), community.getString("_id") );
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			//System.out.println(e.getMessage());
-		}
-		return allCommunities;
-	}
-	
-	
-	// getListOfAllCommunities
-	private TreeMultimap<String,String> getListOfAllNonPersonalCommunities(HttpServletRequest request, HttpServletResponse response)
+	public TreeMultimap<String,String> getListOfAllNonPersonalCommunities(HttpServletRequest request, HttpServletResponse response)
 	{
 		TreeMultimap<String,String> allCommunities = TreeMultimap.create();
 		try
@@ -790,21 +772,21 @@ limitations under the License.
 	
 	
 	// getPerson -
-	private String getPerson(HttpServletRequest request, HttpServletResponse response) 
+	public String getPerson(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/person/get/", request, response);
 	} // TESTED
 	
 	
 	// getPerson -
-	private String getPerson(String id, HttpServletRequest request, HttpServletResponse response) 
+	public String getPerson(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/person/get/" + id, request, response);
 	}
 	
 	
 	// getPersonCommunities -
-	private JSONArray getPersonCommunities(HttpServletRequest request, HttpServletResponse response)
+	public JSONArray getPersonCommunities(HttpServletRequest request, HttpServletResponse response)
 	{
 		JSONArray communities = null;
 		try
@@ -826,27 +808,27 @@ limitations under the License.
 	
 	
 	// deletePerson
-	private String deletePerson(String id, HttpServletRequest request, HttpServletResponse response)
+	public String deletePerson(String id, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/delete/" + id, request, response);
 	} // TESTED 
 	
 	
 	// updatePassword
-	private String updatePassword(String id, String password, HttpServletRequest request, HttpServletResponse response)
+	public String updatePassword(String id, String password, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/update/password/" + id + "/" + password, request, response);
 	} // TESTED 
 	
 	
 	// addToCommunity
-	private String addToCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	public String addToCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/community/member/invite/" + community + "/" + person + "?skipinvitation=true", request, response);
 	} // TESTED 
 	
 	// removeFromCommunity
-	private String removeFromCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	public String removeFromCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/community/member/update/status/" + community + "/" + person + "/remove", request, response);
 	} // TESTED
@@ -863,7 +845,7 @@ limitations under the License.
 	
 	// createPageString - 
 	// Create list of pages for search results
-	private String createPageString(int numberOfItems, int itemsPerPage, int currentPage, String baseUrl)
+	public String createPageString(int numberOfItems, int itemsPerPage, int currentPage, String baseUrl)
 	{	
 		StringBuffer pageString = new StringBuffer();
 		

@@ -1,0 +1,10 @@
+[
+    {
+        "display": "",
+        "file": {
+            "maxDepth":1,
+            "type": "tika",
+            "url": "file://c:\\"
+        }
+    }
+]

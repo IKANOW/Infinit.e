@@ -1,0 +1,1 @@
+var import_test2 = "import_test2_val";

@@ -1,6 +1,9 @@
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.io.File;
+//TODO (INF-2118): Prevent reflection 
+//import java.lang.reflect.ReflectPermission;
+//import java.security.Permission;
 
 public class SocketSecurityManager extends SecurityManager 
 {	
@@ -26,7 +29,7 @@ public class SocketSecurityManager extends SecurityManager
 	{
 		javascriptLock.set(isJavascript);
 	}
-	
+
 	@Override
 	public void checkConnect(String host, int port)
 	{	
@@ -144,4 +147,21 @@ public class SocketSecurityManager extends SecurityManager
 		}
 		super.checkExec(cmd);
 	}	
+	
+	//TODO (INF-2118): This didn't work, amongst other things it stopped regexes from working
+//	@Override
+//	public void checkPermission(Permission permission) 
+//	{
+//		if (permission instanceof ReflectPermission) { 
+//			// (i think this might be called in lots of spots so only do anything if it's a reflection)
+//			Boolean lock = javascriptLock.get();
+//			if ( lock != null && lock )
+//			{
+//					throw new SecurityException("Reflection is not allowed");				
+//			}
+//		}
+//		// Always do this: so we're the union of configured restrictions+the above custom restrictions
+//		super.checkPermission(permission);				
+//	}//TESTED (TestSecurityManager.testReflection)
+//	
 }

@@ -45,11 +45,11 @@ limitations under the License.
 %>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
-<html>
+<html lang=${language}>
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 	<link rel="stylesheet" type="text/css" href="inc/manager.css" />
-	<title>Infinit.e.Manager - Home</title>
+	<title><fmt:message key='index.title'/></title>
 </head>
 <body>
 
@@ -79,19 +79,19 @@ limitations under the License.
 				<tr>
 					<td bgcolor="white">
 						<ul>
-							<li><b><a href="people.jsp" title="Add/Edit Users">People</a></b> - Add/Edit Users</li>
-							<li><b><a href="communities.jsp" title="Add/Edit Users">Communities</a></b> - Add/Edit Communities and Membership</li>
-							<li><b><a href="sources.jsp" title="Add/Edit Sources">Source Editor</a></b> - Add/Edit/Delete Sources
-								<ul><li><b><a href="sourcemonitor.jsp" title="Monitor Sources" target="_blank">Source Monitor</a></b> - Check Source Status (new tab)</li></ul>
+							<li><b><a href="people.jsp" title="<fmt:message key='index.people.description'/>"><fmt:message key='index.people.title' /></a></b> - <fmt:message key='index.people.description'/></li>
+							<li><b><a href="communities.jsp" title="<fmt:message key='index.communities.description'/>"><fmt:message key='index.communities.title' /></a></b> - <fmt:message key='index.communities.description'/></li>
+							<li><b><a href="sources.jsp" title="<fmt:message key='index.source_editor.description'/>"><fmt:message key='index.source_editor.title' /></a></b> - <fmt:message key='index.source_editor.description'/>
+								<ul><li><b><a href="sourcemonitor.jsp" title="<fmt:message key='index.source_monitor.description'/>" target="_blank"><fmt:message key='index.source_monitor.title' /></a></b> - <fmt:message key='index.source_monitor.description'/></li></ul>
 							</li>
 						</ul>
 						<ul>
-							<li><b><a href="fileUploader.jsp" title="Add/Edit Users" target="_blank">File Uploader</a></b> - Add/Edit Files or JSON (new tab)</li>
-							<li><b><a href="widgetUploader.jsp" title="Add/Edit Users" target="_blank">Widget Uploader</a></b> - Add/Edit Widgets (new tab)</li>
-							<li><b><a href="pluginManager.jsp" title="Add/Edit Users" target="_blank">Plugin Manager</a></b> - Add/Edit Hadoop Plugins (new tab)</li>						
+							<li><b><a href="fileUploader.jsp" title="<fmt:message key='index.file_uploader.description'/>" target="_blank"><fmt:message key='index.file_uploader.title'/></a></b> - <fmt:message key='index.file_uploader.description'/></li>
+							<li><b><a href="widgetUploader.jsp" title="<fmt:message key='index.widget_uploader.description'/>" target="_blank"><fmt:message key='index.widget_uploader.title'/></a></b> - <fmt:message key='index.widget_uploader.description'/></li>
+							<li><b><a href="pluginManager.jsp" title="<fmt:message key='index.plugin_manager.description'/>" target="_blank"><fmt:message key='index.plugin_manager.title'/></a></b> - <fmt:message key='index.plugin_manager.description'/></li>						
 						</ul>
 						<ul>
-							<li><b><a href="chrome.html" title="Install Chrome Source Extension" target="_blank">Infinit.e Chrome Extension</a></b> - Create Sources from Chrome</li>
+							<li><b><a href="chrome.html" title="<fmt:message key='index.chrome_extension.description'/>" target="_blank"><fmt:message key='index.chrome_extension.title'/></a></b> - <fmt:message key='index.chrome_extension.description'/></li>
 						</ul>
 					</td>
 				</tr>

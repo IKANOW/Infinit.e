@@ -1,0 +1,94 @@
+[
+    {
+        "display": "Import and lookup test UAH/SAH",
+        "web": {
+            "waitTimeOverride_ms": 100,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        }
+    },
+    {
+        "display": "Imports only (UAH only)",
+        "globals": {
+            "scriptlang": "javascript",
+            "imports": [
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test1.js",
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test2.js"
+            ]
+        }
+    },
+    {
+        "display": "Lookup test (UAH only)",
+        "lookupTables": {
+            "lookupTest1": "52420eb4700a469205ab07c1",
+            "lookupTest2": "52420ed6700a469205ab07c2"
+        }
+    },
+    {
+        "display": "",
+        "docMetadata": {
+            "description": "$SCRIPT(return _cache['lookupTest1'][\"test1\"]; )",
+            "appendTagsToDocs": false
+        }
+    },
+    {
+        "display": "Import and lookup test",
+        "contentMetadata": [
+            {
+                "scriptlang": "javascript",
+                "script": "var x = import_test1; x;",
+                "store": true,
+                "index": false,
+                "fieldName": "import_test1"
+            },
+            {
+                "scriptlang": "javascript",
+                "script": "var x = import_test2; x;",
+                "store": true,
+                "index": false,
+                "fieldName": "import_test2"
+            },
+            {
+                "scriptlang": "javascript",
+                "script": "var y = _cache['lookupTest1'][\"test1\"]; y;",
+                "store": true,
+                "index": false,
+                "fieldName": "lookup_test1"
+            },
+            {
+                "scriptlang": "javascript",
+                "script": "var y = _cache['lookupTest2'][\"test2\"]; y;",
+                "store": true,
+                "index": false,
+                "fieldName": "lookup_test2"
+            }
+        ]
+    },
+    {
+        "display": "Entities from lookups and imports",
+        "entities": [
+            {
+                "disambiguated_name": "$SCRIPT(return import_test1;)",
+                "type": "IMPORT_TEST1_TYPE"
+            },
+            {
+                "disambiguated_name": "$SCRIPT(return import_test2;)",
+                "type": "IMPORT_TEST2_TYPE"
+            },
+            {
+                "disambiguated_name": "$SCRIPT(return _cache['lookupTest2'][\"test2\"]; )",
+                "type": "LOOKUP_TEST2_TYPE"
+            }
+        ]
+    }
+]

@@ -142,6 +142,8 @@ Infinit.e harvesting and cleansing services
 
 %dir /mnt/opt/infinite-home/lib
 %dir /mnt/opt/infinite-home/lib/extractors
+%dir /mnt/opt/infinite-home/lib/unbundled
+%dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/lib/infinit.e.data_model.jar
 /mnt/opt/infinite-home/lib/infinit.e.harvest.library.jar
 /mnt/opt/infinite-home/lib/infinit.e.query.library.jar
@@ -156,9 +158,9 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/lib/infinit.e.processing.generic.library-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar
-/mnt/opt/infinite-home/lib/jcifs-1.3.17.jar
-/mnt/opt/infinite-home/lib/tika-app-1.0.jar
-/mnt/opt/infinite-home/lib/GridFSZipFile.jar
-/mnt/opt/infinite-home/lib/j-calais-0.2.1-jar-with-dependencies.jar
+/mnt/opt/infinite-home/lib/unbundled/jcifs-1.3.17.jar
+/mnt/opt/infinite-home/lib/unbundled/tika-app-1.0_with_gson_2.2.2.jar
+/mnt/opt/infinite-home/lib/unbundled/GridFSZipFile.jar
+/mnt/opt/infinite-home/lib/unbundled/j-calais-0.2.1-jar-with-dependencies.jar
 /mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar
 /mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar

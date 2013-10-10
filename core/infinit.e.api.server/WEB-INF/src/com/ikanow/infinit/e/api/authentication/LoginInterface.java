@@ -15,7 +15,6 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.authentication;
 
-import java.io.IOException;
 import java.util.Date;
 import java.util.Map;
 
@@ -174,13 +173,7 @@ public class LoginInterface extends ServerResource
 
 				if (!bAllGood) 
 				{
-					//TODO you can't throw errors anymore so do something more logical
-					try {
-						throw new IOException("Index not running");
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
+					throw new RuntimeException("Index not running");
 				}
 			}//TESTED
 			//If a redirect is supplied, send them there after logging in if successful
@@ -389,6 +382,13 @@ public class LoginInterface extends ServerResource
 
 		Date endTime = new Date();
 		rp.getResponse().setTime(endTime.getTime() - startTime.getTime());
+		
+		if (!rp.getResponse().isSuccess()) {
+			if ((!action.equals("keepalive")) && ((null == user) || !user.equals("ping"))) {
+				// (not a keepalive) and (user!=ping)
+				RESTTools.logRequest(this);
+			}
+		}//TOTEST (TODO-2194)
 		return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
 	}		
 }

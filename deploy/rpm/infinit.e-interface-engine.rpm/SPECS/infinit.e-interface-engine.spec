@@ -134,6 +134,7 @@ Infinit.e search engine REST API
 %config %attr(755,root,root) /mnt/opt/tomcat-infinite/tomcat6
 %dir /mnt/opt/tomcat-infinite/interface-engine
 %dir /mnt/opt/tomcat-infinite/interface-engine/conf
+%dir /mnt/opt/tomcat-infinite/interface-engine/lib
 %dir /mnt/opt/tomcat-infinite/interface-engine/logs
 %dir /mnt/opt/tomcat-infinite/interface-engine/webapps
 %dir /mnt/opt/tomcat-infinite/interface-engine/scripts
@@ -147,6 +148,7 @@ Infinit.e search engine REST API
 %config /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/tomcat-users.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/web.xml
+/mnt/opt/tomcat-infinite/interface-engine/lib/ExtendedAccessLogValve.jar
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server.war
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war

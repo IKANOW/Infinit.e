@@ -5,7 +5,7 @@ SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
 S3_URL=`grep "^s3.url=" $SERVICE_PROPERTY_FILE | sed s/'s3.url='// | sed s/' '//g`
 USE_AWS=`grep "^use.aws=" $SERVICE_PROPERTY_FILE | sed s/'use.aws='// | sed s/' '//g`
 ELASTIC_CLUSTER=`grep "^elastic.cluster=" $SERVICE_PROPERTY_FILE | sed s/'elastic.cluster='// | sed s/' '//g`
-CLUSTER_SUBNET=`grep "^db.cluster.subnet=" $SERVICE_PROPERTY_FILE | sed s/'db.cluster.subnet='// | sed s/' '//g`
+CLUSTER_SUBNET=`grep "^db.cluster.subnet=" $SERVICE_PROPERTY_FILE | sed s/'db.cluster.subnet='// | sed s/' '//g | sed 's/[.]/\\./g'`
 CONFIG_SERVERS=`grep "^db.config.servers=" $SERVICE_PROPERTY_FILE | sed s/'db.config.servers='// | sed s/' '//g`
 REPLICA_SETS=`grep "^db.replica.sets=" $SERVICE_PROPERTY_FILE | sed s/'db.replica.sets='// | sed s/' '//g`
 
@@ -15,7 +15,7 @@ then
 	exit 
 fi
 
-my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep -F $CLUSTER_SUBNET)
+my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep "^$CLUSTER_SUBNET")
 
 ################################################################################
 #

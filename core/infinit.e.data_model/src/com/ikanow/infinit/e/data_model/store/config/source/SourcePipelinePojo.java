@@ -58,20 +58,18 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	
 	public DocumentSpecPojo docMetadata;
 	public List<MetadataSpecPojo> contentMetadata;
-	//TODO (INF-1922) put update scripts here
 	
 	// 1.5] Entities and Associations
 
 	public AutomatedEntityExtractionSpecPojo featureEngine;
 	public List<StructuredAnalysisConfigPojo.EntitySpecPojo> entities;
 	public List<StructuredAnalysisConfigPojo.AssociationSpecPojo> associations;
-	//TODO (INF-1922) need to add store/index to these guys?
+	//TODO (INF-1922): ^^^need to add store/index to these guys
 	
 	// 1.6] Finishing steps
 	
-	public SourcePojo.SourceSearchIndexFilter searchIndex; 
-	//TODO (INF-1922) need storage equivalent (can occur anywhere/multiple times, includes rejectDocCriteria)
-	//TODO (INF-1922) put on update script here?
+	public SourcePojo.SourceSearchIndexFilter searchIndex;
+	public StorageSettingsPojo storageSettings;
 	
 	////////////////////////////////////////////////////////
 	
@@ -95,6 +93,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate)
 		
 		public Integer distributionFactor; // (EXPERIMENTAL) If specified, attempts to distribute the source across many threads
+			//TODO (INF-1884): ^^^ add to GUI
 	}
 	
 	// 2.3] Text and Linked-Document extraction
@@ -150,6 +149,14 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	}
 	
 	// 2.6] Finishing steps
+	
+	public static class StorageSettingsPojo {
+		public String rejectDocCriteria; 	//OPTIONAL: If populated, runs a user script function and if return value is non-null doesn't create the object and logs the output.  *Not* wrapped in $SCRIPT().
+		public String onUpdateScript; 		//OPTIONAL: Used to preserve existing metadata when documents are updated, and also to generate new metadata based on the differences between old and new documents. *Not* wrapped in $SCRIPT().
+		public String metadataFieldStorage; //OPTIONAL: A comma-separated list of top-level metadata fields to either exclude (if "metadataFields" starts with '-'), or only include (starts with '+', default) - the fields are deleted at that point in the pipeline.
+	}
+	
+	//(SourcePojo.SourceSearchIndexFilter)
 	
 	////////////////////////////////////////////////////////////////////
 	

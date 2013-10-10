@@ -1,0 +1,39 @@
+[
+    {
+        "display": "Web test",
+        "web": {
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                }
+            ],
+            "waitTimeOverride_ms": 100
+        }
+    },
+    {
+        "display": "globals",
+        "globals": {
+            "scriptlang": "javascript",
+            "scripts": [
+                "var _newUrl = 'http://www.bbc.co.uk/news/world-middle-east-23247470';\n\nfunction getUrl(url) {\n return { 'url': url, 'title': 'test' };\n} "
+            ]
+        }
+    },
+    {
+        "display": "followLinks",
+        "links": {
+            "script": "var retval = [];\nretval.push(getUrl(_newUrl));\nretval;",
+            "numPages": 10,
+            "numResultsPerPage": 1,
+            "scriptlang": "javascript"
+        }
+    },
+    {
+        "display": "getText",
+        "textEngine": {
+            "engineName": "boilerpipe"
+        }
+    }
+]

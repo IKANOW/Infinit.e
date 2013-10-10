@@ -233,9 +233,8 @@ public class CommunityHandler
 		} 
 		catch (Exception e)
 		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Community Info", false, "Error returning community info: " + e.getMessage()
-					+ " - " + e.getStackTrace().toString()));
+			//logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Community Info", false, "Error returning community info: " + e.getMessage()));
 		}
 		return rp;
 	}
@@ -565,7 +564,7 @@ public class CommunityHandler
 		}
 		catch (Exception ex)
 		{
-			
+			rp.setResponse(new ResponseObject("Delete community", false, "Error returning community info: " + ex.getMessage()));			
 		}
 		
 		return rp;
@@ -952,7 +951,14 @@ public class CommunityHandler
 	 */
 	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr, String skipInvitation) 
 	{
-		communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		ResponsePojo rp = new ResponsePojo();
+		try {
+			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		}
+		catch (Exception e) {
+			rp.setResponse(new ResponseObject("Invite Community", false, "Error returning community info: " + e.getMessage()));
+			return rp;
+		}
 		
 		boolean skipInvite = ((null != skipInvitation) && (skipInvitation.equalsIgnoreCase("true"))) ? true : false;
 		
@@ -963,7 +969,6 @@ public class CommunityHandler
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canInvite = (isOwnerOrModerator || isSysAdmin) ? true : false;
 
-		ResponsePojo rp = new ResponsePojo();
 		try
 		{
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
@@ -1211,7 +1216,13 @@ public class CommunityHandler
 	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json) 
 	{
 		ResponsePojo rp = new ResponsePojo();
-		communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		try {
+			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+		}
+		catch (Exception e) {
+			rp.setResponse(new ResponseObject("Update Community", false, "Error returning community info: " + e.getMessage()));
+			return rp;
+		}
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can add update communities

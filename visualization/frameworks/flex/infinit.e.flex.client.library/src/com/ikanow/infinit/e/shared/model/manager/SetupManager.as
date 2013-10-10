@@ -41,6 +41,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import mx.collections.SortField;
 	import mx.controls.Alert;
 	import mx.resources.ResourceManager;
+	import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
 	
 	/**
 	 * Setup Manager
@@ -51,6 +52,9 @@ package com.ikanow.infinit.e.shared.model.manager
 		//======================================
 		// public properties 
 		//======================================
+		
+		[Inject]
+		public var workspaceSettingsModel:WorkspaceSettingsModel;
 		
 		[Bindable]
 		/**
@@ -190,7 +194,12 @@ package com.ikanow.infinit.e.shared.model.manager
 		 * @param value
 		 */
 		public function saveSetup():void
-		{
+		{			
+			if ( !workspaceSettingsModel.autoSave )
+			{
+				return;
+			}
+			
 			var url:String = Constants.BLANK;
 			
 			// add the selected widgets

@@ -631,8 +631,14 @@ limitations under the License.
 						owner = info.owner.email;
 					}
 					String docRefId = "null" + delim + "null";
-					if (null != info.documentLocation)
-						docRefId = info.documentLocation.database + "." + info.documentLocation.collection + delim + info.documentLocation._id; // (type contains the other params anyway)
+					if (null != info.documentLocation) {
+						if (null == info.documentLocation.database) {
+							docRefId = "local.file" + delim + info.documentLocation.collection;
+						}
+						else {
+							docRefId = info.documentLocation.database + "." + info.documentLocation.collection + delim + info.documentLocation._id; // (type contains the other params anyway)
+						}
+					}
 					
 					if (ext == null) {
 						String value = info._id + delim + info.created + delim
@@ -1320,6 +1326,7 @@ visibility: hidden;
 			        		<option value="doc_metadata.metadata">Document Metadata Collection</option>
 			        		<option value="feature.entity">Aggregated Entity Collection</option>
 			        		<option value="feature.association">Aggregated Association Collection</option>
+			        		<option value="local.file">Local File (admin only)</option>
 	                  	</select>
 	                  	</td>
 	                  </tr>

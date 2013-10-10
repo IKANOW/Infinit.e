@@ -334,13 +334,8 @@ public class GenericProcessingController {
 			//TESTED
 		}		
 		if (!bPersonalGroup) {
-			
-			String parentCommunityIdStr = null;
-			if (null != parentCommunityId) {
-				parentCommunityIdStr = parentCommunityId.toString();
-			}
-			
-			if (null == parentCommunityIdStr) {
+						
+			if (null == parentCommunityId) {
 			
 				int nShards = bSystemGroup? 10 : 5 ; // (system group is largest)
 				
@@ -376,36 +371,43 @@ public class GenericProcessingController {
 				}
 			}
 			else if (!bParentsOnly) { // A sub-index of a parent 			
-				String sParentGroupIndex = new StringBuffer("doc_").append(new ObjectId(parentCommunityIdStr).toString()).toString();
-				ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
 				
-				//DEBUG (alias corruption)
-//				if (null == _aliasInfo) {
-//					ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
-//					_aliasInfo = clusterState.getState().getMetaData().getAliases();
-//				}
-//				else {
-//					if (_aliasInfo.containsKey(sGroupIndex)) { // has no aliases, we're not good
-//						return;
+				parentCommunityId = getRootCommunity(parentCommunityId);
+				
+				if (null != parentCommunityId) {
+					String parentCommunityIdStr = parentCommunityId.toString();
+					
+					String sParentGroupIndex = new StringBuffer("doc_").append(new ObjectId(parentCommunityIdStr).toString()).toString();
+					ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
+					
+					//DEBUG (alias corruption)
+//					if (null == _aliasInfo) {
+//						ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
+//						_aliasInfo = clusterState.getState().getMetaData().getAliases();
 //					}
 //					else {
-//						//DEBUG
-//						System.out.println("Alias " + sGroupIndex + " has no aliases (but should)");						
-//						ElasticSearchManager docIndex2 = IndexManager.getIndex(sGroupIndex);
-//						docIndex2.deleteMe();
+//						if (_aliasInfo.containsKey(sGroupIndex)) { // has no aliases, we're not good
+//							return;
+//						}
+//						else {
+//							//DEBUG
+//							System.out.println("Alias " + sGroupIndex + " has no aliases (but should)");						
+//							ElasticSearchManager docIndex2 = IndexManager.getIndex(sGroupIndex);
+//							docIndex2.deleteMe();
+//						}
 //					}
-//				}
 				
-				docIndex.createAlias(sGroupIndex); // for indexing 
-					// (this is going to be tricky when the functionality is fully implemented
-					//  because it will need to handle the parent index splitting)
-				docIndex.createAlias(sAliasIndex); // for queries
-				docIndex.closeIndex();
-				// (do nothing on delete - that will be handled at the parent index level)
+					docIndex.createAlias(sGroupIndex); // for indexing 
+						// (this is going to be tricky when the functionality is fully implemented
+						//  because it will need to handle the parent index splitting)
+					docIndex.createAlias(sAliasIndex); // for queries
+					docIndex.closeIndex();
+					// (do nothing on delete - that will be handled at the parent index level)
+				}
 			}
 			//TESTED (parents, children, and personal + docs_ aliases)
 		}
-		else {
+		else { // (Personal group)
 			// Just create the dummy index, no different to getting it in practice
 			Builder localSettingsGroupIndex = ImmutableSettings.settingsBuilder();
 			localSettingsGroupIndex.put("number_of_shards", 1).put("number_of_replicas", 0); // (ie guaranteed to be local to each ES node)	
@@ -473,11 +475,14 @@ public class GenericProcessingController {
 		}
 		else if (null != parentCommunityId) {
 			
-			String sParentGroupIndex = new StringBuffer("doc_").append(parentCommunityId.toString()).toString();
-			ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
-			docIndex.removeAlias(sGroupIndex);
-			docIndex.removeAlias(sAliasIndex);
-			docIndex.closeIndex();
+			parentCommunityId = getRootCommunity(parentCommunityId);
+			if (null != parentCommunityId) {
+				String sParentGroupIndex = new StringBuffer("doc_").append(parentCommunityId.toString()).toString();
+				ElasticSearchManager docIndex = IndexManager.getIndex(sParentGroupIndex);
+				docIndex.removeAlias(sGroupIndex);
+				docIndex.removeAlias(sAliasIndex);
+				docIndex.closeIndex();
+			}		
 		}
 		else {
 			ElasticSearchManager docIndex = IndexManager.getIndex(sGroupIndex);
@@ -487,6 +492,30 @@ public class GenericProcessingController {
 	}
 	//TESTED (personal and system)
 		
+	///////////////////////////
+	
+	// Utility function to get the root community of a community hierarchy, since you can't add aliases to aliases
+	
+	static ObjectId getRootCommunity(ObjectId parentCommunityId) {
+		
+		for (;;) {
+			BasicDBObject query = new BasicDBObject("_id", parentCommunityId);
+			BasicDBObject field = new BasicDBObject("parentId", 1);
+			BasicDBObject retVal = (BasicDBObject) MongoDbManager.getSocial().getCommunity().findOne(query, field);
+			if (null == retVal) { // (shouldn't ever happen)
+				return parentCommunityId;
+			}
+			ObjectId tmp = retVal.getObjectId("parentId", null);
+			if (null == tmp) { // (no more parents)
+				return parentCommunityId;
+			}
+			if (tmp.equals(parentCommunityId)) { // (shouldn't ever happen but will prevent infinite loop)
+				return parentCommunityId; 				
+			}
+			parentCommunityId = tmp;
+		}
+	}//TESTED (cases where have and don't have parent id)
+	
 	///////////////////////////////////////////////////////////////////////////////////////
 	//
 	// Interface to handle scaleable indexes

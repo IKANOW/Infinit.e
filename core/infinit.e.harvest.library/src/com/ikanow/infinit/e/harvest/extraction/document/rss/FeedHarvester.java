@@ -479,7 +479,9 @@ public class FeedHarvester implements HarvesterInterface
 						urlDups.put(url, possDups);
 					}
 					else { // (old URL, check if this is a duplicate...)
-						int nCount = 0;
+						@SuppressWarnings("unused")
+						int nCount = 0; // (for handy debugging)
+						
 						for (SyndEntry possDup : possDups) {
 							if (possDup.getTitle().equals(title) || 
 									((null != possDup.getDescription()) && possDup.getDescription().getValue().equals(desc)) ||

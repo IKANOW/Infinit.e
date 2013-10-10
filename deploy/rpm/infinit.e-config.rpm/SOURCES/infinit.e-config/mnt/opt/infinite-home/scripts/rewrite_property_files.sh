@@ -54,6 +54,8 @@ else
 	ACCESS_TIMEOUT=$(getParam 					"^access.timeout=" $PROPERTY_CONFIG_FILE)
 	ACCESS_ALLOW_REGEX=$(getParam 				"^remote.access.allow=" $PROPERTY_CONFIG_FILE)
 	ACCESS_DENY_REGEX=$(getParam 				"^remote.access.deny=" $PROPERTY_CONFIG_FILE)
+	UI_LOGGING_ALL=$(getParam 					"^ui.logging=" $PROPERTY_CONFIG_FILE)
+	UI_LOGGING_API_REGEX=$(getParam 			"^ui.logging.api.regex=" $PROPERTY_CONFIG_FILE)
 	
 	USE_AWS=$(getParam 							"^use.aws=" $PROPERTY_CONFIG_FILE)
 	AWS_ACCESS_KEY=$(getParam 					"^aws.access.key=" $PROPERTY_CONFIG_FILE)
@@ -88,7 +90,10 @@ else
 	HARVESTER_PROXY=$(getParam 					"^harvest.proxy=" $PROPERTY_CONFIG_FILE)
 	HARVESTER_BATCH=$(getParam 					"^harvest.distribution.batch.harvest=" $PROPERTY_CONFIG_FILE)
 	HARVEST_DISABLE_AGGREGATION=$(getParam 		"^harvest.disable_aggregation=" $PROPERTY_CONFIG_FILE)
+	HARVEST_DUTY_CYCLE=$(getParam 				"^harvest.aggregation.duty_cycle=" $PROPERTY_CONFIG_FILE)	
 	STORE_MAXCONTENT=$(getParam 				"^store.maxcontent=" $PROPERTY_CONFIG_FILE)
+	STORE_RAWCONTENT=$(getParam 				"^store.rawcontent=" $PROPERTY_CONFIG_FILE)
+	STORE_METADATA=$(getParam 					"^store.metadata_as_content=" $PROPERTY_CONFIG_FILE)
 
 	MAIL_SERVER=$(getParam 						"^mail.server=" $PROPERTY_CONFIG_FILE)
 	MAIL_USERNAME=$(getParam 					"^mail.username=" $PROPERTY_CONFIG_FILE)
@@ -100,10 +105,11 @@ else
 	
 	ALCHEMY_KEY=$(getParam 						"^extractor.key.alchemyapi=" $PROPERTY_CONFIG_FILE)
 	OPENCALAIS_KEY=$(getParam 					"^extractor.key.opencalais=" $PROPERTY_CONFIG_FILE)
-	DEFAULT_ENTITY_EXTRACTOR=$(getParam			 "^extractor.entity.default=" $PROPERTY_CONFIG_FILE)
+	DEFAULT_ENTITY_EXTRACTOR=$(getParam			"^extractor.entity.default=" $PROPERTY_CONFIG_FILE)
 	DEFAULT_TEXT_EXTRACTOR=$(getParam 			"^extractor.text.default=" $PROPERTY_CONFIG_FILE)
 	ALCHEMY_POSTPROC_VAL=$(getParam 			"^app.alchemy.postproc=" $PROPERTY_CONFIG_FILE)
 	API_AGG_ACCURACY=$(getParam					"^api.aggregation.accuracy=" $PROPERTY_CONFIG_FILE)
+	CUSTOM_EXTRACTORS=$(getParam 				"^extractor.entity.custom=" $PROPERTY_CONFIG_FILE)
 	
 	HADOOP_DIR=$(getParam 						"^hadoop.configpath=" $PROPERTY_CONFIG_FILE)
 	HADOOP_MAX_CONCURRENT=$(getParam 			"^hadoop.max_concurrent=" $PROPERTY_CONFIG_FILE)
@@ -156,7 +162,10 @@ else
 	setParam HARVESTER_PROXY "$HARVESTER_PROXY" $SERVICE_PROPERTY_FILE
 	setParam HARVESTER_BATCH "$HARVESTER_BATCH" $SERVICE_PROPERTY_FILE
 	setParam HARVEST_DISABLE_AGGREGATION "$HARVEST_DISABLE_AGGREGATION" $SERVICE_PROPERTY_FILE
+	setParam HARVEST_DUTY_CYCLE "$HARVEST_DUTY_CYCLE" $SERVICE_PROPERTY_FILE
 	setParam STORE_MAXCONTENT "$STORE_MAXCONTENT" $SERVICE_PROPERTY_FILE
+	setParam STORE_RAWCONTENT "$STORE_RAWCONTENT" $SERVICE_PROPERTY_FILE
+	setParam STORE_METADATA "$STORE_METADATA" $SERVICE_PROPERTY_FILE
 
 	setParam MAIL_SERVER "$MAIL_SERVER" $SERVICE_PROPERTY_FILE
 	setParam MAIL_USERNAME "$MAIL_USERNAME" $SERVICE_PROPERTY_FILE
@@ -169,7 +178,8 @@ else
 	setParam DEFAULT_ENTITY_EXTRACTOR "$DEFAULT_ENTITY_EXTRACTOR" $SERVICE_PROPERTY_FILE
 	setParam DEFAULT_TEXT_EXTRACTOR "$DEFAULT_TEXT_EXTRACTOR" $SERVICE_PROPERTY_FILE
 	setParam ALCHEMY_POSTPROC_VAL "$ALCHEMY_POSTPROC_VAL" $SERVICE_PROPERTY_FILE
-	
+	setParam CUSTOM_EXTRACTORS "$CUSTOM_EXTRACTORS" $SERVICE_PROPERTY_FILE
+		
 	setParam HADOOP_DIR "$HADOOP_DIR" $SERVICE_PROPERTY_FILE
 	setParam HADOOP_MAX_CONCURRENT "$HADOOP_MAX_CONCURRENT" $SERVICE_PROPERTY_FILE
 	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $SERVICE_PROPERTY_FILE
@@ -188,6 +198,8 @@ else
 	setParam ACCESS_TIMEOUT "$ACCESS_TIMEOUT" $API_PROPERTY_FILE
 	setParam ACCESS_ALLOW_REGEX "$ACCESS_ALLOW_REGEX" $API_PROPERTY_FILE
 	setParam ACCESS_DENY_REGEX "$ACCESS_DENY_REGEX" $API_PROPERTY_FILE
+	setParam UI_LOGGING_ALL "$UI_LOGGING_ALL" $API_PROPERTY_FILE
+	setParam UI_LOGGING_API_REGEX "$UI_LOGGING_API_REGEX" $API_PROPERTY_FILE
 
 	setParam DB_SERVER "$DB_SERVER" $API_PROPERTY_FILE
 	setParam DB_PORT "$DB_PORT" $API_PROPERTY_FILE
@@ -216,6 +228,7 @@ else
 	setParam DEFAULT_TEXT_EXTRACTOR "$DEFAULT_TEXT_EXTRACTOR" $API_PROPERTY_FILE
 	setParam ALCHEMY_POSTPROC_VAL "$ALCHEMY_POSTPROC_VAL" $API_PROPERTY_FILE
 	setParam API_AGG_ACCURACY "$API_AGG_ACCURACY" $API_PROPERTY_FILE
+	setParam CUSTOM_EXTRACTORS "$CUSTOM_EXTRACTORS" $API_PROPERTY_FILE
 	
 	setParam HADOOP_DIR "$HADOOP_DIR" $API_PROPERTY_FILE
 	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $API_PROPERTY_FILE
@@ -257,4 +270,14 @@ if [ "$USE_AWS" = "1" ]; then
 	echo "Set EC2 Cluster Name and Cluster Name in properties file"
 	sh /opt/infinite-home/scripts/set_cluster.sh
 fi
+
+###########################################################################
+# Finally finally: call child RPMs' scripts
+for i in `ls /opt/infinite-home/scripts/config_change_scripts/*.sh 2> /dev/null`; do
+	sh $i $USE_AWS
+done
+
 echo "(If running this manually, not from RPM, you may also need to sh /opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh to update the Interface Engine)"
+#^(at some point this script should get moved into config_change_scripts, ditto set_cluster.sh - but leave for now to minimize changes)
+
+

@@ -76,7 +76,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
     private static ShutdownHook shutdownHook = null;
     private static AtomicLong num_extraction_collisions = new AtomicLong(0);
     private static AtomicLong num_extraction_requests = new AtomicLong(0);
-	
+
+	private static final int MAX_LENGTH = 99000;	
+    
     private boolean bAddRawEventsToMetadata = false;
     
 	//_______________________________________________________________________
@@ -94,6 +96,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		_capabilities.put(EntityExtractorEnum.Name, "OpenCalais");
 		_capabilities.put(EntityExtractorEnum.Quality, "1");
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
+		_capabilities.put(EntityExtractorEnum.MaxInputBytes, Integer.toString(MAX_LENGTH));
 		
 		if (Identity.IDENTITY_SERVICE == Globals.getIdentity()) { // (ie not for API)
 			if ( 1 == numInstances.incrementAndGet() ) // (first time only...)
@@ -234,10 +237,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
 									name = nameNode.getTextValue();
 								}
 								catch (Exception ex )
-								{
-									
-									logger.error("Error parsing name node: " + nameNode.getValueAsText());
-									logger.error(ex.getMessage(),ex);
+								{									
+									logger.debug("Error parsing name node: " + currNode.toString());
+									continue;
 								}
 								ep.setActual_name(name);
 								ep.setRelevance(Double.parseDouble(currNode.get("relevance").getValueAsText()));
@@ -342,7 +344,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
 			}
 			else // Error back from OC, presumably the input doc is malformed/too long
 			{
-				throw new InfiniteEnums.ExtractorDocumentLevelException(Integer.toString(responseCode));
+				throw new InfiniteEnums.ExtractorDocumentLevelException("OpenCalais HTTP error code: " + Integer.toString(responseCode));
 			}
 		} 
 		catch (Exception e)
@@ -399,6 +401,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	
 	private PostMethod createPostMethod(String text) throws UnsupportedEncodingException {
 
+		if (text.length() > MAX_LENGTH) {
+			text = text.substring(0, MAX_LENGTH);
+		}		
         PostMethod method = new PostMethod(CALAIS_URL);
 
         // Set mandatory parameters

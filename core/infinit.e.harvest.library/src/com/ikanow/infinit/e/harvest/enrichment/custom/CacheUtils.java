@@ -43,13 +43,13 @@ public class CacheUtils
 				JSONObject jsonObj = new JSONObject(json);
 				engine.put("tmpcache", jsonObj);				
 				if ( json != null )
-				{						
+				{					
 					engine.eval("_cache['"+cacheName+"'] = eval('(' + tmpcache + ')');");
 				}
 				
 			}
 		}
-	}
+	}//TESTED
 	
 	/**
 	 * Trys to grab the json from a share using the communityIds as auth

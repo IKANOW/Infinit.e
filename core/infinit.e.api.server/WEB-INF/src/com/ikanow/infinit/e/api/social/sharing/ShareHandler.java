@@ -16,15 +16,22 @@
 package com.ikanow.infinit.e.api.social.sharing;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Scanner;
+
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.FilenameUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.social.community.CommunityHandler;
+import com.ikanow.infinit.e.api.utils.MimeUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -87,26 +94,32 @@ public class ShareHandler
 				
 				//new way of handling bytes, if has a binaryid, get bytes from there and set
 	
-				if ( ( share.getBinaryId() != null ) && returnContent ) {
-					share.setBinaryData(getGridFile(share.getBinaryId()));
+				if (returnContent) {					
+					if (null != share.getBinaryId()) {
+						share.setBinaryData(getGridFile(share.getBinaryId()));						
+					}//TESTED
+					else if (null != share.getDocumentLocation()) {
+						try {
+							if ((null != share.getType()) && share.getType().equalsIgnoreCase("binary")) {
+								File x = new File(share.getDocumentLocation().getCollection());
+								share.setBinaryData(FileUtils.readFileToByteArray(x));
+							}//TESTED
+							else { // text
+								share.setShare(getReferenceString(share));								
+							}//TESTED
+						}
+						catch (Exception e) {
+							rp.setResponse(new ResponseObject("Get Share", false, "Unable to get share reference: " + e.getMessage()));						
+							return rp;
+						}//TESTED
+					}	
+					// (else share.share already set)
 				}
+				else { // don't return content
+					share.setShare(null);					
+				}//TESTED
 				
-				// References are a bit of a pain...
-				if (returnContent && (null != share.getDocumentLocation())) {
-					try {
-						share.setShare(getReferenceString(share));
-					}
-					catch (Exception e) {
-						rp.setResponse(new ResponseObject("Get Share", false, "Unable to get share reference: " + e.getMessage()));						
-						return rp;
-					}
-				}//TESTED			
-				else if (!returnContent) {
-					share.setShare(null);
-				}
-				
-				rp.setData(share, new SharePojoApiMap(memberOf));				
-				
+				rp.setData(share, new SharePojoApiMap(memberOf));								
 				rp.setResponse(new ResponseObject("Share", true, "Share returned successfully"));
 			}
 			else {
@@ -301,7 +314,10 @@ public class ShareHandler
 					SharePojo share = shareIt.next();
 					if (null != share.getDocumentLocation()) {
 						try {
-							share.setShare(this.getReferenceString(share));
+							if ((null == share.getType()) || !share.getType().equalsIgnoreCase("binary")) {
+								// (ignore binary references)
+								share.setShare(this.getReferenceString(share));
+							}//TESTED
 						}
 						catch (Exception e) { // couldn't access data, just remove data from list
 							share.setShare("{}");
@@ -713,9 +729,22 @@ public class ShareHandler
 			
 			// Create DocumentLocationPojo and add to the share
 			DocumentLocationPojo documentLocation = new DocumentLocationPojo();
-			documentLocation.set_id(new ObjectId(idStr));
 			setRefLocation(location, documentLocation);
 			share.setDocumentLocation(documentLocation);
+			if (null == documentLocation.getDatabase()) { // (local file)
+				// Check, need to be admin:
+				if (!RESTTools.adminLookup(ownerIdStr, false)) {
+					rp.setResponse(new ResponseObject("Share", false, "Permission denied: you need to be admin to create a local file ref"));
+					return rp;
+				}				
+				if ((null != type) && (type.equalsIgnoreCase("binary"))) {
+					share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));					
+				}
+				documentLocation.setCollection(idStr); // collection==file, database==id==null
+			}//TESTED
+			else {
+				documentLocation.set_id(new ObjectId(idStr));				
+			}
 			
 			// Get ShareOwnerPojo object
 			PersonPojo owner = getPerson(new ObjectId(ownerIdStr));
@@ -826,9 +855,22 @@ public class ShareHandler
 
 				// Create DocumentLocationPojo and add to the share
 				DocumentLocationPojo documentLocation = new DocumentLocationPojo();
-				documentLocation.set_id(new ObjectId(idStr));
 				setRefLocation(location, documentLocation);
 				share.setDocumentLocation(documentLocation);
+				if (null == documentLocation.getDatabase()) { // (local file)
+					// Check, need to be admin:
+					if (!RESTTools.adminLookup(ownerIdStr, false)) {
+						rp.setResponse(new ResponseObject("Share", false, "Permission denied: you need to be admin to update a local file ref"));
+						return rp;
+					}				
+					if ((null != type) && (type.equalsIgnoreCase("binary"))) {
+						share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));					
+					}
+					documentLocation.setCollection(idStr); // collection==file, database==id==null
+				}//TESTED
+				else {
+					documentLocation.set_id(new ObjectId(idStr));				
+				}
 
 				// Get ShareOwnerPojo object
 				PersonPojo owner = getPerson(new ObjectId(ownerIdStr));
@@ -1334,6 +1376,10 @@ public class ShareHandler
 			documentLocation.setDatabase("doc_metadata");
 			documentLocation.setCollection("metadata");
 		}
+		else if (type.equalsIgnoreCase("local.file")) {
+			documentLocation.setDatabase(null);
+			documentLocation.setCollection(null);			
+		}
 		else if (type.equalsIgnoreCase("custommr.customlookup")) {
 			documentLocation.setDatabase("custommr");
 			documentLocation.setCollection("customlookup");				
@@ -1352,6 +1398,29 @@ public class ShareHandler
 	}//TESTED (all 4 types)
 	
 	private String getReferenceString(SharePojo share) {
+		// FILE:
+		if (null == share.getDocumentLocation().get_id()) { // local file based reference
+			FileInputStream fin = null;
+			Scanner s = null;
+			try {
+				File f = new File(share.getDocumentLocation().getCollection()) ;
+				fin = new FileInputStream(f);
+				s = new Scanner(fin, "UTF-8");
+				return (s.useDelimiter("\n").next());
+			}
+			catch (Exception e) {
+				return null;
+			}
+			finally {
+				try {
+					if (null != fin) fin.close();
+					if (null != s) s.close();
+				}
+				catch (Exception e) {} // (probably just never opened)					
+			}
+		}		
+		// DB:
+		// Carry on, this is a database object
 		HashSet<String> shareIdStrs = new HashSet<String>();
 		for (ShareCommunityPojo commIds: share.getCommunities()) {
 			shareIdStrs.add(commIds.get_id().toString());

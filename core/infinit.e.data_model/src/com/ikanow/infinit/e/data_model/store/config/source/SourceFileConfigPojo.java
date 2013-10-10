@@ -27,6 +27,7 @@ public class SourceFileConfigPojo {
 	public String pathInclude = null; // optional regex (files only) - must match entire path
 	public String pathExclude = null; // optional regex (files and directories) - must match entire path, note directories end with "/"
 	public String renameAfterParse = null; // If "" deletes the file after processing; otherwise if non-null renames to specified string with escapes $path and $name
+	public Integer maxDepth = null; // (optional, defaults to 5): controls the maximum depth through the file system that the harvester will traverse
 	
 	// For samba shares
 	public String username = null;

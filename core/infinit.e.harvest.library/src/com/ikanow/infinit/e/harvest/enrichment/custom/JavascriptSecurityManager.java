@@ -17,6 +17,10 @@ public class JavascriptSecurityManager
 	private static SocketSecurityManager ssm;
 	private boolean SECURITY_ACTIVATED = false;
 	
+	//TODO (INF-2118) don't eval if running the source as admin (have a non static user passed into c'tor, do a auth check)
+	// ... probably need to investigate why it's intermittently failing first?
+	// ALSO NEED TO DISABLE REFLECTION
+	
 	public JavascriptSecurityManager()
 	{
 		//Check if security config is on/off

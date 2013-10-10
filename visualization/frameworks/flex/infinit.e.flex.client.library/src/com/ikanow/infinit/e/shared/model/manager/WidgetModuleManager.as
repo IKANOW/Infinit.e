@@ -343,7 +343,7 @@ package com.ikanow.infinit.e.shared.model.manager
 		{
 			var index:int = _widgetUrls.indexOf( widgetUrl );
 			
-			if ( index == -1 )
+			if ( index == -1 ) // (Else already present so can ignore)
 			{
 				_widgets.push( widget );
 				_widgetUrls.push( widgetUrl );

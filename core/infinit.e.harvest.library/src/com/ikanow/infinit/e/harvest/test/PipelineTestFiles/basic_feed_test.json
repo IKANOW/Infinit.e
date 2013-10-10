@@ -1,0 +1,20 @@
+[
+    {
+        "display": "RSS test",
+        "feed": {
+            "extraUrls": [
+                {
+                    "url": "http://feeds.bbci.co.uk/news/rss.xml"
+                }
+            ],
+            "feedType": "rss",
+            "waitTimeOverride_ms": 100
+        }
+    },
+    {
+        "display": "",
+        "featureEngine": {
+            "engineName": "alchemyapi"
+        }
+    }
+]

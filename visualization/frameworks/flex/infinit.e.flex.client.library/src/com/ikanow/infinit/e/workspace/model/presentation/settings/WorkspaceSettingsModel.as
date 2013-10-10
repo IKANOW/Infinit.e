@@ -49,6 +49,9 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 		[Inject]
 		public var queryManager:QueryManager;
 		
+		[Bindable]
+		public var autoSave:Boolean = true;
+		
 		// Output document options
 		
 		protected var _documentOptions:QueryOutputDocumentOptions;
@@ -155,7 +158,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			navigator.showContentView();
 			
 			resetClones();
-			
+
 			documentOptionsFormValues.apply( documentOptions );
 			aggregationOptionsFormValues.apply( aggregationOptions );
 			filterOptionsFormValues.apply( filterOptions );
@@ -174,9 +177,6 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 		
 		public function restoreDefaults():void
 		{
-			// (Necessary for form values but not the others because of our transient var)
-			filterOptionsFormValues.reset();
-			
 			// apply the state of the form to our model
 			// so that when we reset to the default values it actually triggers bindings
 			documentOptions.apply( documentOptionsFormValues );
@@ -188,6 +188,8 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			aggregationOptions.reset();
 			filterOptions.reset();
 			scoreOptions.reset();
+			
+			autoSave = true;
 			
 			checkForChanges();
 		}
@@ -221,7 +223,7 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			documentOptions = queryManager.documentOptions.clone();
 			aggregationOptions = queryManager.aggregationOptions.clone();
 			scoreOptions = queryManager.scoreOptions.clone();
-			filterOptions = queryManager.filterOptions.clone();
+			filterOptions = queryManager.filterOptions.clone(); 
 		}
 	}
 }

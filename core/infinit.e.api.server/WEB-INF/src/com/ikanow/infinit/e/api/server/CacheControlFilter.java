@@ -214,6 +214,30 @@ public class CacheControlFilter implements Filter {
 
         chain.doFilter(request, response);
         
+        // Logging:
+        if (_loggingEnabled) {
+	        boolean apiLogSet = false;        
+	        if (resp.containsHeader("X-infinit.e.log")) {
+	        	apiLogSet = true;
+	        }//TESTED        
+        	if (!_loggingErrorsOnly || apiLogSet) {
+        		if (null != _loggingRegex) { // if regex enabled then apply it
+        			String url = req.getRequestURI();
+        			if (!_loggingErrorsOnly && apiLogSet) { // if it's an error and we're doing positive selection then allow selection on that also 
+        				url += "&X-infinit.e.log";
+        			}//TESTED
+	    			if (_loggingRegex.matcher(url).find()) {
+	    				req.setAttribute("infinit.e.log", "1");
+	    			}//TESTED
+        		}
+        		else if (apiLogSet) { // if regex not enabled, only forward on error 
+    				req.setAttribute("infinit.e.log", "1");        			
+        		}//TESTED
+        	}//TESTED
+        	// if logging errors only then only process if the API has set "infinit.e.log" (and 
+        	// if !(logging errors only)
+        } //TESTED
+        
         if (null != jsonpCallbackStr) {
         	actualResponse.setHeader("Content-Type", "application/javascript");
         	
@@ -232,6 +256,7 @@ public class CacheControlFilter implements Filter {
         	actualResponse.getOutputStream().flush();
         	
         }//TESTED
+        
     }
 
     public void destroy() {
@@ -258,13 +283,39 @@ public class CacheControlFilter implements Filter {
 	private static boolean _bCreatedSecurityLayer = false;
 	private static boolean _bHasSecurityLayer = false;
 	private static Pattern _allowRegex = null;
-	private static Pattern _denyRegex = null;	
+	private static Pattern _denyRegex = null;
+	private static boolean _loggingEnabled = false;
+	private static boolean _loggingErrorsOnly = true;
+	private static Pattern _loggingRegex = null;
 	
 	private void createSecurityPermissions() {    	
     	
 		EmbeddedRestletApp.intializeInfiniteConfig(null, _config.getServletContext());
 		
     	PropertiesManager pm = new PropertiesManager();
+    	
+    	// Logging:
+    	
+    	_loggingEnabled = pm.getApiLoggingEnabled();
+    	if (_loggingEnabled) {
+    		String loggingRegex = pm.getApiLoggingRegex();
+        	if ((null != loggingRegex) && !loggingRegex.trim().isEmpty()) {
+        		if (loggingRegex.startsWith("*")) { // (log everything that matches the regex)
+        			_loggingErrorsOnly = false;
+        			loggingRegex = loggingRegex.substring(1);
+        		}
+        		else if (loggingRegex.startsWith("!")) { // (default -log errors only- just remove this char)
+        			loggingRegex = loggingRegex.substring(1);        			
+        		}
+        		if (!loggingRegex.isEmpty()) {
+        			_loggingRegex = Pattern.compile(loggingRegex.trim(), Pattern.CASE_INSENSITIVE);
+        		}
+        	}
+    	}//(else only log failures)
+    	//TESTED
+    	
+    	// Security:
+    	
     	String allow = pm.getRemoteAccessAllow();
     	String deny = pm.getRemoteAccessDeny();
     	if (((null == allow) || allow.trim().isEmpty()) && ((null == deny) || deny.trim().isEmpty())) {

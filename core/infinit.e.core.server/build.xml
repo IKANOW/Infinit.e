@@ -156,8 +156,8 @@
 		      </chainedmapper>
 		    </mapper>
 		    <path>
-		    	<!-- Just need those libraries not included in library for OSS reasons -->
-				  <fileset dir="${infinit.e.harvest.library.location}/lib" includes="RangeMap.jar jsr*.jar jtds*.jar jcifs*.jar tika*.jar"/>
+				<!-- This is just for custom jobs, the harvester specifies its libraries explicity from infinite-px-engine.sh, currently nothing needed --> 
+			 	<fileset dir="${infinit.e.harvest.library.location}/lib" includes=""/>
 		    </path>
 		 </pathconvert>
 			

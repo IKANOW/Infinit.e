@@ -30,6 +30,7 @@ import java.util.TreeSet;
 import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+
 import com.ikanow.infinit.e.api.social.community.CommunityHandler;
 import com.ikanow.infinit.e.api.social.community.PersonHandler;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
@@ -282,6 +283,7 @@ public class SourceHandler
 				communityIdSet.add(new ObjectId(communityIdStr));
 				
 				source = ApiManager.mapFromApi(sourceString, SourcePojo.class, new SourcePojoApiMap(communityIdSet));
+				source.fillInSourcePipelineFields();
 				if (null == source.getCommunityIds()) {
 					source.setCommunityIds(new HashSet<ObjectId>());
 				}
@@ -308,7 +310,8 @@ public class SourceHandler
 				source.setApproved(isApproved);
 				source.setCreated(new Date());
 				source.setModified(new Date());
-				source.setUrl(source.getUrl()); // (key generated below)
+				source.setUrl(source.getUrl()); 
+					// (key generated below from representative URL - don't worry about the fact this field is sometimes not present)
 	
 				source.setKey(validateSourceKey(source.getId(), source.generateSourceKey()));
 	
@@ -551,7 +554,13 @@ public class SourceHandler
 					
 					// Source exists, update and prepare reply
 					DbManager.getIngest().getSource().update(query, source.toDb());
-					rp.setResponse(new ResponseObject("Source", true, "Source has been updated successfully."));
+					if (isUniqueSource(source, communityIdSet))
+					{
+						rp.setResponse(new ResponseObject("Source", true, "Source has been updated successfully."));
+					}
+					else { // Still allow people to add identical sources, but warn them so they can delete it if they way
+						rp.setResponse(new ResponseObject("Source", true, "Source has been updated successfully. Note functionally identical sources are also present within your communities, which may waste system resources."));
+					}
 					rp.setData(source, new SourcePojoApiMap(null, communityIdSet, null));
 				} 
 				catch (Exception e) 
@@ -1083,9 +1092,22 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
-			SourcePojo source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null));
+			SourcePojo source = null;
+			try {
+				source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null));
+				source.fillInSourcePipelineFields();
+			}
+			catch (Exception e) {
+				rp.setResponse(new ResponseObject("Test Source",false,"Error deserializing source (JSON is valid but does not match schema): " + e.getMessage()));						
+				return rp;				
+			}
 			if (null == source.getKey()) {
 				source.setKey(source.generateSourceKey()); // (a dummy value, not guaranteed to be unique)
+			}
+			String testUrl = source.getRepresentativeUrl();
+			if (null == testUrl) {
+				rp.setResponse(new ResponseObject("Test Source",false,"Error, source contains no URL to harvest"));						
+				return rp;								
 			}
 
 			// This is the only field that you don't normally need to specify in save but will cause 
@@ -1331,7 +1353,7 @@ public class SourceHandler
 				"<p>" +
 				"Title: " + source.getTitle() + "<br/>" + 
 				"Description: " + source.getDescription() + "<br/>" + 
-				"URL: " + source.getUrl() + "<br/>" + 
+				"URL (eg): " + source.getRepresentativeUrl() + "<br/>" + 
 				"</p>" +
 				"<p>Please click on the Approve or Reject links below to complete the approval process: </p>" +
 				"<li><a href=\"" + rootUrl + "social/community/requestresponse/" + cap.get_id().toString() + "/true\">Approve new Source</a></li>" +
@@ -1365,7 +1387,7 @@ public class SourceHandler
 		"<p>" +
 		"Title: " + source.getTitle() + "<br/>" + 
 		"Description: " + source.getDescription() + "<br/>" + 
-		"URL: " + source.getUrl() + "<br/>" + 
+		"URL: " + source.getRepresentativeUrl() + "<br/>" + 
 		"</p>" +
 		"<p>Was <b>" + decision + "</b> by " + approver.getDisplayName() + "</p>";
 
@@ -1373,7 +1395,6 @@ public class SourceHandler
 		new SendMail(new PropertiesManager().getAdminEmailAddress(), submitter.getEmail(), subject, body).send("text/html");	
 		return true;
 	}
-	
 	
 	/**
 	 * hasRequiredSourceFields
@@ -1383,14 +1404,13 @@ public class SourceHandler
 	private String hasRequiredSourceFields(SourcePojo s)
 	{
 		ArrayList<String> fields = new ArrayList<String>();
-		if (s.getUrl() == null) {
-			if ((null == s.getRssConfig()) || (null == s.getRssConfig().getExtraUrls()) || s.getRssConfig().getExtraUrls().isEmpty()) {
-				fields.add("URL");				
-			}
+		String url = s.getRepresentativeUrl();
+		if (null == url) {
+			fields.add("URL");				
 		}
 		if (s.getTitle() == null) fields.add("Title");
 		if (s.getMediaType() == null) fields.add("Media Type");
-		if (s.getExtractType() == null) fields.add("Extract Type");
+		if ((s.getExtractType() == null) && (s.getProcessingPipeline() == null)) fields.add("Extract Type");
 		
 		if (fields.size() > 0)
 		{
@@ -1443,7 +1463,8 @@ public class SourceHandler
 	
 	/**
 	 * isUniqueSource
-	 * Determine whether or not a source is unique based on its ID and Shah-256 Hash
+	 * Determine whether or not a source is unique based on its ID and Shah-256 Hash - and if it has the same set of URLs...
+	 * Not perfect since will have (rare) false positives and also doesn't handle the multiple URLs very well
 	 * @param sourceid
 	 * @param shah256Hash
 	 * @return
@@ -1453,26 +1474,27 @@ public class SourceHandler
 		try
 		{
 			BasicDBObject query = new BasicDBObject();
-			query.put(SourcePojo.url_, source.getUrl());
 			query.put(SourcePojo._id_, new BasicDBObject(MongoDbManager.ne_, source.getId()));
 			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_,communityIdList));
 			query.put(SourcePojo.shah256Hash_, source.getShah256Hash());
-			source = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
-		}
-		catch (Exception e)
-		{
-			source = null;
-		}
+			List<SourcePojo> sourceList = SourcePojo.listFromDb(DbManager.getIngest().getSource().find(query), SourcePojo.listType());
 
-		if (source == null)
-		{
-			return true;
+			// We'll just check the first URL here
+			String myRepUrl = source.getRepresentativeUrl();			
+			if (null != sourceList) {
+				for (SourcePojo otherSource: sourceList) {
+					String theirRepUrl = otherSource.getRepresentativeUrl();
+					
+					if (myRepUrl.equalsIgnoreCase(theirRepUrl)) {
+						return false;
+					}
+				}
+			}//TESTED
+			
 		}
-		else
-		{
-			return false;
-		}
-	}
+		catch (Exception e) {}
+		return true;
+	}//TESTED
 	
 	
 	/**
@@ -1510,6 +1532,7 @@ public class SourceHandler
 		}	
 		return communityIdStr;
 	}	
+	
 	
 }
 

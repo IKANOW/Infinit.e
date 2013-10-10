@@ -1,0 +1,17 @@
+[
+    {
+        "display": "",
+        "file": {
+            "maxDepth":1,
+            "type": "tika",
+            "protocol": "Local",
+            "url": "file://c:\\"
+        }
+    },
+    {
+        "display": "",
+        "textEngine": {
+            "engineName": "raw"
+        }
+    }    
+]

@@ -102,6 +102,7 @@ public class HarvestController implements HarvestContext
 	private HashMap<String, IEntityExtractor> entity_extractor_mappings = null;
 	private HashMap<String, ITextExtractor> text_extractor_mappings = null;
 	private HashSet<String> failedDynamicExtractors = null;
+	private static HashMap<String, Class<?> > dynamicExtractorClassCache = null;
 
 	private int _nMaxDocs = Integer.MAX_VALUE; 
 	private DuplicateManager _duplicateManager = new DuplicateManager_Integrated();
@@ -367,6 +368,14 @@ public class HarvestController implements HarvestContext
 	{
 		nUrlErrorsThisSource = 0;
 
+		// New Harvest Pipeline logic
+		if (null != source.getProcessingPipeline()) {
+			procPipeline = new HarvestControllerPipeline();
+			procPipeline.extractSource_preProcessingPipeline(source, this);
+			//(just copy the config into the legacy source fields since the 
+			// actual processing is the same in both cases)
+		}
+
 		// Can override the default (feed) wait time from within the source (eg for sites that we know 
 		// don't get upset about getting hammered)
 		if (null != source.getRssConfig()) {
@@ -379,14 +388,6 @@ public class HarvestController implements HarvestContext
 		// Reset any state that might have been generated from the previous source
 		getDuplicateManager().resetForNewSource();
 
-		// New Harvest Pipeline logic
-		if (null != source.getProcessingPipeline()) {
-			procPipeline = new HarvestControllerPipeline();
-			procPipeline.extractSource_preProcessingPipeline(source, this);
-			//(just copy the config into the legacy source fields since the 
-			// actual processing is the same in both cases)
-		}
-
 		//First up, Source Extraction (could spawn off some threads to do source extraction)
 		// Updates will be treated as follows:
 		// - extract etc etc (since they have changed)
@@ -397,6 +398,7 @@ public class HarvestController implements HarvestContext
 		// (^^^ this adds toUpdate to toAdd) 
 
 		if (null != procPipeline) {
+			procPipeline.setInterDocDelayTime(nBetweenFeedDocs_ms);
 			procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
 		}
 		else { // Old logic (more complex, less functional)
@@ -770,6 +772,20 @@ public class HarvestController implements HarvestContext
 					feed_count++;
 
 					try {
+						// (Check for truncation)
+						if ((null != currentEntityExtractor) && (null != doc.getFullText())) {
+							try {
+								String s = currentEntityExtractor.getCapability(EntityExtractorEnum.MaxInputBytes);
+								if (null != s) {
+									int maxLength = Integer.parseInt(s);
+									if (doc.getFullText().length() > maxLength) { //just warn, it's up to the extractor to sort it out
+										getHarvestStatus().logMessage("Warning: truncating document to max length: " + s, false);
+									}
+								}
+							}
+							catch (Exception e) {} // max length not reported just carry on
+						}
+						
 						if (null != currentTextExtractor)
 						{	
 							bExtractedText = true;
@@ -826,21 +842,23 @@ public class HarvestController implements HarvestContext
 					}//TESTED
 					catch (Exception e) { // Anything except daily limit exceeded, expect it to be ExtractorDocumentLevelException
 
+						//TODO (INF-1922): put this in a separate function and call that from pipeline on failure...
+						// (not sure what to do about error_on_feed_count though, need to maintain a separate one of those in pipeline?)
+						
 						// This can come from (sort-of/increasingly) "user" code so provide a bit more information
 						StringBuffer errMessage = HarvestExceptionUtils.createExceptionMessage(e);
 						_harvestStatus.logMessage(errMessage.toString(), true);
-
 						num_error_url.incrementAndGet();
 						nUrlErrorsThisSource++;
+						urlsThatError.add(doc.getUrl());						
 
 						error_on_feed_count++;
 						i.remove();
 						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
-						urlsThatError.add(doc.getUrl());						
 					}
 					//TESTED
 				}
-				//TODO (INF-1922) ... might be calling this multiple times so need to ensure the logic for this is sensible...
+				// (note this is only ever called in legacy mode - it's handled in the HarvestControllerPipeline)
 				if ((null != source.getExtractType()) && (source.getExtractType().equalsIgnoreCase("feed"))) {
 					if (i.hasNext() && bExtractedText) {
 						nTime_ms = nBetweenFeedDocs_ms - (System.currentTimeMillis() - nTime_ms); // (ie delay time - processing time)
@@ -853,6 +871,7 @@ public class HarvestController implements HarvestContext
 
 			} // end loop over documents	
 			//check if all toAdd were erroring, or more than 20 (arbitrary number)
+			//NOTE: this is duplicated in HarvestControllerPipeline for non-legacy cases
 			if ((error_on_feed_count == feed_count) && (feed_count > 5))
 			{
 				String errorMsg = new StringBuffer().append(feed_count).append(" docs, ").append(error_on_feed_count).append(", errors").toString(); 
@@ -1111,8 +1130,7 @@ public class HarvestController implements HarvestContext
 
 	// Dynamic extraction utilities
 
-	@SuppressWarnings({ "rawtypes" })
-	private Object lookForDynamicExtractor(SourcePojo source, boolean bTextExtractor)
+	private synchronized Object lookForDynamicExtractor(SourcePojo source, boolean bTextExtractor)
 	{
 		String extractorName = bTextExtractor ? source.useTextExtractor() : source.useExtractor();
 		if (null == extractorName) {
@@ -1130,7 +1148,7 @@ public class HarvestController implements HarvestContext
 			ObjectId extractorId = null;
 			if (extractorName.startsWith("/")) { // allow /<id>/free text..
 				extractorName = extractorName.substring(1).replaceFirst("/.*", "");
-			}//TOTEST
+			}//TESTED
 			try {
 				extractorId = new ObjectId(extractorName);
 			}
@@ -1162,10 +1180,19 @@ public class HarvestController implements HarvestContext
 				
 				savedClassLoader = Thread.currentThread().getContextClassLoader();
 				
-				JarAsByteArrayClassLoader child = new JarAsByteArrayClassLoader (jarBytes, savedClassLoader);
-				
-				Thread.currentThread().setContextClassLoader(child);
-				Class classToLoad = Class.forName(extractorInfo.getTitle(), true, child);
+				//HashMap<String, Class<?> > dynamicExtractorClassCache = null;
+				if (null == dynamicExtractorClassCache) {
+					dynamicExtractorClassCache = new HashMap<String, Class<?> >();
+				}
+
+				Class<?> classToLoad = dynamicExtractorClassCache.get(extractorInfo.getTitle());
+				if (null == classToLoad) {				
+					JarAsByteArrayClassLoader child = new JarAsByteArrayClassLoader (jarBytes, savedClassLoader);
+					
+					Thread.currentThread().setContextClassLoader(child);
+					classToLoad = Class.forName(extractorInfo.getTitle(), true, child);
+					dynamicExtractorClassCache.put(extractorInfo.getTitle(), classToLoad);
+				}
 
 				if (bTextExtractor) {
 					ITextExtractor txtExtractor = (ITextExtractor )classToLoad.newInstance();

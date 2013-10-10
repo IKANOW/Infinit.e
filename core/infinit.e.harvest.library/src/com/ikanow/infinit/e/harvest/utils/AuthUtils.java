@@ -42,5 +42,5 @@ public class AuthUtils {
 		}
 		catch (Exception e) {} // fail out and return false
 		return false;
-	}//TODO (???): odd, in AMI test with harvester checking every minute, intermittently appeared to fail - not clear why
+	}
 }

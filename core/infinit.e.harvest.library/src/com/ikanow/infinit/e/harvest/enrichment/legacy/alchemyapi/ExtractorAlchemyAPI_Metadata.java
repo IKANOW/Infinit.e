@@ -47,6 +47,8 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();		
 	private boolean _bConceptExtraction = false;
 	
+	private static final int MAX_LENGTH = 145000;	
+	
 	// Batch size
 	private int _nBatchSize = 1;
 	private int _nNumKeywords = 50; // (for batch size > 1, keywords/batch_size)
@@ -73,6 +75,7 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		_capabilities.put(EntityExtractorEnum.URLTextExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.GeotagExtraction, "true");
 		_capabilities.put(EntityExtractorEnum.SentimentExtraction, "false");		
+		_capabilities.put(EntityExtractorEnum.MaxInputBytes, Integer.toString(MAX_LENGTH));
 	}
 	
 	// Configuration: override global configuration on a per source basis
@@ -272,7 +275,11 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		String json_doc = null;
 		try
 		{
-			json_doc = _alch.TextGetRankedKeywords(partialDoc.getFullText());
+			String text = partialDoc.getFullText();
+			if (text.length() > MAX_LENGTH) {
+				text = text.substring(0, MAX_LENGTH);
+			}
+			json_doc = _alch.TextGetRankedKeywords(text);
 			checkAlchemyErrors(json_doc, partialDoc.getUrl());
 		}
 		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )
@@ -338,6 +345,10 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 			return;
 		}
 		configure(partialDoc.getTempSource());
+
+		if (_nBatchSize > 1) {
+			throw new ExtractorDocumentLevelException("Batching not supporting with combined text and entity extraction");
+		}		
 		
 		// Run through specified extractor need to pull these properties from config file
 		String json_doc = null;
@@ -460,7 +471,11 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		String json_doc = null;
 		try
 		{
-			json_doc = _alch.TextGetRankedConcepts(partialDoc.getFullText());
+			String text = partialDoc.getFullText();
+			if (text.length() > MAX_LENGTH) {
+				text = text.substring(0, MAX_LENGTH);
+			}
+			json_doc = _alch.TextGetRankedConcepts(text);
 			checkAlchemyErrors(json_doc, partialDoc.getUrl());
 		}
 		catch ( InfiniteEnums.ExtractorDocumentLevelException ex )

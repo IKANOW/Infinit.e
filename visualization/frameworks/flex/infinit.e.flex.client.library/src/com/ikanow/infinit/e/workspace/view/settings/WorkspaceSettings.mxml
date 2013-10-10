@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+
 <!--
    Copyright 2012, The Infinit.e Open Source Project.
 
@@ -28,9 +29,13 @@
 	<fx:Script>
 		<![CDATA[
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			
+			import mx.events.ValidationResultEvent;
+			
 			import com.ikanow.infinit.e.shared.util.FormatterUtil;
 			import com.ikanow.infinit.e.shared.util.JSONUtil;
 			import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
+			
 			import mx.controls.Alert;
 			
 			[Bindable]
@@ -46,6 +51,15 @@
 				model.aggregationOptionsFormValues = aggregationOptions;
 				model.filterOptionsFormValues = filterOptions;
 				model.scoreOptionsFormValues = scoreOptions;
+				
+				// This gives the model ptrs to the these objects that are field-wise bound to the contents of the GUI
+				// model _also_ has an internal set of instances of each object type _AND_
+				// the GUI elements themselves are bound to the fields of the internal model objects 
+				// Then:
+				// - model.cancel(): copies from model.internal to workspace
+				// - model.save(): copies from workspace to model.internal (and then creates an event from model.internal)
+				// - model.restoreDefaults(): copies from workspace to model.internal, and then resets model.internal
+				//   (apparently because it's copied ptrs across then the changes to model.internal propagate via bindings?!)
 				
 				addEventListener( Event.CHANGE, onChange, true );
 			}
@@ -98,6 +112,7 @@
 				
 				return output;
 			}
+			
 		]]>
 	</fx:Script>
 
@@ -155,19 +170,6 @@
 			</vo:geoProx>
 		</vo:QueryScoreOptions>
 
-		<!-- validators -->
-		<!--<s:NumberValidator id="latValidator"
-			maxValue="90"
-			minValue="-90"
-			property="text"
-			required="false"
-			source="{ geoProxLat }" />
-		<s:NumberValidator id="lonValidator"
-			maxValue="180"
-			minValue="-180"
-			property="text"
-			required="false"
-			source="{ geoProxLon }" />-->
 	</fx:Declarations>
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -189,12 +191,22 @@
 			verticalAlign="middle"
 			verticalCenter="0"
 			gap="10">
+			<common:InfCheckBox id="autoSaveWorkspace"
+								label="{ resourceManager.getString( 'infinite', 'workspaceSettings.autosave' ) }"
+								toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.autosaveToolTip' ) }"
+								change=" model.autoSave = autoSaveWorkspace.selected; "
+								selected="{ model.autoSave }" />
+			
+			<s:Spacer width="40" />
+			
 			<common:InfButton id="restoreButton"
 				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButton' ) }"
 				toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButtonToolTip' ) }"
 				styleName="workspaceSettingsRestoreButton"
 				click="restoreButton_clickHandler(event)" />
+			
 			<s:Spacer width="40" />
+			
 			<common:InfButton id="saveButton"
 				width="100"
 				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.saveButton' ) }"
@@ -240,6 +252,7 @@
 						styleName="workspaceSettingsGroupLabel" />
 					<textInput:InfTextInput id="numDocsToAnalyze"
 						text="{ model.scoreOptions.numAnalyze.toString() }"
+						maxChars="5"
 						width="65"
 						styleName="infTextInput"
 						toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToolTip' ) }" />
@@ -471,8 +484,9 @@
 						<textInput:InfTextInput id="numDocsToReturn"
 							text="{ model.documentOptions.numReturn.toString() }"
 							width="60"
+							maxChars="3"
 							styleName="infTextInput"
-							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.numDocsToReturnToolTip' ) }"
+							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxDocsToolTip' ) }"
 							restrict="0-9" />
 						<common:InfLabel 
 							text="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxDocs' ) }"
@@ -550,6 +564,7 @@
 					<s:HGroup verticalAlign="middle">
 						<textInput:InfTextInput id="numGeotagsToReturn"
 							width="60"
+							maxChars="4"
 							styleName="infTextInput"
 							text="{ model.aggregationOptions.geoNumReturn }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxGeotagsToolTip' ) }" />
@@ -584,6 +599,7 @@
 						<textInput:InfTextInput id="numEntitiesToReturn"
 							width="60"
 							styleName="infTextInput"
+							maxChars="4"
 							text="{ model.aggregationOptions.entsNumReturn }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEntitiesToolTip' ) }" />
 						<common:InfLabel 
@@ -604,6 +620,7 @@
 					<s:HGroup verticalAlign="middle">
 						<textInput:InfTextInput id="numEventsToReturn"
 							width="60"
+							maxChars="4"
 							styleName="infTextInput"
 							text="{ model.aggregationOptions.eventsNumReturn }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxEventsToolTip' ) }" />
@@ -620,6 +637,7 @@
 					<s:HGroup verticalAlign="middle">
 						<textInput:InfTextInput id="numFactsToReturn"
 							width="60"
+							maxChars="4"
 							styleName="infTextInput"
 							text="{ model.aggregationOptions.factsNumReturn }"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxFactsToolTip' ) }" />

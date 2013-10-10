@@ -224,22 +224,6 @@ function start() {
 	    cp /opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
 	    chown tomcat.tomcat /opt/tomcat-infinite/interface-engine/webapps/internal/AppConstants.js
 	fi    
-    if [[ -d /opt/infinite-home/lib/extractors/ ]]; then
-    
-		# (quick check: has the interface engine API been created yet - only if we need to copy extractors across)
-		if [ "$(ls -A /opt/infinite-home/lib/extractors/)" ]; 
-		then
-		    for i in 1 2 3 4 5; do
-			    if [[ ! -d /opt/tomcat-infinite/interface-engine/webapps/api/WEB-INF/lib ]]; then
-	    			sleep 6
-			    fi
-			done
-    	fi    
-    
-    	for i in `find /opt/infinite-home/lib/extractors/ -name "*.jar"`; do    	
-    		cp $i /opt/tomcat-infinite/interface-engine/webapps/api/WEB-INF/lib
-    	done
-	fi
     return $RETVAL
 }
 

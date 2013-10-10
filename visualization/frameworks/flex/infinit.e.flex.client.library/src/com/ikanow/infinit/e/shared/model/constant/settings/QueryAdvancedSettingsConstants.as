@@ -91,12 +91,6 @@ package com.ikanow.infinit.e.shared.model.constant.settings
 		
 		public static const OUTPUT_AGG_AGGREGATE_SOURCES:Boolean = false;
 		
-		public static const OUTPUT_AGG_AGGREGATE_TIMES:Boolean = true;
-		
-		// output filtering
-		
-		public static const OUTPUT_FILTER_ENTTYPES:String = "";
-		
-		public static const OUTPUT_FILTER_ASSOCVERBS:String = "";
+		public static const OUTPUT_AGG_AGGREGATE_TIMES:Boolean = true;		
 	}
 }

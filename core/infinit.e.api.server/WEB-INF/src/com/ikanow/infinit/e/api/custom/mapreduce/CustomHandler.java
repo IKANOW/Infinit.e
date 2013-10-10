@@ -142,7 +142,7 @@ public class CustomHandler
 				}
 				else
 				{
-					rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"User is not a member of communities with read rights"));
+					rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"User is not a member of communities with read permissions"));
 				}
 			}
 			else
@@ -358,12 +358,12 @@ public class CustomHandler
 			}
 			else
 			{
-				rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You are not allowed to use the given input collection."));
+				rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You do not have permission to use the given input collection."));
 			}
 		}
 		else
 		{
-			rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You are not an admin or member of all the communities given."));
+			rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You do not have permissions for all the communities given."));
 		}
 		return rp;
 	}
@@ -415,7 +415,7 @@ public class CustomHandler
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You are not an admin or member of all the communities given."));
+						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You do have permissions for all the communities given."));
 						return rp;
 					}
 				}
@@ -438,7 +438,7 @@ public class CustomHandler
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You are not allowed to use the given input collection."));
+						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You do not have permission to use the given input collection."));
 						return rp;
 					}
 				}
@@ -590,7 +590,7 @@ public class CustomHandler
 			}
 			else
 			{
-				rp.setResponse(new ResponseObject("Update MapReduce Job", false, "You are not an admin or submitter of this job"));
+				rp.setResponse(new ResponseObject("Update MapReduce Job", false, "You do not have permission to submit this job"));
 			}
 		}
 		else
@@ -809,7 +809,7 @@ public class CustomHandler
 				}
 				else
 				{
-					rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"User must be the submitter or an admin to remove jobs"));
+					rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"User must have submitter or admin permissions to remove jobs"));
 				}
 			}
 			else

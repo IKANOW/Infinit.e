@@ -5,6 +5,7 @@ import javax.servlet.http.*;
 import javax.servlet.jsp.*;
 import java.io.*;
 import java.util.*;
+import com.google.common.collect.TreeMultimap;
 import java.net.*;
 import javax.naming.*;
 import javax.servlet.jsp.*;
@@ -22,6 +23,7 @@ import org.apache.commons.httpclient.HttpStatus;
 import org.apache.commons.httpclient.methods.PostMethod;
 import java.io.BufferedReader;
 import java.io.InputStreamReader;
+import org.apache.commons.lang.StringEscapeUtils.*;
 
 public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
     implements org.apache.jasper.runtime.JspSourceDependent {
@@ -93,6 +95,27 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 		}
 	} // TESTED
 	
+	// isLoggedInAsAdmin_GetAdmin - check to see if user is already logged in
+	// NOTE tri-state ... null means admin but not enabled, true is admin and active, false is definitely not admin
+	public Boolean isLoggedInAsAdmin_GetAdmin(boolean bGetAdmin, HttpServletRequest request, HttpServletResponse response) 
+	{
+		String json = callRestfulApi("auth/keepalive/admin?override=" + bGetAdmin, request, response);
+		if (json != null) 
+		{
+			keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
+			if (keepA.response.success) {
+				if (keepA.response.message.contains("Active Admin"))
+					return true;
+				else
+					return null;
+			}
+			else return false;
+		} 
+		else 
+		{
+			return false;
+		}
+	} // TESTED
 	
 	// getLogin - attempt to log user in
 	private Boolean getLogin(String username, String password, HttpServletRequest request, HttpServletResponse response) 
@@ -132,6 +155,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 			ByteArrayOutputStream output = new ByteArrayOutputStream();
 			URL url = new URL(API_ROOT + addr);
 			URLConnection urlConnection = url.openConnection();
+    		urlConnection.addRequestProperty("X-Forwarded-For", request.getRemoteAddr());
 			String cookieVal = getBrowserInfiniteCookie(request);
         	if (cookieVal != null)
         	{
@@ -158,7 +182,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	// postToRestfulApi - 
 	// Note: params in the addr field need to be URLEncoded
-	private String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response) 
+	public String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response) 
 	{
 		if(localCookie)
 			CookieHandler.setDefault(cm);
@@ -265,11 +289,16 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// logOut -
-	private String logOut(HttpServletRequest request, HttpServletResponse response) 
+	public String logOut(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("auth/logout/", request, response);
 	} // TESTED
 	
+	// Admin logOut - note doesn't actually log you out, just relinquishes admin
+	public String adminLogOut(HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("auth/logout/admin/", request, response);
+	} // TESTED
 	
 	// getShare -
 	private String getShare(String id, HttpServletRequest request, HttpServletResponse response) 
@@ -279,7 +308,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getShareObject - 
-	private JSONObject getShareObject(String id, HttpServletRequest request, HttpServletResponse response) 
+	public JSONObject getShareObject(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		try 
 		{
@@ -296,12 +325,17 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	// getUserSources - 
 	private String getUserSources(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("config/source/user/", request, response);
+		return callRestfulApi("config/source/user?stripped=true", request, response);
 	} // TESTED
 	
+	//getPersonList
+	private String getPeopleList(HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/person/list/", request, response);
+	}
 	
 	// getSystemCommunity - 
-	private String getSystemCommunity(HttpServletRequest request, HttpServletResponse response) 
+	public String getSystemCommunity(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/getsystem/", request, response);
 	}
@@ -314,7 +348,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getPublicCommunities - 
-	private String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
+	public String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/getpublic/", request, response);
 	}
@@ -327,14 +361,14 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	}
 	
 	// getCommunity - 
-	private String removeCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
+	public String removeCommunity(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/remove/" + id, request, response);
 	}
 	
 	
 	// updateCommunityMemberStatus - 
-	private String updateCommunityMemberStatus(String communityid, String personid, String status,
+	public String updateCommunityMemberStatus(String communityid, String personid, String status,
 			HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/member/update/status/" + communityid + "/" 
@@ -343,7 +377,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// updateCommunityMemberType - 
-	private String updateCommunityMemberType(String communityid, String personid, String type,
+	public String updateCommunityMemberType(String communityid, String personid, String type,
 			HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/community/member/update/type/" + communityid + "/" 
@@ -352,14 +386,14 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getSource - 
-	private String getSource(String sourceId, HttpServletRequest request, HttpServletResponse response) 
+	public String getSource(String sourceId, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("config/source/get/" + sourceId, request, response);
 	}
 	
 	
 	// deleteSource
-	private String deleteSource(String sourceId, boolean bDocsOnly, String communityId, HttpServletRequest request, HttpServletResponse response)
+	public String deleteSource(String sourceId, boolean bDocsOnly, String communityId, HttpServletRequest request, HttpServletResponse response)
 	{
 		if (bDocsOnly) {
 			return callRestfulApi("config/source/delete/docs/" + sourceId + "/" + communityId, request, response);
@@ -372,7 +406,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getListOfAllShares - 
-	private Map<String,String> getListOfAllShares(HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfAllShares(HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allShares = new HashMap<String,String>();
 		
@@ -413,7 +447,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getListOfSharesByType -
-	private Map<String,String> getListOfSharesByType(String type, HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfSharesByType(String type, HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allShares = new HashMap<String,String>();
 		
@@ -455,14 +489,15 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	// getSourceShares - 
 	private String getSourceShares(HttpServletRequest request, HttpServletResponse response) 
 	{
-		return callRestfulApi("social/share/search/?type=source,source_published",request, response);
+
+		return callRestfulApi("social/share/search/?type=source,source_published&searchby=community&id=*",request, response);
 	} // TESTED
 	
 	
 	// getUserSources - 
-	private Map<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response)
+	public TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
 	{
-		Map<String,String> userSources = new HashMap<String,String>();
+		TreeMultimap<String,String> userSources = TreeMultimap.create();
 		String userIdStr = null;
 		
 		// publishedSources - array of source._ids of published sources
@@ -492,6 +527,10 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 					{
 						JSONObject shareObj = data.getJSONObject(i);
 						String tempTitle = shareObj.getString("title");
+						if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
+						{
+							continue;
+						}
 						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
 						if (sourceObj.has("_id")) publishedSources.add( sourceObj.getString("_id") );
@@ -522,6 +561,10 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 							if (!publishedSources.contains( sourceObj.getString("_id") ))
 							{
 								String tempTitle = sourceObj.getString("title");
+								if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
+								{
+									continue;
+								}
 								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
 								userSources.put(tempTitle, sourceObj.getString("_id"));
 							}
@@ -539,30 +582,33 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getListOfAllPeople
-	private Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
+	{
+		return getListOfAllPeople(request, response, null);
+	}
+	private Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response, HashSet<String> personFilter)
 	{
 		Map<String,String> allPeople = new HashMap<String,String>();
 		try
 		{
-			JSONObject communityObj = new JSONObject ( getSystemCommunity(request, response) );
-			if ( communityObj.has("data") )
+			JSONObject listOfPeopleObj = new JSONObject( getPeopleList(request, response));
+			if ( listOfPeopleObj.has("data"))
 			{
-				JSONObject community = new JSONObject ( communityObj.getString("data") );
-				if ( community.has("members") )
+				JSONArray listOfPeople = new JSONArray ( listOfPeopleObj.getString("data") );
+				for ( int i = 0; i < listOfPeople.length(); i++)
 				{
-					JSONArray members = community.getJSONArray("members");
-					for (int i = 0; i < members.length(); i++) 
+					JSONObject person = listOfPeople.getJSONObject(i);
+					String id = person.getString("_id");
+					if ((null != personFilter) && personFilter.contains(id))
+						continue;
+					
+					if (person.has("displayName"))
 					{
-						JSONObject member = members.getJSONObject(i);
-						if (member.has("displayName"))
-						{
-							allPeople.put( member.getString("displayName"), member.getString("_id") );
-						}
-						else
-						{
-							allPeople.put( member.getString("_id"), member.getString("_id") );
-						}
-							
+						allPeople.put( person.getString("displayName"), id );
+					}
+					else
+					{
+						allPeople.put( id, id );
 					}
 				}
 			}
@@ -570,13 +616,13 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 		catch (Exception e)
 		{
 			System.out.println(e.getMessage());
-		}
+		}	
 		return allPeople;
 	}
 	
 	
 	// getListOfCommunityMembers
-	private Map<String,String> getListOfCommunityMembers(String id, HttpServletRequest request, HttpServletResponse response)
+	public Map<String,String> getListOfCommunityMembers(String id, HttpServletRequest request, HttpServletResponse response)
 	{
 		Map<String,String> allPeople = new HashMap<String,String>();
 		try
@@ -612,34 +658,9 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getListOfAllCommunities
-	private Map<String,String> getListOfAllCommunities(HttpServletRequest request, HttpServletResponse response)
+	public TreeMultimap<String,String> getListOfAllNonPersonalCommunities(HttpServletRequest request, HttpServletResponse response)
 	{
-		Map<String,String> allCommunities = new HashMap<String,String>();
-		try
-		{
-			JSONObject communitiesObj = new JSONObject ( getAllCommunities(request, response) );
-			if ( communitiesObj.has("data") )
-			{
-				JSONArray communities = communitiesObj.getJSONArray("data");
-				for (int i = 0; i < communities.length(); i++) 
-				{
-					JSONObject community = communities.getJSONObject(i);
-					allCommunities.put( community.getString("name"), community.getString("_id") );
-				}
-			}
-		}
-		catch (Exception e)
-		{
-			//System.out.println(e.getMessage());
-		}
-		return allCommunities;
-	}
-	
-	
-	// getListOfAllCommunities
-	private Map<String,String> getListOfAllNonPersonalCommunities(HttpServletRequest request, HttpServletResponse response)
-	{
-		Map<String,String> allCommunities = new HashMap<String,String>();
+		TreeMultimap<String,String> allCommunities = TreeMultimap.create();
 		try
 		{
 			JSONObject communitiesObj = new JSONObject ( getAllCommunities(request, response) );
@@ -651,7 +672,11 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 					JSONObject community = communities.getJSONObject(i);
 					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.has("name"))
 					{
-						allCommunities.put( community.getString("name"), community.getString("_id") );
+						String name = community.getString("name");
+						if (community.has("communityStatus") && (community.getString("communityStatus").equalsIgnoreCase("disabled"))) {
+							name += " (Disabled pending deletion)";
+						}
+						allCommunities.put( name, community.getString("_id") );
 					}
 				}
 			}
@@ -665,21 +690,21 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// getPerson -
-	private String getPerson(HttpServletRequest request, HttpServletResponse response) 
+	public String getPerson(HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/person/get/", request, response);
 	} // TESTED
 	
 	
 	// getPerson -
-	private String getPerson(String id, HttpServletRequest request, HttpServletResponse response) 
+	public String getPerson(String id, HttpServletRequest request, HttpServletResponse response) 
 	{
 		return callRestfulApi("social/person/get/" + id, request, response);
 	}
 	
 	
 	// getPersonCommunities -
-	private JSONArray getPersonCommunities(HttpServletRequest request, HttpServletResponse response)
+	public JSONArray getPersonCommunities(HttpServletRequest request, HttpServletResponse response)
 	{
 		JSONArray communities = null;
 		try
@@ -701,27 +726,27 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	
 	// deletePerson
-	private String deletePerson(String id, HttpServletRequest request, HttpServletResponse response)
+	public String deletePerson(String id, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/delete/" + id, request, response);
 	} // TESTED 
 	
 	
 	// updatePassword
-	private String updatePassword(String id, String password, HttpServletRequest request, HttpServletResponse response)
+	public String updatePassword(String id, String password, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/person/update/password/" + id + "/" + password, request, response);
 	} // TESTED 
 	
 	
 	// addToCommunity
-	private String addToCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	public String addToCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/community/member/invite/" + community + "/" + person + "?skipinvitation=true", request, response);
 	} // TESTED 
 	
 	// removeFromCommunity
-	private String removeFromCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
+	public String removeFromCommunity(String community, String person, HttpServletRequest request, HttpServletResponse response)
 	{
 		return callRestfulApi("social/community/member/update/status/" + community + "/" + person + "/remove", request, response);
 	} // TESTED
@@ -738,7 +763,7 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	
 	// createPageString - 
 	// Create list of pages for search results
-	private String createPageString(int numberOfItems, int itemsPerPage, int currentPage, String baseUrl)
+	public String createPageString(int numberOfItems, int itemsPerPage, int currentPage, String baseUrl)
 	{	
 		StringBuffer pageString = new StringBuffer();
 		
@@ -798,11 +823,12 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 
 
 	// 
-	int currentPage = 1;
+	int currentPage = 1; 
 	int itemsToShowPerPage = 10;
 	
 	//
 	String action = "";
+	String lastaction = "";
 	String logoutAction = "";
 	
 	// 
@@ -826,10 +852,9 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	String listOfCommunities = "";
 	String password = "";
 	String passwordConfirmation = "";
-	// No way of knowing if I'm admin, so leave as visible for now, later change to:
-	//String accountTypeHidden = "style=\"display:none;\"";
-	String accountTypeHidden = "";
-	
+	String accountTypeHidden = "style=\"display:none;\"";
+	String isRequestAdminVisible = "style=\"display:none;\"";
+	String isDemoteAdminVisible = "style=\"display:none;\"";
 		
 
 
@@ -932,7 +957,7 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to save the user's account information.";
+			messageToDisplay = "Error: Unable to save the user's account information. (" + responseVal.getString("message") + ")"; 
 			return false;
 		}
 	}
@@ -996,7 +1021,9 @@ private boolean addPersonToCommunity(String person, String community, HttpServle
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Person added to community."; return true;
+			// Don't output a message, the visual feedback is sufficient
+			//messageToDisplay = "Success: Person added to community."; 
+			return true;
 		}
 		else
 		{
@@ -1018,7 +1045,9 @@ private boolean removePersonFromCommunity(String person, String community, HttpS
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( removeFromCommunity(community, person, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Person removed from community."; return true;
+			// Don't output a message, the visual feedback is sufficient
+			//messageToDisplay = "Success: Person removed from community."; 
+			return true;
 		}
 		else
 		{
@@ -1109,8 +1138,14 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 		
 		int column = 1;
 		
+		String lastName = null;
 		for (String communityName : listOfCommunityNames)
 		{
+			if ((null != lastName) && lastName.equals(communityName)) {
+				continue;
+			}
+			lastName = communityName;
+			
 			// Iterate over the list of all communities
 			for (int i = 0; i < communities.length(); i++)
 			{
@@ -1130,9 +1165,8 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 						
 						String deleteLink = "<a href=\"people.jsp?action=edit&personid=" + personid
 								+ pageString + listFilterString + "&removefrom=" + community.getString("_id") 
-								+ "\" title=\"Remove User from Community\" "
-								+ "onclick='return confirm(\"Do you really wish to remove the user account from: "
-								+ community.getString("name") + "?\");'><img src=\"image/minus_button.png\" border=0></a>";
+								+ "\" title=\"Remove User from Community\" >"
+								+ "<img src=\"image/minus_button.png\" border=0></a>";
 								
 						String addLink = "<a href=\"people.jsp?action=edit&personid=" + personid
 								+ pageString + listFilterString + "&addto=" + community.getString("_id") 
@@ -1251,7 +1285,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				
 				editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
 						+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
-				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id
+				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id+ "&page=" + currentPage
 						+ listFilterString + "\" title=\"Delete User Account\" "
 						+ "onclick='return confirm(\"Do you really wish to delete the user account for: "
 						+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
@@ -1259,6 +1293,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				// Create the HTML table row
 				people.append("<tr>");
 				people.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
+				people.append("<td align=\"center\" bgcolor=\"white\"><input type=\"checkbox\" name=\"peopleToDelete\" value=\"" + id + "\"/></td>");
 				people.append("<td align=\"center\" bgcolor=\"white\">" + deleteLink + "</td>");
 				people.append("</tr>");
 			}
@@ -1271,12 +1306,16 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("people.jsp?");
-		String actionString = (action.length() > 0) ? "action=" + action : "";
+		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append('&');
+		
+		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";
 		String personIdString = (personid.length() > 0) ? "personid=" + personid : "";
+		
 		if (actionString.length() > 0) baseUrl.append(actionString);
 		if (actionString.length() > 0 && personIdString.length() > 0) baseUrl.append("&");
 		if (personIdString.length() > 0) baseUrl.append(personIdString);
 		if (actionString.length() > 0 || personIdString.length() > 0) baseUrl.append("&");
+		
 		baseUrl.append("page=");
 		people.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
 		people.append("</td></tr>");
@@ -1306,6 +1345,11 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
     _jspx_dependants.add("/inc/footer.jsp");
   }
 
+  private org.apache.jasper.runtime.TagHandlerPool _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody;
+  private org.apache.jasper.runtime.TagHandlerPool _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody;
+  private org.apache.jasper.runtime.TagHandlerPool _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody;
+  private org.apache.jasper.runtime.TagHandlerPool _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody;
+
   private javax.el.ExpressionFactory _el_expressionfactory;
   private org.apache.AnnotationProcessor _jsp_annotationprocessor;
 
@@ -1314,11 +1358,19 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
   }
 
   public void _jspInit() {
+    _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody = org.apache.jasper.runtime.TagHandlerPool.getTagHandlerPool(getServletConfig());
+    _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody = org.apache.jasper.runtime.TagHandlerPool.getTagHandlerPool(getServletConfig());
+    _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody = org.apache.jasper.runtime.TagHandlerPool.getTagHandlerPool(getServletConfig());
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody = org.apache.jasper.runtime.TagHandlerPool.getTagHandlerPool(getServletConfig());
     _el_expressionfactory = _jspxFactory.getJspApplicationContext(getServletConfig().getServletContext()).getExpressionFactory();
     _jsp_annotationprocessor = (org.apache.AnnotationProcessor) getServletConfig().getServletContext().getAttribute(org.apache.AnnotationProcessor.class.getName());
   }
 
   public void _jspDestroy() {
+    _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody.release();
+    _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody.release();
+    _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody.release();
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.release();
   }
 
   public void _jspService(HttpServletRequest request, HttpServletResponse response)
@@ -1343,62 +1395,78 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
       out = pageContext.getOut();
       _jspx_out = out;
 
-      out.write("<!--\n");
-      out.write("Copyright 2012 The Infinit.e Open Source Project\n");
-      out.write("\n");
-      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\n");
-      out.write("you may not use this file except in compliance with the License.\n");
-      out.write("You may obtain a copy of the License at\n");
-      out.write("\n");
-      out.write("  http://www.apache.org/licenses/LICENSE-2.0\n");
-      out.write("\n");
-      out.write("Unless required by applicable law or agreed to in writing, software\n");
-      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\n");
-      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n");
-      out.write("See the License for the specific language governing permissions and\n");
-      out.write("limitations under the License.\n");
-      out.write("-->\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("<!--\n");
-      out.write("Copyright 2012 The Infinit.e Open Source Project\n");
-      out.write("\n");
-      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\n");
-      out.write("you may not use this file except in compliance with the License.\n");
-      out.write("You may obtain a copy of the License at\n");
-      out.write("\n");
-      out.write("  http://www.apache.org/licenses/LICENSE-2.0\n");
-      out.write("\n");
-      out.write("Unless required by applicable law or agreed to in writing, software\n");
-      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\n");
-      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\n");
-      out.write("See the License for the specific language governing permissions and\n");
-      out.write("limitations under the License.\n");
-      out.write("-->\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
+      out.write("<!--\r\n");
+      out.write("Copyright 2012 The Infinit.e Open Source Project\r\n");
+      out.write("\r\n");
+      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\r\n");
+      out.write("you may not use this file except in compliance with the License.\r\n");
+      out.write("You may obtain a copy of the License at\r\n");
+      out.write("\r\n");
+      out.write("  http://www.apache.org/licenses/LICENSE-2.0\r\n");
+      out.write("\r\n");
+      out.write("Unless required by applicable law or agreed to in writing, software\r\n");
+      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\r\n");
+      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\r\n");
+      out.write("See the License for the specific language governing permissions and\r\n");
+      out.write("limitations under the License.\r\n");
+      out.write("-->\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("<!--\r\n");
+      out.write("Copyright 2012 The Infinit.e Open Source Project\r\n");
+      out.write("\r\n");
+      out.write("Licensed under the Apache License, Version 2.0 (the \"License\");\r\n");
+      out.write("you may not use this file except in compliance with the License.\r\n");
+      out.write("You may obtain a copy of the License at\r\n");
+      out.write("\r\n");
+      out.write("  http://www.apache.org/licenses/LICENSE-2.0\r\n");
+      out.write("\r\n");
+      out.write("Unless required by applicable law or agreed to in writing, software\r\n");
+      out.write("distributed under the License is distributed on an \"AS IS\" BASIS,\r\n");
+      out.write("WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.\r\n");
+      out.write("See the License for the specific language governing permissions and\r\n");
+      out.write("limitations under the License.\r\n");
+      out.write("-->\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      if (_jspx_meth_c_005fset_005f0(_jspx_page_context))
+        return;
+      out.write('\r');
       out.write('\n');
+      if (_jspx_meth_fmt_005fsetLocale_005f0(_jspx_page_context))
+        return;
+      out.write('\r');
       out.write('\n');
-      out.write('\n');
+      if (_jspx_meth_fmt_005fsetBundle_005f0(_jspx_page_context))
+        return;
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
 
 
 	//!---------- Read AppConstants.js to get the API_ROOT value  ----------!
@@ -1436,6 +1504,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		if (null == API_ROOT) { 
 			// Default to localhost
 			API_ROOT = "http://localhost:8080/api/";
+			//API_ROOT = "http://localhost:8184/";
 		}
 		
 		if (API_ROOT.contains("localhost")) { localCookie=true; }
@@ -1462,14 +1531,15 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 	}
 
 
-      out.write("\n");
-      out.write("\n");
-      out.write("\t\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\t\r\n");
+      out.write('\r');
       out.write('\n');
-      out.write('\n');
-      out.write('\n');
-      out.write('\n');
-      out.write('\n');
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
 
 	messageToDisplay = "";
 	
@@ -1493,11 +1563,13 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Determine which action to perform on postback/request
 		action = "";
 		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
+		lastaction = action;
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
 		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
 		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
 		
 		// Capture values sent by button clicks, these will override the action value as appropriate 
 		String saveAccount = "";
@@ -1505,12 +1577,16 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		String updatePassword = "";
 		String addto = "";
 		String removefrom = "";
+		boolean bRequestAdmin = false;
+		boolean bDemoteAdmin = false;
 		if (request.getParameter("createAccount") != null) createAccount = request.getParameter("createAccount").toLowerCase();
 		if (request.getParameter("saveAccount") != null) saveAccount = request.getParameter("saveAccount").toLowerCase();
 		if (request.getParameter("updatePassword") != null) updatePassword = request.getParameter("updatePassword").toLowerCase();
 		if (request.getParameter("addto") != null) addto = request.getParameter("addto");
 		if (request.getParameter("removefrom") != null) removefrom = request.getParameter("removefrom");
-		
+		if (request.getParameter("requestAdmin") != null) bRequestAdmin = true;
+		if (request.getParameter("demoteAdmin") != null) bDemoteAdmin = true;
+
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
 		{
@@ -1519,6 +1595,28 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		else
 		{
 			currentPage = 1;
+		}
+		
+		Boolean bIsAdmin = null;
+		
+		if (bDemoteAdmin) {
+			adminLogOut(request, response);
+		}
+		bIsAdmin = isLoggedInAsAdmin_GetAdmin(bRequestAdmin, request, response);
+		if (null == bIsAdmin) { //inactive admin
+			accountTypeHidden = "style=\"display:none;\"";
+			isRequestAdminVisible = "";			
+			isDemoteAdminVisible = "style=\"display:none;\"";
+		}
+		else if (bIsAdmin) { // admin active
+			accountTypeHidden = "";
+			isRequestAdminVisible = "style=\"display:none;\"";	
+			isDemoteAdminVisible = "";
+		}
+		else { // not admin
+			accountTypeHidden = "style=\"display:none;\"";
+			isRequestAdminVisible = "style=\"display:none;\"";
+			isDemoteAdminVisible = "style=\"display:none;\"";
 		}
 		
 		try
@@ -1597,15 +1695,40 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 			else if (action.equals("delete")) 
 			{
 				deleteAccount(personid, request, response);
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp\">");
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
+			else if (action.equals("deleteselected")) 
+			{
+				String[] ids= request.getParameterValues("peopleToDelete");
+				
+				int nDeleted = 0;
+				int nFailed = 0;
+				for (String id: ids) {
+					if (!deleteAccount(id, request, response)) {
+						nFailed++;
+					}
+					else nDeleted++;
+				}
+				messageToDisplay = "Bulk person deletion: deleted " + nDeleted + ", failed: " + nFailed; 
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) {
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
 			}
 			else if (action.equals("filterlist")) 
 			{
-				currentPage = 1;
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				populateEditForm(personid, request, response);
 			}
 			else if (action.equals("clear")) 
 			{
+				currentPage = 1; // (don't perpetuate this action across page jumps)
 				listFilter = "";
 				populateEditForm(personid, request, response);
 			}
@@ -1622,286 +1745,333 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 	}
 	
 
-      out.write("\n");
-      out.write("\n");
-      out.write("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\n");
-      out.write("<html>\n");
-      out.write("<head>\n");
-      out.write("\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=ISO-8859-1\">\n");
-      out.write("\t<link rel=\"stylesheet\" type=\"text/css\" href=\"inc/manager.css\" />\n");
-      out.write("\t<script type=\"text/javascript\" src=\"inc/utilities.js\"></script>\n");
-      out.write("\t<link rel=\"shortcut icon\" href=\"image/favicon.ico\" />\n");
-      out.write("\t<title>Infinit.e.Manager - People</title>\n");
-      out.write("</head>\n");
-      out.write("<body>\n");
-      out.write("\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("<!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\" \"http://www.w3.org/TR/html4/loose.dtd\">\r\n");
+      out.write("<html>\r\n");
+      out.write("<head>\r\n");
+      out.write("\t<meta http-equiv=\"Content-Type\" content=\"text/html; charset=ISO-8859-1\">\r\n");
+      out.write("\t<link rel=\"stylesheet\" type=\"text/css\" href=\"inc/manager.css\" />\r\n");
+      out.write("\t<script type=\"text/javascript\" src=\"inc/utilities.js\"></script>\r\n");
+      out.write("\t<link rel=\"shortcut icon\" href=\"image/favicon.ico\" />\r\n");
+      out.write("\t<title>Infinit.e.Manager - People</title>\r\n");
+      out.write("</head>\r\n");
+      out.write("<body>\r\n");
+      out.write("\r\n");
 
 	// !-- Create JavaScript Popup --
 	if (messageToDisplay.length() > 0) { 
 
-      out.write("\n");
-      out.write("\t<script language=\"javascript\" type=\"text/javascript\">\n");
-      out.write("\t\talert('");
-      out.print(messageToDisplay );
-      out.write("');\n");
-      out.write("\t</script>\n");
+      out.write("\r\n");
+      out.write("\t<script language=\"javascript\" type=\"text/javascript\">\r\n");
+      out.write("\t\talert(\"");
+      out.print(messageToDisplay.replace('"', '\'') );
+      out.write("\");\r\n");
+      out.write("\t</script>\r\n");
  
 	} 
 
-      out.write("\n");
-      out.write("\n");
-      out.write("\t<form method=\"post\">\n");
-      out.write("\t\n");
-      out.write("<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" >\n");
-      out.write("<tr valign=\"middle\">\n");
-      out.write("\t<td width=\"100%\" background=\"image/infinite_logo_bg.png\">\n");
-      out.write("\t\t<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" >\n");
-      out.write("\t\t\t<tr valign=\"bottom\">\n");
-      out.write("\t\t\t\t<td width=\"200\"><a href=\"index.jsp\"><img src=\"image/infinite_logo.png\" border=\"0\"></a></td>\n");
-      out.write("\t\t\t\t<td>\n");
-      out.write("\t\t\t\t\t<a href=\"people.jsp\" class=\"headerLink\" title=\"Add/Edit Users\">People</a> &nbsp; &nbsp;\n");
-      out.write("\t\t\t\t\t<a href=\"communities.jsp\" class=\"headerLink\" title=\"Add/Edit Communities\">Communities</a> &nbsp; &nbsp;\n");
-      out.write("\t\t\t\t\t<a href=\"sources.jsp\" class=\"headerLink\" title=\"Add/Edit Sources\">Sources</a> &nbsp; &nbsp;\n");
-      out.write("\t\t\t\t\t<!-- <a href=\"widgets.jsp\" class=\"headerLink\" title=\"Add/Edit Widgets\">Widgets</a> &nbsp; &nbsp; -->\n");
-      out.write("\t\t\t\t\t<!-- <a href=\"hadoop.jsp\" class=\"headerLink\" title=\"Add/Edit Hadoop Jars\">Hadoop</a> &nbsp; &nbsp; -->\n");
-      out.write("\t\t\t\t\t<!-- <a href=\"shares.jsp\" class=\"headerLink\" title=\"Add/Edit Shares\">Shares</a> &nbsp; &nbsp; -->\n");
-      out.write("\t\t\t\t\t<a href=\"index.jsp\" class=\"headerLink\" title=\"Home\">Home</a> &nbsp; &nbsp;\n");
-      out.write("\t\t\t\t\t<a href=\"?action=logout\" class=\"headerLink\" title=\"Logout\">Logout</a>\n");
-      out.write("\t\t\t\t</td>\n");
-      out.write("\t\t\t\t<td align=\"right\" width=\"120\" background=\"image/ikanow_logo_smaller_bg.png\"></td>\n");
-      out.write("\t\t\t</tr>\n");
-      out.write("\t\t</table>\n");
-      out.write("\t</td>\n");
-      out.write("</tr>\n");
-      out.write("<tr>\n");
-      out.write("\t<td bgcolor=\"#ffffff\">\n");
-      out.write('\n');
-      out.write('\n');
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\t<form method=\"post\">\r\n");
+      out.write("\t\r\n");
+      out.write("<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" >\r\n");
+      out.write("<tr valign=\"middle\">\r\n");
+      out.write("\t<td width=\"100%\" background=\"image/infinite_logo_bg.png\">\r\n");
+      out.write("\t\t<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" >\r\n");
+      out.write("\t\t\t<tr valign=\"bottom\">\r\n");
+      out.write("\t\t\t\t<td width=\"200\"><a href=\"index.jsp\"><img src=\"image/infinite_logo.png\" border=\"0\"></a></td>\r\n");
+      out.write("\t\t\t\t<td>\r\n");
+      out.write("\t\t\t\t\t<a href=\"people.jsp\" class=\"headerLink\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f0(_jspx_page_context))
+        return;
+      out.write('"');
+      out.write('>');
+      if (_jspx_meth_fmt_005fmessage_005f1(_jspx_page_context))
+        return;
+      out.write("</a> &nbsp; &nbsp;\r\n");
+      out.write("\t\t\t\t\t<a href=\"communities.jsp\" class=\"headerLink\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f2(_jspx_page_context))
+        return;
+      out.write('"');
+      out.write('>');
+      if (_jspx_meth_fmt_005fmessage_005f3(_jspx_page_context))
+        return;
+      out.write("</a> &nbsp; &nbsp;\r\n");
+      out.write("\t\t\t\t\t<a href=\"sources.jsp\" class=\"headerLink\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f4(_jspx_page_context))
+        return;
+      out.write('"');
+      out.write('>');
+      if (_jspx_meth_fmt_005fmessage_005f5(_jspx_page_context))
+        return;
+      out.write("</a> &nbsp; &nbsp;\r\n");
+      out.write("\t\t\t\t\t<a href=\"index.jsp\" class=\"headerLink\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f6(_jspx_page_context))
+        return;
+      out.write('"');
+      out.write('>');
+      if (_jspx_meth_fmt_005fmessage_005f7(_jspx_page_context))
+        return;
+      out.write("</a> &nbsp; &nbsp;\r\n");
+      out.write("\t\t\t\t\t<a href=\"?action=logout\" class=\"headerLink\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f8(_jspx_page_context))
+        return;
+      out.write('"');
+      out.write('>');
+      if (_jspx_meth_fmt_005fmessage_005f9(_jspx_page_context))
+        return;
+      out.write("</a>\r\n");
+      out.write("\t\t\t\t</td>\r\n");
+      out.write("\t\t\t\t<td align=\"right\" width=\"120\" background=\"image/ikanow_logo_smaller_bg.png\"></td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t</table>\r\n");
+      out.write("\t</td>\r\n");
+      out.write("</tr>\r\n");
+      out.write("<tr>\r\n");
+      out.write("\t<td bgcolor=\"#ffffff\">\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
 
 	if (!isLoggedIn) 
 	{
 
-      out.write('\n');
-      out.write('	');
-      out.write('	');
-      out.write("<!-- Begin login_form.jsp  -->\n");
-      out.write("\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
-      out.write("<center>\n");
-      out.write("<form method=\"post\" name=\"login_form\">\n");
-      out.write("<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"35%\" >\n");
-      out.write("\t<tr>\n");
-      out.write("\t\t<td colspan=\"2\" align=\"center\">\n");
-      out.write("\t\t\t<font color=\"white\"><b>Login to Infinit.e.Manager</b></font>\n");
-      out.write("\t\t</td>\n");
-      out.write("\t</tr>\n");
-      out.write("\t<tr>\n");
-      out.write("\t\t<td bgcolor=\"white\" width=\"40%\">User Name:</td>\n");
-      out.write("\t\t<td bgcolor=\"white\" width=\"60%\"><input type=\"text\" name=\"username\" size=\"40\"></td>\n");
-      out.write("\t</tr>\n");
-      out.write("\t<tr>\n");
-      out.write("\t\t<td bgcolor=\"white\" width=\"40%\">Password:</td>\n");
-      out.write("\t\t<td bgcolor=\"white\" width=\"60%\"><input type=\"password\" name=\"password\" size=\"40\"></td>\n");
-      out.write("\t</tr>\n");
-      out.write("\t<tr>\n");
-      out.write("\t\t<td colspan=\"2\" align=\"right\"><input type=\"submit\"></td>\n");
-      out.write("\t</tr>\n");
-      out.write("</table>\n");
-      out.write("</form>\n");
-      out.write("</center>\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
-      out.write("<br />\n");
+      out.write("\r\n");
+      out.write("\t\t");
+      out.write("<!-- Begin login_form.jsp  -->\r\n");
+      out.write("\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
+      out.write("<center>\r\n");
+      out.write("<form method=\"post\" name=\"login_form\">\r\n");
+      out.write("<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"35%\" >\r\n");
+      out.write("\t<tr>\r\n");
+      out.write("\t\t<td colspan=\"2\" align=\"center\">\r\n");
+      out.write("\t\t\t<font color=\"white\"><b>Login to Infinit.e.Manager</b></font>\r\n");
+      out.write("\t\t</td>\r\n");
+      out.write("\t</tr>\r\n");
+      out.write("\t<tr>\r\n");
+      out.write("\t\t<td bgcolor=\"white\" width=\"40%\">User Name:</td>\r\n");
+      out.write("\t\t<td bgcolor=\"white\" width=\"60%\"><input type=\"text\" name=\"username\" size=\"40\"></td>\r\n");
+      out.write("\t</tr>\r\n");
+      out.write("\t<tr>\r\n");
+      out.write("\t\t<td bgcolor=\"white\" width=\"40%\">Password:</td>\r\n");
+      out.write("\t\t<td bgcolor=\"white\" width=\"60%\"><input type=\"password\" name=\"password\" size=\"40\"></td>\r\n");
+      out.write("\t</tr>\r\n");
+      out.write("\t<tr>\r\n");
+      out.write("\t\t<td colspan=\"2\" align=\"right\"><input type=\"submit\"></td>\r\n");
+      out.write("\t</tr>\r\n");
+      out.write("</table>\r\n");
+      out.write("</form>\r\n");
+      out.write("</center>\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
+      out.write("<br />\r\n");
       out.write("<!-- End login_form.jsp  -->");
+      out.write('\r');
       out.write('\n');
 
 	}
 	else
 	{
 
-      out.write("\n");
-      out.write("\t\n");
-      out.write("\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"0\" width=\"100%\">\n");
-      out.write("\t<tr valign=\"top\">\n");
-      out.write("\t\t<td width=\"30%\" bgcolor=\"#ffffff\">\n");
-      out.write("\t\t\n");
-      out.write("\t\t\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\n");
-      out.write("\t\t\t<tr>\n");
-      out.write("\t\t\t\t<td class=\"headerLink\">People</td>\n");
-      out.write("\t\t\t\t<td align=\"right\"><input type=\"text\" id=\"listFilter\" \n");
-      out.write("\t\t\t\t\tonkeydown=\"if (event.keyCode == 13) { setDipatchAction('filterList'); \n");
-      out.write("\t\t\t\t\tdocument.getElementById('filterList').click(); }\" \n");
+      out.write("\r\n");
+      out.write("\t\r\n");
+      out.write("\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"0\" width=\"100%\">\r\n");
+      out.write("\t<tr valign=\"top\">\r\n");
+      out.write("\t\t<td width=\"30%\" bgcolor=\"#ffffff\">\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\t\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\r\n");
+      out.write("\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t<td class=\"headerLink\">People</td>\r\n");
+      out.write("\t\t\t\t<td align=\"right\"><input type=\"text\" id=\"listFilter\" \r\n");
+      out.write("\t\t\t\t\tonkeydown=\"if (event.keyCode == 13) { setDipatchAction('filterList'); \r\n");
+      out.write("\t\t\t\t\tdocument.getElementById('filterList').click(); }\" \r\n");
       out.write("\t\t\t\t\tname=\"listFilter\" size=\"20\" value=\"");
       out.print(listFilter );
-      out.write("\"/><input name=\"filterList\" type=\"submit\"\n");
-      out.write("\t\t\t\t\tvalue=\"Filter\"/><input name=\"clearFilter\" value=\"Clear\" type=\"submit\"/></td>\n");
-      out.write("\t\t\t</tr>\n");
-      out.write("\t\t\t<tr>\n");
+      out.write("\"/><input name=\"filterList\" type=\"submit\"\r\n");
+      out.write("\t\t\t\t\tvalue=\"Filter\"/><input name=\"clearFilter\" value=\"Clear\" type=\"submit\"/></td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t<tr>\r\n");
       out.write("\t\t\t\t<td colspan=\"2\" bgcolor=\"white\">");
       out.print(listItems(request, response) );
-      out.write("</td>\n");
-      out.write("\t\t\t</tr>\n");
-      out.write("\t\t\t</table>\n");
-      out.write("\n");
-      out.write("\t\t</td>\n");
-      out.write("\t\t\n");
-      out.write("\t\t<td width=\"70%\" bgcolor=\"#ffffff\">\n");
-      out.write("\t\t\n");
-      out.write("\t\t\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\n");
-      out.write("\t\t\t<tr>\n");
+      out.write("</td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t<td colspan=\"2\" ><button name=\"deleteSelected\" onclick=\"return confirm('Do you really wish to delete the selected people?');\" name=\"deleteSelected\" value=\"deleteSelected\">Delete selected people</button></td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t<tr ");
+      out.print( isRequestAdminVisible );
+      out.write(">\r\n");
+      out.write("\t\t\t\t<td colspan=\"2\" ><button name=\"requestAdmin\" name=\"requestAdmin\" value=\"requestAdmin\">Grab temp admin rights</button></td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t<tr  ");
+      out.print( isDemoteAdminVisible );
+      out.write(" >\r\n");
+      out.write("\t\t\t\t<td colspan=\"2\" ><button name=\"demoteAdmin\" name=\"demoteAdmin\" value=\"demoteAdmin\">Relinquish temp admin rights</button></td>\r\n");
+      out.write("\t\t\t</tr>\t\t\t\r\n");
+      out.write("\t\t\t</table>\r\n");
+      out.write("\r\n");
+      out.write("\t\t</td>\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\t<td width=\"70%\" bgcolor=\"#ffffff\">\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\t\t<table class=\"standardTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\r\n");
+      out.write("\t\t\t<tr>\r\n");
       out.write("\t\t\t\t<td class=\"headerLink\">");
       out.print(editTableTitle );
-      out.write("</td>\n");
-      out.write("\t\t\t\t<td align=\"right\"><input name=\"clearForm\" id=\"clearForm\" value=\"New User\" type=\"submit\"/></td>\n");
-      out.write("\t\t\t</tr>\n");
-      out.write("\t\t\t<tr>\n");
-      out.write("\t\t\t\t<td colspan=\"2\" bgcolor=\"white\">\n");
-      out.write("\t\t\t\t\t<table class=\"standardSubTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Status:</td>\n");
+      out.write("</td>\r\n");
+      out.write("\t\t\t\t<td align=\"right\"><input name=\"clearForm\" id=\"clearForm\" value=\"New User\" type=\"submit\"/></td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t<td colspan=\"2\" bgcolor=\"white\">\r\n");
+      out.write("\t\t\t\t\t<table class=\"standardSubTable\" cellpadding=\"5\" cellspacing=\"1\" width=\"100%\">\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Status:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">");
       out.print(accountStatus );
-      out.write("</td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Type (Admin Only):</td>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">\n");
-      out.write("\t\t\t\t\t\t\t<select name=\"accounttype\" id=\"accounttype\" ");
+      out.write("</td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr ");
       out.print(accountTypeHidden );
-      out.write(">\n");
-      out.write("\t\t\t\t\t\t\t\t<option value=\"Unknown\">Unknown</option>\n");
-      out.write("\t\t\t\t\t\t\t\t<option value=\"admin\">Admin</option>\n");
-      out.write("\t\t\t\t\t\t\t\t<option value=\"user\">User</option>\n");
-      out.write("\t\t\t\t\t\t\t</select>\n");
-      out.write("\t\t\t\t\t\t</td>\t\t\t\t\t\t\t\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Id:</td>\n");
+      out.write(">\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Type (Admin Only):</td>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">\r\n");
+      out.write("\t\t\t\t\t\t\t<select name=\"accounttype\" id=\"accounttype\">\r\n");
+      out.write("\t\t\t\t\t\t\t\t<option value=\"Unknown\">Unknown</option>\r\n");
+      out.write("\t\t\t\t\t\t\t\t<option value=\"admin\">Admin</option>\r\n");
+      out.write("\t\t\t\t\t\t\t\t<option value=\"admin-enabled\">Admin-On-Request</option>\r\n");
+      out.write("\t\t\t\t\t\t\t\t<option value=\"user\">User</option>\r\n");
+      out.write("\t\t\t\t\t\t\t</select>\r\n");
+      out.write("\t\t\t\t\t\t</td>\t\t\t\t\t\t\t\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Account Id:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" readonly id=\"personid\" name=\"personid\" value=\"");
       out.print(visiblePersonId );
-      out.write("\" size=\"50\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">First Name:*</td>\n");
+      out.write("\" size=\"50\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">First Name:*</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" id=\"firstName\" name=\"firstName\" value=\"");
       out.print(firstName);
-      out.write("\" size=\"50\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Last Name:*</td>\n");
+      out.write("\" size=\"50\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Last Name:*</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" id=\"lastName\" name=\"lastName\" value=\"");
       out.print(lastName);
-      out.write("\" size=\"50\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Display Name:*</td>\n");
+      out.write("\" size=\"50\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Display Name:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" readonly id=\"displayName\" name=\"displayName\" value=\"");
       out.print(displayName);
-      out.write("\" size=\"50\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Phone Number:*</td>\n");
+      out.write("\" size=\"50\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Phone Number:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" id=\"phone\" name=\"phone\" value=\"");
       out.print(phone);
-      out.write("\" size=\"30\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Email Address (User Name):</td>\n");
+      out.write("\" size=\"30\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Email Address (User Name):</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"text\" id=\"email\" name=\"email\" value=\"");
       out.print(email);
-      out.write("\" size=\"75\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Password:</td>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"password\" id=\"password\" name=\"password\" value=\"");
+      out.write("\" size=\"75\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Password:</td>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"password\" id=\"password\" name=\"password\" autocomplete=\"off\" value=\"");
       out.print(password);
-      out.write("\" size=\"20\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Password Confirmation:</td>\n");
+      out.write("\" size=\"20\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Password Confirmation:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"password\" id=\"passwordConfirmation\" name=\"passwordConfirmation\" value=\"");
       out.print(passwordConfirmation);
-      out.write("\" size=\"20\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">API key:</td>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"password\" id=\"apiKey\" name=\"apiKey\" value=\"\" size=\"20\" /></td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr valign=\"top\">\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Communities:</td>\n");
+      out.write("\" size=\"20\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">API key:</td>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\"><input type=\"password\" id=\"apiKey\" name=\"apiKey\" value=\"\" size=\"20\" /></td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr valign=\"top\">\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\">Communities:</td>\r\n");
       out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">");
       out.print(listOfCommunities );
-      out.write("</td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t<tr>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\"></td>\n");
-      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">\n");
+      out.write("</td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t<tr>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"30%\"></td>\r\n");
+      out.write("\t\t\t\t\t\t<td bgcolor=\"#ffffff\" width=\"70%\">\r\n");
 
 	if (personid.length() > 0) {
 
-      out.write("\n");
-      out.write("\t\t\t\t\t\t\t<input name=\"saveAccount\" id=\"saveAccount\" value=\"Save User Account\" type=\"submit\"\n");
-      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to change these account details?'))  return true; return false;\"\n");
-      out.write("\t\t\t\t\t\t\t/>\n");
-      out.write("\t\t\t\t\t\t\t\n");
-      out.write("\t\t\t\t\t\t\t<input name=\"updatePassword\" value=\"Update Password\" type=\"submit\"\n");
-      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to update this password?'))  return true; return false;\"\n");
-      out.write("\t\t\t\t\t\t\t/>\n");
+      out.write("\r\n");
+      out.write("\t\t\t\t\t\t\t<input name=\"saveAccount\" id=\"saveAccount\" value=\"Save User Account\" type=\"submit\"\r\n");
+      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to change these account details?'))  return true; return false;\"\r\n");
+      out.write("\t\t\t\t\t\t\t/>\r\n");
+      out.write("\t\t\t\t\t\t\t\r\n");
+      out.write("\t\t\t\t\t\t\t<input name=\"updatePassword\" value=\"Update Password\" type=\"submit\"\r\n");
+      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to update this password?'))  return true; return false;\"\r\n");
+      out.write("\t\t\t\t\t\t\t/>\r\n");
 
 	}
 	else
 	{
 
-      out.write("\n");
-      out.write("\t\t\t\t\t\t\t<input name=\"createAccount\" value=\"Create User Account\" type=\"submit\"\n");
-      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to create this user account?'))  return true; return false;\"\n");
-      out.write("\t\t\t\t\t\t\t/>\t\n");
+      out.write("\r\n");
+      out.write("\t\t\t\t\t\t\t<input name=\"createAccount\" value=\"Create User Account\" type=\"submit\"\r\n");
+      out.write("\t\t\t\t\t\t\t\t\tonclick=\"if (confirm('Are you sure you want to create this user account?'))  return true; return false;\"\r\n");
+      out.write("\t\t\t\t\t\t\t/>\t\r\n");
 
 	}
 
-      out.write("\n");
-      out.write("\t\t\t\t\t\t</td>\n");
-      out.write("\t\t\t\t\t</tr>\n");
-      out.write("\t\t\t\t\t</table>\n");
-      out.write("\t\t\t\t\t\n");
-      out.write("\t\t\t\t</td>\n");
-      out.write("\t\t\t</tr>\n");
-      out.write("\t\t\t</table>\n");
-      out.write("\t\t\n");
-      out.write("\t\t</td>\n");
-      out.write("\t\t\n");
-      out.write("\t<tr>\n");
-      out.write("\t</table>\n");
+      out.write("\r\n");
+      out.write("\t\t\t\t\t\t</td>\r\n");
+      out.write("\t\t\t\t\t</tr>\r\n");
+      out.write("\t\t\t\t\t</table>\r\n");
+      out.write("\t\t\t\t\t\r\n");
+      out.write("\t\t\t\t</td>\r\n");
+      out.write("\t\t\t</tr>\r\n");
+      out.write("\t\t\t</table>\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t\t</td>\r\n");
+      out.write("\t\t\r\n");
+      out.write("\t<tr>\r\n");
+      out.write("\t</table>\r\n");
       out.write("\t<input type=\"hidden\" name=\"oldemail\" id=\"oldemail\" value=\"");
       out.print(email);
-      out.write("\"/>\n");
-      out.write("\t</form>\n");
+      out.write("\"/>\r\n");
+      out.write("\t</form>\r\n");
 
 	}
 
-      out.write('\n');
-      out.write('\n');
-      out.write("\t\n");
-      out.write("\t</td>\n");
-      out.write("<tr>\n");
-      out.write("<tr>\n");
-      out.write("\t<td align=\"right\" bgcolor=\"#000000\">\n");
-      out.write("\t\t&nbsp;\n");
-      out.write("\t\t<!-- <a href=\"http://www.ikanow.com\" title=\"www.ikanow.com\"><img src=\"image/ikanow_logo_small.png\" border=\"0\"></a> -->\n");
-      out.write("\t</td>\n");
-      out.write("</tr>\n");
-      out.write("</table>\n");
-      out.write("\n");
-      out.write("</body>\n");
-      out.write("</html>\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
-      out.write("\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\t\r\n");
+      out.write("\t</td>\r\n");
+      out.write("<tr>\r\n");
+      out.write("<tr>\r\n");
+      out.write("\t<td align=\"right\" bgcolor=\"#000000\">\r\n");
+      out.write("\t\t&nbsp;\r\n");
+      out.write("\t\t<!-- <a href=\"http://www.ikanow.com\" title=\"www.ikanow.com\"><img src=\"image/ikanow_logo_small.png\" border=\"0\"></a> -->\r\n");
+      out.write("\t</td>\r\n");
+      out.write("</tr>\r\n");
+      out.write("</table>\r\n");
+      out.write("\r\n");
+      out.write("</body>\r\n");
+      out.write("</html>\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
+      out.write('\r');
       out.write('\n');
     } catch (Throwable t) {
       if (!(t instanceof SkipPageException)){
@@ -1913,5 +2083,254 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
     } finally {
       _jspxFactory.releasePageContext(_jspx_page_context);
     }
+  }
+
+  private boolean _jspx_meth_c_005fset_005f0(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  c:set
+    org.apache.taglibs.standard.tag.rt.core.SetTag _jspx_th_c_005fset_005f0 = (org.apache.taglibs.standard.tag.rt.core.SetTag) _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody.get(org.apache.taglibs.standard.tag.rt.core.SetTag.class);
+    _jspx_th_c_005fset_005f0.setPageContext(_jspx_page_context);
+    _jspx_th_c_005fset_005f0.setParent(null);
+    // /inc/sharedFunctions.jsp(41,0) name = var type = java.lang.String reqTime = false required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_c_005fset_005f0.setVar("language");
+    // /inc/sharedFunctions.jsp(41,0) name = value type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_c_005fset_005f0.setValue((java.lang.Object) org.apache.jasper.runtime.PageContextImpl.proprietaryEvaluate("${not empty param.language ? param.language : not empty language ? language : pageContext.request.locale}", java.lang.Object.class, (PageContext)_jspx_page_context, null, false));
+    int _jspx_eval_c_005fset_005f0 = _jspx_th_c_005fset_005f0.doStartTag();
+    if (_jspx_th_c_005fset_005f0.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody.reuse(_jspx_th_c_005fset_005f0);
+      return true;
+    }
+    _005fjspx_005ftagPool_005fc_005fset_0026_005fvar_005fvalue_005fnobody.reuse(_jspx_th_c_005fset_005f0);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fsetLocale_005f0(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:setLocale
+    org.apache.taglibs.standard.tag.rt.fmt.SetLocaleTag _jspx_th_fmt_005fsetLocale_005f0 = (org.apache.taglibs.standard.tag.rt.fmt.SetLocaleTag) _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.SetLocaleTag.class);
+    _jspx_th_fmt_005fsetLocale_005f0.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fsetLocale_005f0.setParent(null);
+    // /inc/sharedFunctions.jsp(42,0) name = value type = null reqTime = true required = true fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fsetLocale_005f0.setValue((java.lang.Object) org.apache.jasper.runtime.PageContextImpl.proprietaryEvaluate("${language}", java.lang.Object.class, (PageContext)_jspx_page_context, null, false));
+    int _jspx_eval_fmt_005fsetLocale_005f0 = _jspx_th_fmt_005fsetLocale_005f0.doStartTag();
+    if (_jspx_th_fmt_005fsetLocale_005f0.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody.reuse(_jspx_th_fmt_005fsetLocale_005f0);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fsetLocale_0026_005fvalue_005fnobody.reuse(_jspx_th_fmt_005fsetLocale_005f0);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fsetBundle_005f0(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:setBundle
+    org.apache.taglibs.standard.tag.rt.fmt.SetBundleTag _jspx_th_fmt_005fsetBundle_005f0 = (org.apache.taglibs.standard.tag.rt.fmt.SetBundleTag) _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.SetBundleTag.class);
+    _jspx_th_fmt_005fsetBundle_005f0.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fsetBundle_005f0.setParent(null);
+    // /inc/sharedFunctions.jsp(43,0) name = basename type = null reqTime = true required = true fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fsetBundle_005f0.setBasename("infinit.e.web.localization.text");
+    int _jspx_eval_fmt_005fsetBundle_005f0 = _jspx_th_fmt_005fsetBundle_005f0.doStartTag();
+    if (_jspx_th_fmt_005fsetBundle_005f0.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody.reuse(_jspx_th_fmt_005fsetBundle_005f0);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fsetBundle_0026_005fbasename_005fnobody.reuse(_jspx_th_fmt_005fsetBundle_005f0);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f0(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f0 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f0.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f0.setParent(null);
+    // /inc/header.jsp(8,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f0.setKey("header.people.description");
+    int _jspx_eval_fmt_005fmessage_005f0 = _jspx_th_fmt_005fmessage_005f0.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f0.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f0);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f0);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f1(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f1 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f1.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f1.setParent(null);
+    // /inc/header.jsp(8,101) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f1.setKey("header.people.title");
+    int _jspx_eval_fmt_005fmessage_005f1 = _jspx_th_fmt_005fmessage_005f1.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f1.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f1);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f1);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f2(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f2 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f2.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f2.setParent(null);
+    // /inc/header.jsp(9,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f2.setKey("header.communities.description");
+    int _jspx_eval_fmt_005fmessage_005f2 = _jspx_th_fmt_005fmessage_005f2.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f2.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f2);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f2);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f3(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f3 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f3.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f3.setParent(null);
+    // /inc/header.jsp(9,111) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f3.setKey("header.communities.title");
+    int _jspx_eval_fmt_005fmessage_005f3 = _jspx_th_fmt_005fmessage_005f3.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f3.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f3);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f3);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f4(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f4 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f4.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f4.setParent(null);
+    // /inc/header.jsp(10,53) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f4.setKey("header.source_editor.description");
+    int _jspx_eval_fmt_005fmessage_005f4 = _jspx_th_fmt_005fmessage_005f4.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f4.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f4);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f4);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f5(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f5 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f5.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f5.setParent(null);
+    // /inc/header.jsp(10,109) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f5.setKey("header.source_editor.title");
+    int _jspx_eval_fmt_005fmessage_005f5 = _jspx_th_fmt_005fmessage_005f5.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f5.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f5);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f5);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f6(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f6 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f6.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f6.setParent(null);
+    // /inc/header.jsp(11,51) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f6.setKey("header.home.description");
+    int _jspx_eval_fmt_005fmessage_005f6 = _jspx_th_fmt_005fmessage_005f6.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f6.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f6);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f6);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f7(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f7 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f7.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f7.setParent(null);
+    // /inc/header.jsp(11,98) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f7.setKey("header.home.title");
+    int _jspx_eval_fmt_005fmessage_005f7 = _jspx_th_fmt_005fmessage_005f7.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f7.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f7);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f7);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f8(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f8 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f8.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f8.setParent(null);
+    // /inc/header.jsp(12,56) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f8.setKey("header.logout.description");
+    int _jspx_eval_fmt_005fmessage_005f8 = _jspx_th_fmt_005fmessage_005f8.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f8.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f8);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f8);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f9(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f9 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f9.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f9.setParent(null);
+    // /inc/header.jsp(12,105) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f9.setKey("header.logout.title");
+    int _jspx_eval_fmt_005fmessage_005f9 = _jspx_th_fmt_005fmessage_005f9.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f9.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f9);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f9);
+    return false;
   }
 }

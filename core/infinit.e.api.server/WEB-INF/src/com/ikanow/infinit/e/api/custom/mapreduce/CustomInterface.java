@@ -347,6 +347,11 @@ public class CustomInterface extends ServerResource
 		 
 		 Date endTime = new Date();
 		 rp.getResponse().setTime(endTime.getTime() - startTime.getTime());
+		 if (!rp.getResponse().isSuccess()) {
+			 if (rp.getResponse().getMessage().contains("ermission")) { // likely to be a permissions error
+				 RESTTools.logRequest(this);
+			 }
+		 }//TOTEST (TODO-2194)
 		 return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
 	}		
 }

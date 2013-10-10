@@ -1,0 +1,57 @@
+[
+    {
+        "display": "Import and lookup test UAH/SAH",
+        "web": {
+            "waitTimeOverride_ms": 100,
+            "extraUrls": [
+                {
+                    "description": "White House refuses to make Egypt 'coup' determination",
+                    "title": "White House refuses to make Egypt 'coup' determination",
+                    "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                },
+                {
+                    "description": "Egypt's army warns over disruption after Morsi deposed",
+                    "title": "Egypt's army warns over disruption after Morsi deposed",
+                    "url": "http://www.bbc.co.uk/news/world-middle-east-23247470"
+                }
+            ]
+        }
+    },
+    {
+        "display": "Imports only (UAH only)",
+        "globals": {
+            "scriptlang": "javascript",
+            "imports": [
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test1.js",
+                "file:///C:/Users/acp/git/ikanow_infinit.e_community/core/infinit.e.harvest.library/src/com/ikanow/infinit/e/harvest/test/PipelineTestFiles/import_test2.js"
+            ],
+            "scripts": [
+                  "var _cache  = {};\n_cache['lookupTest1'] = {};\n_cache['lookupTest2'] = {};\n_cache['lookupTest1'] ['test1'] = \"test1Val\";\n_cache['lookupTest2'] ['test2'] =\"test2Val\";"
+            ]
+        }
+    },
+    {
+        "display": "",
+        "docMetadata": {
+            "description": "$SCRIPT(return _cache['lookupTest1'][\"test1\"]; )",
+            "appendTagsToDocs": false
+        }
+    },
+    {
+        "display": "Entities from lookups and imports",
+        "entities": [
+            {
+                "disambiguated_name": "$SCRIPT(return import_test1;)",
+                "type": "IMPORT_TEST1_TYPE"
+            },
+            {
+                "disambiguated_name": "$SCRIPT(return import_test2;)",
+                "type": "IMPORT_TEST2_TYPE"
+            },
+            {
+                "disambiguated_name": "$SCRIPT(return _cache['lookupTest2'][\"test2\"]; )",
+                "type": "LOOKUP_TEST2_TYPE"
+            }
+        ]
+    }
+]

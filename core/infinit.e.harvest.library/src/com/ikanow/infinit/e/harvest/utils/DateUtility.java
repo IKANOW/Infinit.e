@@ -21,54 +21,173 @@ import java.util.Date;
 import org.apache.commons.lang.time.DateFormatUtils;
 import org.apache.commons.lang.time.DateUtils;
 
+import com.mdimension.jchronic.Chronic;
+
 public class DateUtility 
 {
 	// (odd, static initialization doesn't work; just initialize first time in utility fn)
-	private static String[] _allowedDatesArray = null;
+	private static String[] _allowedDatesArray_startsWithLetter = null;
+	private static String[] _allowedDatesArray_numeric_1 = null;
+	private static String[] _allowedDatesArray_numeric_2 = null;
+	private static String[] _allowedDatesArray_stringMonth = null;
+	private static String[] _allowedDatesArray_numericMonth = null;
 
-	public static long parseDate(String sDate) 
+	public synchronized static long parseDate(String sDate) 
 	{
-		if (null == _allowedDatesArray) 
+		if (null == _allowedDatesArray_startsWithLetter) 
 		{
-			_allowedDatesArray = new String[]
-				{
-					"yyyy'-'DDD",
-					"yyyy'-'MM'-'dd",
-					"yyyyMMdd",
-					"dd MMM yyyy",
-					"dd MMM yy", 
-					"MM/dd/yy",
-					"MM/dd/yyyy",
-					"MM.dd.yy",
-					"MM.dd.yyyy",
-					"dd MMM yyyy hh:mm:ss",
+			_allowedDatesArray_startsWithLetter = new String[] {
+					DateFormatUtils.SMTP_DATETIME_FORMAT.getPattern(),
+					
+					"MMM d, yyyy hh:mm a",
+					"MMM d, yyyy HH:mm",
 					"MMM d, yyyy hh:mm:ss a",
 					"MMM d, yyyy HH:mm:ss",
-					"yyyy-MM-dd'T'HH:mm:ss'Z'",
+					"MMM d, yyyy hh:mm:ss.SS a",
+					"MMM d, yyyy HH:mm:ss.SS",
+					
 					"EEE MMM dd HH:mm:ss zzz yyyy",
 					"EEE MMM dd yyyy HH:mm:ss zzz",
-					"EEE MMM dd yyyy HH:mm:ss 'GMT'Z (zzz)",
+					"EEE MMM dd yyyy HH:mm:ss 'GMT'Z (zzz)",					
+			};					
+			_allowedDatesArray_numeric_1 = new String[] {
+					"yyyy-MM-dd'T'HH:mm:ss'Z'",
 					DateFormatUtils.ISO_DATE_FORMAT.getPattern(),
-					DateFormatUtils.ISO_DATETIME_FORMAT.getPattern(),
 					DateFormatUtils.ISO_DATE_TIME_ZONE_FORMAT.getPattern(),
-					DateFormatUtils.ISO_DATETIME_TIME_ZONE_FORMAT.getPattern(),
-					DateFormatUtils.SMTP_DATETIME_FORMAT.getPattern()
-			    };			
+					DateFormatUtils.ISO_DATETIME_FORMAT.getPattern(),
+					DateFormatUtils.ISO_DATETIME_TIME_ZONE_FORMAT.getPattern()
+			};
+
+			_allowedDatesArray_numeric_2 = new String[] {					
+					"yyyyMMdd",
+					"yyyyMMdd hh:mm a",
+					"yyyyMMdd HH:mm",
+					"yyyyMMdd hh:mm:ss a",
+					"yyyyMMdd HH:mm:ss",
+					"yyyyMMdd hh:mm:ss.SS a",
+					"yyyyMMdd HH:mm:ss.SS",
+					// Julian, these are unlikely
+					"yyyyDDD",
+					"yyyyDDD hh:mm a",
+					"yyyyDDD HH:mm",
+					"yyyyDDD hh:mm:ss a",
+					"yyyyDDD HH:mm:ss",
+					"yyyyDDD hh:mm:ss.SS a",
+					"yyyyDDD HH:mm:ss.SS",
+				};
+			_allowedDatesArray_stringMonth = new String[] {
+					"dd MMM yy",
+					"dd MMM yy hh:mm a",
+					"dd MMM yy HH:mm",
+					"dd MMM yy hh:mm:ss a",
+					"dd MMM yy HH:mm:ss",
+					"dd MMM yy hh:mm:ss.SS a",
+					"dd MMM yy HH:mm:ss.SS",
+				};
+			_allowedDatesArray_numericMonth = new String[] {
+					"MM dd yy",
+					"MM dd yy hh:mm a",
+					"MM dd yy HH:mm",
+					"MM dd yy hh:mm:ss a",
+					"MM dd yy HH:mm:ss",
+					"MM dd yy hh:mm:ss.SS a",
+					"MM dd yy HH:mm:ss.SS",
+			};
 		}
+
+// Starts with day or month:
 		
-		try 
-		{
-			Date date = DateUtils.parseDate(sDate, _allowedDatesArray);			
-			return date.getTime();
+		String sDateTmp = sDate;
+		if (Character.isLetter(sDate.charAt(0))) {
+			try {
+				Date date = DateUtils.parseDate(sDate, _allowedDatesArray_startsWithLetter);			
+				return date.getTime();
+			}
+			catch (Exception e) {} // keep going			
+		}//TESTED
+		else if (Character.isLetter(sDate.charAt(5))) { 
+			
+// month must be string, doesn't start with day though
+			
+			try {
+				int index = sDate.indexOf(':');
+				if (index > 0) {
+					sDate = new StringBuffer(sDate.substring(0, index).replaceAll("[./-]", " ")).append(sDate.substring(index)).toString();
+				}
+				else {
+					sDate = sDate.replaceAll("[ ./-]", " ");
+				}				
+				Date date = DateUtils.parseDate(sDate, _allowedDatesArray_stringMonth);			
+				return date.getTime();
+			}
+			catch (Exception e) {} // keep going										
+		}//TESTED
+		else { 
+			
+// Starts with a number most likely...
+			
+			int n = 0;
+			for (; n < 4; ++n) {
+				if (!Character.isDigit(sDate.charAt(n))) {
+					break;
+				}
+			}
+			if (4 == n) {
+				
+// (Probably starts with a year)				
+				
+// One of the formal formats starting with a year				
+				
+				try {
+					Date date = DateUtils.parseDate(sDate, _allowedDatesArray_numeric_1);			
+					return date.getTime();					
+				}
+				catch (Exception e) {} // keep going
+				
+// Something more ad hoc starting with a year								
+				
+				try {
+					int index = sDate.indexOf(':');
+					if (index > 0) {
+						sDate = new StringBuffer(sDate.substring(0, index).replace("-", "")).append(sDate.substring(index)).toString();
+					}
+					else {
+						sDate = sDate.replace("-", "");
+					}
+					Date date = DateUtils.parseDate(sDate, _allowedDatesArray_numeric_2);			
+					return date.getTime();
+				}
+				catch (Exception e) {} // keep going							
+			}//TESTED
+			
+// Probably starts with a day			
+			
+			try {
+				int index = sDate.indexOf(':');
+				if (index > 0) {
+					sDate = new StringBuffer(sDate.substring(0, index).replaceAll("[./-]", " ")).append(sDate.substring(index)).toString();
+				}
+				else {
+					sDate = sDate.replaceAll("[./-]", " ");
+				}	
+				Date date = DateUtils.parseDate(sDate, _allowedDatesArray_numericMonth);			
+				return date.getTime();
+			}//TESTED
+			catch (Exception e) {} // keep going							
+			
 		}
-		catch (Exception e)
-		{ 
+		sDate = sDateTmp;
+		
+// If we're here, nothing's worked, try "natural language processing"
+		
+		try {
+			return Chronic.parse(sDate).getBeginCalendar().getTime().getTime();
+		}//TESTED
+		catch (Exception e2) {
 			// Error all the way out
-			throw new RuntimeException(e);
-		}		
+			throw new RuntimeException("Can't parse: " + sDate);
+		}//TESTED
 	}
-	
-	
 
 	/**
 	 * getIsoDateString

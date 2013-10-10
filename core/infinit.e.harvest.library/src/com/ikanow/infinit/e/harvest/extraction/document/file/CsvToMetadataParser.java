@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.harvest.extraction.document.file;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -41,8 +42,11 @@ public class CsvToMetadataParser {
 		
 		CSVParser parser = null;
 		Object[] indexToField = null;
-		if ((null != source.getFileConfig()) && (null != source.getFileConfig().XmlRootLevelValues)
-				&& (!source.getFileConfig().XmlRootLevelValues.isEmpty()))
+		// *Automated* parser, else will just grab the line and let subsequent pipeline elements extract the fields
+		if ((null != source.getFileConfig()) && ( 
+				 ((null != source.getFileConfig().XmlIgnoreValues) && (!source.getFileConfig().XmlIgnoreValues.isEmpty())) ||
+				 ((null != source.getFileConfig().XmlRootLevelValues) && (!source.getFileConfig().XmlRootLevelValues.isEmpty()))
+			))
 		{
 			if (null != source.getFileConfig().XmlAttributePrefix) {
 				String chars = source.getFileConfig().XmlAttributePrefix;
@@ -59,17 +63,31 @@ public class CsvToMetadataParser {
 			if (null == parser) {
 				parser = new CSVParser();
 			}
-			indexToField = source.getFileConfig().XmlRootLevelValues.toArray();
+			if ((null != source.getFileConfig().XmlRootLevelValues) && (source.getFileConfig().XmlRootLevelValues.size() > 0)) {
+				indexToField = source.getFileConfig().XmlRootLevelValues.toArray();
+			}
 		}//TESTED
 		
+		boolean foundHeaderLine = (indexToField != null);
 		while ((line = lineReader.readLine()) != null) {
 			// Ignore header lines:
 			if ((null != source.getFileConfig()) && (null != source.getFileConfig().XmlIgnoreValues)) {
 				boolean bMatched = false;
-				for (String ignore: source.getFileConfig().XmlIgnoreValues) {
+				boolean firstIgnoreField = true; // (first ignore field in list can generate the headers)
+				for (String ignore: source.getFileConfig().XmlIgnoreValues) {					
 					if (line.startsWith(ignore)) {
+						if (!foundHeaderLine && firstIgnoreField && (null != parser)) {							
+							line = line.substring(ignore.length());
+							String[] fields = parser.parseLine(line);
+							// Now override the manual fields:
+							indexToField = Arrays.asList(fields).toArray();
+							if ((indexToField.length > 1) || (0 != ((String)indexToField[0]).length())) {
+								foundHeaderLine = true;
+							}//TESTED
+						}//TESTED
 						bMatched = true;
 					}
+					firstIgnoreField = false;
 				}
 				if (bMatched) continue;
 			}//TESTED
@@ -78,23 +96,27 @@ public class CsvToMetadataParser {
 			String primaryKey = null;
 			if (null != parser) {
 				JsonObject json = new JsonObject();
-				String[] records = parser.parseLine(line);
-				for (int i = 0; i < records.length; ++i) {
-					String record = records[i];
-					if ((record.length() > 0) && (i < indexToField.length)) {
-						String fieldName = (String) indexToField[i];
-						if ((null != fieldName) && (fieldName.length() > 0)) {
-							json.addProperty(fieldName, record);
-							if (fieldName.equals(source.getFileConfig().XmlPrimaryKey)) {
-								primaryKey = record;
+				try {
+					String[] records = parser.parseLine(line);
+					for (int i = 0; i < records.length; ++i) {
+						String record = records[i];
+						if ((record.length() > 0) && (i < indexToField.length)) {
+							String fieldName = (String) indexToField[i];
+							if ((null != fieldName) && (fieldName.length() > 0)) {
+								json.addProperty(fieldName, record);
+								if (fieldName.equals(source.getFileConfig().XmlPrimaryKey)) {
+									primaryKey = record;
+								}
 							}
 						}
 					}
+					if ((null != primaryKey) && (null != source.getFileConfig().XmlSourceName)) {
+						newDoc.setUrl(source.getFileConfig().XmlSourceName + primaryKey);
+					}//TESTED
+					newDoc.addToMetadata("csv", JsonToMetadataParser.convertJsonObjectToLinkedHashMap(json));
 				}
-				if ((null != primaryKey) && (null != source.getFileConfig().XmlSourceName)) {
-					newDoc.setUrl(source.getFileConfig().XmlSourceName + primaryKey);
-				}//TESTED
-				newDoc.addToMetadata("csv", JsonToMetadataParser.convertJsonObjectToLinkedHashMap(json));
+				catch (Exception e) {} // can just skip over the line and carry on
+				
 			}//TESTED
 			
 			newDoc.setFullText(line);

@@ -25,8 +25,10 @@ import org.apache.log4j.Logger;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.ProxyManager;
 
 import de.l3s.boilerpipe.extractors.ArticleExtractor;
@@ -35,6 +37,9 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 {
 	private static final Logger logger = Logger.getLogger(TextExtractorBoilerpipe.class);
 
+	PropertiesManager _props = null;
+	protected String _defaultUserAgent = null;
+	
 	@Override
 	public String getName() { return "boilerplate"; }
 		
@@ -45,6 +50,7 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 		{
 			try
 			{
+				boolean userAgentSet = false;
 				String text = null;
 				try {					
 					if ((null == partialDoc.getFullText()) || (0 == partialDoc.getFullText().length()))
@@ -63,6 +69,7 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						{
 							if (null != partialDoc.getTempSource().getRssConfig().getUserAgent()) {
 								urlConnect.setRequestProperty("User-Agent", partialDoc.getTempSource().getRssConfig().getUserAgent());
+								userAgentSet = true;
 							}
 							if (null != partialDoc.getTempSource().getRssConfig().getHttpFields()) {
 								for (Map.Entry<String, String> httpFieldPair: partialDoc.getTempSource().getRssConfig().getHttpFields().entrySet()) {
@@ -70,6 +77,16 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 								}
 							}//TESTED
 						}// TESTED
+						
+						if (!userAgentSet) {
+							if (null == _props) {
+								_props = new PropertiesManager();
+								_defaultUserAgent = _props.getHarvestUserAgent();
+							}
+							if (null != _defaultUserAgent) {
+								urlConnect.setRequestProperty("User-Agent", _defaultUserAgent);
+							}
+						}//TOTEST
 						
 						InputStream urlStream = null;
 						try {
@@ -108,6 +125,14 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 				throw new InfiniteEnums.ExtractorDocumentLevelException(ex.getMessage());
 			}			
 		}
+	}
+
+	@Override
+	public String getCapability(EntityExtractorEnum capability) {
+		if (capability == EntityExtractorEnum.URLTextExtraction_local)
+			return "true";
+		
+		return null;
 	}
 
 }

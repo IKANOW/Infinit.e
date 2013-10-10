@@ -127,6 +127,7 @@ public class SearchInterface extends ServerResource
 			 {
 				 rp = new ResponsePojo();
 				 rp.setResponse(new ResponseObject("Verifying Communities",false,"Community Ids are not valid for this user"));
+				 RESTTools.logRequest(this);
 			 }
 			 else
 			 {

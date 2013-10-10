@@ -52,6 +52,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+	import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
 	import flash.external.*;
 	import flash.utils.setTimeout;
 	import mx.collections.ArrayCollection;
@@ -81,6 +82,9 @@ package com.ikanow.infinit.e.query.model.manager
 		 * The current sources
 		 */
 		public var sources:ArrayCollection;
+		
+		[Inject]
+		public var workspaceSettingsModel:WorkspaceSettingsModel;
 		
 		[Bindable]
 		/**
@@ -1025,6 +1029,8 @@ package com.ikanow.infinit.e.query.model.manager
 			
 			if ( params.hasOwnProperty( "query" ) )
 			{
+				workspaceSettingsModel.autoSave = false;
+				
 				var newQuery:Object = JSONUtil.decode( params[ "query" ] );
 				var tmpQueryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
 				

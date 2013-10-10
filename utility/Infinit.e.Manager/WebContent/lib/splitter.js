@@ -125,14 +125,14 @@
 		// Focuser element, provides keyboard support; title is shown by Opera accessKeys
 		var focuser = $('<a href="javascript:void(0)"></a>')
 			.attr({accessKey: opts.accessKey, tabIndex: opts.tabIndex, title: opts.splitbarClass})
-			.bind($.browser.opera?"click":"focus", function(){ this.focus(); bar.addClass(opts.activeClass) })
+			.bind($.browser.opera?"click":"focus", function(){ this.focus(); bar.addClass(opts.activeClass); })
 			.bind("keydown", function(e){
 				var key = e.which || e.keyCode;
 				var dir = key==opts["key"+opts.side1]? 1 : key==opts["key"+opts.side2]? -1 : 0;
 				if ( dir )
 					resplit(A[0][opts.pxSplit]+dir*opts.pxPerKey, false);
 			})
-			.bind("blur", function(){ bar.removeClass(opts.activeClass) });
+			.bind("blur", function(){ bar.removeClass(opts.activeClass); });
 			
 		// Splitbar element, can be already in the doc or we create one
 		var bar = $(panes[2] || '<div></div>')

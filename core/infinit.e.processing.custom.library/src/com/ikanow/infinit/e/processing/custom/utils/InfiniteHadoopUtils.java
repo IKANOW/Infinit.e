@@ -152,6 +152,9 @@ public class InfiniteHadoopUtils {
 
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
 			if (null == share) {
+				if (null != out) {
+					out.close();
+				}
 				throw new RuntimeException("Can't find JAR file or insufficient permissions");
 			}
 			if ( share.getBinaryId() != null )
@@ -172,6 +175,9 @@ public class InfiniteHadoopUtils {
 			else if (jarURL.startsWith("file://")) {
 				// Can't access the file system, except for this one nominated file:
 				if (!jarURL.equals("file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar")) {
+					if (null != out) {
+						out.close();
+					}
 					throw new RuntimeException("Can't find JAR file or insufficient permissions");
 				}
 			}

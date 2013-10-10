@@ -267,10 +267,8 @@
 			
 			<classes dir="${dir.build.classes}"/>
 			<lib dir="${dir.lib}" includes="**/*.jar"/>
-			<lib dir="${infinit.e.harvest.library.location}/dist" includes="**/*.jar" />
-			<lib dir="${infinit.e.processing.custom.library.location}/dist" includes="**/*.jar" />
 			<lib dir="${infinit.e.processing.generic.library.location}/dist" includes="**/*.jar" />
-			<lib dir="${infinit.e.data_model.location}/dist" includes="**/*.jar" />
+			<!-- (Take the other infinit.e classes from the px engine, they are shared in catalina.properties) -->
 		</war>
 	</target>
 	

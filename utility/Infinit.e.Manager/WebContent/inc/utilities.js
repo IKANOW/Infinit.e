@@ -21,7 +21,7 @@ function showMessageToDisplay()
 
 
 // openTestSourceWindow - 
-function openTestSourceWindow(strResponseMessage, strHarvesterOutput)
+function openTestSourceWindow(strTitle, strResponseMessage, strHarvesterOutput)
 {
 	try
 	{
@@ -29,8 +29,9 @@ function openTestSourceWindow(strResponseMessage, strHarvesterOutput)
 		var response = decodeURIComponent(strResponseMessage);
 		strHarvesterOutput = strHarvesterOutput.replace(/\+/gi, "%20");
 		var harvester = decodeURIComponent(strHarvesterOutput);
-		testSourcePage = testSourcePage.replace(/XXXXXXXX/gi, response);
-		testSourcePage = testSourcePage.replace(/ZZZZZZZZ/gi, harvester);
+		testSourcePage = testSourcePage.replace(/FDHGFHTRNHKSDFNCDS/, strTitle);
+		testSourcePage = testSourcePage.replace(/WQEGMNFKSDCNITRHGHHBF/, response);
+		testSourcePage = testSourcePage.replace(/FNHGESGDFbhgfhytSDFJJU/, harvester);
 		testSourceWindow = window.open('','','width=1024,height=800');
 		testSourceWindow.document.write(testSourcePage);		
 		testSourceWindow.focus();
@@ -89,7 +90,7 @@ var testSourcePage = ""+
 "<!-- Begin header.jsp  -->" +
 "	<table bgcolor=\"black\" cellpadding=\"4\" cellspacing=\"1\" width=\"100%\" >" +
 "		<tr>" +
-"			<td style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'>Source Test Output</td>" +
+"			<td style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'>FDHGFHTRNHKSDFNCDS</td>" +
 "		</tr>" +
 "		<tr bgcolor=\"white\">" +
 "			<td>" +
@@ -101,12 +102,12 @@ var testSourcePage = ""+
 "<table cellpadding=\"2\">" +
 "	<tr>" +
 "		<td>" +
-"			<textarea cols=\"120\" rows=\"5\" id=\"responseMessage\" name=\"responseMessage\" readonly=\"readonly\">XXXXXXXX</textarea>" +
+"			<textarea cols=\"120\" rows=\"5\" id=\"responseMessage\" name=\"responseMessage\" readonly=\"readonly\">WQEGMNFKSDCNITRHGHHBF</textarea>" +
 "		</td>" +
 "	</tr>" +
 "	<tr>" +
 "		<td>" +
-"			<textarea cols=\"120\" id=\"harvesterOutput\" name=\"harvesterOutput\" readonly=\"readonly\">ZZZZZZZZ</textarea>" +
+"			<textarea cols=\"120\" id=\"harvesterOutput\" name=\"harvesterOutput\" readonly=\"readonly\">FNHGESGDFbhgfhytSDFJJU</textarea>" +
 "		</td>" +
 "	</tr>" +
 "</table>" +

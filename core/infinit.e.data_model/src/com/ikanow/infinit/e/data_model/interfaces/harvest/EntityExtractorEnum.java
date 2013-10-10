@@ -17,12 +17,16 @@
 package com.ikanow.infinit.e.data_model.interfaces.harvest;
 
 public enum EntityExtractorEnum {
-	Name,
-	URLTextExtraction,
-	Quality,
-	EventExtraction,
-	SentimentExtraction,
-	GeotagExtraction,
-	RemoteExtraction,
-	OptimalRemoteConcurrentSessions
+	
+	Name, // (Unused, use getName)
+	URLTextExtraction, // (Unused)
+	URLTextExtraction_local, // (Currently Unused But On Roadmap) Indicate if can use full text instead of of URL if it exists
+	Quality, // (Unused)
+	AssociationExtraction, // (Unused)
+	SentimentExtraction, // (Unused)
+	GeotagExtraction, // (Unused)
+	RemoteExtraction, // (Unused)
+	OptimalRemoteConcurrentSessions, // (Unused)
+	OptionsSpec, // (Currently Unused But On Roadmap) This should return a JSON object with the available configuration keys (as the fields) with corresponding descriptions (as the values)
+	MaxInputBytes // (IN USE) If you set this, you should truncate the text to the value specified
 }

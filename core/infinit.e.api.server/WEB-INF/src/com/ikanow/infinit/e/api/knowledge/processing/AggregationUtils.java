@@ -449,7 +449,9 @@ public class AggregationUtils {
 //		String term5 = "mark kelly/person|family relation|gabrielle giffords/person|loca,tion/city";
 //		List<String> terms = Arrays.asList(term1, term2, term3, term4, term5);
 
-		int nFacetEl = 0;
+		@SuppressWarnings("unused")
+		int nFacetEl = 0; // (this will get used later)
+		
 		for (TermsFacet.Entry facetEl: facet.entries()) {
 			//DEBUG
 			//System.out.println("TERM= " + facetEl.getTerm());

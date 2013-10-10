@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.harvest.extraction.document.database;
 
 import java.io.IOException;
+import java.lang.reflect.Array;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
@@ -26,6 +27,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
+
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
@@ -41,6 +43,8 @@ import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.TextEncryption;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 
 /**
  * DatabaseHarvester
@@ -351,7 +355,13 @@ public class DatabaseHarvester implements HarvesterInterface
 			    	if (null == primaryKey) { // Just pick something unique, to avoid URL collisions
 			    		primaryKey = new ObjectId().toString();
 			    	}
-			    	String docUrl = source.getUrl() + "/" + primaryKey;
+			    	String docUrl = source.getDatabaseConfig().getPrimaryKeyValue();
+			    	if (null == docUrl) {
+			    		docUrl = source.getUrl() + "/" + primaryKey;
+			    	}
+			    	else {
+			    		docUrl = docUrl + primaryKey;
+			    	}
 			    	
 					// Check to see if the record has already been added
 					// If it has been added then we need to update it with the new information
@@ -526,7 +536,10 @@ public class DatabaseHarvester implements HarvesterInterface
 	 * @return
 	 */
 	private static Object convertJdbcTypes(String columnName, Object o)
-	{
+	{		
+		if (null == o) {
+			return null;
+		}
 		if (o instanceof java.sql.Timestamp)
 		{
 			java.sql.Timestamp t = (java.sql.Timestamp)o;
@@ -545,6 +558,38 @@ public class DatabaseHarvester implements HarvesterInterface
 			Date d = new Date(t.getTime());
 			o = d;
 		}
+		else if (o instanceof java.sql.Array) {
+			try {
+				o = getComplexArray(columnName, (java.sql.Array)o);
+			}
+			catch (Exception e) { // Fail out gracefully
+				return null;
+			}
+			columnName = null; // (don't convert to string)
+		}//TOTEST
+		else if (o instanceof java.sql.Struct) {
+			try {
+				o = getComplexObject((java.sql.Struct)o);
+			}
+			catch (Exception e) { // Fail out gracefully
+				return null;
+			}
+			columnName = null; // (don't convert to string)
+		}//TESTED
+		else if ((o instanceof java.math.BigDecimal) || (o instanceof java.math.BigInteger)) {
+			o = ((Number)o).longValue();
+		}
+		else if (!(o instanceof Number) && !(o instanceof Boolean) && !(o instanceof String) ) {
+			columnName = null; // (don't convert to string)
+			// not sure, try JSON (nuke horrendous oracle fr?
+			try {
+				o = new com.google.gson.GsonBuilder().setExclusionStrategies(new OracleLogic()).create().toJsonTree(o);
+			}
+			catch (Exception e) { // If JSON doesn't work, abandon ship
+				return null;
+			}
+		}//TESTED (this is pretty much a worst case, the above code worked on oracle objects though gave a horrendous object in return)
+			
 		if ((null == columnName) || (columnName.indexOf("__") > 0)) { // (ie __suffix)
 			return o;
 		}
@@ -552,7 +597,6 @@ public class DatabaseHarvester implements HarvesterInterface
 			return o.toString();
 		}
 	}
-	
 	
 	/**
 	 * getDatabaseDateString
@@ -577,12 +621,52 @@ public class DatabaseHarvester implements HarvesterInterface
 			return t.toString();			
 		}
 	}
-	
-
 
 	@Override
 	public boolean canHarvestType(int sourceType) 
 	{
 		return sourceTypesCanHarvest.contains(sourceType);
 	}
+	
+	///////////////////////////////////////////////////////////////////////
+	//
+	// Utils: create objects out of more complex SQL arrays
+	
+	public static BasicDBList getComplexArray(String columnName, java.sql.Array a) throws IllegalArgumentException, SQLException {
+		BasicDBList bsonArray = new BasicDBList();
+
+		Object array = a.getArray();
+		int length = Array.getLength(array);
+		for (int i = 0; i < length; ++i) {
+			Object o = Array.get(array, i);
+			bsonArray.add(convertJdbcTypes(columnName, o));
+		}
+		a.free();
+		
+		return bsonArray;
+	}//TOTEST	
+	public static BasicDBObject getComplexObject(java.sql.Struct s) throws SQLException {
+		//JsonObject jsonObj = new JsonObject();
+		BasicDBObject bsonObj = new BasicDBObject();
+		Integer elNo = 0;
+		Object[] els = s.getAttributes();
+		for (Object el: els) {
+			bsonObj.put(elNo.toString(), convertJdbcTypes("", el)); // the "" ensures that primitives will always be treated as strings
+				// (which is necessary to avoid elasticsearch-side conflicts)
+			elNo++;
+		}
+		
+		return bsonObj;
+	}//TESTED
+	public static class OracleLogic implements com.google.gson.ExclusionStrategy {
+		public boolean shouldSkipClass(Class<?> arg0) {
+			String name = arg0.getName();
+			System.out.println(name);
+			return name.startsWith("oracle.net") || name.startsWith("oracle.jdbc");
+		}
+		public boolean shouldSkipField(com.google.gson.FieldAttributes f) {
+			return false;
+		}
+	}//TESTED (obviously not comprehensive, just removed the oracle objects that broke it)
+	
 }

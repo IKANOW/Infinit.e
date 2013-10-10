@@ -33,4 +33,13 @@ public interface ITextExtractor
 	 */
 	void extractText(DocumentPojo partialDoc)
 		throws ExtractorDailyLimitExceededException, ExtractorDocumentLevelException;
+
+	/**
+	 * Attempts to lookup if this extractor has a given capability,
+	 * if it does returns value, otherwise null
+	 * 
+	 * @param capability Extractor capability we are looking for
+	 * @return Value of capability, or null if capability not found
+	 */
+	String getCapability(EntityExtractorEnum capability);
 }
