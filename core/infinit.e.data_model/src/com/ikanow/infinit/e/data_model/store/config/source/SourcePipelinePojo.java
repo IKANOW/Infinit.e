@@ -84,16 +84,14 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	}
 	
 	public static class HarvestControlSettings {
-		//TODO (INF-1922): support this in the code (Also have + enforce global max time setting)
 		public Integer searchCycle_secs; // How often to run the harvester (copied to SourcePojo when published)
 		public Boolean duplicateExistingUrls; // If false (defaults to true) then documents matching the URL of any existing document in the community is ignored (copied to SourcePojo when published)
 		
-		public Integer maxDocs_global; // If specified, limits the number of documents that can be harvested for a given source (state remains in SUCCESS_ITERATION until harvest complete - this is to limit time/resource consumption)
-		public Integer throttleDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate)
-		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate)
+		public Integer maxDocs_global; // If specified, limits the number of documents that can be harvested for a given source (state remains in SUCCESS_ITERATION until harvest complete - this is just to limit time/resource consumption)
+		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS_ITERATION ie the next harvest cycle, the harvester will pick up again, as above)
+		public Integer throttleDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate, the harvester will wait for searchCycle_secs before starting again)
 		
 		public Integer distributionFactor; // (EXPERIMENTAL) If specified, attempts to distribute the source across many threads
-			//TODO (INF-1884): ^^^ add to GUI
 	}
 	
 	// 2.3] Text and Linked-Document extraction

@@ -163,7 +163,7 @@ stop)
   ;;
 watchdog)
   if [ ! -f $HOME_DIR/bin/STOPFILE ] && [ ! -f $HOME_DIR/bin/ALLSTOPFILE ]; then
-	if ! pgrep -f /opt/infinite-home/bin/infinite-px-engine.sh > /dev/null; then
+	if ! pgrep -u tomcat -f /opt/infinite-home/bin/infinite-px-engine.sh > /dev/null; then
   		start_apps 	
   	fi
   fi

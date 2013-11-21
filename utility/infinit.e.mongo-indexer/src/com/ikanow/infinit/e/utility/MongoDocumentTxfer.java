@@ -28,6 +28,7 @@ import java.util.TreeSet;
 import java.util.regex.Pattern;
 import java.util.zip.GZIPInputStream;
 
+import org.bson.BSONObject;
 import org.bson.types.ObjectId;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
@@ -64,7 +65,7 @@ public class MongoDocumentTxfer {
 	 * @throws NumberFormatException 
 	 * @throws IOException 
 	 */
-	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, boolean bVerifyIndex, boolean bUpdateFeatures, int nSkip, int nLimit) throws NumberFormatException, MongoException, IOException {
+	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, boolean bVerifyIndex, boolean bUpdateFeatures, int nSkip, int nLimit, String chunksDescription) throws NumberFormatException, MongoException, IOException {
 		
 		// Command line processing
 		com.ikanow.infinit.e.data_model.Globals.setIdentity(com.ikanow.infinit.e.data_model.Globals.Identity.IDENTITY_SERVICE);
@@ -99,7 +100,12 @@ public class MongoDocumentTxfer {
 			query = (BasicDBObject) com.mongodb.util.JSON.parse(sQuery);
 		}		
 		if (!bDelete) {
-			txferManager.doTransfer(query, nSkip, nLimit, bUpdateFeatures);
+			if (null != chunksDescription) {
+				txferManager.doChunkedTransfer(query, nSkip, nLimit, bUpdateFeatures, chunksDescription);				
+			}
+			else {
+				txferManager.doTransfer(query, nSkip, nLimit, bUpdateFeatures, null);
+			}
 		}
 		else {
 			txferManager.doDelete(query, nLimit);
@@ -108,8 +114,34 @@ public class MongoDocumentTxfer {
 	public MongoDocumentTxfer(boolean bRebuildIndexOnFly) {
 		if (bRebuildIndexOnFly) {
 			_deletedIndex = new TreeSet<String>();
+			_deletedIndex.add(DocumentPojoIndexMap.manyGeoDocumentIndex_); // (don't ever delete this on the fly, it contains docs matching other queries)
 		}
 	}
+	
+	//___________________________________________________________________________________________________
+	
+	// Wrapper for doing transfer in chunks:
+	
+	private void doChunkedTransfer(BasicDBObject query, int nSkip, int nLimit, boolean bAggregate, String chunksDescription) throws IOException
+	{
+		List<BasicDBObject> chunkList = MongoIndexerUtils.getChunks("doc_metadata.metadata", chunksDescription);
+		System.out.println("CHUNKS: Found " + chunkList.size() + " chunks");
+		//DEBUG
+		//System.out.println("Chunklist= " + chunkList);
+		for (BasicDBObject chunk: chunkList) {
+			BasicDBObject cleanQuery = new BasicDBObject();
+			cleanQuery.putAll((BSONObject)query);
+			String id = null;
+			try {
+				id = (String) chunk.remove("$id");
+				System.out.println("CHUNK: " + id);
+				doTransfer(cleanQuery, 0, 0, bAggregate, chunk);
+			}
+			catch (Exception e) {
+				System.out.println("FAILED CHUNK: " + id + " ... " + e.getMessage());
+			}
+		}
+	}//TESTED
 	
 	//___________________________________________________________________________________________________
 	
@@ -118,7 +150,7 @@ public class MongoDocumentTxfer {
 	private Map<String, SourcePojo> _sourceCache = new HashMap<String, SourcePojo>();
 	private TreeSet<String> _deletedIndex = null;
 	
-	private void doTransfer(BasicDBObject query, int nSkip, int nLimit, boolean bAggregate) throws IOException
+	private void doTransfer(BasicDBObject query, int nSkip, int nLimit, boolean bAggregate, BasicDBObject chunk) throws IOException
 	{		
 		PropertiesManager pm = new PropertiesManager();
 		int nMaxContentSize_bytes = pm.getMaxContentSize();
@@ -137,9 +169,55 @@ public class MongoDocumentTxfer {
 		if (null == query) {
 			query = new BasicDBObject();			
 		}
-		if (null == query.get(DocumentPojo.sourceKey_)) {
-			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		// Optimize communityId into sourceKeys...
+		if ((null != query.get(DocumentPojo.communityId_)) && (null == query.get(DocumentPojo.sourceKey_)))
+		{
+			try {
+				ObjectId commId = query.getObjectId(DocumentPojo.communityId_);
+				DBCursor dbc = sourcesDB.find(new BasicDBObject(SourcePojo.communityIds_, commId));
+				String[] sourceKeys = new String[dbc.count()];
+				int added = 0;
+				for (DBObject dbo: dbc) {
+					sourceKeys[added++] = (String) dbo.get(SourcePojo.key_);
+				}
+				query.put(DocumentPojo.sourceKey_, new BasicDBObject(DbManager.in_, sourceKeys));
+				
+				System.out.println("(Optimized simple community query to " + sourceKeys.length + " source key(s))");
+			}
+			catch (Exception e) {
+				System.out.println("(Can't optimize complex community query)");
+			}
 		}
+		// Now apply chunk logic
+		if (null != chunk) {
+			for (String chunkField: chunk.keySet()) {				
+				Object currQueryField = query.get(chunkField);
+				if (null == currQueryField) { //easy...
+					query.put(chunkField, chunk.get(chunkField));
+				}
+				else { // bit more complicated...
+					if (currQueryField instanceof DBObject) { // both have modifiers - this is guaranteed for chunks
+						((DBObject) currQueryField).putAll((DBObject) chunk.get(chunkField));
+					}//TESTED
+					else { // worst case, use $and
+						query.put(DbManager.and_, Arrays.asList(
+								new BasicDBObject(chunkField, query.get(chunkField)),
+								new BasicDBObject(chunkField, chunk.get(chunkField))));
+					}//TESTED
+				}//TESTED (both cases)
+			}
+		}//TESTED
+		// Ignored delete objects
+		Object sourceKeyQuery = query.get(DocumentPojo.sourceKey_);
+		if (null == sourceKeyQuery) {
+			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		}//TESTED
+		else if (sourceKeyQuery instanceof BasicDBObject) {
+			((BasicDBObject) sourceKeyQuery).append("$regex", "^[^?]");
+		}//TESTED
+		//DEBUG
+		//System.out.println("COMBINED QUERY= " + query.toString());
+		
 		// If aggregating, kick off the background aggregation thread
 		if (bAggregate) {
 			EntityBackgroundAggregationManager.startThread();
@@ -148,7 +226,7 @@ public class MongoDocumentTxfer {
 		
 		//Debug:
 		DBCursor dbc = null;
-		dbc = docsDB.find(query).skip(nSkip).limit(nLimit);
+		dbc = docsDB.find(query).skip(nSkip).limit(nLimit).batchSize(1000);
 		int nCount = dbc.count() - nSkip;
 		if (nCount < 0) nCount = 0;
 		System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
@@ -211,6 +289,7 @@ public class MongoDocumentTxfer {
 			// Also may need source in order to support source index filtering
 			SourcePojo src = _sourceCache.get(doc.getSourceKey());
 			if (null == src) {
+				//TODO (INF-2265): handle search index settings in pipeline mode... (also didn't seem to work?)
 				BasicDBObject srcDbo = (BasicDBObject) sourcesDB.findOne(new BasicDBObject(SourcePojo.key_, doc.getSourceKey()));
 				if (null != srcDbo) {
 					src = SourcePojo.fromDb(srcDbo, SourcePojo.class);
@@ -228,12 +307,14 @@ public class MongoDocumentTxfer {
 					}
 					
 					// May also want to write this back to the DB:
-					if ((null == doc.getTags()) || (doc.getTags().size() != tagsTidied.size())) {
-						docsDB.update(new BasicDBObject(DocumentPojo._id_, doc.getId()), 
-								new BasicDBObject(DbManager.set_, new BasicDBObject(DocumentPojo.tags_, tagsTidied)));
-					}
+					//TODO (INF-2223): Handle append tags or not in the pipeline...
 					if ((null == src.getAppendTagsToDocs()) || src.getAppendTagsToDocs()) {					
-						doc.setTags(tagsTidied);
+						if ((null == doc.getTags()) || (doc.getTags().size() != tagsTidied.size())) {
+							BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getSourceKey());
+							updateQuery.put(DocumentPojo._id_, doc.getId());
+							docsDB.update(updateQuery, new BasicDBObject(DbManager.addToSet_, new BasicDBObject(DocumentPojo.tags_, tagsTidied)));
+						}
+						doc.getTags().addAll(tagsTidied);
 					}
 				}
 			}
@@ -340,9 +421,9 @@ public class MongoDocumentTxfer {
 				dummy.setEntities(doc.getEntities());
 				dummy.setAssociations(doc.getAssociations());
 				DBObject toWrite = dummy.toDb();
-				MongoDbManager.getDocument().getMetadata().update(new BasicDBObject(DocumentPojo._id_, doc.getId()), 
-						new BasicDBObject(MongoDbManager.set_, toWrite), false, true); 
-							// (need the multi-update in case we change the shard key later in life)
+				BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getSourceKey());
+				updateQuery.put(DocumentPojo._id_, doc.getId());
+				MongoDbManager.getDocument().getMetadata().update(updateQuery, new BasicDBObject(MongoDbManager.set_, toWrite)); 
 			}//TESTED
 			
 		}// (end loop over docs)

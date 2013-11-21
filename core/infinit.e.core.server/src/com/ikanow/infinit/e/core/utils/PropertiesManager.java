@@ -101,6 +101,15 @@ public class PropertiesManager {
 			return Long.parseLong(s);
 		}
 	}
+	public long getMaximumHarvestTime() {
+		String s = this.getProperty("harvest.maxtime");
+		if (null == s) {
+			return 1500; // (default: 25 minutes)
+		}
+		else {
+			return Long.parseLong(s);
+		}
+	}
 	public Long getMinimumHarvestTimePerSourceMs() { // (Limits the harvest cycle time for sources, ie can be overridden) 
 		String s = this.getProperty("harvest.source.mintime.ms");
 		if ((null == s) || s.isEmpty()) {

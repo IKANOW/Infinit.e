@@ -200,7 +200,7 @@ public class MongoEntitySyncFreq {
 				batchOfIdsToDelete.add((ObjectId) it.get(EntityFeaturePojo._id_));
 				if (batchOfIdsToDelete.size() >= 1000) {
 					BasicDBObject toDel = new BasicDBObject(MongoDbManager.in_, batchOfIdsToDelete.toArray());
-					MongoEntityFeatureTxfer.doDelete(new BasicDBObject(EntityFeaturePojo._id_, toDel), 0);
+					MongoEntityFeatureTxfer.doDelete(new BasicDBObject(EntityFeaturePojo._id_, toDel), 0, true);
 					batchOfIdsToDelete.clear();
 				}
 				nRemoved++;
@@ -210,7 +210,7 @@ public class MongoEntitySyncFreq {
 		}
 		if (!batchOfIdsToDelete.isEmpty()) {
 			BasicDBObject toDel = new BasicDBObject(MongoDbManager.in_, batchOfIdsToDelete.toArray());
-			MongoEntityFeatureTxfer.doDelete(new BasicDBObject(EntityFeaturePojo._id_, toDel), 0);
+			MongoEntityFeatureTxfer.doDelete(new BasicDBObject(EntityFeaturePojo._id_, toDel), 0, true);
 		}//TESTED
 		
 		System.out.println(new Date().toString() + ": end_iteration=" + nIt + ", updated=" +  nUpdated + ", removed=" + nRemoved);

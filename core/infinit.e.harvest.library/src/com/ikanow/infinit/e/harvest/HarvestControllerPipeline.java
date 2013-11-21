@@ -46,12 +46,32 @@ public class HarvestControllerPipeline {
 	protected StructuredAnalysisHarvester _sah;
 	protected UnstructuredAnalysisHarvester _uah;
 
+	protected long nMaxTimeSpentInPipeline_ms = 600000; // (always gets overwritten)
+	
 	protected long nInterDocDelay_ms = 10000; // (the inter doc delay time is always set anyway)
 	public void setInterDocDelayTime(long nBetweenFeedDocs_ms) {
 		nInterDocDelay_ms = nBetweenFeedDocs_ms;
 	}
 	
 	protected String _defaultTextExtractor = null;
+	
+	// Object initialization:
+	
+	private void intializeState()
+	{
+		_sah = null;
+		_uah = null;
+		_defaultTextExtractor = null;
+		// (don't re-initialize nInterDocDelay_ms that is always set from the parent hc)
+		// (don't re-initialize _props, that can persist)
+		// (don't re-initialize doc state like _cachedRawFullText*, _firstTextExtractionInPipeline, _lastDocInPipeline)
+		_timeOfLastSleep = -1L; // (not sure about this one, can see an argument for leaving it, but it's consistent with legacy this way)
+		
+		if (null == _props) { // turns out we always need this, for getMaxTimePerSource()
+			_props = new PropertiesManager();	
+			nMaxTimeSpentInPipeline_ms = _props.getMaxTimePerSource();
+		}
+	}//TESTED (by eye)
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
 	//
@@ -62,6 +82,12 @@ public class HarvestControllerPipeline {
 	
 	public void extractSource_preProcessingPipeline(SourcePojo source, HarvestController hc)
 	{
+		// Initialize some variables (since this pipeline can persist):
+		
+		intializeState();
+		
+		// Now run:
+		
 		_hc = hc;
 		StringBuffer globalScript = null;
 		for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
@@ -73,7 +99,7 @@ public class HarvestControllerPipeline {
 				source.setAuthentication(pxPipe.database.getAuthentication());
 				source.setDatabaseConfig(pxPipe.database);
 				source.setExtractType("Database");
-			}//TODO (INF-2223): TOTEST (wait until we have a DB to test against)
+			}//TODO (INF-2223): TOTEST (wait until we have a DB to test against) ... (actually now tested - need to get test source from theo)
 			if (null != pxPipe.nosql) {
 				//TODO (INF-1963): Not yet supported
 			}
@@ -123,7 +149,17 @@ public class HarvestControllerPipeline {
 				if (null != pxPipe.harvest.duplicateExistingUrls) {
 					source.setDuplicateExistingUrls(pxPipe.harvest.duplicateExistingUrls);
 				}
-				//TODO (INF-2223): per cycle counts (also add this for legacy source formats, since it's just as easy to)
+				if (null != pxPipe.harvest.distributionFactor) {
+					source.setDistributionFactor(pxPipe.harvest.distributionFactor);
+				}
+				if (null != pxPipe.harvest.maxDocs_perCycle) { 
+					//per cycle max docs (-> success_iteration if exceeded, ie next cycle will start again)
+					source.setThrottleDocs(pxPipe.harvest.maxDocs_perCycle);		
+						// (ugh apologies for inconsistent naming convention between legacy and pipeline!)
+				}
+				if (null != pxPipe.harvest.throttleDocs_perCycle) {
+					//TODO (INF-2223): per cycle counts (-> success if exceeded), ie can limit overall ingest speed)
+				}
 				
 			}//TESTED (storageSettings_test)
 			
@@ -143,9 +179,8 @@ public class HarvestControllerPipeline {
 			// Text Engine
 			
 			if (null != pxPipe.textEngine) {
-				if (null == _props) {
-					_props = new PropertiesManager();
-					this._defaultTextExtractor = _props.getDefaultTextExtractor();
+				if (null == _defaultTextExtractor) {
+					_defaultTextExtractor = _props.getDefaultTextExtractor();
 				}//TESTED (text_raw_to_boilerpipe)
 				if ((null != pxPipe.textEngine.engineName) && pxPipe.textEngine.engineName.equalsIgnoreCase("raw")) {
 					requiresUnstructuredAnalysis();				
@@ -199,10 +234,10 @@ public class HarvestControllerPipeline {
 	//
 	
 	// Per document member variables used to pass between main loop and utilities:
-	String _cachedRawFullText = null;
-	boolean _cachedRawFullText_available = true; // (set this latch if I never see the full text, eg non-raw text engine is called)
-	boolean _firstTextExtractionInPipeline = false;
-	boolean _lastDocInPipeline = false;
+	private String _cachedRawFullText = null;
+	private boolean _cachedRawFullText_available = true; // (set this latch if I never see the full text, eg non-raw text engine is called)
+	private boolean _firstTextExtractionInPipeline = false;
+	private boolean _lastDocInPipeline = false;
 	
 	public void enrichSource_processingPipeline(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
@@ -268,19 +303,37 @@ public class HarvestControllerPipeline {
 		Iterator<DocumentPojo> docIt = toAdd.iterator();
 		_firstTextExtractionInPipeline = false;
 	
+		long pipelineStartTime = new Date().getTime();
+		
 		int error_on_feed_count = 0, feed_count = 0;
 		while (docIt.hasNext()) {
 			DocumentPojo doc = docIt.next();
+
+			// (Do this at the top so don't get foxed by any continues in the code)
+			long currTime = new Date().getTime();		
+			
+			if ( HarvestController.isHarvestKilled() // (harvest manually killed or because of global time)
+					|| 
+				((currTime - pipelineStartTime) > nMaxTimeSpentInPipeline_ms))
+						// Don't let any source spend too long in one iteration...
+			{ 
+				source.setReachedMaxDocs(); // (move to success iteration)		
+
+				// Remove the rest of the documents
+				doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+				docIt.remove();
+				while (docIt.hasNext()) {
+					doc = docIt.next();
+					doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+					docIt.remove();
+				}				
+				// Exit loop
+				break;
+			}//TESTED
+			
 			feed_count++;
 			
 			try {
-				// If I've been stopped then just remove all remaining documents
-				if (HarvestController.isHarvestKilled()) {
-					docIt.remove();
-					doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
-					continue;
-				}				
-				
 				// For cases where we grab the full text for early processing and then want it back
 				_cachedRawFullText = null;
 				_cachedRawFullText_available = true; // (set this latch if I never see the full text, eg non-raw text engine is called)

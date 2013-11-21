@@ -35,9 +35,9 @@ db.runCommand( { enablesharding : "feature" } );
 db.runCommand( { shardcollection : "feature.entity", key : {index : 1} } );
 db.runCommand( { shardcollection : "feature.association", key : {index: 1} } );
 db.runCommand( { enablesharding : "doc_content" } );
-db.runCommand( { shardcollection : "doc_content.gzip_content", key : {url : 1} } );
+db.runCommand( { shardcollection : "doc_content.gzip_content", key : {sourceKey:1, url:1} } );
 db.runCommand( { enablesharding : "doc_metadata" } );
-db.runCommand( { shardcollection : "doc_metadata.metadata", key : {_id : 1} } );
+db.runCommand( { shardcollection : "doc_metadata.metadata", key : {sourceKey:1, _id :1} } );
 exit
 EOF
 
@@ -76,24 +76,6 @@ if (null == isUserPresent) db.community.update({ "_id" : ObjectId("4c927585d591d
 use security;
 auth={"WPUserID" : null,"_id" : ObjectId("4ca4a7c5b94b6296f3468d35"),"accountStatus" : "ACTIVE","accountType" : "User","created" : ISODate("$cur_date"),"modified" : ISODate("$cur_date"),"password" : "$TEST_USER_PWD_ENC", "profileId" : ObjectId("4e3706c48d26852237079004"),"username" : "$TEST_USER_EMAIL"};
 db.authentication.insert(auth);
-use gui;
-module={ "_id" : ObjectId("4e4bcd7addda4e72000eeb76"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T14:17:30.959Z"), "description" : "Displays details of currently selected documents", "imageurl" : "./InfiniteDocBrowserWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T14:17:35.638Z"), "searchterms" : [ "Dev", "Details", "Displays", "details", "of", "currently", "selected", "documents", "ikanow" ], "swf" : "", "title" : "Doc Browser", "url" : "./InfiniteDocBrowserWidget/InfiniteDocBrowserWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bf8adbce84e723f3b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:21:49.910Z"), "description" : "Shows entities and their significance in a bar chart", "imageurl" : "./InfiniteSignificanceWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:21:49.910Z"), "searchterms" : [ 	"Dev", 	"Shows", 	"entities", 	"and", 	"their", 	"significance", 	"in", 	"a", 	"bar", 	"chart" ], "swf" : "", "title" : "Entity Significance", "url" : "./InfiniteSignificanceWidget/InfiniteSignificanceWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bf8f5bce84e72423b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:23:01.616Z"), "description" : "Shows documents on a timeline", "imageurl" : "./InfiniteTimelineWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:23:01.616Z"), "searchterms" : [ "Dev", "Shows", "documents", "on", "a", "timeline" ], "swf" : "", "title" : "Timeline", "url" : "./InfiniteTimelineWidget/InfiniteTimelineWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bf986bce84e72453b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:25:26.507Z"), "description" : "Displays documents geospatially on Google Maps", "imageurl" : "./InfiniteMapWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:25:26.507Z"), "searchterms" : [ 	"Dev", 	"Map", 	"Displays", 	"documents", 	"geospatially", 	"on", 	"Google", 	"Maps" ], "swf" : "", "title" : "Map", "url" : "./InfiniteMapWidget/InfiniteMapWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bf986bce84e72463b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:25:26.507Z"), "description" : "Breakdown of query results by source, entity, and associations", "imageurl" : "./InfiniteQueryMetricsWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:25:26.507Z"), "searchterms" : [ 	"Dev", 	"Map", 	"Displays", 	"documents", 	"geospatially", 	"on", 	"Google", 	"Maps" ], "swf" : "", "title" : "Query Metrics", "url" : "./InfiniteQueryMetricsWidget/InfiniteQueryMetricsWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bf9ecbce84e72483b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:27:08.580Z"), "description" : "Link analysis graph showing events and facts in a web", "imageurl" : "./InfiniteEventGraphWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:27:08.580Z"), "searchterms" : [ 	"Dev", 	"Event", 	"Graph", 	"Link", 	"analysis", 	"graph", 	"showing", 	"events", 	"and", 	"facts", 	"in", 	"a", 	"web" ], "swf" : "", "title" : "Event Graph", "url" : "./InfiniteEventGraphWidget/InfiniteEventGraphWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bfa4cbce84e724b3b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:28:44.698Z"), "description" : "Bar chart showing sentiment in documents", "imageurl" : "./InfiniteSentimentWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:28:44.698Z"), "searchterms" : [ 	"Dev", 	"Sentiment", 	"Bar", 	"chart", 	"showing", 	"sentiment", 	"in", 	"documents" ], "swf" : "", "title" : "Sentiment", "url" : "./InfiniteSentimentWidget/InfiniteSentimentWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-module={ "_id" : ObjectId("4e4bfa90bce84e724e3b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:29:52.418Z"), "description" : "Shows events on a timeline", "imageurl" : "./InfiniteTimelineEventWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:29:52.418Z"), "searchterms" : [ 	"Dev", 	"Event", 	"Timeline", 	"Shows", 	"events", 	"on", 	"a", 	"timeline" ], "swf" : "", "title" : "Event Timeline", "url" : "./InfiniteTimelineEventWidget/InfiniteTimelineEventWidget.swf", "version" : "0.1" };
-db.modules.insert(module);
-
 EOF
 
 fi	

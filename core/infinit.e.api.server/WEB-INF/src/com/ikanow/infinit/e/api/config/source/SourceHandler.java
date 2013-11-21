@@ -427,6 +427,15 @@ public class SourceHandler
 							return rp;
 						}
 					}//TESTED - works if owner or moderator, or admin (enabled), not if not admin-enabled
+
+					// For now, don't allow you to change communities
+					if ((null == source.getCommunityIds()) || (null == oldSource.getCommunityIds()) // (robustness) 
+							|| 
+							!source.getCommunityIds().equals(oldSource.getCommunityIds()))
+					{
+						rp.setResponse(new ResponseObject("Source", false, "It is not currently possible to change the community of a published source. You must duplicate/scrub the source and re-publish it as a new source (and potentially suspend/delete this one)"));
+						return rp;
+					}//TOTEST
 					
 					//isOwnerOrModerator
 					
@@ -441,6 +450,7 @@ public class SourceHandler
 					source.setCreated(oldSource.getCreated());
 					source.setModified(new Date());
 					source.setOwnerId(oldSource.getOwnerId());
+					
 					if (null == source.getIsPublic()) {
 						source.setIsPublic(oldSource.getIsPublic());
 					}//TESTED
@@ -1113,13 +1123,12 @@ public class SourceHandler
 			// This is the only field that you don't normally need to specify in save but will cause 
 			// problems if it's not populated in test.
 			ObjectId userId = new ObjectId(userIdStr);
+			// Set owner (overwrite, for security reasons)
+			source.setOwnerId(userId);
 			if (null == source.getCommunityIds()) {
 				source.setCommunityIds(new TreeSet<ObjectId>());
 			}
-			if (source.getCommunityIds().isEmpty()) {
-				source.addToCommunityIds(userId); // (ie user's personal community, always has same _id - not that it matters)
-			}
-			else { // need to check that I'm allowed the specified community...
+			if (!source.getCommunityIds().isEmpty()) { // need to check that I'm allowed the specified community...
 				if ((1 == source.getCommunityIds().size()) && (userId.equals(source.getCommunityIds().iterator().next())))
 				{
 					// we're OK only community id is user community
@@ -1136,8 +1145,9 @@ public class SourceHandler
 					}
 				}//TESTED
 			}
-			// Set owner (overwrite, for security reasons)
-			source.setOwnerId(userId);
+			// Always add the userId to the source community Id (so harvesters can tell if they're running in test mode or not...) 
+			source.addToCommunityIds(userId); // (ie user's personal community, always has same _id - not that it matters)
+			
 			if (bRealDedup) { // Want to test update code, so ignore update cycle
 				if (null != source.getRssConfig()) {
 					source.getRssConfig().setUpdateCycle_secs(1); // always update

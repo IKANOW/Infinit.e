@@ -185,7 +185,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.sourceUrl_, sourceUrl);
-		addSourceKeyToQueries(query, sourceKey);
+		query.put(DocumentPojo.sourceKey_, sourceKey); 
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
 		DBCursor dbc = collection.find(query, fields).limit(1);
@@ -250,7 +250,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, url);
-		addSourceKeyToQueries(query, sourceKey);
+		query.put(DocumentPojo.sourceKey_, sourceKey); 
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
 		DBCursor dbc = collection.find(query, fields).limit(1);
@@ -352,22 +352,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			DBObject dbo = dbc.next();
 			String sourceKey = (String) dbo.get(DocumentPojo.sourceKey_);
 			if (null != sourceKey) {
-				// Extract source key (multi-community case)
-				int nCompositeSourceKey = sourceKey.indexOf('#'); // (handle <key>#<id> case)
-				String originalKey = null; // (need this to handle a legacy case)
-				if (-1 != nCompositeSourceKey) {
-					originalKey = sourceKey;
-					sourceKey = sourceKey.substring(0, nCompositeSourceKey);
-				}//TESTED
 				
 				// Check for exact duplicates, in which case can bypass horrible functional duplicate logic:
 				boolean bFoundExactDuplicate = sourceKey.equals(parentSourceKey);
-				if ((null != originalKey) && !bFoundExactDuplicate) {
-					bFoundExactDuplicate = originalKey.equals(parentSourceKey);
-					if (bFoundExactDuplicate) { // change back to original key
-						sourceKey = originalKey;
-					}
-				}
 				// Update logic:
 				if (bUpdate && bFoundExactDuplicate) {
 					_modifiedTimeOfActualDuplicate = (Date) dbo.get(DocumentPojo.modified_);
@@ -480,10 +467,4 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		
 	}//TESTED (created different types of duplicate, put print statements in, tested by hand)
 
-	// Utility needed because of minor complexity of searching for either <sourceKey> or <sourceKey>#<community> 
-	
-	private static void addSourceKeyToQueries(BasicDBObject query, String sourceKey) {
-		query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.regex_, new StringBuffer().append('^').append(sourceKey).append("(#|$)").toString()));
-	}//TESTED (by hand)
-	
 }

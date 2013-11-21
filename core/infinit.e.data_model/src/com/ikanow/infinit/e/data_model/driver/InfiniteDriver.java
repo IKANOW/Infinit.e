@@ -494,6 +494,12 @@ public class InfiniteDriver
 	
 	public List<SharePojo> searchShares(String searchCriteria, String searchString, String typeFilter, ResponseObject responseObject)
 	{
+		return searchShares(searchCriteria,searchString,typeFilter,false,responseObject);
+	}
+	//TESTED
+	
+	public List<SharePojo> searchShares(String searchCriteria, String searchString, String typeFilter, Boolean searchParent, ResponseObject responseObject)
+	{
 		try {
 			StringBuffer url = new StringBuffer(apiRoot).append("social/share/search/");
 			if (null != searchCriteria) {
@@ -507,6 +513,14 @@ public class InfiniteDriver
 					url.append("?");				
 				}
 				url.append("type=").append(typeFilter);
+			}
+			if ( searchParent )
+			{
+				if ( null != searchCriteria && null != typeFilter)
+					url.append("&");
+				else
+					url.append("?");
+				url.append("searchParent=true");
 			}
 			String deleteResult = sendRequest(url.toString(), null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(deleteResult, ResponsePojo.class); 
@@ -526,7 +540,6 @@ public class InfiniteDriver
 		}
 		return null;
 	}
-	//TESTED
 	
 	public SharePojo getShare(String shareId, ResponseObject responseObject)
 	{

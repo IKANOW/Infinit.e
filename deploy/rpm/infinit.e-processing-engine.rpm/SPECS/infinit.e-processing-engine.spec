@@ -120,7 +120,6 @@ Infinit.e harvesting and cleansing services
 %dir /mnt/opt/infinite-home/bin
 %dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/bin/STOPFILE
-/mnt/opt/infinite-home/bin/STOP_SYNC_FILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh

@@ -430,7 +430,6 @@ public class ScoringUtils
 		long nGlobalDocCount = 0;
 		try  {
 			nGlobalDocCount = getDocCount(_s0_multiCommunityHandler.getCommunityIds());
-			_s0_globalDocCount = (double)nGlobalDocCount;
 		} 
 		catch (Exception e) {
 			// If an exception occurs log the error
@@ -439,9 +438,11 @@ public class ScoringUtils
 		// (End doccount)
 
 		if (_s0_nQuerySetDocCount > nGlobalDocCount) {
-			_s0_nQuerySetDocCount = nGlobalDocCount;
-				// (This can happen if the DB and index get out of sync)
+			nGlobalDocCount = _s0_nQuerySetDocCount;
+				// (This can happen if the source doc counts get out of sync...
+				// ... conversely if the index/db get out of sync, the other way round can be correct, but this way is safer)
 		}
+		_s0_globalDocCount = (double)nGlobalDocCount;
 		stage1_initialCountingLoop(docs, scoreParams, scores, standaloneEventsReturn, communityIds.length);
 		
 		//Exit if not generating documents or entity aggregations:

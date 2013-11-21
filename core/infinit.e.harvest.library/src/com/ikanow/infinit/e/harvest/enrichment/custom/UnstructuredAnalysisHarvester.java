@@ -635,49 +635,74 @@ public class UnstructuredAnalysisHarvester {
 	//TODO: source+uap are just used in the setup js engine code - should probably be able to fix that
 	private void processMeta(DocumentPojo f, metaField m, String text, SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 
+		//TODO: only perform chaining for regex and metadata if some flag is turned on... ('c' for chain...)
+		
 		boolean bAllowDuplicates = false;
-		if ((null != m.flags) && m.flags.contains("D")) {
+		if ((null != m.flags) && m.flags.contains("U")) {
 			bAllowDuplicates = true;
 		}		
 		if ((null == m.scriptlang) || m.scriptlang.equalsIgnoreCase("regex")) {
 
 			Pattern metaPattern = createRegex(m.script, m.flags);
+
+			int timesToRun = 1;
+			Object[] currField = null;
+			if ((null != m.flags) && m.flags.contains("c")) {
+				currField = f.getMetadata().get(m.fieldName);
+			}
+			if (null != currField) { // chained metadata
+				timesToRun = currField.length;
+				text = (String)currField[0];
+			}//TESTED
+
 			Matcher matcher = metaPattern.matcher(text);
-
-			StringBuffer prefix = new StringBuffer(m.fieldName).append(':');
-			int nFieldNameLen = m.fieldName.length() + 1;
-
-			try {
-				LinkedList<String> Llist = null;
-				while (matcher.find()) {
-					if (null == Llist) {
-						Llist = new LinkedList<String>();
-					}
-					if (null == m.groupNum) {
-						m.groupNum = 0;
-					}
-					String toAdd = matcher.group(m.groupNum);
-					if (null != m.replace) {
-						toAdd = metaPattern.matcher(toAdd).replaceFirst(
-								m.replace);
-					}
-					prefix.setLength(nFieldNameLen);
-					prefix.append(toAdd);
-					String dupCheck = prefix.toString();
-
-					if (!regexDuplicates.contains(dupCheck)) {
-						Llist.add(toAdd);
-						if (!bAllowDuplicates) {
-							regexDuplicates.add(dupCheck);
+			LinkedList<String> Llist = null;
+			
+			for (int ii = 0; ii < timesToRun; ++ii) {
+				if (ii > 0) { // (else either just text, or in the above "chained metadata" initialization above)
+					text = (String)currField[ii];		
+					matcher = metaPattern.matcher(text);
+				}//TESTED
+			
+				StringBuffer prefix = new StringBuffer(m.fieldName).append(':');
+				int nFieldNameLen = m.fieldName.length() + 1;
+	
+				try {
+					while (matcher.find()) {
+						if (null == Llist) {
+							Llist = new LinkedList<String>();
+						}
+						if (null == m.groupNum) {
+							m.groupNum = 0;
+						}
+						String toAdd = matcher.group(m.groupNum);
+						if (null != m.replace) {
+							toAdd = metaPattern.matcher(toAdd).replaceFirst(
+									m.replace);
+						}
+						prefix.setLength(nFieldNameLen);
+						prefix.append(toAdd);
+						String dupCheck = prefix.toString();
+	
+						if (!regexDuplicates.contains(dupCheck)) {
+							Llist.add(toAdd);
+							if (!bAllowDuplicates) {
+								regexDuplicates.add(dupCheck);
+							}
 						}
 					}
+				} catch (Exception e) {
+					this._context.getHarvestStatus().logMessage("processMeta1: " + e.getMessage(), true);
 				}
-				if (null != Llist) {
+			}//(end metadata chaining handling)
+			if (null != Llist) {
+				if (null != currField) { // (overwrite)
+					f.getMetadata().put(m.fieldName, Llist.toArray());
+				}
+				else {
 					f.addToMetadata(m.fieldName, Llist.toArray());
 				}
-			} catch (Exception e) {
-				this._context.getHarvestStatus().logMessage("processMeta1: " + e.getMessage(), true);
-			}
+			}//TESTED
 		} 
 		else if (m.scriptlang.equalsIgnoreCase("javascript")) 
 		{
@@ -763,118 +788,135 @@ public class UnstructuredAnalysisHarvester {
 			}
 		} else if (m.scriptlang.equalsIgnoreCase("xpath")) {
 
+			String xpath = m.script;
+			
 			try {
 				createHtmlCleanerIfNeeded();
 
-				TagNode node = cleaner.clean(new ByteArrayInputStream(text.getBytes()));
-				
-				//NewCode : Only use html cleaner for cleansing
-				//use JAXP for full Xpath lib
-				Document doc = new DomSerializer(new CleanerProperties()).createDOM(node);
-				
+				int timesToRun = 1;
+				Object[] currField = null;
+				if ((null != m.flags) && m.flags.contains("c")) {
+					currField = f.getMetadata().get(m.fieldName);
+				}
+				if (null != currField) { // chained metadata
+					f.getMetadata().remove(m.fieldName); // (so will add to the end)
+					timesToRun = currField.length;
+					text = (String)currField[0];
+				}//TESTED
 
-				String xpath = m.script;
-
-				String extraRegex = extractRegexFromXpath(xpath);
-
-				if (extraRegex != null)
-					xpath = xpath.replace("regex(" + extraRegex + ")", "");
-				
-				XPath xpa = XPathFactory.newInstance().newXPath();
-				NodeList res = (NodeList)xpa.evaluate(xpath, doc, XPathConstants.NODESET);
-				
-				if (res.getLength() > 0)
-				{
-					if ((null != m.flags) && (m.flags.contains("o"))) { // "o" for object
-						m.groupNum = -1; // (see bConvertToObject below)
-					}
-					StringBuffer prefix = new StringBuffer(m.fieldName).append(':');
-					int nFieldNameLen = m.fieldName.length() + 1;
-					ArrayList<Object> Llist = new ArrayList<Object>(res.getLength());
-					boolean bConvertToObject = ((m.groupNum != null) && (m.groupNum == -1));
-					for (int i= 0; i< res.getLength(); i++)
+				for (int ii = 0; ii < timesToRun; ++ii) {
+					if (ii > 0) { // (else either just text, or in the above "chained metadata" initialization above)
+						text = (String)currField[ii];						
+					}//TESTED
+					
+					TagNode node = cleaner.clean(new ByteArrayInputStream(text.getBytes()));
+					
+					//NewCode : Only use html cleaner for cleansing
+					//use JAXP for full Xpath lib
+					Document doc = new DomSerializer(new CleanerProperties()).createDOM(node);
+					
+	
+					String extraRegex = extractRegexFromXpath(xpath);
+	
+					if (extraRegex != null)
+						xpath = xpath.replace(extraRegex, "");
+					
+					XPath xpa = XPathFactory.newInstance().newXPath();
+					NodeList res = (NodeList)xpa.evaluate(xpath, doc, XPathConstants.NODESET);
+					
+					if (res.getLength() > 0)
 					{
-						Node info_node = res.item(i);
-						if (bConvertToObject) {
-							// Try to create a JSON object out of this
-							StringWriter writer = new StringWriter();
-							try {
-								Transformer transformer = TransformerFactory.newInstance().newTransformer();
-								transformer.transform(new DOMSource(info_node), new StreamResult(writer));
-							} catch (TransformerException e1) {
-								continue;
-							}
-
-							try {
-								JSONObject subObj = XML.toJSONObject(writer.toString());
-								if (xpath.endsWith("*"))  { // (can have any number of different names here)
-									Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj));
-								}//TESTED
-								else {
-									String[] rootNames = JSONObject.getNames(subObj);
-									if (1 == rootNames.length) {
-										// (don't think it can't be any other number in fact)
-										subObj = subObj.getJSONObject(rootNames[0]);
-									}
-									boolean bUnescapeHtml = ((null != m.flags) && m.flags.contains("H"));
-									Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj, bUnescapeHtml));										
-								}//TESTED
-							}
-							catch (JSONException e) { // Just carry on
-								continue;
-							}
-							//TESTED
+						if ((null != m.flags) && (m.flags.contains("o"))) { // "o" for object
+							m.groupNum = -1; // (see bConvertToObject below)
 						}
-						else { // Treat this as string, either directly or via regex
-							String info = info_node.getTextContent().trim();
-							if (extraRegex == null || extraRegex.isEmpty()) {
-								prefix.setLength(nFieldNameLen);
-								prefix.append(info);
-								String dupCheck = prefix.toString();
-	
-								if (!regexDuplicates.contains(dupCheck)) {
-									if ((null != m.flags) && m.flags.contains("H")) {
-										info = StringEscapeUtils.unescapeHtml(info);
-									}
-									Llist.add(info);
-									if (!bAllowDuplicates) {
-										regexDuplicates.add(dupCheck);
-									}
+						StringBuffer prefix = new StringBuffer(m.fieldName).append(':');
+						int nFieldNameLen = m.fieldName.length() + 1;
+						ArrayList<Object> Llist = new ArrayList<Object>(res.getLength());
+						boolean bConvertToObject = ((m.groupNum != null) && (m.groupNum == -1));
+						for (int i= 0; i< res.getLength(); i++)
+						{
+							Node info_node = res.item(i);
+							if (bConvertToObject) {
+								// Try to create a JSON object out of this
+								StringWriter writer = new StringWriter();
+								try {
+									Transformer transformer = TransformerFactory.newInstance().newTransformer();
+									transformer.transform(new DOMSource(info_node), new StreamResult(writer));
+								} catch (TransformerException e1) {
+									continue;
 								}
-							} 
-							else { // Apply regex to the string
-								Pattern dataRegex = createRegex(extraRegex, m.flags);
-								Matcher dataMatcher = dataRegex.matcher(info);
-								boolean result = dataMatcher.find();
-								while (result) {
-									String toAdd;
-									if (m.groupNum != null)
-										toAdd = dataMatcher.group(m.groupNum);
-									else
-										toAdd = dataMatcher.group();
-									prefix.setLength(nFieldNameLen);
-									prefix.append(toAdd);
-									String dupCheck = prefix.toString();
 	
+								try {
+									JSONObject subObj = XML.toJSONObject(writer.toString());
+									if (xpath.endsWith("*"))  { // (can have any number of different names here)
+										Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj));
+									}//TESTED
+									else {
+										String[] rootNames = JSONObject.getNames(subObj);
+										if (1 == rootNames.length) {
+											// (don't think it can't be any other number in fact)
+											subObj = subObj.getJSONObject(rootNames[0]);
+										}
+										boolean bUnescapeHtml = ((null != m.flags) && m.flags.contains("H"));
+										Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj, bUnescapeHtml));										
+									}//TESTED
+								}
+								catch (JSONException e) { // Just carry on
+									continue;
+								}
+								//TESTED
+							}
+							else { // Treat this as string, either directly or via regex
+								String info = info_node.getTextContent().trim();
+								if (extraRegex == null || extraRegex.isEmpty()) {
+									prefix.setLength(nFieldNameLen);
+									prefix.append(info);
+									String dupCheck = prefix.toString();
+		
 									if (!regexDuplicates.contains(dupCheck)) {
 										if ((null != m.flags) && m.flags.contains("H")) {
-											toAdd = StringEscapeUtils.unescapeHtml(toAdd);
+											info = StringEscapeUtils.unescapeHtml(info);
 										}
-										Llist.add(toAdd);
+										Llist.add(info);
 										if (!bAllowDuplicates) {
 											regexDuplicates.add(dupCheck);
 										}
 									}
-	
-									result = dataMatcher.find();
-								}
-							}//(regex vs no regex)
-						}//(end string vs object)
+								} 
+								else { // Apply regex to the string
+									Pattern dataRegex = createRegex(extraRegex, m.flags);
+									Matcher dataMatcher = dataRegex.matcher(info);
+									boolean result = dataMatcher.find();
+									while (result) {
+										String toAdd;
+										if (m.groupNum != null)
+											toAdd = dataMatcher.group(m.groupNum);
+										else
+											toAdd = dataMatcher.group();
+										prefix.setLength(nFieldNameLen);
+										prefix.append(toAdd);
+										String dupCheck = prefix.toString();
+		
+										if (!regexDuplicates.contains(dupCheck)) {
+											if ((null != m.flags) && m.flags.contains("H")) {
+												toAdd = StringEscapeUtils.unescapeHtml(toAdd);
+											}
+											Llist.add(toAdd);
+											if (!bAllowDuplicates) {
+												regexDuplicates.add(dupCheck);
+											}
+										}
+		
+										result = dataMatcher.find();
+									}
+								}//(regex vs no regex)
+							}//(end string vs object)
+						}
+						if (Llist.size() > 0) {
+							f.addToMetadata(m.fieldName, Llist.toArray());
+						}
 					}
-					if (Llist.size() > 0) {
-						f.addToMetadata(m.fieldName, Llist.toArray());
-					}
-				}
+				}//(end loop over metadata objects if applicable)
 
 			} catch (IOException ioe) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(ioe).toString(), true);
@@ -886,22 +928,20 @@ public class UnstructuredAnalysisHarvester {
 				// Just do nothing and log
 				logger.error(e1.getMessage());
 			} catch (XPathExpressionException e1) {
-				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
-				// Just do nothing and log
-				logger.error(e1.getMessage());
+				_context.getHarvestStatus().logMessage("Error evaluating xpath expression: " +  xpath, true);
 			}
 		}
 		// (don't currently support other script types)
 	}
 
 	private static String extractRegexFromXpath(String original_xpath) {
-		Pattern addedRegex = createRegex("regex\\((.*)\\)", null);
+		Pattern addedRegex = Pattern.compile("regex\\(.*\\)\\s*$", Pattern.MULTILINE | Pattern.DOTALL); 
 		Matcher matcher = addedRegex.matcher(original_xpath);
 		boolean matchFound = matcher.find();
 
 		if (matchFound) {
 			try {
-				return matcher.group(1);
+				return matcher.group();
 			} catch (Exception e) {
 				return null;
 			}
@@ -1158,7 +1198,7 @@ public class UnstructuredAnalysisHarvester {
 	}
 
 	private static Pattern createRegex(String regEx, String flags) {
-		int nflags = Pattern.DOTALL; // ('d', by default though)
+		int nflags = 0; 
 
 		if (null != flags) {
 			for (int i = 0; i < flags.length(); ++i) {
@@ -1170,9 +1210,9 @@ public class UnstructuredAnalysisHarvester {
 				case 'i':
 					nflags |= Pattern.CASE_INSENSITIVE;
 					break;
-				case 'D':
-					nflags ^= Pattern.DOTALL;
-					break; // (ie negate DOTALL)
+				case 'd':
+					nflags |= Pattern.DOTALL;
+					break; 
 				case 'u':
 					nflags |= Pattern.UNICODE_CASE;
 					break;
@@ -1250,6 +1290,16 @@ public class UnstructuredAnalysisHarvester {
 					}
 					loadGlobalFunctions(scriptFiles, uap.getScript());
 				}
+				if (null == parsingScript)  {
+					parsingScript = JavaScriptUtils.generateParsingScript();
+				}
+				try  {
+					securityManager.eval(engine, parsingScript);						
+				} 
+				catch (ScriptException e) { // Just do nothing and log
+					e.printStackTrace();
+					logger.error(e.getMessage());
+				}
 				
 			}
 		}//end start engine up		
@@ -1299,17 +1349,5 @@ public class UnstructuredAnalysisHarvester {
 			logger.error("ScriptException: " + e.getMessage(), e);
 		}
         
-		if (null == parsingScript) 
-		{
-			parsingScript = JavaScriptUtils.generateParsingScript();
-		}
-		try 
-		{
-			securityManager.eval(engine, parsingScript);						
-		} 
-		catch (ScriptException e) { // Just do nothing and log
-			e.printStackTrace();
-			logger.error(e.getMessage());
-		}
 	}//TESTED (legacy + imports_and_lookup_test.json)
 }

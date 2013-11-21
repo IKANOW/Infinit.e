@@ -26,9 +26,13 @@
 		<![CDATA[
 			import com.ikanow.infinit.e.actionscript.InfiniteClusterIcons;
 			import com.ikanow.infinit.e.actionscript.InfiniteMapPresentationLayer;
+			import com.ikanow.infinit.e.actionscript.InfiniteMapUtils;
+			import com.ikanow.infinit.e.actionscript.KMLOptions;
 			import com.ikanow.infinit.e.components.InfininiteRollover;
 			import com.ikanow.infinit.e.components.InfiniteRolloverWindow;
+			import com.ikanow.infinit.e.components.KMLOptionsDialog;
 			import com.ikanow.infinit.e.components.RolloverWindow;
+			import com.ikanow.infinit.e.events.KMLOptionsExportEvent;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
@@ -46,6 +50,7 @@
 			import com.mapquest.tilemap.pois.ImageMapIcon;
 			import com.mapquest.tilemap.pois.MapIcon;
 			import com.mapquest.tilemap.pois.Poi;
+			
 			import mx.collections.ArrayCollection;
 			import mx.collections.XMLListCollection;
 			import mx.controls.Alert;
@@ -57,12 +62,14 @@
 			import mx.events.ResizeEvent;
 			import mx.graphics.SolidColorStroke;
 			import mx.managers.PopUpManager;
+			
 			import spark.components.BorderContainer;
 			import spark.components.Label;
 			import spark.components.VGroup;
 			import spark.effects.RemoveAction;
 			import spark.events.IndexChangeEvent;
 			import spark.primitives.Line;
+			
 			import org.alivepdf.fonts.FontFamily;
 			import org.alivepdf.fonts.Style;
 			import org.alivepdf.images.ImageFormat;
@@ -72,6 +79,7 @@
 			import org.alivepdf.layout.Unit;
 			import org.alivepdf.pages.Page;
 			import org.alivepdf.pdf.PDF;
+			
 			import system.data.Map;
 			import system.data.maps.HashMap;
 			import system.data.sets.HashSet;
@@ -228,20 +236,21 @@
 			 * @returns a ByteArray containing the data to output
 			 */
 			public function onGenerateExportData( filename:String, format:String ):ByteArray
-			{
-				var ba:ByteArray = new ByteArray();
+			{				
+				//var ba:ByteArray = new ByteArray();
 				
 				switch ( format.toLowerCase() )
 				{
 					case "kml":
-						ba = createKML();
+						//ba = createKML();
+						showKMLOptionsDialog();
 						break;
 					default:
 						break;
 				}
 				
 				
-				return ba;
+				return null;
 			}
 			/**
 			 * function to build a pdf version of the widget
@@ -266,6 +275,7 @@
 				
 				if ( widgetOptions != null )
 				{
+					this.widgetOptions = new Object();
 					//this holds a users last map 
 					if ( widgetOptions.userSave != null )
 					{
@@ -293,7 +303,7 @@
 								remoteColl.name = getKmlName( keys[ i ], x );
 								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_LOADED, kmlLoaded );
 								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );
-								kmlCollection.addItem( remoteColl );
+								//kmlCollection.addItem( remoteColl );
 							}
 						}
 					}
@@ -340,6 +350,12 @@
 				{
 					if ( layer.toggled )
 						tempWidgetOptions[ "openKMLLayers" ].push( layer.label );
+				}
+				
+				//get kml options if they exist
+				if ( kmlOptions != null )
+				{
+					tempWidgetOptions["kmlExportOptions"] = kmlOptions;
 				}
 				return tempWidgetOptions;
 			}
@@ -698,13 +714,91 @@
 				addAllMarkers( tempMarkerList, maxDocCount );
 			}
 			
-			private function createKML():ByteArray
+			private var kmlOptionsPopup:KMLOptionsDialog;
+			private function showKMLOptionsDialog():void
+			{
+				var ent_types:ArrayCollection = getEntityTypes();
+				var evt_types:ArrayCollection = getEventTypes();
+				kmlOptionsPopup = KMLOptionsDialog( PopUpManager.createPopUp( this, KMLOptionsDialog, true ) );				
+				PopUpManager.centerPopUp(kmlOptionsPopup);
+				kmlOptionsPopup.setEntityTypes(ent_types);
+				kmlOptionsPopup.setEventTypes(evt_types);
+				if ( this.widgetOptions != null )
+					kmlOptionsPopup.setSaveOptions(this.widgetOptions.kmlExportOptions);
+				kmlOptionsPopup.addEventListener(KMLOptionsExportEvent.EXPORT_EVENT, exportKMLOptions_handler);
+			}
+			
+			private function getEntityTypes():ArrayCollection
+			{				
+				var feedData:ArrayCollection = _context.getQuery_TopResults().getTopDocuments();
+				var types_set:Set = new HashSet();
+				for each ( var feed:Object in feedData )
+				{
+					//loop through the feed to get its entities
+					
+					for each ( var entity:Object in feed.entities )
+					{
+						//check to make sure the entity has geotags 
+						if ( entity.geotag != null )
+						{
+							types_set.add(entity.type);
+						}
+					}
+				}
+				return new ArrayCollection(types_set.toArray());				
+			}
+			
+			private function getEventTypes():ArrayCollection
+			{				
+				var feedData:ArrayCollection = _context.getQuery_TopResults().getTopDocuments();
+				var types_set:Set = new HashSet();
+				for each ( var feed:Object in feedData )
+				{
+					//loop through the feed to get its entities
+					
+					for each ( var event:Object in feed.associations )
+					{
+						//check to make sure the event has geotags
+						if ( event.geotag != null )
+						{
+							types_set.add(event.verb_category);
+						}
+					}
+				}
+				return new ArrayCollection(types_set.toArray());				
+			}
+			
+			private var kmlOptions:Object = null;
+			private function exportKMLOptions_handler(event:KMLOptionsExportEvent):void
+			{
+				var kmlExportBA:ByteArray = createKML(event.options);
+				//onGenerateExportData("","KML_ready");
+				var file:FileReference = new FileReference;
+				file.save( kmlExportBA, "map.kml" );
+				kmlOptions = kmlOptionsPopup.getSaveOptions();
+				if ( widgetOptions == null )
+					widgetOptions = new Object();
+				widgetOptions.kmlExportOptions = kmlOptions;
+				PopUpManager.removePopUp( kmlOptionsPopup );				
+			}
+			
+			private function createKML(options:KMLOptions):ByteArray
 			{
 				var xml:String = "<kml><Document>";
-				xml += "<Style id=\"Document\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png</href></Icon></IconStyle></Style>";
-				xml += "<Style id=\"Entity\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png</href></Icon></IconStyle></Style>";
-				xml += "<Style id=\"Event\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ltblu-pushpin.png</href></Icon></IconStyle></Style>";
-				xml += "<Style id=\"DocEnt\"><IconStyle><Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon></IconStyle></Style>";
+				xml += "<Style id=\"Document\"><IconStyle><Icon><href>"+options.icon_doc+"</href></Icon></IconStyle></Style>";
+				xml += "<Style id=\"Entity\"><IconStyle><Icon><href>"+options.icon_ent+"</href></Icon></IconStyle></Style>";
+				xml += "<Style id=\"Event\"><IconStyle><Icon><href>"+options.icon_event+"</href></Icon></IconStyle></Style>";
+				xml += "<Style id=\"DocEnt\"><IconStyle><Icon><href>"+options.icon_docent+"</href></Icon></IconStyle></Style>";
+				
+				for each ( var key:String in options.icon_ent_types.getKeys() )
+				{
+					xml += "<Style id=\""+ key +"\"><IconStyle><Icon><href>"+options.icon_ent_types.get(key).icon+"</href></Icon></IconStyle></Style>";
+				}
+				
+				for each ( var key1:String in options.icon_evt_types.getKeys() )
+				{
+					xml += "<Style id=\""+ key1 +"\"><IconStyle><Icon><href>"+options.icon_evt_types.get(key1).icon+"</href></Icon></IconStyle></Style>";
+				}
 				
 				//var level:int = 20 - _map.getZoom();
 				//var range:int = Math.round(Math.pow(2 ,level) * Math.sqrt((_map.width * _map.width) + (_map.height * _map.height)) / 3.3);
@@ -727,7 +821,7 @@
 					for each ( var entity:Object in feed.entities )
 					{
 						//check to make sure the entity has geotags 
-						if ( entity.geotag != null )
+						if ( entity.geotag != null && InfiniteMapUtils.allowOntologyType(entity.ontology_type) )
 						{
 							var commonString:String = "<p><b>Entity Type:</b> " + entity.type + "</p>";
 							commonString += "<p><b>Document Significance:</b> " + Math.round( Number( entity.significance ) ) + "%</p>";
@@ -759,7 +853,12 @@
 							docEntDesc += "\]\]>";
 							
 							
-							entityKml += "<Placemark>" + entVis + "<name>Entity: " + entity.disambiguated_name + "</name><description>" + entDesc + "</description><styleUrl>#Entity</styleUrl>" + "<Point><coordinates>" + entity.geotag.lon + "," + entity.geotag.lat + ",0" + "</coordinates></Point></Placemark>";
+							entityKml += "<Placemark>" + entVis + "<name>Entity: " + entity.disambiguated_name + "</name><description>" + entDesc + "</description>";
+							if ( options.icon_ent_types.containsKey(entity.type) )
+								entityKml += "<styleUrl>#"+entity.type+"</styleUrl>";
+							else
+								entityKml += "<styleUrl>#Entity</styleUrl>";
+							entityKml += "<Point><coordinates>" + entity.geotag.lon + "," + entity.geotag.lat + ",0" + "</coordinates></Point></Placemark>";
 							docEntKml += "<Placemark>" + entVis + "<name>" + feed.title + "</name><description>" + docEntDesc + "</description><styleUrl>#DocEnt</styleUrl>" + "<Point><coordinates>" + entity.geotag.lon + "," + entity.geotag.lat + ",0" + "</coordinates></Point></Placemark>";
 						}
 					}
@@ -768,7 +867,7 @@
 					for each ( var event:Object in feed.associations )
 					{
 						//check to make sure the event has geotags
-						if ( event.geotag != null )
+						if ( event.geotag != null && InfiniteMapUtils.allowOntologyType(entity.ontology_type) )
 						{
 							
 							var eventDesc:String = "<![CDATA[";
@@ -807,13 +906,21 @@
 								evtVis += "<visibility>0</visibility>";
 							}
 							
-							eventKml += "<Placemark>" + evtVis + "<name>Event: " + event.verb_category + "</name>" + time + "<description>" + eventDesc + "</description><styleUrl>#Event</styleUrl>" + "<Point><coordinates>" + event.geotag.lon + "," + event.geotag.lat + ",0" + "</coordinates></Point></Placemark>";
+							eventKml += "<Placemark>" + evtVis + "<name>Event: " + event.verb_category + "</name>" + time + "<description>" + eventDesc + "</description>";
+							
+							if ( options.icon_evt_types.containsKey(event.verb_category) )
+								eventKml += "<styleUrl>#"+event.verb_category+"</styleUrl>";
+							else
+								eventKml += "<styleUrl>#Event</styleUrl>";
+							
+							
+							eventKml += "<Point><coordinates>" + event.geotag.lon + "," + event.geotag.lat + ",0" + "</coordinates></Point></Placemark>";
 							
 						}
 					}
 					
 					//get a documents docgeo if it exists
-					if ( feed.docGeo != null )
+					if ( feed.docGeo != null && InfiniteMapUtils.allowOntologyType(feed.docGeo.ontology_type) )
 					{
 						var docDesc:String = "<![CDATA[";
 						
@@ -1255,7 +1362,7 @@
 					if ( widgetOptions != null && widgetOptions.centerLat != null && widgetOptions.centerLng != null && widgetOptions.zoomLevel != null )
 					{
 						_map.setCenter( new LatLng( widgetOptions.centerLat, widgetOptions.centerLng ), widgetOptions.zoomLevel );
-						widgetOptions = null;
+						widgetOptions.centerLat = null; //invalidate this function
 					}
 					else
 					{

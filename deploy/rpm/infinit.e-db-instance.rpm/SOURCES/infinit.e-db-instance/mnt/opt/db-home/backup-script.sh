@@ -5,11 +5,15 @@
 DB_HOME=/opt/db-home/
 BACKUP_DIR=$DB_HOME/data
 
+cd $DB_HOME/backups
+
 ################################################################################
 # s3.url = 
 SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
 S3_URL=`grep "^s3.url=" $SERVICE_PROPERTY_FILE | sed s/'s3.url='// | sed s/' '//g`
 S3_URL="mongo.$S3_URL"
+
+CLUSTER_NAME=$(infdb cluster-name)
 
 ################################################################################
 # $1 arg = port to access MongoDB on
@@ -18,6 +22,17 @@ if [ "$1" = "" ]; then
 	MONGO_PORT="27017"
 else
 	MONGO_PORT="$1"
+fi
+
+# Use different name convention for config servers since there are 1/3/5 with identical names (use hostname instead)
+DAY_OF_MONTH=$(date +%d)
+WEEK_OF_YEAR=$(date +%W)
+if [ "$MONGO_PORT" = "27016" ]; then
+	FILENAME=db_backup_`hostname`_${DAY_OF_MONTH}_${MONGO_PORT}.tgz
+	END_FILENAME=db_backup_`hostname`_latest_${MONGO_PORT}.tgz
+else 
+	FILENAME=db_backup_${CLUSTER_NAME}_${DAY_OF_MONTH}_${MONGO_PORT}.tgz
+	END_FILENAME=db_backup_${CLUSTER_NAME}_latest_${MONGO_PORT}.tgz
 fi
 
 ################################################################################
@@ -56,30 +71,6 @@ EOF
 	mongodump --host localhost --port $MONGO_PORT --out $DB_HOME/db
 	echo "Dump the existing database to file" >> $DB_HOME/bak.log
 
-	# tar up the backup
-	echo "Create a compressed version of the backup" >> $DB_HOME/bak.log
-	tar -cvzf $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz $DB_HOME/db 
-	
-	################################################################################
-	# Transfer: S3 vs non
-	################################################################################
-	if [ "$S3_URL" != "" ]; then
-    	s3cmd -f put $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz s3://$S3_URL
-    	mv $DB_HOME/db_backup_`hostname`_`date +%d`_${MONGO_PORT}.tgz $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz
-    	s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz s3://$S3_URL
-	fi
-	
-	# Tidy up:
-	rm -rf $DB_HOME/db
-	
-	################################################################################
-	# Weekly, do a transfer to a remote backup location S3 vs non
-	################################################################################
-    if [ `date +%w` -eq 0 ] && [ "$S3_URL" != "" ]; then 
-            s3cmd -f put $DB_HOME/db_backup_`hostname`_most_recent_${MONGO_PORT}.tgz s3://backup.$S3_URL/db_backup_`hostname`_`date +%Y%m%d`_${MONGO_PORT}.tgz
-    fi
-	
-	################################################################################
 	# Restart balancer
 	################################################################################
 	mongo $mongos_ip <<EOF
@@ -87,6 +78,34 @@ use config
 db.settings.update( { "_id": "balancer" }, { "\$set" : { "stopped": false } } , true );
 exit
 EOF
-		
+	
+	# tar up the backup
+	echo "Create a compressed version of the backup" >> $DB_HOME/bak.log
+	tar -cvzf $FILENAME $DB_HOME/db 
+	
+	################################################################################
+	# Transfer: S3 vs non
+	################################################################################
+	if [ "$S3_URL" != "" ]; then
+		split -b1000m $FILENAME $FILENAME-
+    	s3cmd -f put $FILENAME-* s3://$S3_URL
+	fi
+	
+	################################################################################
+	# Weekly, do a transfer to a remote backup location S3 vs non
+	################################################################################
+    if [ `date +%w` -eq 0 ] && [ "$S3_URL" != "" ]; then 
+   		for i in $(ls $FILENAME-*); do
+   			NEW_FILENAME=$(echo $i | sed "s/_${DAY_OF_MONTH}_/_${WEEK_OF_YEAR}_/")
+            s3cmd -f put $i s3://backup.$S3_URL/$NEW_FILENAME
+   		done
+    fi
+	
+	################################################################################
+	# Tidy up:
+	rm -rf $DB_HOME/db
+	rm -f $FILENAME-*
+	mv $FILENAME $END_FILENAME
+	
 	echo "Finished making the backup for `date`"  >> $DB_HOME/bak.log
 fi

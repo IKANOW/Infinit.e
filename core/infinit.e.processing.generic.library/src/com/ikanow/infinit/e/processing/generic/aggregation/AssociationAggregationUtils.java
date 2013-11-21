@@ -331,7 +331,7 @@ public class AssociationAggregationUtils {
 				}
 			}
 			if (null != toPull) {
-				update2.put(MongoDbManager.pullAll_, toPull);
+				update.put(MongoDbManager.pullAll_, toPull);
 					// (this removes from the database)
 			}
 			//TESTED (2.1.4.3b, including no index removal clause)

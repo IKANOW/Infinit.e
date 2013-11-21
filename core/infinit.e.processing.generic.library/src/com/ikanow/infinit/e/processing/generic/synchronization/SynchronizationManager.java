@@ -42,6 +42,7 @@ import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexMana
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 
 public class SynchronizationManager {
 
@@ -64,6 +65,8 @@ public class SynchronizationManager {
 	 * @param sources list of sources we are syncing
 	 * @return The number of errors fixed (docs deleted)
 	 */
+	// DON'T USE THIS UNTIL REWRITTEN - IT SHOULD TRANSFER DOCS ACROSS, NOT LEAVE THEM ALONE
+	@Deprecated
 	public int syncDB(long cleanseStartTime, Set<String> dbCache)
 	{
 		dbCache.clear();
@@ -219,6 +222,7 @@ public class SynchronizationManager {
 	 * @param sources list of sources we are syncing
 	 * @return The number of errors fixed (docs deleted)
 	 */
+	//TODO INF-2239 ... lol fail if syncDB isn't called then dbCache is empty and everything gets deleted...
 	public int syncSearch(long cleanseStartTime, Set<String> dbCache)
 	{
 		int fixcount = 0;
@@ -277,12 +281,19 @@ public class SynchronizationManager {
 					for (SearchHit hit: docs) 
 					{
 						String idStr = hit.getId();
-						//OBSOLETED, USE DBCACHE INSTEAD:
-//						ObjectId id = new ObjectId(idStr);
-//						BasicDBObject query = new BasicDBObject(DocumentPojo._id_, id);
-//						DBObject dbo = documentDb.findOne(query, queryFields);
-//						if ( dbo == null)
-						if (!dbCache.contains(idStr)) 
+						boolean found = true; //(fail closed!)
+						if (null == dbCache) {
+							//OBSOLETED, USE DBCACHE INSTEAD (WHERE AVAILABLE):
+							ObjectId id = new ObjectId(idStr);
+							BasicDBObject query = new BasicDBObject(DocumentPojo._id_, id);
+							query.put(DocumentPojo.sourceKey_, sp.getKey()); // (ensures uses only the right shard)
+							DBObject dbo = documentDb.findOne(query, queryFields);
+							found = (dbo != null);
+						}//TESTED
+						else {
+							found = dbCache.contains(idStr);
+						}//TESTED
+						if (!found) 
 						{				
 							ObjectId id = new ObjectId(idStr);
 							DocumentPojo doc = new DocumentPojo();
@@ -325,12 +336,18 @@ public class SynchronizationManager {
 					for (SearchHit hit: docsOLD) 				
 					{
 						String idStr = hit.getId();
-						//OBSOLETED, USE DBCACHE INSTEAD:
-//						ObjectId id = new ObjectId(idStr);
-//						BasicDBObject queryOLD = new BasicDBObject(DocumentPojo._id_, id);
-//						DBObject dbo = documentDb.findOne(queryOLD, queryFields);
-//						if ( dbo == null)
-						if (!dbCache.contains(idStr)) 
+						boolean found = true;
+						if (null == dbCache) {
+							//OBSOLETED, USE DBCACHE INSTEAD (WHERE AVAILABLE):
+							ObjectId id = new ObjectId(idStr);
+							BasicDBObject queryOLD = new BasicDBObject(DocumentPojo._id_, id);
+							DBObject dbo = documentDb.findOne(queryOLD, queryFields);
+							found = (dbo != null);
+						}//TESTED
+						else {
+							 found = dbCache.contains(idStr);
+						}//TESTED
+						if (!found)
 						{				
 							// Also need to check the DB since dbCache is not guaranteed to be populated with the same
 							// number of "final" docs

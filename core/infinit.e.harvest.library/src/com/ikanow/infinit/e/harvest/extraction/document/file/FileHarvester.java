@@ -28,6 +28,7 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -248,7 +249,7 @@ public class FileHarvester implements HarvesterInterface {
 		try 
 		{
 			if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
-				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getCommunityIds().iterator().next().toString(), source.getOwnerId().toString(), null);
+				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(Arrays.toString(source.getCommunityIds().toArray()), source.getOwnerId().toString(), null);
 				file = InfiniteFile.create(source.getUrl(), auth);	
 				
 				// Quick check of share/custom date vs last imported doc in this case:
@@ -454,6 +455,7 @@ public class FileHarvester implements HarvesterInterface {
 						XMLStreamReader xmlStreamReader = null;
 						XMLInputFactory factory = XMLInputFactory.newInstance();
 						factory.setProperty(XMLInputFactory.IS_COALESCING, true);
+						factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
 						try {							
 							xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
 							partials = xmlParser.parseDocument(xmlStreamReader);

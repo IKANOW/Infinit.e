@@ -119,7 +119,8 @@ public class AlchemyEntityPersonCleanser {
 					BasicDBObject inner1 = new BasicDBObject(MongoDbManager.set_, inner0);
 					
 					// Overwrite the existing entities list with the new one 
-					docsDB.update(new BasicDBObject(DocumentPojo._id_, docu.getId()), inner1);
+					docsDB.update(new BasicDBObject(DocumentPojo._id_, docu.getId()), inner1, false, true);
+						// (need the multi-update in case _id isn't the shard key - documentation claims this is not necessary but 2.4.6/shell still enforces it)
 					
 				}//TESTED: checked on "Feed: Japan's Three Elections / 4c92863751cc2e59d612000b / 30"
 			}

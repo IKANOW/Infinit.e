@@ -52,6 +52,7 @@ public class ShareInterface extends ServerResource
 	private String shareId = null;
 	private String communityId = null;
 	private String searchby = null;
+	private boolean searchParent = false;
 	private String id = null;
 	private String skip = null;
 	private String limit = null;
@@ -148,6 +149,10 @@ public class ShareInterface extends ServerResource
 			if ((queryOptions.get("nometa") != null) && (queryOptions.get("nometa").equalsIgnoreCase("true"))) {
 				jsonOnly = true;
 			}
+			if ((queryOptions.get("searchParent") != null) && (queryOptions.get("searchParent").equalsIgnoreCase("true"))) {
+				searchParent = true;
+			}
+			
 
 			// Get Share by ID
 			if ( urlStr.contains("/share/get/") )
@@ -432,7 +437,7 @@ public class ShareInterface extends ServerResource
 				 }
 				 else if (action.equals("searchShares"))
 				 {
-					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin, returnContent);
+					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin, returnContent, searchParent);
 				 }	 
 			 }
 		 }

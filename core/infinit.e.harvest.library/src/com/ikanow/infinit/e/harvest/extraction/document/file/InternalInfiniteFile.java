@@ -65,7 +65,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 			ObjectId locationId = null;
 			
 			ObjectId ownerId = null;
-			ObjectId communityId = null;
+			String communityIdsStr = null;
 
 			if (url.startsWith(INFINITE_SHARE_PREFIX)) {
 				_isShare = true;
@@ -125,7 +125,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 			else {
 				throw new MalformedURLException("Not recognized: " + url);
 			}//TESTED (7.4)
-			communityId = new ObjectId(auth.getDomain());
+			communityIdsStr = auth.getDomain();
 			ownerId = new ObjectId(auth.getUsername());
 			
 			// Now do some authentication:
@@ -136,7 +136,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 				for (Object communityObj: communities) {
 					BasicDBObject communityDbo = (BasicDBObject) communityObj;
 					ObjectId commId = communityDbo.getObjectId("_id");
-					if (communityId.equals(commId)) {
+					if (communityIdsStr.contains(commId.toString())) {
 						isAuthorized = true;
 						break;
 					}
@@ -146,7 +146,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 				BasicDBList communities = (BasicDBList) _resultObj.get(CustomMapReduceJobPojo.communityIds_);				
 				for (Object communityObj: communities) {
 					ObjectId commId = (ObjectId) communityObj;
-					if (communityId.equals(commId)) {
+					if (communityIdsStr.equals(commId)) {
 						isAuthorized = true;
 						break;
 					}

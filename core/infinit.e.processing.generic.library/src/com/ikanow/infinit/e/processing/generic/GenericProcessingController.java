@@ -83,63 +83,94 @@ public class GenericProcessingController {
 		{
 			PropertiesManager pm = new PropertiesManager();
 			
-			BasicDBObject compIndex = new BasicDBObject(CompressedFullTextPojo.sourceKey_, 2);
-			compIndex.put(CompressedFullTextPojo.url_, 2);
-			DbManager.getDocument().getContent().ensureIndex(compIndex); // (annoyingly necessary)
+			////////////////////////
+			//
+			// Remove old indexes, mostly just old code that is no longer needed
+			//
 			dropIndexIfItExists(DbManager.getDocument().getContent(), CompressedFullTextPojo.url_, 1);
 			dropIndexIfItExists(DbManager.getDocument().getContent(), CompressedFullTextPojo.sourceKey_, 2);
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.sourceUrl_, 1);
+			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.sourceKey_, 1);
+			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.title_, 1);
+				// (Title simply not needed, that was a mistake from an early iteration)
+			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.updateId_, 1);
+			dropIndexIfItExists(DbManager.getSocial().getShare(), "type", 1);
+			dropIndexIfItExists(DbManager.getSocial().getCookies(), "apiKey", 1);
+			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.jobidS_, 2);
+			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.waitingOn_, 2);
+			// (see shard keys below, these legacy ones can appear if the DB is restored from a different machine's backup)
+			dropIndexIfNotNeeded(DbManager.getDocument().getContent(), "sourceKey_1_url_1", 0, "sourceKey_2_url_2", 0);
+			dropIndexIfNotNeeded(DbManager.getDocument().getMetadata(), "sourceKey_1__id_1", 0, "sourceKey_1__id_-1", 0);
 			
-			// Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey}
+			////////////////////////
+			//
+			// Indexes needed for sharding:
+			//
+			// ** Content (has changed a bit)			
+			BasicDBObject compIndex = new BasicDBObject(CompressedFullTextPojo.sourceKey_, 1);
+			compIndex.put(CompressedFullTextPojo.url_, 1);
+			addIndexIfNeeded(DbManager.getDocument().getContent(), "sourceKey_2_url_2", 0, compIndex); // (remove legacy 2_2 and replace with 1_1, which supports shards)
+			// ** Metadata
+			// Add {_id:1} to "standalone" sourceKey, sort docs matching source key by "time" (sort of!) 
+			compIndex = new BasicDBObject(DocumentPojo.sourceKey_, 1);
+			compIndex.put(DocumentPojo._id_, 1);
+			addIndexIfNeeded(DbManager.getDocument().getMetadata(), "sourceKey_1__id_-1", 0, compIndex); // (remove legacy 1_-1 and replace with 1_1, which supports shards)
+			// ** Entities and associations
+			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.index_, 1));
+			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
+			
+			////////////////////////
+			//
+			// Other indexes
+			//
+			// Needed to handle updates of large files containing many URLs:
+			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			// Needed for duplicate checking
+			// (Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey})
 			compIndex = new BasicDBObject(DocumentPojo.url_, 1);
 			compIndex.put(DocumentPojo.sourceKey_, 1);
 			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
-			// Add {_id:-1} to "standalone" sourceKey, sort docs matching source key by "time" (sort of!) 
-			compIndex = new BasicDBObject(DocumentPojo.sourceKey_, 1);
-			compIndex.put(DocumentPojo._id_, -1);
-			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
-			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.sourceKey_, 1);
-			// Title simply not needed, that was a mistake from an early iteration:
-			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.title_, 1);
+			// Needed to handle document updates
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.updateId_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			dropIndexIfItExists(DbManager.getDocument().getMetadata(), DocumentPojo.updateId_, 1);
+			// Needed to update documents' entities' doc counts
 			if (!pm.getAggregationDisabled()) {
 				compIndex = new BasicDBObject(EntityPojo.docQuery_index_, 1);
 				compIndex.put(DocumentPojo.communityId_, 1);
 				DbManager.getDocument().getMetadata().ensureIndex(compIndex);
 			}
+			// Needed for keeping source/community doc counts
 			compIndex = new BasicDBObject(DocCountPojo._id_, 1);
 			compIndex.put(DocCountPojo.doccount_, 1);
 			DbManager.getDocument().getCounts().ensureIndex(compIndex);
+			// Needed for keep tracking of entities
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.disambiguated_name_, 1));
-			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.index_, 1));
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.alias_, 1));
+			// Needed for background re-calculation
 			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
 			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			// Needed for geo-location in the entity pipeline
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("country", 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("search_field", 1));
 			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("geoindex", "2d"));
+			// Needed for source management
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.key_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
+			// Searching shares
 			// Compound index lets me access {type, communities._id}, {type} efficiently
 			compIndex = new BasicDBObject("type", 1);
-			compIndex.put("communities._id", 1);
+			compIndex.put("communities._id", 1);			
 			DbManager.getSocial().getShare().ensureIndex(compIndex);
-			dropIndexIfItExists(DbManager.getSocial().getShare(), "type", 1);
+			// User logins
 			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			dropIndexIfItExists(DbManager.getSocial().getCookies(), "apiKey", 1);
+			// Custom job scheduling
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, 1));
 			//TODO (): MOVE THESE TO SPARSE INDEXES AFTER YOU'VE UPDATED THE LOGIC (SWAP THE 1 AND 2)
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
-			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.jobidS_, 2);
 //			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 //			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.jobidS_, 1);
 			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
-			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.waitingOn_, 2);
 //			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 //			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.waitingOn_, 1);
 		}		
@@ -149,21 +180,85 @@ public class GenericProcessingController {
 		}
 	}//TESTED (not changed since by-eye test in Beta)
 			
+	// Some *DB* index utilities (note note Lucene index)
+	
+	private static void addIndexIfNeeded(DBCollection coll, String indexToCheck, int nIndexIndex, BasicDBObject newIndex)
+	{
+		StringBuffer indexNameStrBuff = new StringBuffer(indexToCheck);
+		if (0 != nIndexIndex) {
+			indexNameStrBuff.append("_").append(nIndexIndex);
+		}
+		String indexName2 = indexNameStrBuff.toString();
+		List<DBObject> list = coll.getIndexInfo();
+		for (DBObject dbo: list) {				
+			String name = (String) dbo.get("name");
+			if (indexName2.equalsIgnoreCase(name)) {
+				return; // no need to create a new index
+			}
+		}
+		// If we're here then we didn't find the index so create a new index
+		try { 
+			coll.ensureIndex(newIndex); 
+		} 
+		catch (Exception e) {} 
+	}//TESTED
+	
+	private static void dropIndexIfNotNeeded(DBCollection coll, String indexToCheck, int nIndexToCheckIndex, String indexToDelete, int nIndexToDeleteIndex)
+	{
+		StringBuffer indexNameStrBuff = new StringBuffer(indexToCheck);
+		if (0 != nIndexToCheckIndex) {
+			indexNameStrBuff.append("_").append(nIndexToCheckIndex);
+		}
+		String indexToCheck2 = indexNameStrBuff.toString();
+		indexNameStrBuff.setLength(0);
+		indexNameStrBuff.append(indexToDelete);
+		if (0 != nIndexToDeleteIndex) {
+			indexNameStrBuff.append("_").append(nIndexToDeleteIndex);
+		}
+		
+		boolean foundIndexToDelete = false;
+		boolean foundIndexToCheck = false;
+		String indexToDelete2 = indexNameStrBuff.toString();
+		List<DBObject> list = coll.getIndexInfo();
+		for (DBObject dbo: list) {				
+			String name = (String) dbo.get("name");
+			if (indexToCheck2.equalsIgnoreCase(name)) {
+				foundIndexToCheck = true;
+			}
+			else if (indexToDelete2.equalsIgnoreCase(name)) {
+				foundIndexToDelete = true;				
+			}
+		}
+		if (foundIndexToCheck && foundIndexToDelete) {
+			try { 
+				coll.dropIndex(indexToDelete2);
+			} 
+			catch (Exception e) {}
+		}
+	}//TESTED
+
 	private void dropIndexIfItExists(DBCollection coll, String indexName, int nIndexIndex)
 	{
-		StringBuffer indexNameStrBuff = new StringBuffer(indexName).append("_").append(nIndexIndex);
+		StringBuffer indexNameStrBuff = new StringBuffer(indexName);
+		if (0 != nIndexIndex) {
+			indexNameStrBuff.append("_").append(nIndexIndex);
+		}
 		String indexName2 = indexNameStrBuff.toString();
 		List<DBObject> list = coll.getIndexInfo();
 		for (DBObject dbo: list) {
 			String name = (String) dbo.get("name");
 			if (indexName2.equalsIgnoreCase(name)) {
 				try { 
-					coll.dropIndex(new BasicDBObject(indexName, nIndexIndex)); 
+					coll.dropIndex(name);
 				} 
 				catch (Exception e) {} 
 			}
 		}
 	}//TESTED
+	
+	/////////////////////////////////////////////////////////
+
+	// Lucene index initialization
 	
 	// (Note some of the code below is duplicated in MongoDocumentTxfer, so make sure you sync changes)
 	public void InitializeIndex(boolean bDeleteDocs, boolean bDeleteEntityFeature, boolean bDeleteEventFeature) {

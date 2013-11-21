@@ -823,8 +823,8 @@ public class StructuredAnalysisHarvester
 						}
 						catch (Exception e) 
 						{
-							this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);						
-							logger.error("fullText: " + e.getMessage(), e);
+							this._context.getHarvestStatus().logMessage("fullText2: " + e.getMessage(), true);						
+							logger.error("fullText2: " + e.getMessage(), e);
 						}						
 					}
 					
@@ -841,7 +841,6 @@ public class StructuredAnalysisHarvester
 							catch (Exception e) 
 							{
 								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
-								logger.error("publishedDate: " + e.getMessage(), e);
 							}
 						}
 						else
@@ -854,7 +853,6 @@ public class StructuredAnalysisHarvester
 							catch (Exception e) 
 							{
 								this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
-								logger.error("publishedDate: " + e.getMessage(), e);
 							}
 						}
 					}
@@ -872,7 +870,6 @@ public class StructuredAnalysisHarvester
 						catch (Exception e)
 						{
 							this._context.getHarvestStatus().logMessage("docGeo: " + e.getMessage(), true);						
-							logger.error("docGeo: " + e.getMessage(), e);
 						}
 					}
 
@@ -2773,6 +2770,14 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception e)
 		{
+			if (null != d.getAlternatives()) {
+				for (GeoSpecPojo altIn: d.getAlternatives()) {
+					GeoPojo altOut =  getDocGeo(altIn);
+					if (null != altOut) {
+						return altOut;
+					}
+				}
+			}			
 			docGeo = null;
 		}
 		return docGeo;
@@ -2905,12 +2910,6 @@ public class StructuredAnalysisHarvester
 					dLat = Double.parseDouble(latValue);
 					dLon = Double.parseDouble(lonValue);
 				}
-			}
-			else if (f.getDocGeo() != null)
-			{
-				dLat = f.getDocGeo().lat;
-				dLon = f.getDocGeo().lon;
-
 			}
 
 			if (dLat != 0 && dLon !=0)

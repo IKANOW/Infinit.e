@@ -56,6 +56,29 @@ Infinit.e index engine using ElasticSearch
 			chown -h elasticsearch.elasticsearch /opt/elasticsearch-infinite 
 		fi 
 	fi
+	#(do data and backups separately to handle the upgrade case)
+	if [ ! -d /opt/elasticsearch-infinite/data ]; then
+		if [ -d /raidarray ]; then
+			mkdir -p /raidarray/elasticsearch-data
+			chown -R elasticsearch.elasticsearch /raidarray/elasticsearch-data
+			ln -sf /raidarray/elasticsearch-data /opt/elasticsearch-infinite/data
+			chown -h elasticsearch.elasticsearch /opt/elasticsearch-infinite/data
+		else
+			mkdir /opt/elasticsearch-infinite/data
+			chown -R elasticsearch.elasticsearch /opt/elasticsearch-infinite/data
+		fi
+	fi
+	if [ ! -d /opt/elasticsearch-infinite/backups ]; then
+		if [ -d /raidarray ]; then
+			mkdir -p /raidarray/elasticsearch-backups
+			chown -R elasticsearch.elasticsearch /raidarray/elasticsearch-backups
+			ln -sf /raidarray/elasticsearch-backups /opt/elasticsearch-infinite/backups
+			chown -h elasticsearch.elasticsearch /opt/elasticsearch-infinite/backups
+		else
+			mkdir /opt/elasticsearch-infinite/backups
+			chown -R elasticsearch.elasticsearch /opt/elasticsearch-infinite/backups
+		fi
+	fi
 	
 	# (Add ES instance to start-up-on-boot list)
 	chkconfig --add infinite-index-engine
@@ -134,7 +157,6 @@ Infinit.e index engine using ElasticSearch
 %defattr(-,elasticsearch,elasticsearch)
 %dir /mnt/opt/elasticsearch-infinite/
 %dir /mnt/opt/elasticsearch-infinite/config
-%dir /mnt/opt/elasticsearch-infinite/data
 %dir /mnt/opt/elasticsearch-infinite/scripts
 
 %config %attr(755,root,root) /etc/init.d/infinite-index-engine

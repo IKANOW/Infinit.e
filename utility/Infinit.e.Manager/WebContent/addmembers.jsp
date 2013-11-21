@@ -61,7 +61,9 @@ limitations under the License.
 	
 	// 
 	if (isLoggedIn) 
-	{	
+	{
+		communityMembers.clear();
+		
 		// Capture value in the left handed table filter field
 		if (request.getParameter("listFilter") != null) 
 		{

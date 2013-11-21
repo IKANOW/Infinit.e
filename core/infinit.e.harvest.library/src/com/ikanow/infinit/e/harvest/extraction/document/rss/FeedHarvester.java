@@ -331,7 +331,8 @@ public class FeedHarvester implements HarvesterInterface
 	{
 		// If there's a max number of sources to get per harvest, configure that here:
 		long nWaitTime_ms = props.getWebCrawlWaitTime();
-		long nMaxTime_ms = props.getMaxTimePerFeed(); // (can't override this, too easy to break the system...)
+		long nMaxTime_ms = props.getMaxTimePerSource(); // (can't override this, too easy to break the system...)
+		
 		int nMaxDocsPerSource = props.getMaxDocsPerSource();
 		if (_context.isStandalone()) {
 			nMaxDocsPerSource = _context.getStandaloneMaxDocs();
@@ -344,7 +345,7 @@ public class FeedHarvester implements HarvesterInterface
 		}
 		long nMaxDocs = Long.MAX_VALUE;
 		if (nWaitTime_ms > 0) {
-			nMaxDocs = nMaxTime_ms/nWaitTime_ms;
+			nMaxDocs = 1 + nMaxTime_ms/nWaitTime_ms;
 		}
 		if (nMaxDocs > nMaxDocsPerSource) { // (another limit, take the smaller of the 2)
 			nMaxDocs = nMaxDocsPerSource;

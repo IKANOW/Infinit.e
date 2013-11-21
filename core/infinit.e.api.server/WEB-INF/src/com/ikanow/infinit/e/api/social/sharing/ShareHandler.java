@@ -24,6 +24,7 @@ import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.io.FilenameUtils;
@@ -148,7 +149,7 @@ public class ShareHandler
 	
 	//TODO (): be able to specify not returning content? 
 	
-	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin, boolean returnContent)
+	public ResponsePojo searchShares(String personIdStr, String searchby, String idStrList, String sharetypes, String skip, String limit, boolean ignoreAdmin, boolean returnContent, boolean searchParent)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -174,39 +175,7 @@ public class ShareHandler
 		// Community search, supports one or more communities._id values
 		if ((searchby != null) && (searchby.equalsIgnoreCase("community") || searchby.equalsIgnoreCase("communities")))
 		{
-			if (idStrList != null && idStrList.length() > 0)
-			{
-				idStrList = allowCommunityRegex(personIdStr, idStrList, true); // (allows regex, plus multiple communities)
-				// List of communities to search on
-				String[] idStrArray = idStrList.split(",");
-				List<ObjectId> communityIds = new ArrayList<ObjectId>();
-				for (String idStr : idStrArray)
-				{
-					try {
-						ObjectId id = new ObjectId(idStr);
-						if (ignoreAdmin || !bAdmin) {									
-							if ((null != memberOf) && (memberOf.contains(id))) {
-								communityIds.add(id); 
-							}
-						}
-						else { // admin, allowed it
-							communityIds.add(id); 							
-						}
-					}
-					catch (Exception e) {}
-				}
-				if (communityIds.size() > 0) {
-					BasicDBObject communities = new BasicDBObject();
-					communities.append("$in", communityIds);
-					query.put("communities._id", communities);
-				}
-				else { // (some error but we'll let this go if the share has no security)
-					query.put("communities", new BasicDBObject("$exists", false));						
-				}
-			}
-			else { // (some error but we'll let this go if the share has no security)
-				query.put("communities", new BasicDBObject("$exists", false));
-			}			
+			query = getCommunityQueryObject(query, idStrList, personIdStr, ignoreAdmin, bAdmin, memberOf, searchParent);					
 			//TESTED regex and list versions (single and multiple), no allowed commmunity versions
 		}
 		else if ((searchby != null) && searchby.equalsIgnoreCase("person"))
@@ -338,6 +307,93 @@ public class ShareHandler
 			rp.setResponse(new ResponseObject("Share", false, "Unable to search for shares: " + e.getMessage()));
 		}
 		return rp;
+	}
+	
+	private BasicDBObject getCommunityQueryObject(BasicDBObject query, String idStrList, String personIdStr, boolean ignoreAdmin, boolean bAdmin, HashSet<ObjectId> memberOf, boolean searchParent)
+	{		
+		if (idStrList != null && idStrList.length() > 0)
+		{
+			idStrList = allowCommunityRegex(personIdStr, idStrList, true); // (allows regex, plus multiple communities)
+			// List of communities to search on
+			String[] idStrArray = idStrList.split(",");
+			List<ObjectId> communityIds = new ArrayList<ObjectId>();
+			for (String idStr : idStrArray)
+			{
+				try 
+				{
+					ObjectId id = new ObjectId(idStr);
+					if (ignoreAdmin || !bAdmin) 
+					{									
+						if ((null != memberOf) && (memberOf.contains(id))) 
+						{
+							communityIds.add(id); 
+						}
+					}
+					else
+					{ // admin, allowed it
+						communityIds.add(id); 							
+					}
+				}
+				catch (Exception e) {}
+			}
+			if (communityIds.size() > 0) 
+			{
+				if ( searchParent )
+				{
+					//get the comm objects for these communities, so we can grab all their parents and add them to the query					
+					BasicDBObject communities = new BasicDBObject();
+					communities.append("$in", getParentIds(communityIds));
+					query.put("communities._id", communities);
+				}
+				else
+				{
+					//otherwise just use the given commids
+					BasicDBObject communities = new BasicDBObject();
+					communities.append("$in", communityIds);
+					query.put("communities._id", communities);
+				}
+			}
+			else 
+			{ // (some error but we'll let this go if the share has no security)
+				query.put("communities", new BasicDBObject("$exists", false));						
+			}
+		}
+		else 
+		{ // (some error but we'll let this go if the share has no security)
+			query.put("communities", new BasicDBObject("$exists", false));
+		}	
+		return query;
+	}
+	
+	/**
+	 * Takes a list of communityIds and finds any parentsIds.
+	 * The parent id's will either be:
+	 * 1. in comm.parentTree, just append
+	 * 2. in comm.parentId, create parentTree and update comm, append
+	 * 
+	 * @param child_shares
+	 * @return
+	 */
+	private List<ObjectId> getParentIds(List<ObjectId> children)
+	{
+		Set<ObjectId> communityIds = new HashSet<ObjectId>();
+		List<CommunityPojo> child_communities = CommunityPojo.listFromDb( MongoDbManager.getSocial().getCommunity().find(new BasicDBObject("_id", new BasicDBObject(MongoDbManager.in_, children))), CommunityPojo.listType());
+		for ( CommunityPojo child_comm : child_communities )
+		{
+			//this community has a parent
+			if ( child_comm.getParentId() != null )
+			{
+				if ( child_comm.getParentTree() == null )
+				{
+					child_comm = CommunityHandler.createParentTreeRecursion(child_comm, true);					
+				}
+				
+				//parentTree should be populated now, add these comms to the set
+				communityIds.add(child_comm.getId());
+				communityIds.addAll(child_comm.getParentTree());
+			}
+		}
+		return new ArrayList<ObjectId>(communityIds);
 	}
 	
 	//TODO (???): have ability to enforce uniqueness on title/type
@@ -737,8 +793,15 @@ public class ShareHandler
 					rp.setResponse(new ResponseObject("Share", false, "Permission denied: you need to be admin to create a local file ref"));
 					return rp;
 				}				
-				if ((null != type) && (type.equalsIgnoreCase("binary"))) {
-					share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));					
+				if ((null != type) && (type.equalsIgnoreCase("binary") || type.startsWith("binary:"))) {
+					String[] binaryType = type.split(":", 2);
+					if (binaryType.length > 1) {
+						share.setMediaType(binaryType[1]);
+						share.setType("binary");
+					}
+					else {
+						share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));
+					}
 				}
 				documentLocation.setCollection(idStr); // collection==file, database==id==null
 			}//TESTED
@@ -863,8 +926,15 @@ public class ShareHandler
 						rp.setResponse(new ResponseObject("Share", false, "Permission denied: you need to be admin to update a local file ref"));
 						return rp;
 					}				
-					if ((null != type) && (type.equalsIgnoreCase("binary"))) {
-						share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));					
+					if ((null != type) && (type.equalsIgnoreCase("binary") || type.startsWith("binary:"))) {
+						String[] binaryType = type.split(":", 2);
+						if (binaryType.length > 1) {
+							share.setMediaType(binaryType[1]);
+							share.setType("binary");
+						}
+						else {
+							share.setMediaType(MimeUtils.getMimeType(FilenameUtils.getExtension(idStr)));
+						}
 					}
 					documentLocation.setCollection(idStr); // collection==file, database==id==null
 				}//TESTED

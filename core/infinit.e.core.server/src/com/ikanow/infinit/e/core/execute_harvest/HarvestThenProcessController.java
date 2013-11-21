@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -78,6 +80,13 @@ public class HarvestThenProcessController {
         
         PropertiesManager threadConfig = new PropertiesManager();
         String sThreadConfig = threadConfig.getHarvestThreadConfig();
+        
+        // Max time for harvester (defaults to 25 mins)
+        
+        long maxTime_secs = threadConfig.getMaximumHarvestTime();
+        if (maxTime_secs > 0) {
+        	new Timer().schedule(new InternalShutdown(), maxTime_secs*1000); // (arg in ms)
+        }//TOTEST
         
         try {         	
         	// All source types in a single thread
@@ -332,6 +341,20 @@ public class HarvestThenProcessController {
 	}//TESTED
 	
 ////////////////////////////////////////////////////////////////////////////////////////////	
+
+// Internal timeout
+	
+	class InternalShutdown extends TimerTask 
+	{
+
+		@Override
+		public void run() {
+    		_logger.info("Harvester reached max time, try to stop as quickly as possible");
+    		_bStopHarvest = true;
+    		HarvestController.killHarvester();
+		}
+		
+	}
 	
 // External restart
 	

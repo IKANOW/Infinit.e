@@ -169,6 +169,8 @@ public class XmlToMetadataParser {
 		boolean hitIdentifier = false;
 		nCurrDocs = 0;
 
+		StringBuffer fullText = new StringBuffer();
+		
 		while (reader.hasNext()) {
 			int eventCode = reader.next();
 
@@ -178,16 +180,27 @@ public class XmlToMetadataParser {
 			{
 				String tagName = reader.getLocalName();
 			
+				if (null != doc) {
+					fullText.append("<").append(tagName);
+					for (int ii = 0; ii < reader.getAttributeCount(); ++ii) {
+						fullText.append(" ");
+						fullText.append(reader.getAttributeLocalName(ii)).append("=\"").append(reader.getAttributeValue(ii)).append('"');
+					}
+					fullText.append(">");
+				}//TESTED
+				
 				if (null == levelOneFields || levelOneFields.size() == 0) {
 					levelOneFields = new ArrayList<String>();
 					levelOneFields.add(tagName);
 					doc = new DocumentPojo();
 					sb.delete(0, sb.length());
+					fullText.setLength(0);
 					justIgnored = false;
 				}
 				else if (levelOneFields.contains(tagName)){
 					sb.delete(0, sb.length());
 					doc = new DocumentPojo();
+					fullText.setLength(0);
 					justIgnored = false;
 				}
 				else if ((null != ignoreFields) && ignoreFields.contains(tagName))
@@ -231,6 +244,10 @@ public class XmlToMetadataParser {
 			
 			case (XMLStreamReader.CHARACTERS):
 			{
+				if (null != doc) {
+					fullText.append(reader.getText());
+				}//TESTED
+				
 				if(reader.getText().trim().length()>0 && justIgnored == false)
 					sb.append("<![CDATA[").append(reader.getText().trim()).append("]]>");
 				if(hitIdentifier)
@@ -246,6 +263,10 @@ public class XmlToMetadataParser {
 			break;
 			case (XMLStreamReader.END_ELEMENT):
 			{
+				if (null != doc) {
+					fullText.append("</").append(reader.getLocalName()).append(">");
+				}//TESTED
+				
 				hitIdentifier = !reader.getLocalName().equalsIgnoreCase(PKElement);
 				if ((null != ignoreFields) && !ignoreFields.contains(reader.getLocalName())){
 					if (levelOneFields.contains(reader.getLocalName())) {
@@ -277,9 +298,11 @@ public class XmlToMetadataParser {
 	
 						} catch (JSONException e) {
 							e.printStackTrace();
-						}
+						}						
+						doc.setFullText(fullText.toString());
 						sb.delete(0, sb.length());
 						docList.add(doc);
+						doc = null;
 						if (++nCurrDocs >= nMaxDocs) {
 							return docList;
 						}						

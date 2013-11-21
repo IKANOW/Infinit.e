@@ -122,8 +122,8 @@ public class PropertiesManager {
 			return Long.parseLong(s);
 		}
 	}
-	public long getMaxTimePerFeed() { // (Limits the number of documents based on getWebCrawlWaitTime) 
-		String s = this.getProperty("harvest.feed.maxtime");
+	public long getMaxTimePerSource() { // (Limits the number of documents eg based on getWebCrawlWaitTime) 
+		String s = this.getProperty("harvest.source.maxtime");
 		if (null == s) { // Default 10m
 			return 600000;
 		}

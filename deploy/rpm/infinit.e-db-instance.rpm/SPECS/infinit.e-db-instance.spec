@@ -38,6 +38,21 @@ Infinit.e Mongo DB installation and update
 ###########################################################################
 # INSTALL *AND* UPGRADE
 
+	if [ -d /etc/security ]; then
+		if [ -f /etc/security/limits.conf ]; then
+			sed -i -r /"^(soft|hard) (nofile|nproc).*"/d /etc/security/limits.conf
+		fi
+		
+		echo 'soft nofile 64000' >> /etc/security/limits.conf
+		echo 'hard nofile 64000' >> /etc/security/limits.conf
+		echo 'soft nproc 32000' >> /etc/security/limits.conf
+		echo 'hard nproc 32000' >> /etc/security/limits.conf
+	fi
+	if [ -d /etc/security/limits.d/ ]; then
+		echo 'soft nproc 32000' > /etc/security/limits.d/90-nproc.conf
+		echo 'hard nproc 32000' >> /etc/security/limits.d/90-nproc.conf
+	fi
+
 	###########################################################################
 	# Handle relocation:
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
@@ -50,9 +65,38 @@ Infinit.e Mongo DB installation and update
 			chown -h mongod.mongod /opt/db-home 
 		fi 
 	fi
+	#(do data and backups separately to handle the upgrade case)
 	if [ ! -d /opt/db-home/data ]; then
-		mkdir /opt/db-home/data
-		chown -R mongod:mongod /opt/db-home/data
+		if [ -d /dbarray ]; then
+			mkdir -p /dbarray/mongo-data
+			chown -R mongod:mongod /dbarray/mongo-data
+			ln -sf /dbarray/mongo-data /opt/db-home/data
+			chown -h mongod.mongod /opt/db-home/data
+		elif [ -d /raidarray ]; then
+			mkdir -p /raidarray/mongo-data
+			chown -R mongod:mongod /raidarray/mongo-data
+			ln -sf /raidarray/mongo-data /opt/db-home/data
+			chown -h mongod.mongod /opt/db-home/data
+		else
+			mkdir /opt/db-home/data
+			chown -R mongod:mongod /opt/db-home/data
+		fi
+	fi
+	if [ ! -d /opt/db-home/backups ]; then
+		if [ -d /dbarray ]; then
+			mkdir -p /dbarray/mongo-backups
+			chown -R mongod:mongod /dbarray/mongo-backups
+			ln -sf /dbarray/mongo-backups /opt/db-home/backups
+			chown -h mongod.mongod /opt/db-home/backups
+		elif [ -d /raidarray ]; then
+			mkdir -p /raidarray/mongo-backups
+			chown -R mongod:mongod /raidarray/mongo-backups
+			ln -sf /raidarray/mongo-backups /opt/db-home/backups
+			chown -h mongod.mongod /opt/db-home/backups
+		else
+			mkdir /opt/db-home/backups
+			chown -R mongod:mongod /opt/db-home/backups
+		fi
 	fi
 	
 ###########################################################################
@@ -158,7 +202,6 @@ Infinit.e Mongo DB installation and update
 %attr(644,mongod,mongod) /mnt/opt/db-home/compact-script.js
 %attr(755,mongod,mongod) /mnt/opt/db-home/infdb_aws
 %attr(755,mongod,mongod) /mnt/opt/db-home/infdb_standard
-%attr(755,mongod,mongod) /mnt/opt/db-home/sync_from_master.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/restore-script.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/start_balancer.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/rotate-logs-script.sh

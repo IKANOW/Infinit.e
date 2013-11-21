@@ -15,12 +15,15 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.utility;
 
+import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
+import org.bson.BSONObject;
 import org.bson.types.ObjectId;
 import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
@@ -36,6 +39,7 @@ import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBObject;
 import com.mongodb.Mongo;
 import com.mongodb.MongoException;
 
@@ -54,10 +58,10 @@ public class MongoEntityFeatureTxfer
 	 * 				Split: config query split
 	 * 
 	 * @throws MongoException 
-	 * @throws UnknownHostException 
 	 * @throws NumberFormatException 
+	 * @throws IOException 
 	 */
-	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, int nSkip, int nLimit) throws NumberFormatException, UnknownHostException, MongoException {
+	public static void main(String sConfigPath, String sQuery, boolean bDelete, boolean bRebuildIndex, int nSkip, int nLimit, String chunksDescription) throws NumberFormatException, MongoException, IOException {
 		
 		MongoEntityFeatureTxfer txferManager = new MongoEntityFeatureTxfer();
 		
@@ -82,15 +86,45 @@ public class MongoEntityFeatureTxfer
 			MongoEntityFeatureTxfer.doDelete(query, nLimit);
 		}
 		else {
-			txferManager.doTransfer(query, nSkip, nLimit);						
+			if (null == chunksDescription) {
+				txferManager.doTransfer(query, nSkip, nLimit, null);
+			}
+			else {
+				txferManager.doChunkedTransfer(query, nSkip, nLimit, chunksDescription);				
+			}
 		}
 	}
 	
 	//___________________________________________________________________________________________________
 	
+	// Wrapper for doing transfer in chunks:
+	
+	private void doChunkedTransfer(BasicDBObject query, int nSkip, int nLimit, String chunksDescription) throws IOException
+	{
+		List<BasicDBObject> chunkList = MongoIndexerUtils.getChunks("feature.entity", chunksDescription);
+		System.out.println("CHUNKS: Found " + chunkList.size() + " chunks");
+		//DEBUG
+		//System.out.println("Chunklist= " + chunkList);
+		for (BasicDBObject chunk: chunkList) {
+			BasicDBObject cleanQuery = new BasicDBObject();
+			cleanQuery.putAll((BSONObject)query);
+			String id = null;
+			try {
+				id = (String) chunk.remove("$id");
+				System.out.println("CHUNK: " + id);
+				doTransfer(cleanQuery, 0, 0, chunk);
+			}
+			catch (Exception e) {
+				System.out.println("FAILED CHUNK: " + id + " ... " + e.getMessage());
+			}
+		}
+	}//TESTED
+	
+	//___________________________________________________________________________________________________
+	
 	// PROCESSING LOOP (new interface)
 	
-	private void doTransfer(BasicDBObject query, int nSkip, int nLimit)
+	private void doTransfer(BasicDBObject query, int nSkip, int nLimit, BasicDBObject chunk)
 	{		
 		ElasticSearchManager elasticManager = null;
 				
@@ -124,6 +158,29 @@ public class MongoEntityFeatureTxfer
 		}
 		
 // Now query the DB:
+		
+		// Now apply chunk logic
+		if (null != chunk) {
+			if (null == query) {
+				query = new BasicDBObject();			
+			}
+			for (String chunkField: chunk.keySet()) {				
+				Object currQueryField = query.get(chunkField);
+				if (null == currQueryField) { //easy...
+					query.put(chunkField, chunk.get(chunkField));
+				}
+				else { // bit more complicated...
+					if (currQueryField instanceof DBObject) { // both have modifiers - this is guaranteed for chunks
+						((DBObject) currQueryField).putAll((DBObject) chunk.get(chunkField));
+					}//TESTED
+					else { // worst case, use $and
+						query.put(DbManager.and_, Arrays.asList(
+								new BasicDBObject(chunkField, query.get(chunkField)),
+								new BasicDBObject(chunkField, chunk.get(chunkField))));
+					}//TESTED
+				}//TESTED (both cases)
+			}
+		}//TESTED
 		
 		DBCursor dbc = null;
 		dbc = entityFeatureDB.find(query).skip(nSkip).limit(nLimit); 
@@ -174,6 +231,10 @@ public class MongoEntityFeatureTxfer
 	// DELETE DOCUMENTS FROM A QUERY
 	
 	static void doDelete(BasicDBObject query, int nLimit)
+	{
+		doDelete(query, nLimit, false);
+	}
+	static void doDelete(BasicDBObject query, int nLimit, boolean automatedRequest)
 	{		
 		try 
 		{
@@ -187,7 +248,12 @@ public class MongoEntityFeatureTxfer
 			
 			DBCursor cur = entityFeatureDB.find(query, fields).limit(nLimit); 
 				// (this internally works in batches of 1000)
-			System.out.println("Found " + cur.count() + " records to delete from " + query.toString());
+			if (automatedRequest) {
+				System.out.println("Found " + cur.count() + " records to delete from _id list");
+			}
+			else {
+				System.out.println("Found " + cur.count() + " records to delete from " + query.toString());				
+			}
 			if (nLimit > 0) {
 				System.out.println("(limited to " + nLimit + " records)");
 			}

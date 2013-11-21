@@ -53,6 +53,7 @@ public class CommunityPojo extends BaseDbPojo
 	private String description = null;
 	private Boolean isSystemCommunity = false;
 	private ObjectId parentId = null;
+	private List<ObjectId> parentTree = null;
 	private String parentName = null;
 	private Boolean isPersonalCommunity = false;
 	private List<String> tags = null;
@@ -188,6 +189,20 @@ public class CommunityPojo extends BaseDbPojo
 	  */
 	public void setParentId(ObjectId parentId) {
 		this.parentId = parentId;
+	}
+	
+	/** 
+	  * Get the community parent Tree
+	  */
+	public List<ObjectId> getParentTree() {
+		return parentTree;
+	}
+	
+	/** 
+	  * Set the community parent Tree
+	  */
+	public void setParentTree(List<ObjectId> parentTree) {
+		this.parentTree = parentTree;
 	}
 	
 	/** 

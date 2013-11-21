@@ -4,7 +4,7 @@ Summary: Infinit.e system configuration
 Name: infinit.e-config
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: curl iptables
+Requires: curl iptables dos2unix
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -70,13 +70,28 @@ Infinit.e system configuration
 			ln -sf $RPM_INSTALL_PREFIX/infinite-home /opt
 			chown -h tomcat.tomcat /opt/infinite-home 
 		fi 
+		if [ ! -d /mnt/opt/splunk-infinite ]; then
+			if [ -d /persistent ]; then
+				mkdir -p /persistent/splunk-data
+				ln -sf /persistent/splunk-data /mnt/opt/splunk-infinite
+			elif [ -d /raidarray ]; then
+				mkdir -p /raidarray/splunk-data
+				ln -sf /raidarray/splunk-data /mnt/opt/splunk-infinite
+			else
+				mkdir /mnt/opt/splunk-infinite
+			fi
+		fi
 		if [ -f /opt/splunk/bin/splunk ]; then
 		 	if [ -d /opt/splunk-infinite ] && [ ! -h /opt/splunk-infinite ]; then
 				echo "Error: /opt/splunk-infinite exists"
 				exit 1
 			else
-				ln -sf $RPM_INSTALL_PREFIX/splunk-infinite /opt
+				ln -sf /mnt/opt/splunk-infinite /opt
+				chown -R splunk.splunk /opt/splunk-infinite/
 				chown -h splunk.splunk /opt/splunk-infinite 
+				if [ -h /mnt/opt/splunk-infinite ]; then
+					chown -h splunk.splunk /mnt/opt/splunk-infinite
+				fi 
 			fi
 		fi 
 	fi
@@ -187,13 +202,13 @@ Infinit.e system configuration
 /mnt/opt/infinite-home/scripts/APITimeAlert.python
 /mnt/opt/infinite-home/scripts/WeeklyExtractorStatus.python
 /mnt/opt/infinite-home/scripts/WeeklyAPITimeStatus.python
+/mnt/opt/infinite-home/scripts/set_aws_hostname.sh
 %config /mnt/opt/infinite-home/scripts/APINumResultsCheck.sh
 /mnt/opt/infinite-home/scripts/rewrite_property_files.sh
 /mnt/opt/infinite-home/scripts/set_cluster.sh
 %attr(-,root,root) /etc/cron.d/infinite-logging
 
 # (Splunk config)
-%dir %attr(-,splunk,splunk) /mnt/opt/splunk-infinite
 %config %attr(-,splunk,splunk) /opt/splunk/etc/apps/search/local/inputs.conf
 %config %attr(-,splunk,splunk) /opt/splunk/etc/system/local/web.conf
 %config %attr(755,root,root) /etc/init.d/splunk

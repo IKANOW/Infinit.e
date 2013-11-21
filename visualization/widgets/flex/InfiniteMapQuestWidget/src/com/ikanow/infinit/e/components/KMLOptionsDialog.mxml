@@ -1,0 +1,199 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark" 
+			   xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" title="KML Options" minWidth="450"
+			   paddingBottom="10" paddingTop="10" paddingLeft="10" paddingRight="10" xmlns:components="com.ikanow.infinit.e.components.*">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.actionscript.KMLOptions;
+			import com.ikanow.infinit.e.events.KMLOptionsExportEvent;
+			
+			import mx.collections.ArrayCollection;
+			import mx.managers.PopUpManager;
+			
+			import system.data.Map;
+			import system.data.maps.HashMap;
+			
+			[Bindable]
+			private var ent_types_icons:ArrayCollection = new ArrayCollection();
+			[Bindable]
+			private var evt_types_icons:ArrayCollection = new ArrayCollection();
+			
+			protected function button1_clickHandler(event:MouseEvent):void
+			{
+				PopUpManager.removePopUp(this);				
+			}
+			
+			protected function button2_clickHandler(event:MouseEvent):void
+			{
+				var options:KMLOptions = getOptions();
+				this.dispatchEvent(new KMLOptionsExportEvent(KMLOptionsExportEvent.EXPORT_EVENT, options));				
+			}
+			
+			private function getOptions():KMLOptions
+			{
+				var options:KMLOptions = new KMLOptions();
+				options.icon_doc = icon_doc.icon_url;
+				options.icon_docent = icon_docent.icon_url;
+				options.icon_ent = icon_ent.icon_url;
+				options.icon_event = icon_event.icon_url;
+				options.icon_ent_types = new HashMap();
+				for each ( var item:Object in list_ent_types.dataProvider )
+				{
+					options.icon_ent_types.put(item.ent_type, item);
+				}
+				options.icon_evt_types = new HashMap();
+				for each ( var item1:Object in list_evt_types.dataProvider )
+				{
+					options.icon_evt_types.put(item1.ent_type, item1);
+				}
+				return options;
+			}
+			
+			protected function button3_clickHandler(event:MouseEvent):void
+			{
+				if ( dropdown_ent_type.selectedIndex > -1 )
+				{
+					list_ent_types.dataProvider.addItem({"ent_type":dropdown_ent_type.selectedItem,"icon":icon_custom_entity.icon_url,"name":icon_custom_entity.icon_name});
+					dropdown_ent_type.dataProvider.removeItemAt(dropdown_ent_type.selectedIndex);
+				}				
+			}
+			
+			protected function button4_clickHandler(event:MouseEvent):void
+			{
+				if ( dropdown_evt_type.selectedIndex > -1 )
+				{
+					list_evt_types.dataProvider.addItem({"ent_type":dropdown_evt_type.selectedItem,"icon":icon_custom_event.icon_url,"name":icon_custom_event.icon_name});
+					dropdown_evt_type.dataProvider.removeItemAt(dropdown_evt_type.selectedIndex);
+				}				
+			}
+			
+			public function setEntityTypes(types:ArrayCollection):void
+			{
+				dropdown_ent_type.dataProvider = types;
+			}
+			
+			public function setEventTypes(types:ArrayCollection):void
+			{
+				dropdown_evt_type.dataProvider = types;
+			}
+			
+			public function list_remove_item(list:List, index:Number):void
+			{
+				var item:Object = list.dataProvider.removeItemAt(index);
+				//now put ent type back
+				if ( list == list_ent_types )
+					dropdown_ent_type.dataProvider.addItem(item.ent_type);
+				else
+					dropdown_evt_type.dataProvider.addItem(item.ent_type);
+			}
+				
+			public function getSaveOptions():Object
+			{
+				return getOptions();
+			}
+			
+			public function setSaveOptions(options:Object):void
+			{
+				if ( options != null )
+				{
+					//normal icons
+					icon_doc.selectPreviousOption(options.icon_doc);
+					icon_event.selectPreviousOption(options.icon_event);
+					icon_docent.selectPreviousOption(options.icon_docent);
+					icon_ent.selectPreviousOption(options.icon_ent);	
+					//custom ents
+					var custom_ents:Map = options.icon_ent_types;
+					for each ( var key:String in custom_ents.getKeys() )
+					{
+						var item:Object = custom_ents.get(key);
+						list_ent_types.dataProvider.addItem({"ent_type":key,"icon":item.icon,"name":item.name});
+						//find this in dropdown if possible and remove
+						for ( var i:int; i < dropdown_ent_type.dataProvider.length; i++ )
+						{
+							var item1:String = dropdown_ent_type.dataProvider.getItemAt(i) as String;
+							if ( item1 == key )
+							{
+								dropdown_ent_type.dataProvider.removeItemAt(i);
+								break;
+							}
+						}
+					}
+					//custom events
+					var custom_evts:Map = options.icon_evt_types;
+					for each ( var key1:String in custom_evts.getKeys() )
+					{
+						var item2:Object = custom_evts.get(key1);
+						list_evt_types.dataProvider.addItem({"ent_type":key1,"icon":item2.icon,"name":item2.name});
+						//find this in dropdown if possible and remove
+						for ( var j:int; j < dropdown_evt_type.dataProvider.length; j++ )
+						{
+							var item3:String = dropdown_evt_type.dataProvider.getItemAt(j) as String;
+							if ( item3 == key1 )
+							{
+								dropdown_evt_type.dataProvider.removeItemAt(j);
+								break;
+							}
+						}
+					}
+				}
+			}						
+			
+		]]>
+	</fx:Script>
+	
+	<fx:Metadata>
+		[Event(name="exportEvent", type="com.ikanow.infinit.e.events.KMLOptionsExportEvent")]
+	</fx:Metadata>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center">
+		<s:Label text="KML Export Options" />
+		
+		<components:KMLOptionsIconSelector id="icon_doc" icon_label="Document Icon:" />
+		<components:KMLOptionsIconSelector id="icon_event" icon_label="Event Icon:" />
+		<components:KMLOptionsIconSelector id="icon_docent" icon_label="Doc Entity Icon:" />
+		<components:KMLOptionsIconSelector id="icon_ent" icon_label="Entity Icon:" />
+		
+		<s:VGroup width="100%">			
+			<s:Line width="100%" height="2">
+				<s:stroke>
+					<s:SolidColorStroke color="0x000000" />
+				</s:stroke>
+			</s:Line>
+			<components:KMLOptionsIconSelector id="icon_custom_entity" icon_label="Entity Type Icon:" />
+			<s:HGroup width="100%">
+				<s:DropDownList id="dropdown_ent_type" width="150" />
+				<s:Spacer width="100%" />
+				<s:Button label="Add" click="button3_clickHandler(event)" />
+			</s:HGroup>
+		</s:VGroup>
+		
+		<s:List id="list_ent_types" width="100%" dataProvider="{ent_types_icons}" itemRenderer="com.ikanow.infinit.e.renderers.KMLOptionsEntTypeListItemRenderer" />	
+		
+		<s:VGroup width="100%">			
+			<s:Line width="100%" height="2">
+				<s:stroke>
+					<s:SolidColorStroke color="0x000000" />
+				</s:stroke>
+			</s:Line>
+			<components:KMLOptionsIconSelector id="icon_custom_event" icon_label="Event Type Icon:" />
+			<s:HGroup width="100%">
+				<s:DropDownList id="dropdown_evt_type" width="150" />
+				<s:Spacer width="100%" />
+				<s:Button label="Add" click="button4_clickHandler(event)" />
+			</s:HGroup>
+		</s:VGroup>
+		
+		<s:List id="list_evt_types" width="100%" dataProvider="{evt_types_icons}" itemRenderer="com.ikanow.infinit.e.renderers.KMLOptionsEntTypeListItemRenderer" />	
+		
+		<s:HGroup>
+			<s:Button label="Cancel" click="button1_clickHandler(event)" />
+			<s:Button label="Export" click="button2_clickHandler(event)" />
+		</s:HGroup>
+	</s:VGroup>
+</mx:TitleWindow>

@@ -90,7 +90,7 @@ import com.mongodb.gridfs.GridFSDBFile;
  */
 public class HarvestController implements HarvestContext
 {
-	private HarvestControllerPipeline procPipeline;
+	private HarvestControllerPipeline procPipeline = null;
 
 	private PropertiesManager pm = new PropertiesManager();
 	private IEntityExtractor default_entity_extractor = null;
@@ -370,11 +370,13 @@ public class HarvestController implements HarvestContext
 
 		// New Harvest Pipeline logic
 		if (null != source.getProcessingPipeline()) {
-			procPipeline = new HarvestControllerPipeline();
+			if (null == procPipeline) {
+				procPipeline = new HarvestControllerPipeline();
+			}
 			procPipeline.extractSource_preProcessingPipeline(source, this);
 			//(just copy the config into the legacy source fields since the 
 			// actual processing is the same in both cases)
-		}
+		}//TESTED
 
 		// Can override the default (feed) wait time from within the source (eg for sites that we know 
 		// don't get upset about getting hammered)
@@ -397,7 +399,7 @@ public class HarvestController implements HarvestContext
 		extractSource(source, toAdd, toUpdate, toRemove, toDuplicate);
 		// (^^^ this adds toUpdate to toAdd) 
 
-		if (null != procPipeline) {
+		if (null != source.getProcessingPipeline()) {
 			procPipeline.setInterDocDelayTime(nBetweenFeedDocs_ms);
 			procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
 		}
@@ -453,6 +455,11 @@ public class HarvestController implements HarvestContext
 	@SuppressWarnings("unchecked")
 	private void extractSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove, List<DocumentPojo> toDup)
 	{
+		boolean normalCase = true;
+		normalCase = (1 == source.getCommunityIds().size()) || // (normal case..)
+						((2 == source.getCommunityIds().size()) && source.getCommunityIds().contains(source.getOwnerId()));
+							// (test case..)
+		
 		//determine which source extractor to use
 		for ( HarvesterInterface harvester : harvesters)
 		{
@@ -476,7 +483,7 @@ public class HarvestController implements HarvestContext
 								DocumentPojo newDoc = enrichDocByDuplicating(doc);
 								// (Note this is compatible with the cloning case whose logic is below:
 								//  this document gets fully populated here then added to dup list (with dupFrom==null), with a set of slaves
-								//  with dupFrom==sourceKey#comm. When the dup list is traversed (after bypassing enrichment), the slaves are
+								//  with dupFrom==sourceKey. When the dup list is traversed (after bypassing enrichment), the slaves are
 								//	then created from this master)
 								if (null != newDoc) {
 									doc = newDoc;
@@ -497,15 +504,14 @@ public class HarvestController implements HarvestContext
 							String sIndex = new StringBuffer("doc_").append(sCommunityId.toString()).toString();
 							doc.setCommunityId(sCommunityId);								
 							doc.setIndex(sIndex);
-							if (1 == source.getCommunityIds().size()) { // Normal case
+							if (normalCase) { // Normal case (or test case)
 								doc.setSourceKey(source.getKey());
 							}
 							else { // Many communities for a single source, not a pleasant case
 								String sMasterDocSourceKey = null;
 								for (ObjectId id: source.getCommunityIds()) {
 									if (null == sMasterDocSourceKey) {
-										// Will process this document as normal, just update its source key
-										sMasterDocSourceKey = new StringBuffer(source.getKey()).append('#').append(id).toString(); 
+										sMasterDocSourceKey = (source.getKey());
 										doc.setSourceKey(sMasterDocSourceKey);
 									}
 									else { // Will defer these until after the master doc has been added to the database
@@ -514,7 +520,7 @@ public class HarvestController implements HarvestContext
 										// Will need these fields
 										cloneDoc.setIndex(new StringBuffer("doc_").append(id).toString());
 										cloneDoc.setCommunityId(id); 
-										cloneDoc.setSourceKey(source.getKey()); // (will be overwritten with the correct <key>#<id> composite later)
+										cloneDoc.setSourceKey(source.getKey()); 
 										cloneDoc.setSource(source.getTitle());
 										cloneDoc.setUrl(doc.getUrl());
 										if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
@@ -1020,8 +1026,7 @@ public class HarvestController implements HarvestContext
 
 	private static BasicDBObject getDocumentMetadataFromWhichToDuplicate(DocumentPojo docToReplace) {
 		BasicDBObject query = new BasicDBObject("url", docToReplace.getUrl());
-		query.put("sourceKey", new BasicDBObject("$regex", new StringBuffer().append('^').append(docToReplace.getDuplicateFrom()).append("(#|$)").toString()));
-		//(slight complication because searching for either <sourceKey> or <sourceKey>#<community>)
+		query.put("sourceKey", docToReplace.getDuplicateFrom());
 		BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
 
 		return dbo;
@@ -1068,7 +1073,7 @@ public class HarvestController implements HarvestContext
 
 		if (bClone) { // Cloned docs have special source key formats (and also need to update their community)
 			ObjectId docCommunity = docToReplace.getCommunityId();
-			newDoc.setSourceKey(new StringBuffer(docToReplace.getSourceKey()).append('#').append(docCommunity).toString());
+			newDoc.setSourceKey(docToReplace.getSourceKey());
 			newDoc.setCommunityId(docCommunity);
 			newDoc.setIndex(new StringBuffer("doc_").append(docCommunity).toString());			
 		}		
@@ -1164,15 +1169,15 @@ public class HarvestController implements HarvestContext
 				if (!AuthUtils.isAdmin(extractorInfo.getOwner().get_id())) {
 					throw new RuntimeException("Extractor share owner must be admin");
 				}//TESTED
-				// Check all source communities are in the share communities
-				int nMatches = source.getCommunityIds().size();
+				// Check >0 source communities are in the share communities
+				int nMatches = 0;
 				for (ShareCommunityPojo commObj: extractorInfo.getCommunities()) {
 					if (source.getCommunityIds().contains(commObj.get_id())) {
-						nMatches--;
-						if (0 == nMatches) break;
+						nMatches++;
+						break;
 					}
 				}
-				if (nMatches > 0) {
+				if (0 == nMatches) {
 					throw new RuntimeException("Extractor not shared across source communities");					
 				}//TESTED
 				

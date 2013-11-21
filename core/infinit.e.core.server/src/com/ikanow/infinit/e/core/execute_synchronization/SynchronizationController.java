@@ -19,7 +19,6 @@ import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Set;
 
 import org.apache.log4j.Logger;
 
@@ -75,7 +74,10 @@ public class SynchronizationController {
 		        SynchronizationManager syncManager = new SynchronizationManager();
 		        syncManager.setSources(sourceBatch);
 		        
-		        Set<String> dbCache = new HashSet<String>();
+		        //TODO (INF-2114): For now remove this ... can add it back once syncDB is fixed:
+		        // (means that syncSearch will now do a lookup by hand against MongoDB)
+		        //HashSet<String> dbCache = new HashSet<String>();
+		        HashSet<String> dbCache = null;
 		        
 		        logger.debug("Syncing: " + sourceBatch.size());
 		        

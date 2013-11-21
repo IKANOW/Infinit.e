@@ -161,9 +161,73 @@
 			 *
 			 * @returns a ByteArray containing the data to output
 			 */
+			
 			public function onGenerateExportData( filename:String, format:String ):ByteArray
 			{
-				return null;
+				// Has to be CSV
+
+				// Some preamble:
+				// number of matches: _context.getQuery_AllResults().getQuerySetSize()
+				// the query: _context.getLastQuery()
+				
+				var csv:String = new String();
+				var communityIds:String = "*";
+				var lastQuery:Object = _context.getLastQuery();
+				if (null != lastQuery.communityIds)
+				{
+					communityIds = "";
+					for each (var commId:String in lastQuery.communityIds) {
+						if (communityIds.length > 0)
+							communityIds+=",";
+						communityIds += commId;
+					}
+				}
+				lastQuery.communityIds = null;
+				
+				function csvEscape():String {
+					return escape(arguments[1]);					
+				}
+				function csvSanitize( toEscape: String ):String
+				{
+					if (null == toEscape)
+						return '""';
+					return '"' + toEscape.replace(/(["])/g,"\\$1").replace(/[\r\n]/g, ' ') + '"';
+				}
+				
+				csv += '#Total_hits=,' + _context.getQuery_AllResults().getQuerySetSize() + '\r\n';
+				csv += '#query=,/api/knowledge/document/query/'+communityIds+'?json=' + JSONEncoder.encode(lastQuery).replace(/([,&#\r\n])/g, csvEscape ) + '\r\n'; 
+				csv += '#"entity_name","entity_type","entity_dimension",query_coverage,query_significance,query_avg_frequency,doc_count,total_frequency,sentiment_count,sentiment_positive,sentiment_negative\r\n';
+				
+				for each (var ent:Object in this.currData_entities)
+				{
+					if ( (null == _regexFilter) || _regexFilter.test( ent.disambiguated_name + " ( " + ent.type + " ) " + ent.dimension ) )
+					{
+						csv += csvSanitize(ent.disambiguated_name); 						
+						csv += ',' + csvSanitize(ent.type);
+						csv += ',' + csvSanitize(ent.dimension);
+						csv += ',' + ent.queryCoverage;
+						csv += ',' + ent.datasetSignificance;
+						csv += ',' + ent.averageFreq;
+						csv += ',' + ent.doccount;
+						csv += ',' + ent.totalfrequency;
+						if (null != ent.sentimentCount)
+							csv += ',' + ent.sentimentCount;
+						else 
+							csv += ',0';
+						if (null != ent.positiveSentiment)
+							csv += ',' + ent.positiveSentiment;
+						else 
+							csv += ',0.0';
+						if (null != ent.negativeSentiment)
+							csv += ',' + ent.negativeSentiment;
+						else 
+							csv += ',0.0';
+						csv += '\r\n';							
+					}
+				}				
+				var ba:ByteArray = new ByteArray();
+				ba.writeUTFBytes( csv );
+				return ba;
 			}
 			
 			/**
@@ -414,7 +478,9 @@
 			
 			public function supportedExportFormats():ArrayCollection
 			{
-				return null;
+				var ac:ArrayCollection = new ArrayCollection();
+				ac.addItem( "csv" );
+				return ac;
 			}
 			
 			protected function addDocumentsToFilter( entName:String, significance:Number, freq:Number ):void

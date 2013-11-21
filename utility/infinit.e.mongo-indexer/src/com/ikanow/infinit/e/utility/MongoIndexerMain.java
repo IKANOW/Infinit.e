@@ -55,6 +55,7 @@ public class MongoIndexerMain {
 			allOps.addOption("r", "rebuild", false, "Rebuild the index before transferring");
 			allOps.addOption("v", "verify", false, "Verifies the document indexes all exist | resync the entity frequencies (INTERNAL ONLY)");
 			allOps.addOption("f", "features", false, "Updates features present in the queried documents (--doc only; INTERNAL ONLY)");
+			allOps.addOption("C", "chunks", true, "Loop over chunks, '--chunks all' for all chunks, '--chunks A,B,..' for specific chunks, '--chunks +A' for all chunks after A (currently -doc only)");
 	
 			CommandLine cliOpts = cliParser.parse(allOps, args);
 			
@@ -62,6 +63,7 @@ public class MongoIndexerMain {
 	
 			String configOverride = null;
 			String query = null;
+			String chunksDescription = null;
 			boolean bDelete = false;
 			boolean bRebuildIndex = false;
 			boolean bVerifyIndex = false;
@@ -109,10 +111,21 @@ public class MongoIndexerMain {
 					bVerifyIndex = true; // (ents only)					
 				}
 			}
-			if ((0 == args.length) || ((null == query)&&(0 == nLimit)&&!bVerifyIndex)) {
-				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--verify] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
+			if (cliOpts.hasOption("chunks")) {
+				if (bDelete) {
+					System.out.println("Can't specify --chunks in conjunction with --delete");
+					query = null; // exit in if clause below
+				}
+				else if ((nSkip != 0) || (nLimit != 0)) {
+					System.out.println("Can't specify --chunks in conjunction with --skip or --limit");					
+					query = null; // exit in if clause below
+				}
+				chunksDescription = (String) cliOpts.getOptionValue("chunks");
+			}
+			if ((0 == args.length) || ((null == query)&&(0 == nLimit)&&!bVerifyIndex&&(null==chunksDescription))) {
+				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--verify] [--query <query>] [--chunks all|<chunklist>|+<chunk>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
 				if (args.length > 0) {
-					System.out.println("(Note you must either specify a limit or a query - the query can be {} to get all records)");
+					System.out.println("(Note you must either specify a limit or a query or chunks - the query can be {} to get all records)");
 				}
 				System.exit(-1);
 			}
@@ -120,10 +133,10 @@ public class MongoIndexerMain {
 			// Invoke appropriate manager to perform processing
 			
 			if (cliOpts.hasOption("doc")) {
-				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, bUpdateFeatures, nSkip, nLimit);
+				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, bUpdateFeatures, nSkip, nLimit, chunksDescription);
 			}
 			else if (cliOpts.hasOption("assoc")||cliOpts.hasOption("association")) {
-				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);			
+				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit, chunksDescription);			
 			}
 			else if (cliOpts.hasOption("entity")) {
 				if (bVerifyIndex) {
@@ -131,7 +144,7 @@ public class MongoIndexerMain {
 					MongoEntitySyncFreq.syncFreq(dbDotColl[0], dbDotColl[1], configOverride);
 				}
 				else {
-					MongoEntityFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit);
+					MongoEntityFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit, chunksDescription);
 				}
 			}
 			else {

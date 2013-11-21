@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" creationComplete="hgroup1_creationCompleteHandler(event)">
+	<fx:Script>
+		<![CDATA[
+			import mx.events.FlexEvent;
+			
+			import spark.events.IndexChangeEvent;
+			[Bindable]
+			public var icon_label:String;
+			private var _icon_url:String;			
+			
+			public function get icon_url():String
+			{
+				if ( checkbox_provide.selected )
+					return textfield.text;
+				else
+					return dropdown.selectedItem.url;
+			}
+			
+			public function get icon_name():String
+			{
+				if ( checkbox_provide.selected )
+					return textfield.text;
+				else
+					return dropdown.selectedItem.name;
+			}
+			
+			protected function checkbox_provide_changeHandler(event:Event):void
+			{
+				if ( checkbox_provide.selected )
+				{
+					this.currentState = "provide";
+					image.source = this.icon_url;
+				}
+				else
+				{
+					this.currentState = "default";
+					image.source = this.icon_url;
+				}
+			}
+			
+			protected function textfield_focusOutHandler(event:FocusEvent):void
+			{
+				image.source = this.icon_url;
+			}
+			
+			protected function dropdown_changeHandler(event:IndexChangeEvent):void
+			{
+				image.source = this.icon_url;
+			}
+			
+			protected function textfield_enterHandler(event:FlexEvent):void
+			{
+				image.source = this.icon_url;
+			}
+			
+			protected function hgroup1_creationCompleteHandler(event:FlexEvent):void
+			{
+				image.source = this.icon_url;
+			}
+			
+			public function selectPreviousOption( url:String ):void
+			{
+				//try to find this url in our list, otherwise switch to provide mode and paste url string
+				for each ( var item:Object in dropdown.dataProvider )
+				{
+					if ( item.url == url )
+					{
+						dropdown.selectedItem = item;
+						image.source = this.icon_url;
+						return;
+					}
+				}
+				//if we are here we never found the item, switch to manual mode
+				checkbox_provide.selected = true;
+				this.currentState = "provide";
+				textfield.text = url;
+				image.source = this.icon_url;
+			}
+		]]>
+	</fx:Script>		
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:ArrayCollection id="icon_urls">
+			<fx:Object name="Blue Pin" url="http://maps.google.com/mapfiles/kml/pushpin/blue-pushpin.png" />
+			<fx:Object name="Green Pin" url="http://maps.google.com/mapfiles/kml/pushpin/grn-pushpin.png" />
+			<fx:Object name="Light Blue Pin" url="http://maps.google.com/mapfiles/kml/pushpin/ltblu-pushpin.png" />
+			<fx:Object name="Pink Pin" url="http://maps.google.com/mapfiles/kml/pushpin/pink-pushpin.png" />
+			<fx:Object name="Purple Pin" url="http://maps.google.com/mapfiles/kml/pushpin/purple-pushpin.png" />
+			<fx:Object name="Red Pin" url="http://maps.google.com/mapfiles/kml/pushpin/red-pushpin.png" />
+			<fx:Object name="White Pin" url="http://maps.google.com/mapfiles/kml/pushpin/wht-pushpin.png" />
+			<fx:Object name="Yellow Pin" url="http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png" />
+			<fx:Object name="Blue Paddle" url="http://maps.google.com/mapfiles/kml/paddle/blue-blank.png" />
+			<fx:Object name="Green Paddle" url="http://maps.google.com/mapfiles/kml/paddle/grn-blank.png" />
+			<fx:Object name="Light Blue Paddle" url="http://maps.google.com/mapfiles/kml/paddle/ltblu-blank.png" />
+			<fx:Object name="Pink Paddle" url="http://maps.google.com/mapfiles/kml/paddle/pink-blank.png" />
+			<fx:Object name="Purple Paddle" url="http://maps.google.com/mapfiles/kml/paddle/purple-blank.png" />
+			<fx:Object name="Red Paddle" url="http://maps.google.com/mapfiles/kml/paddle/red-blank.png" />
+			<fx:Object name="White Paddle" url="http://maps.google.com/mapfiles/kml/paddle/wht-blank.png" />
+			<fx:Object name="Yellow Paddle" url="http://maps.google.com/mapfiles/kml/paddle/ylw-blank.png" />
+		</s:ArrayCollection>
+	</fx:Declarations>
+	
+	<s:states>
+		<s:State name="default" />
+		<s:State name="provide" />
+	</s:states>
+	
+	<s:Label text="{icon_label}" width="110" />	
+	<s:DropDownList id="dropdown" width="100%" dataProvider="{icon_urls}" labelField="name"  includeIn="default" selectedIndex="0" change="dropdown_changeHandler(event)" />
+	<s:TextInput id="textfield" width="100%" text="" includeIn="provide" focusOut="textfield_focusOutHandler(event)" enter="textfield_enterHandler(event)" />
+	<s:CheckBox id="checkbox_provide" label="Provide" change="checkbox_provide_changeHandler(event)" toolTip="Switches entry to textbox, enter a url for a custom icon" />
+	<s:Image id="image" source="" width="20" height="20" />	
+</s:HGroup>

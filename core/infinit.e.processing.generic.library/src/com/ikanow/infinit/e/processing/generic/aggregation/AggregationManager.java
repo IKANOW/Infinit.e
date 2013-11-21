@@ -86,6 +86,8 @@ public class AggregationManager {
 			Set<String> intraDocStore = new HashSet<String>();
 			//(to avoid double-counting things like "obama/quote/blah1" and "obama/quote/blah2")
 			
+			Set<String> deletedEntities = null; // (need this to ensure associations are also deleted)
+			
 			if (null != doc.getEntities())
 			{
 				Iterator<EntityPojo> entIt = doc.getEntities().iterator();
@@ -94,19 +96,23 @@ public class AggregationManager {
 					
 					// Some QA checking:
 					if ((null == ent.getIndex()) || (null == ent.getDisambiguatedName()) || (null == ent.getType())
-							|| (null == ent.getDimension()))
+							|| (null == ent.getDimension()) ||  (ent.getIndex().length() > 250))
 					{
-						entIt.remove(); // malformed
+						if (null != ent.getIndex()) {
+							if (null == deletedEntities) {
+								deletedEntities = new HashSet<String>();
+							}
+							deletedEntities.add(ent.getIndex());
+						}//TESTED
+						
+						entIt.remove(); // malformed / Entities can't be >500B (ie 250 16b characters)
 						continue;
-					}
+					}//TESTED
+					
 					if (null == ent.getFrequency()) { // can recover
 						ent.setFrequency(1L);
 					}
 
-					// (Assume index not yet set, but that it's correct if so!)
-					if (null == ent.getIndex()) {
-						ent.setIndex(new StringBuffer(ent.getDisambiguatedName()).append('/').append(ent.getType()).toString());
-					}
 					Map<ObjectId, EntityFeaturePojo> entityInCommunity = _aggregatedEntities.get(ent.getIndex());
 					if (null == entityInCommunity) {
 						entityInCommunity = new HashMap<ObjectId, EntityFeaturePojo>();
@@ -140,89 +146,107 @@ public class AggregationManager {
 					}
 				}
 			}//TESTED
-			if (null != doc.getAssociations()) for (AssociationPojo evt: doc.getAssociations()) {
-				boolean bAlreadyCountedFreq = false;
-				
-				if ((null == evt.getEntity1_index()) && (null == evt.getEntity2_index())) {//skip this event if there is no ent1/en2
-					continue;
-				}
-				// Calc index (this is not remotely unique, of course, but good enough for now...):
-				String sEventFeatureIndex = AssociationAggregationUtils.getEventFeatureIndex(evt);
-				evt.setIndex(sEventFeatureIndex); //(temp save for applyAggregationToDocs below)
-				
-				// Use index:
-				Map<ObjectId, AssociationFeaturePojo> eventInCommunity = _aggregatedEvents.get(sEventFeatureIndex);
-				if (null == eventInCommunity) {
-					eventInCommunity = new HashMap<ObjectId, AssociationFeaturePojo>();
-					_aggregatedEvents.put(sEventFeatureIndex, eventInCommunity);
-					intraDocStore.add(sEventFeatureIndex);
-				}
-				else if (intraDocStore.contains(sEventFeatureIndex)) { 
-					bAlreadyCountedFreq = true;
-				}
-				else {
-					intraDocStore.add(sEventFeatureIndex);
-				}
-				ObjectId communityId = doc.getCommunityId();
-				if (null != communityId) {
-					AssociationFeaturePojo feature = eventInCommunity.get(communityId);
-					if (null == feature) {
-						feature = new AssociationFeaturePojo();
-						feature.setCommunityId(communityId);
-						feature.setIndex(sEventFeatureIndex);
-						feature.setEntity1_index(evt.getEntity1_index());
-						feature.setEntity2_index(evt.getEntity2_index());
-						feature.setVerb_category(evt.getVerb_category());
-						feature.setAssociation_type(evt.getAssociation_type());
-						feature.setGeo_index(evt.getGeo_index());
-						eventInCommunity.put(feature.getCommunityId(), feature);
+			if (null != doc.getAssociations()) {
+				Iterator<AssociationPojo> evtIt = doc.getAssociations().iterator();
+				while (evtIt.hasNext())  {	
+					AssociationPojo evt = evtIt.next();
+
+					if (null != deletedEntities) { // check we're not using these entities in our associations
+						if (null != evt.getEntity1_index() && deletedEntities.contains(evt.getEntity1_index())) {
+							evtIt.remove();
+							continue;
+						}//TESTED (cut and paste from tested code below)
+						if (null != evt.getEntity2_index() && deletedEntities.contains(evt.getEntity2_index())) {
+							evtIt.remove();
+							continue;
+						}//TESTED
+						if (null != evt.getGeo_index() && deletedEntities.contains(evt.getGeo_index())) {
+							evt.setGeo_index(null);
+						}//TESTED (trivial)
+						
+					}//TESTED
+					
+					boolean bAlreadyCountedFreq = false;					
+					if ((null == evt.getEntity1_index()) && (null == evt.getEntity2_index())) {//skip this event if there is no ent1/en2
+						continue;
 					}
-					if (!bAlreadyCountedFreq) {
-						feature.setDoccount(feature.getDoccount() + 1);
+					// Calc index (this is not remotely unique, of course, but good enough for now...):
+					String sEventFeatureIndex = AssociationAggregationUtils.getEventFeatureIndex(evt);
+					evt.setIndex(sEventFeatureIndex); //(temp save for applyAggregationToDocs below)
+					
+					// Use index:
+					Map<ObjectId, AssociationFeaturePojo> eventInCommunity = _aggregatedEvents.get(sEventFeatureIndex);
+					if (null == eventInCommunity) {
+						eventInCommunity = new HashMap<ObjectId, AssociationFeaturePojo>();
+						_aggregatedEvents.put(sEventFeatureIndex, eventInCommunity);
+						intraDocStore.add(sEventFeatureIndex);
 					}
-					if (null != evt.getEntity1_index()) {
-						feature.addEntity1(evt.getEntity1_index());
+					else if (intraDocStore.contains(sEventFeatureIndex)) { 
+						bAlreadyCountedFreq = true;
 					}
-					if (null != evt.getEntity2_index()) {
-						feature.addEntity2(evt.getEntity2_index());
+					else {
+						intraDocStore.add(sEventFeatureIndex);
 					}
-					if (null != evt.getVerb()) {
-						feature.addVerb(evt.getVerb());
-					}
-					if (null != evt.getEntity1()) { 
-						// Restrict length of entity string, in case it's a quotation
-						if (evt.getEntity1().length() > AssociationFeaturePojo.entity_MAXSIZE) {
-							int i = AssociationFeaturePojo.entity_MAXSIZE;
-							for (; i > AssociationFeaturePojo.entity_MAXSIZE - 10; --i) {
-								char c = evt.getEntity1().charAt(i);
-								if (c < 0x30) {
-									break;
-								}
-							}
-							feature.addEntity1(evt.getEntity1().substring(0, i+1));
+					ObjectId communityId = doc.getCommunityId();
+					if (null != communityId) {
+						AssociationFeaturePojo feature = eventInCommunity.get(communityId);
+						if (null == feature) {
+							feature = new AssociationFeaturePojo();
+							feature.setCommunityId(communityId);
+							feature.setIndex(sEventFeatureIndex);
+							feature.setEntity1_index(evt.getEntity1_index());
+							feature.setEntity2_index(evt.getEntity2_index());
+							feature.setVerb_category(evt.getVerb_category());
+							feature.setAssociation_type(evt.getAssociation_type());
+							feature.setGeo_index(evt.getGeo_index());
+							eventInCommunity.put(feature.getCommunityId(), feature);
 						}
-						else {
-							feature.addEntity1(evt.getEntity1());
-						}//TESTED (both clauses, 2.1.4.3a)
-					}
-					if (null != evt.getEntity2()) {
-						// Restrict length of entity string, in case it's a quotation
-						if (evt.getEntity2().length() > AssociationFeaturePojo.entity_MAXSIZE) {
-							int i = AssociationFeaturePojo.entity_MAXSIZE;
-							for (; i > AssociationFeaturePojo.entity_MAXSIZE - 10; --i) {
-								char c = evt.getEntity2().charAt(i);
-								if (c < 0x30) {
-									break;
-								}
-							}
-							feature.addEntity2(evt.getEntity2().substring(0, i+1));
+						if (!bAlreadyCountedFreq) {
+							feature.setDoccount(feature.getDoccount() + 1);
 						}
-						else {
-							feature.addEntity2(evt.getEntity2());
-						}//TESTED (both clauses, 2.1.4.3a)
+						if (null != evt.getEntity1_index()) {
+							feature.addEntity1(evt.getEntity1_index());
+						}
+						if (null != evt.getEntity2_index()) {
+							feature.addEntity2(evt.getEntity2_index());
+						}
+						if (null != evt.getVerb()) {
+							feature.addVerb(evt.getVerb());
+						}
+						if (null != evt.getEntity1()) { 
+							// Restrict length of entity string, in case it's a quotation
+							if (evt.getEntity1().length() > AssociationFeaturePojo.entity_MAXSIZE) {
+								int i = AssociationFeaturePojo.entity_MAXSIZE;
+								for (; i > AssociationFeaturePojo.entity_MAXSIZE - 10; --i) {
+									char c = evt.getEntity1().charAt(i);
+									if (c < 0x30) {
+										break;
+									}
+								}
+								feature.addEntity1(evt.getEntity1().substring(0, i+1));
+							}
+							else {
+								feature.addEntity1(evt.getEntity1());
+							}//TESTED (both clauses, 2.1.4.3a)
+						}
+						if (null != evt.getEntity2()) {
+							// Restrict length of entity string, in case it's a quotation
+							if (evt.getEntity2().length() > AssociationFeaturePojo.entity_MAXSIZE) {
+								int i = AssociationFeaturePojo.entity_MAXSIZE;
+								for (; i > AssociationFeaturePojo.entity_MAXSIZE - 10; --i) {
+									char c = evt.getEntity2().charAt(i);
+									if (c < 0x30) {
+										break;
+									}
+								}
+								feature.addEntity2(evt.getEntity2().substring(0, i+1));
+							}
+							else {
+								feature.addEntity2(evt.getEntity2());
+							}//TESTED (both clauses, 2.1.4.3a)
+						}
 					}
-				}
-				
+				}//(end loop over associations)				
 			}//TESTED
 		}
 		// 1b. Get aggregated entities and events from documents (removal)
@@ -315,19 +339,23 @@ public class AggregationManager {
 		nStartTime = System.currentTimeMillis();
 		for (Map<ObjectId, EntityFeaturePojo> entCommunity: _aggregatedEntities.values()) {
 			
-			for (Map.Entry<ObjectId, EntityFeaturePojo> entFeature: entCommunity.entrySet()) {				
-				boolean bSync = false;
-				if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
-					bSync = doScheduleCheck(Schedule.SYNC_INDEX, entFeature.getValue().getIndex(), entFeature.getValue().getDoccount(), 
-											entFeature.getValue().getDbSyncDoccount(), entFeature.getValue().getDbSyncTime());
+			for (Map.Entry<ObjectId, EntityFeaturePojo> entFeature: entCommunity.entrySet()) {
+				
+				try {				
+					boolean bSync = false;
+					if (!_bBackgroundAggregationEnabled) { // Otherwise this occurs in BackgroundAggregationManager thread
+						bSync = doScheduleCheck(Schedule.SYNC_INDEX, entFeature.getValue().getIndex(), entFeature.getValue().getDoccount(), 
+												entFeature.getValue().getDbSyncDoccount(), entFeature.getValue().getDbSyncTime());
+					}
+					else { // Just synchronize first-time entities
+						bSync = (null == entFeature.getValue().getDbSyncTime());
+					}//TESTED
+	
+					if (bSync) {
+						EntityAggregationUtils.synchronizeEntityFeature(entFeature.getValue(), entFeature.getKey());
+					}
 				}
-				else { // Just synchronize first-time entities
-					bSync = (null == entFeature.getValue().getDbSyncTime());
-				}//TESTED
-
-				if (bSync) {
-					EntityAggregationUtils.synchronizeEntityFeature(entFeature.getValue(), entFeature.getKey());
-				}
+				catch (Exception e) { } // Likely that es can't handle the characters in its _id (ie the index), just carry on
 			}
 		}
 		nEndTime = System.currentTimeMillis();

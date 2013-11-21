@@ -31,6 +31,9 @@ Infinit.e search engine REST API
 #
 		service tomcat6-interface-engine stop || :
 		
+		#Remove some work directory artfacts that have occasionally not been updated on restart
+		rm -rf /mnt/opt/tomcat-infinite/interface-engine/work/Catalina/		 
+		
 		#Legacy code: these no longer live in the webapps dir, need to delete any old generated directories...
 		rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.api.server*
 		rm -rf /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.web*
@@ -115,6 +118,9 @@ Infinit.e search engine REST API
 #
 # FINAL STEP FOR INSTALLS AND UPGRADES
 #
+	#Insert or update base widgets
+	sh /mnt/opt/infinite-home/db-scripts/insert_or_update_widgets.sh > /dev/null
+
 	# Create AppConstants.js file
 	sh /mnt/opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh
 	#(App constants file is copied to relevant locations by start code below)
@@ -129,7 +135,10 @@ Infinit.e search engine REST API
 
 %files
 %defattr(-,tomcat,tomcat)
+/mnt/opt/infinite-home/db-scripts/insert_or_update_widgets.sh
+
 %config %attr(755,root,root) /etc/init.d/tomcat6-interface-engine
+%config %attr(-,root,root) /etc/cron.d/tomcat6-interface-engine
 %dir /mnt/opt/tomcat-infinite/
 %config %attr(755,root,root) /mnt/opt/tomcat-infinite/tomcat6
 %dir /mnt/opt/tomcat-infinite/interface-engine

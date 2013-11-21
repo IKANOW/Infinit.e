@@ -35,6 +35,9 @@ PYTHON_CONFIG_FILE='/opt/infinite-home/config/python.cfg'
 AWSSECRET_FILE='/root/.awssecret'
 S3CFG_FILE='/root/.s3cfg'
 
+#(if this gets transferred over from windows machines then may have invalid line endings)
+dos2unix $PROPERTY_CONFIG_FILE
+
 ###########################################################################
 # Make sure the infinite.configuration.properties file are there before proceeding
 if [[ ! -f "$PROPERTY_CONFIG_FILE" ]]; then

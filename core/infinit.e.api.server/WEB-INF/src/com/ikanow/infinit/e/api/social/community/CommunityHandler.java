@@ -380,6 +380,7 @@ public class CommunityHandler
 				{
 					c.setParentId(new ObjectId(parentIdStr));
 					c.setParentName(parentName);
+					c = createParentTreeRecursion(c, false);
 				}
 				c.setIsPersonalCommunity(false);
 				c.setTags(getTagsFromString(tags));
@@ -1036,6 +1037,11 @@ public class CommunityHandler
 									PropertiesManager propManager = new PropertiesManager();
 									String rootUrl = propManager.getUrlRoot();
 									
+									if (null == rootUrl) {
+										rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite because an invite was required and root.url is not set up."));
+										return rp;
+									}
+									
 									String subject = "Invite to join infinit.e community: " + cp.getName();
 									String body = "You have been invited to join the community " + cp.getName() + 
 										"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
@@ -1054,7 +1060,7 @@ public class CommunityHandler
 									}
 									else
 									{
-										rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason."));
+										rp.setResponse(new ResponseObject("Invite Community",false,"The system was unable to email the invite for an unknown reason (eg an invite was required and the mail server is not setup)."));
 									}
 								}
 							}
@@ -1945,5 +1951,42 @@ public class CommunityHandler
 			}
 		}	
 		return communityIdStr;
-	}	
+	}		
+	
+	/**
+	 * Recursive helper function for createParentTreeForCommunity.  
+	 * 
+	 * NOTE: This function will always update intermediate nodes but 
+	 * will only update the community passed in if updateCommunity == true.
+	 * 
+	 * @param community
+	 * @param updateCommunity
+	 * @return
+	 */
+	public static CommunityPojo createParentTreeRecursion( CommunityPojo community, boolean updateCommunity )
+	{
+		//if we have a parentId but no parentTree, we go get our parent
+		//otherwise we are already done and can come back down (parentTree is already set or 
+		//we have no parent so would return an empty list anyways)
+		if ( community.getParentId() != null && community.getParentTree() == null )
+		{
+			//get next node and move up a level
+			CommunityPojo parent_community = CommunityPojo.fromDb(MongoDbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", community.getParentId())), CommunityPojo.class);
+			parent_community = createParentTreeRecursion(parent_community, true);
+			//now we have the parent_comm, add parentId to beginning of parentTree and update this comm
+			List<ObjectId> parentTree;
+			if ( parent_community.getParentTree() != null )
+				parentTree = new ArrayList<ObjectId>(parent_community.getParentTree());
+			else
+				parentTree = new ArrayList<ObjectId>();
+			parentTree.add(0, parent_community.getId());
+			community.setParentTree(parentTree);
+			if ( updateCommunity )
+			{
+				BasicDBObject update = new BasicDBObject("$set", new BasicDBObject("parentTree", parentTree));		
+				MongoDbManager.getSocial().getCommunity().update(new BasicDBObject("_id", community.getId()), update);
+			}			
+		}
+		return community;
+	}
 }

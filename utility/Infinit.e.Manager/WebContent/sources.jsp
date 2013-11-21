@@ -738,11 +738,22 @@ function clock()
 				return;
 			}
 			var pxPipelineStr = document.getElementById('InfinitIframe').contentWindow.getSource();
-			var pipelineObj = eval('(' + pxPipelineStr + ')');
-			var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
-			srcObj.processingPipeline = pipelineObj;
-			sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
-			
+			try {
+				if ('%' == pxPipelineStr.charAt(0)) {
+					pxPipelineStr = decodeURIComponent(pxPipelineStr);
+				}
+				var pipelineObj = eval('(' + pxPipelineStr + ')');
+				
+				var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+				srcObj.processingPipeline = pipelineObj;
+				sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+			}
+			catch (err) {
+				if (!confirm('Error reading GUI config - click OK to continue back to the source editor (WILL LOSE YOUR CHANGES)'))
+				{
+					return;
+				}
+			}			
 			$(sourceBuilder).css("width", "0%");
 			$(sourceBuilder).css("height", "0%");
 			$(sourceBuilder_overlay).hide();
@@ -1389,6 +1400,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 private void clearForm()
 {
 	shareid = "";
+	sourceid = "";
 	shareTitle = "";
 	shareMediaType = "null";
 	shareTags = "";

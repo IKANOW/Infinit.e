@@ -22,6 +22,8 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.TreeSet;
 
+import org.bson.types.ObjectId;
+
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
@@ -181,18 +183,19 @@ public class TestCode {
 //		toRemove.clear();
 //		query = new BasicDBObject("extractType", "Feed");
 //		// A useful source known to work during V0S1 testing:
-//		//query = new BasicDBObject("key", "http.www.stjude.org.stjude.rss.medical_science_news_rss.xml");
-//		feedSource = SourcePojo.fromDb(DbManager.getConfig().getSource().findOne(query), SourcePojo.class);
-//		feedSource.addToCommunityIDs("test_dup1a");
-//		feedSource.addToCommunityIDs("test_dup1b");
-//		System.out.println("DUP1 feedSource=" + feedSource.getKey() + " communities=" + new com.google.gson.Gson().toJson(feedSource.getCommunityIDs()));
+//		query = new BasicDBObject("key", "http.www.stjude.org.stjude.rss.medical_science_news_rss.xml");
+//		feedSource = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
+//		feedSource.addToCommunityIds(new ObjectId(0 ,0, 0));
+//		feedSource.addToCommunityIds(new ObjectId(0 ,0, 1));
+//		System.out.println("DUP1 feedSource=" + feedSource.getKey() + " communities=" + new com.google.gson.Gson().toJson(feedSource.getCommunityIds()));
 //		harvester.harvestSource(feedSource, toAdd, toUpdate, toRemove);
 //
 //		// Check for duplicate sources...
 //		System.out.println("DUP1");
-//		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(toAdd));
+//		//System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(toAdd));
 //		for (DocumentPojo showContent: toAdd) {
-//			System.out.println("DUP1 text for " + showContent.getUrl() + ":" + showContent.getFullText().substring(0, 64));			
+//			//System.out.println("DUP1 text for " + showContent.getUrl() + ":" + showContent.getFullText().substring(0, 64));			
+//			System.out.println("DUP1 text for " + showContent.getUrl() + ":" + showContent.getCommunityId().toString() + "/" + showContent.getSourceKey() + "/" + showContent.getFullText().length());			
 //		}
 		
 		// 6. Test duplication across sources
@@ -217,81 +220,81 @@ public class TestCode {
 		
 		// 7. The UAH now allows arbitrary scripts to be run vs the content ... to generate metadata - the
 		//    SAH then can run arbitrary scripts to run vs the metadata to generate entities and associations (phew!)
-		query = new BasicDBObject("extractType", "Feed");
-		// A useful source known to work during V0S1 testing:
-		//query = new BasicDBObject("key", "http.www.stjude.org.stjude.rss.medical_science_news_rss.xml");
-		feedSource = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
-		// Add markup to feed source:
-		UnstructuredAnalysisConfigPojo uah = new UnstructuredAnalysisConfigPojo();
-		uah.setSimpleTextCleanser(new LinkedList<SimpleTextCleanserPojo>());
-		SimpleTextCleanserPojo textCleanse1 = new SimpleTextCleanserPojo();
-		textCleanse1.setField("description");
-		textCleanse1.setScript("[aeiou]");
-		textCleanse1.setReplacement("XXX");
-		uah.getSimpleTextCleanser().add(textCleanse1);
-		SimpleTextCleanserPojo textCleanse2 = new SimpleTextCleanserPojo();
-		textCleanse2.setField("title");
-		textCleanse2.setScript("[aeiou]");
-		textCleanse2.setReplacement("YYY");
-		uah.getSimpleTextCleanser().add(textCleanse2);
-		SimpleTextCleanserPojo textCleanse3 = new SimpleTextCleanserPojo();
-		textCleanse3.setField("fulltext");
-		textCleanse3.setScript("[aeiou]");
-		textCleanse3.setReplacement("ATCPSQZ");
-		uah.getSimpleTextCleanser().add(textCleanse3);
-		uah.AddMetaField("TEST1", Context.All, "var a = ['alex']; a;", "javascript");
-		uah.AddMetaField("TEST2", Context.All, "var a = { 'test': 'alex' }; a;", "javascript");
-		uah.AddMetaField("TEST3", Context.All, "var a = [ { 'test': 'alex' }, 'chris' ]; a;", "javascript");
-		uah.AddMetaField("TEST4", Context.All, "var a = [ { 'test': { 's1': 'alex', 's2':['chris','craig'] } }, [ 'chris', 'alex' ] ]; a;", "javascript");
-		uah.AddMetaField("TEST5", Context.All, "var a = [ { 'test': { 's1': 'alex', 's2':['chris','craig'] } }, [ 'chris', 'alex' ] ]; null;", "javascript");
-		uah.AddMetaField("TEST6", Context.All, "if (-1 == text.indexOf('ATCPSQZ')) true; else false; ", "javascript");
-		feedSource.setUnstructuredAnalysisConfig(uah);
-		// Run harvester:
-		toAdd.clear();
-		toUpdate.clear();
-		toRemove.clear();
-		harvester.harvestSource(feedSource, toAdd, toUpdate, toRemove);
-		// Check results:
-		if (toAdd.size() > 0) {
-			DocumentPojo doc = toAdd.get(0);
-			// Check text cleansing:
-			if (!doc.getDescription().contains("XXX")) {
-				System.out.println("UAH: ******** FAIL: title not subbed: " + doc.getTitle());				
-			}
-			if (!doc.getTitle().contains("YYY")) {
-				System.out.println("UAH: ******** FAIL: title not subbed: " + doc.getTitle());				
-			}
-			Object[] fullTextSubTest = doc.getMetadata().get("TEST6");
-			if ((null != fullTextSubTest) && (1 == fullTextSubTest.length)) {
-				Boolean bFullTextSubTest = (Boolean)fullTextSubTest[0];
-				if ((null == bFullTextSubTest) || (!bFullTextSubTest)) {
-					System.out.println("UAH: ******** FAIL: full text not subbed (or scripts not working) 1");									
-				}
-			}
-			else {
-				System.out.println("UAH: ******** FAIL: full text not subbed (or scripts not working) 2");				
-			}
-			// Check fields
-			String test1 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST1"));
-			System.out.println("UAH TEST1: " + test1);
-			if (!test1.equals("[\"alex\"]")) System.out.println("UAH: ******** FAIL: TEST1");
-			String test2 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST2"));
-			System.out.println("UAH TEST2: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST2")));
-			if (!test2.equals("[{\"test\":\"alex\"}]")) System.out.println("UAH: ******** FAIL: TEST2");
-			String test3 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST3"));
-			System.out.println("UAH TEST3: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST3")));
-			if (!test3.equals("[{\"test\":\"alex\"},\"chris\"]")) System.out.println("UAH: ******** FAIL: TEST3");
-			String test4 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST4"));
-			System.out.println("UAH TEST4: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST4")));
-			if (!test4.equals("[{\"test\":{\"s2\":[\"chris\",\"craig\"],\"s1\":\"alex\"}},[\"chris\",\"alex\"]]")) System.out.println("UAH: ******** FAIL: TEST4");
-			if (null != doc.getMetadata().get("TEST5")) {
-				System.out.println("UAH: ******** FAIL: TEST5 should not be present");								
-			}
-			//(test6 tested above)
-		}
-		else {
-			System.out.println("UAH: ******** FAIL: no documents to check");
-		}
-		System.out.println("UAH: (all tests completed)");
+//		query = new BasicDBObject("extractType", "Feed");
+//		// A useful source known to work during V0S1 testing:
+//		//query = new BasicDBObject("key", "http.www.stjude.org.stjude.rss.medical_science_news_rss.xml");
+//		feedSource = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
+//		// Add markup to feed source:
+//		UnstructuredAnalysisConfigPojo uah = new UnstructuredAnalysisConfigPojo();
+//		uah.setSimpleTextCleanser(new LinkedList<SimpleTextCleanserPojo>());
+//		SimpleTextCleanserPojo textCleanse1 = new SimpleTextCleanserPojo();
+//		textCleanse1.setField("description");
+//		textCleanse1.setScript("[aeiou]");
+//		textCleanse1.setReplacement("XXX");
+//		uah.getSimpleTextCleanser().add(textCleanse1);
+//		SimpleTextCleanserPojo textCleanse2 = new SimpleTextCleanserPojo();
+//		textCleanse2.setField("title");
+//		textCleanse2.setScript("[aeiou]");
+//		textCleanse2.setReplacement("YYY");
+//		uah.getSimpleTextCleanser().add(textCleanse2);
+//		SimpleTextCleanserPojo textCleanse3 = new SimpleTextCleanserPojo();
+//		textCleanse3.setField("fulltext");
+//		textCleanse3.setScript("[aeiou]");
+//		textCleanse3.setReplacement("ATCPSQZ");
+//		uah.getSimpleTextCleanser().add(textCleanse3);
+//		uah.AddMetaField("TEST1", Context.All, "var a = ['alex']; a;", "javascript");
+//		uah.AddMetaField("TEST2", Context.All, "var a = { 'test': 'alex' }; a;", "javascript");
+//		uah.AddMetaField("TEST3", Context.All, "var a = [ { 'test': 'alex' }, 'chris' ]; a;", "javascript");
+//		uah.AddMetaField("TEST4", Context.All, "var a = [ { 'test': { 's1': 'alex', 's2':['chris','craig'] } }, [ 'chris', 'alex' ] ]; a;", "javascript");
+//		uah.AddMetaField("TEST5", Context.All, "var a = [ { 'test': { 's1': 'alex', 's2':['chris','craig'] } }, [ 'chris', 'alex' ] ]; null;", "javascript");
+//		uah.AddMetaField("TEST6", Context.All, "if (-1 == text.indexOf('ATCPSQZ')) true; else false; ", "javascript");
+//		feedSource.setUnstructuredAnalysisConfig(uah);
+//		// Run harvester:
+//		toAdd.clear();
+//		toUpdate.clear();
+//		toRemove.clear();
+//		harvester.harvestSource(feedSource, toAdd, toUpdate, toRemove);
+//		// Check results:
+//		if (toAdd.size() > 0) {
+//			DocumentPojo doc = toAdd.get(0);
+//			// Check text cleansing:
+//			if (!doc.getDescription().contains("XXX")) {
+//				System.out.println("UAH: ******** FAIL: title not subbed: " + doc.getTitle());				
+//			}
+//			if (!doc.getTitle().contains("YYY")) {
+//				System.out.println("UAH: ******** FAIL: title not subbed: " + doc.getTitle());				
+//			}
+//			Object[] fullTextSubTest = doc.getMetadata().get("TEST6");
+//			if ((null != fullTextSubTest) && (1 == fullTextSubTest.length)) {
+//				Boolean bFullTextSubTest = (Boolean)fullTextSubTest[0];
+//				if ((null == bFullTextSubTest) || (!bFullTextSubTest)) {
+//					System.out.println("UAH: ******** FAIL: full text not subbed (or scripts not working) 1");									
+//				}
+//			}
+//			else {
+//				System.out.println("UAH: ******** FAIL: full text not subbed (or scripts not working) 2");				
+//			}
+//			// Check fields
+//			String test1 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST1"));
+//			System.out.println("UAH TEST1: " + test1);
+//			if (!test1.equals("[\"alex\"]")) System.out.println("UAH: ******** FAIL: TEST1");
+//			String test2 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST2"));
+//			System.out.println("UAH TEST2: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST2")));
+//			if (!test2.equals("[{\"test\":\"alex\"}]")) System.out.println("UAH: ******** FAIL: TEST2");
+//			String test3 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST3"));
+//			System.out.println("UAH TEST3: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST3")));
+//			if (!test3.equals("[{\"test\":\"alex\"},\"chris\"]")) System.out.println("UAH: ******** FAIL: TEST3");
+//			String test4 = new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST4"));
+//			System.out.println("UAH TEST4: " + new com.google.gson.Gson().toJson(doc.getMetadata().get("TEST4")));
+//			if (!test4.equals("[{\"test\":{\"s2\":[\"chris\",\"craig\"],\"s1\":\"alex\"}},[\"chris\",\"alex\"]]")) System.out.println("UAH: ******** FAIL: TEST4");
+//			if (null != doc.getMetadata().get("TEST5")) {
+//				System.out.println("UAH: ******** FAIL: TEST5 should not be present");								
+//			}
+//			//(test6 tested above)
+//		}
+//		else {
+//			System.out.println("UAH: ******** FAIL: no documents to check");
+//		}
+//		System.out.println("UAH: (all tests completed)");
 	}
 }
