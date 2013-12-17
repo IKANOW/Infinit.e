@@ -277,8 +277,12 @@ public class EntityAggregationUtils {
 		DBCollection entityFeatureDb = DbManager.getFeature().getEntity();
 		
 		// NOTE: Important that feeds update occurs before synchronization, since the sync "corrupts" the entity
-		
-		if (_diagnosticMode || (null != entityFeature.getDbSyncTime())) { // Else this is a new feature so don't need to update the feature DB, only the index
+				
+		if (_diagnosticMode || (null != entityFeature.getDbSyncTime()) || (null != entityFeature.getDb_sync_prio())) 
+		{ 
+			// Else this is a new feature so don't need to update the feature DB, only the index (if db_sync_prio null then have to update to avoid b/g aggergation loop)
+			// (note that db_sync_prio will in practice not be set when this is a new feature because it will have same sync_doccount as doc_count)
+			
 			long nCurrTime = System.currentTimeMillis();
 			//(query from top of the function, basically lookup on gaz_index)
 			BasicDBObject update2 = new BasicDBObject();
@@ -291,7 +295,12 @@ public class EntityAggregationUtils {
 			query.put(EntityFeaturePojo.communityId_, communityId);
 	
 			if (_diagnosticMode) {
-				System.out.println("EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());				
+				if ((null != entityFeature.getDbSyncTime()) || (null != entityFeature.getDb_sync_prio())) {
+					System.out.println("EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());
+				}
+				else {
+					System.out.println("(WOULD NOT RUN) EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());					
+				}
 			}
 			else {
 				entityFeatureDb.update(query, update, false, true);

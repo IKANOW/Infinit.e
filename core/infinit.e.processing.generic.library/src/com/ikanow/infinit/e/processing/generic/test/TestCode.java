@@ -19,6 +19,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.LinkedList;
 
+import org.bson.types.ObjectId;
+
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -55,19 +57,24 @@ public class TestCode {
 		LinkedList<DocumentPojo> toAdd_feed = new LinkedList<DocumentPojo>();
 		LinkedList<DocumentPojo> toUpdate_feed = new LinkedList<DocumentPojo>();
 		LinkedList<DocumentPojo> toDelete_feed = new LinkedList<DocumentPojo>();
+		// File type:
 		BasicDBObject query = new BasicDBObject("extractType", "Feed");
 		// A useful source known to work during V0S1 testing:
-		//BasicDBObject query = new BasicDBObject("key", "http.www.stjude.org.stjude.rss.medical_science_news_rss.xml");
+		query.put("key", "arstechnica.com.tech-policy.2012.10.last-android-vendor-f.147.4.");
 		
 		SourcePojo feedSource = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
 		hc.harvestSource(feedSource, toAdd_feed, toUpdate_feed, toDelete_feed);
-		System.out.println("############# Retrieved sample feed documents");
+		System.out.println("############# Retrieved sample feed documents: " + toAdd_feed.size() + " from " + feedSource.getUrl());
 		
 		// 1] Test the store and index manager by itself:
-		
 		StoreAndIndexManager.setDiagnosticMode(true);
-
+		
 //		// Test all public calls
+		//1.1] (resize DB)
+//		StoreAndIndexManager storeManager = new StoreAndIndexManager();
+//		storeManager.resizeDB(7365793L);
+//		System.exit(0);
+		
 //		StoreAndIndexManager storeManager = new StoreAndIndexManager();
 //		storeManager.addToDatastore(toAdd_feed, true);
 //		// (addToSearch called from addToDatastore so not duplicated here)
@@ -100,7 +107,6 @@ public class TestCode {
 //		System.out.println("############# ReRetrieved sample feed documents");
 
 		// 2.1] Logic:
-		
 		AggregationManager.setDiagnosticMode(true);
 		GenericProcessingController pxControl_feed = new GenericProcessingController(); 
 		// No need to do this, thoroughly tested during beta (and a bit slow)
@@ -113,24 +119,31 @@ public class TestCode {
 //		pxControl_feed.processDocuments(InfiniteEnums.FEEDS, toAdd_feed, toUpdate_feed, toDelete_feed); // (add, update, delete)
 //		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(toAdd_feed));
 		// 2.1.2] Updating:
-//		toUpdate_feed.add(toAdd_feed.get(0));
-//		pxControl_feed.processDocuments(InfiniteEnums.FEEDS, toAdd_feed, toUpdate_feed, toDelete_feed); // (add, update, delete)
+		DocumentPojo docToUpdate1 = toAdd_feed.get(0);
+		DocumentPojo docToUpdate2 = toAdd_feed.get(1);
+		// Couple of options: 
+		docToUpdate1.setId(null); // (should be unnecessary, _id shouldn't have been set)
+		docToUpdate2.setId(null); 
+		docToUpdate2.setUpdateId(new ObjectId("5277fec1256f16a6d3def633")); // (Doesn't matter what it is, just check the diagnostic from StoreAndIndexManager.removeFromSearch matches)
+		toUpdate_feed.add(docToUpdate1);
+		toUpdate_feed.add(docToUpdate2);
+		pxControl_feed.processDocuments(InfiniteEnums.FEEDS, toAdd_feed, toUpdate_feed, toDelete_feed); // (add, update, delete)
 		// 2.1.3] Deleting some docs, adding others
 //		toDelete_feed.add(toAdd_feed.pop());
 //		pxControl_feed.processDocuments(InfiniteEnums.FEEDS, toAdd_feed, toUpdate_feed, toDelete_feed); // (add, update, delete)
 		// 2.1.4] More logic:
-		DocumentPojo doc1 = null;
-		for (DocumentPojo doc: toAdd_feed) { 
-			if ((null != doc.getEntities()) && (doc.getEntities().size() > 2)) {
-				if ((null != doc.getAssociations()) && (doc.getAssociations().size() > 2)) {
-					doc1 = doc;
-					break;
-				}				
-			}
-		}
-		if (null == doc1) {
-			System.out.println("!!!!!!!!!!!!!!!!! FAILED TO FIND DOC FOR AGGREGATION LOGIC TEST");
-		}
+//		DocumentPojo doc1 = null;
+//		for (DocumentPojo doc: toAdd_feed) { 
+//			if ((null != doc.getEntities()) && (doc.getEntities().size() > 2)) {
+//				if ((null != doc.getAssociations()) && (doc.getAssociations().size() > 2)) {
+//					doc1 = doc;
+//					break;
+//				}				
+//			}
+//		}
+//		if (null == doc1) {
+//			System.out.println("!!!!!!!!!!!!!!!!! FAILED TO FIND DOC FOR AGGREGATION LOGIC TEST");
+//		}
 		// 2.1.4.1] Only adding, 1 new entity, 1 old entity with new alias, 1 new event, 1 old event with new verb
 //		doc1.getEntities().get(0).setDisambiguatedName("TestingTesting123");
 //		doc1.getEntities().get(0).setIndex("testingtesting123/person");
@@ -149,7 +162,7 @@ public class TestCode {
 //		doc1.getAssociations().get(0).setEntity1(sb.toString());
 //		doc1.getAssociations().get(1).setEntity2(sb.toString());
 		// 2.1.4.3b] Check that large number of association fields works
-		AssociationPojo assoc3 = doc1.getAssociations().get(1);
+//		AssociationPojo assoc3 = doc1.getAssociations().get(1);
 //		for (int i = 0; i < 524; ++i) {
 //			AssociationPojo newAssoc = AssociationPojo.fromDb(assoc3.toDb(), AssociationPojo.class); //(just a dumb clone)
 //			newAssoc.setEntity1("test1_" + i);
@@ -159,7 +172,7 @@ public class TestCode {
 //		toAdd_feed.clear();
 //		toAdd_feed.add(doc1);
 //		pxControl_feed.processDocuments(InfiniteEnums.FEEDS, toAdd_feed, toUpdate_feed, toDelete_feed); // (add, update, delete)
-		System.out.println("############# Tested GenericProcessingController calls, feed");
+//		System.out.println("############# Tested GenericProcessingController calls, feed");
 	}
 
 }

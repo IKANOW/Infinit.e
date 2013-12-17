@@ -86,8 +86,8 @@ public class DocumentHandler
 				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
 			BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
 
-			if ((null == dbo) || ((null != dbo.get(DocumentPojo.sourceKey_)) && 
-									dbo.getString(DocumentPojo.sourceKey_).startsWith("?DEL?")))
+			if ((null == dbo) || 
+					((null != dbo.get(DocumentPojo.url_)) &&  dbo.getString(DocumentPojo.url_).startsWith("?DEL?")))
 			{
 				if (null != id) { // this might be the update id...					
 					query = new BasicDBObject(DocumentPojo.updateId_, id);

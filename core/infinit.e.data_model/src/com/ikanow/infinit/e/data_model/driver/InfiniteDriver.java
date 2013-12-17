@@ -70,6 +70,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
+import com.ikanow.infinit.e.data_model.utils.TrustManagerManipulator;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;
@@ -1539,11 +1540,18 @@ public class InfiniteDriver
 		}
 	}
 
-
 	private String sendPostRequest(String urlAddress, String data) throws MalformedURLException, IOException
+	{
+		return sendPostRequest(urlAddress, data, 0);
+	}
+
+	private String sendPostRequest(String urlAddress, String data, int redirects) throws MalformedURLException, IOException
 	{	
 		String result = "";
 
+		if (urlAddress.startsWith("https:")) {
+			TrustManagerManipulator.allowAllSSL();
+		}
 		URLConnection urlConnection = new URL(urlAddress).openConnection();
 
 		if ( cookie != null )
@@ -1563,6 +1571,24 @@ public class InfiniteDriver
 
 		os.write(b);
 
+		int status = ((HttpURLConnection)urlConnection).getResponseCode();
+		// normally, 3xx is redirect
+		if (status != HttpURLConnection.HTTP_OK)
+		{
+			if (status == HttpURLConnection.HTTP_MOVED_TEMP
+				|| status == HttpURLConnection.HTTP_MOVED_PERM
+					|| status == HttpURLConnection.HTTP_SEE_OTHER)
+			{
+				if (redirects <= 5) {
+					String newUrlAddress = ((HttpURLConnection)urlConnection).getHeaderField("Location");
+					if (null != newUrlAddress) {
+						return sendPostRequest(newUrlAddress, data, redirects + 1);
+					}
+				}
+				//(else carry on, will exception out or something below)
+			}
+		}//TESTED
+		
 		// Receive results back from API
 
 		InputStream inStream = urlConnection.getInputStream();
@@ -1590,9 +1616,17 @@ public class InfiniteDriver
 	}
 	
 	
-
 	public String sendGetRequest(String urlAddress) throws Exception
 	{
+		return sendGetRequest(urlAddress, 0);
+	}
+
+	public String sendGetRequest(String urlAddress, int redirects) throws Exception
+	{
+		if (urlAddress.startsWith("https:")) {
+			TrustManagerManipulator.allowAllSSL();
+		}
+		
 		URL url = new URL(urlAddress);
 		URLConnection urlConnection = url.openConnection();
 		if ( cookie != null )
@@ -1602,6 +1636,24 @@ public class InfiniteDriver
 			
 		((HttpURLConnection)urlConnection).setRequestMethod("GET");
 
+		int status = ((HttpURLConnection)urlConnection).getResponseCode();
+		// normally, 3xx is redirect
+		if (status != HttpURLConnection.HTTP_OK)
+		{
+			if (status == HttpURLConnection.HTTP_MOVED_TEMP
+				|| status == HttpURLConnection.HTTP_MOVED_PERM
+					|| status == HttpURLConnection.HTTP_SEE_OTHER)
+			{
+				if (redirects <= 5) {
+					String newUrlAddress = ((HttpURLConnection)urlConnection).getHeaderField("Location");
+					if (null != newUrlAddress) {
+						return sendGetRequest(newUrlAddress, redirects + 1);
+					}
+				}
+				//(else carry on, will exception out or something below)
+			}
+		}//TESTED
+		
 		//read back result
 		BufferedReader inStream = new BufferedReader(new InputStreamReader(urlConnection.getInputStream()));
 		StringBuilder strBuilder = new StringBuilder();

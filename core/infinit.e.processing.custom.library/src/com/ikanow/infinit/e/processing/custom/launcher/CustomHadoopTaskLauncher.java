@@ -367,6 +367,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 
 				} // (end if too many source keys across the communities)
 			}//(end if need to break source keys down into communities)
+			oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
 			query = oldQueryObj.toString();
 		}
 		else

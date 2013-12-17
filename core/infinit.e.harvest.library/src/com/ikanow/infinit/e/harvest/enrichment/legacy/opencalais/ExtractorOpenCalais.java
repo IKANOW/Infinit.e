@@ -51,6 +51,7 @@ import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.Globals.Identity;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
@@ -378,8 +379,11 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	}
 
 	@Override
-	public void extractEntitiesAndText(DocumentPojo partialDoc) {
-		//cannot extract from url, not implemented
+	public void extractEntitiesAndText(DocumentPojo partialDoc)
+			throws ExtractorDailyLimitExceededException,
+			ExtractorDocumentLevelException 
+	{
+		throw new RuntimeException("You must have a textEngine or text object in front of this featureEngine.");
 	}
 
 	/**

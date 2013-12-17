@@ -37,7 +37,7 @@ db.runCommand( { shardcollection : "feature.association", key : {index: 1} } );
 db.runCommand( { enablesharding : "doc_content" } );
 db.runCommand( { shardcollection : "doc_content.gzip_content", key : {sourceKey:1, url:1} } );
 db.runCommand( { enablesharding : "doc_metadata" } );
-db.runCommand( { shardcollection : "doc_metadata.metadata", key : {_id :1} } );
+db.runCommand( { shardcollection : "doc_metadata.metadata", key : {sourceKey:1, _id :1} } );
 exit
 EOF
 

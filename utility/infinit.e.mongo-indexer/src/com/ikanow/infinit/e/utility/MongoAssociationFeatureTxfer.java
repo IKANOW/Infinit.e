@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.utility;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -42,7 +41,6 @@ import com.ikanow.infinit.e.processing.generic.aggregation.AssociationAggregatio
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 
 public class MongoAssociationFeatureTxfer 
@@ -156,39 +154,29 @@ public class MongoAssociationFeatureTxfer
 		
 // Now query the DB:
 		
-		// Now apply chunk logic
-		if (null != chunk) {
-			if (null == query) {
-				query = new BasicDBObject();			
-			}
-			for (String chunkField: chunk.keySet()) {				
-				Object currQueryField = query.get(chunkField);
-				if (null == currQueryField) { //easy...
-					query.put(chunkField, chunk.get(chunkField));
-				}
-				else { // bit more complicated...
-					if (currQueryField instanceof DBObject) { // both have modifiers - this is guaranteed for chunks
-						((DBObject) currQueryField).putAll((DBObject) chunk.get(chunkField));
-					}//TESTED
-					else { // worst case, use $and
-						query.put(DbManager.and_, Arrays.asList(
-								new BasicDBObject(chunkField, query.get(chunkField)),
-								new BasicDBObject(chunkField, chunk.get(chunkField))));
-					}//TESTED
-				}//TESTED (both cases)
-			}
-		}//TESTED
-		
 		DBCursor dbc = null;
-		dbc = eventFeatureDB.find(query).skip(nSkip).limit(nLimit); 
-		int nCount = dbc.count() - nSkip;
-		if (nCount < 0) nCount = 0;
-		System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
-		if (0 == nCount) { // Nothing to do...
-			return;
+		dbc = eventFeatureDB.find(query);
+		if (null != chunk) {
+			if (chunk.containsField(DbManager.min_)) {
+				dbc = dbc.addSpecial(DbManager.min_, chunk.get(DbManager.min_));
+			}
+			if (chunk.containsField(DbManager.max_)) {
+				dbc = dbc.addSpecial(DbManager.max_, chunk.get(DbManager.max_));
+			}
 		}
+		dbc = dbc.skip(nSkip).limit(nLimit).batchSize(1000);
+		if (null == chunk) {
+			int nCount = dbc.count() - nSkip;
+			if (nCount < 0) nCount = 0;
+			System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
+			if (0 == nCount) { // Nothing to do...
+				return;
+			}			
+		}		
 		
 		List<AssociationFeaturePojo> events = new LinkedList<AssociationFeaturePojo>();
+		
+		int nSynced = 0;
 		
 		// Loop over array and invoke the cleansing function for each one
 		while ( dbc.hasNext() )
@@ -218,6 +206,7 @@ public class MongoAssociationFeatureTxfer
 			}
 			// Bulk add prep
 			events.add(evt);
+			nSynced++;
 					
 			if ( events.size() > 1000 )
 			{
@@ -229,7 +218,10 @@ public class MongoAssociationFeatureTxfer
 		
 		//write whatevers left
 		elasticManager.bulkAddDocuments(IndexManager.mapListToIndex(events, AssociationFeaturePojo.listType(), new AssociationFeaturePojoIndexMap()), "_id", null,true);
-			
+		
+		if (null != chunk) {
+			System.out.println("Found " + nSynced + " records to sync in chunk");
+		}				
 	}
 	//___________________________________________________________________________________________________
 	

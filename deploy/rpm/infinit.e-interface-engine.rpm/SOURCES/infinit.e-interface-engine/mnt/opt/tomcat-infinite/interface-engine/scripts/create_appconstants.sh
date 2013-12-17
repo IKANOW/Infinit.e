@@ -63,7 +63,7 @@ else
 	sed -i "s|.*app.saas=true.*|//\0|" $CONSTANTS_CONF_LOCATION
 fi
 # If no end point specified then default it to current location:
-sed -i "s|\"END_POINT_URL\"|'http://'+document.location.hostname+':'+(document.location.port==''?80:document.location.port)+'/api/'|" $CONSTANTS_CONF_LOCATION
+sed -i "s|\"END_POINT_URL\"|document.location.protocol+'//'+document.location.hostname+':'+(document.location.port==''?(document.location.protocol=='https:'?443:80):document.location.port)+'/api/'|" $CONSTANTS_CONF_LOCATION
 
 if [ "$EXTERNAL_SEARCH_NAME" = "" ]; then
 	EXTERNAL_SEARCH_NAME="google" #(default)
@@ -84,13 +84,14 @@ sed -i "s|LOGO_URL|$LOGO_URL|" $CONSTANTS_CONF_LOCATION
 #(enterprise constants)
 #(case app server)
 if [ "$CASE_MANAGER_API_URL" = "local" ]; then
-	sed -i "s|\"CASE_MANAGER_API_URL\"|'http://'+document.location.hostname+':'+(document.location.port==''?80:document.location.port)+'/caseserver/'|" $CONSTANTS_CONF_LOCATION
+	sed -i "s|\"CASE_MANAGER_API_URL\"|document.location.protocol+'//'+document.location.hostname+':'+(document.location.port==''?(document.location.protocol=='https:'?443:80):document.location.port)+'/caseserver/'|" $CONSTANTS_CONF_LOCATION
 else
 	sed -i "s|CASE_MANAGER_API_URL|$CASE_MANAGER_API_URL|g" $CONSTANTS_CONF_LOCATION
 fi
 #(case manager gui)
 if [ "$CASE_MANAGER_URL" = "local" ]; then
-	sed -i "s|\"CASE_MANAGER_URL\"|'http://'+document.location.hostname+':8090/casemanager/'|" $CONSTANTS_CONF_LOCATION
+	#(always https unlike the API)
+	sed -i "s|\"CASE_MANAGER_URL\"|'https://'+document.location.hostname+':8090/casemanager/'|" $CONSTANTS_CONF_LOCATION
 else
 	sed -i "s|CASE_MANAGER_URL|$CASE_MANAGER_URL|g" $CONSTANTS_CONF_LOCATION
 fi

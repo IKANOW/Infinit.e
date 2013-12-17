@@ -60,6 +60,7 @@ Infinit.e system configuration
 	
 ###########################################################################
 # INSTALL *AND* UPGRADE
+
 	# Handle relocation:
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 		echo "(Creating links from /opt to $RPM_INSTALL_PREFIX)"
@@ -81,7 +82,16 @@ Infinit.e system configuration
 				mkdir /mnt/opt/splunk-infinite
 			fi
 		fi
-		if [ -f /opt/splunk/bin/splunk ]; then
+	fi
+	
+	# %POST THINGS TO DO IF SPLUNK IS ACTUALLY INSTALLED (ALSO REPLICATED IN ENTERPRISE BASE)
+	
+	if [ -f /opt/splunk/bin/splunk ]; then
+	
+		###########################################################################
+		# Create symlinks 
+	
+		if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 		 	if [ -d /opt/splunk-infinite ] && [ ! -h /opt/splunk-infinite ]; then
 				echo "Error: /opt/splunk-infinite exists"
 				exit 1
@@ -93,14 +103,13 @@ Infinit.e system configuration
 					chown -h splunk.splunk /mnt/opt/splunk-infinite
 				fi 
 			fi
-		fi 
-	fi
-	
-	###########################################################################
-	# Relocate Splunk data storage
-	# This is necessary because Splunk uses the partition of SPLUNK_HOME not
-	# SPLUNK_DB in order to decide if disk space is low (in some circumstances)
-	if [ -f /opt/splunk/bin/splunk ]; then
+		fi
+			
+		###########################################################################
+		# Relocate Splunk data storage 
+		# This is necessary because Splunk uses the partition of SPLUNK_HOME not
+		# SPLUNK_DB in order to decide if disk space is low (in some circumstances)
+		
 		if ! grep -q "^minFreeSpace = 1" /opt/splunk/etc/system/local/server.conf; then
 			echo "[diskUsage]" >> /opt/splunk/etc/system/local/server.conf
 			echo "minFreeSpace = 1" >> /opt/splunk/etc/system/local/server.conf
@@ -109,11 +118,19 @@ Infinit.e system configuration
 		if ! grep -q "^SPLUNK_DB" /opt/splunk/etc/splunk-launch.conf; then
 			echo "SPLUNK_DB=/opt/splunk-infinite" >> /opt/splunk/etc/splunk-launch.conf
 		fi
-	fi
+		
+		###########################################################################
+		# Set Splunk to free version		
+		
+		if ! grep -q "^\[license\]" /opt/splunk/etc/system/local/server.conf; then
+			echo "[license]" >> /opt/splunk/etc/system/local/server.conf
+			echo "active_group = Free" >> /opt/splunk/etc/system/local/server.conf
+		fi
+
 	
-	###########################################################################
-	# (Add splunk to start-up-on-boot list)
-	if [ -f /opt/splunk/bin/splunk ]; then
+		###########################################################################
+		# (Add splunk to start-up-on-boot list) 
+
 		chkconfig --add splunk
 		chkconfig splunk on
 	fi

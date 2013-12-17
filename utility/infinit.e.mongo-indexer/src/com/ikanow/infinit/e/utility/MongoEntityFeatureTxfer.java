@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.lang.reflect.Type;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -39,7 +38,6 @@ import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 import com.mongodb.Mongo;
 import com.mongodb.MongoException;
 
@@ -159,37 +157,27 @@ public class MongoEntityFeatureTxfer
 		
 // Now query the DB:
 		
-		// Now apply chunk logic
-		if (null != chunk) {
-			if (null == query) {
-				query = new BasicDBObject();			
-			}
-			for (String chunkField: chunk.keySet()) {				
-				Object currQueryField = query.get(chunkField);
-				if (null == currQueryField) { //easy...
-					query.put(chunkField, chunk.get(chunkField));
-				}
-				else { // bit more complicated...
-					if (currQueryField instanceof DBObject) { // both have modifiers - this is guaranteed for chunks
-						((DBObject) currQueryField).putAll((DBObject) chunk.get(chunkField));
-					}//TESTED
-					else { // worst case, use $and
-						query.put(DbManager.and_, Arrays.asList(
-								new BasicDBObject(chunkField, query.get(chunkField)),
-								new BasicDBObject(chunkField, chunk.get(chunkField))));
-					}//TESTED
-				}//TESTED (both cases)
-			}
-		}//TESTED
-		
 		DBCursor dbc = null;
-		dbc = entityFeatureDB.find(query).skip(nSkip).limit(nLimit); 
-		int nCount = dbc.count() - nSkip;
-		if (nCount < 0) nCount = 0;
-		System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
-		if (0 == nCount) { // Nothing to do...
-			return;
+		dbc = entityFeatureDB.find(query);
+		if (null != chunk) {
+			if (chunk.containsField(DbManager.min_)) {
+				dbc = dbc.addSpecial(DbManager.min_, chunk.get(DbManager.min_));
+			}
+			if (chunk.containsField(DbManager.max_)) {
+				dbc = dbc.addSpecial(DbManager.max_, chunk.get(DbManager.max_));
+			}
 		}
+		dbc = dbc.skip(nSkip).limit(nLimit).batchSize(1000);
+		if (null == chunk) {
+			int nCount = dbc.count() - nSkip;
+			if (nCount < 0) nCount = 0;
+			System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
+			if (0 == nCount) { // Nothing to do...
+				return;
+			}			
+		}		
+		
+		int nSynced = 0;
 		
 		List<EntityFeaturePojo> entities = new ArrayList<EntityFeaturePojo>();
 		while ( dbc.hasNext() )
@@ -207,6 +195,8 @@ public class MongoEntityFeatureTxfer
 			}
 			
 			entities.add(feature);
+			nSynced++;
+			
 			// Add the entities
 			if ( entities.size() > 1000 )
 			{
@@ -224,6 +214,9 @@ public class MongoEntityFeatureTxfer
 				"_id", null, true);
 			// (note EntityFeaturePojoIndexMap creates an "_id" field of the format index:community)
 		
+		if (null != chunk) {
+			System.out.println("Found " + nSynced + " records to sync in chunk");
+		}				
 	}
 	
 //___________________________________________________________________________________________________

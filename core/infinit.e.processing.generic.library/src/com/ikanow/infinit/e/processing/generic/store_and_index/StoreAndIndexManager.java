@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.processing.generic.store_and_index;
 
 
 import java.net.UnknownHostException;
-import java.util.Arrays;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -35,12 +34,12 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
-import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -153,10 +152,12 @@ public class StoreAndIndexManager {
 			f.setId(new ObjectId());
 			
 			// Check geo-size: need to add to a different index if so, for memory usage reasons
-			if (DocumentPojoIndexMap.hasManyGeos(f)) {
-				f.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
-				// (note this check isn't stateless, it actually populates "locs" at the same time)
-				// therefore...
+			if (null == f.getLocs()) { // (can be set by update/deletion code also)
+				if (DocumentPojoIndexMap.hasManyGeos(f)) {
+					f.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
+					// (note this check isn't stateless, it actually populates "locs" at the same time)
+					// therefore...
+				}
 			}
 			Set<String> locs = f.getLocs();
 			f.setLocs(null);
@@ -182,7 +183,6 @@ public class StoreAndIndexManager {
 			
 			for ( DocumentPojo doc : docs )
 			{
-				//TODO: (INF-1367) Currently simplistic logic for deciding whether to store external content 
 				boolean bStoreContent = true;
 				bStoreContent &= (0 != nMaxContentLen_bytes); // (otherwise it's turned off)
 				bStoreContent &= this.bStoreMetadataAsContent || ((null != doc.getFullText()) && !doc.getFullText().isEmpty());				
@@ -236,7 +236,7 @@ public class StoreAndIndexManager {
 	
 	public void removeSoftDeletedDocuments()
 	{
-		BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID);
+		BasicDBObject query = new BasicDBObject(DocumentPojo.url_, harvesterUUID);
 		
 		if (_diagnosticMode) {
 			System.out.println("Soft delete: " + DbManager.getDocument().getMetadata().count(query));			
@@ -247,17 +247,37 @@ public class StoreAndIndexManager {
 	}//TESTED
 	
 	/**
-	 * Remove a list of doc documents from the data store (you have their id)
-	 * 
-	 * CALLED FROM:	resizeDB()
+	 * Low level utility to abstract soft deletion
+	 * We're using URL because 1) we cant' use a shard key
+	 * 2) it needs to be an indexed field
+	 * 3) ideally one that is likely to be cached in memory
+	 * 4) one that minimizes the chance of having to move the document when modifying the field
+	 * (I also considered sourceUrl or an all new field, they _might_ be better because smaller, but conversely
+	 *  would be less likely to be cached and most importantly there's the risk of 4)
 	 */
-	public void removeFromDatastore_byId(List<DocumentPojo> docs, boolean bDeleteContent) {
+	
+	private BasicDBObject _softDeleter = null;
+	
+	private BasicDBObject getSoftDeleteUpdate()
+	{
+		if (null == _softDeleter) {
+			BasicDBObject softDeleter = new BasicDBObject(DocumentPojo.url_, harvesterUUID);
+			softDeleter.put(DocumentPojo.index_, "?DEL?");
+				// (used in CustomHadoopTaskLauncher.createConfigXML)
+			_softDeleter = new BasicDBObject(DbManager.set_, softDeleter);
+		}
+		return _softDeleter;
+	}//TESTED
+
+	/**
+	 * Remove a list of doc documents from the data store (you have their _id and sourceKey)
+	 * 
+	 * CALLED FROM:	resizeDB() <- FILLS IN _ID, SOURCEKEY, INDEX, URL, SOURCEURL
+	 */
+	public void removeFromDatastore_byId(List<DocumentPojo> docs) {
 		try {
-			// Add to data store
-			removeFromDatastore_byId(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
-			
-			// IMPORTANT: removeFromDataStore(), above, adds "url" and "index" to the doc
-			// (not created since can't be used for update...)
+			// Remove from data store
+			removeFromDatastore_byId(DbManager.getDocument().getMetadata(), docs);			
 			this.removeFromSearch(docs);
 			
 		} catch (Exception e) {
@@ -272,18 +292,19 @@ public class StoreAndIndexManager {
 	 * @param docs - child function needs url (optionally sourceUrl) set - child function requires sourceKey
 	 * 					this function needs id and index both of which are set by the child stack
 	 * 
-	 * CALLED FROM: MongoDocumentTxfer.doDelete(...) <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
-	 * 				processDocuments(...) [ always called after harvester, ie docs are fully populated ]
-	 * 				pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
+	 * CALLED FROM: MongoDocumentTxfer.doDelete(...) <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID, INDEX, _ID
+	 * 				processDocuments(...) [ always called after harvester: have sourceUrl, sourceKey, 
+	 * 										DON'T have _id, BUT do have updateId and index (correct except in many geo cases)]
+	 * 				pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX, _ID
 	 * 					updateHarvestStatus(...)
 	 */
-	public void removeFromDatastore_byURL(List<DocumentPojo> docs, boolean bDeleteContent) {
+	public ObjectId removeFromDatastore_byURL(List<DocumentPojo> docs) {
 		
 		// Remove from data store:
-		
+		ObjectId nextId = null;
 		try {
-			removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);			
-				// ^^^ adds "_id" and "created" to the doc and expands "sourceUrl" docs
+			nextId = removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs);			
+				// ^^^ adds "created" (if updateId set), "_id" and "index" to the doc and expands "sourceUrl" docs (adding "_id" and "index")
 			
 		} catch (Exception e) {
 			// If an exception occurs log the error
@@ -299,87 +320,68 @@ public class StoreAndIndexManager {
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
+		
+		return nextId;
 	}//TESTED
 	
 	/**
-	 * Remove a list of doc documents from the data store (you have a source key, so in most cases you can go much quicker)
+	 * Remove a list of doc documents from the data store (you have a source key, so you can go much quicker)
+	 * CALLED FROM:	deleteSource(...) 
+	 * @returns the number of docs deleted
 	 */
-	public void removeFromDatastore_bySourceKey(List<DocumentPojo> docs, String sourceKey, boolean bDeleteContent) {
-		try {
-			if (bDeleteContent) {
-				// Worth quickly checking if all of these docs have no external content (eg XML), will be *much* faster...
-				boolean bNoDocsHaveExternalContent = true;
-				for (DocumentPojo doc: docs) {
-					if (docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
-						bNoDocsHaveExternalContent = false;
-						break;
-					}
-				}//TESTED			
-				if (!bNoDocsHaveExternalContent) {
-					// OK quick check ... are there any legacy docs left?
-					DBObject quickCheck = DbManager.getDocument().getContent().findOne(new BasicDBObject(CompressedFullTextPojo.sourceKey_, null));
-					if (null != quickCheck) {		
-						
-						// Still need to go slow in the DB unfortunately because of the content
-						removeFromDatastore_byURL(DbManager.getDocument().getMetadata(), docs, bDeleteContent);
-					}
-					else {
-						DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
-						bDeleteContent = false; // ie drop to clause below
-					}
-					//TESTED (all sourceKeys set => moves to more efficient delete)
-				}
-				else {
-					bDeleteContent = false; // ie drop to clause below
-				}
-			}
-			
-			if (!bDeleteContent) { // databases and the like, can do a really quick delete
-
-				BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
-				BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
-												new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
-				DbManager.getDocument().getMetadata().update(query, softDelete, false, true);
-			}
+	public long removeFromDatastore_bySourceKey(String sourceKey) {
+				
+		try {			
+			DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
+				// (will just check index and pull out if the doc has no external content)
+			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+			BasicDBObject softDeleter = getSoftDeleteUpdate();
+			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
+			CommandResult result = DbManager.getDocument().getLastError("metadata");
 			
 			// Quick delete for index though:
 			ElasticSearchManager indexManager = IndexManager.getIndex(new StringBuffer("_all").append('/').append(DocumentPojoIndexMap.documentType_).toString());
 			indexManager.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey));
 			
+			return result.getLong("n", 0);
+			
 		} catch (Exception e) {
 			// If an exception occurs log the error
-			logger.error("Exception Message: " + e.getMessage(), e);
+			logger.error("Exception Message: " + e.getMessage(), e);			
 		}
-	}//TESTED (all above clauses, including "no external content", "external content", and "external content but none found (eg XML)"
+		return 0;
+	}//TESTED
 	
 	/////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Utility
 	
 	/**
-	 * Remove a list of doc documents from the data store + adds _id and index and created to the docs
+	 * Remove a list of doc documents from the data store + adds _id and index doc fields to retrieve to support de-index
+	 * (also adds created to docs with an updateId so the created remains ~the same)
 	 * @param docs - needs url (optionally sourceUrl) set - child function requires sourceKey
 	 * @param col
 	 * @param feeds
 	 * 
-	 * CALLED FROM: removeFromDatastore_bySourceKey(List<doc>, sourceKey, bDeleteContent)  
-	 * 					deleteSource(...) <- ENSURES DOC HAS URL, SOURCEURL, SOURCEKEY, INDEX
-	 * 				removeFromDataStore_byURL(List<doc>, bDeleteContent) [REQUIRES index be set]
-	 * 					MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
-	 * 					processDocuments(...) [ always called after harvester, ie docs are fully populated ]
-	 * 					pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
+	 * CALLED FROM: removeFromDataStore_byURL(List<doc>, bDeleteContent) [ALSO DELETES FROM INDEX AFTER ADDED FROM HERE]
+	 * 					MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID, INDEX, _ID
+	 * 					processDocuments(...) [ always called after harvester: have sourceUrl, sourceKey, 
+	 * 											DON'T have _id, BUT do have updateId and index (correct except in many geo cases)]
+	 * 					pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX, _ID
 	 * 						updateHarvestStatus(...)
 	 */
-	private void removeFromDatastore_byURL(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
+	private ObjectId removeFromDatastore_byURL(DBCollection col, List<DocumentPojo> docs) {
+		ObjectId nextId = null;
 		BasicDBObject fields = new BasicDBObject();
-		fields.put(DocumentPojo.created_, 1); //TODO (INF-1367) explain why this is needed
-		fields.put(DocumentPojo.index_, 1); // This is needed for the calling removeFromDataStore_byURL
+		fields.put(DocumentPojo.created_, 1); // (If we're getting the deleted doc fields, get this and have exact created time)
+		fields.put(DocumentPojo.index_, 1); // This is needed for the removeFromSearch() called from parent removeFromDatastore_URL
 		
 		TreeMap<String,String> sourceUrlToKeyMap = null;
 		// Store the knowledge in the feeds collection in the harvester db
 		Iterator<DocumentPojo> docIt = docs.iterator();
 		while (docIt.hasNext()) {
 			DocumentPojo f = docIt.next();
+			nextId = f.getId(); // (only interested in the pruneSource case, in which case _id is set on input)
 			
 			if ((null != f.getSourceUrl()) && (null == f.getUrl())) { // special case ... delete all these documents...
 				if (null == sourceUrlToKeyMap) {
@@ -389,28 +391,35 @@ public class StoreAndIndexManager {
 				docIt.remove(); // (will get expanded into actual documents below)
 			}
 			else {
-				removeFromDatastore_byURL(col, f, fields, bDeleteContent);
+				removeFromDatastore_byURL(col, f, fields, 
+						StoreAndIndexManager.docHasExternalContent(f.getUrl(), f.getSourceUrl()));
+					// (adds "_id", "index")
 			}
 		}
 		// Now we've deleted all the standard feeds, delete other sourceUrl feeds   
 		if (null != sourceUrlToKeyMap) for (Map.Entry<String, String> entry: sourceUrlToKeyMap.entrySet()) {
 			String srcUrl = entry.getKey();
 			String srcKey = entry.getValue();
+			BasicDBObject toDelFields = new BasicDBObject(DocumentPojo.url_, 1);
+			toDelFields.put(DocumentPojo.index_, 1);
 			try {
-				DBCursor dbc = col.find(new BasicDBObject(DocumentPojo.sourceUrl_, srcUrl), new BasicDBObject(DocumentPojo.url_, 1));
+				DBCursor dbc = col.find(new BasicDBObject(DocumentPojo.sourceUrl_, srcUrl), toDelFields);
 				Iterator<DBObject> dbcIt = dbc.iterator();
 				while (dbcIt.hasNext()) {
 					BasicDBObject dbo = (BasicDBObject) dbcIt.next();
 					DocumentPojo toDel = new DocumentPojo();
 					toDel.setUrl(dbo.getString(DocumentPojo.url_));
+					toDel.setIndex(dbo.getString(DocumentPojo.index_));
 					toDel.setId((ObjectId) dbo.get(DocumentPojo._id_));
 					toDel.setSourceKey(srcKey);
 					toDel.setSourceUrl(srcUrl);
+					// (here don't need to add created because this doc is obviously only in the delete list)
 					docs.add(toDel); 
 						// (this "add" is for removing things from the index, and also to keep count)
 					
-					// Actually: Delete the doc:
-					removeFromDatastore_byURL(col, toDel, fields, bDeleteContent);
+					// Actually delete the doc:
+					removeFromDatastore_byURL(col, toDel, fields, 
+							StoreAndIndexManager.docHasExternalContent(toDel.getUrl(), toDel.getSourceUrl()));
 					
 					//NOTE: I think we could be significantly more efficient here by just doing an "update" to soft delete
 					// the docs, then using the sourceUrl to remove-by-query from the index ... only downside would be
@@ -421,7 +430,8 @@ public class StoreAndIndexManager {
 				logger.error("Exception Message: " + e.getMessage(), e);
 			}
 		}
-	}//TESTED
+		return nextId;
+	}//TOTEST
 	
 	/**
 	 * Remove a doc from the data store
@@ -430,18 +440,12 @@ public class StoreAndIndexManager {
 	 * @param fields - fields to retrieve
 	 * 
 	 * CALLED FROM:	removeFromDataStore_byId(List<doc>, bDeleteContent)
-	 * 					resizeDB()
-	 *  THIS FN SETS URL, INDEX, SOURCEKEY AS FIELDS 
+	 * 					resizeDB() <- FILLS IN _ID, SOURCEKEY, INDEX, SOURCEURL
 	 */
-	private void removeFromDatastore_byId(DBCollection col, List<DocumentPojo> docs, boolean bDeleteContent) {
-		BasicDBObject fields = new BasicDBObject();
-		fields.put(DocumentPojo.url_, 1);
-		fields.put(DocumentPojo.index_, 1);
-		fields.put(DocumentPojo.sourceKey_, 1); // (set these here for performance)
-		
+	private void removeFromDatastore_byId(DBCollection col, List<DocumentPojo> docs) {
 		// Store the knowledge in the feeds collection in the harvester db			
 		for ( DocumentPojo f : docs) {
-			removeFromDatastore_byId(col, f, fields, bDeleteContent);
+			removeFromDatastore_byId(col, f);
 		}
 	}//TESTED
 	
@@ -451,123 +455,144 @@ public class StoreAndIndexManager {
 	 * @param doc - assumes _id set
 	 * @param fields - fields to retrieve (set in outside the doc loop for performance, url, index, sourceKey)
 	 * 
-	 * CALLED FROM:	removeFromDataStore_byId(col, List<doc>, bDeleteContent) <- SETS URL,INDEX,SOURCEKEY AS FIELDS
-	 * 					removeFromDataStore_byId(List<doc>, bDeleteContent)
-	 * 						resizeDB()
+	 * CALLED FROM:	removeFromDataStore_byId(col, List<doc>, bDeleteContent) 
+	 * 					removeFromDataStore_byId(List<doc>, bDeleteContent) 
+	 * 						resizeDB() <- _ID, SOURCEKEY, INDEX, SOURCEURL
 	 */
-	private void removeFromDatastore_byId(DBCollection col, DocumentPojo doc, BasicDBObject fields, boolean bDeleteContent) {
+	private void removeFromDatastore_byId(DBCollection col, DocumentPojo doc) {
+		
+		boolean bDeleteContent =  docHasExternalContent(doc.getUrl(), doc.getSourceUrl());
+		
+		if (bDeleteContent) {
+			// Remove its content also:
+			if (!_diagnosticMode) {
+				BasicDBObject contentQuery = new BasicDBObject(DocumentPojo.url_, doc.getUrl());
+				contentQuery.put(DocumentPojo.sourceKey_, doc.getSourceKey()); 
+				DbManager.getDocument().getContent().remove(contentQuery);
+			}
+			else {
+				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete content: " + doc.getSourceKey() + "/" + doc.getUrl());
+			}
+		}
+		
 		// Update Mongodb with the data
 		BasicDBObject query = new BasicDBObject();
+		query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
 		query.put(DocumentPojo._id_, doc.getId());
-		BasicDBObject deadDoc = null;
+		
 		if (!_diagnosticMode) {
-			BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
-										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
-			deadDoc = (BasicDBObject) col.findAndModify(query, fields, null, false, softDelete, false, false);
-				// (can do this on sharded collections because it uses _id, the shard key)
+			BasicDBObject softDelete = getSoftDeleteUpdate();
+			col.update(query, softDelete);
+				// (can do this on sharded collections because it uses sourceKey+_id, the shard key)
 		}
 		else { // (diagnostic mode)
-			deadDoc = (BasicDBObject) col.findOne(query, fields);			
-			if (null != deadDoc) {
-				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete: " + deadDoc.toString());
+			if (null != col.findOne(query)) {
+				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete: " + doc.toDb().toString());
 			}
 			else {
 				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete: DOC NOT FOUND");				
 			}
 		}
-		if (null != deadDoc) {
-			doc.setUrl(deadDoc.getString(DocumentPojo.url_));
-			doc.setIndex(deadDoc.getString(DocumentPojo.index_));
-			
-			if ((null != doc.getUrl()) && bDeleteContent) { // Use URL to determine whether to delete content
-				bDeleteContent =  docHasExternalContent(doc.getUrl(), null);
-			}
-		}
-		if (bDeleteContent) {
-			doc.setSourceKey(deadDoc.getString(DocumentPojo.sourceKey_));
-			
-			// Remove its content also:
-			if (!_diagnosticMode) {
-				BasicDBObject contentQuery = new BasicDBObject(DocumentPojo.url_, doc.getUrl());
-				query.put(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())); // (handles legacy case)
-				DbManager.getDocument().getContent().remove(contentQuery);
-			}
-			else {
-				System.out.println("StoreAndIndexManager.removeFromDatastore_byId, delete content: " + doc.getUrl() + "/" + doc.getSourceKey());
-			}
-		}
-	}//TESTED
+	}//TESTED (1.1)
 	
 	/**
-	 * Remove a doc from the data store
+	 * Remove a doc from the data store, ensures all the fields specified in "fields" are populated (ready for index deletion)
 	 * @param col
 	 * @param doc - needs  url, sourceKey set
 	 * @param fields - fields to retrieve (index, created), set in calling function outside of loop for performance
 	 * 
-	 * CALLED FROM: removeFromDatastore_byURL(col, List<doc>, bDeleteContent)
-	 * 					removeFromDatastore_bySourceKey(List<doc>, sourceKey, bDeleteContent)
-	 * 						deleteSource(...) <- ENSURES DOC HAS URL, SOURCEURL, SOURCEKEY, INDEX
-	 * 					removeFromDataStore_byURL(List<doc>, bDeleteContent) <- SETS INDEX, CREATED (ALSO SRC KEY FOR SRC URL CASES)
-	 * 						MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID
-	 * 						processDocuments(...) [ always called after harvester, ie docs are fully populated ]
+	 * CALLED FROM: removeFromDatastore_byURL(col, List<doc>, bDeleteContent) <- ADDS INDEX, CREATED TO FIELDS 
+	 * 					removeFromDataStore_byURL(List<doc>, bDeleteContent) [ALSO DELETES FROM INDEX AFTER ADDED FROM HERE]
+	 * 						MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID, INDEX, _ID
+	 * 						processDocuments(...) [ always called after harvester: have sourceUrl, sourceKey, 
+	 * 												DON'T have _id, BUT do have updateId and index (correct except in many geo cases)]
 	 * 						pruneSource(source, ...) <- SETS URL, SOURCE URL, SOURCE KEY, INDEX
 	 * 							updateHarvestStatus(...)
 	 */
 	private void removeFromDatastore_byURL(DBCollection col, DocumentPojo doc, BasicDBObject fields, boolean bDeleteContent) {
-		// Update Mongodb with the data
+		
+		// 1] Create the query to soft delete the document
+		
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, doc.getUrl());
-		query.put(DocumentPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));
+		query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
 
-		// (Remove its content also:)
+		// 2] Delete the content if needed
+		
 		if (bDeleteContent) {
-			if (docHasExternalContent(doc.getUrl(), null)) {
+			if (docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
 				if (!_diagnosticMode) {
 					DbManager.getDocument().getContent().remove(query);
 				}
 				else {
-					System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2), delete content: " + doc.getUrl());
+					System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2), delete content: " + doc.getSourceKey() + "/" + doc.getUrl());
 				}
 			}
 		}
 		//TESTED
 		
-		// Now append source key (not present in content DB):
-		BasicDBObject deadDoc = null;
-		if (!_diagnosticMode) {
-			BasicDBObject softDelete = new BasicDBObject(DbManager.set_,
-										new BasicDBObject(DocumentPojo.sourceKey_, harvesterUUID));
+		// 3] Work out which fields we have and which (if any we need to go and fetch):
+		
+		boolean needToFindAndModify = false;
+		
+		if (null == doc.getId()) { // This is called from processDocuments
 			
-			col.update(query, softDelete, false, true); // (needs to be multi- even though there's a single element for sharding reasons)
-			
-			// Cases in which we don't need to go get extra information:
-			// (index and _id needed for normal removal from ES, created needed for update cases) 
-			// 1) if doc.getId==null then this comes from the update code in the main harvester, so need created
-			// 2) obv if doc.index==null then we need to fill this in
-			
-			if ((null == doc.getIndex()) || (null == doc.getId())) {
-				// null==doc.getId() means this is an updateId case
-				// (these docs are dummy documents, they already have the _id for deleting from index, created not needed)
-				deadDoc = (BasicDBObject) col.findOne(new BasicDBObject(DocumentPojo.url_, doc.getUrl()), fields);
+			if (null != doc.getUpdateId()) { // update case...
+				doc.setId(doc.getUpdateId()); // (note this is overwritten by addToDatastore later, in update case, so we're good)
+
+				// (doc.index is populated but may not be correct because of the "many geos" workaround):
+				if (DocumentPojoIndexMap.hasManyGeos(doc)) {
+					doc.setIndex(DocumentPojoIndexMap.manyGeoDocumentIndex_);
+					// (note this check isn't stateless, it actually populates "locs" at the same time
+					//  this is handled in addToDatastore (update case), temp removed when adding to DB
+				}//TESTED (2.1.2, diagnostic mode, doc2)
 			}
+			else { // Not an update case, we're going to have to grab the document after all, which is a bit slower
+				needToFindAndModify = true;
+			}
+		}//TESTED (2.1.2, diagnostic mode, doc2)
+		if (!needToFindAndModify) { // set created if we need to, since we're not grabbing it from the datastore
+			if (null != doc.getUpdateId()) { // (this means we have an approx created if we don't need to go fetch the deleted doc)
+				doc.setCreated(new Date(doc.getUpdateId().getTime()));
+			}//TESTED (2.1.2, diagnostic mode, doc2)					
 		}
-		else {
-			deadDoc = (BasicDBObject) col.findOne(query, fields);
-		}
+		// (if we're here and index is not set, then it is intended to be null)
+		
+		// 4] Update the doc_metadata collection
+		
+		BasicDBObject softDelete = getSoftDeleteUpdate();
+		BasicDBObject deadDoc = null; // (not normally needed)
+		
+		if (needToFindAndModify) { // less pleasant, need to go grab the doc
+			deadDoc = (BasicDBObject) col.findOne(query, fields);				
+		}//TESTED (2.1.2)
+		
+		if (!_diagnosticMode) {
+			col.update(query, softDelete, false, true); // (needs to be multi- even though there's a single element for sharding reasons)			
+		}//TESTED (2.1.2)
+		
+		// 5] Add fields if necessary
+		
 		if (null != deadDoc) {
 			doc.setCreated((Date) deadDoc.get(DocumentPojo.created_));
+				// (if getting this doc anyway then might as well get the created)
 			doc.setId((ObjectId) deadDoc.get(DocumentPojo._id_));
 			doc.setIndex((String) deadDoc.get(DocumentPojo.index_));
 			
 			if (_diagnosticMode) {
 				System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2): found " + deadDoc.toString());
 			}
-		}
+		}//TESTED (2.1.2)
 		else if (_diagnosticMode) {
-			System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2): didn't find " + query.toString());
-		}
-	}//TESTED
-	
+			if (!needToFindAndModify) {
+				System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2): straight deleted " + doc.toDb().toString());
+			}
+			else {
+				System.out.println("StoreAndIndexManager.removeFromDatastore_byUrl(2): didn't find " + query.toString());
+			}
+		}//TESTED (2.1.2)
+	}//TESSTED (2.1.2)
+
 /////////////////////////////////////////////////////////////////////////////////////////////////	
 /////////////////////////////////////////////////////////////////////////////////////////////////	
 
@@ -614,7 +639,10 @@ public class StoreAndIndexManager {
 			
 			if (_diagnosticMode) {
 				System.out.println("StoreAndIndexManager.addToSearch, add: " + doc.getId() + " + " +
-						((null != doc.getAssociations())?("" + doc.getAssociations().size()):"0") + " events");
+						((null != doc.getEntities())?("" + doc.getEntities().size()):"0") + " entities, " +
+						((null != doc.getAssociations())?("" + doc.getAssociations().size()):"0") + " assocs, " +
+						((null != doc.getLocs())?("" + doc.getLocs().size()):"0") + " locs"
+								);
 			}
 		}// (end loop over docs)
 		
@@ -628,9 +656,6 @@ public class StoreAndIndexManager {
 	private void sendToIndex(ElasticSearchManager indexManager, LinkedList<DocumentPojo> docsToAdd) {
 		try {
 			if (!docsToAdd.isEmpty()) {
-				//TODO if index list is completely empty then don't actually add...
-				
-				
 				if (!_diagnosticMode) {
 					indexManager.bulkAddDocuments(IndexManager.mapListToIndex(docsToAdd, new TypeToken<LinkedList<DocumentPojo>>(){}, 
 							new DocumentPojoIndexMap()), DocumentPojo._id_, null, true);
@@ -664,10 +689,13 @@ public class StoreAndIndexManager {
 			if (null == doc.getId()) { // Normally this will be sourceUrls, eg files pointing to many docs 
 				continue; // (ie can just ignore)
 			}
+			if ((null != doc.getIndex()) && doc.getIndex().equals("?DEL?"))  {
+				continue; //(must have already been deleted, so can ignore)
+			}
 			if ((null == sIndex) || (null == doc.getIndex()) || !sIndex.equals(doc.getIndex())) { // Change index
 				
 				if (null != indexManager) { // ie not first time through, bulk delete what docs we have
-					deleteFromIndex(indexManager, tmpDocs);
+					deleteFromIndex(indexManager, tmpDocs); // (clears tmpDocs)
 						// (ie with the *old* index manager)
 					nTmpDocs = 0;
 				}
@@ -684,14 +712,17 @@ public class StoreAndIndexManager {
 			nTmpDocs++;
 			
 			if (nTmpDocs > 5000) { // some sensible upper limit
-				deleteFromIndex(indexManager, tmpDocs);
+				deleteFromIndex(indexManager, tmpDocs); // (clears tmpDocs)
 				nTmpDocs = 0;
 			}
 			
 			//delete from event search
 			if (_diagnosticMode) {
 				System.out.println("StoreAndIndexManager.removeFromSearch, remove: " + doc.getId() + " + " +
-						((null != doc.getAssociations())?("" + doc.getAssociations().size()):"0") + " events");
+						((null != doc.getEntities())?("" + doc.getEntities().size()):"0") + " entities, " +
+						((null != doc.getAssociations())?("" + doc.getAssociations().size()):"0") + " assocs, " +
+						((null != doc.getLocs())?("" + doc.getLocs().size()):"0") + " locs"
+						);
 			}			
 		} // (end loop over docs)
 		
@@ -740,11 +771,15 @@ public class StoreAndIndexManager {
 	 * 
 	 * @return true once DB is within bounds, false if an error occurs
 	 */
-
 	public boolean resizeDB()
 	{
+		return resizeDB(-1);
+	}
+
+	public boolean resizeDB(long capacityOverride)
+	{
 		//Do quick check to check if we are already under storage requirements
-		if ( checkStorageCapacity() ) {
+		if ( checkStorageCapacity(capacityOverride) ) {
 			return false;
 		}
 		else
@@ -753,10 +788,12 @@ public class StoreAndIndexManager {
 			try
 			{
 				long currDocsInDB = DbManager.getDocument().getMetadata().count();
-				long storageCap = new PropertiesManager().getStorageCapacity();
+				long storageCap = (capacityOverride == -1L) ? new PropertiesManager().getStorageCapacity() : capacityOverride;
 
-				List<DocumentPojo> docsToRemove = getLeastActiveDocs((int) (currDocsInDB-storageCap));			
-				removeFromDatastore_byId(docsToRemove, true); // (remove content since don't know if it exists)
+				List<DocumentPojo> docsToRemove = getLeastActiveDocs((int) (currDocsInDB-storageCap));
+					// (populates docsToRemove with _id and sourceKey - needed to support doc_metadata sharding)
+				
+				removeFromDatastore_byId(docsToRemove); // (remove content since don't know if it exists)
 				//(^ this also removes from index)
 
 				return true;
@@ -779,7 +816,7 @@ public class StoreAndIndexManager {
 	 * below threshhold set in properties
 	 * @return true is below threshhold, false if not
 	 */
-	private boolean checkStorageCapacity()
+	private boolean checkStorageCapacity(long capacityOverride)
 	{
 		long currDocsInDB = 0;
 		try {
@@ -788,8 +825,8 @@ public class StoreAndIndexManager {
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
-		long storageCapacity = new PropertiesManager().getStorageCapacity();
-		return (currDocsInDB < storageCapacity); 
+		long storageCapacity = (-1L == capacityOverride) ? new PropertiesManager().getStorageCapacity() : capacityOverride;
+		return (currDocsInDB <= storageCapacity); 
 	}
 
 	/**
@@ -797,7 +834,8 @@ public class StoreAndIndexManager {
 	 * List is of length numDocs
 	 * 
 	 * @param numDocs Number of documents to return that are least active
-	 * @return a list of documents that are least active in DB
+	 * @return a list of documents that are least active in DB (populates docsToRemove with _id and sourceKey - needed to support doc_metadata sharding)
+)
 	 */
 	private List<DocumentPojo> getLeastActiveDocs(int numDocs)
 	{
@@ -808,9 +846,14 @@ public class StoreAndIndexManager {
 		//least active (current incarnation doesn't work)
 		try
 		{
-			DBCursor dbc = DbManager.getDocument().getMetadata().find(new BasicDBObject(), new BasicDBObject()).sort(
-					new BasicDBObject(DocumentPojo._id_,1)).limit(numDocs);
-			// (note, just retrieve _id fields: _id starts with timestamp so these are approximately oldest created)
+			BasicDBObject fields = new BasicDBObject(DocumentPojo._id_, 1);
+			fields.put(DocumentPojo.sourceKey_, 1);
+			fields.put(DocumentPojo.index_, 1);
+			fields.put(DocumentPojo.sourceUrl_, 1);
+			fields.put(DocumentPojo.url_, 1);
+			DBCursor dbc = DbManager.getDocument().getMetadata().find(new BasicDBObject(), fields).
+																	sort(new BasicDBObject(DocumentPojo._id_,1)).limit(numDocs);
+			// (note, just retrieve _id and sourceKey fields: _id starts with timestamp so these are approximately oldest created)
 
 			olddocs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
 
@@ -821,7 +864,7 @@ public class StoreAndIndexManager {
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
 		return olddocs;
-	}//TOTEST (functionality not currently used)			
+	}//TESTED (1.1)			
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////	

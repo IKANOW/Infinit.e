@@ -354,8 +354,12 @@ public class FileHarvester implements HarvesterInterface {
 						{
 							// (only if the the sourceUrl is not new...)
 							if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
-								doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)								
-									// (still don't add this to updates because we've added the source URL to the delete list)
+								doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
+								if (null != doc.getUpdateId()) {
+									doc.setCreated(new Date(doc.getUpdateId().getTime()));
+								}//TESTED
+								// (still don't add this to updates because we've added the source URL to the delete list)
+								// (hence approximate create with the updateId...)
 							}
 						}
 						//TESTED

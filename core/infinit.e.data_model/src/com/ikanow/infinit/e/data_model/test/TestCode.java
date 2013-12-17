@@ -46,6 +46,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryTermPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
 import com.ikanow.infinit.e.data_model.driver.InfiniteDriver;
@@ -79,9 +80,34 @@ public class TestCode {
 		
 // SOME DRIVER TESTING
 		
+		// Redirects
+		
+		boolean testRedirects = false;
+		if (testRedirects) {
+			// GET
+			String rootUrl = args[1];
+			String username = args[2];
+			String password = args[3];
+			InfiniteDriver infDriver = new InfiniteDriver(rootUrl);
+			System.out.println("LOGIN=" + infDriver.login(username, password, new ResponseObject()));
+			
+			//POST
+			AdvancedQueryPojo query = new AdvancedQueryPojo();
+			QueryTermPojo qt = new QueryTermPojo();
+			qt.etext = "*";
+			query.qt = Arrays.asList(qt);
+			ResponseObject response = new ResponseObject();
+			ObjectId communityId = new ObjectId("4c927585d591d31d7b37097a");
+			ResponsePojo retVal = infDriver.sendQuery(query, communityId, response);
+			
+			System.out.println("RETURNED " + retVal.getStats().found  + " docs");
+			
+			return;
+		}		
+		
 		// Aliases:		
 		
-		boolean bTestAliases = true;
+		boolean bTestAliases = false;
 		if (bTestAliases) { // will need to set some variables...
 		
 			String rootUrl = "http://infinite.ROOT.com/api/";

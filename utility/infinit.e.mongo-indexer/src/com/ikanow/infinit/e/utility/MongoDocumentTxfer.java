@@ -188,25 +188,6 @@ public class MongoDocumentTxfer {
 				System.out.println("(Can't optimize complex community query)");
 			}
 		}
-		// Now apply chunk logic
-		if (null != chunk) {
-			for (String chunkField: chunk.keySet()) {				
-				Object currQueryField = query.get(chunkField);
-				if (null == currQueryField) { //easy...
-					query.put(chunkField, chunk.get(chunkField));
-				}
-				else { // bit more complicated...
-					if (currQueryField instanceof DBObject) { // both have modifiers - this is guaranteed for chunks
-						((DBObject) currQueryField).putAll((DBObject) chunk.get(chunkField));
-					}//TESTED
-					else { // worst case, use $and
-						query.put(DbManager.and_, Arrays.asList(
-								new BasicDBObject(chunkField, query.get(chunkField)),
-								new BasicDBObject(chunkField, chunk.get(chunkField))));
-					}//TESTED
-				}//TESTED (both cases)
-			}
-		}//TESTED
 		// Ignored delete objects
 		Object sourceKeyQuery = query.get(DocumentPojo.sourceKey_);
 		if (null == sourceKeyQuery) {
@@ -226,13 +207,24 @@ public class MongoDocumentTxfer {
 		
 		//Debug:
 		DBCursor dbc = null;
-		dbc = docsDB.find(query).skip(nSkip).limit(nLimit).batchSize(1000);
-		int nCount = dbc.count() - nSkip;
-		if (nCount < 0) nCount = 0;
-		System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
-		if (0 == nCount) { // Nothing to do...
-			return;
+		dbc = docsDB.find(query);
+		if (null != chunk) {
+			if (chunk.containsField(DbManager.min_)) {
+				dbc = dbc.addSpecial(DbManager.min_, chunk.get(DbManager.min_));
+			}
+			if (chunk.containsField(DbManager.max_)) {
+				dbc = dbc.addSpecial(DbManager.max_, chunk.get(DbManager.max_));
+			}
 		}
+		dbc = dbc.skip(nSkip).limit(nLimit).batchSize(1000);
+		if (null == chunk) {
+			int nCount = dbc.count() - nSkip;
+			if (nCount < 0) nCount = 0;
+			System.out.println("Found " + nCount + " records to sync, process first " + (0==nLimit?nCount:nLimit));
+			if (0 == nCount) { // Nothing to do...
+				return;
+			}			
+		}		
 		
 		byte[] storageArray = new byte[200000];
 		
@@ -309,12 +301,13 @@ public class MongoDocumentTxfer {
 					// May also want to write this back to the DB:
 					//TODO (INF-2223): Handle append tags or not in the pipeline...
 					if ((null == src.getAppendTagsToDocs()) || src.getAppendTagsToDocs()) {					
-						if ((null == doc.getTags()) || (doc.getTags().size() != tagsTidied.size())) {
+						if ((null == doc.getTags()) || (doc.getTags().size() < tagsTidied.size())) {
 							BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getSourceKey());
 							updateQuery.put(DocumentPojo._id_, doc.getId());
-							docsDB.update(updateQuery, new BasicDBObject(DbManager.addToSet_, new BasicDBObject(DocumentPojo.tags_, tagsTidied)));
+							docsDB.update(updateQuery, new BasicDBObject(DbManager.addToSet_, new BasicDBObject(
+													DocumentPojo.tags_, new BasicDBObject(DbManager.each_, tagsTidied))));
 						}
-						doc.getTags().addAll(tagsTidied);
+						doc.setTags(tagsTidied); // (just copy ptr across)
 					}
 				}
 			}
@@ -375,6 +368,10 @@ public class MongoDocumentTxfer {
 			
 			StoreAndIndexManager manager = new StoreAndIndexManager();
 			manager.addToSearch(docsToTransfer);				
+		}
+		
+		if (null != chunk) {
+			System.out.println("Found " + nSynced + " records to sync in chunk");
 		}
 		
 		if (bAggregate) {
@@ -460,6 +457,7 @@ public class MongoDocumentTxfer {
 			queryFields.put(DocumentPojo.sourceUrl_, 1);
 			queryFields.put(DocumentPojo.url_, 1);
 			queryFields.put(DocumentPojo.communityId_, 1);
+			queryFields.put(DocumentPojo.index_, 1);
 			
 			DBCursor cur = DbManager.getDocument().getMetadata().find(query, queryFields).limit(nLimit); 
 				// (this internally works in batches of 1000)			
@@ -487,9 +485,8 @@ public class MongoDocumentTxfer {
 					 sourceKeyMap.put(sourceKey, (count2 == null ? 1 : count2 + 1));
 				}
 			}
-			
 			StoreAndIndexManager dataStore = new StoreAndIndexManager(); 
-			dataStore.removeFromDatastore_byURL(docs, true);
+			dataStore.removeFromDatastore_byURL(docs);
 			AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
 			dataStore.removeSoftDeletedDocuments();
 			AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());			

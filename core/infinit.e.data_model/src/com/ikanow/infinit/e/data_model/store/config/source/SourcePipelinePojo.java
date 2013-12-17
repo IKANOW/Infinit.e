@@ -121,7 +121,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public String fullText; // The string expression or $SCRIPT(...) specifying the document fullText
 		public String displayUrl; // The string expression or $SCRIPT(...) specifying the document displayUrl
 		public Boolean appendTagsToDocs; // if true (*NOT* default) source tags are appended to the document 
-		public StructuredAnalysisConfigPojo.GeoSpecPojo docGeo; // Specify a document level geo-tag
+		public StructuredAnalysisConfigPojo.GeoSpecPojo geotag; // Specify a document level geo-tag
 	}
 	
 	public static class MetadataSpecPojo {

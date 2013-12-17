@@ -66,21 +66,30 @@
          APR (HTTP/AJP) Connector: /docs/apr.html
          Define a non-SSL HTTP/1.1 Connector on port 8080
     -->
-    <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
-               connectionTimeout="600000" 
-               redirectPort="8443" URIEncoding="UTF-8"/>
-    <!-- A "Connector" using the shared thread pool-->
+    
+
+	<!-- The HTTP connector, disable if SSL is enabled -->    
     <!--
-    <Connector executor="tomcatThreadPool"
-               port="8080" protocol="HTTP/1.1" 
-               connectionTimeout="20000" 
-               redirectPort="8443" />
+    __INF_SSL_ENABLED -->           
+    
+    <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
+               connectionTimeout="600000" secure="true" 
+               redirectPort="8443" URIEncoding="UTF-8"/>
+
+    <!-- __INF_SSL_ENABLED 
     -->           
+               
+    <!-- This is a handy insecure connector that can be used to redirect to 443 from load balancers -->
+	<Connector port="8081" enableLookups="false" redirectPort="443"/>
+
     <!-- Define a SSL HTTP/1.1 Connector on port 8443
          This connector uses the JSSE configuration, when using APR, the 
          connector should be using the OpenSSL style configuration
          described in the APR documentation -->
     <!--__INF_SSL_ENABLED
+    
+	<Connector port="8080" enableLookups="false" redirectPort="443"/>
+    
     <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
                maxThreads="150" scheme="https" secure="true"
                clientAuth="false" sslProtocol="TLS" URIEncoding="UTF-8"

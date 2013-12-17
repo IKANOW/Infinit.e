@@ -1503,8 +1503,8 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		}
 		if (null == API_ROOT) { 
 			// Default to localhost
-			API_ROOT = "http://localhost:8080/api/";
-			//API_ROOT = "http://localhost:8184/";
+			//API_ROOT = "http://localhost:8080/api/";
+			API_ROOT = "http://localhost:8184/";
 		}
 		
 		if (API_ROOT.contains("localhost")) { localCookie=true; }

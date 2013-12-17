@@ -686,7 +686,7 @@ public class GenericProcessingController {
 		// Delete toUpdate and toAdd (also overwriting "created" for updated docs, well all actually...)
 		toDelete.addAll(toUpdate_subsetOfAdd);
 		StoreAndIndexManager storageManager = new StoreAndIndexManager();
-		storageManager.removeFromDatastore_byURL(toDelete, (harvestType != InfiniteEnums.DATABASE));
+		storageManager.removeFromDatastore_byURL(toDelete);
 			// (note: expands toDelete if any sourceUrl "docs" are present, see FileHarvester)
 
 		// (Storing docs messes up the doc/event/entity objects, so don't do that just yet...)

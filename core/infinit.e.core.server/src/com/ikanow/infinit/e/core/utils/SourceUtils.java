@@ -671,10 +671,12 @@ public class SourceUtils {
 	private static void pruneSource(SourcePojo source, int nToPrune)
 	{
 		int nDocsDeleted = 0;
-		
+	
 		// (code taken mostly from SourceHandler.deleteSource)
 		if (null != source.getKey()) { // or may delete everything!
 			BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+			docQuery.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (robustness)
+			BasicDBObject sortField = new BasicDBObject(DocumentPojo._id_, 1);
 			BasicDBObject docFields = new BasicDBObject();
 			docFields.append(DocumentPojo.url_, 1);
 			docFields.append(DocumentPojo.sourceUrl_, 1);
@@ -682,12 +684,19 @@ public class SourceUtils {
 			docFields.append(DocumentPojo.sourceKey_, 1);
 			
 			StoreAndIndexManager dataStore = new StoreAndIndexManager();
+			ObjectId nextId = null;
 			while (nToPrune > 0) {
 				int nToDelete = nToPrune;
 				if (nToDelete > 10000) {
 					nToDelete = 10000;
 				}
-				DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).limit(nToDelete); // (ie batches of 10K)
+				if (null != nextId) {
+					docQuery.put(DocumentPojo._id_, new BasicDBObject(DbManager.gt_, nextId));
+				}//TESTED (by hand)
+				
+				DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).sort(sortField).limit(nToDelete); 
+					// (ie batches of 10K, ascending ordered by _id)
+				
 				nToPrune -= nToDelete;
 				if (0 == nDocsDeleted) {
 					nDocsDeleted = dbc.count();
@@ -697,26 +706,7 @@ public class SourceUtils {
 				}
 				List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
 				
-				boolean bDeleteContent = (null == source.getExtractType()) 
-											|| !source.getExtractType().equalsIgnoreCase("database");
-					// (database have no external content so we can improve the efficiency)
-				
-				// This next bit of code is taken from removeFromDatastore_bySourceKey
-				if (bDeleteContent) {
-					// Worth quickly checking if all of these docs have no external content (eg XML), will be *much* faster...
-					boolean bNoDocsHaveExternalContent = true;
-					for (DocumentPojo doc: docs) {
-						if (StoreAndIndexManager.docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
-							bNoDocsHaveExternalContent = false;
-							break;
-						}
-					}//TESTED			
-					if (bNoDocsHaveExternalContent) {
-						bDeleteContent = false; // ie drop to clause below
-					}
-				}
-				dataStore.removeFromDatastore_byURL(docs, bDeleteContent);
-					// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")					
+				nextId = dataStore.removeFromDatastore_byURL(docs);
 			}
 		}
 		// No need to do anything related to soft deletion, this is all handled when the harvest ends 

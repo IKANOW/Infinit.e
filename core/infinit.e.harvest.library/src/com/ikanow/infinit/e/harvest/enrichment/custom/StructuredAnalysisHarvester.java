@@ -236,8 +236,8 @@ public class StructuredAnalysisHarvester
 		// Extract Document GEO if applicable
 		
 		try {
-			if (docMetadataConfig.docGeo != null) {
-				doc.setDocGeo(getDocGeo(docMetadataConfig.docGeo));
+			if (docMetadataConfig.geotag != null) {
+				doc.setDocGeo(getDocGeo(docMetadataConfig.geotag));
 			}
 		}
 		catch (Exception e) {
@@ -250,9 +250,16 @@ public class StructuredAnalysisHarvester
 	
 	// Set the entities
 	
+	StructuredAnalysisConfigPojo _pipelineTmpConfig = null;
+	
 	public void setEntities(DocumentPojo doc, List<EntitySpecPojo> entSpecs) throws JSONException, ScriptException {
 		intializeDocIfNeeded(doc, _gson);
-		List<EntityPojo> ents = getEntities(entSpecs, doc);
+		if (null == _pipelineTmpConfig) {
+			_pipelineTmpConfig = new StructuredAnalysisConfigPojo();
+		}
+		_pipelineTmpConfig.setEntities(entSpecs);
+		expandIterationLoops(_pipelineTmpConfig);
+		List<EntityPojo> ents = getEntities(_pipelineTmpConfig.getEntities(), doc);
 		if (null == doc.getEntities()) { // (else has already been added by getEntities)
 			doc.setEntities(ents);
 		}
@@ -266,7 +273,12 @@ public class StructuredAnalysisHarvester
 		//TODO (INF-1922): Allow setting of directed sentiment (here and in legacy code)
 		
 		intializeDocIfNeeded(doc, _gson);
-		List<AssociationPojo> assocs = getAssociations(assocSpecs, doc);
+		if (null == _pipelineTmpConfig) {
+			_pipelineTmpConfig = new StructuredAnalysisConfigPojo();
+		}
+		_pipelineTmpConfig.setAssociations(assocSpecs);
+		expandIterationLoops(_pipelineTmpConfig);
+		List<AssociationPojo> assocs = getAssociations(_pipelineTmpConfig.getAssociations(), doc);
 		if (null == doc.getAssociations()) { // (else has already been added by getAssociations)
 			doc.setAssociations(assocs);
 		}

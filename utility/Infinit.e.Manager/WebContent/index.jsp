@@ -49,13 +49,38 @@ limitations under the License.
 <head>
 	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
 	<link rel="stylesheet" type="text/css" href="inc/manager.css" />
+    <script src="lib/jquery.js"></script>
 	<title><fmt:message key='index.title'/></title>
+	<script type="text/javascript">
+    // delegate event for performance, and save attaching a million events to each anchor
+    document.addEventListener('click', function(event) {
+      var target = event.target;
+      if (target.tagName.toLowerCase() == 'a')
+      {
+          var port = target.getAttribute('href').match(/^:(\d+)(.*)/);
+          if (port)
+          {
+             target.href = port[2];
+             target.port = port[1];
+             if (target.port == '8090') {
+            	 target.protocol = 'https';
+             }
+          }
+      }
+    }, false);	
+	</script>
 </head>
 <body>
 
 <%@ include file="inc/header.jsp" %>
 
 <%
+	boolean enterpriseMode = true; // access to enterprise features
+	
+	// Check if enterprise features are installed:
+	String baseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e-enterprise";
+	enterpriseMode = new File(baseDir).exists();
+
 	if (!isLoggedIn) 
 	{
 %>
@@ -93,6 +118,18 @@ limitations under the License.
 						<ul>
 							<li><b><a href="chrome.html" title="<fmt:message key='index.chrome_extension.description'/>" target="_blank"><fmt:message key='index.chrome_extension.title'/></a></b> - <fmt:message key='index.chrome_extension.description'/></li>
 						</ul>
+<%
+	// If in enterpriseMode
+	if (enterpriseMode)
+	{
+%>
+						<ul>
+							<li><b><fmt:message key='index.enterprise_features.title'/></b>
+								<ul><li><b><a href=":8090../casemanager/" title="<fmt:message key='index.enterprise_features.casemanager.description'/>" target="_blank"><fmt:message key='index.enterprise_features.casemanager.title' /></a></b> - <fmt:message key='index.enterprise_features.casemanager.description'/></li></ul>
+								<ul><li><b><a href=":8090../splunk/" title="<fmt:message key='index.enterprise_features.monitoring.description'/>" target="_blank"><fmt:message key='index.enterprise_features.monitoring.title' /></a></b> - <fmt:message key='index.enterprise_features.monitoring.description'/></li></ul>
+							</li>
+						</ul>
+<% } %>						
 					</td>
 				</tr>
 			</table>

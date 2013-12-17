@@ -43,7 +43,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
             date >> $LOGDIR/sync_time.txt
             
             # (Remove any lingering soft deleted items)
-			/usr/bin/mongo --quiet $MONGODB/doc_metadata --eval 'db.metadata.remove({"sourceKey": /^\?DEL\?/});'
+			/usr/bin/mongo --quiet $MONGODB/doc_metadata --eval 'db.metadata.remove({"url": /^\?DEL\?/});'
             date >> $LOGDIR/sync_time.txt
 			echo "Completed soft deletion mop up" >> $LOGDIR/sync_time.txt
             

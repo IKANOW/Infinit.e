@@ -32,12 +32,15 @@
 
 	<fx:Script>
 		<![CDATA[
+			import assets.EmbeddedAssets;
+			
 			import com.ikanow.infinit.e.model.presentation.login.LoginModel;
 			import com.ikanow.infinit.e.model.presentation.login.LoginNavigator;
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
 			import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
+			
+			import mx.controls.Alert;
 			import mx.events.FlexEvent;
-			import assets.EmbeddedAssets;
 			
 			[Bindable]
 			[Inject]
@@ -60,14 +63,20 @@
 				
 				if ( logo_url != null && logo_url != "" )
 				{
-					logo.source = logo_url;
-						// Previously: only displayed the powered by logo if Infinit.e wasn't displayed, but
-						// changing this because IKANOW is now our brand more than Infinit.e, so it should
-						// appear somewhere...
-						//logo_poweredby.visible = true;
+					try {
+						logo.source = logo_url;
+					}
+					catch (e:Error) {
+						//Do nothing, but check out the logo URL for #nopowered
+					}
+					
+					// New logic: if logo contains pattern "[?#&]nopowered([#&]|$)" then don't display logo
+					var matches:Array = logo_url.match(/[?#&]nopowered(?:[#&]|$)/);
+					if ((null == matches) || (0 == matches.length))
+						logo_poweredby.visible = true;
 				}
-				//(see comments above)
-				logo_poweredby.visible = true;
+				else
+					logo_poweredby.visible = true;
 			}
 			
 			protected function hideHandler():void

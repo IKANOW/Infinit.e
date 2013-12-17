@@ -15,11 +15,4 @@
 		<nature>com.adobe.flexbuilder.project.flexnature</nature>
 		<nature>com.adobe.flexbuilder.project.actionscriptnature</nature>
 	</natures>
-	<linkedResources>
-		<link>
-			<name>bin-debug</name>
-			<type>2</type>
-			<locationURI>workspace_root/ikanow_infinit.e_community/visualization/frameworks/flex/infinit.e.flex.client/bin-debug/InfiniteMapWidget</locationURI>
-		</link>
-	</linkedResources>
 </projectDescription>

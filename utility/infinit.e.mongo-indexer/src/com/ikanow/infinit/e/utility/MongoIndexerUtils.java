@@ -40,8 +40,12 @@ public class MongoIndexerUtils {
 			if (description.startsWith("+")) {				
 				query.put("_id", new BasicDBObject(DbManager.gt_, description.substring(1)));
 			}
-			else { // assume it's a set of chunks
-				String ids[] = description.split("\\s*,\\s*");
+			else if (description.startsWith("@")) { // it's a list of replica sets
+				String replicas[] = description.substring(1).split("\\s*,\\s*");
+				query.put("shard", new BasicDBObject(DbManager.in_, replicas));
+			}
+			else { // assume it's a set of chunks (allow for hacky replacement because "s don't seem to get loaded from windows?)
+				String ids[] = description.replace("^QUOTE^", "\"").split("\\s*,\\s*");
 				query.put("_id", new BasicDBObject(DbManager.in_, ids));
 			}
 		}//TESTED all 3 cases
@@ -57,10 +61,14 @@ public class MongoIndexerUtils {
 			BasicDBObject minObj = (BasicDBObject) chunk.get("min");
 			BasicDBObject maxObj = (BasicDBObject) chunk.get("max");
 			if (null != minObj) {
-				addChunkModifier(derivedQuery, minObj, DbManager.gte_);
+				BasicDBObject modifier = addChunkModifier(minObj);
+				if (null != modifier)
+					derivedQuery.put(DbManager.min_, modifier);
 			}
 			if (null != maxObj) {
-				addChunkModifier(derivedQuery, maxObj, DbManager.lte_);
+				BasicDBObject modifier = addChunkModifier(maxObj);
+				if (null != modifier)
+					derivedQuery.put(DbManager.max_, modifier);
 			}
 			if (!derivedQuery.isEmpty()) {
 				derivedQuery.put("$id", chunk.get("_id")); // (temp save the _id for printing in the main loop)
@@ -68,30 +76,25 @@ public class MongoIndexerUtils {
 			}
 		}		
 		return retList;
-	}//TESTED (different chunk types)
+	}//TESTED (_id, index, {sourceKey:1,_id:1}
 
-	private static void addChunkModifier(BasicDBObject derivedQuery, BasicDBObject minOrMax, String modifierType)
+	private static BasicDBObject addChunkModifier(BasicDBObject minOrMax)
 	{
+		BasicDBObject modifier = new BasicDBObject();
 		Iterator<String> indexFieldIt = minOrMax.keySet().iterator();
 		while (indexFieldIt.hasNext()) {
 			String indexField = indexFieldIt.next();
-			if ((modifierType == DbManager.lte_) && (!indexFieldIt.hasNext())) { // last element, lte
-				modifierType = DbManager.lt_;
-			}
 				
 			Object fieldObj = minOrMax.get(indexField);
 			if ((null != fieldObj) && // else it's a min/max so can just ignore
 					(fieldObj instanceof String) || (fieldObj instanceof ObjectId) || (fieldObj instanceof Number))  
 			{ 
-				DBObject existingModifier = (DBObject) derivedQuery.get(indexField);
-					// (must be object based on logic below)
-				if (null == existingModifier) {
-					derivedQuery.put(indexField, new BasicDBObject(modifierType, fieldObj));
-				}
-				else {
-					existingModifier.put(modifierType, fieldObj);
-				}
+				modifier.put(indexField, fieldObj);
 			}
 		}
-	}//TESTED (single object, compound index)
+		if (modifier.isEmpty())
+			return null;
+		
+		return modifier;
+	}//TESTED (single/compound indexes)
 }

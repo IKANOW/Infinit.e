@@ -546,7 +546,7 @@ public class AggregationManager {
 	
 			String outCollection = new StringBuilder(uuid).append("_AggregationUtils").toString();
 	
-			BasicDBObject mrQuery = new BasicDBObject(DocumentPojo.sourceKey_, uuid);
+			BasicDBObject mrQuery = new BasicDBObject(DocumentPojo.url_, uuid);
 			
 			@SuppressWarnings("unused")
 			MapReduceOutput res = 

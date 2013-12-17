@@ -623,34 +623,11 @@ public class SourceHandler
 			}
 			// OK if we've got to here we're approved and the source exists, start deleting stuff
 			SourcePojo source = SourcePojo.fromDb(srcDbo, SourcePojo.class);
-			int nDocsDeleted = 0;
+			long nDocsDeleted = 0;
 			if (null != source.getKey()) { // or may delete everything!
-				BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
-				BasicDBObject docFields = new BasicDBObject();
-				// These fields are required by removeFromDatastore_byURL, called from removeFromDatastore_bySourceKey
-				docFields.append(DocumentPojo.url_, 1);
-				docFields.append(DocumentPojo.sourceUrl_, 1);
-				docFields.append(DocumentPojo.index_, 1);
-				docFields.append(DocumentPojo.sourceKey_, 1);
-				
 				StoreAndIndexManager dataStore = new StoreAndIndexManager();
-				for (;;) {
-					DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery, docFields).limit(10000); // (ie batches of 10K)
-					if (0 == nDocsDeleted) {
-						nDocsDeleted = dbc.count();
-					}
-					if (0 == dbc.size()) {
-						break;
-					}
-					List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
-					
-					boolean bDeleteContent = (null == source.getExtractType()) 
-												|| !source.getExtractType().equalsIgnoreCase("database");
-						// (database have no external content so we can improve the efficiency)
-					
-					dataStore.removeFromDatastore_bySourceKey(docs, source.getKey(), bDeleteContent);
-						// (wastes multiple calls to index, but not too wasteful, keeps interface "clean")					
-				}
+				nDocsDeleted = dataStore.removeFromDatastore_bySourceKey(source.getKey());
+				
 				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
 				dataStore.removeSoftDeletedDocuments();
 				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
@@ -683,7 +660,7 @@ public class SourceHandler
 		}
 		return rp;
 
-	}//TESTED
+	}//TOTEST
 	
 	/**
 	 * approveSource

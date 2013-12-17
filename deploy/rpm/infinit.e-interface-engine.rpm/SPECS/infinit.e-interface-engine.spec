@@ -152,11 +152,11 @@ Infinit.e search engine REST API
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.policy
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/context.xml
+%config /mnt/opt/tomcat-infinite/interface-engine/conf/web.xml
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/logging.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/templates/server.xml.TEMPLATE
 %config /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/tomcat-users.xml
-%config /mnt/opt/tomcat-infinite/interface-engine/conf/web.xml
 /mnt/opt/tomcat-infinite/interface-engine/lib/ExtendedAccessLogValve.jar
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server.war
