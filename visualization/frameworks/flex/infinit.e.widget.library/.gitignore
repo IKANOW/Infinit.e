@@ -26,3 +26,5 @@ docs/
 target/
 out/
 data/
+/bin-debug
+/bin-release

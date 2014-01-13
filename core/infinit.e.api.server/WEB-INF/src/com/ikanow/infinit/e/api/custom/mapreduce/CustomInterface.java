@@ -333,7 +333,7 @@ public class CustomInterface extends ServerResource
 				 }
 				 else if ( action.equals("removejob") )
 				 {
-					 rp = this.customhandler.removeJob(cookieLookup, jobid, shouldRemoveJar); 
+					 rp = CustomHandler.removeJob(cookieLookup, jobid, shouldRemoveJar, false);
 				 }
 				 else if (action.equals("failed")) {
 					 rp.setResponse(new ResponseObject("Schedule/Update MapReduce Job", false, "Failed to parse POSTed content"));

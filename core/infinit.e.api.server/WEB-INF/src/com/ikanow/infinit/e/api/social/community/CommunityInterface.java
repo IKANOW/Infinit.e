@@ -32,6 +32,7 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 
@@ -272,7 +273,7 @@ public class CommunityInterface extends ServerResource
 		 {
 			 if (action.equals("getCommunity"))
 			 {
-				 if ( RESTTools.validateCommunityIds(cookieLookup, communityId) || (communityId.startsWith("*")) )
+				 if ( SocialUtils.validateCommunityIds(cookieLookup, communityId) || (communityId.startsWith("*")) )
 				 {
 					 rp = this.community.getCommunity(cookieLookup, communityId);
 				 }

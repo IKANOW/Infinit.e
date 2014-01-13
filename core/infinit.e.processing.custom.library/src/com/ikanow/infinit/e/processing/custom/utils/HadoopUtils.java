@@ -15,8 +15,10 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.custom.utils;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.util.HashSet;
 import java.util.Iterator;
 
@@ -25,6 +27,8 @@ import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.FSDataInputStream;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.io.Writable;
@@ -60,6 +64,42 @@ public class HadoopUtils {
 		}
 	}
 	
+	public static BasicDBList getBsonFromTextFiles(CustomMapReduceJobPojo cmr, int nLimit, String fields) throws IOException, SAXException, ParserConfigurationException {
+		
+		BasicDBList dbl = new BasicDBList();
+
+		PropertiesManager props = new PropertiesManager();
+		Configuration conf = getConfiguration(props);		
+		
+		Path pathDir = HadoopUtils.getPathForJob(cmr, conf, false);
+		FileSystem fs = FileSystem.get(conf);
+		
+		FileStatus[] files = fs.globStatus(new Path(pathDir.toString() + "/part-*"));
+		for(FileStatus file:files) {
+			if(file.getLen() > 0){
+				FSDataInputStream in = fs.open(file.getPath());
+				BufferedReader bin = new BufferedReader(new InputStreamReader(in));
+				for(;;) {
+					String s = bin.readLine();
+					if (null == s) break;
+					
+					String[] keyValue = s.split("\t", 2);
+					BasicDBObject dbo = new BasicDBObject();
+					if (keyValue.length > 1) {
+						dbo.put("key", keyValue[0]);
+						dbo.put("value", keyValue[1]);
+					}
+					else {
+						dbo.put("value", keyValue[0]);							
+					}
+					dbl.add(dbo);
+				}
+				in.close();
+			}
+		}
+		return dbl;
+	}//TESTED
+
 	public static BasicDBList getBsonFromSequenceFile(CustomMapReduceJobPojo cmr, int nLimit, String fields) throws SAXException, IOException, ParserConfigurationException {
 
 		BasicDBList dbl = new BasicDBList();

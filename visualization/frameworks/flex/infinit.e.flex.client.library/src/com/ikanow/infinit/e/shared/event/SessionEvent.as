@@ -28,6 +28,8 @@ package com.ikanow.infinit.e.shared.event
 		
 		public static const GET_COOKIE:String = "getCookieEvent";
 		
+		public static const FORGOT_PASSWORD:String = "forgotPassword";
+		
 		public static const LOGIN:String = "loginEvent";
 		
 		public static const LOGOUT:String = "logoutEvent";

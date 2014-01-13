@@ -28,16 +28,22 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	@SuppressWarnings("unchecked")
 	static public TypeToken<List<SourceHarvestStatusPojo>> listType() { return new TypeToken<List<SourceHarvestStatusPojo>>(){}; }
  
-	private Date harvested = null;
+	private Date harvested = null; // (last harvested - but can be smoothed to avoid clumping, so more for internal usage)
 	final public static String harvested_ = "harvested";
 	final public static String sourceQuery_harvested_ = "harvest.harvested";
-	private Date synced = null;
-	final public static String synced_ = "synced";
+	private Date realHarvested = null; // (last harvested - can't be changed, so for display purposes)
+	final public static String realHarvested_ = "realHarvested";
+	final public static String sourceQuery_realHarvested_ = "harvest.realHarvested";
+	private Date synced = null; // (time last syncronized)
+	final public static String synced_ = "synced"; 
 	final public static String sourceQuery_synced_ = "harvest.synced";
+	private Date extracted = null; // (last harvest that actually pulled docs)
+	final public static String extracted_ = "extracted"; 
+	final public static String sourceQuery_extracted_ = "harvest.extracted";
 	private HarvestEnum harvest_status = null;
 	final public static String harvest_status_ = "harvest_status";
 	final public static String sourceQuery_harvest_status_ = "harvest.harvest_status";
-	private String harvest_message = null;
+	private String harvest_message = null; // (this isn't just a display message, it is used for state in db and feed harvesters)
 	final public static String harvest_message_ = "harvest_message";
 	final public static String sourceQuery_harvest_message_ = "harvest.harvest_message";
 	private Long doccount = null;
@@ -119,5 +125,17 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	}
 	public LinkedHashMap<String, String> getDistributedStatus() {
 		return distributedStatus;
+	}
+	public Date getRealHarvested() {
+		return realHarvested;
+	}
+	public void setRealHarvested(Date realHarvested) {
+		this.realHarvested = realHarvested;
+	}
+	public Date getExtracted() {
+		return extracted;
+	}
+	public void setExtracted(Date extracted) {
+		this.extracted = extracted;
 	}
 }

@@ -31,8 +31,7 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import com.ikanow.infinit.e.api.social.community.CommunityHandler;
-import com.ikanow.infinit.e.api.social.community.PersonHandler;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SendMail;
@@ -46,6 +45,7 @@ import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -112,7 +112,7 @@ public class SourceHandler
 			}
 			else
 			{
-				communityIdSet = RESTTools.getUserCommunities(userIdStr);
+				communityIdSet = SocialUtils.getUserCommunities(userIdStr);
 				query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, communityIdSet)); // (security)
 			}
 			SourcePojo source = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
@@ -290,6 +290,16 @@ public class SourceHandler
 				for (ObjectId sid: communityIdSet) {
 					source.getCommunityIds().add(sid);
 				}
+				
+				// RSS search harvest types tend to be computationally expensive and therefore
+				// should be done less frequently (by default once/4-hours seems good):
+				if (sourceSearchesWeb(source)) {
+					// If the search cycle has not been specified, use a default:
+					if (null == source.getSearchCycle_secs()) {
+						source.setSearchCycle_secs(4*3600); // (ie 4 hours)
+					}
+				}
+				//TESTED
 			}
 			catch (Exception e)
 			{
@@ -318,16 +328,6 @@ public class SourceHandler
 				source.generateShah256Hash();
 					// Note: Create/update the source's Shah-256 hash 
 			
-				// RSS search harvest types tend to be computationally expensive and therefore
-				// should be done less frequently (by default once/4-hours seems good):
-				if ((null != source.getRssConfig()) && (null != source.getRssConfig().getSearchConfig())) {
-					// If the search cycle has not been specified, use a default:
-					if (null == source.getSearchCycle_secs()) {
-						source.setSearchCycle_secs(4*3600); // (ie 4 hours)
-					}
-				}
-				//TESTED
-				
 				///////////////////////////////////////////////////////////////////////
 				// Note: Check the SourcePojo to make sure the required fields are there
 				// return an error message to the user if any are missing
@@ -389,6 +389,11 @@ public class SourceHandler
 			// Existing source, update if possible
 			else
 			{
+				if ((null != source.getPartiallyPublished()) && source.getPartiallyPublished()) {
+					rp.setResponse(new ResponseObject("Source", false, "Unable to update source - the source is currently in 'partially published' mode, because it is private and you originally accessed it without sufficient credentials. Make a note of your changes, revert, and try again."));
+					return rp;					
+				}//TESTED
+				
 				///////////////////////////////////////////////////////////////////////
 				// Attempt to retrieve existing share from harvester.sources collection
 				query = new BasicDBObject();
@@ -419,7 +424,7 @@ public class SourceHandler
 					
 					if (!isSourceOwner) {
 						boolean ownerModOrApprovedSysAdmin = isApproved &&
-										(CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr) || RESTTools.adminLookup(userIdStr));
+										(SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr) || RESTTools.adminLookup(userIdStr));
 						
 						if (!ownerModOrApprovedSysAdmin)
 						{
@@ -505,22 +510,6 @@ public class SourceHandler
 						}
 					}//TESTED
 					
-					// RSS search harvest types tend to be computationally expensive and therefore
-					// should be done less frequently (by default once/4-hours seems good):
-					if ((null != source.getRssConfig()) && (null != source.getRssConfig().getSearchConfig())) {
-						// If the search cycle has not been specified, use a default:
-						if (null == source.getSearchCycle_secs()) {
-							if (null == oldSource.getSearchCycle_secs()) {
-								source.setSearchCycle_secs(4*3600); // (ie 4 hours)
-							}
-							else {
-								source.setSearchCycle_secs(oldSource.getSearchCycle_secs()); 
-							}
-						}
-						// (else if a new searchCycle has been specified then 
-					}
-					//TESTED (both of the above clauses)
-					
 					///////////////////////////////////////////////////////////////////////
 					// Check for missing fields:
 					String missingFields = hasRequiredSourceFields(source);
@@ -587,6 +576,20 @@ public class SourceHandler
 		return rp;
 	}
 	
+	public static boolean sourceSearchesWeb(SourcePojo source) {
+		if ((null != source.getRssConfig()) && (null != source.getRssConfig().getSearchConfig())) {
+			return true;
+		}
+		else if (null != source.getProcessingPipeline() && source.getExtractType().equalsIgnoreCase("feed")) {
+			for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) {
+				if (null != pxPipe.links) {
+					return true;
+				}
+			}
+		}
+		return false;
+	}//TESTED (by hand, pipeline and non pipeline modes; in pipeline mode have tested both feed and non-feed modes)
+		
 	/**
 	 * deleteSource
 	 * @param sourceIdStr
@@ -602,6 +605,8 @@ public class SourceHandler
 			BasicDBObject queryDbo = new BasicDBObject(SourcePojo.communityIds_, communityId);
 			BasicDBObject queryFields = new BasicDBObject(SourcePojo.key_, 1);
 			queryFields.put(SourcePojo.extractType_, 1);
+			queryFields.put(SourcePojo.harvest_, 1);
+			queryFields.put(SourcePojo.distributionFactor_, 1);
 			try {
 				queryDbo.put(SourcePojo._id_, new ObjectId(sourceIdStr));
 			}
@@ -623,32 +628,52 @@ public class SourceHandler
 			}
 			// OK if we've got to here we're approved and the source exists, start deleting stuff
 			SourcePojo source = SourcePojo.fromDb(srcDbo, SourcePojo.class);
+			
+			//double check this source isn't running INF-2195
+			if ( null != source.getHarvestStatus() )
+			{
+				//a source is in progress if its status is in progress or
+				//its distribution factor does not equals its free dist tokens
+				if ( (source.getHarvestStatus().getHarvest_status() == HarvestEnum.in_progress ) || 
+					(null != source.getDistributionFactor() && source.getDistributionFactor() != source.getHarvestStatus().getDistributionTokensFree() ) )
+				{
+					rp.setResponse(new ResponseObject("Delete Source", false, "Source was still in progress, turned off"));	
+					return rp;
+				}
+			}
+			
+			
 			long nDocsDeleted = 0;
 			if (null != source.getKey()) { // or may delete everything!
 				StoreAndIndexManager dataStore = new StoreAndIndexManager();
-				nDocsDeleted = dataStore.removeFromDatastore_bySourceKey(source.getKey());
-				
-				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
-				dataStore.removeSoftDeletedDocuments();
-				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+				nDocsDeleted = dataStore.removeFromDatastoreAndIndex_bySourceKey(source.getKey(), false, communityId.toString());
 				
 				DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, new ObjectId(communityIdStr)), 
 						new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, -nDocsDeleted)));
+				
+				if (bDocsOnly) { // Update the source harvest status (easy: no documents left!)
+					try {
+						DbManager.getIngest().getSource().update(queryDbo,
+								new BasicDBObject(MongoDbManager.set_, 
+										new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, 0L))
+								);
+					}
+					catch (Exception e) {} // Just carry on, shouldn't ever happen and it's too late to do anything about it
+					//TESTED					
+				}
+				
+				// Do all this last:
+				// (Not so critical if we time out here, the next harvest cycle should finish it; though would like to be able to offload this
+				//  also if we are doing it from the API, then need a different getUUID so we don't collide with our own harvester...) 
+				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+				dataStore.removeSoftDeletedDocuments();
+				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());				
 			}			
 			if (!bDocsOnly) { // Also deleting the entire source
 				DbManager.getIngest().getSource().remove(queryDbo);
 				rp.setResponse(new ResponseObject("Delete Source", true, "Deleted source and all documents: " + nDocsDeleted));			
 			}
-			else { // Update the source harvest status (easy: no documents left!)
-				try {
-					DbManager.getIngest().getSource().update(queryDbo,
-							new BasicDBObject(MongoDbManager.set_, 
-									new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, 0L))
-							);
-				}
-				catch (Exception e) {} // Just carry on, shouldn't ever happen and it's too late to do anything about it
-				//TESTED
-				
+			else { 				
 				rp.setResponse(new ResponseObject("Delete Source", true, "Deleted source documents: " + nDocsDeleted));						
 			}
 		}
@@ -660,7 +685,7 @@ public class SourceHandler
 		}
 		return rp;
 
-	}//TOTEST
+	}//TESTED
 	
 	/**
 	 * approveSource
@@ -786,7 +811,7 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
 			boolean bAdmin = RESTTools.adminLookup(userIdStr);
 			if (!bAdmin) {
@@ -848,7 +873,7 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();
 		try 
 		{
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
 			boolean bAdmin = RESTTools.adminLookup(userIdStr);
 			if (!bAdmin) {
@@ -909,7 +934,7 @@ public class SourceHandler
 		ResponsePojo rp = new ResponsePojo();		
 		try 
 		{
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 			ObjectId userId = null;
 			boolean bAdmin = RESTTools.adminLookup(userIdStr);
 			if (!bAdmin) {
@@ -969,7 +994,7 @@ public class SourceHandler
 		try 
 		{	
 			boolean bAdmin = RESTTools.adminLookup(userIdStr);
-			HashSet<ObjectId> userCommunities = RESTTools.getUserCommunities(userIdStr);
+			HashSet<ObjectId> userCommunities = SocialUtils.getUserCommunities(userIdStr);
 			
 			DBCursor dbc = null;
 			BasicDBObject query = new BasicDBObject(); 
@@ -1111,7 +1136,7 @@ public class SourceHandler
 					// we're OK only community id is user community
 				}//TESTED
 				else {
-					HashSet<ObjectId> communities = RESTTools.getUserCommunities(userIdStr);
+					HashSet<ObjectId> communities = SocialUtils.getUserCommunities(userIdStr);
 					Iterator<ObjectId> it = source.getCommunityIds().iterator();
 					while (it.hasNext()) {
 						ObjectId src = it.next();
@@ -1139,7 +1164,16 @@ public class SourceHandler
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toUpdate = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toRemove = new LinkedList<DocumentPojo>();
+			if (null == source.getHarvestStatus()) {
+				source.setHarvestStatus(new SourceHarvestStatusPojo());
+			}
+			String oldMessage = source.getHarvestStatus().getHarvest_message();
 			harvester.harvestSource(source, toAdd, toUpdate, toRemove);
+			
+			// (don't parrot the old message back - v confusing)
+			if (oldMessage == source.getHarvestStatus().getHarvest_message()) { // (ptr ==)
+				source.getHarvestStatus().setHarvest_message("(no documents extracted - likely a source or configuration error)");				
+			}//TESTED
 			
 			String message = null;
 			if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvest_message())) {
@@ -1205,7 +1239,7 @@ public class SourceHandler
 	 */
 	private boolean isOwnerModeratorOrContentPublisherOrSysAdmin(String communityIdStr, String ownerIdStr)
 	{
-		isOwnerOrModerator = CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr);
+		isOwnerOrModerator = SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr);
 		if (!isOwnerOrModerator) {
 			isSysAdmin = RESTTools.adminLookup(ownerIdStr, false); // (admin doesn't need to be enabled if "admin-on-request")
 		}
@@ -1223,7 +1257,7 @@ public class SourceHandler
 	 */
 	private boolean isOwnerModeratorOrSysAdmin(String communityIdStr, String ownerIdStr)
 	{
-		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);
+		isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, ownerIdStr);
 		if (!isOwnerOrModerator) {
 			isSysAdmin = RESTTools.adminLookup(ownerIdStr);
 		}
@@ -1232,7 +1266,7 @@ public class SourceHandler
 	}	
 	private boolean isOwnerOrModerator(String communityIdStr, String ownerIdStr)
 	{
-		isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, ownerIdStr);
+		isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, ownerIdStr);
 		return isOwnerOrModerator;
 	}		
 	
@@ -1289,7 +1323,7 @@ public class SourceHandler
 		
 		
 		// Get Information for Person requesting the new source
-		PersonPojo p = PersonHandler.getPerson(source.getOwnerId().toString());
+		PersonPojo p = SocialUtils.getPerson(source.getOwnerId().toString());
 		
 		// Get the root URL to prepend to the approve/reject link below
 		PropertiesManager propManager = new PropertiesManager();
@@ -1299,7 +1333,7 @@ public class SourceHandler
 		String subject = "Approve/Reject New Source: " + source.getTitle();
 		
 		// Get array of community IDs and get corresponding CommunityPojo objects
-		ArrayList<CommunityPojo> communities = CommunityHandler.getCommunities(source.getCommunityIds());
+		ArrayList<CommunityPojo> communities = SocialUtils.getCommunities(source.getCommunityIds());
 		
 		// Iterate over the communities and send an email to each set of owner/moderators requesting
 		// that the approve or reject the source
@@ -1361,10 +1395,10 @@ public class SourceHandler
 	private static boolean emailSourceApproval(SourcePojo source, String approverIdStr, String decision)
 	{
 		// Get Information for Person requesting the new source
-		PersonPojo submitter = PersonHandler.getPerson(source.getOwnerId().toString());
+		PersonPojo submitter = SocialUtils.getPerson(source.getOwnerId().toString());
 		
 		// Get Information for Person making approval decision
-		PersonPojo approver = PersonHandler.getPerson(approverIdStr);
+		PersonPojo approver = SocialUtils.getPerson(approverIdStr);
 	
 		// Subject Line
 		String subject = "Request to add new Source " + source.getTitle() + " was " + decision;
@@ -1509,7 +1543,7 @@ public class SourceHandler
 	
 	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
 		if (communityIdStr.startsWith("*")) {
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStr);	
 			if (1 == communityIdStrs.length) {
 				communityIdStr = communityIdStrs[0]; 
 			}
@@ -1518,8 +1552,104 @@ public class SourceHandler
 			}
 		}	
 		return communityIdStr;
-	}	
+	}
 	
+	/**
+	 * Turns a source off/on according to shouldSuspend
+	 * 
+	 * @param sourceid
+	 * @param communityid
+	 * @param cookieLookup
+	 * @param shouldSuspend
+	 * @return
+	 */
+	public ResponsePojo suspendSource(String sourceIdStr, String communityIdStr, String personIdStr, boolean shouldSuspend) 
+	{
+		ResponsePojo rp = new ResponsePojo();
+		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
+		if ( isApproved )
+		{
+			//get source
+			BasicDBObject query = new BasicDBObject();
+			query.put(SourcePojo._id_, new ObjectId(sourceIdStr));
+			SourcePojo source = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(query), SourcePojo.class);
+			if ( source != null )
+			{
+				//set the search cycle secs in order of user -> toplevel -> nonexist
+				//if turning off: set to negative of user - toplevel or -1
+				//if turning on: set to positive of user - toplevel or null
+				BasicDBObject update = new BasicDBObject();				
+				int searchCycle_secs = Math.abs( getSearchCycleSecs(source) );
+				if ( shouldSuspend )
+				{
+					//turn off the source
+					if ( searchCycle_secs > 0 )
+					{
+						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", -searchCycle_secs));
+					}
+					else
+					{
+						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", -1));						
+					}
+				}
+				else
+				{
+					//turn on the source
+					if ( searchCycle_secs > 1 )
+					{
+						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", searchCycle_secs));						
+					}
+					else
+					{
+						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", null));
+					}
+				}
+				
+				//save the source
+				DbManager.getIngest().getSource().update(query, update);
+				rp.setResponse(new ResponseObject("suspendSource", true, "Source suspended/unsuspended successfully"));
+			}
+			else
+			{
+				rp.setResponse(new ResponseObject("suspendSource", false, "No source with this id found"));
+			}
+		}
+		else
+		{
+			rp.setResponse(new ResponseObject("suspendSource", false, "must be owner or admin to suspend this source"));
+		}
+		return rp;
+	}
+
+	/**
+	 * Returns the searchCycle_secs for a source.  Will attempt to grab a users source
+	 * pipeline search cycle, if that doesn't exist, will return the top level searchCycle.
+	 * If that doesn't exist will return 0.
+	 * 
+	 * @param source
+	 * @return
+	 */
+	private int getSearchCycleSecs(SourcePojo source) 
+	{
+		//try to get user pipeline searchCycle
+		if (null != source.getProcessingPipeline()) 
+		{
+			for (SourcePipelinePojo px : source.getProcessingPipeline()) 
+			{				
+				if (null != px && null != px.harvest && null != px.harvest.searchCycle_secs ) 
+				{
+					return px.harvest.searchCycle_secs;
+				}
+			}
+		}
+				
+		//if that doesn't exist, get regular searchCycle
+		if ( null != source.getSearchCycle_secs() )
+			return source.getSearchCycle_secs();
+		
+		//if that doesn't exist, return 0
+		return 0;
+	}		
 	
 }
 

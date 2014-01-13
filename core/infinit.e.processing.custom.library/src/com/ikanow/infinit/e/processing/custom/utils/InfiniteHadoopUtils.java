@@ -66,9 +66,10 @@ public class InfiniteHadoopUtils {
 	{
 		if ( query.equals("") || query.equals("null") || query == null )
 			query = "{}";
-		DBObject dbo = (DBObject) com.mongodb.util.JSON.parse(query);
+		DBObject dbo = null;
 		try
 		{
+			dbo = (DBObject) com.mongodb.util.JSON.parse(query);
 			BasicDBList dbl = (BasicDBList)dbo;
 			//is a list
 			if ( querySpec == QuerySpec.QUERY )

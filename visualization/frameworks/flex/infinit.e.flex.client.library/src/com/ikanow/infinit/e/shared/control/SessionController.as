@@ -21,6 +21,8 @@ package com.ikanow.infinit.e.shared.control
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResponse;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.service.session.ISessionServiceDelegate;
+	
+	import mx.controls.Alert;
 	import mx.rpc.events.FaultEvent;
 	import mx.rpc.events.ResultEvent;
 	
@@ -101,6 +103,40 @@ package com.ikanow.infinit.e.shared.control
 		public function keepAlive_resultHandler( event:ResultEvent ):void
 		{
 			sessionManager.keepAlive_resultHandler( ServiceResult( event.result ).response as ServiceResponse );
+		}
+		
+		[EventHandler( event = "SessionEvent.FORGOT_PASSWORD" )]
+		/**
+		 * Forgot Password
+		 * @param event
+		 */
+		public function forgotPassword( event:SessionEvent ):void
+		{
+			executeServiceCall( "SessionController.forgotPassword()", event, sessionServiceDelegate.forgotPassword( event ), forgotPassword_resultHandler, defaultFaultHandler );
+		}
+		
+		/**
+		 * Forgot Password Result Handler
+		 * @param event
+		 */
+		public function forgotPassword_resultHandler( event:ResultEvent ):void
+		{			
+			//we might not be using the infinit.e password system so we 
+			//will write a generic message, and add our own text if it was us
+			var response:String = "Forgot password sent successfully";
+			try
+			{
+				var sr:ServiceResult = ServiceResult( event.result );
+				if ( sr != null && sr.response != null && sr.response.responseSuccess && sr.response.message != null )
+				{
+					response += ": " + sr.response.message;			
+				}
+			}
+			catch ( err:Error)
+			{
+				//do nothing, was probably not an infinit.e forget password call
+			}
+			Alert.show(response);
 		}
 		
 		[EventHandler( event = "SessionEvent.LOGIN" )]

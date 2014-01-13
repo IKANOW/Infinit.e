@@ -54,7 +54,15 @@
 			
 			protected function forgotPassword_clickHandler():void
 			{
-				model.forgotPassword( userName.text );
+				//call username validator
+				if ( userNameValidator.validate().results == null || userNameValidator.validate().results.length == 0 )
+				{
+					model.forgotPassword( userName.text );
+				}
+				else
+				{
+					Alert.show("Must provide a valid username.");
+				}
 			}
 			
 			protected function group1_creationCompleteHandler( event:FlexEvent ):void

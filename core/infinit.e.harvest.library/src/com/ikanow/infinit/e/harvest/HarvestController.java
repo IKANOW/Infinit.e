@@ -49,7 +49,6 @@ import com.ikanow.infinit.e.data_model.interfaces.harvest.IEntityExtractor;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
-import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -135,6 +134,7 @@ public class HarvestController implements HarvestContext
 	private static AtomicInteger num_docs_extracted = new AtomicInteger(0);
 	private static AtomicInteger num_errors_source = new AtomicInteger(0);
 	private static AtomicInteger num_error_url = new AtomicInteger(0);
+	private static AtomicInteger num_error_px = new AtomicInteger(0);
 	private static AtomicInteger num_ent_extracted = new AtomicInteger(0);
 	private static AtomicInteger num_event_extracted = new AtomicInteger(0);
 
@@ -172,8 +172,12 @@ public class HarvestController implements HarvestContext
 	{
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
+		if (this.isStandalone()) { // (override API settings in test mode)
+			sTypes = "Feed,File,Database";
+		}
 		String sType[] = sTypes.split("\\s*,\\s*");
 
+		
 		// Add a harvester for each data type
 		for (String s: sType) {
 			if (s.equalsIgnoreCase("database")) {
@@ -389,6 +393,7 @@ public class HarvestController implements HarvestContext
 
 		// Reset any state that might have been generated from the previous source
 		getDuplicateManager().resetForNewSource();
+		getHarvestStatus().resetForNewSource();
 
 		//First up, Source Extraction (could spawn off some threads to do source extraction)
 		// Updates will be treated as follows:
@@ -548,7 +553,8 @@ public class HarvestController implements HarvestContext
 				}
 				catch (Exception e) {
 
-					e.printStackTrace();
+					//DEBUG
+					//e.printStackTrace();
 					logger.error("Error extracting source=" + source.getKey() + ", type=" + source.getExtractType() + ", reason=" + e.getMessage());					
 					_harvestStatus.update(source, new Date(), HarvestEnum.error, "Extraction error: " + e.getMessage(), false, false);					
 				}
@@ -629,25 +635,47 @@ public class HarvestController implements HarvestContext
 
 		completeDocumentBuilding(toAdd, toUpdate);
 
+		int pxErrors = getHarvestStatus().getNumMessages();		
+		num_error_px.addAndGet(pxErrors);
+		
 		// Log the number of feeds extracted for the current source
-		if ((toAdd.size() > 0) || (toUpdate.size() > 0) || (toRemove.size() > 0) || (nUrlErrorsThisSource > 0)) {
-			StringBuffer sLog = new StringBuffer("source=").append((null==source.getUrl()?source.getKey():source.getUrl())).
-			append(" extracted=").append(toAdd.size()).append(" updated=").append(toUpdate.size()).
-			append(" deleted=").append(toRemove.size()).append(" urlerrors=").append(nUrlErrorsThisSource);
+		if ((toAdd.size() > 0) || (toUpdate.size() > 0) || (toRemove.size() > 0) || (nUrlErrorsThisSource > 0) || (pxErrors > 0)) {
+			StringBuffer sLog = new StringBuffer("source=").append((null==source.getUrl()?source.getKey():source.getUrl())).append(" ");
+				// (only need this for the log, not the source harvest message)
 
-			logger.info(sLog.toString());
-			getHarvestStatus().logMessage(sLog.toString(), false);
-		}//TOTEST
+			if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvest_message() && !source.getHarvestStatus().getHarvest_message().isEmpty()))
+			{
+				sLog.append("extracterr='").append(source.getHarvestStatus().getHarvest_message().replace("\n",  " ")).append("' ");
+			}//TESTED
+			
+			StringBuffer sLog2 = new StringBuffer();
 
-		// May need to update status again:
-		if (getHarvestStatus().moreToLog()) {
-			SourceHarvestStatusPojo prevStatus = source.getHarvestStatus();
-			if (null != prevStatus) { // (just for robustness, should never happen)
-				getHarvestStatus().update(source, new Date(), 
-						source.getHarvestStatus().getHarvest_status(), prevStatus.getHarvest_message(), false, false);
-				// (if we've got this far, the source can't have been so bad we were going to disable it...)
+			// Extraction stats:
+			sLog2.append("extracted=").append(toAdd.size()).append(" updated=").append(toUpdate.size()).
+					append(" deleted=").append(toRemove.size()).append(" urlerrors=").append(nUrlErrorsThisSource).append(" pxerrors=").append(pxErrors);
+			
+			getHarvestStatus().logMessage(sLog2.toString(), false); 
+			sLog.append(sLog2);
+			
+			// Other error info for the log only: 
+			String mostCommonMessage = getHarvestStatus().getMostCommonMessage();
+			if (null != mostCommonMessage) {
+				if (mostCommonMessage.length() > 256) {
+					mostCommonMessage = mostCommonMessage.substring(0, 253) + "...'";
+				}
+				sLog.append(mostCommonMessage); // (don't need this in the harvest status since we already have all of them)
 			}
+			logger.info(sLog.toString());
+		}//TESTED
+
+		// May need to update status again (eg any extractor errors or successes - in the harvesters or immediately above):
+		if (getHarvestStatus().moreToLog()) {
+			getHarvestStatus().update(source, new Date(), source.getHarvestStatus().getHarvest_status(), "", false, false);
 		}
+		// (note: the harvest status is updated 3 times:
+		//  1) inside the source-type harvester (which: 1.1) resets the message 1.2) wipes the messages, but sets prevStatus.getHarvest_message() above)
+		//  2) above (the update call, which occurs if logMessage() has been called at any point)
+		//  3) after store/index manager, which normally just sets the status unless any errors occurred during indexing
 
 		num_sources_harvested.incrementAndGet();		
 	}
@@ -982,6 +1010,7 @@ public class HarvestController implements HarvestContext
 		sb.append(" num_of_events_extracted=" + num_event_extracted.get());
 		sb.append(" num_of_source_errors=" + num_errors_source.get());
 		sb.append(" num_of_url_errors=" + num_error_url.get());
+		sb.append(" num_of_px_errors=" + num_error_px.get());
 		logger.info(sb.toString());
 	}
 

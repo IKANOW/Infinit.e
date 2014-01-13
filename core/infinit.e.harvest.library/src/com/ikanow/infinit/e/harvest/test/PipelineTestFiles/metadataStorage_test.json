@@ -1,0 +1,61 @@
+    "processingPipeline": [
+        {
+            "display": "Web test",
+            "web": {
+                "extraUrls": [
+                    {
+                        "description": "White House refuses to make Egypt 'coup' determination, XXXYZ",
+                        "title": "White House refuses to make Egypt 'coup' determination",
+                        "url": "http://www.bbc.co.uk/news/world-us-canada-23234153"
+                    }
+                ],
+                "waitTimeOverride_ms": 100
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": [
+                    "var _nested = {\n    \"removeString\": \"1\",\n    \"leaveString\": \"1\",\n    \"arrayOfStrings\": [ \"1\", \"2\", \"3\" ],\n    \"nestedArrayOfStrings\": {\n        \"arrayOfStrings1\": [ \"1\", \"2\", \"3\" ],\n        \"arrayOfStrings2\": [ \"A\", \"B\", \"C\" ],\n    },\n    \"object\": {\n        \"nested1\": { \"nested2\": { \"nested3\": \"1\" }, \"nonempty\": \"1\" },\n        \"nestedMapArray\": [ { \"nested2\": \"1\" }, { \"nested2\": \"2\" }, { \"nested2\": \"3\" }],\n        \"nestedMapArray2\": [ { \"nested2\": \"1\" }, { \"nested1\": \"1\", \"nested2\": \"2\" }, { \"nested2\": \"3\" }],\n        \"nestedMixedArray\": [ { \"nested2\": \"1\" }, \"trick\", { \"nested2\": \"3\" }]\n    }\n};\nvar _nested2 = [ { \"nested2\": \"1\" }, {\"nested2\": \"1\" } ];\nvar _nested3 = [ { \"nested2\": \"1\" }, {\"nested2\": \"1\", \"nested1\": \"1\" } ];\n"
+                ]
+            }
+        },
+        {
+            "contentMetadata": [
+                {
+                    "fieldName": "test",
+                    "index": false,
+                    "script": "var x = _nested; x ;",
+                    "scriptlang": "javascript",
+                    "store": true
+                },
+                {
+                    "fieldName": "test2",
+                    "index": false,
+                    "script": "var x = _nested2; x ;",
+                    "scriptlang": "javascript",
+                    "store": true
+                },
+                {
+                    "fieldName": "test3",
+                    "index": false,
+                    "script": "var x = _nested3; x ;",
+                    "scriptlang": "javascript",
+                    "store": true
+                }
+            ],
+            "display": ""
+        },
+        {
+            "textEngine": {
+                "engineName": "boilerpipe"
+            }
+        },
+        {
+            "display": "",
+            "storageSettings": {
+                "metadataFieldStorage": "-test2.nested2,test3.nested2,test.removeString,test.leaveString.fail,test.arrayOfStrings.fail,test.nestedArrayOfStrings.arrayOfStrings1,test.nestedArrayOfStrings.arrayOfStrings2.fail,test.object.nested1.nested2.nested3,test.object.nestedMapArray.nested2,test.object.nestedMapArray2.nested2,test.object.nestedMixedArray.nested2"
+            }
+        }
+    ],

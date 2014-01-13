@@ -893,11 +893,9 @@ static String API_ROOT = null;
 				System.err.println(e.toString());
 			}
 		}
-		if (null == API_ROOT) 
-		{ 
+		if (null == API_ROOT) { 
 			// Default to localhost
-			//API_ROOT = "http://localhost:8080/api/";
-			API_ROOT = "http://localhost:8184/";
+			API_ROOT = "http://localhost:8080/api/";
 			SHARE_ROOT = "$infinite/share/get/";
 		}
 

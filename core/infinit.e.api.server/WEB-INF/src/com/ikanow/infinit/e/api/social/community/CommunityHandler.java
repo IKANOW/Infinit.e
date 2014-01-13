@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.api.social.community;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -25,10 +24,13 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.List;
+
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.config.source.SourceHandler;
+import com.ikanow.infinit.e.api.custom.mapreduce.CustomHandler;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SendMail;
@@ -40,6 +42,7 @@ import com.ikanow.infinit.e.data_model.api.social.community.CommunityPojoApiMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityApprovePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityAttributePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberContactPojo;
@@ -56,7 +59,6 @@ import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareOwnerPojo;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
-
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -297,7 +299,7 @@ public class CommunityHandler
 							if (null != cp.getCommunityAttributes()) {
 								CommunityAttributePojo attr = cp .getCommunityAttributes().get("usersCanCreateSubCommunities");
 								if ((null == attr) || (null== attr.getValue()) || (attr.getValue().equals("false"))) {
-									if (!cp.isOwner(person.get_id()) && !isModerator(userIdStr, cp) && !RESTTools.adminLookup(userIdStr)) {
+									if (!cp.isOwner(person.get_id()) && !SocialUtils.isModerator(userIdStr, cp) && !RESTTools.adminLookup(userIdStr)) {
 										return new ResponsePojo(new ResponseObject("Add Community", false, "Can't create sub-community when not permitted by parent"));
 									}//TESTED (owner+admin+mod)
 								}
@@ -380,7 +382,7 @@ public class CommunityHandler
 				{
 					c.setParentId(new ObjectId(parentIdStr));
 					c.setParentName(parentName);
-					c = createParentTreeRecursion(c, false);
+					c = SocialUtils.createParentTreeRecursion(c, false);
 				}
 				c.setIsPersonalCommunity(false);
 				c.setTags(getTagsFromString(tags));
@@ -496,21 +498,47 @@ public class CommunityHandler
 								
 								BasicDBObject deleteQuery2 = new BasicDBObject(SourcePojo.communityIds_, communityId);
 								BasicDBObject deleteFields2 = new BasicDBObject(SourcePojo.communityIds_, 1);
-								List<SourcePojo> sources = SourcePojo.listFromDb(DbManager.getIngest().getSource().find(deleteQuery2, deleteFields2), SourcePojo.listType());				
-								for (SourcePojo source: sources) {
+								List<SourcePojo> sources = SourcePojo.listFromDb(DbManager.getIngest().getSource().find(deleteQuery2, deleteFields2), SourcePojo.listType());
+								List<SourcePojo> failedSources = new ArrayList<SourcePojo>();
+								for (SourcePojo source: sources) 
+								{
+									ResponsePojo rp1 = null;
 									SourceHandler tmpHandler = new SourceHandler();
 									if (1 == source.getCommunityIds().size()) { // delete this source
-										tmpHandler.deleteSource(source.getId().toString(), communityIdStr, personIdStr, false);
+										rp1 = tmpHandler.deleteSource(source.getId().toString(), communityIdStr, personIdStr, false);
 											// (deletes all docs and removes from the share)
 									}
 									else { // Still need to delete docs from this share from this community
-										tmpHandler.deleteSource(source.getId().toString(), communityIdStr, personIdStr, true);										
+										rp1 = tmpHandler.deleteSource(source.getId().toString(), communityIdStr, personIdStr, true);										
+									}
+									if ( rp1 != null && !rp1.getResponse().isSuccess() )
+									{
+										failedSources.add(source);
 									}
 								}
+								
+								//if we have more than 1 failed source, bail out w/ error
+								if (failedSources.size() > 0 )
+								{
+									StringBuilder sb = new StringBuilder();
+									for ( SourcePojo source : failedSources )
+										sb.append(source.getId().toString() + " ");
+									rp.setResponse(new ResponseObject("Delete community", false, "Could not stop sources (they might be currently running): " + sb.toString()));
+									return rp;
+								}
+								
 								BasicDBObject update2 = new BasicDBObject(DbManager.pull_, new BasicDBObject(SourcePojo.communityIds_, communityId));
 								DbManager.getSocial().getShare().update(deleteQuery2, update2, false, true);
 
 								//TESTED (both types, check docs deleted)
+								
+								// 3] Remove from all map reduce jobs (delete any that it is only comm left on)
+								String customJobsMessage = removeCommunityFromJobs(personIdStr, communityId);
+								if ( customJobsMessage.length() > 0)
+								{
+									rp.setResponse(new ResponseObject("Delete community", false, "Could not stop all map reduce jobs (they might be currently running): " + customJobsMessage));
+									return rp;
+								}
 								
 								// 4] Finally delete the object itself
 								
@@ -528,7 +556,7 @@ public class CommunityHandler
 								}
 								//TESTED
 								
-								rp.setResponse(new ResponseObject("Delete community", true, "Community deleted forever."));
+								rp.setResponse(new ResponseObject("Delete community", true, "Community deleted forever. " + customJobsMessage));
 							}
 							else { // First time, just remove all users and disable
 								//at this point, we have verified, community/user exist, not a personal group, user is member and owner
@@ -570,6 +598,28 @@ public class CommunityHandler
 		
 		return rp;
 	}
+	
+	/**
+	 * Removes this community from any map reduce jobs, then deletes any jobs where it was the only community
+	 * 
+	 * @param communityId
+	 * @return 
+	 */
+	private String removeCommunityFromJobs(String personIdStr, ObjectId communityId)
+	{
+		StringBuilder sb = new StringBuilder();		
+		List<CustomMapReduceJobPojo> failedToRemove = CustomHandler.removeCommunityJobs(communityId);				
+		//return a list of job ids
+		for ( CustomMapReduceJobPojo cmr : failedToRemove )
+		{
+			sb.append(cmr.jobtitle + " ");
+		}
+		if ( sb.length() > 0 )
+		{
+			sb.insert(0, "These map reduce jobs could not be removed: " );
+		}
+		return sb.toString();
+	}
 
 	// (Note supports personId as either Id or username (email) both are unique indexes)
 
@@ -600,7 +650,7 @@ public class CommunityHandler
 				}
 				// OK from here on, personId is the object Id...
 								
-				boolean bAuthorized = isSysAdmin || CommunityHandler.isOwnerOrModerator(communityIdStr, callerIdStr);
+				boolean bAuthorized = isSysAdmin || SocialUtils.isOwnerOrModerator(communityIdStr, callerIdStr);
 				if (bAuthorized) {
 					
 					CommunityPojo cp = CommunityPojo.fromDb(dbo,CommunityPojo.class);
@@ -700,7 +750,7 @@ public class CommunityHandler
 						bAuthorized = cp.isOwner(new ObjectId(callerIdStr));
 					}//TESTED - tried to update myself as moderator to owner (failed), gave up my community (succeeded), changed ownership as admin (FAILED) 
 					else { // Can also be moderator
-						bAuthorized = CommunityHandler.isOwnerOrModerator(communityIdStr, callerIdStr);					
+						bAuthorized = SocialUtils.isOwnerOrModerator(communityIdStr, callerIdStr);					
 					}//TESTED - tried to update my role as member (failed), as admin->moderator (succeeded), as moderator (succeeded)
 				}
 				
@@ -966,7 +1016,7 @@ public class CommunityHandler
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can invite users to
 		// private communities however any member can be able to invite someone to a public community
-		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr);
+		boolean isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canInvite = (isOwnerOrModerator || isSysAdmin) ? true : false;
 
@@ -1232,7 +1282,7 @@ public class CommunityHandler
 		
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can add update communities
-		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr);
+		boolean isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canUpdate = (isOwnerOrModerator || isSysAdmin) ? true : false;	
 		if (!canUpdate)
@@ -1373,7 +1423,7 @@ public class CommunityHandler
 	{
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can add users to communities
-		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr);
+		boolean isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canAdd = (isOwnerOrModerator || isSysAdmin || override) ? true : false;
 		
@@ -1546,7 +1596,7 @@ public class CommunityHandler
 	{
 		/////////////////////////////////////////////////////////////////////////////////////////////////
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can remove users
-		boolean isOwnerOrModerator = CommunityHandler.isOwnerOrModerator(communityIdStr, userIdStr);
+		boolean isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
 		boolean canRemove = (isOwnerOrModerator || isSysAdmin) ? true : false;
 		
@@ -1626,109 +1676,6 @@ public class CommunityHandler
 		}
 		
 		return rp;
-	}
-
-	/**
-	 * isOwnerOrModerator
-	 * Returns true if personid is the owner or a moderator of the community
-	 * @param communityIdStr
-	 * @param personIdStr
-	 * @return
-	 */
-	public static boolean isOwnerOrModeratorOrContentPublisher(String communityIdStr, String personIdStr) 
-	{
-		return  isOwnerOrModerator(communityIdStr, personIdStr, true);
-	}
-	public static boolean isOwnerOrModerator(String communityIdStr, String personIdStr) 
-	{
-		return  isOwnerOrModerator(communityIdStr, personIdStr, false);
-	}
-	private static boolean isOwnerOrModerator(String communityIdStr, String personIdStr, boolean bAllowContentPublisher) 
-	{		
-		CommunityPojo community = null;
-		try
-		{
-			BasicDBObject query = new BasicDBObject("_id", new ObjectId(communityIdStr));
-			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getCommunity().findOne(query);
-			
-			if ((null != dbo) && !dbo.isEmpty())
-			{
-				community = CommunityPojo.fromDb(dbo, CommunityPojo.class);				
-			}
-		} 
-		catch (Exception e)
-		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-		}
-		return isOwnerOrModerator(community, personIdStr, bAllowContentPublisher);
-	}
-	private static boolean isOwnerOrModerator(CommunityPojo community, String personIdStr, boolean bAllowContentPublisher)
-	{
-		boolean isOwnerOrModerator = false;		
-		try
-		{			
-			if (community != null)
-			{				
-				if (community.getIsPersonalCommunity() && community.getId().toString().equals(personIdStr))
-				{
-					isOwnerOrModerator = true;					
-				}
-				else if (community.getOwnerId().toString().equalsIgnoreCase(personIdStr))
-				{
-					isOwnerOrModerator = true;
-				}
-				else
-				{
-					isOwnerOrModerator = isModerator(personIdStr, community, bAllowContentPublisher);
-				}
-			}
-		} 
-		catch (Exception e)
-		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-		}
-		return isOwnerOrModerator;
-	}
-	private static boolean isModerator(String personIdStr, CommunityPojo community) {
-		return isModerator(personIdStr, community, false);
-	}
-	private static boolean isModerator(String personIdStr, CommunityPojo community, boolean bAllowContentPublisher) {
-		Set<CommunityMemberPojo> members = community.getMembers();
-		for (CommunityMemberPojo c : members)
-		{
-			if (c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("moderator"))
-				return true;
-			else if (bAllowContentPublisher && c.get_id().toString().equalsIgnoreCase(personIdStr) && c.getUserType().equalsIgnoreCase("content_publisher"))
-				return true;
-		}		
-		return false;
-	}
-
-	/**
-	 * getCommunities
-	 * Accepts a String[] of community IDs and returns an ArrayList of CommunityPojos
-	 * @param ids
-	 * @return
-	 */
-	public static ArrayList<CommunityPojo> getCommunities(Collection<ObjectId> ids) 
-	{	
-		BasicDBObject in = new BasicDBObject();
-		in.put("$in", ids);
-		BasicDBObject query = new BasicDBObject();
-		query.put("_id", in);
-		
-		ArrayList<CommunityPojo> communities = new ArrayList<CommunityPojo>();
-		
-		try
-		{
-			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
-			communities.addAll(CommunityPojo.listFromDb(dbc, CommunityPojo.listType()));
-		} 
-		catch (Exception e)
-		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-		}
-		return communities;
 	}
 	
 	/**
@@ -1911,7 +1858,7 @@ public class CommunityHandler
 	private CommunityPojo filterCommunityMembers(CommunityPojo community, boolean isAdmin, String userId)
 	{
 		//an admin can see everything
-		if ( !(isAdmin || isOwnerOrModerator(community.getId().toString(), userId) ) )
+		if ( !(isAdmin || SocialUtils.isOwnerOrModerator(community.getId().toString(), userId) ) )
 		{
 			//if community has publish members turned off, remove the members
 			if ( community.getCommunityAttributes().containsKey("publishMemberOverride") && 
@@ -1939,7 +1886,7 @@ public class CommunityHandler
 	
 	private static String allowCommunityRegex(String userIdStr, String communityIdStr) {
 		if (communityIdStr.startsWith("*")) {
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStr);	
 			if (1 == communityIdStrs.length) {
 				communityIdStr = communityIdStrs[0]; 
 			}
@@ -1953,40 +1900,5 @@ public class CommunityHandler
 		return communityIdStr;
 	}		
 	
-	/**
-	 * Recursive helper function for createParentTreeForCommunity.  
-	 * 
-	 * NOTE: This function will always update intermediate nodes but 
-	 * will only update the community passed in if updateCommunity == true.
-	 * 
-	 * @param community
-	 * @param updateCommunity
-	 * @return
-	 */
-	public static CommunityPojo createParentTreeRecursion( CommunityPojo community, boolean updateCommunity )
-	{
-		//if we have a parentId but no parentTree, we go get our parent
-		//otherwise we are already done and can come back down (parentTree is already set or 
-		//we have no parent so would return an empty list anyways)
-		if ( community.getParentId() != null && community.getParentTree() == null )
-		{
-			//get next node and move up a level
-			CommunityPojo parent_community = CommunityPojo.fromDb(MongoDbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", community.getParentId())), CommunityPojo.class);
-			parent_community = createParentTreeRecursion(parent_community, true);
-			//now we have the parent_comm, add parentId to beginning of parentTree and update this comm
-			List<ObjectId> parentTree;
-			if ( parent_community.getParentTree() != null )
-				parentTree = new ArrayList<ObjectId>(parent_community.getParentTree());
-			else
-				parentTree = new ArrayList<ObjectId>();
-			parentTree.add(0, parent_community.getId());
-			community.setParentTree(parentTree);
-			if ( updateCommunity )
-			{
-				BasicDBObject update = new BasicDBObject("$set", new BasicDBObject("parentTree", parentTree));		
-				MongoDbManager.getSocial().getCommunity().update(new BasicDBObject("_id", community.getId()), update);
-			}			
-		}
-		return community;
-	}
+	
 }

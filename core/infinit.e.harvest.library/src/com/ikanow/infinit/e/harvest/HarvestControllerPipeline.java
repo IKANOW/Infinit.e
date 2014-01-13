@@ -32,6 +32,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorEx
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
@@ -164,15 +165,27 @@ public class HarvestControllerPipeline {
 			}//TESTED (storageSettings_test)
 			
 			// 3] Extraction - link extraction, copy into feed pojo
-			
-			if ((null != pxPipe.links) && (null != source.getRssConfig())) {
-				//TODO (INF-2138) Currently only supported for feed/web
+
+			if (null != pxPipe.links) {
 				if (null != globalScript) {
-					//TODO (INF-2218): just share the js engine between links and uah/sah
-					pxPipe.links.setGlobals(globalScript.toString());
+					if ((null != pxPipe.links.getGlobals()) && !pxPipe.links.getGlobals().isEmpty()) {
+						pxPipe.links.setGlobals(globalScript.toString() + "\n" + pxPipe.links.getGlobals());
+					}
+					else {
+						pxPipe.links.setGlobals(globalScript.toString());
+					}
 				}
-				source.getRssConfig().setSearchConfig(pxPipe.links);
-			}//TESTED (web_links_global)
+				if (null == source.getRssConfig()) { // Following web links from file/db
+					source.setRssConfig(new SourceRssConfigPojo());
+					source.getRssConfig().setSearchConfig(pxPipe.links);
+					
+					// Also copy across HTTP control fields:
+					source.getRssConfig().setHttpFields(pxPipe.links.getHttpFields());
+					source.getRssConfig().setProxyOverride(pxPipe.links.getProxyOverride());
+					source.getRssConfig().setUserAgent(pxPipe.links.getUserAgent());
+					source.getRssConfig().setWaitTimeOverride_ms(pxPipe.links.getWaitTimeBetweenPages_ms());					
+				}//TESTED
+			}
 			
 			// 3-6] Everything else - just check whether we're going to need UAH/SAH
 			
@@ -248,7 +261,7 @@ public class HarvestControllerPipeline {
 			
 			// 1] Is this a starting point:
 			
-			if ((null != pxPipe.database) || (null != pxPipe.nosql) || (null != pxPipe.file) || (null != pxPipe.feed) || (null != pxPipe.web) || (null != pxPipe.links))
+			if ((null != pxPipe.database) || (null != pxPipe.nosql) || (null != pxPipe.file) || (null != pxPipe.feed) || (null != pxPipe.web))
 			{
 				pxPipeIt.remove();
 				continue; // Already handled these
@@ -286,6 +299,20 @@ public class HarvestControllerPipeline {
 				//TODO (INF-2219): Not currently supported
 				continue;
 			}
+			
+			if (null != pxPipe.links) {
+				if (source.getExtractType().equalsIgnoreCase("feed")) {
+					pxPipeIt.remove();
+					continue; // Going to handle this as part of feed/web processing 
+				}
+				else if ((null == pxPipe.links.getScript()) || pxPipe.links.getScript().isEmpty()) { // (follow web links, file/db)
+					pxPipeIt.remove();
+					continue; // Already handled these, just copied globals across										
+				}
+				// (else leave it in, is processed per document)
+			}//TOTEST
+			
+			// 3] Post processing operation
 			
 			if (null != pxPipe.searchIndex) {
 				pxPipeIt.remove();
@@ -375,7 +402,7 @@ public class HarvestControllerPipeline {
 						
 						if (null != pxPipe.links) {
 							continue; // This has already been handled if pxPipe.feed or pxPipe.web
-							//TODO (INF-2138) Currently only supported for feed/web
+							//TODO (INF-2138) Currently only supported for feed/web (apart from to copy globals around)
 						}
 					
 						if (null != pxPipe.text) {
@@ -602,13 +629,6 @@ public class HarvestControllerPipeline {
 	
 	private boolean handleTextEngine(SourcePipelinePojo pxPipe, DocumentPojo doc, SourcePojo source) throws ExtractorDocumentLevelException, ExtractorSourceLevelException, ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException, IOException
 	{
-		// Note: textEngine only supported for web/feed sources
-		// (currently you can work around this by setting rss manually)
-		//TODO (INF-2138) (will need to updated when links is supported for other source types)
-		if (null == source.getRssConfig()) {
-			throw new ExtractorSourceLevelMajorException("textEngine not supported for non-Web/Feed sources");
-		}//TESTED (file_textError)
-		
 		//TODO (INF-2223): Handle criteria
 		
 		// Set default extractor up:
@@ -617,45 +637,61 @@ public class HarvestControllerPipeline {
 			extractor = pxPipe.textEngine.engineName;
 		}//TESTED (various)
 		
-		source.setUseExtractor("None");
-		if ((null != extractor) && extractor.equalsIgnoreCase("raw")) {
-			// Raw text extraction, some special cases...
-			
-			if (null != _cachedRawFullText) { // if we cached full text then just reset it
-				doc.setFullText(_cachedRawFullText);
-			}
-			else { //go get it (NOTE: null != source.getRssConfig() because of check at the top)
-				doc.setFullText(null); // (reset)
-				updateInterDocDelayState(doc, true);
+		// Handle case of doc that doesn't have have a valid URL
+		String savedUrl = null;
+		if ((null != doc.getUrl()) && !doc.getUrl().startsWith("http") &&
+				(null != doc.getDisplayUrl()) && doc.getDisplayUrl().startsWith("http"))
+		{
+			savedUrl = doc.getUrl();
+			doc.setUrl(doc.getDisplayUrl());
+			doc.setDisplayUrl(savedUrl);
+		}
+		try {
+			source.setUseExtractor("None");
+			if ((null != extractor) && extractor.equalsIgnoreCase("raw")) {
+				// Raw text extraction, some special cases...
 				
-				_uah.getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
-				_cachedRawFullText = doc.getFullText();
-				_cachedRawFullText_available = true;
-			}
-			return true; // no need to do anything else, we have what we need
-		}//TESTED (cache: text_content_then_raw_to_boilerpipe, text_raw_to_boilerpipe; nocache: web_test_aaNoText.json)
-		else { // (normal cases)
-			source.setUseTextExtractor(extractor);
-			// (null => use default)
+				if (null != _cachedRawFullText) { // if we cached full text then just reset it
+					doc.setFullText(_cachedRawFullText);
+				}
+				else { //go get it (NOTE: null != source.getRssConfig() because of check at the top)
+					doc.setFullText(null); // (reset)
+					updateInterDocDelayState(doc, true);
+					
+					_uah.getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
+					_cachedRawFullText = doc.getFullText();
+					_cachedRawFullText_available = true;
+				}
+				return true; // no need to do anything else, we have what we need
+			}//TESTED (cache: text_content_then_raw_to_boilerpipe, text_raw_to_boilerpipe; nocache: web_test_aaNoText.json)
+			else { // (normal cases)
+				source.setUseTextExtractor(extractor);
+				// (null => use default)
+				
+				// Currently: special case for boilerpipe, can re-use earlier cached raw text 
+				if ((null != extractor) && (null != _cachedRawFullText) && extractor.equalsIgnoreCase("boilerpipe")) {
+					//TODO (INF-2223): longer term need to use text extractor capability instead (which means getting a global text extractor obj)
+					doc.setFullText(_cachedRawFullText);
+				}//TESTED (not-default: text_content_then_raw_to_boilerpipe, text_raw_to_boilerpipe, web_raw_to_default, default==boilerpipe)
+				else { // All other cases...
+					updateInterDocDelayState(doc, true);
+				}//TESTED (web_raw_to_default, default==aapi)
+			}//TESTED (see above)
 			
-			// Currently: special case for boilerpipe, can re-use earlier cached raw text 
-			if ((null != extractor) && (null != _cachedRawFullText) && extractor.equalsIgnoreCase("boilerpipe")) {
-				//TODO (INF-2223): longer term need to use text extractor capability instead (which means getting a global text extractor obj)
-				doc.setFullText(_cachedRawFullText);
-			}//TESTED (not-default: text_content_then_raw_to_boilerpipe, text_raw_to_boilerpipe, web_raw_to_default, default==boilerpipe)
-			else { // All other cases...
-				updateInterDocDelayState(doc, true);
-			}//TESTED (web_raw_to_default, default==aapi)
-		}//TESTED (see above)
-		
-		source.setExtractorOptions(pxPipe.textEngine.engineConfig);
-		ArrayList<DocumentPojo> docWrapper = new ArrayList<DocumentPojo>(1);
-		docWrapper.add(doc);
-		_hc.extractTextAndEntities(docWrapper, source, false);
-		
-		if (docWrapper.isEmpty()) { // Then this document has errored and needs to be removed - note logging etc has already occurred
-			return false;
-		}//TESTED (featureEngine_batch_test, remove textEngine stage; c/p from featureEngine)
+			source.setExtractorOptions(pxPipe.textEngine.engineConfig);
+			ArrayList<DocumentPojo> docWrapper = new ArrayList<DocumentPojo>(1);
+			docWrapper.add(doc);
+			_hc.extractTextAndEntities(docWrapper, source, false);
+			if (docWrapper.isEmpty()) { // Then this document has errored and needs to be removed - note logging etc has already occurred
+				return false;
+			}//TESTED (featureEngine_batch_test, remove textEngine stage; c/p from featureEngine)
+		}
+		finally { // ensure doc isn't corrupted
+			if (null != savedUrl) {
+				doc.setDisplayUrl(doc.getUrl());
+				doc.setUrl(savedUrl);
+			}
+		}
 		
 		// Reset SAH cache for any future manual ent/assoc extraction
 		if (null != _sah) {

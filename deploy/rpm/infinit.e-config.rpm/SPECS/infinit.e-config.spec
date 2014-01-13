@@ -228,6 +228,8 @@ Infinit.e system configuration
 # (Splunk config)
 %config %attr(-,splunk,splunk) /opt/splunk/etc/apps/search/local/inputs.conf
 %config %attr(-,splunk,splunk) /opt/splunk/etc/system/local/web.conf
+%config %attr(-,splunk,splunk) /opt/splunk/etc/system/local/props.conf
+%config %attr(-,splunk,splunk) /opt/splunk/etc/system/local/transforms.conf
 %config %attr(755,root,root) /etc/init.d/splunk
 
 # S3 config

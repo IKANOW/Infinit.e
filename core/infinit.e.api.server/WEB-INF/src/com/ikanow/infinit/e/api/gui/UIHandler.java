@@ -22,9 +22,10 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+
 import org.bson.types.ObjectId;
 
-import com.ikanow.infinit.e.api.social.community.CommunityHandler;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -138,7 +139,7 @@ public class UIHandler
 
 			// Query too complex to be represented by Pojos
 			BasicDBObject query = new BasicDBObject("approved", true);
-			HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(userIdStr);
+			HashSet<ObjectId> memberOf = SocialUtils.getUserCommunities(userIdStr);
 			if ((null != memberOf) && !bAdmin) {
 				BasicDBObject query_communities = new BasicDBObject("communityIds", new BasicDBObject("$in", memberOf));
 				BasicDBObject query_nosec =  new BasicDBObject("communityIds", new BasicDBObject("$exists", false));
@@ -168,7 +169,7 @@ public class UIHandler
 			FavoriteUIModulePojo moduleQuery = new FavoriteUIModulePojo();
 			moduleQuery.setProfileId(new ObjectId(userIdStr));
 			DBObject dbo = DbManager.getSocial().getUIFavoriteModules().findOne(moduleQuery.toDb());			
-			HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(userIdStr);
+			HashSet<ObjectId> memberOf = SocialUtils.getUserCommunities(userIdStr);
 			List<UIModulePojo> mods = getFullModule(FavoriteUIModulePojo.fromDb(dbo,FavoriteUIModulePojo.class).getQuickModules(), memberOf, bAdmin);
 			rp.setData(mods, new UIModulePojoApiMap(bAdmin?null:memberOf));
 			rp.setResponse(new ResponseObject("Get User Modules",true,"users modules returned successfully"));
@@ -230,7 +231,7 @@ public class UIHandler
 				Pattern p = Pattern.compile(updateItem, Pattern.CASE_INSENSITIVE);
 				query.put("searchterms", p);
 			}			
-			HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(userIdStr);
+			HashSet<ObjectId> memberOf = SocialUtils.getUserCommunities(userIdStr);
 			if ((null != memberOf) && !bAdmin)
 			{
 				BasicDBObject query_communities = new BasicDBObject("communityIds", new BasicDBObject("$in", memberOf));
@@ -320,7 +321,7 @@ public class UIHandler
 					else {
 						HashSet<ObjectId> newSet = new HashSet<ObjectId>();
 						for (ObjectId communityId: module.getCommunityIds()) {
-							if (!CommunityHandler.isOwnerOrModerator(communityId.toString(), userIdStr)) {
+							if (!SocialUtils.isOwnerOrModerator(communityId.toString(), userIdStr)) {
 								rp.setResponse(new ResponseObject("Install Module",false,"Don't have permission to update one or more communities: " + communityId.toString()));
 								return rp;
 							}

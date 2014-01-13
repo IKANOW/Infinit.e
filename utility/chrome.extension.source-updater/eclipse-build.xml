@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project name="chrome.extension.source-updater"
+	xmlns:ivy="antlib:org.apache.ivy.ant"
+	basedir="."
+	default="zip">
+
+	<target name="zip">
+
+		<zip destfile="infinite.chrome.extension.zip"
+		       basedir="extension"
+		  />
+  
+	</target>
+
+  </project>

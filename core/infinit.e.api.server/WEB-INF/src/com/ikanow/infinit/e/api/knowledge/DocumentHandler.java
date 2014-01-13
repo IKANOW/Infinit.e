@@ -24,7 +24,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.utils.MimeUtils;
-import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -82,7 +82,7 @@ public class DocumentHandler
 				query.put(DocumentPojo.sourceKey_, sourceKey);
 				query.put(DocumentPojo.url_, idStrOrUrl);
 			}
-			query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, RESTTools.getUserCommunities(userIdStr)));
+			query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
 				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
 			BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
 
@@ -198,7 +198,7 @@ public class DocumentHandler
 		
 		try  {
 			BasicDBObject query = new BasicDBObject(SourcePojo.key_, sourceKey);
-			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, RESTTools.getUserCommunities(userIdStr)));
+			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
 			BasicDBObject fields = new BasicDBObject(SourcePojo.url_, 1);
 			fields.put(SourcePojo.extractType_, 1);
 			fields.put(SourcePojo.file_, 1);

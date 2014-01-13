@@ -58,8 +58,8 @@ import com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
-import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SimpleBooleanParser;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -128,7 +128,7 @@ public class QueryHandler {
 		ResponsePojo rp = new ResponsePojo();
 		
 		// communityIdList is CSV
-		String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+		String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 		
 		//(timing)
 		long nQuerySetupTime = System.currentTimeMillis();

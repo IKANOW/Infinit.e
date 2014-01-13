@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.shared.service.session
 {
 	import com.ikanow.infinit.e.shared.event.SessionEvent;
+	
 	import mx.rpc.AsyncToken;
 	
 	public interface ISessionServiceDelegate
@@ -36,6 +37,12 @@ package com.ikanow.infinit.e.shared.service.session
 		 * @return AsyncToken
 		 */
 		function keepAlive( event:SessionEvent ):AsyncToken;
+		
+		/**
+		 * Forgot Password
+		 * 
+		 */
+		function forgotPassword( event:SessionEvent ):AsyncToken;
 		
 		/**
 		 * Log In

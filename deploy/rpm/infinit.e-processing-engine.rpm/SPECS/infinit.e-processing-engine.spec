@@ -46,7 +46,7 @@ Infinit.e harvesting and cleansing services
 	ln -s -f infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.mongo-indexer.jar
 	cd $RPM_BUILD_DIR/mnt/opt/infinite-home/lib/plugins
 	ln -s -f infinit.e.hadoop.prototyping_engine-INFINITE_VERSION-INFINITE_RELEASE.jar infinit.e.hadoop.prototyping_engine.jar
-
+	
 %post
 #
 # INSTALL *ONLY*
@@ -111,6 +111,10 @@ Infinit.e harvesting and cleansing services
 	# Start service
 	service infinite-px-engine start
 
+	#Fix for old mongo jar left in Hadoop folder:
+	rm -f /mnt/opt/hadoop-infinite/jars/mongo-2.7.2.jar
+	rm -f /usr/lib/hadoop/lib/mongo-2.7.2.jar
+
 ###########################################################################
 %files
 %defattr(-,tomcat,tomcat)
@@ -129,6 +133,7 @@ Infinit.e harvesting and cleansing services
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/generate_temporal_aggregations.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/weekly_sources_report.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reset_bad_harvest.sh
+%config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/harvest_redistribute.sh
 %config /mnt/opt/infinite-home/bin/security.policy
 %dir /mnt/opt/infinite-home/db-scripts
 /mnt/opt/infinite-home/db-scripts/calc_freq_counts.js
@@ -138,6 +143,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/db-scripts/rebuild_assoc_feature.js
 /mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js
 /mnt/opt/infinite-home/db-scripts/temporal_entity_aggregation.js
+/mnt/opt/infinite-home/db-scripts/harvest_redistribution_script.js
 
 %dir /mnt/opt/infinite-home/lib
 %dir /mnt/opt/infinite-home/lib/extractors

@@ -115,8 +115,9 @@ limitations under the License.
 							<li><b><a href="widgetUploader.jsp" title="<fmt:message key='index.widget_uploader.description'/>" target="_blank"><fmt:message key='index.widget_uploader.title'/></a></b> - <fmt:message key='index.widget_uploader.description'/></li>
 							<li><b><a href="pluginManager.jsp" title="<fmt:message key='index.plugin_manager.description'/>" target="_blank"><fmt:message key='index.plugin_manager.title'/></a></b> - <fmt:message key='index.plugin_manager.description'/></li>						
 						</ul>
+						<!--  TODO fix this for new published chrome extension -->
 						<ul>
-							<li><b><a href="chrome.html" title="<fmt:message key='index.chrome_extension.description'/>" target="_blank"><fmt:message key='index.chrome_extension.title'/></a></b> - <fmt:message key='index.chrome_extension.description'/></li>
+							<li><b><a href="https://chrome.google.com/webstore/detail/ikanow-1-click-source-imp/belmglhinclmkghjmdfgljnkojanfdje" title="<fmt:message key='index.chrome_extension.description'/>" target="_blank"><fmt:message key='index.chrome_extension.title'/></a></b> - <fmt:message key='index.chrome_extension.description'/> (<a href="chrome.html"  target="_blank"><fmt:message key='index.chrome_extension.mirror.description'/></a>)</li>
 						</ul>
 <%
 	// If in enterpriseMode

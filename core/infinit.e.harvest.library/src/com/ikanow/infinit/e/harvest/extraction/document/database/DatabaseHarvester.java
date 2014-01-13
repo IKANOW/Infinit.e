@@ -153,7 +153,9 @@ public class DatabaseHarvester implements HarvesterInterface
 		int nNumRecordsToSkip = 0;
 		Integer distributionToken = null;
 		SourceHarvestStatusPojo lastHarvestInfo = source.getHarvestStatus();
-		if (null != lastHarvestInfo) { // either in delta query mode, or truncation mode of initial query
+			// (this is never null when called from the harvester by construction)
+		
+		if ((null != lastHarvestInfo) && (null != lastHarvestInfo.getHarvest_message())) { // either in delta query mode, or truncation mode of initial query
 			String harvestMessage = null;
 			if ((null == source.getDistributionTokens()) || source.getDistributionTokens().isEmpty()) {
 				harvestMessage = lastHarvestInfo.getHarvest_message();
@@ -166,6 +168,8 @@ public class DatabaseHarvester implements HarvesterInterface
 			}//TODO (INF-2120): TOTEST
 			
 			if (null != harvestMessage) {
+				harvestMessage = harvestMessage.replaceAll("\\[[0-9T:-]+\\]", "").trim();
+				
 				if (harvestMessage.startsWith("query:")) { // Initial query
 					try {
 						int nEndOfNum = harvestMessage.indexOf('.', 6);
@@ -191,7 +195,7 @@ public class DatabaseHarvester implements HarvesterInterface
 		}//TESTED ("query:" by eye, "deltaquery:" implicitly as cut and paste) //TOTEST with "." and with other fields added
 		
 		// If the query has been performed before run delta and delete queries
-		if (lastHarvestInfo != null) 
+		if ((null != lastHarvestInfo) && (null != lastHarvestInfo.getHarvest_message()))   
 		{
 			String deltaQuery = null;
 			String deleteQuery = null;
@@ -201,7 +205,12 @@ public class DatabaseHarvester implements HarvesterInterface
 			// to the proper format for the database being queried
 			if (source.getHarvestStatus().getHarvested() != null)
 			{
-				deltaDate = getDatabaseDateString(dt, source.getHarvestStatus().getHarvested());
+				if (null != source.getHarvestStatus().getRealHarvested()) { // (this is more accurate)
+					deltaDate = getDatabaseDateString(dt, source.getHarvestStatus().getRealHarvested());					
+				}
+				else {
+					deltaDate = getDatabaseDateString(dt, source.getHarvestStatus().getHarvested());
+				}
 			}
 						
 			// Delta Query - get new data that has appeared in our source since the harvest last run
@@ -253,8 +262,22 @@ public class DatabaseHarvester implements HarvesterInterface
 					deleteQuery = deleteQuery.replace("?", "'" + deltaDate + "'").toString();
 				}
 				rdbms.setQuery(deleteQuery, deltaDate);
-				rdbms.executeQuery();
-				deleteRecords(rdbms.getResultSet(), source);
+				String errMessage = rdbms.executeQuery();
+				if (null == errMessage) {
+					deleteRecords(rdbms.getResultSet(), source);
+				}
+				else {
+					_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + errMessage, false, true);
+					// Close the connection
+					try {
+						rdbms.closeConnection();
+						rdbms = null;
+					}
+					catch (Exception e) {
+						// Do nothing, we've already updated the harvest
+					}
+					return;
+				}//TOTEST (INF-2349)
 			}
 			
 			// Set the rdbms query = deltaQuery
@@ -293,24 +316,34 @@ public class DatabaseHarvester implements HarvesterInterface
 		String sErr = rdbms.executeQuery();
 		
 		if (null != sErr) {
-			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + sErr, false, false);
+			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + sErr, false, true);
 		}
 		else {
 			// Build the list of docs using the result set from the query
-			boolean bTruncated = addRecords(rdbms.getResultSet(), rdbms.getMetaData(), source);
-			
-			// Update source document with harvest success message
-			String truncationMode = null;
-			if (bTruncated) {
-				source.setReachedMaxDocs();
-				if (null == lastHarvestInfo) { // Was an initial import
-					truncationMode = new StringBuffer("query:").append(nNumRecordsToSkip + this.docsToAdd.size()).append('.').toString();
-				}
-				else { // Was a delta query
-					truncationMode = new StringBuffer("deltaquery:").append(nNumRecordsToSkip + this.docsToAdd.size()).append('.').toString();					
-				}
-			}//TESTED (by hand in truncation and non-truncation cases)
-			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.in_progress, truncationMode, false, false);
+			try {
+				boolean bTruncated = addRecords(rdbms.getResultSet(), rdbms.getMetaData(), source);
+				
+				// Update source document with harvest success message
+				String truncationMode = null;
+				if (bTruncated) {
+					source.setReachedMaxDocs();
+					if ((null != lastHarvestInfo) && (null != lastHarvestInfo.getHarvest_message())) {
+						// Was a delta query
+						truncationMode = new StringBuffer("deltaquery:").append(nNumRecordsToSkip + this.docsToAdd.size()).append('.').toString();					
+					}
+					else { // Was an initial import						
+						truncationMode = new StringBuffer("query:").append(nNumRecordsToSkip + this.docsToAdd.size()).append('.').toString();
+					}
+				}//TESTED (by hand in truncation and non-truncation cases)
+				_context.getHarvestStatus().update(source, new Date(), HarvestEnum.in_progress, truncationMode, false, false);
+			}
+		    catch (Exception e) 
+		    {			
+		    	logger.error("Exception Message: " + e.getMessage(), e);
+				_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, 
+									HarvestExceptionUtils.createExceptionMessage("Error on addRecords: ", e).toString(), false, true);
+			}//TOTEST (INF-2349)
+				
 		}	    
 		// Close the connection
 		try {
@@ -329,73 +362,69 @@ public class DatabaseHarvester implements HarvesterInterface
 	 * @param rs
 	 * @param md
 	 * @param source
+	 * @throws SQLException 
 	 */
-	private boolean addRecords(ResultSet rs, ResultSetMetaData md, SourcePojo source) 
+	private boolean addRecords(ResultSet rs, ResultSetMetaData md, SourcePojo source) throws SQLException 
 	{	
 		LinkedList<String> duplicateSources = new LinkedList<String>(); 		
-	    try 
-	    {	
-	    	int nAdded = 0;
-	    	while(rs.next() && (nAdded < this.maxDocsPerCycle)) 
-	    	{	
-				/**
-				 * Check for existing doc by checking the doc.url field which will contain
-				 * the following information for a database record:
-				 * source.url + primary key fields. See example below
-				 * jdbc:mysql://<IP ADDRESS>:3306/washingtondc/987863
-				 */
-				try 
+    	int nAdded = 0;
+    	while(rs.next() && (nAdded < this.maxDocsPerCycle)) 
+    	{	
+			/**
+			 * Check for existing doc by checking the doc.url field which will contain
+			 * the following information for a database record:
+			 * source.url + primary key fields. See example below
+			 * jdbc:mysql://<IP ADDRESS>:3306/washingtondc/987863
+			 */
+			try 
+			{
+				DuplicateManager qr = _context.getDuplicateManager();
+				
+		    	String primaryKey = null;
+		    	if (null != source.getDatabaseConfig().getPrimaryKey()) {
+		    		primaryKey = rs.getString(source.getDatabaseConfig().getPrimaryKey());
+		    	}
+		    	if (null == primaryKey) { // Just pick something unique, to avoid URL collisions
+		    		primaryKey = new ObjectId().toString();
+		    	}
+		    	String docUrl = source.getDatabaseConfig().getPrimaryKeyValue();
+		    	if (null == docUrl) {
+		    		docUrl = source.getUrl() + "/" + primaryKey;
+		    	}
+		    	else {
+		    		docUrl = docUrl + primaryKey;
+		    	}
+		    	
+				// Check to see if the record has already been added
+				// If it has been added then we need to update it with the new information
+				if (!qr.isDuplicate_Url(docUrl, source, duplicateSources)) 
 				{
-					DuplicateManager qr = _context.getDuplicateManager();
-					
-			    	String primaryKey = null;
-			    	if (null != source.getDatabaseConfig().getPrimaryKey()) {
-			    		primaryKey = rs.getString(source.getDatabaseConfig().getPrimaryKey());
-			    	}
-			    	if (null == primaryKey) { // Just pick something unique, to avoid URL collisions
-			    		primaryKey = new ObjectId().toString();
-			    	}
-			    	String docUrl = source.getDatabaseConfig().getPrimaryKeyValue();
-			    	if (null == docUrl) {
-			    		docUrl = source.getUrl() + "/" + primaryKey;
-			    	}
-			    	else {
-			    		docUrl = docUrl + primaryKey;
-			    	}
-			    	
-					// Check to see if the record has already been added
-					// If it has been added then we need to update it with the new information
-					if (!qr.isDuplicate_Url(docUrl, source, duplicateSources)) 
-					{
-						nAdded++;
-						DocumentPojo newDoc = createDoc(CommitType.insert, rs, md, source, docUrl);
-						if (!duplicateSources.isEmpty()) {
-							newDoc.setDuplicateFrom(duplicateSources.getFirst());
-						}
-						this.docsToAdd.add(newDoc);
+					nAdded++;
+					DocumentPojo newDoc = createDoc(CommitType.insert, rs, md, source, docUrl);
+					if (!duplicateSources.isEmpty()) {
+						newDoc.setDuplicateFrom(duplicateSources.getFirst());
 					}
-					else {
-						//TODO (INF-1300): update, I guess need to check if the record has changed?
-						// If not, do nothing; if so, 
-						//newOrUpdatedDoc.setId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
-						//this.docsToUpdate.add(newOrUpdatedDoc);
-					}					
-				} 
-				catch (Exception e) 
-				{
-					logger.error("Error on record: Exception Message: " + e.getMessage(), e);
-					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on record: ", e).toString(), true);
-				} 				
-			  }//end loop over records
-	    	
-		    return rs.next(); // (ie true if there are more records...)
-	    } 
-	    catch (Exception e) 
-	    {			
-	    	logger.error("Exception Message: " + e.getMessage(), e);
-			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on addRecords: ", e).toString(), true);
-		}
-	    return false;
+					this.docsToAdd.add(newDoc);
+				}
+				else {
+					//TODO (INF-1300): update, I guess need to check if the record has changed?
+					// If not, do nothing; if so, 
+					//newOrUpdatedDoc.setId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
+					//this.docsToUpdate.add(newOrUpdatedDoc);
+				}					
+			} 
+			catch (java.sql.SQLException e) { // If we're here then error out immediately, we're not going to recover from this
+				throw e;
+			}//TOTEST (INF-2349)
+			catch (Exception e) 
+			{
+				//DEBUG (don't log per record exceptions...)
+				//logger.error("Error on record: Exception Message: " + e.getMessage(), e);
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on record: ", e).toString(), true);
+			} 				
+		}//end loop over records
+    	
+	    return rs.next(); // (ie true if there are more records...)
 	}
 	
 	
@@ -521,7 +550,8 @@ public class DatabaseHarvester implements HarvesterInterface
 		}
 		catch (SQLException e) 
 		{
-			logger.error("Error on add: Exception Message: " + e.getMessage(), e);
+			//DEBUG (don't log per record exceptions)
+			//logger.error("Error on add: Exception Message: " + e.getMessage(), e);
 			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on add: ", e).toString(), true);
 		}
 		

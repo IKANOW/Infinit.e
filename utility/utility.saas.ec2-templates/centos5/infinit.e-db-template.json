@@ -127,8 +127,8 @@
 					"Fn::Base64": {
 						"Fn::Join": [ "", ["cd /etc/yum.repos.d;",						                   
 						                   
-							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow.repo';",
-							                   "curl -O 'http://www.ikanow.com/infinit.e-preinstall/ikanow-infinite.repo';",
+							                   "curl -O 'http://yum.ikanow.com/infinit.e-preinstall/ikanow.repo';",
+							                   "curl -O 'http://yum.ikanow.com/infinit.e-preinstall/ikanow-infinite.repo';",
 							                   "ls /dev/* | grep -q '/dev/sde' && yum install -y infinit.e-raid-amazon;",
 							                   "yum install -y infinit.e-platform.prerequisites.online;",
 							                   

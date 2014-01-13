@@ -15,12 +15,18 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.utils;
 
+import java.io.BufferedReader;
+import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
 import java.net.Proxy;
 import java.net.Socket;
 import java.net.URL;
+import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.HashMap;
 
 import org.apache.log4j.Logger;
@@ -34,24 +40,30 @@ public class ProxyManager {
 	private static class CustomProxyInfo {
 		Proxy[] proxies;
 		int nCurrProxy = -1;
+		long lastModified = 0L;
 	}
 	
 	private static int _nCurrSingletonProxies = -1;
+	private static String _singletonProxyName = null;
 	private static Proxy _singletonProxies[] = { Proxy.NO_PROXY };
+	private static long _singletonLastModified = 0L;
 	private static HashMap<String, CustomProxyInfo> _proxyOverrides = null;
 	
 	public static Proxy getProxy(URL url, String proxyOverride) throws IOException { // So you can have sourcr and URL-dependent proxies  in the future
+		
 		if (null == proxyOverride) { // use system default
 			if (!_bConfiguredSystem) { // (configure system default first time)
 				PropertiesManager props = new PropertiesManager();
-				String proxyStr = props.getHarvestProxy();
+				_singletonProxyName = props.getHarvestProxy();
 				ArrayList<Proxy> tmp = new ArrayList<Proxy>();
-				if ((null == proxyStr) || proxyStr.isEmpty()) { // (no proxy configured)
+				if ((null == _singletonProxyName) || _singletonProxyName.isEmpty()) { // (no proxy configured)
 					return _singletonProxies[0];
 				}
-				initProxy(proxyStr, tmp);
+				initProxy(_singletonProxyName, tmp);
 				_singletonProxies = tmp.toArray(new Proxy[tmp.size()]);
-
+				if (_singletonProxyName.startsWith("file://")) { // get last modified
+					_singletonLastModified = new File(_singletonProxyName.substring(7)).lastModified();
+				}
 				_bConfiguredSystem = true;
 			}//TESTED
 			if (0 == _singletonProxies.length) { // No proxies started:
@@ -59,6 +71,17 @@ public class ProxyManager {
 			}
 			if (_singletonProxies.length > 1) {
 				synchronized (ProxyManager.class) {
+					if (_singletonProxyName.startsWith("file://")) { // check if it's still valid
+						File proxyFile = new File(_singletonProxyName.substring(7));
+						if (proxyFile.lastModified() != _singletonLastModified) {
+							ArrayList<Proxy> tmp = new ArrayList<Proxy>();
+							initProxy(_singletonProxyName, tmp);
+							_singletonProxies = tmp.toArray(new Proxy[tmp.size()]);
+							_singletonLastModified = proxyFile.lastModified();
+							proxyFile = null;
+						}
+					}//TESTED (modified by hand, checked proxy re-read)
+					
 					_nCurrSingletonProxies++;
 					if (_nCurrSingletonProxies >= _singletonProxies.length) {
 						_nCurrSingletonProxies = 0;
@@ -82,17 +105,29 @@ public class ProxyManager {
 				if (null == _proxyOverrides) {
 					_proxyOverrides = new HashMap<String, CustomProxyInfo>();
 				}
+				int savedProxyPos = -1;
 				CustomProxyInfo overriddenProxyInfo = _proxyOverrides.get(proxyOverride);
+				if ((null != overriddenProxyInfo) && (proxyOverride.startsWith("file://"))) { // check if it's still valid
+					File proxyFile = new File(proxyOverride.substring(7));
+					if (proxyFile.lastModified() != overriddenProxyInfo.lastModified) {
+						savedProxyPos = overriddenProxyInfo.nCurrProxy;
+						overriddenProxyInfo = null; // it isn't to null out and will get overwritten below...
+					}
+					proxyFile = null;
+				}//TESTED (changed file by hand)
 				if (null == overriddenProxyInfo) {
 					ArrayList<Proxy> tmp = new ArrayList<Proxy>();
 					initProxy(proxyOverride, tmp);
 					overriddenProxyInfo = new CustomProxyInfo();
+					overriddenProxyInfo.nCurrProxy = savedProxyPos; // (in case overwriting from above logic)
 					overriddenProxyInfo.proxies = tmp.toArray(new Proxy[tmp.size()]);
+					overriddenProxyInfo.lastModified = new Date().getTime();
 					_proxyOverrides.put(proxyOverride, overriddenProxyInfo);
 				}
 				if (0 == overriddenProxyInfo.proxies.length) { // No proxies started:
 					throw new IOException("No proxies available");
 				}
+				
 				overriddenProxyInfo.nCurrProxy++;
 				if (overriddenProxyInfo.nCurrProxy >= overriddenProxyInfo.proxies.length) {
 					overriddenProxyInfo.nCurrProxy = 0;
@@ -105,7 +140,7 @@ public class ProxyManager {
 		}//TESTED
 	}//TESTED
 	
-	private static void initProxy(String proxyStrList, ArrayList<Proxy> proxyList) {
+	private static void initProxy(String proxyStrList, ArrayList<Proxy> proxyList) throws IOException {
 		String[] proxyStrItems = proxyStrList.split("\\s*,\\s*");
 		for (String proxyStr: proxyStrItems) {
 			if (null != proxyStr) {
@@ -124,7 +159,17 @@ public class ProxyManager {
 						addToProxyList(Proxy.Type.SOCKS, hostPort[0], nPortPair, proxyList);
 					}				
 				}
-				// HTTPS proxy not supported
+				else if (proxyStr.startsWith("file://")) {
+					BufferedReader br = new BufferedReader(new InputStreamReader(new FileInputStream(proxyStr.substring(7)), Charset.forName("UTF-8")));
+					String line;
+					while ((line = br.readLine()) != null) {
+						initProxy(line, proxyList);
+					}
+					br.close();
+					br = null;
+				}//TESTED
+				
+				// HTTPS proxy not supported (but HTTP proxy supports HTTPs requests - tested)
 			}
 		}
 	}//TESTED
@@ -145,7 +190,7 @@ public class ProxyManager {
 				InetSocketAddress client = new InetSocketAddress(0);
 				Socket socket = new Socket();
 				socket.bind(client);
-				socket.connect(endpoint, 1000); // (1s timeout)
+				socket.connect(endpoint, 2000); // (2s timeout)
 				socket.close();
 				listOfProxies.add(new Proxy(type, endpoint));
 			}

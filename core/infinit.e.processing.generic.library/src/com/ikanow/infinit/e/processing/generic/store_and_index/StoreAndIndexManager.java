@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.processing.generic.store_and_index;
 
 import java.net.UnknownHostException;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
@@ -34,15 +35,17 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
+import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.CommandResult;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 
 /**
  * Class used to commit records to backend storage during harvest process
@@ -329,18 +332,21 @@ public class StoreAndIndexManager {
 	 * CALLED FROM:	deleteSource(...) 
 	 * @returns the number of docs deleted
 	 */
-	public long removeFromDatastore_bySourceKey(String sourceKey) {
+	public long removeFromDatastoreAndIndex_bySourceKey(String sourceKey, boolean definitelyNoContent, String communityId) {
 				
 		try {			
-			DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
-				// (will just check index and pull out if the doc has no external content)
+			if (!definitelyNoContent) {
+				DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
+					// (will just check index and pull out if the doc has no external content)
+			}
 			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
 			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
 			CommandResult result = DbManager.getDocument().getLastError("metadata");
 			
 			// Quick delete for index though:
-			ElasticSearchManager indexManager = IndexManager.getIndex(new StringBuffer("_all").append('/').append(DocumentPojoIndexMap.documentType_).toString());
+			StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_).append(",docs_").append(communityId).append('/').append(DocumentPojoIndexMap.documentType_);
+			ElasticSearchManager indexManager = IndexManager.getIndex(sb.toString());
 			indexManager.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey));
 			
 			return result.getLong("n", 0);
@@ -352,6 +358,46 @@ public class StoreAndIndexManager {
 		return 0;
 	}//TESTED
 	
+	
+	/**
+	 * Remove a list of doc documents from the data store and index (you have a source URL, so you can go much quicker)
+	 * 
+	 * CALLED FROM: removeFromDataStore_byURL(List<doc>, bDeleteContent) [ALSO DELETES FROM INDEX AFTER ADDED FROM HERE]
+	 * 					MongoDocumentTxfer.doDelete(...)  <- SETS URL, SOURCE URL, SOURCE KEY, COMMUNITY ID, INDEX, _ID
+	 * 					processDocuments(...) [ always called after harvester: have sourceUrl, sourceKey, 
+	 * 											DON'T have _id, BUT do have updateId and index (correct except in many geo cases)]
+	 * @returns the number of docs deleted
+	 */
+	
+	private ElasticSearchManager _cachedIndexManagerForSourceXxxDeletion = null;
+	private ObjectId _cachedCommunityIdForSourceXxxDeletion = null;
+	public long removeFromDatastoreAndIndex_bySourceUrl(String sourceUrl, ObjectId communityId) {
+				
+		try {			
+			// (never any content)
+			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceUrl_, sourceUrl);
+			BasicDBObject softDeleter = getSoftDeleteUpdate();
+			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
+			CommandResult result = DbManager.getDocument().getLastError("metadata");
+			
+			// Quick delete for index though:
+			if (!communityId.equals(_cachedCommunityIdForSourceXxxDeletion)) {
+				StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_).append(",docs_").append(communityId).append('/').append(DocumentPojoIndexMap.documentType_);
+				_cachedIndexManagerForSourceXxxDeletion = IndexManager.getIndex(sb.toString());
+				_cachedCommunityIdForSourceXxxDeletion = communityId;
+			}//TESTED
+			_cachedIndexManagerForSourceXxxDeletion.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceUrl_, sourceUrl));
+			
+			return result.getLong("n", 0);
+			
+		} catch (Exception e) {
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);			
+		}
+		return 0;
+	}//TESTED
+	
+	
 	/////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Utility
@@ -359,6 +405,7 @@ public class StoreAndIndexManager {
 	/**
 	 * Remove a list of doc documents from the data store + adds _id and index doc fields to retrieve to support de-index
 	 * (also adds created to docs with an updateId so the created remains ~the same)
+	 * (Will in theory support arbitrary sourceUrl/sourceKey operators but in practice these will always be from a single source)
 	 * @param docs - needs url (optionally sourceUrl) set - child function requires sourceKey
 	 * @param col
 	 * @param feeds
@@ -375,8 +422,9 @@ public class StoreAndIndexManager {
 		BasicDBObject fields = new BasicDBObject();
 		fields.put(DocumentPojo.created_, 1); // (If we're getting the deleted doc fields, get this and have exact created time)
 		fields.put(DocumentPojo.index_, 1); // This is needed for the removeFromSearch() called from parent removeFromDatastore_URL
-		
-		TreeMap<String,String> sourceUrlToKeyMap = null;
+				
+		TreeMap<String,DocumentPojo> sourceUrlToKeyMap = null;
+		HashSet<String> deletedSources = null;
 		// Store the knowledge in the feeds collection in the harvester db
 		Iterator<DocumentPojo> docIt = docs.iterator();
 		while (docIt.hasNext()) {
@@ -384,54 +432,70 @@ public class StoreAndIndexManager {
 			nextId = f.getId(); // (only interested in the pruneSource case, in which case _id is set on input)
 			
 			if ((null != f.getSourceUrl()) && (null == f.getUrl())) { // special case ... delete all these documents...
-				if (null == sourceUrlToKeyMap) {
-					sourceUrlToKeyMap = new TreeMap<String,String>();
-				}
-				sourceUrlToKeyMap.put(f.getSourceUrl(), f.getSourceKey());				
-				docIt.remove(); // (will get expanded into actual documents below)
+				if ((null == deletedSources) || !deletedSources.contains(f.getSourceKey())) { // (don't bother deleting sourceURL if deleting source)
+					if (null == sourceUrlToKeyMap) {
+						sourceUrlToKeyMap = new TreeMap<String,DocumentPojo>();
+					}
+					sourceUrlToKeyMap.put(f.getSourceUrl(), f);				
+				}//TESTED
+
+				docIt.remove(); // (so don't miscount number of docs; processed below)
 			}
+			else if (null != f.getSourceKey() && (null == f.getSourceUrl()) && (null == f.getUrl())) {
+				// Even more special case: delete entire sourceKey
+				if (null == deletedSources) {
+					deletedSources = new HashSet<String>();
+				}
+				if (!deletedSources.contains(f.getSourceKey())) {
+					deletedSources.add(f.getSourceKey());
+					long srcRemoved = removeFromDatastoreAndIndex_bySourceKey(f.getSourceKey(), true, f.getCommunityId().toString());
+					if (srcRemoved > 0) {
+						updateDocCountsOnTheFly(-srcRemoved, f.getSourceKey(), f.getCommunityId());						
+					}
+				}
+				docIt.remove(); // (so don't miscount number of docs)
+			}//TESTED
 			else {
 				removeFromDatastore_byURL(col, f, fields, 
 						StoreAndIndexManager.docHasExternalContent(f.getUrl(), f.getSourceUrl()));
 					// (adds "_id", "index")
 			}
-		}
-		// Now we've deleted all the standard feeds, delete other sourceUrl feeds   
-		if (null != sourceUrlToKeyMap) for (Map.Entry<String, String> entry: sourceUrlToKeyMap.entrySet()) {
+		}//TESTED
+
+		// Now tidy up sourceUrls, do some caching across sourceKey/community for performance
+		String sourceKey = null; // (if deleting sourceKey don't bother deleting any sourceUrls)
+		long removed = 0; // (from special operations)
+		String cachedSourceKey = null; // (will handle multiple source keys, although that can't currently happen in practice)
+		ObjectId communityId = null;
+		if (null != sourceUrlToKeyMap) for (Map.Entry<String, DocumentPojo> entry: sourceUrlToKeyMap.entrySet()) {
 			String srcUrl = entry.getKey();
-			String srcKey = entry.getValue();
-			BasicDBObject toDelFields = new BasicDBObject(DocumentPojo.url_, 1);
-			toDelFields.put(DocumentPojo.index_, 1);
-			try {
-				DBCursor dbc = col.find(new BasicDBObject(DocumentPojo.sourceUrl_, srcUrl), toDelFields);
-				Iterator<DBObject> dbcIt = dbc.iterator();
-				while (dbcIt.hasNext()) {
-					BasicDBObject dbo = (BasicDBObject) dbcIt.next();
-					DocumentPojo toDel = new DocumentPojo();
-					toDel.setUrl(dbo.getString(DocumentPojo.url_));
-					toDel.setIndex(dbo.getString(DocumentPojo.index_));
-					toDel.setId((ObjectId) dbo.get(DocumentPojo._id_));
-					toDel.setSourceKey(srcKey);
-					toDel.setSourceUrl(srcUrl);
-					// (here don't need to add created because this doc is obviously only in the delete list)
-					docs.add(toDel); 
-						// (this "add" is for removing things from the index, and also to keep count)
-					
-					// Actually delete the doc:
-					removeFromDatastore_byURL(col, toDel, fields, 
-							StoreAndIndexManager.docHasExternalContent(toDel.getUrl(), toDel.getSourceUrl()));
-					
-					//NOTE: I think we could be significantly more efficient here by just doing an "update" to soft delete
-					// the docs, then using the sourceUrl to remove-by-query from the index ... only downside would be
-					// losing count of deleted docs, you can probably just do a count() efficiently since sourceUrl is indexed?
-				}
-			} catch (Exception e) {
-				// If an exception occurs log the error
-				logger.error("Exception Message: " + e.getMessage(), e);
+			DocumentPojo doc = entry.getValue();
+			sourceKey = doc.getSourceKey();
+			communityId = doc.getCommunityId();
+			if (sourceKey != cachedSourceKey) { // ptr comparison by design
+				if (removed > 0) {
+					updateDocCountsOnTheFly(-removed, sourceKey, communityId);
+					removed = 0;
+				}//TESTED
+				cachedSourceKey = sourceKey;
 			}
-		}
+			removed += removeFromDatastoreAndIndex_bySourceUrl(srcUrl, communityId);
+		}//TESTED
+		if ((removed > 0) && (null != sourceKey)) {
+			updateDocCountsOnTheFly(-removed, sourceKey, communityId);
+		}//TESTED
 		return nextId;
-	}//TOTEST
+	}//TESTED
+	
+	public void updateDocCountsOnTheFly(long docIncrement, String sourceKey, ObjectId communityId)
+	{
+		DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, communityId), 
+				new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, docIncrement)));
+		DbManager.getIngest().getSource().update(new BasicDBObject(SourcePojo.key_, sourceKey),
+				new BasicDBObject(MongoDbManager.inc_, 
+						new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, docIncrement))
+				);		
+	}//TESTED
 	
 	/**
 	 * Remove a doc from the data store
@@ -479,6 +543,7 @@ public class StoreAndIndexManager {
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
 		query.put(DocumentPojo._id_, doc.getId());
+		query.put(DocumentPojo.sourceKey_, doc.getSourceKey()); // (needed because on newer machines this is the shard key)
 		
 		if (!_diagnosticMode) {
 			BasicDBObject softDelete = getSoftDeleteUpdate();

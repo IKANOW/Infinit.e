@@ -403,6 +403,12 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 		}
 	}
 	
+	// suspendSource
+	public String suspendSource(String sourceId, boolean shouldSuspend, String communityId, HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("config/source/suspend/" + sourceId + "/" + communityId + "/" + shouldSuspend, request, response);
+	}
+	
 	
 	
 	// getListOfAllShares - 
@@ -494,11 +500,24 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 	} // TESTED
 	
 	
+	enum FilterType { title, description, tags, community, key, url, id, mediaType, extractType, ownerId,
+						tempQuarantined, fullQuarantined, suspended };
+	
 	// getUserSources - 
 	public TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
 	{
 		TreeMultimap<String,String> userSources = TreeMultimap.create();
 		String userIdStr = null;
+		
+		FilterType filterType = FilterType.title;
+		for (FilterType type: FilterType.values()) {
+			String prefix = type.toString() + ":";
+			if (filter.startsWith(prefix)) {
+				filterType = type;
+				filter = filter.substring(prefix.length());
+				break;
+			}
+		}//TOTEST
 		
 		// publishedSources - array of source._ids of published sources
 		ArrayList<String> publishedSources = new ArrayList<String>();
@@ -526,15 +545,24 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 					for (int i = 0; i < data.length(); i++) 
 					{
 						JSONObject shareObj = data.getJSONObject(i);
-						String tempTitle = shareObj.getString("title");
-						if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
-						{
-							continue;
-						}
 						
+						JSONObject shareOrSource = shareObj;
+						if ((filterType != FilterType.title) ||  (filterType != FilterType.description)) {
+							if (shareObj.has("share"))
+								shareOrSource = new JSONObject(shareObj.getString("share"));
+						}//TESTED
+						if (isSourceFiltered(filterType, shareOrSource, filter)) {
+							continue;
+						}//TESTED
+						
+						String tempTitle = shareObj.getString("title");						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
-						if (sourceObj.has("_id")) publishedSources.add( sourceObj.getString("_id") );
-						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
+						if ( isSuspended(sourceObj) )
+							tempTitle = "[SUSPENDED] " + tempTitle;
+						if (sourceObj.has("_id")) 
+							publishedSources.add( sourceObj.getString("_id") );
+						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) 
+							tempTitle += " (+)";
 						tempTitle += " (*)";
 						
 						userSources.put(tempTitle, shareObj.getString("_id"));
@@ -560,11 +588,14 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 							// Only add the source to our list if it isn't already in our
 							if (!publishedSources.contains( sourceObj.getString("_id") ))
 							{
-								String tempTitle = sourceObj.getString("title");
-								if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
-								{
+								if (isSourceFiltered(filterType, sourceObj, filter)) {
 									continue;
-								}
+								}//TESTED
+								
+								String tempTitle = sourceObj.getString("title");
+								if ( isSuspended(sourceObj) )
+									tempTitle = "[SUSPENDED] " + tempTitle;
+								
 								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
 								userSources.put(tempTitle, sourceObj.getString("_id"));
 							}
@@ -580,6 +611,116 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 		return userSources;
 	}
 	
+	private boolean isSourceFiltered(FilterType filterType, JSONObject sourceOrShare, String filter)
+	{
+		String value = "";
+		try {
+			if (filter.length() > 0) {
+				if (FilterType.title == filterType) {
+					value = sourceOrShare.getString("title");
+				}
+				if (FilterType.description == filterType) {
+					value = sourceOrShare.getString("description");
+				}
+				else if (FilterType.tags == filterType) {
+					JSONArray array = sourceOrShare.getJSONArray("tags");
+					value = array.toString();
+				}
+				else if (FilterType.community == filterType) {
+					JSONArray array = sourceOrShare.getJSONArray("communityIds");
+					value = array.toString();					
+				}
+				else if (FilterType.key == filterType) {
+					value = sourceOrShare.getString("key");					
+				}
+				else if (FilterType.url == filterType) { // annoyingly complicated!
+					StringBuffer allUrls = new StringBuffer();
+					if (sourceOrShare.has("url")) {
+						allUrls.append(sourceOrShare.getString("url")).append(" ");
+					}//TESTED
+					if (sourceOrShare.has("rss")) { // (Note will only work on shares because sources have this field stripped)
+						JSONObject rss = sourceOrShare.getJSONObject("rss");
+						if (rss.has("extraUrls")) {
+							JSONArray urls = rss.getJSONArray("extraUrls");
+							allUrls.append(urls.toString()).append(" ");
+						}
+					}//TESTED
+					if (sourceOrShare.has("processingPipeline")) { // (Note will only work on shares because sources have this field stripped)
+						JSONArray pxPipeline = sourceOrShare.getJSONArray("processingPipeline");
+						if (pxPipeline.length() > 0) {
+							JSONObject firstEl = pxPipeline.getJSONObject(0);
+							Iterator it = firstEl.keys();
+							while (it.hasNext()) {
+								String key = (String) it.next();
+								if (!key.equalsIgnoreCase("display")) {
+									JSONObject obj = firstEl.getJSONObject(key);
+									if (null != obj) {
+										if (obj.has("url")) {
+											String url = obj.getString("url");
+											allUrls.append(url).append(" ");
+										}//TOTEST
+										if (obj.has("extraUrls")) {
+											JSONArray urls = obj.getJSONArray("extraUrls");
+											allUrls.append(urls.toString()).append(" ");											
+										}//TESTED
+										break;
+									}
+								}
+							}
+						}
+					}//TESTED
+					value = allUrls.toString();
+				}
+				else if (FilterType.id == filterType) {
+					value = sourceOrShare.getString("_id");															
+				}
+				else if (FilterType.mediaType == filterType) {
+					value = sourceOrShare.getString("mediaType");															
+				}
+				else if (FilterType.extractType == filterType) {
+					value = sourceOrShare.getString("extractType");															
+				}
+				else if (FilterType.ownerId == filterType) {
+					value = sourceOrShare.getString("ownerId");															
+				}
+				else if (FilterType.tempQuarantined == filterType) {
+					value = Boolean.toString(sourceOrShare.has("harvestBadSource") && sourceOrShare.getBoolean("harvestBadSource")); 
+				}
+				else if (FilterType.fullQuarantined == filterType) {
+					value = Boolean.toString(sourceOrShare.has("isApproved") && sourceOrShare.getBoolean("isApproved")); 
+				}
+				else if (FilterType.suspended == filterType) {
+					value = Boolean.toString(isSuspended(sourceOrShare)); 
+				}
+			}
+		}
+		catch (Exception e) {
+			// field not present, discard source
+			/**/
+			e.printStackTrace();
+		} 
+		if ( !value.toLowerCase().contains( filter.toLowerCase() ) )
+		{
+			return true;
+		}
+		return false;
+	}//TESTED
+	
+	private boolean isSuspended(JSONObject source)
+	{
+		try
+		{
+			if ( source.has("searchCycle_secs") && source.getInt("searchCycle_secs") <= 0)
+			{
+				return true;
+			}
+		}
+		catch (Exception ex)
+		{
+			//do nothing, we return false anyways
+		}
+		return false;
+	}
 	
 	// getListOfAllPeople
 	public Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
@@ -991,8 +1132,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
 		}
 		if (null == API_ROOT) { 
 			// Default to localhost
-			//API_ROOT = "http://localhost:8080/api/";
-			API_ROOT = "http://localhost:8184/";
+			API_ROOT = "http://localhost:8080/api/";
+			//API_ROOT = "http://localhost:8184/";
 		}
 		
 		if (API_ROOT.contains("localhost")) { localCookie=true; }
@@ -1288,8 +1429,9 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
         return;
       out.write("</li>\t\t\t\t\t\t\r\n");
       out.write("\t\t\t\t\t\t</ul>\r\n");
+      out.write("\t\t\t\t\t\t<!--  TODO fix this for new published chrome extension -->\r\n");
       out.write("\t\t\t\t\t\t<ul>\r\n");
-      out.write("\t\t\t\t\t\t\t<li><b><a href=\"chrome.html\" title=\"");
+      out.write("\t\t\t\t\t\t\t<li><b><a href=\"https://chrome.google.com/webstore/detail/ikanow-1-click-source-imp/belmglhinclmkghjmdfgljnkojanfdje\" title=\"");
       if (_jspx_meth_fmt_005fmessage_005f32(_jspx_page_context))
         return;
       out.write("\" target=\"_blank\">");
@@ -1298,7 +1440,10 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
       out.write("</a></b> - ");
       if (_jspx_meth_fmt_005fmessage_005f34(_jspx_page_context))
         return;
-      out.write("</li>\r\n");
+      out.write(" (<a href=\"chrome.html\"  target=\"_blank\">");
+      if (_jspx_meth_fmt_005fmessage_005f35(_jspx_page_context))
+        return;
+      out.write("</a>)</li>\r\n");
       out.write("\t\t\t\t\t\t</ul>\r\n");
 
 	// If in enterpriseMode
@@ -1308,27 +1453,27 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
       out.write("\r\n");
       out.write("\t\t\t\t\t\t<ul>\r\n");
       out.write("\t\t\t\t\t\t\t<li><b>");
-      if (_jspx_meth_fmt_005fmessage_005f35(_jspx_page_context))
+      if (_jspx_meth_fmt_005fmessage_005f36(_jspx_page_context))
         return;
       out.write("</b>\r\n");
       out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\":8090../casemanager/\" title=\"");
-      if (_jspx_meth_fmt_005fmessage_005f36(_jspx_page_context))
-        return;
-      out.write("\" target=\"_blank\">");
       if (_jspx_meth_fmt_005fmessage_005f37(_jspx_page_context))
         return;
-      out.write("</a></b> - ");
+      out.write("\" target=\"_blank\">");
       if (_jspx_meth_fmt_005fmessage_005f38(_jspx_page_context))
+        return;
+      out.write("</a></b> - ");
+      if (_jspx_meth_fmt_005fmessage_005f39(_jspx_page_context))
         return;
       out.write("</li></ul>\r\n");
       out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\":8090../splunk/\" title=\"");
-      if (_jspx_meth_fmt_005fmessage_005f39(_jspx_page_context))
-        return;
-      out.write("\" target=\"_blank\">");
       if (_jspx_meth_fmt_005fmessage_005f40(_jspx_page_context))
         return;
-      out.write("</a></b> - ");
+      out.write("\" target=\"_blank\">");
       if (_jspx_meth_fmt_005fmessage_005f41(_jspx_page_context))
+        return;
+      out.write("</a></b> - ");
+      if (_jspx_meth_fmt_005fmessage_005f42(_jspx_page_context))
         return;
       out.write("</li></ul>\r\n");
       out.write("\t\t\t\t\t\t\t</li>\r\n");
@@ -2055,7 +2200,7 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f32 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f32.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f32.setParent(null);
-    // /index.jsp(119,43) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /index.jsp(120,132) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f32.setKey("index.chrome_extension.description");
     int _jspx_eval_fmt_005fmessage_005f32 = _jspx_th_fmt_005fmessage_005f32.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f32.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -2074,7 +2219,7 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f33 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f33.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f33.setParent(null);
-    // /index.jsp(119,116) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /index.jsp(120,205) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f33.setKey("index.chrome_extension.title");
     int _jspx_eval_fmt_005fmessage_005f33 = _jspx_th_fmt_005fmessage_005f33.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f33.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -2093,7 +2238,7 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f34 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f34.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f34.setParent(null);
-    // /index.jsp(119,176) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /index.jsp(120,265) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f34.setKey("index.chrome_extension.description");
     int _jspx_eval_fmt_005fmessage_005f34 = _jspx_th_fmt_005fmessage_005f34.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f34.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -2112,8 +2257,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f35 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f35.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f35.setParent(null);
-    // /index.jsp(127,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f35.setKey("index.enterprise_features.title");
+    // /index.jsp(120,361) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f35.setKey("index.chrome_extension.mirror.description");
     int _jspx_eval_fmt_005fmessage_005f35 = _jspx_th_fmt_005fmessage_005f35.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f35.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f35);
@@ -2131,8 +2276,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f36 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f36.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f36.setParent(null);
-    // /index.jsp(128,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f36.setKey("index.enterprise_features.casemanager.description");
+    // /index.jsp(128,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f36.setKey("index.enterprise_features.title");
     int _jspx_eval_fmt_005fmessage_005f36 = _jspx_th_fmt_005fmessage_005f36.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f36.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f36);
@@ -2150,8 +2295,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f37 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f37.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f37.setParent(null);
-    // /index.jsp(128,145) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f37.setKey("index.enterprise_features.casemanager.title");
+    // /index.jsp(129,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f37.setKey("index.enterprise_features.casemanager.description");
     int _jspx_eval_fmt_005fmessage_005f37 = _jspx_th_fmt_005fmessage_005f37.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f37.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f37);
@@ -2169,8 +2314,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f38 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f38.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f38.setParent(null);
-    // /index.jsp(128,221) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f38.setKey("index.enterprise_features.casemanager.description");
+    // /index.jsp(129,145) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f38.setKey("index.enterprise_features.casemanager.title");
     int _jspx_eval_fmt_005fmessage_005f38 = _jspx_th_fmt_005fmessage_005f38.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f38.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f38);
@@ -2188,8 +2333,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f39 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f39.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f39.setParent(null);
-    // /index.jsp(129,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f39.setKey("index.enterprise_features.monitoring.description");
+    // /index.jsp(129,221) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f39.setKey("index.enterprise_features.casemanager.description");
     int _jspx_eval_fmt_005fmessage_005f39 = _jspx_th_fmt_005fmessage_005f39.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f39.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f39);
@@ -2207,8 +2352,8 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f40 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f40.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f40.setParent(null);
-    // /index.jsp(129,139) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f40.setKey("index.enterprise_features.monitoring.title");
+    // /index.jsp(130,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f40.setKey("index.enterprise_features.monitoring.description");
     int _jspx_eval_fmt_005fmessage_005f40 = _jspx_th_fmt_005fmessage_005f40.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f40.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f40);
@@ -2226,14 +2371,33 @@ public final class index_jsp extends org.apache.jasper.runtime.HttpJspBase
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f41 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f41.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f41.setParent(null);
-    // /index.jsp(129,214) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f41.setKey("index.enterprise_features.monitoring.description");
+    // /index.jsp(130,139) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f41.setKey("index.enterprise_features.monitoring.title");
     int _jspx_eval_fmt_005fmessage_005f41 = _jspx_th_fmt_005fmessage_005f41.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f41.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f41);
       return true;
     }
     _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f41);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f42(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f42 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f42.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f42.setParent(null);
+    // /index.jsp(130,214) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f42.setKey("index.enterprise_features.monitoring.description");
+    int _jspx_eval_fmt_005fmessage_005f42 = _jspx_th_fmt_005fmessage_005f42.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f42.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f42);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f42);
     return false;
   }
 }

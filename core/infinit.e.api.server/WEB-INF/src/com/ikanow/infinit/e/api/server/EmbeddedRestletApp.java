@@ -158,6 +158,7 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/config/source/test",SourceInterface.class);
         attach(router, "/config/source/delete/{sourceid}/{communityid}",SourceInterface.class);
         attach(router, "/config/source/delete/docs/{sourceid}/{communityid}",SourceInterface.class);
+        attach(router, "/config/source/suspend/{sourceid}/{communityid}/{shouldSuspend}",SourceInterface.class);
         
   //CUSTOM MAP REDUCE
         //BETA NAMING

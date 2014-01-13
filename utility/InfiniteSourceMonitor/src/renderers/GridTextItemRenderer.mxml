@@ -70,8 +70,16 @@
 							displayData_toolTip = data.harvest.harvest_message;
 							break;
 						case "harvest.harvested":
-							displayData = data.harvest.harvested;
+							if (null != data.harvest.realHarvested)
+								displayData = data.harvest.realHarvested;
+							else
+								displayData = data.harvest.harvested;							
+							
 							displayData_toolTip = displayData;
+							
+							if (null != data.harvest.extracted)
+								displayData_toolTip += "\n\n(Last new document: " + data.harvest.extracted + ")"; 
+							
 							if (null != data.searchCycle_secs) 
 								displayData_toolTip += "\n\nHarvest cycle (secs): " + data.searchCycle_secs;
 							if ((null != data.rss) && (null != data.rss.updateCycle_secs)) 

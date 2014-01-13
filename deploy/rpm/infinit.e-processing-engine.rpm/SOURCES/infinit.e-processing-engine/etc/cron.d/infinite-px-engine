@@ -44,3 +44,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 #Custom Mapreduce check/run jobs every 1 minutes
 */1 * * * * tomcat	if [ ! -f /opt/infinite-home/bin/STOP_CUSTOM ]; then /opt/infinite-home/bin/custommr.sh; fi
+
+#Custom google distribution script to split google harvests up
+1 0 * * * root  /opt/infinite-home/bin/harvest_redistribute.sh false
+1 12 * * * root /opt/infinite-home/bin/harvest_redistribute.sh true
+

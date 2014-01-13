@@ -142,12 +142,20 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			}
 						
 			Job hj = new Job( config );
+			BasicDBObject advancedConfigurationDbo = (null != job.query) ? ((BasicDBObject) com.mongodb.util.JSON.parse(job.query)) : (new BasicDBObject());
 			
 			Class<?> classToLoad = Class.forName (job.mapper, true, child);			
 			hj.setJarByClass(classToLoad);
 			hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
-			if ((null != job.exportToHdfs) && job.exportToHdfs) {
-				hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));
+			if ((null != job.exportToHdfs) && job.exportToHdfs) {				
+				if ((null != job.outputKey) && (null != job.outputValue) && job.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && job.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
+				{
+					// (slight hack before I sort out the horrendous job class - if key/val both text and exporting to HDFS then output as Text)
+					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.TextOutputFormat", true, child));
+				}//TESTED
+				else {
+					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));					
+				}//TESTED
 				Path outPath = InfiniteHadoopUtils.ensureOutputDirectory(job, props_custom);
 				SequenceFileOutputFormat.setOutputPath(hj, outPath);
 			}
@@ -155,8 +163,30 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat", true, child));
 			}
 			hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
+			String mapperOutputKeyOverride = advancedConfigurationDbo.getString("$mapper_key_class", null);
+			if (null != mapperOutputKeyOverride) {
+				hj.setMapOutputKeyClass(Class.forName(mapperOutputKeyOverride));
+			}//TESTED 
+			
+			String mapperOutputValueOverride = advancedConfigurationDbo.getString("$mapper_value_class", null);
+			if (null != mapperOutputValueOverride) {
+				hj.setMapOutputValueClass(Class.forName(mapperOutputValueOverride));
+			}//TESTED 
+			
 			if ((null != job.reducer) && !job.reducer.startsWith("#") && !job.reducer.equalsIgnoreCase("null") && !job.reducer.equalsIgnoreCase("none")) {
 				hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
+				// Variable reducers:
+				if (null != job.query) {
+					try { 
+						hj.setNumReduceTasks(advancedConfigurationDbo.getInt("$reducers", 1));
+					}catch (Exception e) {
+						try {
+							// (just check it's not a string that is a valid int)
+							hj.setNumReduceTasks(Integer.parseInt(advancedConfigurationDbo.getString("$reducers", "1")));
+						}
+						catch (Exception e2) {}
+					}
+				}//TESTED
 			}
 			else {
 				hj.setNumReduceTasks(0);
@@ -326,6 +356,11 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}
 		oldQueryObj.remove("$fields");
 		oldQueryObj.remove("$output");
+		oldQueryObj.remove("$reducers");
+		String mapperKeyClass = oldQueryObj.getString("$mapper_key_class", "");
+		String mapperValueClass = oldQueryObj.getString("$mapper_value_class", "");
+		oldQueryObj.remove("$mapper_key_class");
+		oldQueryObj.remove("$mapper_value_class");
 		
 		if (null != nDebugLimit) { // (debug mode override)
 			nLimit = nDebugLimit;
@@ -403,8 +438,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				"\n\t<property><!-- OutputFormat Class --><name>mongo.job.output.format</name><value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat</value></property>"+
 				"\n\t<property><!-- Output key class for the output format --><name>mongo.job.output.key</name><value>"+outputKey+"</value></property>"+
 				"\n\t<property><!-- Output value class for the output format --><name>mongo.job.output.value</name><value>"+outputValue+"</value></property>"+
-				"\n\t<property><!-- Output key class for the mapper [optional] --><name>mongo.job.mapper.output.key</name><value></value></property>"+
-				"\n\t<property><!-- Output value class for the mapper [optional] --><name>mongo.job.mapper.output.value</name><value></value></property>"+
+				"\n\t<property><!-- Output key class for the mapper [optional] --><name>mongo.job.mapper.output.key</name><value>"+mapperKeyClass+"</value></property>"+
+				"\n\t<property><!-- Output value class for the mapper [optional] --><name>mongo.job.mapper.output.value</name><value>"+mapperValueClass+"</value></property>"+
 				"\n\t<property><!-- Class for the combiner [optional] --><name>mongo.job.combiner</name><value>"+combiner+"</value></property>"+
 				"\n\t<property><!-- Partitioner class [optional] --><name>mongo.job.partitioner</name><value></value></property>"+
 				"\n\t<property><!-- Sort Comparator class [optional] --><name>mongo.job.sort_comparator</name><value></value></property>"+

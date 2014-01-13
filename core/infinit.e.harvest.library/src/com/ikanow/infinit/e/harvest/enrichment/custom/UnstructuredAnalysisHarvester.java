@@ -354,7 +354,8 @@ public class UnstructuredAnalysisHarvester {
 					processBody(d, meta, true, source, uap);
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("processBody1: " + e.getMessage(), true);
-					logger.error("processBody1: " + e.getMessage(), e);
+					//DEBUG (don't output log messages per doc)
+					//logger.error("processBody1: " + e.getMessage(), e);
 				}
 
 				try {
@@ -363,7 +364,8 @@ public class UnstructuredAnalysisHarvester {
 					}
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("cleanseText: " + e.getMessage(), true);
-					logger.error("cleanseText: " + e.getMessage(), e);
+					//DEBUG (don't output log messages per doc)
+					//logger.error("cleanseText: " + e.getMessage(), e);
 				}
 
 				try {
@@ -372,14 +374,16 @@ public class UnstructuredAnalysisHarvester {
 					
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("header/footerPattern: " + e.getMessage(), true);
-					logger.error("header/footerPattern: " + e.getMessage(), e);
+					//DEBUG (don't output log messages per doc)
+					//logger.error("header/footerPattern: " + e.getMessage(), e);
 				}
 				try {
 					processBody(d, meta, false, source, uap);
 					
 				} catch (Exception e) {
 					this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
-					logger.error("processBody2: " + e.getMessage(), e);
+					//DEBUG (don't output log messages per doc)
+					//logger.error("processBody2: " + e.getMessage(), e);
 				}
 
 				if (it.hasNext() && bFetchedUrl) {
@@ -496,7 +500,8 @@ public class UnstructuredAnalysisHarvester {
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("processBody1: " + e.getMessage(), true);
-				logger.error("processBody1: " + e.getMessage(), e);
+				//DEBUG (don't output log messages per doc)
+				//logger.error("processBody1: " + e.getMessage(), e);
 			}
 			try {
 				if (uap.getSimpleTextCleanser() != null) {
@@ -504,7 +509,8 @@ public class UnstructuredAnalysisHarvester {
 				}
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("cleanseText: " + e.getMessage(), true);
-				logger.error("cleanseText: " + e.getMessage(), e);
+				//DEBUG (don't output log messages per doc)
+				//logger.error("cleanseText: " + e.getMessage(), e);
 			}
 			try {
 				processHeader(headerPattern, doc, meta, source, uap);
@@ -512,14 +518,16 @@ public class UnstructuredAnalysisHarvester {
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("header/footerPattern: " + e.getMessage(), true);
-				logger.error("header/footerPattern: " + e.getMessage(), e);
+				//DEBUG (don't output log messages per doc)
+				//logger.error("header/footerPattern: " + e.getMessage(), e);
 			}
 			try {
 				processBody(doc, meta, false, source, uap);
 				
 			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
-				logger.error("processBody2: " + e.getMessage(), e);
+				//DEBUG (don't output log messages per doc)
+				//logger.error("processBody2: " + e.getMessage(), e);
 			}
 		}
 		if (bMoreDocs && bFetchedUrl) {
@@ -777,14 +785,16 @@ public class UnstructuredAnalysisHarvester {
 
 				// Just do nothing and log
 				// e.printStackTrace();
-				logger.error(e.getMessage());
+				//DEBUG (don't output log messages per doc)
+				//logger.error(e.getMessage());
 			} catch (JSONException e) {
 				
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 
 				// Just do nothing and log
 				// e.printStackTrace();
-				logger.error(e.getMessage());
+				//DEBUG (don't output log messages per doc)
+				//logger.error(e.getMessage());
 			}
 		} else if (m.scriptlang.equalsIgnoreCase("xpath")) {
 
@@ -922,11 +932,13 @@ public class UnstructuredAnalysisHarvester {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(ioe).toString(), true);
 
 				// Just do nothing and log
-				logger.error(ioe.getMessage());
+				//DEBUG (don't output log messages per doc)
+				//logger.error(ioe.getMessage());
 			} catch (ParserConfigurationException e1) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);
 				// Just do nothing and log
-				logger.error(e1.getMessage());
+				//DEBUG (don't output log messages per doc)
+				//logger.error(e1.getMessage());
 			} catch (XPathExpressionException e1) {
 				_context.getHarvestStatus().logMessage("Error evaluating xpath expression: " +  xpath, true);
 			}
@@ -1191,7 +1203,8 @@ public class UnstructuredAnalysisHarvester {
 
 				// Just do nothing and log
 				// e.printStackTrace();
-				logger.error(e.getMessage());
+				//DEBUG (don't output log messages per doc)
+				//logger.error(e.getMessage());
 			}
 		}
 		return field;
@@ -1298,7 +1311,7 @@ public class UnstructuredAnalysisHarvester {
 				} 
 				catch (ScriptException e) { // Just do nothing and log
 					e.printStackTrace();
-					logger.error(e.getMessage());
+					logger.error("intializeScriptEngine: " + e.getMessage());
 				}
 				
 			}
@@ -1322,7 +1335,8 @@ public class UnstructuredAnalysisHarvester {
 		catch (Exception ex)
 		{
 			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
-			logger.error("JSONcache: " + ex.getMessage(), ex);
+			//(no need to log this, appears in log under source -with URL- anyway):
+			//logger.error("JSONcache: " + ex.getMessage(), ex);
 		}
 	}//TESTED (legacy + imports_and_lookup_test.json)
 	
@@ -1346,7 +1360,8 @@ public class UnstructuredAnalysisHarvester {
         catch (ScriptException e) 
 		{
 			this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
-			logger.error("ScriptException: " + e.getMessage(), e);
+			//DEBUG (only once per message, but should be spotted at the debug stage anyway)
+			//logger.error("ScriptException: " + e.getMessage(), e);
 		}
         
 	}//TESTED (legacy + imports_and_lookup_test.json)

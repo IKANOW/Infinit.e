@@ -403,6 +403,12 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 		}
 	}
 	
+	// suspendSource
+	public String suspendSource(String sourceId, boolean shouldSuspend, String communityId, HttpServletRequest request, HttpServletResponse response)
+	{
+		return callRestfulApi("config/source/suspend/" + sourceId + "/" + communityId + "/" + shouldSuspend, request, response);
+	}
+	
 	
 	
 	// getListOfAllShares - 
@@ -494,11 +500,24 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 	} // TESTED
 	
 	
+	enum FilterType { title, description, tags, community, key, url, id, mediaType, extractType, ownerId,
+						tempQuarantined, fullQuarantined, suspended };
+	
 	// getUserSources - 
 	public TreeMultimap<String,String> getUserSourcesAndShares(HttpServletRequest request, HttpServletResponse response, String filter)
 	{
 		TreeMultimap<String,String> userSources = TreeMultimap.create();
 		String userIdStr = null;
+		
+		FilterType filterType = FilterType.title;
+		for (FilterType type: FilterType.values()) {
+			String prefix = type.toString() + ":";
+			if (filter.startsWith(prefix)) {
+				filterType = type;
+				filter = filter.substring(prefix.length());
+				break;
+			}
+		}//TOTEST
 		
 		// publishedSources - array of source._ids of published sources
 		ArrayList<String> publishedSources = new ArrayList<String>();
@@ -526,15 +545,24 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 					for (int i = 0; i < data.length(); i++) 
 					{
 						JSONObject shareObj = data.getJSONObject(i);
-						String tempTitle = shareObj.getString("title");
-						if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
-						{
-							continue;
-						}
 						
+						JSONObject shareOrSource = shareObj;
+						if ((filterType != FilterType.title) ||  (filterType != FilterType.description)) {
+							if (shareObj.has("share"))
+								shareOrSource = new JSONObject(shareObj.getString("share"));
+						}//TESTED
+						if (isSourceFiltered(filterType, shareOrSource, filter)) {
+							continue;
+						}//TESTED
+						
+						String tempTitle = shareObj.getString("title");						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
-						if (sourceObj.has("_id")) publishedSources.add( sourceObj.getString("_id") );
-						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
+						if ( isSuspended(sourceObj) )
+							tempTitle = "[SUSPENDED] " + tempTitle;
+						if (sourceObj.has("_id")) 
+							publishedSources.add( sourceObj.getString("_id") );
+						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) 
+							tempTitle += " (+)";
 						tempTitle += " (*)";
 						
 						userSources.put(tempTitle, shareObj.getString("_id"));
@@ -560,11 +588,14 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 							// Only add the source to our list if it isn't already in our
 							if (!publishedSources.contains( sourceObj.getString("_id") ))
 							{
-								String tempTitle = sourceObj.getString("title");
-								if ( ( filter.length() > 0 ) && !tempTitle.toLowerCase().contains( filter.toLowerCase() ) )
-								{
+								if (isSourceFiltered(filterType, sourceObj, filter)) {
 									continue;
-								}
+								}//TESTED
+								
+								String tempTitle = sourceObj.getString("title");
+								if ( isSuspended(sourceObj) )
+									tempTitle = "[SUSPENDED] " + tempTitle;
+								
 								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
 								userSources.put(tempTitle, sourceObj.getString("_id"));
 							}
@@ -580,6 +611,116 @@ public final class people_jsp extends org.apache.jasper.runtime.HttpJspBase
 		return userSources;
 	}
 	
+	private boolean isSourceFiltered(FilterType filterType, JSONObject sourceOrShare, String filter)
+	{
+		String value = "";
+		try {
+			if (filter.length() > 0) {
+				if (FilterType.title == filterType) {
+					value = sourceOrShare.getString("title");
+				}
+				if (FilterType.description == filterType) {
+					value = sourceOrShare.getString("description");
+				}
+				else if (FilterType.tags == filterType) {
+					JSONArray array = sourceOrShare.getJSONArray("tags");
+					value = array.toString();
+				}
+				else if (FilterType.community == filterType) {
+					JSONArray array = sourceOrShare.getJSONArray("communityIds");
+					value = array.toString();					
+				}
+				else if (FilterType.key == filterType) {
+					value = sourceOrShare.getString("key");					
+				}
+				else if (FilterType.url == filterType) { // annoyingly complicated!
+					StringBuffer allUrls = new StringBuffer();
+					if (sourceOrShare.has("url")) {
+						allUrls.append(sourceOrShare.getString("url")).append(" ");
+					}//TESTED
+					if (sourceOrShare.has("rss")) { // (Note will only work on shares because sources have this field stripped)
+						JSONObject rss = sourceOrShare.getJSONObject("rss");
+						if (rss.has("extraUrls")) {
+							JSONArray urls = rss.getJSONArray("extraUrls");
+							allUrls.append(urls.toString()).append(" ");
+						}
+					}//TESTED
+					if (sourceOrShare.has("processingPipeline")) { // (Note will only work on shares because sources have this field stripped)
+						JSONArray pxPipeline = sourceOrShare.getJSONArray("processingPipeline");
+						if (pxPipeline.length() > 0) {
+							JSONObject firstEl = pxPipeline.getJSONObject(0);
+							Iterator it = firstEl.keys();
+							while (it.hasNext()) {
+								String key = (String) it.next();
+								if (!key.equalsIgnoreCase("display")) {
+									JSONObject obj = firstEl.getJSONObject(key);
+									if (null != obj) {
+										if (obj.has("url")) {
+											String url = obj.getString("url");
+											allUrls.append(url).append(" ");
+										}//TOTEST
+										if (obj.has("extraUrls")) {
+											JSONArray urls = obj.getJSONArray("extraUrls");
+											allUrls.append(urls.toString()).append(" ");											
+										}//TESTED
+										break;
+									}
+								}
+							}
+						}
+					}//TESTED
+					value = allUrls.toString();
+				}
+				else if (FilterType.id == filterType) {
+					value = sourceOrShare.getString("_id");															
+				}
+				else if (FilterType.mediaType == filterType) {
+					value = sourceOrShare.getString("mediaType");															
+				}
+				else if (FilterType.extractType == filterType) {
+					value = sourceOrShare.getString("extractType");															
+				}
+				else if (FilterType.ownerId == filterType) {
+					value = sourceOrShare.getString("ownerId");															
+				}
+				else if (FilterType.tempQuarantined == filterType) {
+					value = Boolean.toString(sourceOrShare.has("harvestBadSource") && sourceOrShare.getBoolean("harvestBadSource")); 
+				}
+				else if (FilterType.fullQuarantined == filterType) {
+					value = Boolean.toString(sourceOrShare.has("isApproved") && sourceOrShare.getBoolean("isApproved")); 
+				}
+				else if (FilterType.suspended == filterType) {
+					value = Boolean.toString(isSuspended(sourceOrShare)); 
+				}
+			}
+		}
+		catch (Exception e) {
+			// field not present, discard source
+			/**/
+			e.printStackTrace();
+		} 
+		if ( !value.toLowerCase().contains( filter.toLowerCase() ) )
+		{
+			return true;
+		}
+		return false;
+	}//TESTED
+	
+	private boolean isSuspended(JSONObject source)
+	{
+		try
+		{
+			if ( source.has("searchCycle_secs") && source.getInt("searchCycle_secs") <= 0)
+			{
+				return true;
+			}
+		}
+		catch (Exception ex)
+		{
+			//do nothing, we return false anyways
+		}
+		return false;
+	}
 	
 	// getListOfAllPeople
 	public Map<String,String> getListOfAllPeople(HttpServletRequest request, HttpServletResponse response)
@@ -1503,8 +1644,8 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		}
 		if (null == API_ROOT) { 
 			// Default to localhost
-			//API_ROOT = "http://localhost:8080/api/";
-			API_ROOT = "http://localhost:8184/";
+			API_ROOT = "http://localhost:8080/api/";
+			//API_ROOT = "http://localhost:8184/";
 		}
 		
 		if (API_ROOT.contains("localhost")) { localCookie=true; }

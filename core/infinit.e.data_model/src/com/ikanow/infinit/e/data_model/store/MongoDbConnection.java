@@ -115,12 +115,16 @@ public class MongoDbConnection {
 	 * @throws UnknownHostException 
 	 */
 	public MongoDbConnection(PropertiesManager properties) throws UnknownHostException, MongoException {
-		this.server = properties.getDatabaseServer();
-		this.port = properties.getDatabasePort();
+		if (null != properties) {
+			this.server = properties.getDatabaseServer();
+			this.port = properties.getDatabasePort();
+		}
 		mongo = new Mongo(this.server, this.port);
 		
-		if (properties.getDistributeAllDbReadsAcrossSlaves()) {
-			mongo.setReadPreference(ReadPreference.secondaryPreferred());
+		if (null != properties) {
+			if (properties.getDistributeAllDbReadsAcrossSlaves()) {
+				mongo.setReadPreference(ReadPreference.secondaryPreferred());
+			}
 		}
 	}
 	

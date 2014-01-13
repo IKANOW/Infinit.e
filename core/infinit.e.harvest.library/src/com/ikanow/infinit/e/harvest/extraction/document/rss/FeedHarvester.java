@@ -34,6 +34,8 @@ import org.json.JSONObject;
 import org.json.XML;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
@@ -225,28 +227,62 @@ public class FeedHarvester implements HarvesterInterface
 		// Error handling:
 		// - If it's a 500 or 502 or 503 or 504 then just log and carry on
 		// - Otherwise, if you get the same message twice in succession then error out
-		boolean bSuspendSource = false;
+		boolean bTempSuspendSource = false;
+		boolean fullSuspendSource = false;
 		String sNewMessage = e.getMessage();
+		
 		if (null != sNewMessage) {
-			if (sNewMessage.matches(".*50[0234].*")) {
-				// Do nothing, this is just a temporary error
-			}
-			else if (null != source.getHarvestStatus()) {
+			if (null != source.getHarvestStatus()) {
+				
 				String sOldMessage = source.getHarvestStatus().getHarvest_message();
-				if ((null != sOldMessage) && sOldMessage.equals(sNewMessage)) {
-					bSuspendSource = true;
+				if (null != sOldMessage)  { 
+					
+					// Only consider suspending if we didn't any extract docs last time round:					
+					if (!sOldMessage.contains("\nextracted=") || sOldMessage.contains("\nextracted=0")) {
+						String[] oldMessageLines = sOldMessage.split("\n");
+						String[] newMessageLines = sNewMessage.split("\n");
+						
+						// Strip the dates out from both, also errors that differ only by line numbers						
+						sOldMessage = oldMessageLines[0].replaceAll("\\[[0-9T:-]+\\]", "").replaceAll(" line [0-9]+", "").trim();
+						sNewMessage = newMessageLines[0].replaceAll("\\[[0-9T:-]+\\]", "").replaceAll(" line [0-9]+", "").trim();
+
+						long now = new Date().getTime();
+
+						if (sOldMessage.equals(sNewMessage)) {
+							bTempSuspendSource = true;
+							
+							if (sNewMessage.matches(".*50[0234].*")) {
+								// In theory this is a temp error, but it seems to be long lived also... if we haven't received anything
+								// in the last day then temp suspend (also check for full suspension after 7days as above)
+								if ((null == source.getHarvestStatus().getExtracted()) ||
+										((now - source.getHarvestStatus().getExtracted().getTime()) > 1*24*3600L*1000L))
+								{
+									bTempSuspendSource = true;
+								}
+							}
+							else {
+								bTempSuspendSource = true;								
+							}							
+							
+							// Also, if haven't extracted anything for last 7 days then suspend "for good"
+							if (null != source.getHarvestStatus().getHarvested()) {
+
+								// Harvested within the last day (ie not _just_ turned back on again...)
+								if ((now - source.getHarvestStatus().getHarvested().getTime()) < 24*3600L*1000L) {
+									// If it hasn't extracted anything within a week then turn it off properly
+									if ((null == source.getHarvestStatus().getExtracted()) ||
+											((now - source.getHarvestStatus().getExtracted().getTime()) > 7*24*3600L*1000L))
+									{
+										fullSuspendSource = true;
+									}
+								}
+							}//TESTED
+						}
+					}//TESTED
 				}
 			}
 		}//TESTED
-		if (null != source.getUrl()) {
-			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, sNewMessage, bSuspendSource, false);
-		}//TESTED
-		else {
-			_context.getHarvestStatus().logMessage(sNewMessage, true);
-		}//TESTED
-		
-		// If an exception occurs log the error
-		logger.error("Exception Message: " + e.getMessage(), e);		
+		_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, sNewMessage, bTempSuspendSource, fullSuspendSource);
 	}
 	//TESTED (temp error ignore, allow 2 identical errors before failing)
 	
@@ -254,7 +290,7 @@ public class FeedHarvester implements HarvesterInterface
 	private void processFeed(SourcePojo source) throws Exception {
 		// Process the feed
 		LinkedList<SyndFeed> feeds = new LinkedList<SyndFeed>();
-		boolean bExtraUrls = ( null == source.getUrl() );
+		boolean confirmedUrlsExtracted = false;
 		
 		if ((null != source.getUrl()) && ((null == source.getRssConfig())||(null == source.getRssConfig().getSearchConfig()))) {
 			// (if the second clause is false, the URL is a search query, will process differently, inside buildFeedList)
@@ -266,9 +302,18 @@ public class FeedHarvester implements HarvesterInterface
 		}
 		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
 		{
-			FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
-			searchEngineSubsystem.generateFeedFromSearch(source, _context);
-			bExtraUrls = true;
+			try {
+				FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
+				searchEngineSubsystem.generateFeedFromSearch(source, _context);
+				confirmedUrlsExtracted = true;
+			}//TESTED
+			catch (ExtractorDocumentLevelException e) {
+				handleRssError(e, source);
+				confirmedUrlsExtracted = true;				
+			}//TESTED
+			catch (ExtractorSourceLevelTransientException e) {
+				handleRssError(e, source);
+			}//TESTED
 		}//TESTED
 		
 		if ((null != source.getRssConfig())&&(null != source.getRssConfig().getExtraUrls())&&(null == source.getRssConfig().getSearchConfig())) { 
@@ -280,10 +325,13 @@ public class FeedHarvester implements HarvesterInterface
 						feeds.add(feed);
 					}					
 				}
+				else if (null != url.url){
+					confirmedUrlsExtracted = true;
+				}
 			}
 		}//TESTED
 
-		if ( !feeds.isEmpty() || bExtraUrls ) // (second case: also have extra URLs)
+		if ( !feeds.isEmpty() || confirmedUrlsExtracted ) // (second case: also have extra URLs)
 		{
 			// Error handling, part 1:
 			this.nTmpHttpErrors = 0;
@@ -321,8 +369,8 @@ public class FeedHarvester implements HarvesterInterface
 				//harvested successfully, post in mongo
 				_context.getHarvestStatus().update(source, new Date(), HarvestEnum.in_progress, "", false, false);				
 			}
-
 		}
+		// (if we're not in here it must be because an error has been logged)
 	}
 
 	// Build the feed list
@@ -589,7 +637,8 @@ public class FeedHarvester implements HarvesterInterface
 					} 
 					catch (Exception e) {
 						// If an exception occurs log the error
-						logger.error("Exception Message: " + e.getMessage(), e);
+						//DEBUG: don't log document-level errors
+						//logger.error("Exception Message: " + e.getMessage(), e);
 					} 
 				}
 			} // (end loop over feeds in a syndicate)

@@ -27,6 +27,7 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -105,7 +106,7 @@ public class PersonHandler
 		ResponsePojo rp = new ResponsePojo();
 		try
 		{
-			PersonPojo person = PersonHandler.getPerson(userId);	
+			PersonPojo person = SocialUtils.getPerson(userId);	
 			boolean isAdmin = RESTTools.adminLookup(userId);
 			CommunityPojo system_comm = getSystemCommunity();
 			List<ObjectId> communityIds = new ArrayList<ObjectId>();
@@ -885,29 +886,5 @@ public class PersonHandler
 		}	
 		return rp;
 	}
-
-	/**
-	 * PersonPojo (UTILITY FOR SOURCE HANDLER AND RESTE TOOLS)
-	 * @param id
-	 * @return
-	 */
-	public static PersonPojo getPerson(String id)
-	{
-		PersonPojo person = null;
-		
-		try
-		{
-			// Set up the query
-			PersonPojo personQuery = new PersonPojo();
-			personQuery.set_id(new ObjectId(id));
-			
-			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getPerson().findOne(personQuery.toDb());
-			person = PersonPojo.fromDb(dbo, PersonPojo.class);
-		} 
-		catch (Exception e)
-		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-		}
-		return person;
-	}
+	
 }

@@ -114,6 +114,7 @@ public class InfiniteHadoopTestUtils {
 			stringBuilder.append( line );
 			stringBuilder.append( ls );
 		}
+		reader.close();
 		return stringBuilder.toString();
 	}
 }

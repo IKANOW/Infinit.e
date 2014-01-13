@@ -96,12 +96,17 @@ package com.ikanow.infinit.e.model.presentation.login
 		
 		/**
 		 * Forgot password
-		 * Opens the forgot password html page in a new browser window
+		 * Sends a request to the forgot password service call.
 		 */
 		public function forgotPassword( userName:String ):void
 		{
-			var urlRequest:URLRequest = new URLRequest( ServiceConstants.FORGOT_PASSWORD_URL + userName );
-			navigateToURL( urlRequest, ServiceConstants.BLANK_URL );
+			//var urlRequest:URLRequest = new URLRequest( ServiceConstants.FORGOT_PASSWORD_URL + userName );
+			//navigateToURL( urlRequest, ServiceConstants.BLANK_URL );
+			var sessionEvent:SessionEvent = new SessionEvent( SessionEvent.FORGOT_PASSWORD );
+			sessionEvent.username = userName;
+			sessionEvent.dialogControl = DialogControl.create( false, ResourceManager.getInstance().getString( 'infinite', 'sessionService.forgotPassword' ) );
+			dispatcher.dispatchEvent( sessionEvent );
+			
 		}
 		
 		/**

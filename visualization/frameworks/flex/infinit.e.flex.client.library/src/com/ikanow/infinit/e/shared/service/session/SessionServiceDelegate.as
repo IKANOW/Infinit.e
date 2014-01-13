@@ -73,6 +73,18 @@ package com.ikanow.infinit.e.shared.service.session
 		}
 		
 		/**
+		 * Forgot Password
+		 * 
+		 */
+		public function forgotPassword( event:SessionEvent ):AsyncToken
+		{
+			var url:String = ServiceConstants.FORGOT_PASSWORD_URL + ServiceUtil.urlEncode( event.username );
+			var params:Object = { action: ServiceConstants.FORGOT_PASSWORD_ACTION, dialogControl: event.dialogControl };
+			
+			return makeCall( service, url, params, default_resultHandler, default_faultHandler );
+		}
+		
+		/**
 		 * Login
 		 * @param event
 		 * @return AsyncToken

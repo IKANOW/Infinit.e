@@ -22,6 +22,9 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 
 public interface HarvestStatus {
 
+	// Resets source-specific state
+	void resetForNewSource();
+	
 	/**
 	 * updateHarvestStatus
 	 * 
@@ -51,4 +54,17 @@ public interface HarvestStatus {
 	 * @return true if custom enrichment has generated more errors
 	 */
 	boolean moreToLog();
+	
+	/**
+	 * getMostCommonMessage
+	 * @return the highest frequency message logged for this source this harvest cycle
+	 */
+ 	String getMostCommonMessage();
+ 	
+	/**
+	 * getNumMessages
+	 * @return the total number of logged messages (including duplicates) for this source this harvest cycle
+	 */
+ 	int getNumMessages();
+	
 }

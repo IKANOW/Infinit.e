@@ -841,18 +841,18 @@ else if (isLoggedIn == true)
 	 			
 	 			out.println(deleteWidget(request.getAttribute("deleteId").toString(), request, response));
 	 		}
-	 		else // Install widget
+	 		else // ADD/UPDATE widget
 	 		{
-	 		
-		 	//////////////////////////////////////////////////////////////////////////////////
-		 		
+	 			Boolean changedImage = false;
+				Boolean changedSwf = false;
+		 		//////////////////////////////////////////////////////////////////////////////////		 		
 		 		Boolean newWidget =(request.getAttribute("DBId").toString().length() == 0 );
 		 		///////////////////////////////// Icon Image Manip  /////////////////////////////////
 		 		String iconUrl = "";
 		 		String iconId = "";
 		 		if (request.getAttribute("icon_check") == null) //User is uploading own icon file
 				{
-					
+		 			changedImage = true;
 					if(request.getAttribute("title") != null && request.getAttribute("description") != null && iconBytes != null)
 					{
 						if (newWidget)
@@ -908,6 +908,7 @@ else if (isLoggedIn == true)
 	
 			 				if (!old_url.equals(new_url))
 			 				{
+			 					changedImage = true;
 			 					removeFromShare(parseIdFromUrl(old_url), request, response);
 			 				}
 			 				
@@ -937,6 +938,7 @@ else if (isLoggedIn == true)
 				String fileId = "";
 		 		if (request.getAttribute("file_check") == null) //User is uploading own file file
 				{
+		 			changedSwf = true;
 					if(request.getAttribute("title") != null && request.getAttribute("description") != null && fileBytes != null)
 					{
 						if (newWidget)
@@ -957,9 +959,10 @@ else if (isLoggedIn == true)
 						}
 						if (fileId.contains("Failed"))
 						{
-							removeFromShare(iconId, request, response);
+							//removeFromShare(iconId, request, response);
 							out.println("SWF File Upload Failed. Please Try again: " + fileId);
 							fileUrl = null;
+							fileId = null;
 						}
 						else
 						{
@@ -994,6 +997,7 @@ else if (isLoggedIn == true)
 			 				
 			 				if (!old_url.equals(new_url))
 			 				{
+			 					changedSwf = true;
 			 					removeFromShare(parseIdFromUrl(old_url), request, response);
 			 				}
 			 				
@@ -1039,8 +1043,10 @@ else if (isLoggedIn == true)
 					
 					if (!retval.contains("Widget Uploaded Successfully") && newWidget)
 					{
-						removeFromShare(fileId, request, response);
-						removeFromShare(iconId, request, response);
+						if ( changedSwf )
+							removeFromShare(fileId, request, response);
+						if ( changedImage)
+							removeFromShare(iconId, request, response);
 						out.println("Upload Failed - file and icon shares deleted: " + retval);						
 					}		
 					else 
@@ -1049,8 +1055,10 @@ else if (isLoggedIn == true)
 				}
 				else
 				{
-					removeFromShare(fileId, request, response);
-					removeFromShare(iconId, request, response);
+					if ( changedSwf )
+						removeFromShare(fileId, request, response);
+					if ( changedImage)
+						removeFromShare(iconId, request, response);
 					out.println("Upload Failed - file and icon shares deleted: invalid entry");
 				}	
 				

@@ -26,6 +26,8 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
@@ -40,11 +42,12 @@ import com.mongodb.BasicDBObject;
 
 public class FeedHarvester_searchEngineSubsystem {
 
+	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(FeedHarvester_searchEngineSubsystem.class);
 	
 	private int maxDocsPerCycle = Integer.MAX_VALUE; // (should never exceed this, anyway...)
 	
-	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) {
+	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) throws Exception {
 
 		if (context.isStandalone()) {
 			maxDocsPerCycle = context.getStandaloneMaxDocs();
@@ -323,8 +326,8 @@ public class FeedHarvester_searchEngineSubsystem {
 					}//TESTED
 					else if (0 == nPage) { //returned no links, log an error if this is page 1 and one has been saved
 						Object[] onError = searchDoc.getMetaData().get("_ONERROR_");
-						if ((null != onError) && (onError.length > 0)) {
-							context.getHarvestStatus().logMessage("_ONERROR_: " + onError[0], true);						
+						if ((null != onError) && (onError.length > 0) && (onError[0] instanceof String) && !(((String)(onError[0]))).isEmpty()) {
+							throw new ExtractorSourceLevelTransientException("generateFeedFromSearch: _ONERROR_: " + onError[0]);					
 						}
 					}//TESTED
 
@@ -373,10 +376,15 @@ public class FeedHarvester_searchEngineSubsystem {
 				}// end loop over pages
 				
 			}
-			catch (Exception e) {
-				logger.error("Exception Message: " + e.getMessage(), e);
-				context.getHarvestStatus().logMessage("generateFeedFromSearch: " + e.getMessage(), true);						
-			}
+			catch (Exception e) {				
+				if ((null == dedupSet) || dedupSet.isEmpty()) {
+					throw new ExtractorSourceLevelTransientException("generateFeedFromSearch: " + e.getMessage());					
+				}
+				else {
+					throw new ExtractorDocumentLevelException("generateFeedFromSearch: " + e.getMessage());
+				}
+				// (don't log since these errors will appear in the log under the source, ie more usefully)
+			}//TESTED
 			finally {
 				// Fix any temp changes we made to the source
 				src.setUnstructuredAnalysisConfig(savedUAHconfig);

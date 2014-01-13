@@ -18,13 +18,16 @@ package com.ikanow.infinit.e.shared.control.base
 	import com.ikanow.infinit.e.shared.event.base.IDialogControlEvent;
 	import com.ikanow.infinit.e.shared.model.constant.DelegateConstants;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
+	
 	import flash.events.IEventDispatcher;
+	
 	import mx.controls.Alert;
 	import mx.logging.ILogger;
 	import mx.logging.Log;
 	import mx.resources.ResourceManager;
 	import mx.rpc.AsyncToken;
 	import mx.rpc.events.FaultEvent;
+	
 	import org.swizframework.utils.services.ServiceHelper;
 	
 	public class InfiniteController
@@ -73,7 +76,10 @@ package com.ikanow.infinit.e.shared.control.base
 		 */
 		protected function defaultFaultHandler( event:FaultEvent, ... args ):void
 		{
-			Alert.show( ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverErrorMessage', [ event.fault.rootCause.text ] ), ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverError' ) );
+			var params:Array = new Array();
+			if ( event != null && event.fault != null && event.fault.rootCause != null && event.fault.rootCause.text != null )
+				params.push(event.fault.rootCause.text);
+			Alert.show( ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverErrorMessage', params ), ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serverError' ) );
 		}
 		
 		/**

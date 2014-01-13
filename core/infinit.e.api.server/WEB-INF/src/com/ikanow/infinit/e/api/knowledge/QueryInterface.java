@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 
+import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
@@ -42,6 +43,7 @@ import com.ikanow.infinit.e.api.knowledge.output.KmlOutput;
 import com.ikanow.infinit.e.api.knowledge.output.RssOutput;
 import com.ikanow.infinit.e.api.knowledge.output.XmlOutput;
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
@@ -64,6 +66,8 @@ public class QueryInterface extends ServerResource
 {
 	// Utility objects
 	private QueryHandler _queryController = new QueryHandler();
+	
+	private static final Logger _logger = Logger.getLogger(QueryInterface.class);
 	
 	// Per-call transaction state
 	String _cookie;
@@ -162,9 +166,9 @@ public class QueryInterface extends ServerResource
 		MediaType mediaType = MediaType.APPLICATION_JSON; // (or RSS, or XML)
 		ResponsePojo rp = null;
 
+		String cookieLookup = null; 
 		try {
 			// First off, check the cookie is valid:
-			String cookieLookup = null; 
 			boolean bNotRss = !_requestDetails.output.format.equalsIgnoreCase("rss"); 
 			// maybe don't need cookie for RSS?
 			// Do a quick bit of further error checking here too:
@@ -252,7 +256,7 @@ public class QueryInterface extends ServerResource
 			else 
 			{
 				//check communities are valid before using
-				if ( RESTTools.validateCommunityIds(cookieLookup, _communityIdStrList) )
+				if ( SocialUtils.validateCommunityIds(cookieLookup, _communityIdStrList) )
 					rp = _queryController.doQuery(cookieLookup, _requestDetails, _communityIdStrList, errorString);
 				else {
 					errorString.append(": Community Ids are not valid for this user");
@@ -305,13 +309,24 @@ public class QueryInterface extends ServerResource
 			}//TESTED
 		}
 		catch (Exception e) {
+			// (LOGS TO CATALINA.OUT IF THE LOG MESSAGES AREN'T NECESSARY)
 			e.printStackTrace();
-			getResponse().setStatus(Status.SERVER_ERROR_INTERNAL);
+			
+			errorString.append(" userid=").append(cookieLookup).append(" groups=").append(_communityIdStrList);
+			errorString.append( " error='").append(e.getMessage()).append("' stack=");
+			populateStackTrace(errorString, e);
+			if (null != e.getCause()) {
+				errorString.append("[CAUSE=").append(e.getCause().getMessage()).append("]");
+				populateStackTrace(errorString, e.getCause());				
+			}
+			String error = errorString.toString(); 
+			_logger.error(error);
+			
+			//getResponse().setStatus(Status.SERVER_ERROR_INTERNAL);
 			rp = new ResponsePojo();
-			rp.setResponse(new ResponseObject("Query", false, errorString.toString()));
-			System.out.println(rp.toApi());
+			rp.setResponse(new ResponseObject("Query", false, error));
 			data = rp.toApi();
-		}
+		}//TESTED
 		
 		// One last check to ensure data has value (ugly ugly ugly)
 		if (data == null ) {
@@ -322,6 +337,57 @@ public class QueryInterface extends ServerResource
 		}
 		return new StringRepresentation(data, mediaType);
 	}		
+	//___________________________________________________________________________________
+	
+	// Utility function - parse stack exception (should move this into a Util if it proves to be useful)
+	
+	private void populateStackTrace(StringBuffer sb, Throwable t) {
+		int n = 0;
+		String lastMethodName = null;
+		String lastClassName = null;
+		String lastFileName = null;
+		StackTraceElement firstEl = null;
+		StackTraceElement lastEl = null;
+		for (StackTraceElement el: t.getStackTrace()) {
+			if (el.getClassName().contains("com.ikanow.") && (n < 20)) {
+				if ((lastEl != null) && (lastEl != firstEl)) { // last non-ikanow element before the ikanow bit
+					sb.append("[").append(lastEl.getFileName()).append(":").append(lastEl.getLineNumber()).append(":").append(lastEl.getClassName()).append(":").append(lastEl.getMethodName()).append("]");
+					n += 2;				
+					firstEl = null;
+					lastEl = null;
+				}//TESTED
+				
+				if (el.getClassName().equals(lastClassName) && el.getMethodName().equalsIgnoreCase(lastMethodName)) { // (overrides)
+					sb.append("[").append(el.getLineNumber()).append("]");
+					// (don't increment n in this case)
+				}//(c/p of other clauses)
+				else if (el.getClassName().equals(lastClassName)) { // different methods in the same class
+					sb.append("[").append(el.getLineNumber()).append(":").append(el.getMethodName()).append("]");
+					n++; // (allow more of these)
+				}//TESTED
+				else if (el.getFileName().equals(lastFileName)) { // different methods in the same class					
+					sb.append("[").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
+					n += 2;
+				}//(c/p of other clauses)
+				else {
+					sb.append("[").append(el.getFileName()).append(":").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
+					n += 3;
+				}//TESTED
+				lastMethodName = el.getMethodName();
+				lastClassName = el.getClassName();
+				lastFileName = el.getFileName();
+			}
+			else if (0 == n) {
+				firstEl = el;
+				sb.append("[").append(el.getFileName()).append(":").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
+				n += 3;
+			}//TESTED
+			else if (null != firstEl) {
+				lastEl = el;
+			}
+		}		
+	}//TESTED
+	
 	//___________________________________________________________________________________
 	
 	// Utility function - long and dull, I advise stopping reading around here...!

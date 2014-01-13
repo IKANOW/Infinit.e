@@ -41,12 +41,6 @@
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
-			import actionscript.AlphaFlowEdgeRenderer;
-			import actionscript.EdgeLabelTooltipRenderer;
-			import actionscript.EventGraph;
-			import actionscript.GraphMLRenderer;
-			import actionscript.JSONUtil;
-			
 			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
@@ -57,8 +51,6 @@
 			import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
-			
-			import flexlib.mdi.containers.MDIWindow;
 			
 			import mx.collections.ArrayCollection;
 			import mx.collections.Sort;
@@ -73,6 +65,18 @@
 			import mx.modules.ModuleLoader;
 			import mx.rpc.events.ResultEvent;
 			import mx.utils.ColorUtil;
+			import mx.utils.ObjectUtil;
+			
+			import spark.components.ToggleButton;
+			import spark.events.IndexChangeEvent;
+			
+			import actionscript.AlphaFlowEdgeRenderer;
+			import actionscript.EdgeLabelTooltipRenderer;
+			import actionscript.EventGraph;
+			import actionscript.GraphMLRenderer;
+			import actionscript.JSONUtil;
+			
+			import flexlib.mdi.containers.MDIWindow;
 			
 			import org.alivepdf.pdf.PDF;
 			import org.un.cava.birdeye.ravis.components.renderers.RendererIconFactory;
@@ -99,9 +103,7 @@
 			import org.un.cava.birdeye.ravis.graphLayout.visual.events.VisualEdgeEvent;
 			import org.un.cava.birdeye.ravis.graphLayout.visual.events.VisualGraphEvent;
 			
-			import spark.components.ToggleButton;
-			import spark.events.IndexChangeEvent;
-			
+			import system.data.Map;
 			import system.data.Set;
 			import system.data.maps.HashMap;
 			import system.data.sets.HashSet;
@@ -1141,6 +1143,20 @@
 				selectedEdge = null;					
 			}
 			
+			/**
+			 * Grabs the 'visibleEvents' array and sends it in the WidgetDragObject
+			 * 
+			 */
+			protected function widgetheaderdragimage1_mouseDownHandler(event:MouseEvent):void
+			{
+				var dragObject:WidgetDragObject = new WidgetDragObject();
+				dragObject.associations = visibleEvents;
+				dragObject.dragSource = "EventGraph";
+				var ds:DragSource = new DragSource();
+				ds.addData(dragObject, WidgetDragUtil.WIDGET_DRAG_FORMAT );									
+				DragManager.doDrag(dragImage, ds, event);
+			}
+			
 		]]>
 	</fx:Script>
 	<fx:Declarations>
@@ -1181,6 +1197,9 @@
 
 		<s:HGroup gap="-3">
 
+			<!-- Drag Icon -->
+			<components:WidgetHeaderDragImage id="dragImage" mouseDown="widgetheaderdragimage1_mouseDownHandler(event)" toolTip="Drag this to another widget/the query bar to send all visible events" />
+			
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
 				toolTip="Ignore Workspace Filtering - Show All Results"

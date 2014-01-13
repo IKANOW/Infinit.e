@@ -19,10 +19,7 @@ import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.net.UnknownHostException;
 import java.util.Date;
-import java.util.HashSet;
-import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -30,13 +27,9 @@ import org.restlet.data.Form;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
-import com.ikanow.infinit.e.api.social.community.PersonHandler;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
-import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
-import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
-import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -241,9 +234,8 @@ public class RESTTools
 		return false;
 	}
 
-	// Utility function for the two types of authentication
-	
-	private static boolean adminCheck(AuthenticationPojo ap, boolean mustBeEnabled) {
+	// Utility function for the two types of authentication	
+	public static boolean adminCheck(AuthenticationPojo ap, boolean mustBeEnabled) {
 		if (null != ap.getAccountType()) {
 			if (ap.getAccountType().equalsIgnoreCase("admin")) {
 				return true;
@@ -261,101 +253,17 @@ public class RESTTools
 			}
 		}//TESTED		
 		return false;
-	}
-	
-	/**
-	 * validateCommunityIds
-	 * @param userIdStr
-	 * @param communityIdStrList
-	 * @return
-	 */
-	public static boolean validateCommunityIds(String userIdStr, String communityIdStrList) 
-	{
-		// Trivial case:
-		if ( (null == communityIdStrList) || (communityIdStrList.isEmpty()) || (communityIdStrList.charAt(0) < 0x30) ) 
-		{
-			// (<0x30 => is a regex, don't need to validate since check vs person pojos anyway) 
-			return true;
+	}	
+
+	public static void logRequest(ServerResource requestHandle) {
+		Form headers = (Form) requestHandle.getResponseAttributes().get("org.restlet.http.headers");
+		if (null == headers) {
+			headers = new Form();
+			requestHandle.getResponseAttributes().put("org.restlet.http.headers", headers);
 		}
-		if (null == userIdStr) {
-			return false;
-		}
-		if (RESTTools.adminLookup(userIdStr)) {
-			return true;
-		}
-		
-		String[] communities =  communityIdStrList.split(",");
-		
-		// User's personal community included in list of communities
-		if (communityIdStrList.contains(userIdStr)) return true;
-		
-		ObjectId[] communityObjects = new ObjectId[communities.length];
-		for (int i = 0; i < communities.length; i++)
-		{
-			communityObjects[i] = new ObjectId(communities[i]);
-		}
-		
-		// Get object Id for owner test
-		ObjectId userId = null;
-		try {
-			userId = new ObjectId(userIdStr);
-		}
-		catch (Exception e) {
-			userId = new ObjectId("0"); // (dummy user id)
-		}			
-		try
-		{
-			//check in mongo a user is part of these groups		
-			BasicDBObject query = new BasicDBObject("_id",new BasicDBObject("$in",communityObjects) ); 
-			List<CommunityPojo> retCommunities = CommunityPojo.listFromDb(DbManager.getSocial().getCommunity().find(query), CommunityPojo.listType());
-			if ( retCommunities.size() == communities.length ) //make sure it found a group for all the id's
-			{
-				for (CommunityPojo cp: retCommunities)
-				{
-					//check to make sure user is a member or is his personal community (communityid and userid will be the same)
-					if ( !cp.getId().equals(new ObjectId(userIdStr))) //this is NOT a personal group so check we are a member
-					{
-						if (!userId.equals(cp.getOwnerId())) { // (if you're owner you can always have it)
-							if ( !cp.isMember(new ObjectId(userIdStr)) ) //if user is not a member of this group, return false
-								return false;
-						}
-					}
-				}
-			}
-			else
-			{
-				//error wrong number of groups returned meaning incorrect community ids were sent (groups dont exist)
-				return false;				
-			}
-		}
-		catch (Exception ex)
-		{
-			return false;
-		}		
-		return true; //made it thru the gauntlet, return successful
-	}
-	
-	// Get a list of communities from a user and an optional regex
-	
-	static public HashSet<ObjectId> getUserCommunities(String userIdStr) {
-		return getUserCommunities(userIdStr, null);
-	}
-	
-	static public HashSet<ObjectId> getUserCommunities(String userIdStr, Pattern regex) {
-		PersonPojo person = PersonHandler.getPerson(userIdStr);
-		HashSet<ObjectId> memberOf = new HashSet<ObjectId>();
-		if (null != person) {
-			if (null != person.getCommunities()) {
-				for (PersonCommunityPojo community: person.getCommunities()) {
-					if ((null == regex) || regex.matcher(community.getName()).find()) {
-						memberOf.add(community.get_id());
-					}
-				}
-			}
-		}
-		return memberOf;
+		headers.add("X-infinit.e.log", "1");		
 	}//TESTED
-	
+
 	static public boolean mustComeFromAuthority(PropertiesManager properties, String ipAddress, String cookie, String admuser, String admpass) 
 	{
 		 boolean allowedToRegisterUpdate = false;	
@@ -382,8 +290,8 @@ public class RESTTools
 		 } 
 		 if (!allowedToRegisterUpdate && (null != cookie)) //if not saas, must be an admin
 		 {
-			 String cookieLookup = RESTTools.cookieLookup(cookie); //get cookie to check admin
-			 allowedToRegisterUpdate = RESTTools.adminLookup(cookieLookup);
+			 String cookieLookup = cookieLookup(cookie); //get cookie to check admin
+			 allowedToRegisterUpdate = adminLookup(cookieLookup);
 		 }			 
 		 
 		 if (!allowedToRegisterUpdate && (null != admuser) && (null != admpass)) { 
@@ -412,41 +320,5 @@ public class RESTTools
 		 return allowedToRegisterUpdate;
 		 
 	}//TESTED (just moved code across from PersonInterface)
-	
-	// Utility function to get communities entered in the following formats:
-	// "*" for all user communities
-	// "*<regex>" to apply a regex to the community names
-	// "<id1>,<id2>,etc"
-	
-	static public String[] getCommunityIds(String userIdStr, String communityIdStrList) {
-		
-		if (communityIdStrList.charAt(0) < 0x30) {
-			Pattern communityRegex = null;
-			if (communityIdStrList.length() > 1) {
-				communityRegex = Pattern.compile(communityIdStrList.substring(1), Pattern.CASE_INSENSITIVE);
-			}
-			HashSet<ObjectId> allCommunities = getUserCommunities(userIdStr, communityRegex);
-			String[] communityIds = new String[allCommunities.size()];
-			int i = 0; 
-			for (ObjectId oid: allCommunities) {
-				communityIds[i] = oid.toString();
-				++i;
-			}
-			return communityIds;
-		}
-		else {
-			 String[] communityIdStrs = communityIdStrList.split("\\s*,\\s*");
-			 return communityIdStrs;
-		}
-	} //TESTED
-
-	public static void logRequest(ServerResource requestHandle) {
-		Form headers = (Form) requestHandle.getResponseAttributes().get("org.restlet.http.headers");
-		if (null == headers) {
-			headers = new Form();
-			requestHandle.getResponseAttributes().put("org.restlet.http.headers", headers);
-		}
-		headers.add("X-infinit.e.log", "1");		
-	}//TESTED
 	
 }

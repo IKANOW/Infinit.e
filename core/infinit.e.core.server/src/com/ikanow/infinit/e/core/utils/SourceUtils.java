@@ -553,6 +553,9 @@ public class SourceUtils {
 
 		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
 		BasicDBObject setClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
+		if ((null != added) && !added.isEmpty()) {
+			setClause.put(SourceHarvestStatusPojo.sourceQuery_extracted_, new Date());
+		}
 		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, setClause);
 
 		int docsAdded = 0;
@@ -771,8 +774,9 @@ public class SourceUtils {
 		// Update tokens complete, and retrieve modified version 
 		int nTokensToBeCleared = source.getDistributionTokens().size(); 
 		BasicDBObject query = new BasicDBObject(SourcePojo._id_, source.getId());
-		BasicDBObject fields = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, nTokensToBeCleared);
-		BasicDBObject modify = new BasicDBObject(MongoDbManager.inc_, fields.clone());
+		BasicDBObject modify = new BasicDBObject(MongoDbManager.inc_, 
+				new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, nTokensToBeCleared));
+		BasicDBObject fields = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, 1);
 		fields.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1);		
 		fields.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, 1);		
 		BasicDBObject partial = (BasicDBObject) MongoDbManager.getIngest().getSource().findAndModify(query, fields, null, false, modify, true, false);

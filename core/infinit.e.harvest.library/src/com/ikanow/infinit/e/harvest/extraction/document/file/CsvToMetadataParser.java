@@ -35,6 +35,8 @@ public class CsvToMetadataParser {
 		_debugMaxDocs = debugMaxDocs;		
 	}
 	
+	private char _quoteChar = '"';
+	
 	public List<DocumentPojo> parseDocument(BufferedReader lineReader, SourcePojo source) throws IOException {
 		String line;
 		List<DocumentPojo> partials = new LinkedList<DocumentPojo>();
@@ -59,6 +61,9 @@ public class CsvToMetadataParser {
 				else if (chars.length() > 2) {
 					parser = new CSVParser(chars.charAt(0), chars.charAt(1), chars.charAt(2));
 				}
+				if (chars.length() > 1) {
+					_quoteChar = chars.charAt(1);
+				}
 			}
 			if (null == parser) {
 				parser = new CSVParser();
@@ -74,13 +79,29 @@ public class CsvToMetadataParser {
 			if ((null != source.getFileConfig()) && (null != source.getFileConfig().XmlIgnoreValues)) {
 				boolean bMatched = false;
 				boolean firstIgnoreField = true; // (first ignore field in list can generate the headers)
-				for (String ignore: source.getFileConfig().XmlIgnoreValues) {					
-					if (line.startsWith(ignore)) {
-						if (!foundHeaderLine && firstIgnoreField && (null != parser)) {							
-							line = line.substring(ignore.length());
+				for (String ignore: source.getFileConfig().XmlIgnoreValues) {			
+					boolean lineMatches = false;
+					if (ignore.charAt(0) == _quoteChar) {
+						if (line.charAt(0) == _quoteChar) {
+							lineMatches = line.startsWith(ignore);
+						}//TESTED (["a","b","c"] and XmlIgnoreFields: [ "\"a" ])							
+						else {
+							lineMatches = line.startsWith(ignore.substring(1));
+						}//TESTED ([a,b,c] vs XmlIgnoreFields: [ "a" ] and [ "\"a" ])							
+					}
+					else {
+						lineMatches = line.startsWith(ignore);
+					}//TESTED
+					
+					if (lineMatches) {
+						if (!foundHeaderLine && firstIgnoreField && (null != parser)) {
+							if (ignore.charAt(0) != _quoteChar) { // if using quotes then don't pull the char
+								line = line.substring(ignore.length());
+							}//TESTED (["a","b","c"] and [a,b,c] vs XmlIgnoreFields: [ "a" ] and [ "\"a" ])							
 							String[] fields = parser.parseLine(line);
 							// Now override the manual fields:
 							indexToField = Arrays.asList(fields).toArray();
+							
 							if ((indexToField.length > 1) || (0 != ((String)indexToField[0]).length())) {
 								foundHeaderLine = true;
 							}//TESTED

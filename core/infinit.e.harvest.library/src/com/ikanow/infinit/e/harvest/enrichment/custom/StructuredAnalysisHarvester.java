@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -127,10 +128,10 @@ public class StructuredAnalysisHarvester
         	}//(end load scripts)        	
 		} 
         catch (ScriptException e) {
-			this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);						
+			this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);
 			logger.error("ScriptException: " + e.getMessage(), e);
 		}        
-	}//TOTEST (tested code import, not scripts import though that is cut-and-paste from legacy code)
+	}//TESTED (uah:import_and_lookup_test_uahSah.json)
 	
 	// Set the document level fields
 	
@@ -157,10 +158,11 @@ public class StructuredAnalysisHarvester
 			}
 		}
 		catch (Exception e) {
-			this._context.getHarvestStatus().logMessage("title: " + e.getMessage(), true);						
-			logger.error("title: " + e.getMessage(), e);
+			this._context.getHarvestStatus().logMessage("title: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("title: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 
 		// Extract display URL if applicable
 		try {
@@ -174,10 +176,11 @@ public class StructuredAnalysisHarvester
 			}
 		}
 		catch (Exception e) {
-			this._context.getHarvestStatus().logMessage("displayUrl: " + e.getMessage(), true);						
-			logger.error("displayUrl: " + e.getMessage(), e);
+			this._context.getHarvestStatus().logMessage("displayUrl: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("displayUrl: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 
 		// Extract Description if applicable
 		try {
@@ -192,9 +195,10 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception e)  {
 			this._context.getHarvestStatus().logMessage("description: " + e.getMessage(), true);						
-			logger.error("description: " + e.getMessage(), e);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("description: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 		
 
 		// Extract fullText if applicable
@@ -209,10 +213,11 @@ public class StructuredAnalysisHarvester
 			}
 		}
 		catch (Exception e) {
-			this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);						
-			logger.error("fullText: " + e.getMessage(), e);
+			this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("fullText: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 
 		// Extract Published Date if applicable
 		try {
@@ -228,10 +233,11 @@ public class StructuredAnalysisHarvester
 			}
 		}
 		catch (Exception e) {
-			this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);						
-			logger.error("publishedDate: " + e.getMessage(), e);
+			this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("publishedDate: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 		
 		// Extract Document GEO if applicable
 		
@@ -242,11 +248,12 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception e) {
 			this._context.getHarvestStatus().logMessage("docGeo: " + e.getMessage(), true);						
-			logger.error("docGeo: " + e.getMessage(), e);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("docGeo: " + e.getMessage(), e);
 		}
-		//TOTEST
+		//TESTED (fulltext_docMetaTest)
 	}
-	//TOTEST (tested - normal replacement, fields except docGeo and publishedDate)
+	//TESTED (fulltext_docMetaTest)
 	
 	// Set the entities
 	
@@ -298,7 +305,8 @@ public class StructuredAnalysisHarvester
 		        _securityManager.eval(_scriptEngine, JavaScriptUtils.initScript);
 			}
 		}
-	}
+	}//TESTED
+	
 	///////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Loads the caches into script
@@ -313,10 +321,15 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception ex)
 		{
-			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
-			logger.error("JSONcache: " + ex.getMessage(), ex);
+			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);
+			//(no need to log this, appears in log under source -with URL- anyway):
+			//logger.error("JSONcache: " + ex.getMessage(), ex);
 		}		
-	}//TOTEST
+	}//TESTED (import_and_lookup_test_uahSah.json)
+	
+	///////////////////////////////////////////////////////////////////////////////////////////
+
+	// Tidy up metadadata after processing
 	
 	public void removeUnwantedMetadataFields(String metaFields, DocumentPojo f)
 	{
@@ -344,13 +357,85 @@ public class StructuredAnalysisHarvester
 				} 
 				else { // exclude case, easier
 					for (String metaField: metaFieldArray) {
-						f.getMetadata().remove(metaField);
-					}
-				}
+						if (!metaField.contains(".")) {
+							f.getMetadata().remove(metaField);
+						}
+						else { // more complex case, nested delete							
+							recursiveNestedMapDelete(metaField.split("\\s*\\.\\s*"), 0, f.getMetadata());						
+						}
+					}//(end loop over metaFields)
+					
+				}//(end if exclude case)
 				//TESTED: include (default + explicit) and exclude cases
 			}
 		}//(if metadata exists)		
 	}//TESTED (legacy code)
+	
+	// Recursive utility function for removeUnwantedMetadataFields()
+	
+	@SuppressWarnings("rawtypes")
+	private void recursiveNestedMapDelete(String[] fieldList, int currPos, Map currMap) {
+		String metaFieldEl = fieldList[currPos]; 
+		if (currPos == (fieldList.length - 1)) {
+			currMap.remove(metaFieldEl);
+		}//TESTED (metadataStorage_test:removeString, etc)
+		else {
+			Object metaFieldElValOrVals = currMap.get(metaFieldEl);								
+			if (null != metaFieldElValOrVals) {
+				if (metaFieldElValOrVals instanceof Map) {
+					Map map = (Map)metaFieldElValOrVals;
+					recursiveNestedMapDelete(fieldList, currPos + 1, map);
+					if (map.isEmpty()) {
+						currMap.remove(metaFieldEl);
+					}//TESTED (metadataStorage_test:object)
+					
+				}//TESTED (metadataStorage_test:object, :nestedArrayOfStrings, etc)
+				else if (metaFieldElValOrVals instanceof Object[]) {					
+					Object[] candidateMaps = (Object[])metaFieldElValOrVals;
+					boolean allEmpty = (candidateMaps.length > 0);
+					for (Object candidateMap: candidateMaps) {
+						if (candidateMap instanceof Map) {
+							Map map = (Map)candidateMap;
+							recursiveNestedMapDelete(fieldList, currPos + 1, map);
+							allEmpty &= map.isEmpty();
+						}
+						else allEmpty = false;							
+					}
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);
+					}//TESTED (metadataStorage_test:test2,test3)
+				}//TESTED (length 1: metadataStorage_test:removeString, etc; length2: :test2,test3) 
+				else if (metaFieldElValOrVals instanceof Map[]) {
+					Map[] maps = (Map[])metaFieldElValOrVals;
+					boolean allEmpty = (maps.length > 0);
+					for (Map map: maps) {
+						recursiveNestedMapDelete(fieldList, currPos + 1, map);
+						allEmpty &= map.isEmpty();
+					}
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);						
+					}
+				}//(basically the same as the clause above, doesn't seem to occur in practice)
+				else if (metaFieldElValOrVals instanceof Collection) {
+					Collection candidateMaps = (Collection)metaFieldElValOrVals;
+					boolean allEmpty = (candidateMaps.size() > 0);
+					for (Object candidateMap: candidateMaps) {
+						if (candidateMap instanceof Map) {
+							Map map = (Map)candidateMap;
+							recursiveNestedMapDelete(fieldList, currPos + 1, map);
+							allEmpty &= map.isEmpty();
+						}
+						else allEmpty = false;
+					}					
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);						
+					}//TESTED (metadataStorage_test:nestedMapArray, metadataStorage_test:nestedMapArray2, metadataStorage_test:nestedMixedArray)
+				}//TESTED (length>1: metadataStorage_test:nestedMixedArray,nestedMapArray)
+					
+			}
+		}//(end if at the start/middle of the nested object tree)
+			
+	}//TESTED
 	
 	public boolean rejectDoc(String rejectDocCriteria, DocumentPojo f) throws JSONException, ScriptException
 	{
@@ -415,7 +500,8 @@ public class StructuredAnalysisHarvester
 		        			f.addToMetadata("_PERSISTENT_", persist);
 		        		}						        		
 						this._context.getHarvestStatus().logMessage("SAH::onUpdateScript: " + e.getMessage(), true);
-						logger.error("SAH::onUpdateScript: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("SAH::onUpdateScript: " + e.getMessage(), e);
 		        	}
 		        	//(TESTED)
 		        }								
@@ -580,7 +666,8 @@ public class StructuredAnalysisHarvester
 					catch (Exception e) 
 					{
 						this._context.getHarvestStatus().logMessage("title: " + e.getMessage(), true);						
-						logger.error("title: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("title: " + e.getMessage(), e);
 					}
 
 					// Extract Display URL if applicable
@@ -605,7 +692,8 @@ public class StructuredAnalysisHarvester
 					catch (Exception e) 
 					{
 						this._context.getHarvestStatus().logMessage("displayUrl: " + e.getMessage(), true);						
-						logger.error("displayUrl: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("displayUrl: " + e.getMessage(), e);
 					}
 					//TOTEST
 
@@ -631,7 +719,8 @@ public class StructuredAnalysisHarvester
 					catch (Exception e) 
 					{
 						this._context.getHarvestStatus().logMessage("description: " + e.getMessage(), true);						
-						logger.error("description: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("description: " + e.getMessage(), e);
 					}
 					
 
@@ -657,7 +746,8 @@ public class StructuredAnalysisHarvester
 					catch (Exception e) 
 					{
 						this._context.getHarvestStatus().logMessage("fullText: " + e.getMessage(), true);						
-						logger.error("fullText: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("fullText: " + e.getMessage(), e);
 					}
 	
 					// Published date is done after the UAH 
@@ -696,6 +786,11 @@ public class StructuredAnalysisHarvester
 							toAdd.add(f);
 							try {
 								contextController.extractTextAndEntities(toAdd, source, false);
+								if (toAdd.isEmpty()) { // this failed... 
+									it.remove(); // remove the document from the list...
+									f.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+									continue;
+								}//TESTED
 							}
 							catch (Exception e) {
 								contextController.handleExtractError(e, source); //handle extractor error if need be				
@@ -739,7 +834,8 @@ public class StructuredAnalysisHarvester
 					}
 					catch (Exception e) {
 						this._context.getHarvestStatus().logMessage("SAH->UAH: " + e.getMessage(), true);						
-						logger.error("SAH->UAH: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("SAH->UAH: " + e.getMessage(), e);
 					}
 						
 					// Now create document since there's no risk of having to re-serialize
@@ -766,7 +862,8 @@ public class StructuredAnalysisHarvester
 						catch (Exception e) 
 						{
 							this._context.getHarvestStatus().logMessage("title: " + e.getMessage(), true);						
-							logger.error("title: " + e.getMessage(), e);
+							//DEBUG (don't output log messages per doc)
+							//logger.error("title: " + e.getMessage(), e);
 						}
 					}
 					
@@ -789,7 +886,8 @@ public class StructuredAnalysisHarvester
 						catch (Exception e) 
 						{
 							this._context.getHarvestStatus().logMessage("displayUrl: " + e.getMessage(), true);						
-							logger.error("displayUrl: " + e.getMessage(), e);
+							//DEBUG (don't output log messages per doc)
+							//logger.error("displayUrl: " + e.getMessage(), e);
 						}
 					}					
 					//TOTEST
@@ -813,7 +911,8 @@ public class StructuredAnalysisHarvester
 						catch (Exception e) 
 						{
 							this._context.getHarvestStatus().logMessage("description2: " + e.getMessage(), true);						
-							logger.error("description2: " + e.getMessage(), e);
+							//DEBUG (don't output log messages per doc)
+							//logger.error("description2: " + e.getMessage(), e);
 						}						
 					}
 					
@@ -836,7 +935,8 @@ public class StructuredAnalysisHarvester
 						catch (Exception e) 
 						{
 							this._context.getHarvestStatus().logMessage("fullText2: " + e.getMessage(), true);						
-							logger.error("fullText2: " + e.getMessage(), e);
+							//DEBUG (don't output log messages per doc)
+							//logger.error("fullText2: " + e.getMessage(), e);
 						}						
 					}
 					
@@ -904,7 +1004,8 @@ public class StructuredAnalysisHarvester
 				catch (Exception e) 
 				{
 					this._context.getHarvestStatus().logMessage("Unknown: " + e.getMessage(), true);						
-					logger.error("Unknown: " + e.getMessage(), e);
+					//DEBUG (don't output log messages per doc)
+					//logger.error("Unknown: " + e.getMessage(), e);
 				}
 				finally
 				{
@@ -1748,7 +1849,8 @@ public class StructuredAnalysisHarvester
 					catch (Exception e)
 					{
 						//System.out.println(e.getMessage());
-						logger.error("Exception: " + e.getMessage(), e);
+						//DEBUG (don't output log messages per doc)
+						//logger.error("Exception: " + e.getMessage(), e);
 					}
 				}
 			}
@@ -1764,7 +1866,8 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception e)
 		{
-			logger.error("Exception: " + e.getMessage());
+			//DEBUG (don't output log messages per doc)
+			//logger.error("Exception: " + e.getMessage());
 			return null;
 		}
 	}

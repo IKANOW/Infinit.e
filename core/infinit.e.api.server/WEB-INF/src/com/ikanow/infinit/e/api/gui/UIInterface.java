@@ -30,6 +30,7 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 
@@ -163,7 +164,7 @@ public class UIInterface extends ServerResource
 				 }
 				 else if ( action.equals("update"))
 				 {					 
-					 if ( RESTTools.validateCommunityIds(cookieLookup, communityIdStrList) )
+					 if ( SocialUtils.validateCommunityIds(cookieLookup, communityIdStrList) )
 					 {
 						 rp = this.uc.updateLastSetup(cookieLookup, communityIdStrList, query, updateItem);
 					 }

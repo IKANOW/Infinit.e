@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.document;
 
+import java.text.SimpleDateFormat;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -27,6 +28,15 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 
 public class HarvestStatus_Standalone implements HarvestStatus {
 
+	@Override
+	public void resetForNewSource() {
+		if (null != _messages) {
+			_messages.clear();
+		}
+		_numMessages = 0;
+		_currMessage = null;		
+	}//TESTED
+	
 	/**
 	 * updateHarvestStatus
 	 * Currently I am using the key to find the old source to update
@@ -45,32 +55,32 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 		if (HarvestEnum.in_progress == harvestStatus) {
 			// This is just for display purposes and never run post-processing so just declare success!
 			harvestStatus = HarvestEnum.success;
-		}		
+		}//TESTED
+		if ((null != harvestMessage) && !harvestMessage.isEmpty()) {
+			this.logMessage(harvestMessage, false);
+			if (HarvestEnum.error == harvestStatus) {
+				_numMessages++;
+			}
+		}//TOTEST	
+		
 		SourceHarvestStatusPojo hp = new SourceHarvestStatusPojo();
 		hp.setHarvested(harvestDate);
 		hp.setHarvest_status(harvestStatus);
 		sourceToUpdate.setHarvestStatus(hp);
+		sourceToUpdate.getHarvestStatus().setRealHarvested(harvestDate);
 		
 		// Display message
 		if (null == _currMessage) {	
-			if ((null == harvestMessage) || harvestMessage.isEmpty()) {
-				sourceToUpdate.getHarvestStatus().setHarvest_message("");				
-			}
-			else {
-				sourceToUpdate.getHarvestStatus().setHarvest_message(harvestMessage);
-			}
+			// (then also no harvest message else would have logged already)
+			sourceToUpdate.getHarvestStatus().setHarvest_message("");				
 		}//TESTED
 		else { // New messages to display
-			if ((null != harvestMessage) && !harvestMessage.isEmpty()) {
-				_currMessage.insert(0, harvestMessage);
-				_currMessage.insert(harvestMessage.length(), '\n');
-			}
+			String date = new SimpleDateFormat("'['yyyy-MM-dd'T'HH:mm:ss']' ").format(new Date());
 			if ((null != _messages) && !_messages.isEmpty()) {
 				_currMessage.append('\n');	
-				_currMessage.append(getLogMessages(true));
+				_currMessage.append(getLogMessages(true)); // (clears _messages)
 			}
-			sourceToUpdate.getHarvestStatus().setHarvest_message(_currMessage.toString());				
-			_currMessage.setLength(0);
+			sourceToUpdate.getHarvestStatus().setHarvest_message(date + _currMessage.toString());				
 		}//TESTED
 		//(end display message)
 		
@@ -102,10 +112,11 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 			_currMessage.append(message);
 		}//TESTED
 		else { // Aggregate messages
+			_numMessages++;
 			if (null == _messages) {
 				_messages = new HashMap<String, Integer>();
 			}
-			if (_messages.size() > 0) {
+			if (_messages.size() > 0) { //(unlike integrated, don't limit # messages in standalone)
 				Integer count = (Integer) _messages.get(message);
 				
 				if (count != null && count > 0) {
@@ -130,6 +141,10 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 	
 	private StringBuffer _currMessage = null; // Current message (output at the end of the source processing)
  	private HashMap<String, Integer> _messages = null; // (list of messages to aggregate)
+	private int _numMessages = 0;
+ 	public int getNumMessages() {
+ 		return _numMessages;
+ 	}
 	
 	/**
 	 * getLogMessages
@@ -159,7 +174,9 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 			int messageCount = 1;
 			for (String s : messages)
 			{
-				if (messageCount > 1) messagesString.append('\n');
+				if (messageCount > 1) {
+					messagesString.append('\n');
+				}
 				messagesString.append(s);
 				messageCount++;
 				if (messageCount > 20) break;
@@ -174,4 +191,22 @@ public class HarvestStatus_Standalone implements HarvestStatus {
 			return null;
 		}
 	}//TESTED (cut and paste from old code)
+
+ 	public String getMostCommonMessage() {
+ 		int max = -1;
+ 		String maxMsg = null;
+ 		if (null != _messages) {
+			for (java.util.Map.Entry<String, Integer> entry : _messages.entrySet()) 
+			{
+				if (entry.getValue() > max) {
+					max = entry.getValue();
+					maxMsg = entry.getKey();
+				}
+			}
+ 		}
+		if (null != maxMsg) {
+			return new StringBuffer(" errmsg='").append(max).append(": ").append(maxMsg).append("'").toString();
+		}
+		else return "";
+ 	}//TESTED
 }

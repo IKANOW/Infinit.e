@@ -44,7 +44,6 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-
 import org.bson.types.ObjectId;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
@@ -57,7 +56,7 @@ import org.elasticsearch.search.sort.SortOrder;
 
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasManager;
-import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -140,7 +139,7 @@ public class SearchHandler
 		SearchRequestBuilder searchOptions = gazIndex.getSearchOptions();
 		BaseQueryBuilder queryObj1 = QueryBuilders.queryString(escapedterm).defaultField(EntityFeaturePojoIndexMap.Mapping.RootObject.RootProperties.alias_pri_);
 
-		String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+		String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 		BaseQueryBuilder queryObj2 = QueryBuilders.boolQuery().should(QueryBuilders.termsQuery(EntityFeaturePojo.communityId_, communityIdStrs));
 
 		BaseQueryBuilder queryObj = QueryBuilders.boolQuery().must(queryObj1).must(queryObj2);
@@ -411,7 +410,7 @@ public class SearchHandler
 		try
 		{
 			// Community ids, needed in a couple of places
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 
 			// Initial alias handling:
 			AliasLookupTable aliasTable = null;
@@ -713,7 +712,7 @@ public class SearchHandler
 	public static Map<String, Set<String>> findAliases(DBCollection entityFeatureDb, String field, Collection<String> terms, String userIdStr, String communityIdStrList)
 	{
 		Map<String, Set<String>> aliases = new HashMap<String, Set<String>>();		
-		String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStrList);
+		String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
 		try
 		{
 			if (null == entityFeatureDb) {

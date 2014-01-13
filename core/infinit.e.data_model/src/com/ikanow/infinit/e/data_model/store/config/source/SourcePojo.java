@@ -59,6 +59,9 @@ public class SourcePojo extends BaseDbPojo {
 	/** 
 	  * Private Class Variables
 	  */
+	
+	// Metadata fields
+	
 	private ObjectId _id = null;
 	final public static String _id_ = "_id";
 	private Date created = null;
@@ -69,15 +72,14 @@ public class SourcePojo extends BaseDbPojo {
 	final public static String url_ = "url";
 	private String title = null;
 	final public static String title_ = "title";
-	private Boolean isPublic = null;
+	private Boolean isPublic = null; // if false then many fields are removed when viewed by non-owners/moderators/admins 
 	final public static String isPublic_ = "isPublic";
+	private Boolean partiallyPublished = null; // if fields are removed based on isPublic then this is set to true
+	final public static String partiallyPublished_ = "partiallyPublished";
 	private ObjectId ownerId = null;
 	final public static String ownerId_ = "ownerId";
 	private String author = null;
 	final public static String author_ = "author";
-	
-	private AuthenticationPojo authentication = null;
-	final public static String authentication_ = "authentication";
 	
 	private String mediaType = null;
 	final public static String mediaType_ = "mediaType";
@@ -91,50 +93,25 @@ public class SourcePojo extends BaseDbPojo {
 	private Set<ObjectId> communityIds = null;
 	final public static String communityIds_ = "communityIds";
 	
-	private SourceHarvestStatusPojo harvest = null;
-	final public static String harvest_ = "harvest";
-	private SourceDatabaseConfigPojo database = null;
-	final public static String database_ = "database";
-	private SourceNoSqlConfigPojo nosql = null; 
-	final public static String nosql_ = "nosql";
-	
-	private SourceFileConfigPojo file = null;
-	final public static String file_ = "file";
-	private SourceRssConfigPojo rss = null;
-	final public static String rss_ = "rss";
-	
 	private boolean isApproved = false;
 	final public static String isApproved_ = "isApproved";
 	private boolean harvestBadSource = false;
 	final public static String harvestBadSource_ = "harvestBadSource";
 	
-	private String extractType = null;
+	private String extractType = null; // (in pipeline mode, copied across from pipeline)
 	final public static String extractType_ = "extractType";
-	private String useExtractor = null;
-	final public static String useExtractor_ = "useExtractor";
-	private String useTextExtractor = null;
-	final public static String useTextExtractor_ = "useTextExtractor";
-	
-	private StructuredAnalysisConfigPojo structuredAnalysis = null;
-	final public static String structuredAnalysis_ = "structuredAnalysis";
-	private UnstructuredAnalysisConfigPojo unstructuredAnalysis = null;
-	final public static String unstructuredAnalysis_ = "unstructuredAnalysis";
 	
 	private String shah256Hash = null;	
 	final public static String shah256Hash_ = "shah256Hash";
 
+	// Control fields used everywhere
+	
 	private Integer searchCycle_secs = null; // Determines the time between searches, defaults as quickly as the harvest can cycle
+												// (in pipeline mode, copied across from pipeline)
 	final public static String searchCycle_secs_ = "searchCycle_secs";
-	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
-	final public static String maxDocs_ = "maxDocs";
-	private Integer throttleDocs = null; // Limits the number of docs that can be harvested in one cycle (cannot be higher than system setting in harvest.maxdocs_persource)
-	final public static String throttleDocs_ = "throttleDocs";
-	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
-	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
 
-	// LEGACY CODE, IGNORED IN PROCESSING-PIPELINE MODE
-	private Boolean appendTagsToDocs = null; // if true (default) source tags are appended to the document
-	final public static String appendTagsToDocs_ = "appendTagsToDocs";
+	private Integer distributionFactor;
+	final public static String distributionFactor_ = "distributionFactor";
 	
 	public static class SourceSearchIndexFilter {
 		public Boolean indexOnIngest = null; // (if specified and false, default:true, then don't index the docs at all)
@@ -151,19 +128,56 @@ public class SourcePojo extends BaseDbPojo {
 		public transient Pattern entityGeoFilterRegex;
 		public transient Pattern assocGeoFilterRegex;
 	}
+	
+	// PROCESSING PIPELINE
+	
+	private List<SourcePipelinePojo> processingPipeline;
+	final public static String processingPipeline_ = "processingPipeline";
+	
+	// LEGACY CODE, IGNORED IN PROCESSING-PIPELINE MODE
+
+	private SourceHarvestStatusPojo harvest = null;
+	final public static String harvest_ = "harvest";
+	private SourceDatabaseConfigPojo database = null;
+	final public static String database_ = "database";
+	private SourceNoSqlConfigPojo nosql = null; 
+	final public static String nosql_ = "nosql";
+	
+	private SourceFileConfigPojo file = null;
+	final public static String file_ = "file";
+	private SourceRssConfigPojo rss = null;
+	final public static String rss_ = "rss";
+		
+	private AuthenticationPojo authentication = null;
+	final public static String authentication_ = "authentication";
+	
+	private String useExtractor = null;
+	final public static String useExtractor_ = "useExtractor";
+	private String useTextExtractor = null;
+	final public static String useTextExtractor_ = "useTextExtractor";
+	
+	private StructuredAnalysisConfigPojo structuredAnalysis = null;
+	final public static String structuredAnalysis_ = "structuredAnalysis";
+	private UnstructuredAnalysisConfigPojo unstructuredAnalysis = null;
+	final public static String unstructuredAnalysis_ = "unstructuredAnalysis";	
+	
+	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
+	final public static String maxDocs_ = "maxDocs";
+	private Integer throttleDocs = null; // Limits the number of docs that can be harvested in one cycle (cannot be higher than system setting in harvest.maxdocs_persource)
+	final public static String throttleDocs_ = "throttleDocs";
+	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
+	final public static String duplicateExistingUrls_ = "duplicateExistingUrls";
+	private Boolean appendTagsToDocs = null; // if true (default) source tags are appended to the document
+	
+	final public static String appendTagsToDocs_ = "appendTagsToDocs";
+	
 	private SourceSearchIndexFilter searchIndexFilter = null; // Optional, allows the source builder to configure which fields are searchable
 	final public static String searchIndexFilter_ = "searchIndexFilter";
 	
 	private LinkedHashMap<String, String> extractorOptions = null; // Optional, overrides the per-extractor configuration options, where permissible
 	final public static String extractorOptions_ = "extractorOptions";
 	
-	private List<SourcePipelinePojo> processingPipeline;
-	final public static String processingPipeline_ = "processingPipeline";
-	
-	private Integer distributionFactor;
-	final public static String distributionFactor_ = "distributionFactor";
-	// (temporary internal state):
-	private transient Set<Integer> distributionTokens;
+	//////////////////////////////////////
 	
 	// Gets and sets
 	
@@ -551,7 +565,9 @@ public class SourcePojo extends BaseDbPojo {
 	transient private boolean reachedMaxDocs = false;
 	// (if set to true, means that the next search cycle won't be applied - otherwise if you only search once per day
 	//  and only process 5K docs/search, it can take a while to build up large repositories)
-
+	
+	private transient Set<Integer> distributionTokens; // (temporary internal state for managing intra-source distribution)
+	
 	// Build some regexes:
 	
 	public static void initSearchIndexFilter(SourceSearchIndexFilter searchIndexFilter) {
@@ -763,6 +779,8 @@ public class SourcePojo extends BaseDbPojo {
 	
 	public void fillInSourcePipelineFields() {
 		if (null != this.getProcessingPipeline()) {
+			this.extractType = null; // always derive from the px pipeline, ignore user input
+			
 			for (SourcePipelinePojo px: this.getProcessingPipeline()) {
 				if (null != px.file) {
 					this.extractType = "File";
@@ -770,16 +788,34 @@ public class SourcePojo extends BaseDbPojo {
 				else if (null != px.database) {
 					this.extractType = "Database";					
 				}
-				else {
+				else if ((null != px.web) || (null != px.feed)) {
 					this.extractType = "Feed";					
 				}
 				if (null != px.harvest) {
-					if ((null == searchCycle_secs) || (searchCycle_secs > 0)) {
-						searchCycle_secs = px.harvest.searchCycle_secs;
-					}
+					if (null != px.harvest.searchCycle_secs) {
+						if ((null == searchCycle_secs) || (searchCycle_secs > 0)) {
+							searchCycle_secs = Math.abs(px.harvest.searchCycle_secs);
+						}
+						else { // (searchCycle_secs < 0 ie want to suspend source)
+							searchCycle_secs = -Math.abs(px.harvest.searchCycle_secs);
+						}
+					}//TESTED
+					else if ((null != searchCycle_secs) && (searchCycle_secs < 0)) {
+						// No search cycle specfiied, source suspended
+						searchCycle_secs = -1;
+					}//TESTED
+					else { // No search cycle specified and source not suspended
+						searchCycle_secs = null;
+					}//TESTED
 					break;
 				}
 			}
 		}//TESTED		
+	}
+	public Boolean getPartiallyPublished() {
+		return partiallyPublished;
+	}
+	public void setPartiallyPublished(Boolean partiallyPublished) {
+		this.partiallyPublished = partiallyPublished;
 	}
 }

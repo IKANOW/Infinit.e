@@ -32,12 +32,15 @@ limitations under the License.
 <fmt:message key='source.list.action.delete_share.confirm' var='locale_SourceList_DeleteShare_Confirm' scope='request'/>
 <fmt:message key='source.list.action.delete_source' var='locale_SourceList_DeleteSource' scope='request'/>
 <fmt:message key='source.list.action.delete_source.confirm' var='locale_SourceList_DeleteSource_Confirm' scope='request'/>
+<fmt:message key='source.list.suspend_selected.confirm' var='locale' />
 
 <fmt:message key='source.result.success' var='locale_SourceResult_Success' scope='request' />
 <fmt:message key='source.result.error' var='locale_SourceResult_Error' scope='request' />
 <fmt:message key='source.result.source_bulk_deletion' var='locale_SourceResult_SourceBulkDeletion' scope='request' />
 <fmt:message key='source.result.mixed_bulk_deletion' var='locale_SourceResult_MixedBulkDeletion' scope='request' />
 <fmt:message key='source.result.mixed_bulk_deletion_fail' var='locale_SourceResult_MixedBulkDeletionFail' scope='request' />
+<fmt:message key='source.result.source_bulk_suspend' var='locale_SourceResult_SourceBulkSuspend' scope='request' />
+<fmt:message key='source.result.source_bulk_resume' var='locale_SourceResult_SourceBulkResume' scope='request' />
 <fmt:message key='source.result.test' var='locale_SourceResult_Test' scope='request' />
 
 <fmt:message key='source.editor.mediaType.values' var='local_mediaType_values' scope='request' />
@@ -130,6 +133,8 @@ limitations under the License.
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
 		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
 		if (request.getParameter("deleteDocsFromSelected") != null) action = request.getParameter("deleteDocsFromSelected").toLowerCase();
+		if (request.getParameter("suspendSelected") != null) action = request.getParameter("suspendSelected").toLowerCase();
+		if (request.getParameter("resumeSelected") != null) action = request.getParameter("resumeSelected").toLowerCase();
 		
 		if (request.getParameter("testSource") != null) action = "testSource";
 		if (request.getParameter("saveSource") != null) action = "saveSource";
@@ -291,6 +296,66 @@ limitations under the License.
 				}
 				out.println("\">");
 			}
+			else if ( action.equals("suspendselected"))
+			{
+				int num_suspended = 0;
+				int num_failed = 0;
+				String[] ids= request.getParameterValues("sourcesToProcess");				
+				
+				if ( ids != null )
+				{					
+					for (String id: ids) 
+					{
+						id = getSourceId(id, request, response);
+						if ( id != null )
+						{
+							if (!suspendSourceObject(id, true, request, response)) 
+								num_failed++;
+							else 
+								num_suspended++;
+						}												
+					}
+				}				
+				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkSuspend"), 
+													 (Object)num_suspended, (Object)num_failed);
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) 
+				{
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
+			else if ( action.equals("resumeselected"))
+			{
+				int num_suspended = 0;
+				int num_failed = 0;
+				String[] ids= request.getParameterValues("sourcesToProcess");				
+				
+				if ( ids != null )
+				{
+					for (String id: ids) 
+					{
+						id = getSourceId(id, request, response);
+						if ( id != null )
+						{
+							if (!suspendSourceObject(id, false, request, response)) 
+								num_failed++;
+							else 
+								num_suspended++;
+						}										
+					}
+				}				
+				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkResume"), 
+													 (Object)num_suspended, (Object)num_failed);
+				
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
+				if (listFilter.length() > 0) 
+				{
+					out.print("&listFilterStr=" + listFilter);					
+				}
+				out.println("\">");
+			}
 			else if (action.equals("filterlist")) 
 			{
 				currentPage = 1;
@@ -352,6 +417,8 @@ limitations under the License.
 		}
 	}
 	
+	
+	
 %>
 
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
@@ -390,7 +457,7 @@ input.rightButton {
 	
 #lrSplitter {
 	width: 100%;
-	height: 750px;
+	height: 800px;
 }
 #tbSplitter {
 	height: 700px;
@@ -787,6 +854,7 @@ function clock()
 			(action.equalsIgnoreCase("deleteDocs") || action.equalsIgnoreCase("publishSource") || action.equalsIgnoreCase("saveSourceAsTemplate") 
 					|| action.equalsIgnoreCase("delete") || action.equalsIgnoreCase("deletesource")
 					|| action.equalsIgnoreCase("deleteSelected") || action.equalsIgnoreCase("deletedocsfromselected")
+					|| action.equalsIgnoreCase("suspendSelected") || action.equalsIgnoreCase("resumeSelected")
 					))
 	{ 
 %>
@@ -842,6 +910,8 @@ function clock()
 				<td colspan="2" >
 					<button name="deleteSelected" onclick="return confirm('<fmt:message key='source.list.delete_selected.confirm'/>');" name="deleteSelected" value="deleteSelected"><fmt:message key='source.list.delete_selected'/></button>
 					<button name="deleteDocsFromSelected" onclick="return confirm('<fmt:message key='source.list.delete_selected_docs.confirm'/>');" name="deleteDocsFromSelected" value="deleteDocsFromSelected"><fmt:message key='source.list.delete_selected_docs'/></button>				
+					<button name="suspendSelected" onclick="return confirm('<fmt:message key='source.list.suspend_selected.confirm'/>');" name="suspendSelected" value="suspendSelected"><fmt:message key='source.list.suspend_selected'/></button>
+					<button name="resumeSelected" onclick="return confirm('<fmt:message key='source.list.resume_selected.confirm'/>');" name="resumeSelected" value="resumeSelected"><fmt:message key='source.list.resume_selected'/></button>
 				</td>
 			</tr>
 			</table>
@@ -1728,6 +1798,65 @@ private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServl
 	return false;
 }
 
+//suspend/resume source
+private boolean suspendSourceObject(String sourceId, boolean shouldSuspend, HttpServletRequest request, HttpServletResponse response)
+{
+	if (sourceId != null && sourceId != "") 
+	{
+		try 
+		{
+			JSONObject sourceResponse = new JSONObject( getSource(sourceId, request, response) );
+			JSONObject source = new JSONObject( sourceResponse.getString("data") );
+			JSONArray com = source.getJSONArray("communityIds");
+			String tempCommunityId = com.getString(0);
+					
+			JSONObject JSONresponse = new JSONObject(suspendSource(sourceId, shouldSuspend, tempCommunityId, 
+					request, response)).getJSONObject("response");
+			
+			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
+			{				
+				return true;
+			}
+			else
+			{				
+				return false;
+			}
+		}
+		catch (Exception e)
+		{			
+			return false;
+		}
+	}
+	return false;
+}
+
+private String getSourceId(String id, HttpServletRequest request, HttpServletResponse response)
+{
+	String sourceId = null;
+	if (id.startsWith("_")) 
+	{
+		//is just a source, send this id
+		sourceId = id.substring(1);
+	}
+	else
+	{
+		try
+		{
+			//share objects that are connected to sources will have an _id so get
+			//the share object and check for that
+			JSONObject source = getSourceJSONObjectFromShare(id, request, response);
+			if ( source != null && source.has("_id") )
+			{
+				sourceId = source.getString("_id");
+			}
+		}
+		catch (Exception ex)
+		{
+			//do nothing, let it be null
+		}
+	}
+	return sourceId;
+}
 
 
 %>

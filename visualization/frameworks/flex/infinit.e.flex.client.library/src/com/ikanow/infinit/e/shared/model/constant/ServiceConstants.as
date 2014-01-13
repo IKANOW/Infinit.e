@@ -66,6 +66,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		public static const PDF_URL:String = "CreatePDFServlet";
 		
 		// login service
+		public static const FORGOT_PASSWORD_ACTION:String = "Forgot Password";
+		
 		public static const FORGOT_PASSWORD_URL:String = ExternalInterface.call( "getForgottenPasswordUrl" ) + "?username=";
 		
 		public static const DOMAIN_LOGOUT_URL:String = ExternalInterface.call( "getDomainLogoutUrl" );
@@ -84,7 +86,7 @@ package com.ikanow.infinit.e.shared.model.constant
 		
 		public static const KEEP_ALIVE_URL:String = SERVER_URL + "auth/keepalive/";
 		
-		public static const KEEP_ALIVE_ACTION:String = "Get Cookie";
+		public static const KEEP_ALIVE_ACTION:String = "Get Cookie";				
 		
 		// user service
 		public static const GET_USER_URL:String = SERVER_URL + "social/person/get/";

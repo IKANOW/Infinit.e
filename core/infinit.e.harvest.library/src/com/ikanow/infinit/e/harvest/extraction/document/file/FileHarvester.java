@@ -251,11 +251,57 @@ public class FileHarvester implements HarvesterInterface {
 			if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(Arrays.toString(source.getCommunityIds().toArray()), source.getOwnerId().toString(), null);
 				file = InfiniteFile.create(source.getUrl(), auth);	
-				
-				// Quick check of share/custom date vs last imported doc in this case:
-				if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
-					return files;
-				}//TESTED
+
+				if (source.getUrl().startsWith("inf://custom/")) {
+					boolean deleteAnyExistingFiles = false;
+					// A few cases: 
+					// 1] If first time, or source has completed:
+					// Quick check of share/custom date vs last imported doc in this case:
+					if ((null == source.getHarvestStatus()) || (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
+					{					
+						if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
+							return files;
+						}//TESTED			
+						else {
+							deleteAnyExistingFiles = true;
+						}//TESTED
+					}
+					else { // 2] If in the middle of a multiple harvest cycle....
+						// Specifically for custom, need to handle m/r changing ... we'll fake the harvest status
+						// to force it to check the last doc's modified time vs the current file time...
+						
+						HarvestEnum saved = source.getHarvestStatus().getHarvest_status();
+						source.getHarvestStatus().setHarvest_status(HarvestEnum.success);
+						try {
+							// Just doing this so I know if I need to delete everything and restart
+							// (the trick here is that all files from a given custom run have the same date
+							// (CustomMapReduceJobPojo.lastRunTime_)
+							//  even in non-append mode ... so if the file time is different than the most recent doc then
+							//  the job must have been re-run)
+							if (_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
+								deleteAnyExistingFiles = true;								
+							}
+						}
+						finally { // (rewrite original)
+							source.getHarvestStatus().setHarvest_status(saved);
+						}
+					}//TESTED
+					
+					// Finally, if we wanted to delete the files then go ahead now:
+					if (deleteAnyExistingFiles) {
+						// For now, support only "non-append" mode efficiently:
+						// Always delete all the old docs, updated docs will work but inefficiently (will delete and re-create)
+						DocumentPojo docRepresentingSrcKey = new DocumentPojo();
+						docRepresentingSrcKey.setCommunityId(source.getCommunityIds().iterator().next());
+						docRepresentingSrcKey.setSourceKey(source.getKey());
+						this.docsToRemove.add(docRepresentingSrcKey);						
+					}//TESTED
+				}
+				else { // share - this is much simpler:
+					if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
+						return files;
+					}//TESTED					
+				}
 				
 			}//TESTED
 			else if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
@@ -432,6 +478,7 @@ public class FileHarvester implements HarvesterInterface {
 					DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
 					docRepresentingSrcUrl.setSourceUrl(f.getUrlString());
 					docRepresentingSrcUrl.setSourceKey(source.getKey());
+					docRepresentingSrcUrl.setCommunityId(source.getCommunityIds().iterator().next());
 					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
 					this.docsToRemove.add(docRepresentingSrcUrl);
 						// (can add documents with just source URL, are treated differently in the core libraries)

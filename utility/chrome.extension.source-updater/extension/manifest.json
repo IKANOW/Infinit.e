@@ -1,15 +1,15 @@
 {
 	"manifest_version":2,
-	"name":"Ikanow: Source Editor",
-	"version":"1.1",
-	"description":"Ikanow's source extension",	
+	"name":"Ikanow: 1-Click Source Importer",
+	"version":"1.2",
+	"description":"Provides a 1-click importer for Web pages and RSS feeds for Infinit.e community and enterprise users",	
 	"browser_action":
 	{
 		"default_icon":"assets/icons/lightbulboff.png",
 		"default_title":"Ikanow Source: Click to login",
 		"default_popup":"background.html"
 	},
-	"permissions":["tabs", "http://infinite.ikanow.com/", "http://*/*"],
+	"permissions":["tabs", "https://*/*", "http://*/*"],
 	"options_page":"options.html",
 	"background":
 	{

@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.api.knowledge;
 
 import java.util.Map;
+
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;
@@ -25,6 +26,7 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 
@@ -122,7 +124,7 @@ public class SearchInterface extends ServerResource
 			 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Cookie session expired or never existed, please login first"));
 		 }
 		 else {
-			 boolean validGroups = RESTTools.validateCommunityIds(cookieLookup, communityIdStrList); //every call needs communityid so check now
+			 boolean validGroups = SocialUtils.validateCommunityIds(cookieLookup, communityIdStrList); //every call needs communityid so check now
 			 if ( validGroups == false )
 			 {
 				 rp = new ResponsePojo();

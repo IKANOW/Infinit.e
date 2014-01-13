@@ -34,6 +34,7 @@ import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.mongodb.util.JSON;
@@ -59,6 +60,7 @@ public class SourceInterface extends ServerResource
 	private boolean needCookie = true;
 	private String json = null;
 	private String urlStr = null;
+	private boolean shouldSuspend = false;
 	private int nNumDocsToReturn = 10; // (used for test source)
 	private boolean bReturnFullText = false; // (used for test source)
 	private boolean bRealDedup = false; // (used for test source)
@@ -148,6 +150,12 @@ public class SourceInterface extends ServerResource
 			 {
 				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
 				 action = "info";
+			 }
+			 else if ( urlStr.contains("source/suspend") )
+			 {
+				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
+				 shouldSuspend = RESTTools.decodeRESTParam("shouldSuspend", attributes).equalsIgnoreCase("true");	
+				 action = "suspend";
 			 }
 		 }
 	}
@@ -247,7 +255,7 @@ public class SourceInterface extends ServerResource
 					 
 					 boolean validCommunities = ((communityid == null) || communityid.startsWith("*")) ?
 							 true : // (in this case, we apply the regex to user communities, so don't need to validate)
-							 RESTTools.validateCommunityIds(cookieLookup, communityid);
+								 SocialUtils.validateCommunityIds(cookieLookup, communityid);
 
 					 if ( validCommunities == false )
 					 {
@@ -292,6 +300,10 @@ public class SourceInterface extends ServerResource
 						 else if ( action.equals("delete") || action.equals("deletedocs"))
 						 {
 							 rp = this.source.deleteSource(sourceid, communityid, cookieLookup, action.equals("deletedocs"));
+						 }
+						 else if ( action.equals("suspend"))
+						 {
+							 rp = this.source.suspendSource(sourceid, communityid, cookieLookup, shouldSuspend);
 						 }
 					 }
 				 } // (end communities valid)

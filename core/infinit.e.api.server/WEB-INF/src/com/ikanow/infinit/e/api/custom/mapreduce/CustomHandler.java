@@ -93,7 +93,7 @@ public class CustomHandler
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
 				//make sure user is allowed to see results
 				if ( RESTTools.adminLookup(userid) || isInAllCommunities(cmr.communityIds, userid) )
-				{					
+				{										
 					//get results collection if done and return
 					if ( ( cmr.lastCompletionTime != null ) || (cmr.mapper.equals("none") && cmr.exportToHdfs))
 					{
@@ -130,10 +130,29 @@ public class CustomHandler
 							cmrr.lastCompletionTime = cmr.lastCompletionTime;
 							cmrr.results = resultCursor.toArray();
 							rp.setData(cmrr);
-						}
+						}//TESTED
 						else { // Case 2: HDFS
-							rp.setData(HadoopUtils.getBsonFromSequenceFile(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
-						}
+							
+							if ((null != cmr.outputKey) && (null != cmr.outputValue) && 
+								cmr.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && cmr.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
+							{
+								// special case, text file
+								try {
+									rp.setData(HadoopUtils.getBsonFromTextFiles(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
+								}
+								catch (Exception e) {
+									rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"Files don't appear to be in text file format, did you run the job before changing the output to Text/Text?"));
+								}
+							}//TESTED
+							else { // sequence file
+								try {
+									rp.setData(HadoopUtils.getBsonFromSequenceFile(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
+								}
+								catch (Exception e) {
+									rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"Files don't appear to be in sequence file format, did you run the job with Text/Text?"));
+								}
+							}//TESTED
+						}//TESTED
 					}
 					else
 					{
@@ -736,128 +755,11 @@ public class CustomHandler
 		}
 		return rp;
 	}
-
-	/**
-	 * Attempts to remove the map reduce job as well as results and
-	 * jar file.
-	 * 
-	 * @param userid
-	 * @param jobidortitle
-	 * @return
-	 */
-	public ResponsePojo removeJob(String userid, String jobidortitle, boolean removeJar) 
-	{
-		ResponsePojo rp = new ResponsePojo();		
-		
-		List<Object> searchTerms = new ArrayList<Object>();
-		try
-		{
-			ObjectId jid = new ObjectId(jobidortitle);
-			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
-		}
-		catch (Exception ex)
-		{
-			//oid failed, will only add title
-		}
-		searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,jobidortitle));
-				
-		try 
-		{
-			//find admin entry);
-			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));			
-			if ( dbo != null )
-			{				
-				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
-				//make sure user is allowed to see results
-				if ( RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
-				{
-					//make sure job is not running
-					if ( ( cmr.jobidS == null ) || cmr.jobidS.equals( "CHECKING_COMPLETION" ) || cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
-					{
-						//remove results and job
-						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));
-						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).drop();
-						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
-
-						// Delete HDFS directory, if one is used
-						if ((null != cmr.exportToHdfs) && cmr.exportToHdfs) {
-							HadoopUtils.deleteHadoopDir(cmr);
-						}
-						
-						//remove jar file if unused elsewhere?
-						if ( removeJar )
-						{
-							ResponsePojo sharerp = removeJarFile(cmr.jarURL, cmr.submitterID.toString());
-							if ( sharerp.getResponse().isSuccess() )
-							{
-								rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job, results, and jar removed successfully."));
-							}
-							else
-							{
-								rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job and results removed successfully.  Removing the jar had an error: " + sharerp.getResponse().getMessage()));
-							}
-						}
-						else
-						{
-							rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job and results removed successfully.  Manually remove the jar if you are done with it."));
-						}
-					}
-					else
-					{
-						rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
-					}
-				}
-				else
-				{
-					rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"User must have submitter or admin permissions to remove jobs"));
-				}
-			}
-			else
-			{
-				rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job does not exist"));
-			}
-		} 
-		catch (Exception e)
-		{
-			// If an exception occurs log the error
-			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"error retrieving job info"));
-		}
-		return rp;
-	}
 	
 	//////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////////////
 	
-	// UTILITIES
-	
-	/**
-	 * Checks if any other custom jobs use the same jar and attempts to remove using the share handler.
-	 * 
-	 * @param url
-	 * @param ownerid
-	 * @return
-	 */
-	private ResponsePojo removeJarFile(String url, String ownerid)
-	{
-		//is a jar on our system
-		if ( url.startsWith("$infinite") )
-		{
-			//check if the jar is used for any other jobs, remove it if not
-			if ( DbManager.getCustom().getLookup().find(new BasicDBObject(CustomMapReduceJobPojo.jarURL_, url)).count() == 0 )
-			{
-				//grab the id
-				String jarid = url.substring( url.lastIndexOf("/") + 1 );
-				//remove the jar
-				return new ShareHandler().removeShare(ownerid, jarid);
-			}
-			else
-			{
-				return new ResponsePojo(new ResponseObject("removejar", false, "More than 1 job use this jar, could not remove."));
-			}
-		}
-		return new ResponsePojo(new ResponseObject("removejar", false, "Jar URL is not an infinite share, could not remove."));
-	}
+	// UTILITIES		
 	
 	/**
 	 * Helper function to work out the dependencies for a job.  Will try to find a job
@@ -947,7 +849,160 @@ public class CustomHandler
 		}
 		
 	}//TESTED: (local mode on/off, quick mode on/off) //TESTED (local/quick, local/!quick)
+	
+	/**
+	 * Attempts to remove the map reduce job as well as results and
+	 * jar file.
+	 * 
+	 * @param userid
+	 * @param jobidortitle
+	 * @param forced 
+	 * @return
+	 */
+	public static ResponsePojo removeJob(String userid, String jobidortitle, boolean removeJar, boolean forced) 
+	{
+		ResponsePojo rp = new ResponsePojo();		
+		
+		List<Object> searchTerms = new ArrayList<Object>();
+		try
+		{
+			ObjectId jid = new ObjectId(jobidortitle);
+			searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo._id_,jid));
+		}
+		catch (Exception ex)
+		{
+			//oid failed, will only add title
+		}
+		searchTerms.add(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_,jobidortitle));
+				
+		try 
+		{
+			//find admin entry);
+			DBObject dbo = DbManager.getCustom().getLookup().findOne(new BasicDBObject(DbManager.or_,searchTerms.toArray()));			
+			if ( dbo != null )
+			{				
+				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+				//make sure user is allowed to see results
+				if ( forced || RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
+				{
+					//make sure job is not running
+					if ( ( cmr.jobidS == null ) || cmr.jobidS.equals( "CHECKING_COMPLETION" ) || cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
+					{
+						//remove results and job
+						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));
+						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).drop();
+						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
 
+						// Delete HDFS directory, if one is used
+						if ((null != cmr.exportToHdfs) && cmr.exportToHdfs) {
+							HadoopUtils.deleteHadoopDir(cmr);
+						}
+						
+						//remove jar file if unused elsewhere?
+						if ( removeJar )
+						{
+							ResponsePojo sharerp = removeJarFile(cmr.jarURL, cmr.submitterID.toString());
+							if ( sharerp.getResponse().isSuccess() )
+							{
+								rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job, results, and jar removed successfully."));
+							}
+							else
+							{
+								rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job and results removed successfully.  Removing the jar had an error: " + sharerp.getResponse().getMessage()));
+							}
+						}
+						else
+						{
+							rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",true,"Job and results removed successfully.  Manually remove the jar if you are done with it."));
+						}
+					}
+					else
+					{
+						rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
+					}
+				}
+				else
+				{
+					rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"User must have submitter or admin permissions to remove jobs"));
+				}
+			}
+			else
+			{
+				rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"Job does not exist"));
+			}
+		} 
+		catch (Exception e)
+		{
+			// If an exception occurs log the error
+			logger.error("Exception Message: " + e.getMessage(), e);
+			rp.setResponse(new ResponseObject("Remove Custom Map Reduce Job",false,"error retrieving job info"));
+		}
+		return rp;
+	}
+	
+	/**
+	 * Tries to remove given community from any jobs it may be connected to.
+	 * If jobs have no community now, deletes them completely.
+	 * 
+	 * @return returns a list of jobs that were running or had other errors so they could not be deleted
+	 * 
+	 * @param communityId
+	 */
+	public static List<CustomMapReduceJobPojo> removeCommunityJobs(ObjectId communityId)
+	{
+		//Step 1, remove commid from anywhere it may exist
+		BasicDBObject comm_query = new BasicDBObject(CustomMapReduceJobPojo.communityIds_, communityId);
+		BasicDBObject update_query = new BasicDBObject(MongoDbManager.pull_, new BasicDBObject(CustomMapReduceJobPojo.communityIds_, communityId));
+		DbManager.getCustom().getLookup().update(comm_query, update_query, false, true);
+		
+		//Step 2, get any jobs that have no commid now
+		BasicDBObject empty_comm_query = new BasicDBObject(CustomMapReduceJobPojo.communityIds_, new BasicDBObject(MongoDbManager.size_,0));
+		DBCursor dbc = DbManager.getCustom().getLookup().find(empty_comm_query);
+		List<CustomMapReduceJobPojo> jobs = CustomMapReduceJobPojo.listFromDb(dbc, CustomMapReduceJobPojo.listType());
+		
+		//Step 3, remove the jobs via removeJob, used forced
+		List<CustomMapReduceJobPojo> failedToRemove = new ArrayList<CustomMapReduceJobPojo>();
+		for ( CustomMapReduceJobPojo cmr : jobs )
+		{			
+			ResponsePojo rp = removeJob(null, cmr.jobtitle, true, true);
+			if ( !rp.getResponse().isSuccess() )
+			{
+				failedToRemove.add(cmr);
+			}
+		}
+		
+		//Step 4, return the failed to remove jobs
+		return failedToRemove;
+	}
+	
+	/**
+	 * Checks if any other custom jobs use the same jar and attempts to remove using the share handler.
+	 * 
+	 * @param url
+	 * @param ownerid
+	 * @return
+	 */
+	private static ResponsePojo removeJarFile(String url, String ownerid)
+	{
+		//is a jar on our system
+		if ( url.startsWith("$infinite") )
+		{
+			//check if the jar is used for any other jobs, remove it if not
+			if ( DbManager.getCustom().getLookup().find(new BasicDBObject(CustomMapReduceJobPojo.jarURL_, url)).count() == 0 )
+			{
+				//grab the id
+				String jarid = url.substring( url.lastIndexOf("/") + 1 );
+				//remove the jar
+				return new ShareHandler().removeShare(ownerid, jarid);
+			}
+			else
+			{
+				return new ResponsePojo(new ResponseObject("removejar", false, "More than 1 job use this jar, could not remove."));
+			}
+		}
+		return new ResponsePojo(new ResponseObject("removejar", false, "Jar URL is not an infinite share, could not remove."));
+	}
+	
 	//////////////////////////////////////////////////////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////////////
 

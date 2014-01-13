@@ -31,7 +31,7 @@ import org.apache.commons.io.FilenameUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
-import com.ikanow.infinit.e.api.social.community.CommunityHandler;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.MimeUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -75,7 +75,7 @@ public class ShareHandler
 		HashSet<ObjectId> memberOf = null;
 		
 		if (!RESTTools.adminLookup(userIdStr)) { // (admins can see all shares)			
-			memberOf = RESTTools.getUserCommunities(userIdStr);
+			memberOf = SocialUtils.getUserCommunities(userIdStr);
 			if (null != memberOf) {
 				query.put("communities._id", new BasicDBObject("$in", memberOf));
 			}
@@ -164,7 +164,7 @@ public class ShareHandler
 		// Create Query Object
 		BasicDBObject query = new BasicDBObject();
 		
-		HashSet<ObjectId> memberOf = RESTTools.getUserCommunities(personIdStr);
+		HashSet<ObjectId> memberOf = SocialUtils.getUserCommunities(personIdStr);
 			// (need this to sanitize share communities even if searching explicitly by community) 
 		
 		boolean bAdmin = false;
@@ -385,13 +385,15 @@ public class ShareHandler
 			{
 				if ( child_comm.getParentTree() == null )
 				{
-					child_comm = CommunityHandler.createParentTreeRecursion(child_comm, true);					
+					child_comm = SocialUtils.createParentTreeRecursion(child_comm, true);					
 				}
 				
-				//parentTree should be populated now, add these comms to the set
-				communityIds.add(child_comm.getId());
-				communityIds.addAll(child_comm.getParentTree());
 			}
+			//parentTree should be populated now, add these comms to the set
+			communityIds.add(child_comm.getId());
+			if ( child_comm.getParentTree() != null )
+				communityIds.addAll(child_comm.getParentTree());
+			
 		}
 		return new ArrayList<ObjectId>(communityIds);
 	}
@@ -539,7 +541,7 @@ public class ShareHandler
 						// Special case: I am also community admin/moderator of every community to which this share belongs
 						bAdminOrModOfAllCommunities = true;
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
 								bAdminOrModOfAllCommunities = false;
 							}
 						}//TESTED
@@ -567,7 +569,7 @@ public class ShareHandler
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().add(comm.get_id());
 							}
 						}
@@ -575,7 +577,7 @@ public class ShareHandler
 					else {
 						for (ShareCommunityPojo comm: share.getCommunities()) {
 							// (leave it as is except remove anything that I can't endorse)
-							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().remove(comm.get_id());
 							}					
 						}
@@ -660,7 +662,7 @@ public class ShareHandler
 						// Special case: I am also community admin/moderator of every community to which this share belongs
 						bAdminOrModOfAllCommunities = true;
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
 								bAdminOrModOfAllCommunities = false;
 							}
 						}//TESTED
@@ -688,7 +690,7 @@ public class ShareHandler
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().add(comm.get_id());
 							}
 						}
@@ -696,7 +698,7 @@ public class ShareHandler
 					else {
 						for (ShareCommunityPojo comm: share.getCommunities()) {
 							// (leave it as is except remove anything that I can't endorse)
-							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().remove(comm.get_id());
 							}					
 						}
@@ -858,7 +860,7 @@ public class ShareHandler
 						// Special case: I am also community admin/moderator of every community to which this share belongs
 						bAdminOrModOfAllCommunities = true;
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (!CommunityHandler.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
 								bAdminOrModOfAllCommunities = false;
 							}
 						}//TESTED
@@ -886,7 +888,7 @@ public class ShareHandler
 						share.setEndorsed(new HashSet<ObjectId>());
 						share.getEndorsed().add(share.getOwner().get_id()); // (will be added later)
 						for (ShareCommunityPojo comm: share.getCommunities()) {
-							if (CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().add(comm.get_id());
 							}
 						}
@@ -894,7 +896,7 @@ public class ShareHandler
 					else {
 						for (ShareCommunityPojo comm: share.getCommunities()) {
 							// (leave it as is except remove anything that I can't endorse)
-							if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
+							if (!SocialUtils.isOwnerOrModeratorOrContentPublisher(comm.get_id().toString(), ownerIdStr)) {
 								share.getEndorsed().remove(comm.get_id());
 							}					
 						}
@@ -992,7 +994,7 @@ public class ShareHandler
 			// Community moderator
 			boolean bAdmin = RESTTools.adminLookup(personIdStr, false);
 			if (!bAdmin) {
-				if (!CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, personIdStr))  {	
+				if (!SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, personIdStr))  {	
 					rp.setResponse(new ResponseObject("Share", false, "Unable to endorse share: insufficient permissions"));
 					return rp;
 				}
@@ -1130,7 +1132,7 @@ public class ShareHandler
 						share.getEndorsed().add(share.getOwner().get_id()); // user's personal community always endorsed
 					}//TESTED
 					boolean bAdmin = RESTTools.adminLookup(ownerIdStr, false); // (can be admin-on-request and not enabled, the bar for endorsing is pretty low)
-					if (bAdmin || CommunityHandler.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
+					if (bAdmin || SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
 						share.getEndorsed().add(cp.get_id());
 					}
 					//TESTED - adding as admin/community owner, not adding if not
@@ -1416,7 +1418,7 @@ public class ShareHandler
 	}
 	private static String allowCommunityRegex(String userIdStr, String communityIdStr, boolean bAllowMulti) {
 		if (communityIdStr.startsWith("*")) {
-			String[] communityIdStrs = RESTTools.getCommunityIds(userIdStr, communityIdStr);	
+			String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStr);	
 			if (1 == communityIdStrs.length) {
 				communityIdStr = communityIdStrs[0]; 
 			}
