@@ -96,10 +96,19 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		createConfigXML(xml, job.jobtitle,job.inputCollection, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), outputCollection, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments, job.incrementalMode);
 		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
-
+				
 		//TODO (INF-1159): NOTE WE SHOULD REPLACE THIS WITH JarAsByteArrayClassLoader (data_model.utils) WHEN POSSIBLE 
 		URLClassLoader child = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, savedClassLoader);			
 		Thread.currentThread().setContextClassLoader(child);
+
+		// Check version: for now, any infinit.e.data_model with an VersionTest class is acceptable
+		try {
+			URLClassLoader versionTest = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, null);			
+			Class.forName("com.ikanow.infinit.e.data_model.custom.InfiniteMongoVersionTest", true, versionTest);
+		} 
+		catch (ClassNotFoundException e1) {
+			throw new RuntimeException("This JAR is compiled with too old a version of the data-model, please recompile with Jan 2014 (rc2) onwards");
+		}		
 		
 		// Now load the XML into a configuration object: 
 		Configuration config = new Configuration();

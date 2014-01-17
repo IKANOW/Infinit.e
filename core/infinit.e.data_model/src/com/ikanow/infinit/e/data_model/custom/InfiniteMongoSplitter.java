@@ -120,9 +120,15 @@ public class InfiniteMongoSplitter
 			
 			//DEBUG
 			//System.out.println("Calculating splits via mongo-hadoop: " + initialSplitSize + " reduced to " + splits.size());
+
+			ArrayList<InputSplit> newsplits = new ArrayList<InputSplit>(splits.size()); 
+			Iterator<InputSplit> splitIt2 = splits.iterator();
+			while (splitIt2.hasNext()) {
+				newsplits.add(new InfiniteMongoInputSplit((MongoInputSplit) splitIt2.next(), conf.isNoTimeout()));
+			}			
 			
-			_logger.info("Calculating splits via mongo-hadoop: " + initialSplitSize + " reduced to " + splits.size());
-			return splits;
+			_logger.info("Calculating (converted) splits via mongo-hadoop: " + initialSplitSize + " reduced to " + newsplits.size());
+			return newsplits;
 		}
 	}//TESTED
 

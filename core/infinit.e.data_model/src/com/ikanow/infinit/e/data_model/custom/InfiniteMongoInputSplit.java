@@ -15,6 +15,14 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.custom;
 
+import java.util.Iterator;
+import java.util.Map;
+
+import org.apache.commons.logging.Log;
+import org.apache.commons.logging.LogFactory;
+import org.bson.BasicBSONObject;
+
+import com.mongodb.BasicDBObject;
 import com.mongodb.Bytes;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
@@ -23,10 +31,14 @@ import com.mongodb.hadoop.input.MongoInputSplit;
 
 public class InfiniteMongoInputSplit extends MongoInputSplit
 {		
+	public InfiniteMongoInputSplit(MongoInputSplit rhs, boolean noTimeout) {
+		this(rhs.getMongoURI(), rhs.getKeyField(), rhs.getQuerySpec(), rhs.getFieldSpec(), rhs.getSortSpec(), rhs.getLimit(), rhs.getSkip(), noTimeout);
+	}
+	
 	public InfiniteMongoInputSplit(MongoURI inputURI, String inputKey,
 			DBObject query, DBObject fields, DBObject sort, int limit, int skip,
 			boolean noTimeout) {
-		super(inputURI,inputKey,query,fields,sort,limit,skip,noTimeout);
+		super(inputURI,inputKey,query,fields,sort,limit,skip,noTimeout);		
 	}
 	
 	public InfiniteMongoInputSplit(){super(); }
@@ -37,11 +49,55 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 	{
 		//added the limit and skip
 		if ( _cursor == null ){
-			_cursor = InfiniteMongoConfigUtil.getCollection( _mongoURI ).find( _querySpec, _fieldSpec ).sort( _sortSpec ).limit(_limit).skip(_skip);
-		if (_notimeout) _cursor.setOptions( Bytes.QUERYOPTION_NOTIMEOUT );
+
+			BasicDBObject query = null;
+			BasicBSONObject queryObj =(BasicBSONObject) _querySpec.get("$query");
+			BasicBSONObject minObj = (BasicBSONObject) _querySpec.get("$min");
+			BasicBSONObject maxObj = (BasicBSONObject) _querySpec.get("$max");
+			if (null == queryObj) {
+				query = new BasicDBObject();
+			}
+			else {
+				query = new BasicDBObject(queryObj);
+			}
+			_cursor = InfiniteMongoConfigUtil.getCollection( _mongoURI ).find( query, _fieldSpec ).sort( _sortSpec ).limit(_limit).skip(_skip);
+			
+			if (null != minObj) {
+				
+				Iterator<Map.Entry<String, Object>> it = minObj.entrySet().iterator();
+				while (it.hasNext()) { // remove upper/lower limit objects because not sure about new mongo syntax 
+					Map.Entry<String, Object> keyVal = it.next();
+					if (keyVal.getValue() instanceof DBObject) {
+						it.remove();
+						log.debug("(min) Removed possibly dubious limit field:" + keyVal.getValue() + " leaving: " + minObj);
+					}
+				}
+				if (!minObj.isEmpty()) {
+					_cursor = _cursor.addSpecial("$min", new BasicDBObject(minObj));
+				}
+			}//TOTEST
+			if (null != maxObj) {
+				Iterator<Map.Entry<String, Object>> it = maxObj.entrySet().iterator();
+				while (it.hasNext()) { // remove upper/lower limit objects because not sure about new mongo syntax 
+					Map.Entry<String, Object> keyVal = it.next();
+					if (keyVal.getValue() instanceof DBObject) {
+						it.remove();
+						log.debug("(max) Removed possibly dubious limit field:" + keyVal.getValue() + " leaving: " + maxObj);
+					}
+				}
+				if (!maxObj.isEmpty()) {
+					_cursor = _cursor.addSpecial("$max", new BasicDBObject(maxObj));
+				}
+			}//TOTEST
+			
+	        log.info( "Created InfiniteMongoInputSplit cursor: min=" + minObj + ", max=" + maxObj + ", query=" + query );
+			
+			
+			if (_notimeout) _cursor.setOptions( Bytes.QUERYOPTION_NOTIMEOUT );
 			_cursor.slaveOk();
 		}
-		
+
 		return _cursor;
 	}	
+    private static final Log log = LogFactory.getLog( InfiniteMongoInputSplit.class );
 }
