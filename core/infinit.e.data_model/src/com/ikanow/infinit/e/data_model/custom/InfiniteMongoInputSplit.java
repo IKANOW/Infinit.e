@@ -50,12 +50,17 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 		//added the limit and skip
 		if ( _cursor == null ){
 
-			BasicDBObject query = null;
+			DBObject query = null;
 			BasicBSONObject queryObj =(BasicBSONObject) _querySpec.get("$query");
 			BasicBSONObject minObj = (BasicBSONObject) _querySpec.get("$min");
 			BasicBSONObject maxObj = (BasicBSONObject) _querySpec.get("$max");
 			if (null == queryObj) {
-				query = new BasicDBObject();
+				if ((null != minObj) || (null != maxObj)) { // one of min/max specified
+					query = new BasicDBObject();
+				}
+				else { // no $query, $max or $min => this is the query
+					query = _querySpec;
+				}
 			}
 			else {
 				query = new BasicDBObject(queryObj);
@@ -67,28 +72,26 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 				Iterator<Map.Entry<String, Object>> it = minObj.entrySet().iterator();
 				while (it.hasNext()) { // remove upper/lower limit objects because not sure about new mongo syntax 
 					Map.Entry<String, Object> keyVal = it.next();
-					if (keyVal.getValue() instanceof DBObject) {
+					if (keyVal.getValue() instanceof org.bson.types.MinKey) {
 						it.remove();
-						log.debug("(min) Removed possibly dubious limit field:" + keyVal.getValue() + " leaving: " + minObj);
 					}
 				}
 				if (!minObj.isEmpty()) {
 					_cursor = _cursor.addSpecial("$min", new BasicDBObject(minObj));
 				}
-			}//TOTEST
+			}
 			if (null != maxObj) {
 				Iterator<Map.Entry<String, Object>> it = maxObj.entrySet().iterator();
 				while (it.hasNext()) { // remove upper/lower limit objects because not sure about new mongo syntax 
 					Map.Entry<String, Object> keyVal = it.next();
-					if (keyVal.getValue() instanceof DBObject) {
+					if (keyVal.getValue() instanceof org.bson.types.MaxKey) {
 						it.remove();
-						log.debug("(max) Removed possibly dubious limit field:" + keyVal.getValue() + " leaving: " + maxObj);
 					}
 				}
 				if (!maxObj.isEmpty()) {
 					_cursor = _cursor.addSpecial("$max", new BasicDBObject(maxObj));
 				}
-			}//TOTEST
+			}
 			
 	        log.info( "Created InfiniteMongoInputSplit cursor: min=" + minObj + ", max=" + maxObj + ", query=" + query );
 			
