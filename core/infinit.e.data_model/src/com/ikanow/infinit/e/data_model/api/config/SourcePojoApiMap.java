@@ -160,15 +160,14 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 				else if (null != rss) {
 					source.setRssConfig(null);					
 				}
+				if (null != source.getStructuredAnalysisConfig()) {
+					source.setStructuredAnalysisConfig(new StructuredAnalysisConfigPojo());
+				}//TESTED 
+				if (null != source.getUnstructuredAnalysisConfig()) {
+					source.setUnstructuredAnalysisConfig(new UnstructuredAnalysisConfigPojo());
+				}//TESTED 				
 			}
 			//TESTED (extraUrls with and without ?s, RSS/no extraURLs, URL)	
-			
-			if (null != source.getStructuredAnalysisConfig()) {
-				source.setStructuredAnalysisConfig(new StructuredAnalysisConfigPojo());
-			}//TESTED 
-			if (null != source.getUnstructuredAnalysisConfig()) {
-				source.setUnstructuredAnalysisConfig(new UnstructuredAnalysisConfigPojo());
-			}//TESTED 
 			
 			if (null == source.getCommunityIds()) { // Somehow a security error has occurred
 				//Exception out and hope for the best!
