@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.document;
 
+import java.util.Date;
 import java.util.List;
 
 import com.google.gson.reflect.TypeToken;
@@ -29,6 +30,8 @@ public class DocCountPojo extends BaseDbPojo {
 	final public static String _id_ = "_id";
 	private Long doccount; // the number of documents in that community	
 	final public static String doccount_ = "doccount";
+	private Date extracted;
+	final public static String extracted_ = "extracted";
 	
 	public String get_id() {
 		return _id;
@@ -41,5 +44,11 @@ public class DocCountPojo extends BaseDbPojo {
 	}
 	public void setDoccount(Long doccount) {
 		this.doccount = doccount;
+	}
+	public Date getExtracted() {
+		return extracted;
+	}
+	public void setExtracted(Date extracted) {
+		this.extracted = extracted;
 	}
 }

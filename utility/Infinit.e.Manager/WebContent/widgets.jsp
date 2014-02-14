@@ -204,7 +204,7 @@ limitations under the License.
 
 	<form method="post">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 

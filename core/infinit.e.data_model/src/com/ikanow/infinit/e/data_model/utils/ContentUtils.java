@@ -31,7 +31,9 @@ public class ContentUtils {
 		if (!CONTAINS_NON_ASCII.matcher(str).find()) {
 			return str;
 		}
-		str = Normalizer.normalize(str, Normalizer.Form.NFD);
+		str = Normalizer.normalize(str, Normalizer.Form.NFD).replace("\u0131", "i");
+		//TODO (INF-2447): this quick hack fixes problem with "ıstanbul" (other 6 turkish chars seem to work fine)	
+		
 		str = DIACRITICS_AND_FRIENDS.matcher(str).replaceAll("");
 		
 		return str;

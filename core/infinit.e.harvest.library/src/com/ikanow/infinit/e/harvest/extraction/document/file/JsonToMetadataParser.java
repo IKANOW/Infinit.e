@@ -28,7 +28,7 @@ public class JsonToMetadataParser {
 	private int nMaxDocs = Integer.MAX_VALUE;
 	private int nCurrDocs = 0;
 	
-	JsonToMetadataParser(String sourceName, List<String> objectIdentifiers, String primaryKey, List<String> fieldsThatNeedToExist, int nMaxDocs)
+	public JsonToMetadataParser(String sourceName, List<String> objectIdentifiers, String primaryKey, List<String> fieldsThatNeedToExist, int nMaxDocs)
 	{
 		if (nMaxDocs > 0) {
 			this.nMaxDocs = nMaxDocs;
@@ -56,6 +56,10 @@ public class JsonToMetadataParser {
 	 * @throws IOException 
 	 */
 	public List<DocumentPojo> parseDocument(JsonReader reader) throws IOException {
+		return parseDocument(reader, false);
+	}//TESTED (used by FileHarvester in this form, UAH::meta (stream) with textOnly==true below)
+	
+	public List<DocumentPojo> parseDocument(JsonReader reader, boolean textOnly) throws IOException {
 		List<DocumentPojo> docList = new ArrayList<DocumentPojo>();
 		JsonParser parser = new JsonParser();
 		nCurrDocs = 0;
@@ -84,7 +88,7 @@ public class JsonToMetadataParser {
 					reader.beginArray();
 					if (objectIdentifiers.isEmpty()) {
 						while (reader.hasNext()) {
-							DocumentPojo doc = convertJsonToDocument(reader, parser);
+							DocumentPojo doc = convertJsonToDocument(reader, parser, textOnly);
 							if (null != doc) {
 								docList.add(doc);
 								if (++nCurrDocs >= nMaxDocs) {
@@ -95,13 +99,13 @@ public class JsonToMetadataParser {
 					}//TESTED
 					else {
 						while (reader.hasNext()) {
-							getDocumentsFromJson(reader, parser, docList, false);
+							getDocumentsFromJson(reader, parser, docList, false, textOnly);
 						}
 					}//TESTED
 				}
 				else if (JsonToken.BEGIN_OBJECT == tok) {
 					if (objectIdentifiers.isEmpty()) {
-						DocumentPojo doc = convertJsonToDocument(reader, parser);
+						DocumentPojo doc = convertJsonToDocument(reader, parser, textOnly);
 						if (null != doc) {
 							docList.add(doc);
 							if (++nCurrDocs >= nMaxDocs) {
@@ -110,7 +114,7 @@ public class JsonToMetadataParser {
 						}
 					}//TESTED (single and multiple doc case)
 					else {
-						getDocumentsFromJson(reader, parser, docList, false);
+						getDocumentsFromJson(reader, parser, docList, false, textOnly);
 					}//TESTED (single and multiple doc case)	
 				}
 				else if ((JsonToken.END_DOCUMENT == tok) || (JsonToken.END_ARRAY == tok) || (JsonToken.END_OBJECT == tok))  {
@@ -123,12 +127,12 @@ public class JsonToMetadataParser {
 		return docList;
 	}
 	
-	private DocumentPojo convertJsonToDocument(JsonReader reader, JsonParser parser) {
+	private DocumentPojo convertJsonToDocument(JsonReader reader, JsonParser parser, boolean textOnly) {
 		
 		JsonElement meta = parser.parse(reader);
 		
 		// Check if all required fields exist:
-		if (!checkIfMandatoryFieldsExist(meta)) {
+		if (!textOnly && !checkIfMandatoryFieldsExist(meta)) {
 			return null;
 		}
 		//TESTED
@@ -142,7 +146,10 @@ public class JsonToMetadataParser {
 			}
 		}
 		
-		if (meta.isJsonObject()) {
+		if (textOnly) {
+			doc.setFullText(meta.toString());
+		}
+		else if (meta.isJsonObject()) {
 			doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
 		}
 		return doc;
@@ -154,7 +161,7 @@ public class JsonToMetadataParser {
 	// Look into the JSON object and find the object with the specified name
 	// (for now the "path" is ignored - maybe later we allow "x.y" terminology)
 	
-	private void getDocumentsFromJson(JsonReader reader, JsonParser parser, List<DocumentPojo> docList, boolean bRecursing) throws IOException {		
+	private void getDocumentsFromJson(JsonReader reader, JsonParser parser, List<DocumentPojo> docList, boolean bRecursing, boolean textOnly) throws IOException {		
 		reader.beginObject();
 		
 		while (reader.hasNext()) {
@@ -172,7 +179,7 @@ public class JsonToMetadataParser {
 				JsonElement meta = parser.parse(reader);
 				
 				if (meta.isJsonObject()) { // (basically duplicates logic from convertJsonToDocument)
-					if (checkIfMandatoryFieldsExist(meta)) {
+					if (textOnly || checkIfMandatoryFieldsExist(meta)) {
 						DocumentPojo doc = new DocumentPojo();
 						if ((null != primaryKey) && (null != sourceName)) {
 							String primaryKey = getPrimaryKey(meta);
@@ -180,19 +187,25 @@ public class JsonToMetadataParser {
 								doc.setUrl(sourceName + primaryKey);
 							}
 						}
-						doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
+						if (textOnly) {
+							doc.setFullText(meta.toString());
+						}
+						else {
+							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
+						}
 						docList.add(doc);
 						if (++nCurrDocs >= nMaxDocs) {
 							while (reader.hasNext()) {
 								reader.skipValue();
 							}
+							reader.endObject();
 							return;
 						}
 					}
 				}//TESTED
 				else if (meta.isJsonArray()) {
 					for (JsonElement meta2: meta.getAsJsonArray()) {
-						if (checkIfMandatoryFieldsExist(meta2)) {
+						if (textOnly || checkIfMandatoryFieldsExist(meta2)) {
 							DocumentPojo doc = new DocumentPojo();
 							if ((null != primaryKey) && (null != sourceName)) {
 								String primaryKey = getPrimaryKey(meta2);
@@ -200,12 +213,18 @@ public class JsonToMetadataParser {
 									doc.setUrl(sourceName + primaryKey);
 								}
 							}
-							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject()));
+							if (textOnly) {
+								doc.setFullText(meta2.toString());
+							}
+							else {
+								doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject()));
+							}
 							docList.add(doc);						
 							if (++nCurrDocs >= nMaxDocs) {
 								while (reader.hasNext()) {
 									reader.skipValue();
 								}
+								reader.endObject();
 								return;
 							}
 						}
@@ -218,7 +237,7 @@ public class JsonToMetadataParser {
 				
 					JsonToken tok = reader.peek();
 					if (JsonToken.BEGIN_OBJECT == tok) {
-						getDocumentsFromJson(reader, parser, docList, true);
+						getDocumentsFromJson(reader, parser, docList, true, textOnly);
 					}//TESTED
 					else if (JsonToken.BEGIN_ARRAY == tok) {
 						reader.beginArray();					
@@ -226,7 +245,7 @@ public class JsonToMetadataParser {
 							JsonToken tok2 = reader.peek();
 							
 							if (JsonToken.BEGIN_OBJECT == tok2) {
-								getDocumentsFromJson(reader, parser, docList, true);							
+								getDocumentsFromJson(reader, parser, docList, true, textOnly);							
 							}
 							else {
 								reader.skipValue();

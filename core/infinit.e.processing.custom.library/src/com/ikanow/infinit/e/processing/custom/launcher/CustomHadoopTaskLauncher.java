@@ -28,7 +28,6 @@ import java.io.Writer;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Date;
-import java.util.HashSet;
 import java.util.List;
 
 import javax.xml.parsers.DocumentBuilder;
@@ -55,8 +54,8 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.data_model.custom.InfiniteMongoSplitter;
 import com.ikanow.infinit.e.data_model.store.DbManager;
-import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -65,8 +64,6 @@ import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
-import com.mongodb.DBCursor;
-import com.mongodb.DBObject;
 
 public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 
@@ -97,7 +94,6 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
 				
-		//TODO (INF-1159): NOTE WE SHOULD REPLACE THIS WITH JarAsByteArrayClassLoader (data_model.utils) WHEN POSSIBLE 
 		URLClassLoader child = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, savedClassLoader);			
 		Thread.currentThread().setContextClassLoader(child);
 
@@ -149,65 +145,75 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				config.set("mapred.job.tracker", trackerUrl);
 				config.set("fs.default.name", fsUrl);				
 			}
-						
+			
 			Job hj = new Job( config );
-			BasicDBObject advancedConfigurationDbo = (null != job.query) ? ((BasicDBObject) com.mongodb.util.JSON.parse(job.query)) : (new BasicDBObject());
-			
-			Class<?> classToLoad = Class.forName (job.mapper, true, child);			
-			hj.setJarByClass(classToLoad);
-			hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
-			if ((null != job.exportToHdfs) && job.exportToHdfs) {				
-				if ((null != job.outputKey) && (null != job.outputValue) && job.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && job.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
-				{
-					// (slight hack before I sort out the horrendous job class - if key/val both text and exporting to HDFS then output as Text)
-					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.TextOutputFormat", true, child));
-				}//TESTED
-				else {
-					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));					
-				}//TESTED
-				Path outPath = InfiniteHadoopUtils.ensureOutputDirectory(job, props_custom);
-				SequenceFileOutputFormat.setOutputPath(hj, outPath);
-			}
-			else { // normal case, stays in MongoDB
-				hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat", true, child));
-			}
-			hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
-			String mapperOutputKeyOverride = advancedConfigurationDbo.getString("$mapper_key_class", null);
-			if (null != mapperOutputKeyOverride) {
-				hj.setMapOutputKeyClass(Class.forName(mapperOutputKeyOverride));
-			}//TESTED 
-			
-			String mapperOutputValueOverride = advancedConfigurationDbo.getString("$mapper_value_class", null);
-			if (null != mapperOutputValueOverride) {
-				hj.setMapOutputValueClass(Class.forName(mapperOutputValueOverride));
-			}//TESTED 
-			
-			if ((null != job.reducer) && !job.reducer.startsWith("#") && !job.reducer.equalsIgnoreCase("null") && !job.reducer.equalsIgnoreCase("none")) {
-				hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
-				// Variable reducers:
-				if (null != job.query) {
-					try { 
-						hj.setNumReduceTasks(advancedConfigurationDbo.getInt("$reducers", 1));
-					}catch (Exception e) {
-						try {
-							// (just check it's not a string that is a valid int)
-							hj.setNumReduceTasks(Integer.parseInt(advancedConfigurationDbo.getString("$reducers", "1")));
+			try {
+				BasicDBObject advancedConfigurationDbo = null;
+				try {
+					advancedConfigurationDbo = (null != job.query) ? ((BasicDBObject) com.mongodb.util.JSON.parse(job.query)) : (new BasicDBObject());
+				}
+				catch (Exception e) {
+					advancedConfigurationDbo = new BasicDBObject();
+				}
+				
+				Class<?> classToLoad = Class.forName (job.mapper, true, child);			
+				hj.setJarByClass(classToLoad);
+				hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
+				if ((null != job.exportToHdfs) && job.exportToHdfs) {				
+					if ((null != job.outputKey) && (null != job.outputValue) && job.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && job.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
+					{
+						// (slight hack before I sort out the horrendous job class - if key/val both text and exporting to HDFS then output as Text)
+						hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.TextOutputFormat", true, child));
+					}//TESTED
+					else {
+						hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));					
+					}//TESTED
+					Path outPath = InfiniteHadoopUtils.ensureOutputDirectory(job, props_custom);
+					SequenceFileOutputFormat.setOutputPath(hj, outPath);
+				}
+				else { // normal case, stays in MongoDB
+					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat", true, child));
+				}
+				hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
+				String mapperOutputKeyOverride = advancedConfigurationDbo.getString("$mapper_key_class", null);
+				if (null != mapperOutputKeyOverride) {
+					hj.setMapOutputKeyClass(Class.forName(mapperOutputKeyOverride));
+				}//TESTED 
+				
+				String mapperOutputValueOverride = advancedConfigurationDbo.getString("$mapper_value_class", null);
+				if (null != mapperOutputValueOverride) {
+					hj.setMapOutputValueClass(Class.forName(mapperOutputValueOverride));
+				}//TESTED 
+				
+				if ((null != job.reducer) && !job.reducer.startsWith("#") && !job.reducer.equalsIgnoreCase("null") && !job.reducer.equalsIgnoreCase("none")) {
+					hj.setReducerClass((Class<? extends Reducer>) Class.forName (job.reducer, true, child));
+					// Variable reducers:
+					if (null != job.query) {
+						try { 
+							hj.setNumReduceTasks(advancedConfigurationDbo.getInt("$reducers", 1));
+						}catch (Exception e) {
+							try {
+								// (just check it's not a string that is a valid int)
+								hj.setNumReduceTasks(Integer.parseInt(advancedConfigurationDbo.getString("$reducers", "1")));
+							}
+							catch (Exception e2) {}
 						}
-						catch (Exception e2) {}
-					}
-				}//TESTED
+					}//TESTED
+				}
+				else {
+					hj.setNumReduceTasks(0);
+				}
+				if ((null != job.combiner) && !job.combiner.startsWith("#") && !job.combiner.equalsIgnoreCase("null") && !job.combiner.equalsIgnoreCase("none")) {
+					hj.setCombinerClass((Class<? extends Reducer>) Class.forName (job.combiner, true, child));
+				}
+				hj.setOutputKeyClass(Class.forName (job.outputKey, true, child));
+				hj.setOutputValueClass(Class.forName (job.outputValue, true, child));
+				
+				hj.setJobName(job.jobtitle);
 			}
-			else {
-				hj.setNumReduceTasks(0);
+			catch (Error e) { // (messing about with class loaders = lots of chances for errors!)
+				throw new RuntimeException(e.getMessage(), e);
 			}
-			if ((null != job.combiner) && !job.combiner.startsWith("#") && !job.combiner.equalsIgnoreCase("null") && !job.combiner.equalsIgnoreCase("none")) {
-				hj.setCombinerClass((Class<? extends Reducer>) Class.forName (job.combiner, true, child));
-			}
-			hj.setOutputKeyClass(Class.forName (job.outputKey, true, child));
-			hj.setOutputValueClass(Class.forName (job.outputValue, true, child));
-			
-			hj.setJobName(job.jobtitle);
-
 			if (bLocalMode) {				
 				hj.submit();
 				currThreadId = null;
@@ -339,6 +345,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		//add communities to query if this is not a custom table
 		BasicDBObject oldQueryObj = null;
+		BasicDBObject srcTags = null;
 		// Start with the old query:
 		if (query.startsWith("{")) {
 			oldQueryObj = (BasicDBObject) com.mongodb.util.JSON.parse(query);
@@ -355,9 +362,13 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			nSplits = oldQueryObj.getInt("$splits");
 			oldQueryObj.remove("$splits");
 		}
+		if (oldQueryObj.containsField("$srctags")) {
+			srcTags = new BasicDBObject(SourcePojo.tags_, oldQueryObj.get("$srctags"));
+			oldQueryObj.remove("$srctags");
+		}
 		if (bLocalMode) { // If in local mode, then set this to a large number so we always run inside our limit/split version
 			// (since for some reason MongoInputFormat seems to fail on large collections)
-			nSplits = 10000000; // (10m)
+			nSplits = InfiniteMongoSplitter.MAX_SPLITS; 
 		}
 		if (oldQueryObj.containsField("$docsPerSplit")) {
 			nDocsPerSplit = oldQueryObj.getInt("$docsPerSplit");
@@ -379,38 +390,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		if ( !isCustomTable )
 		{
-			
-			// Community Ids aren't indexed in the metadata collection, but source keys are, so we need to transform to that
-			BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
-			if (oldQueryObj.containsField(DocumentPojo.sourceKey_) || input.startsWith("feature.")) {
-				// Source Key specified by user, stick communityIds check in for security
-				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
-			}
-			else { // Source key not specified by user, transform communities->sourcekeys
-				BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
-				DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields);
-				if (dbc.count() > 500) {
-					// (too many source keys let's keep the query size sensible...)
-					oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));					
-				}
-				else {
-					HashSet<String> sourceKeys = new HashSet<String>();
-					while (dbc.hasNext()) {
-						DBObject dbo = dbc.next();
-						String sourceKey = (String) dbo.get(SourcePojo.key_);
-						if (null != sourceKey) {
-							sourceKeys.add(sourceKey);
-						}
-					}
-					if (sourceKeys.isEmpty()) { // query returns empty
-						throw new RuntimeException("Communities contain no sources");
-					}
-					BasicDBObject newQueryClauseObj = new BasicDBObject(DbManager.in_, sourceKeys);
-					// Now combine the queries...
-					oldQueryObj.put(DocumentPojo.sourceKey_, newQueryClauseObj);
-
-				} // (end if too many source keys across the communities)
-			}//(end if need to break source keys down into communities)
+			oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
 			oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
 			query = oldQueryObj.toString();
 		}
@@ -460,9 +440,14 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		out.write(
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
-				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+				
+				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+
 				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>update.incremental</name><value>"+tmpIncMode+"</value></property>"
 			);		
+		if (null != srcTags) {
+			out.write(
+					"\n\t<property><!-- Infinit.e src tags filter [optional] --><name>infinit.e.source.tags.filter</name><value>"+srcTags.toString()+"</value></property>"
+				);			
+		}
 		
 		// Closing thoughts:
 		out.write("\n</configuration>");

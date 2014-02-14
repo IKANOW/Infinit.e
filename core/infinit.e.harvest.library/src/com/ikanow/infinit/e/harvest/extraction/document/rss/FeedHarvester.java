@@ -304,7 +304,7 @@ public class FeedHarvester implements HarvesterInterface
 		{
 			try {
 				FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
-				searchEngineSubsystem.generateFeedFromSearch(source, _context);
+				searchEngineSubsystem.generateFeedFromSearch(source, _context, null);
 				confirmedUrlsExtracted = true;
 			}//TESTED
 			catch (ExtractorDocumentLevelException e) {
@@ -656,7 +656,7 @@ public class FeedHarvester implements HarvesterInterface
 
 		doc.setUrl(cleansedUrl);
 		doc.setCreated(new Date());
-		doc.setModified(new Date());
+		doc.setModified(doc.getCreated());
 
 		// Strip out html if it is present
 		if ( entry.getTitle() != null )
@@ -667,7 +667,7 @@ public class FeedHarvester implements HarvesterInterface
 			doc.setPublishedDate(entry.getPublishedDate());
 		}
 		else {
-			doc.setPublishedDate(new Date());
+			doc.setPublishedDate(doc.getCreated());
 		}
 
 		// Clone from an existing source if we can:

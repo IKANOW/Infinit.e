@@ -57,6 +57,7 @@ public class CommunityInterface extends ServerResource
 	private String ownerEmail = null;
 	private String tags = null;
 	private String skipInvitation = null;
+	private boolean showDocInfo = false;
 	
 	private String action = "";
 	
@@ -89,6 +90,10 @@ public class CommunityInterface extends ServerResource
 			// Query String Values
 			Map<String, String> queryOptions = this.getQuery().getValuesMap();
 			if (queryOptions.get("skipinvitation") != null) skipInvitation = queryOptions.get("skipinvitation");
+			try {
+				if (queryOptions.get("docinfo") != null) showDocInfo = Boolean.parseBoolean(queryOptions.get("docinfo"));
+			}
+			catch (Exception e) {} // do nothing, carry on
 			
 			if (urlStr.contains("/community/get/") )
 			{
@@ -275,7 +280,7 @@ public class CommunityInterface extends ServerResource
 			 {
 				 if ( SocialUtils.validateCommunityIds(cookieLookup, communityId) || (communityId.startsWith("*")) )
 				 {
-					 rp = this.community.getCommunity(cookieLookup, communityId);
+					 rp = this.community.getCommunity(cookieLookup, communityId, showDocInfo);
 				 }
 				 else
 				 {

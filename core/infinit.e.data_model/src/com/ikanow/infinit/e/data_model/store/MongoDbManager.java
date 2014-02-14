@@ -66,7 +66,12 @@ public class MongoDbManager {
             try {
 				return new MongoDbConnection(new PropertiesManager());
 			} catch (Exception e) {
-				return null;
+				try {
+					return new MongoDbConnection(); // (default to localhost:27017)
+				} 
+				catch (Exception e1) {
+					return null;
+				} 
 			}
         }
 	};

@@ -29,7 +29,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	static public TypeToken<List<SourcePipelinePojo>> listType() { return new TypeToken<List<SourcePipelinePojo>>(){}; } 
 
 	// 0] Common fields:
-	public String display;
+	public String display; // (display only)
+	public String criteria; // A javascript expression that is passed the document as _doc - if returns false then this pipeline element is bypassed 
 	
 	// 1] Pipeline elements:
 	
@@ -48,25 +49,29 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public LinkedHashMap<String, ObjectId> aliases;
 	public HarvestControlSettings harvest;
 	
-	// 1.3] Text and Linked-Document extraction
+	// 1.3] Secondary document extraction
 	
+	public SourceSearchFeedConfigPojo splitter;
 	public SourceSearchFeedConfigPojo links;
+	
+	// 1.4] Text and Linked-Document extraction
+	
 	public List<ManualTextExtractionSpecPojo> text;
 	public AutomatedTextExtractionSpecPojo textEngine;
 	
-	// 1.4] Document-level field (including metadata extraction)
+	// 1.5] Document-level field (including metadata extraction)
 	
 	public DocumentSpecPojo docMetadata;
 	public List<MetadataSpecPojo> contentMetadata;
 	
-	// 1.5] Entities and Associations
+	// 1.6] Entities and Associations
 
 	public AutomatedEntityExtractionSpecPojo featureEngine;
 	public List<StructuredAnalysisConfigPojo.EntitySpecPojo> entities;
 	public List<StructuredAnalysisConfigPojo.AssociationSpecPojo> associations;
 	//TODO (INF-1922): ^^^need to add store/index to these guys
 	
-	// 1.6] Finishing steps
+	// 1.7] Finishing steps
 	
 	public SourcePojo.SourceSearchIndexFilter searchIndex;
 	public StorageSettingsPojo storageSettings;
@@ -97,8 +102,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	// 2.3] Text and Linked-Document extraction
 	
 	public static class AutomatedTextExtractionSpecPojo {
-		public String criteria; // A javascript expression that is passed the document as _doc - if returns false then this pipeline element is bypassed
 		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
+		public Boolean exitOnError; //OPTIONAL: if present and false, then on error tries to keep going (ie as if the pipeline element did not exist)
 		public LinkedHashMap<String, String> engineConfig; // The configuration object to be passed to the engine
 		
 	}
@@ -139,8 +144,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	// 2.5] Entities and Associations
 	
 	public static class AutomatedEntityExtractionSpecPojo {
-		public String criteria; // A javascript expression that is passed the document as _doc - if returns false then this pipeline element is bypassed
 		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
+		public Boolean exitOnError; //OPTIONAL: if present and false, then on error tries to keep going (ie as if the pipeline element did not exist)
 		public LinkedHashMap<String, String> engineConfig; // The configuration object to be passed to the engine
 		public String entityFilter; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
 		public String assocFilter; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only) 
@@ -152,6 +157,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public String rejectDocCriteria; 	//OPTIONAL: If populated, runs a user script function and if return value is non-null doesn't create the object and logs the output.  *Not* wrapped in $SCRIPT().
 		public String onUpdateScript; 		//OPTIONAL: Used to preserve existing metadata when documents are updated, and also to generate new metadata based on the differences between old and new documents. *Not* wrapped in $SCRIPT().
 		public String metadataFieldStorage; //OPTIONAL: A comma-separated list of top-level metadata fields to either exclude (if "metadataFields" starts with '-'), or only include (starts with '+', default) - the fields are deleted at that point in the pipeline.
+		public Boolean exitPipeline; 		//OPTIONAL: if present and true then the document exits the pipeline at this point, bypassing any further elements in the pipeline (usually used in conjunction with "criteria")
 	}
 	
 	//(SourcePojo.SourceSearchIndexFilter)

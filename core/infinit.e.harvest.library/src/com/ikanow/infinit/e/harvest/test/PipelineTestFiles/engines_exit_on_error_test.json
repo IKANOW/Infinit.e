@@ -1,0 +1,76 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {"extraUrls": [
+                {
+                    "description": "test1",
+                    "title": "test1",
+                    "url": "test1"
+                },
+                {
+                    "description": "test2",
+                    "title": "test2",
+                    "url": "test2"
+                },
+                {
+                    "description": "test3",
+                    "title": "test3",
+                    "url": "test3"
+                },
+                {
+                    "description": "test4",
+                    "title": "test4",
+                    "url": "test4"
+                }
+            ]}
+        },
+        {
+            "criteria": "return _doc.title == 'test1';",
+            "display": "block test1",
+            "textEngine": {"exitOnError": true,"engineName": "boilerpipe"}
+        },
+        {
+            "criteria": "return _doc.title == 'test2';",
+            "display": "block test2",
+            "textEngine": {"engineName": "boilerpipe"}
+        },
+        {
+            "criteria": "return _doc.title == 'test3';",
+            "display": "error on test3 but allow through",
+            
+            "textEngine": {"exitOnError": false,"engineName": "boilerpipe"}
+        },
+        {
+            "criteria": "return _doc.title == 'test4';",
+            "display": "error on test4 but allow through",
+            "textEngine": {"exitOnError": false,"engineName": "raw"}
+        },
+        {
+            "criteria": "return _doc.title == 'test3';",
+            "display": "error on test3 and block",
+            "featureEngine": {"exitOnError": true,"engineName": "opencalais"}
+        },
+        {
+            "criteria": "return _doc.title == 'test4';",
+            "display": "error on test4 and allow through",
+            "featureEngine": {"exitOnError": false,"engineName": "opencalais"}
+        },
+        {
+            "display": "",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": ["//write code here"]
+            }
+        },
+        {
+            "contentMetadata": [{
+                "fieldName": "alltest",
+                "flags":"d",
+                "index": false,
+                "script": "var test = 'test'; test;",
+                "scriptlang": "javascript",
+                "store": true
+            }],
+            "display": "alltest"
+        }
+    ],

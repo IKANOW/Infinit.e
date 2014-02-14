@@ -43,6 +43,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
+import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityApprovePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityAttributePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberContactPojo;
@@ -199,7 +200,7 @@ public class CommunityHandler
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo getCommunity(String userIdStr, String communityIdStr) 
+	public ResponsePojo getCommunity(String userIdStr, String communityIdStr, boolean showDocInfo) 
 	{	
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -215,7 +216,7 @@ public class CommunityHandler
 			}
 			else
 			{
-				query.put("isSystemCommunity", true);
+				query.put("_id", new ObjectId("4c927585d591d31d7b37097a")); // (hardwired sys community)
 			}
 			
 			// Get GsonBuilder object with MongoDb de/serializers registered
@@ -223,7 +224,14 @@ public class CommunityHandler
 			
 			if (dbo != null)
 			{
-				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);	
+				CommunityPojo community = CommunityPojo.fromDb(dbo, CommunityPojo.class);
+				if (showDocInfo) {
+					DocCountPojo dc = (DocCountPojo) DbManager.getDocument().getCounts().findOne(query);
+					if (null != dc) {
+						dc.set_id(null);
+						community.setDocumentInfo(dc);
+					}
+				}
 				community = filterCommunityMembers(community, RESTTools.adminLookup(userIdStr), userIdStr);
 				rp.setData(community, new CommunityPojoApiMap());
 				rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));
@@ -247,7 +255,7 @@ public class CommunityHandler
 	 */
 	public ResponsePojo getSystemCommunity() 
 	{	
-		return getCommunity(null, null);
+		return getCommunity(null, null, false);
 	}
 	
 	/**
@@ -835,9 +843,15 @@ public class CommunityHandler
 	 */
 	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr) 
 	{
+		boolean isSysAdmin = RESTTools.adminLookup(personIdStr);
+		return joinCommunity(personIdStr, communityIdStr, isSysAdmin);
+	}
+	
+	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr, boolean isSysAdmin) 
+	{		
 		ResponsePojo rp = new ResponsePojo();
 		try
-		{
+		{			
 			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			BasicDBObject query = new BasicDBObject("_id",new ObjectId(communityIdStr));
 			DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
@@ -846,20 +860,23 @@ public class CommunityHandler
 				CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
 				if ( !cp.getIsPersonalCommunity() )
 				{
-					if ( !cp.isMember(new ObjectId(personIdStr)))
+					BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(personIdStr));
+					DBObject dboPerson = DbManager.getSocial().getPerson().findOne(queryPerson);
+					PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+					boolean isPending = isMemberPending(cp, pp);
+					
+					if ( !cp.isMember(new ObjectId(personIdStr)) || isPending )
 					{
 						Map<String,CommunityAttributePojo> commatt = cp.getCommunityAttributes();
-						if ( commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true"))
+						if ( isSysAdmin || (commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true") ))
 						{		
 							boolean requiresApproval = false;
-							if ( commatt.containsKey("registrationRequiresApproval") )
+							if ( !isSysAdmin && commatt.containsKey("registrationRequiresApproval") )
 								requiresApproval = commatt.get("registrationRequiresApproval").getValue().equals("true");
 							//if approval is required, add user to comm, wait for owner to approve
 							//otherwise go ahead and add as a member
 							if ( requiresApproval )
 							{
-								DBObject dboPerson = DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id",new ObjectId(personIdStr)));
-								PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
 								cp.addMember(pp,true);
 								//write both objects back to db now
 								/////////////////////////////////////////////////////////////////////////////////////////////////
@@ -897,9 +914,6 @@ public class CommunityHandler
 							}
 							else
 							{
-								BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(personIdStr));
-								DBObject dboPerson = DbManager.getSocial().getPerson().findOne(queryPerson);
-								PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
 								cp.addMember(pp);
 								pp.addCommunity(cp);
 								//write both objects back to db now
@@ -1032,8 +1046,9 @@ public class CommunityHandler
 				// Make sure this isn't a personal community
 				if ( !cp.getIsPersonalCommunity() )
 				{
-					// Check to see if the user has permissions to invite
-					if ( canInvite || cp.getOwnerId().toString().equalsIgnoreCase(userIdStr) )
+					// Check to see if the user has permissions to invite or selfregister
+					boolean selfRegister = canSelfRegister(cp);
+					if ( canInvite || cp.getOwnerId().toString().equalsIgnoreCase(userIdStr) || selfRegister )
 					{
 						BasicDBObject dboPerson = (BasicDBObject) DbManager.getSocial().getPerson().findOne(new BasicDBObject("email", personIdStr));
 						if (null == dboPerson) { // (ie personId isn't an email address... convert to ObjectId and try again)
@@ -1046,9 +1061,22 @@ public class CommunityHandler
 						
 						if ( dboPerson != null )
 						{
-							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);							
+							//need to check for if a person is pending, and skipInvite and isSysAdmin, otherwise
+							//they would just get sent an email again, so leave it be
+							boolean isPending = false;
+							if ( isSysAdmin && skipInvite )
+							{
+								isPending = isMemberPending(cp, pp);
+							}
 							
-							if ( !cp.isMember(pp.get_id()))
+							if ( selfRegister )
+							{
+								//If the comm allows for self registering, just call join community
+								//instead of invite, it will handle registration
+								return this.joinCommunity(pp.get_id().toString(), communityIdStr, isSysAdmin);
+							}
+							else if ( !cp.isMember(pp.get_id()) || isPending )
 							{
 								if (isSysAdmin && skipInvite) // Can only skip invite if user is Admin
 								{
@@ -1115,7 +1143,8 @@ public class CommunityHandler
 								}
 							}
 							else
-							{
+							{								
+								//otherwise just return we failed
 								rp.setResponse(new ResponseObject("Invite Community",false,"The user is already a member of this community."));
 							}
 						}
@@ -1126,7 +1155,7 @@ public class CommunityHandler
 					}
 					else
 					{
-						rp.setResponse(new ResponseObject("Invite Community",false,"You must be owner to invite other members"));
+						rp.setResponse(new ResponseObject("Invite Community",false,"You must be owner to invite other members, if you received an invite, you must accept it through that"));
 					}
 				}
 				else
@@ -1144,6 +1173,48 @@ public class CommunityHandler
 			rp.setResponse(new ResponseObject("Invite Community",false,"General Error, bad params maybe? " + ex.getMessage()));
 		}
 		return rp;
+	}
+	
+	/**
+	 * Returns true if users can self register to this community
+	 * 
+	 * @param cp
+	 * @return
+	 */
+	private boolean canSelfRegister(CommunityPojo cp)
+	{
+		if ( cp != null )
+		{
+			if ( cp.getCommunityAttributes().containsKey("usersCanSelfRegister") && 
+					cp.getCommunityAttributes().get("usersCanSelfRegister").getValue().equals("true"))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+	
+	/**
+	 * Returns true if the given member is pending in the given community
+	 * 
+	 * @return
+	 */
+	private boolean isMemberPending( CommunityPojo cp, PersonPojo pp)
+	{									
+		for ( CommunityMemberPojo cmp : cp.getMembers() )
+		{
+			if ( cmp.get_id().equals(pp.get_id()) )
+			{
+				if ( cmp.getUserStatus().equals("pending") )
+				{
+					//found the user, and his status is pending
+					return true;
+				}
+				return false;
+			}
+		}
+		return false;
+		//TESTED only finds members that are pending while sysadmin
 	}
 
 
@@ -1190,51 +1261,64 @@ public class CommunityHandler
 						BasicDBObject query = new BasicDBObject("_id",new ObjectId(cap.getCommunityId()));
 						DBObject dboComm = DbManager.getSocial().getCommunity().findOne(query);
 						
+						//get user
+						BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(cap.getPersonId()));
+						DBObject dboperson = DbManager.getSocial().getPerson().findOne(queryPerson);
+						PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
+						
 						if ( dboComm != null )
 						{
 							CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
-							if ( resp.equals("false"))
+							boolean isStillPending = isMemberPending(cp, pp);
+							//make sure the user is still waiting to join the community, otherwise remove this request and return
+							if ( isStillPending )
 							{
-								//if response is false (deny), always just remove user from community							
-								cp.removeMember(new ObjectId(cap.getPersonId()));
-								/////////////////////////////////////////////////////////////////////////////////////////////////
-								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
-								// Caleb: this means change update to $set
-								/////////////////////////////////////////////////////////////////////////////////////////////////
-								DbManager.getSocial().getCommunity().update(query, cp.toDb());
-							}
-							else
-							{
-								//if response is true (allow), always just add community info to user, and change status to active
-								BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(cap.getPersonId()));
-								DBObject dboperson = DbManager.getSocial().getPerson().findOne(queryPerson);
-								if ( dboperson != null)
+								if ( resp.equals("false"))
 								{
-									cp.updateMemberStatus(cap.getPersonId(), "active");
-									cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
+									//if response is false (deny), always just remove user from community							
+									cp.removeMember(new ObjectId(cap.getPersonId()));
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
-									
-									PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
-									pp.addCommunity(cp);
-									/////////////////////////////////////////////////////////////////////////////////////////////////
-									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
-									// Caleb: this means change update to $set
-									/////////////////////////////////////////////////////////////////////////////////////////////////
-									DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 								}
 								else
 								{
-									rp.setResponse(new ResponseObject("Request Response",false,"The person does not exist."));
+									//if response is true (allow), always just add community info to user, and change status to active
+									
+									if ( dboperson != null)
+									{
+										cp.updateMemberStatus(cap.getPersonId(), "active");
+										cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
+										/////////////////////////////////////////////////////////////////////////////////////////////////
+										// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+										// Caleb: this means change update to $set
+										/////////////////////////////////////////////////////////////////////////////////////////////////
+										DbManager.getSocial().getCommunity().update(query, cp.toDb());
+										pp.addCommunity(cp);
+										/////////////////////////////////////////////////////////////////////////////////////////////////
+										// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+										// Caleb: this means change update to $set
+										/////////////////////////////////////////////////////////////////////////////////////////////////
+										DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
+									}
+									else
+									{
+										rp.setResponse(new ResponseObject("Request Response",false,"The person does not exist."));
+									}
 								}
+								//return successfully
+								rp.setResponse(new ResponseObject("Request Response",true,"Request answered successfully!"));
+							}
+							else
+							{
+								//return fail
+								rp.setResponse(new ResponseObject("Request Response",false,"Request has already been answered!"));
 							}
 							//remove request object now
 							DbManager.getSocial().getCommunityApprove().remove(new BasicDBObject("_id",new ObjectId(requestIdStr)));
-							//return successfully
-							rp.setResponse(new ResponseObject("Request Response",true,"Request answered successfully!"));
+							
 						}
 						else
 						{

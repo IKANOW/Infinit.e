@@ -207,7 +207,7 @@ limitations under the License.
 
 	<form method="post">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 
@@ -239,6 +239,7 @@ limitations under the License.
 			<tr>
 				<td colspan="2" >
 				<button name="removeSelected" onclick="return confirm('Do you really wish to remove the selected people from this community?');" name="removeSelected" value="removeSelected">Remove selected people</button>
+				<input type="checkbox" name="selectall" onchange="var cbs = document.getElementsByName('peopleToRemove'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked" value=""></input>
 				<div style="float: right"><a align="right" href='communities.jsp?action=edit&communityid=<%=communityid %>'>Back</a></div>
 				</td>
 			</tr>

@@ -1,0 +1,100 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "title": "test1",
+                        "description": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "title": "test2",
+                        "description": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "title": "test3",
+                        "description": "test3",
+                        "url": "test3"
+                    },
+                    {
+                        "title": "test4",
+                        "description": "test4",
+                        "fullText": "test4",
+                        "url": "test4"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scripts": [
+                    "//write code here"
+                ],
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "flags": "d",
+                    "fieldName": "test1",
+                    "index": false,
+                    "scriptlang": "javascript",
+                    "script": "var x = (_doc.title == 'test1'); x;"
+                }
+            ],
+            "criteria": "return _doc.title == \"test1\"",
+            "display": "test1"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "flags": "t",
+                    "fieldName": "test2",
+                    "index": false,
+                    "scriptlang": "javascript",
+                    "script": "var x = (text == 'test2'); x;"
+                }
+            ],
+            "criteria": "return _doc.title == \"test2\"",
+            "display": "test2"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "flags": "t",
+                    "fieldName": "test4",
+                    "index": false,
+                    "scriptlang": "javascript",
+                    "script": "var x = (text == 'test4'); x;"
+                }
+            ],
+            "criteria": "return _doc.title == \"test4\"",
+            "display": "test4"
+        },
+        {
+            "storageSettings": {
+                "exitPipeline": true
+            },
+            "criteria": "return _doc.title != \"test3\"",
+            "display": ""
+        },
+        {
+            "display": "test3",
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test3",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ]
+        }
+    ],

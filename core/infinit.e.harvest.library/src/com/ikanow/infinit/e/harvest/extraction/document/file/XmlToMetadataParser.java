@@ -163,6 +163,9 @@ public class XmlToMetadataParser {
 	 * @return List of Feeds with their Metadata set
 	 */
 	public List<DocumentPojo> parseDocument(XMLStreamReader reader) throws XMLStreamException {
+		return parseDocument(reader, false);		
+	}//TESTED (used by FileHarvester in this form, UAH::meta (stream) with textOnly==true below)
+	public List<DocumentPojo> parseDocument(XMLStreamReader reader, boolean textOnly) throws XMLStreamException {
 		DocumentPojo doc = new DocumentPojo();
 		List<DocumentPojo> docList = new ArrayList<DocumentPojo>();
 		boolean justIgnored = false;
@@ -271,34 +274,36 @@ public class XmlToMetadataParser {
 				if ((null != ignoreFields) && !ignoreFields.contains(reader.getLocalName())){
 					if (levelOneFields.contains(reader.getLocalName())) {
 						JSONObject json;
-						try {
-							json = XML.toJSONObject(sb.toString());
-							for (String names: JSONObject.getNames(json))
-							{
-								JSONObject rec = null;
-								JSONArray jarray = null;
-	
-								try {
-									jarray = json.getJSONArray(names);
-									doc.addToMetadata(names, handleJsonArray(jarray, false));
-								} catch (JSONException e) {
+						if (!textOnly) {
+							try {
+								json = XML.toJSONObject(sb.toString());
+								for (String names: JSONObject.getNames(json))
+								{
+									JSONObject rec = null;
+									JSONArray jarray = null;
+		
 									try {
-										rec = json.getJSONObject(names);
-										doc.addToMetadata(names, convertJsonObjectToLinkedHashMap(rec));
-									} catch (JSONException e2) {
+										jarray = json.getJSONArray(names);
+										doc.addToMetadata(names, handleJsonArray(jarray, false));
+									} catch (JSONException e) {
 										try {
-											Object[] val = {json.getString(names)};
-											doc.addToMetadata(names,val);
-										} catch (JSONException e1) {
-											e1.printStackTrace();
+											rec = json.getJSONObject(names);
+											doc.addToMetadata(names, convertJsonObjectToLinkedHashMap(rec));
+										} catch (JSONException e2) {
+											try {
+												Object[] val = {json.getString(names)};
+												doc.addToMetadata(names,val);
+											} catch (JSONException e1) {
+												e1.printStackTrace();
+											}
 										}
 									}
 								}
+		
+							} catch (JSONException e) {
+								e.printStackTrace();
 							}
-	
-						} catch (JSONException e) {
-							e.printStackTrace();
-						}						
+						}
 						doc.setFullText(fullText.toString());
 						sb.delete(0, sb.length());
 						docList.add(doc);

@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.data_model.custom;
 
 import org.apache.hadoop.conf.Configuration;
 
+import com.mongodb.DBObject;
 import com.mongodb.hadoop.MongoConfig;
 
 public class InfiniteMongoConfig extends MongoConfig
@@ -47,4 +48,12 @@ public class InfiniteMongoConfig extends MongoConfig
 	public void setMaxDocsPerSplit( int max_docs_per_split ){
 	    InfiniteMongoConfigUtil.setMaxDocsPerSplit( _conf, max_docs_per_split );
 	}
+	
+	public void setSourceTags(DBObject srcTags) {
+		InfiniteMongoConfigUtil.setSourceTags( _conf, srcTags );		
+	}
+	public DBObject getSourceTags() {
+		return InfiniteMongoConfigUtil.getSourceTags( _conf );
+	}
+	
 }

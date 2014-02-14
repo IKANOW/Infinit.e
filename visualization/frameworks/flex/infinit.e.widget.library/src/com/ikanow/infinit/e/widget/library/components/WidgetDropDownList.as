@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.widget.library.components
 {
 	import com.ikanow.infinit.e.widget.library.assets.skins.WidgetDropDownListSkin;
 	import spark.components.DropDownList;
-	import spark.events.DropDownEvent;
 	
 	public class WidgetDropDownList extends DropDownList
 	{

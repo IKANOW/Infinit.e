@@ -3,7 +3,7 @@ package com.ikanow.infinit.e.events
 	import com.ikanow.infinit.e.actionscript.KMLOptions;
 	
 	import flash.events.Event;
-
+	
 	public class KMLOptionsExportEvent extends Event
 	{	
 		public static const EXPORT_EVENT:String = "exportEvent";

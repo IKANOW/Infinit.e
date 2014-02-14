@@ -53,7 +53,7 @@ limitations under the License.
 </head>
 <body>
 
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 

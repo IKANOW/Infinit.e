@@ -211,6 +211,7 @@ public class CacheControlFilter implements Filter {
         resp.setHeader("Last-Modified", new Date().toString());
         resp.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0");
         resp.setHeader("Pragma", "no-cache");
+        resp.setHeader("Access-Control-Allow-Origin", "*");
 
         chain.doFilter(request, response);
         

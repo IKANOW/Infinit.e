@@ -22,6 +22,7 @@ import java.net.URLDecoder;
 import java.util.Date;
 import java.util.Map;
 
+import org.mozilla.universalchardet.UniversalDetector;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
@@ -334,15 +335,25 @@ public class ShareInterface extends ServerResource
 		 // If JSON is != null, check that it is valid JSON
 		 boolean isValidJson = true;
 		 if (json != null)
-		 {
+		 {			 
 			 try
 			 {
-				 JSON.parse(json);
+				 JSON.parse(json);				 
 			 }
 			 catch (Exception e)
 			 {
 				 rp.setResponse(new ResponseObject("Parsing JSON",false,"The value passed via the json parameter could not be" +
 				 " parsed as valid JSON."));
+				 isValidJson = false;
+			 }
+			 
+			 try
+			 {
+				 checkForBadCharacters(json);
+			 }
+			 catch (Exception e)
+			 {
+				 rp.setResponse(new ResponseObject("Parsing JSON",false,"The value passed via the json parameter has invalid characters: " + e.getMessage()));
 				 isValidJson = false;
 			 }
 		 }
@@ -452,4 +463,39 @@ public class ShareInterface extends ServerResource
 		 return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
 	}
 	
+	/**
+	 * Attempts to test if json is UTF-8, throws an exception
+	 * if it detects a different charset
+	 * 
+	 * @param json
+	 * @throws UnsupportedEncodingException 
+	 * @throws Exception
+	 */
+	private void checkForBadCharacters(String json) throws Exception
+	{
+		byte[] bytes = json.getBytes();		
+		UniversalDetector ud = new UniversalDetector(null);
+		ud.handleData(bytes, 0, bytes.length);
+		ud.dataEnd();
+		String encoding = ud.getDetectedCharset();			
+		if ( encoding != null )
+		{
+			//do an extra check for charcode 65533 if encoding is utf-8		
+			if ( encoding.equals("UTF-8"))
+			{
+				for (int i = 0; i < json.length(); i ++)
+				{
+					if ( 65533 == Character.codePointAt(new char[]{json.charAt(i)}, 0) )
+					{
+						throw new Exception("Found illegal character at index: " + i);
+					}
+				}
+			}
+			else 	
+			{
+				//if encoding is not utf8 or null, fail	
+				throw new Exception("Illegal encoding found: " + encoding);
+			}
+		}
+	}	
 }

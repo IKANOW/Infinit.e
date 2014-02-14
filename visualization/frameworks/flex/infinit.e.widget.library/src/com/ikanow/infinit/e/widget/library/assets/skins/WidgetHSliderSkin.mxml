@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+    ADOBE SYSTEMS INCORPORATED
+    Copyright 2008 Adobe Systems Incorporated
+    All Rights Reserved.
+
+    NOTICE: Adobe permits you to use, modify, and distribute this file
+    in accordance with the terms of the license agreement accompanying it.
+-->
+
+<!--- The default skin class for the Spark HSlider component. The thumb and track skins are defined by the
+HSliderThumbSkin and HSliderTrackSkin classes, respectively.  
+
+       @see spark.components.HSlider
+       @see spark.skins.spark.HSliderThumbSkin
+       @see spark.skins.spark.HSliderTrackSkin
+                
+      @langversion 3.0
+      @playerversion Flash 10
+      @playerversion AIR 1.5
+      @productversion Flex 4
+-->
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009" xmlns:s="library://ns.adobe.com/flex/spark"
+    xmlns:fb="http://ns.adobe.com/flashbuilder/2009" minHeight="11" alpha.disabled="0.5" 
+	xmlns:components="com.ikanow.infinit.e.widget.library.components.*">
+	<fx:Metadata>[HostComponent("com.ikanow.infinit.e.widget.library.components.WidgetHSlider")]</fx:Metadata>
+
+    <fx:Script fb:purpose="styling">
+        /* Define the skin elements that should not be colorized. 
+           For slider, the skin itself is colorized but the individual parts are not. */
+        static private const exclusions:Array = ["track", "thumb"];
+
+        /**
+         * @private
+         */  
+        override public function get colorizeExclusions():Array {return exclusions;}
+        
+        /**
+         * @private
+         */
+        override protected function initializationComplete():void
+        {
+            useChromeColor = true;
+            super.initializationComplete();
+        }
+    </fx:Script>
+    
+    <fx:Script>
+        /**
+         *  @private
+         */  
+        override protected function measure() : void
+        {
+            // Temporarily move the thumb to the left of the Slider so measurement
+            // doesn't factor in its x position. This allows resizing the
+            // HSlider to less than 100px in width. 
+            var thumbPos:Number = thumb.getLayoutBoundsX();
+            thumb.setLayoutBoundsPosition(0, thumb.getLayoutBoundsY());
+            super.measure();
+            thumb.setLayoutBoundsPosition(thumbPos, thumb.getLayoutBoundsY());
+        }
+    </fx:Script>
+    
+    <s:states>
+        <s:State name="normal" />
+        <s:State name="disabled" />
+    </s:states>
+    
+    <fx:Declarations>
+        <!--- The tooltip used in the mx.controls.Slider control. 
+               To customize the DataTip's appearance, create a custom HSliderSkin class.-->
+        <fx:Component id="dataTip">     
+           <s:DataRenderer minHeight="24" minWidth="40" y="-34">  
+              <s:Rect top="0" left="0" right="0" bottom="0">
+                    <s:fill>
+                        <s:SolidColor color="0x000000" alpha=".9"/>
+                    </s:fill>
+                    <s:filters>
+                        <s:DropShadowFilter angle="90" color="0x999999" distance="3"/>
+                    </s:filters>
+                </s:Rect>
+                <s:Label id="labelDisplay" text="{data}"
+                         horizontalCenter="0" verticalCenter="1"
+                         left="5" right="5" top="5" bottom="5"
+                         textAlign="center" verticalAlign="middle"
+                         fontWeight="normal" color="white" fontSize="11">
+                </s:Label>
+            </s:DataRenderer>
+       </fx:Component>
+    </fx:Declarations>
+    
+	<s:Group height="100%">
+		<!-- left seperator -->
+		<components:WidgetVSeparator
+			shadowColor="0xFFFFFF"
+			lineColor="0xBBBBBB"
+			strokeWeight="1" height="100%" />
+		<s:VGroup horizontalAlign="center" width="150" height="100%"
+				  verticalAlign="middle"
+				  gap="5" paddingLeft="3" paddingRight="3">
+			<s:Label id="labelSlider" text="{hostComponent.label + hostComponent.value}"
+					 fontSize="11" />
+			<s:HGroup 
+				width="100%" paddingLeft="5" paddingRight="5"
+				horizontalAlign="center"
+				verticalAlign="middle">
+				<s:Label text="{hostComponent.minimum}" 
+						 fontSize="9" />
+				<s:HGroup width="100%">
+					<s:Group width="100%" height="100%" >
+						<!--- The default skin class is HSliderTrackSkin. 
+						@copy spark.components.supportClasses.TrackBase#track
+						@see spark.skins.spark.HSliderTrackSkin -->
+						<s:Button id="track" left="0" right="0" top="0" bottom="0" minWidth="33" width="100" 
+								  tabEnabled="false"
+								  skinClass="spark.skins.spark.HSliderTrackSkin" />	
+						<!--- The default skin class is HSliderThumbSkin.
+						@copy spark.components.supportClasses.TrackBase#thumb 
+						@see spark.skins.spark.HSliderThumbSkin -->
+						<s:Button id="thumb" top="0" bottom="0" width="11" height="11" 
+								  tabEnabled="false"
+								  skinClass="spark.skins.spark.HSliderThumbSkin" />																
+					</s:Group>					
+				</s:HGroup>
+				<s:Label text="{hostComponent.maximum}"
+						 fontSize="9" />
+			</s:HGroup>
+		</s:VGroup>
+		<!-- right seperator -->
+		<components:WidgetVSeparator 
+			right="1"
+			shadowColor="0xFFFFFF"
+			lineColor="0xBBBBBB"
+			strokeWeight="1" height="100%" />
+	</s:Group>
+</s:SparkSkin>

@@ -1,0 +1,53 @@
+    "processingPipeline": [
+        {
+            "database": {
+                "authentication": {
+                    "password": "nopass",
+                    "username": "OPEN_SOURCE"
+                },
+                "databaseName": "xe",
+                "databaseType": "oracle:thin:sid",
+                "deltaQuery": "select id, title, description, link, publish_date, source, geom, all_text from rss_feeds where rownum < 21",
+                "hostname": "localhost",
+                "port": "1521",
+                "preserveCase": false,
+                "primaryKey": "link",
+                "primaryKeyValue": "DB:",
+                "publishedDate": "publish_date",
+                "query": "select id, title, description, link, publish_date, source, geom, all_text from rss_feeds where rownum < 21",
+                "snippet": "title",
+                "title": "title",
+                "url": "jdbc:oracle:thin:@localhost:1521:xe"
+            },
+            "display": "Oracle DB input"
+        },
+        {
+            "display": "",
+            "harvest": {
+                "duplicateExistingUrls": true
+            }
+        },
+        {
+            "display": "",
+            "links": {
+                "numPages": 10,
+                "numResultsPerPage": 1,
+                "scriptlang": "javascript",
+                "stopPaginatingOnDuplicate": false,
+                "waitTimeBetweenPages_ms": 1000
+            }
+        },
+        {
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "displayUrl": "$metadata.link"
+            }
+        },
+        {
+            "display": "",
+            "textEngine": {
+                "engineName": "boilerpipe"
+            }
+        }
+    ],

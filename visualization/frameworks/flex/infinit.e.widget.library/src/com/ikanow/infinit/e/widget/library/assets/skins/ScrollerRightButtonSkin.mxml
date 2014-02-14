@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="utf-8"?>
+
+<!--
+
+ADOBE SYSTEMS INCORPORATED
+Copyright 2008 Adobe Systems Incorporated
+All Rights Reserved.
+
+NOTICE: Adobe permits you to use, modify, and distribute this file
+in accordance with the terms of the license agreement accompanying it.
+
+-->
+
+<!--- The default skin class for the Spark Button component.  
+
+@see spark.components.Button
+
+@langversion 3.0
+@playerversion Flash 10
+@playerversion AIR 1.5
+@productversion Flex 4
+-->
+<s:SparkButtonSkin xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				   xmlns:s="library://ns.adobe.com/flex/spark" 
+				   xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+				   minWidth="21" minHeight="21" 
+				   alpha.disabled="0.5" xmlns:components="com.ikanow.infinit.e.widget.library.components.*">
+	<fx:Metadata>[HostComponent("com.ikanow.infinit.e.widget.library.components.ScrollerRightButton")]</fx:Metadata>
+	
+	<!-- states -->
+	<s:states>
+		<s:State name="up" />
+		<s:State name="over" />
+		<s:State name="down" />
+		<s:State name="disabled" />
+	</s:states>
+	
+	<!-- background -->
+	<s:Rect 
+		width="100%"
+		height="100%"
+		left="1"
+		right="2">
+		<s:fill>
+			<s:LinearGradient rotation="90">
+				<s:entries>
+					<s:GradientEntry color="0xE8E9E9" />
+					<s:GradientEntry 
+						color.down="0xF4F4F4"
+						color.over="0xF4F4F4"
+						color.up="0xE8E9E9" />
+				</s:entries>
+			</s:LinearGradient>
+		</s:fill>
+		<s:filters>
+			<s:DropShadowFilter 
+				color="0xFFFFFF"
+				alpha=".5"
+				angle="90"
+				blurX="0"
+				blurY="0"
+				distance="2"
+				includeIn="up"
+				inner="true" />
+		</s:filters>
+	</s:Rect>
+	
+	<!-- left seperator -->
+	<components:WidgetVSeparator 
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+	
+	<!-- right seperator -->
+	<components:WidgetVSeparator 
+		right="1"
+		shadowColor="0xFFFFFF"
+		lineColor="0xBBBBBB"
+		strokeWeight="1" />
+	
+	<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center" paddingTop="1">
+		<s:Path id="arrow"
+				height="17"
+				width="13"
+				data="M 13 9 L 0 0 L 0 17 L 13 9 Z">
+			<s:fill>
+				<s:SolidColor 
+					color.down="0x333333"
+					color.over="0x555555"
+					color.up="0x777777" />
+			</s:fill>
+		</s:Path>
+	</s:VGroup>
+	
+	
+</s:SparkButtonSkin>

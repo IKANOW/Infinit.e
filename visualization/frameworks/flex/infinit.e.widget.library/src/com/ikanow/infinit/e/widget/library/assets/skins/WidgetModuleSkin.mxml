@@ -87,7 +87,7 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 			 bottom="1"
 			 left="1"
 			 right="1"
-			 top="{ headerHeight }" />
+			 top="{ !(secondHeaderHolder.visible) ? headerHeight : headerHeight+headerHeight-2 }" />
 	
 	<!-- header -->
 	<s:Group id="header"
@@ -140,146 +140,256 @@ along with this program. If not, see <http://www.gnu.org/licenses/>.
 			</s:filters>
 		</s:Rect>
 		
-		<s:HGroup id="headerGroup"
-				  height="{ headerHeight }"
-				  width="100%"
-				  paddingLeft="12"
-				  paddingRight="12"
-				  top="1"
-				  verticalAlign="middle"
-				  gap="0">
+		<!-- HOLDER FOR 2 toolbar groups -->
+		<s:VGroup width="100%" gap="-1">
 			
-			<!-- title -->
-			<components:WidgetHeaderLabel id="titleDisplay"
-										  height="{ headerHeight }"
-										  styleName="workspacesWidgetHeaderLabel"
-										  paddingRight="10"
-										  verticalAlign="middle"
-										  maxDisplayedLines="1" />
-			
-			<!-- header content and export drop down list -->
-			<s:HGroup 
-				height="{ headerHeight }"
-				width="100%"
-				verticalAlign="middle"
-				clipAndEnableScrolling="true"
-				gap="-3">
+			<s:HGroup id="headerGroup"
+					  height="{ headerHeight }"
+					  width="100%"
+					  paddingLeft="12"
+					  paddingRight="12"
+					  verticalAlign="middle"
+					  gap="0">
 				
-				<!-- header content group -->
-				<s:Group id="headerContentGroup"
-						 height="{ headerHeight }">
-					<s:layout>
-						<s:HorizontalLayout 
-							paddingBottom="2"
-							verticalAlign="middle"
-							gap="-20" />
-					</s:layout>
-				</s:Group>
+				<!-- title -->
+				<components:WidgetHeaderLabel id="titleDisplay"
+											  height="{ headerHeight }"
+											  styleName="workspacesWidgetHeaderLabel"
+											  paddingRight="10"
+											  verticalAlign="middle"
+											  maxDisplayedLines="1" />
 				
-				<!-- export drop down list -->
-				<components:WidgetExportDropDownList id="exportDropDownList"
-													 enabled="false"
-													 width="40"
-													 verticalCenter="0"
-													 listWidth="176"
-													 skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetExportDropDownListSkin"
-													 visible="false" />
-				
-			</s:HGroup>
-			
-			<!-- header buttons -->
-			<s:HGroup 
-				height="{ headerHeight }"
-				paddingLeft="6"
-				verticalAlign="middle"
-				gap="8">
-				
-				<!-- navigation buttons -->
+				<!-- header content and export drop down list -->
 				<s:HGroup 
 					height="{ headerHeight }"
-					gap="6"
-					verticalAlign="middle">
-					
-					<!-- move button -->
-					<components:WidgetHeaderIconButton id="moveButton"
-													   enabled="false"
-													   toolTip="Drag to New Position"
-													   verticalCenter="1"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMoveButtonSkin"
-													   visible="false" />
-				
-					
-					<!-- snapshot button -->
-					<components:WidgetHeaderIconButton id="snapshotButton"
-													   enabled="false"
-													   toolTip="Copy snapshot to clipboard (shift+control+c with focus)"
-													   verticalCenter="1"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.AddQueryTermButtonSkin"
-													   visible="false" />
-				</s:HGroup>
-				
-				
-				<!-- navigation buttons -->
-				<s:HGroup 
-					height="{ headerHeight }"
+					width="100%"
 					verticalAlign="middle"
-					gap="-1">
+					clipAndEnableScrolling="true"
+					gap="-3">
 					
-					<!-- previous button -->
-					<components:WidgetHeaderIconButton id="previousButton"
-													   enabled="false"
-													   toolTip="Show Previous"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetPreviousButtonSkin"
-													   visible="false" />
+					<!-- left header content group -->
+					<s:Group id="leftHeaderContentGroup"
+							 height="{ headerHeight }" 
+							 left="1"
+							 visible="false" enabled="false" includeInLayout="false">
+						<s:layout>
+							<s:HorizontalLayout 
+								paddingBottom="2"
+								verticalAlign="middle"
+								gap="-3" />
+						</s:layout>
+					</s:Group>
 					
-					<!-- next button -->
-					<components:WidgetHeaderIconButton id="nextButton"
-													   enabled="false"
-													   toolTip="Show Next"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetNextButtonSkin"
-													   visible="false" />
+					<!-- header content group -->
+					<s:Group id="headerContentGroup"
+							 height="{ headerHeight }" width="100%">
+						<s:layout>
+							<s:HorizontalLayout 
+								paddingBottom="2"
+								verticalAlign="middle" horizontalAlign="left"
+								gap="-3" />
+						</s:layout>
+					</s:Group>
+					
+					<!-- second dropdown button -->
+					<components:WidgetOptionsToggleButton id="secondToolbarButton"
+														  enabled="false"
+														  visible="false" 
+														  includeInLayout="false" />
+					<!-- help button -->
+					<components:WidgetToggleButton id="helpButton"
+														 label="?" toolTip="Hide/Show widget help"				 
+														 enabled="false"
+														 visible="false"
+														 includeInLayout="false" />
+					
+					<!-- export drop down list -->
+					<components:WidgetExportDropDownList id="exportDropDownList"
+														 enabled="false"
+														 width="40"
+														 verticalCenter="0"
+														 listWidth="176"
+														 skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetExportDropDownListSkin"
+														 visible="false" 
+														 includeInLayout="false" />
 					
 				</s:HGroup>
 				
-				<!-- minimize / maximize buttons -->
-				<s:Group height="{ headerHeight }">
+				<!-- header buttons -->
+				<s:HGroup 
+					height="{ headerHeight }"
+					paddingLeft="6"
+					verticalAlign="middle"
+					gap="8">
 					
-					<!-- minimize button -->
-					<components:WidgetHeaderIconButton id="minimizeButton"
-													   enabled="false"
-													   toolTip="Show Tiles"
-													   verticalCenter="0"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMinimizeButtonSkin"
-													   visible="false" />
+					<!-- navigation buttons -->
+					<s:HGroup 
+						height="{ headerHeight }"
+						gap="6"
+						verticalAlign="middle">
+						
+						<!-- move button -->
+						<components:WidgetHeaderIconButton id="moveButton"
+														   enabled="false"
+														   toolTip="Drag to New Position"
+														   verticalCenter="1"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMoveButtonSkin"
+														   visible="false" />
+						
+						
+						<!-- snapshot button -->
+						<components:WidgetHeaderIconButton id="snapshotButton"
+														   enabled="false"
+														   toolTip="Copy snapshot to clipboard (shift+control+c with focus)"
+														   verticalCenter="1"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.AddQueryTermButtonSkin"
+														   visible="false" />
+					</s:HGroup>
 					
-					<!-- maximise button -->
-					<components:WidgetHeaderIconButton id="maximizeButton"
-													   enabled="false"
-													   toolTip="Maximize"
-													   verticalCenter="1"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMaximizeButtonSkin"
-													   visible="false" />
 					
+					<!-- navigation buttons -->
+					<s:HGroup 
+						height="{ headerHeight }"
+						verticalAlign="middle"
+						gap="-1">
+						
+						<!-- previous button -->
+						<components:WidgetHeaderIconButton id="previousButton"
+														   enabled="false"
+														   toolTip="Show Previous"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetPreviousButtonSkin"
+														   visible="false" />
+						
+						<!-- next button -->
+						<components:WidgetHeaderIconButton id="nextButton"
+														   enabled="false"
+														   toolTip="Show Next"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetNextButtonSkin"
+														   visible="false" />
+						
+					</s:HGroup>
 					
-				</s:Group>
-				
-				<s:Group height="{ headerHeight }">
+					<!-- minimize / maximize buttons -->
+					<s:Group height="{ headerHeight }">
+						
+						<!-- minimize button -->
+						<components:WidgetHeaderIconButton id="minimizeButton"
+														   enabled="false"
+														   toolTip="Show Tiles"
+														   verticalCenter="0"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMinimizeButtonSkin"
+														   visible="false" />
+						
+						<!-- maximise button -->
+						<components:WidgetHeaderIconButton id="maximizeButton"
+														   enabled="false"
+														   toolTip="Maximize"
+														   verticalCenter="1"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetMaximizeButtonSkin"
+														   visible="false" />
+						
+						
+					</s:Group>
 					
-					<!-- close button -->
-					<components:WidgetHeaderIconButton id="closeButton"
-													   enabled="false"
-													   toolTip="Remove from Workspace"
-													   verticalCenter="1"
-													   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetRemoveButtonSkin"
-													   visible="false" />
+					<s:Group height="{ headerHeight }">
+						
+						<!-- close button -->
+						<components:WidgetHeaderIconButton id="closeButton"
+														   enabled="false"
+														   toolTip="Remove from Workspace"
+														   verticalCenter="1"
+														   skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetRemoveButtonSkin"
+														   visible="false" />
+						
+					</s:Group>
 					
-				</s:Group>
+				</s:HGroup>
 				
 			</s:HGroup>
+			<s:Group id="secondHeaderHolder" width="100%" height="{headerHeight+1}"				 
+					 visible="false" includeInLayout="false" enabled="false">
+				<!-- begin second header background -->
+				<s:Rect 
+					height="37"
+					left="0"
+					right="0"
+					top="0"
+					topLeftRadiusX="8"
+					topLeftRadiusY="8"
+					topRightRadiusX="8"
+					topRightRadiusY="8">
+					<s:fill>
+						<s:LinearGradient rotation="90">
+							<s:GradientEntry color="0xBBBBBB" />
+							<s:GradientEntry color="0xBBBBBB" />
+						</s:LinearGradient>
+					</s:fill>
+				</s:Rect>
+				
+				<s:Rect
+					height="36"
+					left="1"
+					right="1"
+					top="0">
+					<s:fill>
+						<s:LinearGradient rotation="90">
+							<s:GradientEntry color="0xE8E9E9" />
+							<s:GradientEntry color="0xE8E9E9" />
+						</s:LinearGradient>
+					</s:fill>
+					<s:filters>
+						<s:DropShadowFilter 
+							color="0xFFFFFF"
+							alpha=".5"
+							angle="90"
+							blurX="0"
+							blurY="0"
+							distance="2"
+							inner="true" />
+					</s:filters>
+				</s:Rect>
+				<!-- end second header background -->
+				
+				<!-- begin second header content -->
+				<s:HGroup id="secondHeaderGroup"
+						  height="{ headerHeight }"
+						  width="100%"
+						  paddingLeft="0"
+						  paddingRight="-1"
+						  verticalAlign="top" 
+						  gap="-3">
+					<components:ScrollerLeftButton id="secondHeaderLeftScrollButton" 
+												   height="{headerHeight-2}" width="36" left="-1" />
+					<s:Spacer width="4" />
+					<components:ScrollerInvis id="secondScroller" width="100%" height="{headerHeight}"
+											  horizontalScrollPolicy="off" verticalScrollPolicy="off">						
+						<s:Group id="secondHeaderContentGroup"
+								 height="{headerHeight}" width="100%">
+							<s:layout>
+								<s:HorizontalLayout
+									paddingBottom="2" gap="-3"
+									horizontalAlign="left"
+									verticalAlign="top" />
+							</s:layout>
+						</s:Group>			
+					</components:ScrollerInvis>
+					<components:ScrollerRightButton id="secondHeaderRightScrollButton" 
+													height="{headerHeight-2}" width="36" right="0" />
+				</s:HGroup>
+				<!-- end second header content -->
+			</s:Group>
 			
-		</s:HGroup>
-		
+		</s:VGroup>
 	</s:Group>
+	
+	<!-- Help content holder -->
+	<s:BorderContainer id="helpContentGroupHolder" backgroundColor="0xfcfcfc" cornerRadius="2" 
+					   borderStyle="inset" borderWeight="2" borderColor="0x000077" 
+					   visible="false"
+					   right="32" top="{headerHeight + (secondHeaderHolder.visible ? headerHeight : 0)}">
+		<s:Group id="helpContentGroup" />
+	</s:BorderContainer>
+	
 	
 	<s:Rect id="contentBorder"
 			bottom="0"

@@ -402,8 +402,7 @@ limitations under the License.
 				connection.setRequestProperty("Accept-Charset", "UTF-8");
 			}
 			if (mimeType != null && mimeType.length() > 0)
-				connection.setRequestProperty("Content-Type", mimeType
-						+ ";charset=" + charset);
+				connection.setRequestProperty("Content-Type", mimeType);
 			DataOutputStream output = new DataOutputStream(
 					connection.getOutputStream());
 			output.write(bytes);
@@ -823,6 +822,7 @@ visibility: hidden;
 		if (null == API_ROOT) { 
 			// Default to localhost
 			API_ROOT = "http://localhost:8080/api/";
+			//API_ROOT = "http://localhost:8184/";
 			SHARE_ROOT = "$infinite/share/get/";
 		}
 

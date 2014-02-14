@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				autoDrawBackground="true" xmlns:components="com.ikanow.infinit.e.components.*">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.events.DropDownClickEvent;
+						
+			protected function button1_mouseDownHandler(event:MouseEvent):void
+			{
+				this.owner.dispatchEvent(new DropDownClickEvent(this, DropDownClickEvent.CLICK_EVENT));
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:HGroup id="hgroup" width="100%" verticalAlign="middle">
+		<s:CheckBox selected="{data.toggled}" visible="{data.data != null}" />
+		<s:Label width="100%" text="{data.label}"/>
+		<components:InfButton id="closeButton"  
+						visible="{data.data != null}" 
+						mouseDown="button1_mouseDownHandler(event)" 
+						toolTip="Delete this layer"
+						  styleName="closeButtonInverted"
+						  width="15"
+						  height="15"
+						  right="7"
+						  top="7" />
+		<!--<s:Button label="x" width="20" height="20"  visible="{data.data != 1}" mouseDown="button1_mouseDownHandler(event)" />-->
+	</s:HGroup>
+	
+	
+</s:ItemRenderer>

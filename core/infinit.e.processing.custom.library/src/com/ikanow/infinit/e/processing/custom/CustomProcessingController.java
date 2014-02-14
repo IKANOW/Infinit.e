@@ -22,7 +22,9 @@ import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapred.JobClient;
+import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.JobStatus;
+import org.apache.hadoop.mapred.RunningJob;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
@@ -221,6 +223,35 @@ public class CustomProcessingController {
 			}			
 		}
 	}
+	
+	public boolean killRunningJob(CustomMapReduceJobPojo jobToKillInfo) {		
+		try  {
+			Configuration conf = new Configuration();
+			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), conf);
+			jc.setConf(conf); // (doesn't seem to be set by the above call)
+
+			RunningJob jobToKill = jc.getJob(new JobID(jobToKillInfo.jobidS, jobToKillInfo.jobidN));
+			if (null == jobToKill) {
+				_logger.error("Couldn't find this job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  " / " + new JobID(jobToKillInfo.jobidS, jobToKillInfo.jobidN).toString());
+				return false;
+			}
+			jobToKill.killJob();
+			
+			int nRuns = 0;
+			while (!checkRunningJobs(jobToKillInfo)) {
+				try { Thread.sleep(5000); } catch (Exception e) {}
+				if (++nRuns > 24) { // bail out after 2 minutes 
+					_logger.error("Killed job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  ", but job failed to stop within time allowed");
+					return false;
+				}
+			}			
+			return true;
+		}
+		catch (Exception e) {
+			_logger.error("Failed to kill job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  " / " + e.getMessage(), e);
+			return false;
+		} 
+	}////TODO (INF-2395): TOTEST
 	
 	//
 	// Look at active jobs, decide which ones to finish

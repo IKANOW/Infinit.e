@@ -104,7 +104,7 @@ package com.ikanow.infinit.e.shared.util
 		 */
 		public static function urlEncode( toEncode:String ):String
 		{
-			return escape( toEncode ).replace( /\+/g, "%2B" ).replace( /\//g, "%2F" );
+			return encodeURIComponent(toEncode);
 		}
 	}
 }

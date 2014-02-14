@@ -42,9 +42,9 @@ import com.google.gson.JsonParseException;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
-
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.mongodb.BasicDBList;
 
@@ -187,6 +187,7 @@ public class DocumentPojo extends BaseDbPojo {
 	// multi-community/source handling
 	private transient String duplicateFrom = null; // Indicates this document should be cloned from the DB entry with matching URL, "duplicateFrom" source
 	private transient DocumentPojo cloneFrom = null; // Indicate this document should be cloned from the "cloneFrom" in memory copy after enrichment 
+	private transient SourcePipelinePojo spawnedFrom = null; // Indicates this document was spawned from a "document splitter" (so should ignore previous pipeline elements)
 	
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -701,6 +702,14 @@ public class DocumentPojo extends BaseDbPojo {
 
 	public String getRawFullText() {
 		return rawFullText;
+	}
+
+	public SourcePipelinePojo getSpawnedFrom() {
+		return spawnedFrom;
+	}
+
+	public void setSpawnedFrom(SourcePipelinePojo spawnedFrom) {
+		this.spawnedFrom = spawnedFrom;
 	}
 
 }

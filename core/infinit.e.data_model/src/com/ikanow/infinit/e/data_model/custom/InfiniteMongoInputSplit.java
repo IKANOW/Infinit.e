@@ -31,6 +31,13 @@ import com.mongodb.hadoop.input.MongoInputSplit;
 
 public class InfiniteMongoInputSplit extends MongoInputSplit
 {		
+	protected boolean _createCursor = false;
+		
+	public InfiniteMongoInputSplit(MongoInputSplit rhs, DBObject queryOverwrite, boolean noTimeout) {
+		this(rhs.getMongoURI(), rhs.getKeyField(), rhs.getQuerySpec(), rhs.getFieldSpec(), rhs.getSortSpec(), rhs.getLimit(), rhs.getSkip(), noTimeout);
+		getQuerySpec().put("$query", queryOverwrite);
+	}
+	
 	public InfiniteMongoInputSplit(MongoInputSplit rhs, boolean noTimeout) {
 		this(rhs.getMongoURI(), rhs.getKeyField(), rhs.getQuerySpec(), rhs.getFieldSpec(), rhs.getSortSpec(), rhs.getLimit(), rhs.getSkip(), noTimeout);
 	}
@@ -38,17 +45,17 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 	public InfiniteMongoInputSplit(MongoURI inputURI, String inputKey,
 			DBObject query, DBObject fields, DBObject sort, int limit, int skip,
 			boolean noTimeout) {
-		super(inputURI,inputKey,query,fields,sort,limit,skip,noTimeout);		
+		super(inputURI,inputKey,query,fields,sort,limit,skip,noTimeout);
 	}
 	
-	public InfiniteMongoInputSplit(){super(); }
+	public InfiniteMongoInputSplit(){super(); _createCursor = true;} // (only create cursor when called from mapper)
 
 	@SuppressWarnings("deprecation")
 	@Override
 	protected DBCursor getCursor()
 	{
 		//added the limit and skip
-		if ( _cursor == null ){
+		if (_createCursor && ( _cursor == null )){
 
 			DBObject query = null;
 			BasicBSONObject queryObj =(BasicBSONObject) _querySpec.get("$query");

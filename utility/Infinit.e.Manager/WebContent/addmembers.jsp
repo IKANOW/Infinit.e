@@ -201,7 +201,7 @@ limitations under the License.
 
 	<form method="post">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 
@@ -236,6 +236,7 @@ limitations under the License.
 			<tr>
 				<td colspan="2" >
 				<button name="addSelected" onclick="return confirm('Do you really wish to add the selected people to this community?');" name="addSelected" value="addSelected">Add selected people</button>
+				<input type="checkbox" name="selectall" onchange="var cbs = document.getElementsByName('peopleToAdd'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked" value=""></input>
 				<div style="float: right"><a href='communities.jsp?action=edit&communityid=<%=communityid %>'>Back</a></div>
 				</td>
 			</tr>

@@ -1,0 +1,118 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "title": "test1",
+                        "description": "test1a,test1b,test1c,test1d",
+                        "publishedDate": "2001-02-13T15:08:19Z",
+                        "fullText": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "title": "test2",
+                        "description": "test2a,test2b,test2c,test2d",
+                        "fullText": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "title": "test3",
+                        "description": "test3a,test3b,test3c,test3d",
+                        "publishedDate": "2003-02-13T15:08:19Z",
+                        "fullText": "test3",
+                        "url": "test3"
+                    },
+                    {
+                        "title": "test4",
+                        "description": "test4a,test4b,test4c,test4d",
+                        "fullText": "test4",
+                        "url": "test4"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scripts": [
+                    "//write code here"
+                ],
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "docMetadata": {
+                "appendTagsToDocs": false
+            },
+            "display": ""
+        },
+        {
+            "display": "just to check where spawned docs first appear...",
+            "contentMetadata": [
+                {
+                    "scriptlang": "javascript",
+                    "store": true,
+                    "fieldName": "originaldocs",
+                    "index": false,
+                    "script": "var x = 'test'; x;",
+                    "flags": "d"
+                }
+            ]
+        },
+        {
+            "display": "Document splitter pre-calcs",
+            "contentMetadata": [
+                {
+                    "scriptlang": "javascript",
+                    "store": true,
+                    "fieldName": "splits",
+                    "index": false,
+                    "script": "var x = _doc.description.split(',');x;",
+                    "flags": "d"
+                }
+            ]
+        },
+        {
+            "criteria": "return _doc.title == 'test4';",
+            "splitter": {
+                "scriptlang": "javascript",
+                "deleteExisting": false,
+                "script": "/*error here please*/\nvar x = null;x.split(); throw 'error';"
+            },
+            "display": "just to error"
+        },
+        {
+            "criteria": "return _doc.title == 'test1' || _doc.title == 'test2';",
+            "splitter": {
+                "scriptlang": "javascript",
+                "scriptflags": "m",
+                "deleteExisting": false,
+                "script": "var docs = [];\nif (null != _metadata.splits) {\n    for (var x in _metadata.splits) {\n        var newdocmeta = _metadata.splits[x];\n        var newdoc = { url: newdocmeta, title: newdocmeta, description: newdocmeta };\n        docs.push(newdoc);\n    }\n}\ndocs;"
+            },
+            "display": "split docs 1+2"
+        },
+        {
+            "criteria": "return (_doc.title == 'test3' || _doc.title == 'test4') && null != _doc.metadata;",
+            "splitter": {
+                "scriptlang": "javascript",
+                "scriptflags": "m",
+                "deleteExisting": true,
+                "script": "var docs = [];\nif (null != _metadata.splits) {\n    for (var x in _metadata.splits) {\n        var newdocmeta = _metadata.splits[x];\n        var newdoc = { url: newdocmeta, title: newdocmeta, description: newdocmeta };\n        newdoc.publishedDate = '2034-02-13T15:08:19Z';\n        docs.push(newdoc);\n    }\n}\ndocs;"
+            },
+            "display": "split docs 3+4"
+        },
+        {
+            "display": "just to check where spawned docs first appear...",
+            "contentMetadata": [
+                {
+                    "scriptlang": "javascript",
+                    "store": true,
+                    "fieldName": "alldocs",
+                    "index": false,
+                    "script": "var x = 'test'; x;",
+                    "flags": "d"
+                }
+            ]
+        }
+    ],

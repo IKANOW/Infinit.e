@@ -1,37 +1,37 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   Copyright 2012, The Infinit.e Open Source Project.
-   
-   This program is free software: you can redistribute it and/or modify
-   it under the terms of the GNU Affero General Public License, version 3,
-   as published by the Free Software Foundation.
-   
-   This program is distributed in the hope that it will be useful,
-   but WITHOUT ANY WARRANTY; without even the implied warranty of
-   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
-   GNU Affero General Public License for more details.
-   
-   You should have received a copy of the GNU Affero General Public License
-   along with this program. If not, see <http://www.gnu.org/licenses/>.
+Copyright 2012, The Infinit.e Open Source Project.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU Affero General Public License, version 3,
+as published by the Free Software Foundation.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <http://www.gnu.org/licenses/>.
 -->
 <s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
-	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
-	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
-	xmlns:s="library://ns.adobe.com/flex/spark"
-	height="34"
-	minWidth="60"
-	alpha.disabled=".5">
-
+			 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+			 xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+			 xmlns:s="library://ns.adobe.com/flex/spark"
+			 height="33"
+			 minWidth="60"
+			 alpha.disabled=".5">
+	
 	<!-- host component -->
 	<fx:Metadata>
 		<![CDATA[ 
-        /** 
-         * @copy spark.skins.spark.ApplicationSkin#hostComponent
-         */
-        [HostComponent("com.ikanow.infinit.e.widget.library.components.WidgetDropDownList")]
-    ]]>
+		/** 
+		* @copy spark.skins.spark.ApplicationSkin#hostComponent
+		*/
+		[HostComponent("com.ikanow.infinit.e.widget.library.components.WidgetDropDownList")]
+		]]>
 	</fx:Metadata>
-
+	
 	<fx:Script fb:purpose="styling">
 		<![CDATA[
 			import flash.utils.setTimeout;
@@ -101,90 +101,90 @@
 			}
 		]]>
 	</fx:Script>
-
+	
 	<s:states>
 		<s:State name="normal"
-			enterState="onEnterNormalState()" />
+				 enterState="onEnterNormalState()" />
 		<s:State name="open"
-			enterState="onEnterOpenState()" />
+				 enterState="onEnterOpenState()" />
 		<s:State name="disabled" />
 	</s:states>
-
+	
 	<!---
-		The PopUpAnchor control that opens the drop-down list.
-
-		<p>In a custom skin class that uses transitions, set the
-		<code>itemDestructionPolicy</code> property to <code>none</code>.</p>
+	The PopUpAnchor control that opens the drop-down list.
+	
+	<p>In a custom skin class that uses transitions, set the
+	<code>itemDestructionPolicy</code> property to <code>none</code>.</p>
 	-->
 	<s:PopUpAnchor id="popUp"
-		width="{ hostComponent.listWidth == 0 ? this.width - 2 : hostComponent.listWidth }"
-		bottom="-2"
-		top="3"
-		displayPopUp.normal="false"
-		displayPopUp.open="true"
-		includeIn="open"
-		itemDestructionPolicy="auto"
-		popUpPosition="below"
-		popUpWidthMatchesAnchorWidth="true">
-
+				   width="{ hostComponent.listWidth == 0 ? this.width - 2 : hostComponent.listWidth }"
+				   bottom="-2"
+				   top="3"
+				   displayPopUp.normal="false"
+				   displayPopUp.open="true"
+				   includeIn="open"
+				   itemDestructionPolicy="auto"
+				   popUpPosition="below"
+				   popUpWidthMatchesAnchorWidth="true">
+		
 		<!---
-			  This includes borders, background colors, scrollers, and filters.
-			  @copy spark.components.supportClasses.DropDownListBase#dropDown
+		This includes borders, background colors, scrollers, and filters.
+		@copy spark.components.supportClasses.DropDownListBase#dropDown
 		-->
 		<s:Group id="dropDown">
-
+			
 			<!--- @private -->
 			<s:RectangularDropShadow id="dropShadow"
-				bottom="0"
-				color="#000000"
-				left="0"
-				right="0"
-				top="0"
-				alpha="0.45"
-				angle="90"
-				blurX="20"
-				blurY="20"
-				distance="7" />
-
+									 bottom="0"
+									 color="#000000"
+									 left="0"
+									 right="0"
+									 top="0"
+									 alpha="0.45"
+									 angle="90"
+									 blurX="20"
+									 blurY="20"
+									 distance="7" />
+			
 			<!--- @private -->
 			<s:Rect id="border"
-				bottom="0"
-				left="0"
-				right="0"
-				top="0"
-				alpha="0">
+					bottom="0"
+					left="0"
+					right="0"
+					top="0"
+					alpha="0">
 				<s:stroke>
 					<!--- border stroke @private -->
 					<s:SolidColorStroke id="borderStroke"
-						weight="1" />
+										weight="1" />
 				</s:stroke>
 			</s:Rect>
-
+			
 			<!-- fill -->
 			<!--- Defines the appearance of drop-down list's background fill. -->
 			<s:Rect id="background"
-				bottom="0"
-				left="0"
-				right="0"
-				top="0"
-				alpha="0">
+					bottom="0"
+					left="0"
+					right="0"
+					top="0"
+					alpha="0">
 				<s:fill>
 					<!---
-						The color of the drop down's background fill.
-						The default color is 0xFFFFFF.
+					The color of the drop down's background fill.
+					The default color is 0xFFFFFF.
 					-->
 					<s:SolidColor id="bgFill"
-						color="0xFFFFFF" />
+								  color="0xFFFFFF" />
 				</s:fill>
 			</s:Rect>
-
+			
 			<!-- fill -->
 			<!--- Defines the appearance of drop-down list's background fill. -->
 			<s:Rect id="background1"
-				bottom="0"
-				left="0"
-				right="0"
-				top="0">
+					bottom="0"
+					left="0"
+					right="0"
+					top="0">
 				<s:fill>
 					<!---
 					The color of the drop down's background fill.
@@ -193,19 +193,19 @@
 					<s:SolidColor color="0x383F45" />
 				</s:fill>
 			</s:Rect>
-
+			
 			<!--- @private -->
 			<s:Scroller id="scroller"
-				bottom="0"
-				left="0"
-				right="0"
-				top="0"
-				hasFocusableChildren="false"
-				minViewportInset="1">
+						bottom="0"
+						left="0"
+						right="0"
+						top="0"
+						hasFocusableChildren="false"
+						minViewportInset="1">
 				<!--- @copy spark.components.SkinnableDataContainer#dataGroup-->
 				<s:DataGroup id="dataGroup"
-					width="100%"
-					itemRenderer="com.ikanow.infinit.e.widget.library.components.WidgetDropDownListItemRenderer">
+							 width="100%"
+							 itemRenderer="com.ikanow.infinit.e.widget.library.components.WidgetDropDownListItemRenderer">
 					<s:layout>
 						<s:VerticalLayout 
 							horizontalAlign="contentJustify"
@@ -217,38 +217,38 @@
 			</s:Scroller>
 		</s:Group>
 	</s:PopUpAnchor>
-
+	
 	<!---  The default skin is DropDownListButtonSkin.
-			@copy spark.components.supportClasses.DropDownListBase#openButton
-			@see spark.skins.spark.DropDownListButtonSkin -->
+	@copy spark.components.supportClasses.DropDownListBase#openButton
+	@see spark.skins.spark.DropDownListButtonSkin -->
 	<s:Button id="openButton"
-		focusEnabled="false"
-		bottom="-3"
-		left="0"
-		right="0"
-		top="0"
-		click="onOpenButtonRollOver()"
-		mouseOut="onOpenButtonRollOut()"
-		mouseOver="onOpenButtonRollOver()"
-		rollOut="onOpenButtonRollOut()"
-		rollOver="onOpenButtonRollOver()"
-		buttonMode="true"
-		skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetDropDownListButtonSkin"
-		tabEnabled="false" />
-
+			  focusEnabled="false"
+			  bottom="-3"
+			  left="0"
+			  right="0"
+			  top="0"
+			  click="onOpenButtonRollOver()"
+			  mouseOut="onOpenButtonRollOut()"
+			  mouseOver="onOpenButtonRollOver()"
+			  rollOut="onOpenButtonRollOut()"
+			  rollOver="onOpenButtonRollOver()"
+			  buttonMode="true"
+			  skinClass="com.ikanow.infinit.e.widget.library.assets.skins.WidgetDropDownListButtonSkin"
+			  tabEnabled="false" />
+	
 	<!-- text -->
 	<components:WidgetHeaderLabel id="labelDisplay"
-		styleName="workspacesWidgetHeaderLabel"
-		styleName.open="workspacesWidgetHeaderLabelBlack"
-		fontWeight="normal"
-		left="12"
-		right="30"
-		textAlign="left"
-		verticalAlign="middle"
-		verticalCenter="2"
-		maxDisplayedLines="1"
-		mouseChildren="false"
-		mouseEnabled="false" />
-
-
+								  styleName="workspacesWidgetHeaderLabel"
+								  styleName.open="workspacesWidgetHeaderLabelBlack"
+								  fontWeight="normal"
+								  left="12"
+								  right="30"
+								  textAlign="left"
+								  verticalAlign="middle"
+								  verticalCenter="2"
+								  maxDisplayedLines="1"
+								  mouseChildren="false"
+								  mouseEnabled="false" />
+	
+	
 </s:SparkSkin>

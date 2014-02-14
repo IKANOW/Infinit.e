@@ -429,6 +429,7 @@ limitations under the License.
 	<link rel="stylesheet" type="text/css" href="inc/manager.css" />
 	
 	<script type="text/javascript" src="inc/utilities.js"></script>
+	<script type="text/javascript" src="inc/convertToPipeline.js"></script>
 	<link rel="shortcut icon" href="image/favicon.ico" />
 	
    <script src="lib/jquery.js"></script>
@@ -796,6 +797,22 @@ function clock()
 		sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
 		$( "#publishSource" ).click();
 	}
+	function convertOldSource() {
+		// Check overall JSON format is OK first
+		if (!checkFormat(false, true)) {
+			return;
+		}
+		// Convert source JSON text into JSON
+		var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+		var err = convertToPipeline(srcObj);
+		if (null == err) {
+			sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+			alert("Completed without errors. Press 'Save Source' to save the new source, and refresh the editor.\n\nWARNING: this process is not always perfect and you should test your source before publishing it.");
+		}
+		else {
+			alert(err);
+		}
+	}
 	
 </script>
 	<script language=javascript>
@@ -825,7 +842,54 @@ function clock()
 			$(sourceBuilder).css("height", "0%");
 			$(sourceBuilder_overlay).hide();
 		}
-		function showSourceBuilder()
+		function checkSourceCompatibleWithSourceBuilder(srcObj)
+		{
+			var nForms = 0;
+			for (var x in srcObj.processingPipeline) {
+				var pipe = srcObj.processingPipeline[x];
+				if (pipe.feed) {
+					if (pipe.feed.httpFields) {
+						return "feed.httpFields not currently supported in the GUI";
+					}
+					if (pipe.feed.extraUrls) {
+						nForms += pipe.feed.extraUrls.length;
+					}
+				}//TESTED
+				if (pipe.web) {
+					if (pipe.web.httpFields) {
+						return "web.httpFields not currently supported in the GUI";
+					}
+					if (pipe.web.extraUrls) {
+						nForms += pipe.web.extraUrls.length;
+					}
+				}//TESTED
+				if (pipe.links) {
+					if (pipe.links.httpFields) {
+						return "links.httpFields not currently supported in the GUI";
+					}
+					if (pipe.links.extraMeta) {
+						nForms += pipe.links.extraMeta.length;
+					}
+				}//TESTED
+				if (pipe.entities) {
+					nForms += 2*pipe.entities.length; // (extra complex form)
+				}//TESTED
+				if (pipe.associations) {
+					nForms += 2*pipe.associations.length; // (extra complex form)
+				}//TESTED
+				if (pipe.text) {
+					nForms += pipe.text.length; 
+				}//TESTED
+				if (pipe.contentMetadata) {
+					nForms += pipe.contentMetadata.length; 
+				}//TESTED
+			}
+			if (nForms > 120) { 
+				return "This source object is currently too complicated to be viewed from the GUI: " + nForms;
+			}
+			return null;
+		}
+		function showSourceBuilder()		
 		{
 			// Check overall JSON format is OK first
 			if (!checkFormat(false)) {
@@ -833,6 +897,11 @@ function clock()
 			}
 			// Convert source JSON text into JSON
 			var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+			var errMsg = checkSourceCompatibleWithSourceBuilder(srcObj);
+			if (null != errMsg) {
+				alert(errMsg);
+				return;
+			}
 			var pxPipelineStr = JSON.stringify(srcObj.processingPipeline, null, "    ");
 			if (null == pxPipelineStr) {
 				pxPipelineStr = "";
@@ -880,7 +949,7 @@ function clock()
 
 	<form method="post">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 
@@ -912,6 +981,7 @@ function clock()
 					<button name="deleteDocsFromSelected" onclick="return confirm('<fmt:message key='source.list.delete_selected_docs.confirm'/>');" name="deleteDocsFromSelected" value="deleteDocsFromSelected"><fmt:message key='source.list.delete_selected_docs'/></button>				
 					<button name="suspendSelected" onclick="return confirm('<fmt:message key='source.list.suspend_selected.confirm'/>');" name="suspendSelected" value="suspendSelected"><fmt:message key='source.list.suspend_selected'/></button>
 					<button name="resumeSelected" onclick="return confirm('<fmt:message key='source.list.resume_selected.confirm'/>');" name="resumeSelected" value="resumeSelected"><fmt:message key='source.list.resume_selected'/></button>
+					<input type="checkbox" name="selectall" onchange="var cbs = document.getElementsByName('sourcesToProcess'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked" value=""></input>
 				</td>
 			</tr>
 			</table>
@@ -1031,7 +1101,7 @@ function clock()
 						if (!pipelineMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.action.convert.tooltip'/>" onclick="alert('Not yet supported - coming soon')" value="<fmt:message key='source.code.action.convert'/>" class="rightButton" />
+						<input type="button" title="<fmt:message key='source.code.action.convert.tooltip'/>" onclick="if (confirm('<fmt:message key='source.code.action.convert.confirm'/>')) convertOldSource();" value="<fmt:message key='source.code.action.convert'/>" class="rightButton" />
 <% } // (end !pipelineMode) %>
 						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
 						<textarea id="Source_JSON_uahScript" name="Source_JSON_uahScript"></textarea>
@@ -1343,7 +1413,7 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		JSONObject data = json_response.getJSONObject("data");
 		
 		// Get the share object and make sure it is encoded properly for display
-		shareJson = URLDecoder.decode(data.toString(), "UTF-8");
+		shareJson = data.toString();
 		return new JSONObject(data.getString("share"));
 	}
 	catch (Exception e)
@@ -1370,7 +1440,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			JSONObject data = json_response.getJSONObject("data");
 			
 			// Get the share object and make sure it is encoded properly for display
-			shareJson = URLDecoder.decode(data.toString(), "UTF-8");
+			shareJson = data.toString();
 			JSONObject source = new JSONObject(data.getString("share"));
 			JSONObject owner = data.getJSONObject("owner");
 			

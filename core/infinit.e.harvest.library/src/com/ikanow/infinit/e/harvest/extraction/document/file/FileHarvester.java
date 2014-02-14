@@ -69,6 +69,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
@@ -188,6 +189,11 @@ public class FileHarvester implements HarvesterInterface {
 		InfiniteFile f;
 		synchronized (FileHarvester.class) {
 			try {
+				if (null != source.getProcessingPipeline()) { // new style...
+					SourcePipelinePojo firstElement = source.getProcessingPipeline().iterator().next();
+					source.setFileConfig(firstElement.file);
+					source.setUrl(firstElement.file.getUrl());
+				}//TESTED
 				if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
 					NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getCommunityIds().iterator().next().toString(), source.getOwnerId().toString(), null);
 					f = InfiniteFile.create(source.getUrl(), auth);
@@ -211,7 +217,7 @@ public class FileHarvester implements HarvesterInterface {
 					}//TOTEST
 					
 				}//TODO (INF-2122): TOTEST
-				else if( source.getFileConfig() == null || source.getFileConfig().domain == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
+				else if( source.getFileConfig() == null || source.getFileConfig().password == null || source.getFileConfig().username == null)
 				{
 					f = InfiniteFile.create(searchFile);
 				}

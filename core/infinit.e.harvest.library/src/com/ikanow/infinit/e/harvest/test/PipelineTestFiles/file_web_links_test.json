@@ -1,0 +1,31 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "file": {
+                "type": "tika",
+                "maxDepth": 1,
+                "url": "file://c:\\",
+                "protocol": "Local"
+            }
+        },
+        {
+            "links": {
+                "waitTimeBetweenPages_ms": 10000
+            },
+            "display": "set http delay time"
+        },
+        {
+            "docMetadata": {
+                "displayUrl": "http://www.bbc.co.uk/news/world-middle-east-23247470",
+                "appendTagsToDocs": false
+            },
+            "display": ""
+        },
+        {
+            "textEngine": {
+                "engineName": "raw",
+                "exitOnError": true
+            },
+            "display": "re-extract test using displayUrl"
+        }
+    ],

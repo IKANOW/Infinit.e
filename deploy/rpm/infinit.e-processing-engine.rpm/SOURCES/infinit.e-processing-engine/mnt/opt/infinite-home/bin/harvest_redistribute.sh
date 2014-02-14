@@ -1,3 +1,4 @@
+#!/bin/bash
 SCRIPTDIR=/opt/infinite-home/db-scripts
 
 MASTER=`curl -s http://localhost:9200/_cluster/state | grep -o "master_node.:.[^\"]*"| grep -o "[^\"]*$" | grep -o "[^-].*"`

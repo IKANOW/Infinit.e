@@ -243,7 +243,7 @@ limitations under the License.
 
 	<form method="post">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <%
 	if (!isLoggedIn) 
@@ -276,7 +276,10 @@ limitations under the License.
 				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
 			</tr>
 			<tr>
-				<td colspan="2" ><button name="deleteSelected" onclick="return confirm('Do you really wish to delete the selected communities?');" name="deleteSelected" value="deleteSelected">Delete selected communities</button></td>
+				<td colspan="2" >
+				<button name="deleteSelected" onclick="return confirm('Do you really wish to delete the selected communities?');" name="deleteSelected" value="deleteSelected">Delete selected communities</button>
+				<input type="checkbox" name="selectall" onchange="var cbs = document.getElementsByName('docsToDelete'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked" value=""></input>
+				</td>
 			</tr>
 			</table>
 		</td>

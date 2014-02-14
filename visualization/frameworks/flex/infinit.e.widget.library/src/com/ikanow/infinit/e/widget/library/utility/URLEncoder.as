@@ -47,8 +47,7 @@ package com.ikanow.infinit.e.widget.library.utility
 		 */
 		public static function encode(toEncode:String):String
 		{
-			return escape(toEncode).replace(/\+/g,"%2B").replace(/\//g,"%2F"); 
-			//return toEncode.replace(/\//g,"%2F").replace(/\+/g,"%2B").replace(/:/g,"%3A").replace(/\?/g,"%3F").replace(/&/g,"%26");
+			return encodeURIComponent(toEncode);			
 		}
 		
 		/**

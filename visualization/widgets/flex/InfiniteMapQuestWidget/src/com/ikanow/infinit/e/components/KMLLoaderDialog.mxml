@@ -1,0 +1,362 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" 
+				xmlns:fw="com.ikanow.infinit.e.widget.library.framework.*"
+				width="350" height="100%" title="KML Loader"
+				paddingBottom="10" paddingTop="10" paddingLeft="10" paddingRight="10" xmlns:components="com.ikanow.infinit.e.components.*" 
+				creationComplete="titlewindow1_creationCompleteHandler(event)">
+	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.events.KMLLoaderEvent;
+			import com.ikanow.infinit.e.utility.Utils;
+			import com.ikanow.infinit.e.widget.library.components.WidgetModule;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.UIComponent;
+			import mx.events.FlexEvent;
+			import mx.managers.PopUpManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
+			
+			import spark.collections.Sort;
+			import spark.collections.SortField;
+			
+			[Bindable]
+			private var communities:ArrayCollection = new ArrayCollection();
+			private var kml_fr:FileReference;
+			private const ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
+			private var self_community_id:String;
+			private var fileReady:Boolean = false;
+			private var WIDGET_TITLE:String = "Map";
+			
+			protected function button1_clickHandler(event:MouseEvent):void
+			{
+				kml_fr = new FileReference();
+				kml_fr.addEventListener(Event.SELECT, selectHandler);
+				kml_fr.addEventListener(Event.CANCEL, cancelHandler);
+				var fileFilter:FileFilter = new FileFilter("KML (.kml)","*.kml");
+				kml_fr.browse([fileFilter]);	
+			}
+			
+			private function selectHandler(event:Event):void
+			{			
+				fileReady = true;
+				textInputFilePath.text = kml_fr.name;
+			}
+			
+			private function cancelHandler(event:Event):void
+			{
+				fileReady = false;
+				textInputFilePath.text = "";
+			}
+			
+			protected function button2_clickHandler(event:MouseEvent):void
+			{
+				//need to select a file or type in a url
+				if ( !fileReady && textInputFilePath.text == "" )
+				{
+					Alert.show("Please select a file to upload using Browser or enter url");
+					return;
+				}
+				//need to pick a community
+				if ( dropDownCommunity.selectedIndex < 0 )
+				{
+					Alert.show("Please select a community to share this KML with");
+					return;
+				}
+				//need to name the kml layer
+				if ( textInputKMLName.text == "" )
+				{
+					Alert.show("Please give this KML file a name to display on the map");
+					return;
+				}
+				setSpinner(true);
+				if ( fileReady )
+				{
+					//upload selected file
+					kml_fr.addEventListener(Event.COMPLETE, loadCompleteHandler);
+					kml_fr.load();
+				}
+				else
+				{
+					//just send url
+					kml_share_url = textInputFilePath.text;
+					searchWidgetSave();
+				}
+			}
+			
+			public function setCommunities(comms:ArrayCollection):void
+			{
+				communities = comms;
+			}
+			
+			private var shareHttpService:HTTPService;
+			private function loadCompleteHandler(event:Event):void
+			{		
+				//we have the bytes of the kml file, send uplodaed file to share
+				shareHttpService = new HTTPService();
+				shareHttpService.addEventListener(ResultEvent.RESULT, createKMLShare_resultHandler);
+				shareHttpService.addEventListener(FaultEvent.FAULT, createKMLShare_faultHandler);
+				shareHttpService.url = ENDPOINT_URL + "social/share/add/binary/" + textInputKMLName.text + "/added%20from%20map%20widget";
+				shareHttpService.contentType = "application/vnd.google-earth.kml+xml";
+				shareHttpService.method = "POST";
+				shareHttpService.send(kml_fr.data);				
+			}
+			
+			private var kml_share_url:String;
+			private var widgetsaveHttpService:HTTPService;
+			private function createKMLShare_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);			
+				if ( data.response.success.toString() == "true" )
+				{
+					var shareid:String = data.data as String;
+					kml_share_url = "$infinite/social/share/get/" + shareid;
+					
+					searchWidgetSave();								
+				}
+				else
+				{
+					Alert.show("Failed to upload kml: " + data.response.message);
+					close();
+				}
+			}
+			
+			private function createKMLShare_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to upload kml: " + event.message);
+				close();
+			}
+			
+			private function searchWidgetSave():void
+			{
+				//Check for a widgetsave for the selected community
+				widgetsaveHttpService = new HTTPService();
+				widgetsaveHttpService.url = ENDPOINT_URL + "social/share/search?type=widgetsave&searchby=community&id=" + dropDownCommunity.selectedItem._id;
+				widgetsaveHttpService.addEventListener(ResultEvent.RESULT, widgetSave_resultHandler);
+				widgetsaveHttpService.addEventListener(FaultEvent.FAULT, widgetSave_faultHandler);
+				widgetsaveHttpService.send();	
+			}
+			
+			private var widgetsaveCreateHttpService:HTTPService;
+			private function widgetSave_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				var widgetSave:Object;
+				var share_id:String;
+				if ( data.response.success.toString() == "true" )
+				{
+					 for each ( var share:Object in data.data )
+					 {
+						 if ( share.title == WIDGET_TITLE )
+						 {
+							 try
+							 {
+							 	widgetSave = JSONDecoder.decode( share.share as String );
+								widgetSave[textInputKMLName.text] = kml_share_url;
+							 	createOrUpdateWidgetSave(widgetSave, share._id);							 
+							 	break;								
+							 }
+							 catch ( error:Error )
+							 {
+								 //usually happens becasuse a share couldn't parse
+								 Alert.show("Error during load kml: " + error.message);
+								 close();
+								 return;
+							 }
+						 }
+					 }
+				}
+				
+				if ( widgetSave == null )
+				{
+					//there probably was not a widgetsave, we will create a new one
+					widgetSave = new Object();
+					widgetSave[textInputKMLName.text] = kml_share_url;
+					createOrUpdateWidgetSave(widgetSave, null);
+				}
+			}
+			
+			private function createOrUpdateWidgetSave(widgetSave:Object, share_id:String):void
+			{
+				//save this widgetsave back to the server
+				widgetsaveCreateHttpService = new HTTPService();
+				if ( share_id == null )
+				{
+					widgetsaveCreateHttpService.url = ENDPOINT_URL + "social/share/add/json/widgetsave/"+URLEncoder.encode(WIDGET_TITLE)+"/updated%20by%20map%20widget";
+					widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveCreate_resultHandler);
+					widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveCreate_faultHandler);
+				}
+				else
+				{
+					widgetsaveCreateHttpService.url = ENDPOINT_URL + "social/share/update/json/" + share_id + "/widgetsave/"+URLEncoder.encode(WIDGET_TITLE)+"/updated%20by%20map%20widget";
+					widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
+					widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);
+				}
+				
+				widgetsaveCreateHttpService.method = "POST";
+				widgetsaveCreateHttpService.contentType = "application/json";
+				widgetsaveCreateHttpService.send(com.ikanow.infinit.e.widget.library.utility.JSONEncoder.encode(widgetSave));
+			}
+			
+			private function widgetSave_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to check for previous kml save: " + event.message);
+				close();
+			}
+			
+			private var widgetSave_share_id:String;
+			private var shareCommsHttpService:HTTPService;
+			private function widgetSaveCreate_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					widgetSave_share_id = data.data._id as String;
+					self_community_id = data.data.communities[0]._id;
+					//now we have to deal with the comms on the share, so add new one, delete old one
+					shareCommsHttpService = new HTTPService();
+					shareCommsHttpService.url = ENDPOINT_URL + "social/share/add/community/" + widgetSave_share_id + "/added%20by%20map/" + dropDownCommunity.selectedItem._id;
+					shareCommsHttpService.addEventListener(ResultEvent.RESULT, shareCommsAdd_resultHandler);
+					shareCommsHttpService.addEventListener(FaultEvent.FAULT, shareCommsAdd_faultHandler);
+					shareCommsHttpService.send();	
+				}
+				else
+				{
+					Alert.show("Failed to create community share: " + data.response.message);
+					close();
+				}
+			}
+			
+			private function widgetSaveCreate_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to set community share: " + event.message);
+				close();
+			}
+			
+			private function shareCommsAdd_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					//now remove the self community
+					shareCommsHttpService = new HTTPService();
+					shareCommsHttpService.url = ENDPOINT_URL + "social/share/remove/community/" + widgetSave_share_id + "/" + self_community_id; 
+					shareCommsHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
+					shareCommsHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);
+					shareCommsHttpService.send();	
+				}
+				else
+				{
+					Alert.show("Failed to add community to community share: " + data.response.message);
+					close();
+				}
+			}
+			
+			private function shareCommsAdd_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to add community to community share: " + event.message);
+				close();
+			}
+			
+			private function widgetSaveComplete_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{					
+					//updated everything successfully, dispatch an event w/ the name:url so the map					
+					//can display it
+					this.dispatchEvent(new KMLLoaderEvent(textInputKMLName.text, kml_share_url, dropDownCommunity.selectedItem._id, KMLLoaderEvent.LOADER_EVENT));					
+					close();
+				}
+				else
+				{
+					Alert.show("Failed to finish community share: " + event.message);
+					close();
+				}
+			}
+			
+			private function widgetSaveComplete_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to finish community share: " + event.message);
+				close();
+			}
+			
+			protected function button3_clickHandler(event:MouseEvent):void
+			{
+				close();			
+			}
+			
+			protected function titlewindow1_creationCompleteHandler(event:FlexEvent):void
+			{
+				//get this widgets name for saving
+				var module_name:String = Utils.getModuleName(this);
+				if ( module_name != null )
+					WIDGET_TITLE = module_name;				
+			}
+			
+			private function close():void
+			{
+				setSpinner(false);
+				PopUpManager.removePopUp(this);	
+			}
+			
+			private function setSpinner(value:Boolean):void
+			{
+				if ( value )
+				{
+					this.enabled = false;
+					this.spinner.visible = true;
+					this.spinner.play();
+				}
+				else
+				{
+					this.enabled = true;
+					this.spinner.visible = false;
+					this.spinner.stop();
+				}
+			}
+		]]>
+	</fx:Script>
+	
+	<fx:Metadata>
+		[Event(name="kmlLoaderEvent", type="com.ikanow.infinit.e.events.KMLLoaderEvent")]
+	</fx:Metadata>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<s:Group width="100%" height="100%">			
+		<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center">
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label width="90" text="KML file or url:" />
+				<s:TextInput id="textInputFilePath" width="100%" />
+				<s:Button label="Browse" click="button1_clickHandler(event)" />
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label width="90" text="KML Name:" />
+				<s:TextInput id="textInputKMLName" width="100%" />
+			</s:HGroup>
+			<s:HGroup width="100%" verticalAlign="middle">
+				<s:Label width="90" text="Community:" />
+				<s:DropDownList id="dropDownCommunity" dataProvider="{communities}" labelField="name" width="100%" />
+			</s:HGroup>
+			<s:HGroup width="100%" horizontalAlign="right" verticalAlign="middle">			
+				<s:Button label="Cancel" click="button3_clickHandler(event)" />
+				<s:Button label="Load" click="button2_clickHandler(event)" />
+			</s:HGroup>
+		</s:VGroup>
+		
+		<fw:Spinner id="spinner"
+					autoPlay="false"
+					horizontalCenter="0"
+					verticalCenter="0"
+					visible="false" />
+	</s:Group>
+</mx:TitleWindow>

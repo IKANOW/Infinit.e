@@ -1013,6 +1013,33 @@ public final class sources_jsp extends org.apache.jasper.runtime.HttpJspBase
 
 
 
+// (Note saved this as ".inc" fragment to avoid Eclipse errors, since you can't nested imports sensibly in JSPs)
+
+private String getUserName(HttpServletRequest request, HttpServletResponse response)
+{
+	//try to call person/get to get username
+	String name = "";
+	try
+	{
+		JSONObject personResponse = new JSONObject( getPerson( request, response) );
+		if (personResponse.has("data")) 
+		{
+			JSONObject person = personResponse.getJSONObject("data");		
+			String firstName = person.getString("firstName");
+			String lastName = person.getString("lastName");
+			name = "Welcome, " + firstName + " " + lastName;
+		}
+	} 
+	catch (Exception e) 
+	{
+		System.out.println(e.getMessage());
+	}
+	return name;
+}
+
+
+
+
 // saveShare - 
 private void saveShare(HttpServletRequest request, HttpServletResponse response) 
 {
@@ -1232,7 +1259,7 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		JSONObject data = json_response.getJSONObject("data");
 		
 		// Get the share object and make sure it is encoded properly for display
-		shareJson = URLDecoder.decode(data.toString(), "UTF-8");
+		shareJson = data.toString();
 		return new JSONObject(data.getString("share"));
 	}
 	catch (Exception e)
@@ -1259,7 +1286,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			JSONObject data = json_response.getJSONObject("data");
 			
 			// Get the share object and make sure it is encoded properly for display
-			shareJson = URLDecoder.decode(data.toString(), "UTF-8");
+			shareJson = data.toString();
 			JSONObject source = new JSONObject(data.getString("share"));
 			JSONObject owner = data.getJSONObject("owner");
 			
@@ -1756,7 +1783,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
   static {
     _jspx_dependants = new java.util.ArrayList(4);
     _jspx_dependants.add("/inc/sharedFunctions.jsp");
-    _jspx_dependants.add("/inc/header.jsp");
+    _jspx_dependants.add("/inc/header.jsp.inc");
     _jspx_dependants.add("/inc/login_form.jsp");
     _jspx_dependants.add("/inc/footer.jsp");
   }
@@ -2386,6 +2413,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\t<link rel=\"stylesheet\" type=\"text/css\" href=\"inc/manager.css\" />\r\n");
       out.write("\t\r\n");
       out.write("\t<script type=\"text/javascript\" src=\"inc/utilities.js\"></script>\r\n");
+      out.write("\t<script type=\"text/javascript\" src=\"inc/convertToPipeline.js\"></script>\r\n");
       out.write("\t<link rel=\"shortcut icon\" href=\"image/favicon.ico\" />\r\n");
       out.write("\t\r\n");
       out.write("   <script src=\"lib/jquery.js\"></script>\r\n");
@@ -2780,6 +2808,22 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\t\tsourceJsonEditor.setValue(JSON.stringify(srcObj, null, \"    \"));\r\n");
       out.write("\t\t$( \"#publishSource\" ).click();\r\n");
       out.write("\t}\r\n");
+      out.write("\tfunction convertOldSource() {\r\n");
+      out.write("\t\t// Check overall JSON format is OK first\r\n");
+      out.write("\t\tif (!checkFormat(false, true)) {\r\n");
+      out.write("\t\t\treturn;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\t// Convert source JSON text into JSON\r\n");
+      out.write("\t\tvar srcObj = eval('(' + sourceJsonEditor.getValue() + ')');\r\n");
+      out.write("\t\tvar err = convertToPipeline(srcObj);\r\n");
+      out.write("\t\tif (null == err) {\r\n");
+      out.write("\t\t\tsourceJsonEditor.setValue(JSON.stringify(srcObj, null, \"    \"));\r\n");
+      out.write("\t\t\talert(\"Completed without errors. Press 'Save Source' to save the new source, and refresh the editor.\\n\\nWARNING: this process is not always perfect and you should test your source before publishing it.\");\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\telse {\r\n");
+      out.write("\t\t\talert(err);\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t}\r\n");
       out.write("\t\r\n");
       out.write("</script>\r\n");
       out.write("\t<script language=javascript>\r\n");
@@ -2809,7 +2853,54 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\t\t\t$(sourceBuilder).css(\"height\", \"0%\");\r\n");
       out.write("\t\t\t$(sourceBuilder_overlay).hide();\r\n");
       out.write("\t\t}\r\n");
-      out.write("\t\tfunction showSourceBuilder()\r\n");
+      out.write("\t\tfunction checkSourceCompatibleWithSourceBuilder(srcObj)\r\n");
+      out.write("\t\t{\r\n");
+      out.write("\t\t\tvar nForms = 0;\r\n");
+      out.write("\t\t\tfor (var x in srcObj.processingPipeline) {\r\n");
+      out.write("\t\t\t\tvar pipe = srcObj.processingPipeline[x];\r\n");
+      out.write("\t\t\t\tif (pipe.feed) {\r\n");
+      out.write("\t\t\t\t\tif (pipe.feed.httpFields) {\r\n");
+      out.write("\t\t\t\t\t\treturn \"feed.httpFields not currently supported in the GUI\";\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t\tif (pipe.feed.extraUrls) {\r\n");
+      out.write("\t\t\t\t\t\tnForms += pipe.feed.extraUrls.length;\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.web) {\r\n");
+      out.write("\t\t\t\t\tif (pipe.web.httpFields) {\r\n");
+      out.write("\t\t\t\t\t\treturn \"web.httpFields not currently supported in the GUI\";\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t\tif (pipe.web.extraUrls) {\r\n");
+      out.write("\t\t\t\t\t\tnForms += pipe.web.extraUrls.length;\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.links) {\r\n");
+      out.write("\t\t\t\t\tif (pipe.links.httpFields) {\r\n");
+      out.write("\t\t\t\t\t\treturn \"links.httpFields not currently supported in the GUI\";\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t\tif (pipe.links.extraMeta) {\r\n");
+      out.write("\t\t\t\t\t\tnForms += pipe.links.extraMeta.length;\r\n");
+      out.write("\t\t\t\t\t}\r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.entities) {\r\n");
+      out.write("\t\t\t\t\tnForms += 2*pipe.entities.length; // (extra complex form)\r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.associations) {\r\n");
+      out.write("\t\t\t\t\tnForms += 2*pipe.associations.length; // (extra complex form)\r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.text) {\r\n");
+      out.write("\t\t\t\t\tnForms += pipe.text.length; \r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t\tif (pipe.contentMetadata) {\r\n");
+      out.write("\t\t\t\t\tnForms += pipe.contentMetadata.length; \r\n");
+      out.write("\t\t\t\t}//TESTED\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\tif (nForms > 120) { \r\n");
+      out.write("\t\t\t\treturn \"This source object is currently too complicated to be viewed from the GUI: \" + nForms;\r\n");
+      out.write("\t\t\t}\r\n");
+      out.write("\t\t\treturn null;\r\n");
+      out.write("\t\t}\r\n");
+      out.write("\t\tfunction showSourceBuilder()\t\t\r\n");
       out.write("\t\t{\r\n");
       out.write("\t\t\t// Check overall JSON format is OK first\r\n");
       out.write("\t\t\tif (!checkFormat(false)) {\r\n");
@@ -2817,6 +2908,11 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\t\t\t}\r\n");
       out.write("\t\t\t// Convert source JSON text into JSON\r\n");
       out.write("\t\t\tvar srcObj = eval('(' + sourceJsonEditor.getValue() + ')');\r\n");
+      out.write("\t\t\tvar errMsg = checkSourceCompatibleWithSourceBuilder(srcObj);\r\n");
+      out.write("\t\t\tif (null != errMsg) {\r\n");
+      out.write("\t\t\t\talert(errMsg);\r\n");
+      out.write("\t\t\t\treturn;\r\n");
+      out.write("\t\t\t}\r\n");
       out.write("\t\t\tvar pxPipelineStr = JSON.stringify(srcObj.processingPipeline, null, \"    \");\r\n");
       out.write("\t\t\tif (null == pxPipelineStr) {\r\n");
       out.write("\t\t\t\tpxPipelineStr = \"\";\r\n");
@@ -2880,6 +2976,8 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\r\n");
       out.write("\t<form method=\"post\">\r\n");
       out.write("\t\r\n");
+      out.write("\r\n");
+      out.write("\r\n");
       out.write("<table width=\"100%\" cellpadding=\"0\" cellspacing=\"0\" >\r\n");
       out.write("<tr valign=\"middle\">\r\n");
       out.write("\t<td width=\"100%\" background=\"image/infinite_logo_bg.png\">\r\n");
@@ -2928,13 +3026,23 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
         return;
       out.write("</a>\r\n");
       out.write("\t\t\t\t</td>\r\n");
-      out.write("\t\t\t\t<td align=\"right\" width=\"120\" background=\"image/ikanow_logo_smaller_bg.png\"></td>\r\n");
+      out.write("\t\t\t\t<td align=\"right\">\r\n");
+      out.write("\t\t\t\t\t<a class=\"headerLink\">");
+      out.print(getUserName(request, response) );
+      out.write("</a> &nbsp; &nbsp;\r\n");
+      out.write("\t\t\t\t</td>\r\n");
+      out.write("\t\t\t\t<td align=\"right\" width=\"120\" background=\"image/ikanow_logo_smaller_bg.png\">\r\n");
+      out.write("\t\t\t\t\t\r\n");
+      out.write("\t\t\t\t</td>\r\n");
+      out.write("\t\t\t\t\r\n");
       out.write("\t\t\t</tr>\r\n");
       out.write("\t\t</table>\r\n");
       out.write("\t</td>\r\n");
       out.write("</tr>\r\n");
       out.write("<tr>\r\n");
       out.write("\t<td bgcolor=\"#ffffff\">\r\n");
+      out.write("\r\n");
+      out.write("\t\r\n");
       out.write("\r\n");
       out.write("\r\n");
 
@@ -3041,6 +3149,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       if (_jspx_meth_fmt_005fmessage_005f53(_jspx_page_context))
         return;
       out.write("</button>\r\n");
+      out.write("\t\t\t\t\t<input type=\"checkbox\" name=\"selectall\" onchange=\"var cbs = document.getElementsByName('sourcesToProcess'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked\" value=\"\"></input>\r\n");
       out.write("\t\t\t\t</td>\r\n");
       out.write("\t\t\t</tr>\r\n");
       out.write("\t\t\t</table>\r\n");
@@ -3298,8 +3407,11 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
       out.write("\t\t\t\t\t\t<input type=\"button\" title=\"");
       if (_jspx_meth_fmt_005fmessage_005f86(_jspx_page_context))
         return;
-      out.write("\" onclick=\"alert('Not yet supported - coming soon')\" value=\"");
+      out.write("\" onclick=\"if (confirm('");
       if (_jspx_meth_fmt_005fmessage_005f87(_jspx_page_context))
+        return;
+      out.write("')) convertOldSource();\" value=\"");
+      if (_jspx_meth_fmt_005fmessage_005f88(_jspx_page_context))
         return;
       out.write("\" class=\"rightButton\" />\r\n");
  } // (end !pipelineMode) 
@@ -3996,7 +4108,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f22 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f22.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f22.setParent(null);
-    // /sources.jsp(563,13) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(564,13) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f22.setKey("source.result.check_format.error");
     int _jspx_eval_fmt_005fmessage_005f22 = _jspx_th_fmt_005fmessage_005f22.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f22.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4015,7 +4127,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f23 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f23.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f23.setParent(null);
-    // /sources.jsp(570,16) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(571,16) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f23.setKey("source.result.check_format.unknown_error");
     int _jspx_eval_fmt_005fmessage_005f23 = _jspx_th_fmt_005fmessage_005f23.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f23.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4034,7 +4146,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f24 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f24.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f24.setParent(null);
-    // /sources.jsp(577,15) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(578,15) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f24.setKey("source.result.check_format.no_title");
     int _jspx_eval_fmt_005fmessage_005f24 = _jspx_th_fmt_005fmessage_005f24.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f24.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4053,7 +4165,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f25 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f25.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f25.setParent(null);
-    // /sources.jsp(581,16) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(582,16) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f25.setKey("source.result.check_format.no_description");
     int _jspx_eval_fmt_005fmessage_005f25 = _jspx_th_fmt_005fmessage_005f25.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f25.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4072,7 +4184,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f26 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f26.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f26.setParent(null);
-    // /sources.jsp(587,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(588,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f26.setKey("source.result.check_format.success");
     int _jspx_eval_fmt_005fmessage_005f26 = _jspx_th_fmt_005fmessage_005f26.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f26.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4091,7 +4203,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f27 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f27.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f27.setParent(null);
-    // /sources.jsp(780,29) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(781,29) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f27.setKey("source.editor.action.disable_source");
     int _jspx_eval_fmt_005fmessage_005f27 = _jspx_th_fmt_005fmessage_005f27.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f27.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4110,7 +4222,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f28 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f28.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f28.setParent(null);
-    // /sources.jsp(785,30) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(786,30) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f28.setKey("source.editor.action.disable_source");
     int _jspx_eval_fmt_005fmessage_005f28 = _jspx_th_fmt_005fmessage_005f28.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f28.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4129,7 +4241,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f29 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f29.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f29.setParent(null);
-    // /sources.jsp(788,30) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(789,30) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f29.setKey("source.editor.action.enable_source");
     int _jspx_eval_fmt_005fmessage_005f29 = _jspx_th_fmt_005fmessage_005f29.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f29.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4148,7 +4260,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f30 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f30.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f30.setParent(null);
-    // /sources.jsp(794,28) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(795,28) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f30.setKey("source.editor.action.enable_source");
     int _jspx_eval_fmt_005fmessage_005f30 = _jspx_th_fmt_005fmessage_005f30.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f30.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4167,7 +4279,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f31 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f31.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f31.setParent(null);
-    // /sources.jsp(847,7) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(916,7) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f31.setKey("source.title");
     int _jspx_eval_fmt_005fmessage_005f31 = _jspx_th_fmt_005fmessage_005f31.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f31.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4186,7 +4298,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f32 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f32.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f32.setParent(null);
-    // /sources.jsp(877,24) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(946,24) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f32.setKey("source.result.test.title");
     int _jspx_eval_fmt_005fmessage_005f32 = _jspx_th_fmt_005fmessage_005f32.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f32.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4205,7 +4317,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f33 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f33.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f33.setParent(null);
-    // /inc/header.jsp(8,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(36,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f33.setKey("header.people.description");
     int _jspx_eval_fmt_005fmessage_005f33 = _jspx_th_fmt_005fmessage_005f33.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f33.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4224,7 +4336,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f34 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f34.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f34.setParent(null);
-    // /inc/header.jsp(8,101) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(36,101) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f34.setKey("header.people.title");
     int _jspx_eval_fmt_005fmessage_005f34 = _jspx_th_fmt_005fmessage_005f34.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f34.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4243,7 +4355,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f35 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f35.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f35.setParent(null);
-    // /inc/header.jsp(9,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(37,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f35.setKey("header.communities.description");
     int _jspx_eval_fmt_005fmessage_005f35 = _jspx_th_fmt_005fmessage_005f35.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f35.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4262,7 +4374,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f36 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f36.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f36.setParent(null);
-    // /inc/header.jsp(9,111) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(37,111) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f36.setKey("header.communities.title");
     int _jspx_eval_fmt_005fmessage_005f36 = _jspx_th_fmt_005fmessage_005f36.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f36.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4281,7 +4393,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f37 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f37.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f37.setParent(null);
-    // /inc/header.jsp(10,53) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(38,53) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f37.setKey("header.source_editor.description");
     int _jspx_eval_fmt_005fmessage_005f37 = _jspx_th_fmt_005fmessage_005f37.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f37.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4300,7 +4412,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f38 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f38.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f38.setParent(null);
-    // /inc/header.jsp(10,109) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(38,109) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f38.setKey("header.source_editor.title");
     int _jspx_eval_fmt_005fmessage_005f38 = _jspx_th_fmt_005fmessage_005f38.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f38.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4319,7 +4431,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f39 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f39.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f39.setParent(null);
-    // /inc/header.jsp(11,51) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(39,51) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f39.setKey("header.home.description");
     int _jspx_eval_fmt_005fmessage_005f39 = _jspx_th_fmt_005fmessage_005f39.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f39.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4338,7 +4450,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f40 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f40.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f40.setParent(null);
-    // /inc/header.jsp(11,98) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(39,98) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f40.setKey("header.home.title");
     int _jspx_eval_fmt_005fmessage_005f40 = _jspx_th_fmt_005fmessage_005f40.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f40.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4357,7 +4469,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f41 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f41.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f41.setParent(null);
-    // /inc/header.jsp(12,56) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(40,56) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f41.setKey("header.logout.description");
     int _jspx_eval_fmt_005fmessage_005f41 = _jspx_th_fmt_005fmessage_005f41.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f41.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4376,7 +4488,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f42 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f42.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f42.setParent(null);
-    // /inc/header.jsp(12,105) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /inc/header.jsp.inc(40,105) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f42.setKey("header.logout.title");
     int _jspx_eval_fmt_005fmessage_005f42 = _jspx_th_fmt_005fmessage_005f42.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f42.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4395,7 +4507,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f43 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f43.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f43.setParent(null);
-    // /sources.jsp(899,27) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(968,27) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f43.setKey("source.list.name");
     int _jspx_eval_fmt_005fmessage_005f43 = _jspx_th_fmt_005fmessage_005f43.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f43.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4414,7 +4526,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f44 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f44.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f44.setParent(null);
-    // /sources.jsp(904,24) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(973,24) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f44.setKey("source.list.action.filter");
     int _jspx_eval_fmt_005fmessage_005f44 = _jspx_th_fmt_005fmessage_005f44.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f44.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4433,7 +4545,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f45 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f45.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f45.setParent(null);
-    // /sources.jsp(904,126) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(973,126) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f45.setKey("source.list.action.clear");
     int _jspx_eval_fmt_005fmessage_005f45 = _jspx_th_fmt_005fmessage_005f45.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f45.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4452,7 +4564,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f46 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f46.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f46.setParent(null);
-    // /sources.jsp(911,60) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(980,60) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f46.setKey("source.list.delete_selected.confirm");
     int _jspx_eval_fmt_005fmessage_005f46 = _jspx_th_fmt_005fmessage_005f46.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f46.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4471,7 +4583,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f47 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f47.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f47.setParent(null);
-    // /sources.jsp(911,166) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(980,166) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f47.setKey("source.list.delete_selected");
     int _jspx_eval_fmt_005fmessage_005f47 = _jspx_th_fmt_005fmessage_005f47.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f47.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4490,7 +4602,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f48 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f48.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f48.setParent(null);
-    // /sources.jsp(912,68) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(981,68) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f48.setKey("source.list.delete_selected_docs.confirm");
     int _jspx_eval_fmt_005fmessage_005f48 = _jspx_th_fmt_005fmessage_005f48.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f48.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4509,7 +4621,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f49 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f49.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f49.setParent(null);
-    // /sources.jsp(912,195) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(981,195) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f49.setKey("source.list.delete_selected_docs");
     int _jspx_eval_fmt_005fmessage_005f49 = _jspx_th_fmt_005fmessage_005f49.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f49.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4528,7 +4640,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f50 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f50.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f50.setParent(null);
-    // /sources.jsp(913,61) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(982,61) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f50.setKey("source.list.suspend_selected.confirm");
     int _jspx_eval_fmt_005fmessage_005f50 = _jspx_th_fmt_005fmessage_005f50.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f50.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4547,7 +4659,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f51 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f51.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f51.setParent(null);
-    // /sources.jsp(913,170) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(982,170) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f51.setKey("source.list.suspend_selected");
     int _jspx_eval_fmt_005fmessage_005f51 = _jspx_th_fmt_005fmessage_005f51.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f51.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4566,7 +4678,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f52 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f52.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f52.setParent(null);
-    // /sources.jsp(914,60) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(983,60) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f52.setKey("source.list.resume_selected.confirm");
     int _jspx_eval_fmt_005fmessage_005f52 = _jspx_th_fmt_005fmessage_005f52.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f52.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4585,7 +4697,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f53 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f53.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f53.setParent(null);
-    // /sources.jsp(914,166) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(983,166) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f53.setKey("source.list.resume_selected");
     int _jspx_eval_fmt_005fmessage_005f53 = _jspx_th_fmt_005fmessage_005f53.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f53.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4604,7 +4716,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f54 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f54.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f54.setParent(null);
-    // /sources.jsp(922,27) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(992,27) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f54.setKey("source.editor.name");
     int _jspx_eval_fmt_005fmessage_005f54 = _jspx_th_fmt_005fmessage_005f54.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f54.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4623,7 +4735,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f55 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f55.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f55.setParent(null);
-    // /sources.jsp(923,65) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(993,65) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f55.setKey("source.editor.action.new_source");
     int _jspx_eval_fmt_005fmessage_005f55 = _jspx_th_fmt_005fmessage_005f55.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f55.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4642,7 +4754,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f56 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f56.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f56.setParent(null);
-    // /sources.jsp(932,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1002,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f56.setKey("source.editor.functions.title");
     int _jspx_eval_fmt_005fmessage_005f56 = _jspx_th_fmt_005fmessage_005f56.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f56.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4661,7 +4773,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f57 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f57.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f57.setParent(null);
-    // /sources.jsp(938,130) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1008,130) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f57.setKey("source.editor.action.test_source");
     int _jspx_eval_fmt_005fmessage_005f57 = _jspx_th_fmt_005fmessage_005f57.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f57.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4680,7 +4792,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f58 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f58.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f58.setParent(null);
-    // /sources.jsp(939,130) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1009,130) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f58.setKey("source.editor.action.save_source");
     int _jspx_eval_fmt_005fmessage_005f58 = _jspx_th_fmt_005fmessage_005f58.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f58.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4699,7 +4811,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f59 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f59.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f59.setParent(null);
-    // /sources.jsp(940,152) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1010,152) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f59.setKey("source.editor.action.save_template");
     int _jspx_eval_fmt_005fmessage_005f59 = _jspx_th_fmt_005fmessage_005f59.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f59.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4718,7 +4830,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f60 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f60.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f60.setParent(null);
-    // /sources.jsp(943,94) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1013,94) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f60.setKey("source.editor.action.publish_source.confirm");
     int _jspx_eval_fmt_005fmessage_005f60 = _jspx_th_fmt_005fmessage_005f60.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f60.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4737,7 +4849,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f61 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f61.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f61.setParent(null);
-    // /sources.jsp(944,10) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1014,10) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f61.setKey("source.editor.action.publish_source");
     int _jspx_eval_fmt_005fmessage_005f61 = _jspx_th_fmt_005fmessage_005f61.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f61.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4756,7 +4868,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f62 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f62.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f62.setParent(null);
-    // /sources.jsp(948,72) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1018,72) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f62.setKey("source.editor.action.delete_docs.confirm");
     int _jspx_eval_fmt_005fmessage_005f62 = _jspx_th_fmt_005fmessage_005f62.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f62.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4775,7 +4887,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f63 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f63.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f63.setParent(null);
-    // /sources.jsp(949,10) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1019,10) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f63.setKey("source.editor.action.delete_docs");
     int _jspx_eval_fmt_005fmessage_005f63 = _jspx_th_fmt_005fmessage_005f63.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f63.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4794,7 +4906,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f64 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f64.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f64.setParent(null);
-    // /sources.jsp(955,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1025,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f64.setKey("source.editor.title.title");
     int _jspx_eval_fmt_005fmessage_005f64 = _jspx_th_fmt_005fmessage_005f64.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f64.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4813,7 +4925,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f65 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f65.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f65.setParent(null);
-    // /sources.jsp(961,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1031,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f65.setKey("source.editor.share_id.title");
     int _jspx_eval_fmt_005fmessage_005f65 = _jspx_th_fmt_005fmessage_005f65.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f65.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4832,7 +4944,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f66 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f66.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f66.setParent(null);
-    // /sources.jsp(967,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1037,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f66.setKey("source.editor.description.title");
     int _jspx_eval_fmt_005fmessage_005f66 = _jspx_th_fmt_005fmessage_005f66.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f66.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4851,7 +4963,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f67 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f67.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f67.setParent(null);
-    // /sources.jsp(973,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1043,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f67.setKey("source.editor.tags.title");
     int _jspx_eval_fmt_005fmessage_005f67 = _jspx_th_fmt_005fmessage_005f67.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f67.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4870,7 +4982,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f68 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f68.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f68.setParent(null);
-    // /sources.jsp(980,26) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1050,26) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f68.setKey("source.editor.mediaType.title");
     int _jspx_eval_fmt_005fmessage_005f68 = _jspx_th_fmt_005fmessage_005f68.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f68.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4889,7 +5001,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f69 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f69.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f69.setParent(null);
-    // /sources.jsp(987,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1057,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f69.setKey("source.editor.owner.title");
     int _jspx_eval_fmt_005fmessage_005f69 = _jspx_th_fmt_005fmessage_005f69.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f69.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4908,7 +5020,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f70 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f70.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f70.setParent(null);
-    // /sources.jsp(991,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1061,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f70.setKey("source.editor.community.title");
     int _jspx_eval_fmt_005fmessage_005f70 = _jspx_th_fmt_005fmessage_005f70.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f70.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4927,7 +5039,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f71 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f71.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f71.setParent(null);
-    // /sources.jsp(995,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1065,39) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f71.setKey("source.editor.test_parameters.title");
     int _jspx_eval_fmt_005fmessage_005f71 = _jspx_th_fmt_005fmessage_005f71.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f71.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4946,7 +5058,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f72 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f72.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f72.setParent(null);
-    // /sources.jsp(997,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1067,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f72.setKey("source.editor.params.full_text");
     int _jspx_eval_fmt_005fmessage_005f72 = _jspx_th_fmt_005fmessage_005f72.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f72.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4965,7 +5077,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f73 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f73.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f73.setParent(null);
-    // /sources.jsp(998,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1068,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f73.setKey("source.editor.params.num_docs");
     int _jspx_eval_fmt_005fmessage_005f73 = _jspx_th_fmt_005fmessage_005f73.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f73.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -4984,7 +5096,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f74 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f74.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f74.setParent(null);
-    // /sources.jsp(1000,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1070,8) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f74.setKey("source.editor.params.update_mode");
     int _jspx_eval_fmt_005fmessage_005f74 = _jspx_th_fmt_005fmessage_005f74.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f74.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5003,7 +5115,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f75 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f75.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f75.setParent(null);
-    // /sources.jsp(1006,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1076,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f75.setKey("source.code.show_full_source.tooltip");
     int _jspx_eval_fmt_005fmessage_005f75 = _jspx_th_fmt_005fmessage_005f75.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f75.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5022,7 +5134,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f76 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f76.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f76.setParent(null);
-    // /sources.jsp(1012,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1082,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f76.setKey("source.code.show_js.tooltip");
     int _jspx_eval_fmt_005fmessage_005f76 = _jspx_th_fmt_005fmessage_005f76.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f76.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5041,7 +5153,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f77 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f77.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f77.setParent(null);
-    // /sources.jsp(1018,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1088,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f77.setKey("source.code.show_ui.tooltip");
     int _jspx_eval_fmt_005fmessage_005f77 = _jspx_th_fmt_005fmessage_005f77.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f77.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5060,7 +5172,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f78 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f78.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f78.setParent(null);
-    // /sources.jsp(1021,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1091,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f78.setKey("source.code.show_uah.tooltip");
     int _jspx_eval_fmt_005fmessage_005f78 = _jspx_th_fmt_005fmessage_005f78.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f78.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5079,7 +5191,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f79 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f79.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f79.setParent(null);
-    // /sources.jsp(1022,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1092,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f79.setKey("source.code.show_sah.tooltip");
     int _jspx_eval_fmt_005fmessage_005f79 = _jspx_th_fmt_005fmessage_005f79.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f79.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5098,7 +5210,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f80 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f80.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f80.setParent(null);
-    // /sources.jsp(1023,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1093,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f80.setKey("source.code.show_rss.tooltip");
     int _jspx_eval_fmt_005fmessage_005f80 = _jspx_th_fmt_005fmessage_005f80.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f80.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5117,7 +5229,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f81 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f81.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f81.setParent(null);
-    // /sources.jsp(1026,74) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1096,74) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f81.setKey("source.code.action.revert");
     int _jspx_eval_fmt_005fmessage_005f81 = _jspx_th_fmt_005fmessage_005f81.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f81.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5136,7 +5248,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f82 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f82.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f82.setParent(null);
-    // /sources.jsp(1026,147) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1096,147) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f82.setKey("source.code.action.revert.confirm");
     int _jspx_eval_fmt_005fmessage_005f82 = _jspx_th_fmt_005fmessage_005f82.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f82.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5155,7 +5267,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f83 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f83.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f83.setParent(null);
-    // /sources.jsp(1027,62) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1097,62) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f83.setKey("source.code.action.check_format");
     int _jspx_eval_fmt_005fmessage_005f83 = _jspx_th_fmt_005fmessage_005f83.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f83.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5174,7 +5286,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f84 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f84.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f84.setParent(null);
-    // /sources.jsp(1028,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1098,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f84.setKey("source.code.action.scrub.tooltip");
     int _jspx_eval_fmt_005fmessage_005f84 = _jspx_th_fmt_005fmessage_005f84.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f84.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5193,7 +5305,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f85 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f85.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f85.setParent(null);
-    // /sources.jsp(1028,127) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1098,127) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f85.setKey("source.code.action.scrub");
     int _jspx_eval_fmt_005fmessage_005f85 = _jspx_th_fmt_005fmessage_005f85.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f85.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5212,7 +5324,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f86 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f86.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f86.setParent(null);
-    // /sources.jsp(1034,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    // /sources.jsp(1104,34) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
     _jspx_th_fmt_005fmessage_005f86.setKey("source.code.action.convert.tooltip");
     int _jspx_eval_fmt_005fmessage_005f86 = _jspx_th_fmt_005fmessage_005f86.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f86.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
@@ -5231,14 +5343,33 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f87 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f87.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f87.setParent(null);
-    // /sources.jsp(1034,149) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f87.setKey("source.code.action.convert");
+    // /sources.jsp(1104,113) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f87.setKey("source.code.action.convert.confirm");
     int _jspx_eval_fmt_005fmessage_005f87 = _jspx_th_fmt_005fmessage_005f87.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f87.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f87);
       return true;
     }
     _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f87);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f88(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f88 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f88.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f88.setParent(null);
+    // /sources.jsp(1104,200) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f88.setKey("source.code.action.convert");
+    int _jspx_eval_fmt_005fmessage_005f88 = _jspx_th_fmt_005fmessage_005f88.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f88.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f88);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f88);
     return false;
   }
 }

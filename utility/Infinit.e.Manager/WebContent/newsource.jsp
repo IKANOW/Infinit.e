@@ -36,52 +36,9 @@ limitations under the License.
 	
 	// !----------  ----------!
 	String sourceTemplateSelect = "";
+	String selectedSourceSample = "";
 	String selectedSourceTemplate = "";
-	String communityIdSelect = "";
-	
-	private static String starterSourceString_rss = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"http://youraddress.com/news.rss\", isPublic: true, extractType: \"Feed\", mediaType: " +
-			"\"News\", tags: [ \"tag1\" ] }";
-			
-	private static String starterSourceString_web = "{ title: \"Title\", description: \"Description\", rss: { extraUrls: " +
-			"[ { url: \"http://youraddress.com/title.html\", title: \"Page Title\", description: \"Optional\" } ], " +
-			"updateCycle_secs: 86400 }, " +
-			"isPublic: true, extractType: \"Feed\", mediaType: " +
-			"\"News\", tags: [ \"tag1\" ] }";
-			
-	private static String starterSourceString_simpleApi = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"http://youraddress.com/query?out=json\", isPublic: true, extractType: \"Feed\", mediaType: " +
-			"\"Social\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}," +
-			"useTextExtractor: \"none\", unstructuredAnalysis: { meta: [ { context: \"First\" , fieldName: \"json\", scriptlang: \"javascript\", script: \"var json = eval('('+text+')'); json; \" } ] }  }";
-			
-	private static String starterSourceString_complexApi = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"http://youraddress.com/query?out=json\", isPublic: true, extractType: \"Feed\", mediaType: " +
-			"\"Social\", tags: [ \"tag1\" ]," +
-			"rss: { searchConfig: { scriptlang: \"javascript\", script: \"var retval = []; var json = eval('('+text+')'); var example = {url: 'URL', title: 'TITLE', description: 'DESC', publishedDate: 'DATE' }; if (false) example.fullText = 'TEXT'; retval.push(example); retval; \" } } }";
-			
-	private static String starterSourceString_localFile = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"file:///directory1/directory2/\", isPublic: true, extractType: \"File\", file:" +
-			"{ XmlRootLevelValues: [] }, mediaType: "+
-			"\"Report\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"} }";
-
-	private static String starterSourceString_fileShare = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"smb://HOST:PORT/share/directory1/\", isPublic: true, extractType: \"File\", file: " +
-			"{ XmlRootLevelValues: [], domain: \"DOMAIN\", username: \"USERNAME\", password: \"PASSWORD\" }, mediaType: "+
-			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
-
-	private static String starterSourceString_s3 = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"s3://BUCKET_NAME/FOLDERS/\", isPublic: true, extractType: \"File\", file: " +
-			"{ XmlRootLevelValues: [], username: \"AWS_ACCESSID\", password: \"AWS_SECRETKEY\" }, mediaType: "+
-			"\"Report\", tags: [ \"tag1\" ], searchCycle_secs: 3600, searchIndexFilter: { metadataFieldList: \"\"} }";
-
-	private static String starterSourceString_database = "{ title: \"Title\", description: \"Description\", url: " +
-			"\"jdbc:mysql://DB_HOST:3306/DATABASE\", isPublic: true, extractType: \"Database\", mediaType: " +
-			"\"Record\", tags: [ \"tag1\" ], searchIndexFilter: { metadataFieldList: \"\"}, " +
-			"database: { databaseName: \"DATABASE\", databaseType: \"mysql\", deleteQuery: \"\", deltaQuery: \"select * from TABLE where TIME_FIELD >= (select adddate(curdate(),-7))\", " + 
-			"hostname: \"DB_HOST\", port: \"3306\", primaryKey: \"KEY_FIELD\", publishedDate: \"TIME_FIELD\", query: \"select * from TABLE\", snippet: \"DESC_FIELD\", title: \"TITLE_FIELD\" } }";
-
-	private static String starterSourceString_pipeline = "{ title: \"Title\", description: \"Description\", isPublic: true, mediaType: " +
-			"\"Record\", processingPipeline: [] }";
+	String communityIdSelect = "";	
 %>
 
 <%
@@ -122,47 +79,17 @@ limitations under the License.
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
 			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
 			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
+			selectedSourceSample = (request.getParameter("sourceTemplateSample") != null) ? request.getParameter("sourceTemplateSample") : "";
 			
 			if (action.equals("selectTemplate")) 
 			{
 				templateShareId = "";
 				sourceUpdateTemplateButton = "style=\"display: none\";";
 
-				if (selectedSourceTemplate.equals("rss")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_rss).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("web")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_web).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("simpleApi")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_simpleApi).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("complexApi")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_complexApi).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("localFile")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_localFile).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("fileShare")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_fileShare).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("awss3")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_s3).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("database")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_database).toString(4);
-				}
-				else if (selectedSourceTemplate.equals("pipeline")) 
-				{
-					sourceJson = new JSONObject(starterSourceString_pipeline).toString(4);
+				if (!selectedSourceSample.isEmpty()) {
+					JSONObject sourceJsonObj = new JSONObject(selectedSourceSample);
+					sourceJson= sourceJsonObj.toString(4);
+					updateFieldsFromSample(sourceJsonObj);
 				}
 				else {
 					sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
@@ -225,6 +152,8 @@ limitations under the License.
     <script src="lib/codemirror_extra/fold/brace-fold.js"></script>
     
     <script src="lib/jshint.js"></script>
+    
+    <script src="inc/sampleSources.js"></script>
 	
 <style media="screen" type="text/css">
 	
@@ -335,6 +264,13 @@ function clock()
 		}
 		return success;
 	}
+	function fill_in_source_template()
+	{
+		var el = document.getElementById("sourceTemplateSelect");
+		if (SAMPLE_SOURCES[el.value]) {
+			document.getElementById('sourceTemplateSample').value = JSON.stringify(SAMPLE_SOURCES[el.value]);
+		}
+	}
 </script>	
 	<title><fmt:message key='newsource.title'/></title>
 </head>
@@ -349,9 +285,9 @@ function clock()
 	</script>
 <% } %>
 
-	<form method="post">
+	<form method="post" onsubmit="fill_in_source_template()">
 	
-<%@ include file="inc/header.jsp" %>
+<%@ include file="inc/header.jsp.inc" %>
 
 <% if (!isLoggedIn) { %>
 		<%@ include file="inc/login_form.jsp" %>
@@ -432,6 +368,7 @@ function clock()
 		</div><!--  Right -->
 	</div><!-- lrSplitter -->
 	<input type="hidden" name="templateShareId" id="templateShareId" value="<%=templateShareId%>"/>	
+	<input type="hidden" name="sourceTemplateSample" id="sourceTemplateSample" value="" />			
 	</form>
 	
 <!---------- CodeMirror JavaScripts ---------->
@@ -457,6 +394,31 @@ var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
 
 
 <%!
+
+private void updateFieldsFromSample(JSONObject sample)
+{
+	try {
+		shareTitle = sample.getString("title");
+	}
+	catch (Exception e) {} // carry on
+
+	try {
+		shareDescription = sample.getString("description");
+	}
+	catch (Exception e) {} // carry on
+
+	try {
+		if (sample.has("tags")) {
+			StringBuilder stags = new StringBuilder();
+			JSONArray arrTags = sample.getJSONArray("tags");
+			for (int i = 0; i < arrTags.length(); ++i) {
+				stags.append(arrTags.get(i)).append(' ');
+			}
+			shareTags = stags.toString();
+		}
+	}
+	catch (Exception e) {} // carry on
+}
 
 //saveShare - 
 private String saveShare(HttpServletRequest request, HttpServletResponse response) 
@@ -587,15 +549,20 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 {
 	StringBuffer sources = new StringBuffer();
 	sources.append("<select name=\"sourceTemplateSelect\" id=\"sourceTemplateSelect\">");
-	sources.append("<option value=\"pipeline\">-- New Source Pipeline Demonstration Template --</option>");
-	sources.append("<option value=\"rss\">-- Basic RSS Source Template --</option>");
-	sources.append("<option value=\"web\">-- Basic Web Page Source Template --</option>");
-	sources.append("<option value=\"simpleApi\">-- Basic Simple JSON API Source Template --</option>");
-	sources.append("<option value=\"complexApi\">-- Basic Complex JSON API Source Template --</option>");
-	sources.append("<option value=\"localFile\">-- Basic Local File Source Template --</option>");
-	sources.append("<option value=\"fileShare\">-- Basic Fileshare Source Template --</option>");
-	sources.append("<option value=\"awss3\">-- Basic Amazon S3 Source Template --</option>");
-	sources.append("<option value=\"database\">-- Basic SQL Database Source Template --</option>");
+	sources.append("<option value=\"\">------------------Select an example source or template:</option>");
+	sources.append("<option value=\"rss\">RSS Source Example</option>");
+	sources.append("<option value=\"web\">Web Page Source Example</option>");
+	sources.append("<option value=\"json_api_simple\">Simple JSON API Example</option>");
+	sources.append("<option value=\"json_api_links\">Complex JSON API Example #1 (link following)</option>");
+	sources.append("<option value=\"json_api_complex\">Complex JSON API Example #2 (document splitting)</option>");
+	sources.append("<option value=\"local_file\">Local File Example (any file type)</option>");
+	sources.append("<option value=\"remote_file\">Fileshare Example (any file type)</option>");
+	sources.append("<option value=\"remote_file_logs\">Fileshare Example (log file type)</option>");
+	sources.append("<option value=\"amazon_file\">Amazon S3 Source Example (any file type)</option>");
+	sources.append("<option value=\"infinite_share_upload\">Infinit.e ZIP Archives/JSON Share Example</option>");
+	sources.append("<option value=\"infinite_custom_ingest\">Infinit.e Custom Analytics Example</option>");
+	sources.append("<option value=\"database\">Basic SQL Database Example</option>");
+	sources.append("<option value=\"\">------------------User/Shared templates:</option>");
 	
 	String apiAddress = "social/share/search/?searchby=type&type=source_template";
 	try 
@@ -650,16 +617,25 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		source.remove("ownerId");
 		source.remove("shah256Hash");
 		
-		shareTitle = source.getString("title");
-		shareDescription = source.getString("description");
-		if (source.has("tags")) {
-			StringBuilder stags = new StringBuilder();
-			JSONArray arrTags = source.getJSONArray("tags");
-			for (int i = 0; i < arrTags.length(); ++i) {
-				stags.append(arrTags.get(i)).append(' ');
-			}
-			shareTags = stags.toString();
+		try {
+			shareTitle = source.getString("title");
 		}
+		catch (Exception e) {} // title/desc/tags not present
+		try {
+			shareDescription = source.getString("description");
+		}
+		catch (Exception e) {} // title/desc/tags not present
+		try {
+			if (source.has("tags")) {
+				StringBuilder stags = new StringBuilder();
+				JSONArray arrTags = source.getJSONArray("tags");
+				for (int i = 0; i < arrTags.length(); ++i) {
+					stags.append(arrTags.get(i)).append(' ');
+				}
+				shareTags = stags.toString();
+			}
+		}
+		catch (Exception e) {} // title/desc/tags not present
 		
 		return source;
 	}
@@ -698,7 +674,6 @@ private void updateTemplate(HttpServletRequest request, HttpServletResponse resp
 			
 			String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
 			String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
-			/**///Wrong way round doh
 			String apiAddress = "social/share/update/json/"+templateShareId+"/source_template/" + urlShareTitle + "/" + urlShareDescription;
 			JSONObject JSONresponse = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 

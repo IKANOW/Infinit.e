@@ -308,6 +308,16 @@ EOF
 				echo "Mongo Already Running On Port $port.... Skipping"
 			fi			
 	done
+	
+	##################################################
+	#
+	# Apply 2.6 patch to 2.4 systems (harmless everywhere else)
+	
+	if [ "$(infdb is_mongos)" == "true" ]; then
+		echo "Applying 2.4 patch to mongos..."
+		sleep 1
+		mongo admin --eval 'printjson(db.runCommand({ setParameter : 1, releaseConnectionsAfterResponse : true }))'
+	fi
 
 	touch /var/lock/subsys/mongo_infinite
 	echo "mongo_infinite start complete"
@@ -317,10 +327,11 @@ stop()
 {
 	SOFT=$1
 	ALL=$2
-	#^^^ SOFT/HARD, ALL/""
+	#^^^ SOFT/HARD, ALL/MONGOS/""
 
 	echo "Beginning mongo_infinite Stop"
 	###############################  DB Instance Kill ########################################
+	# (unless MONGOS specified)
 
 	if [ "$ALL" == "ALL" ]; then
 		if [ $(infdb is_config) == "true" ]; then
@@ -333,44 +344,47 @@ stop()
 	repl_sets=$(infdb repl_sets)
 	echo "Replica Sets: $repl_sets"
 	
-	for x in $repl_sets
-	do
-		echo "Stopping DB Instance (replica_set $x)"
-		port=$((27017+$x))
-		arbport=$((27217+$x))
-		
-		if [ "$SOFT" != "SOFT" ]; then
-			rs_me=$(infdb my_ip)
-			rs_master=$(infdb master_of_set $x)
-		
-			# Hard, remove the replica set and arbiter (if it exists)
-			mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$port\")"
-			if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
-				mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$arbport\")"
+	if [ "$ALL" != "MONGOS" ]; then
+		for x in $repl_sets
+		do
+			echo "Stopping DB Instance (replica_set $x)"
+			port=$((27017+$x))
+			arbport=$((27217+$x))
+			
+			if [ "$SOFT" != "SOFT" ]; then
+				rs_me=$(infdb my_ip)
+				rs_master=$(infdb master_of_set $x)
+			
+				# Hard, remove the replica set and arbiter (if it exists)
+				mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$port\")"
+				if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
+					mongo $rs_master/admin --eval "rs.remove(\"$rs_me:$arbport\")"
+				fi
+			fi 
+			
+			count=0
+			while [[ "$(infdb mongo_running $port 2>&1)" == "true" && $count -lt 10 ]]; do
+				infdb kill_db $port >/dev/null 2>&1
+				sleep 6
+				count=$((1+$count))
+			done
+			
+			if [ $count -ge 10 ]; then
+				infdb kill_db_force $port >/dev/null 2>&1
+				echo "Tried multiple times, MongoD on port $port would not stop, force closed it"
 			fi
-		fi 
-		
-		count=0
-		while [[ "$(infdb mongo_running $port 2>&1)" == "true" && $count -lt 10 ]]; do
-			infdb kill_db $port >/dev/null 2>&1
-			sleep 6
-			count=$((1+$count))
+			# Always remove lock regardless
+			rm -f /data/rs$x/mongod.lock
+			
+			if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
+				echo "Stopping Aribiter"
+				infdb kill_db $arbport >/dev/null 2>&1
+			fi
 		done
-		
-		if [ $count -ge 10 ]; then
-			infdb kill_db_force $port >/dev/null 2>&1
-			echo "Tried multiple times, MongoD on port $port would not stop, force closed it"
-		fi
-		# Always remove lock regardless
-		rm -f /data/rs$x/mongod.lock
-		
-		if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
-			echo "Stopping Aribiter"
-			infdb kill_db $arbport >/dev/null 2>&1
-		fi
-	done
-
+	fi
+	
 	################################ Config Server Kill #######################################
+	# (only if ALL specified)
 
 	if [ "$ALL" == "ALL" ]; then
 		if [ $(infdb is_config) == "true" ]; then 
@@ -392,6 +406,8 @@ stop()
 	fi
 
 	############################### MongoS Server Kill #####################################
+	# (Always)
+	
 	if [ "$(infdb is_mongos)" == "true" ]; then  
 		echo "Stopping MongoS"
 		infdb kill_db 27017 >/dev/null 2>&1
@@ -432,11 +448,18 @@ case "$1" in
   stop_instance)
     stop "HARD" "INSTANCE"
     ;;
+  stop_mongos)
+    stop "HARD" "MONGOS"
+    ;;
   soft_stop_instance)
     stop "SOFT" "INSTANCE"
     ;;
   restart_instance)
     stop "SOFT" "INSTANCE"
+    start
+    ;;
+  restart_mongos)
+    stop "SOFT" "MONGOS"
     start
     ;;
   restart|reload|force-reload)

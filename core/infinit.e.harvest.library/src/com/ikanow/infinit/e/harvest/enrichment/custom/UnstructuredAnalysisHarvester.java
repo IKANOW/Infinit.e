@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.harvest.enrichment.custom;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.net.URL;
 import java.net.URLConnection;
@@ -38,6 +39,8 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.stream.XMLInputFactory;
+import javax.xml.stream.XMLStreamReader;
 import javax.xml.transform.Transformer;
 import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
@@ -55,7 +58,6 @@ import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.DomSerializer;
 import org.htmlcleaner.HtmlCleaner;
 import org.htmlcleaner.TagNode;
-import org.htmlcleaner.XPatherException;
 import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -66,6 +68,7 @@ import org.w3c.dom.NodeList;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.ManualTextExtractionSpecPojo;
@@ -78,6 +81,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisC
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.extraction.document.file.JsonToMetadataParser;
 import com.ikanow.infinit.e.harvest.extraction.document.file.XmlToMetadataParser;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
@@ -133,12 +137,10 @@ public class UnstructuredAnalysisHarvester {
 	//TESTED (fulltext_regexTests.json)
 	
 	public void processMetadataChain(DocumentPojo doc, List<MetadataSpecPojo> metadataFields, SourceRssConfigPojo feedConfig) throws IOException
-	{
-		getRawTextFromUrlIfNeeded(doc, feedConfig);				
-			// (generally need full text for documents grab the raw body from the URL if necessary)
-		
+	{		
 		// Map metadata list to a legacy meta format (they're really similar...)
 		UnstructuredAnalysisConfigPojo.metaField mappedEl = new UnstructuredAnalysisConfigPojo.metaField();
+		boolean textSet = false;
 		for (MetadataSpecPojo meta: metadataFields) {
 			mappedEl.fieldName = meta.fieldName;
 			mappedEl.context = Context.All;
@@ -146,9 +148,17 @@ public class UnstructuredAnalysisHarvester {
 			if (null == mappedEl.flags) {
 				mappedEl.flags = "";
 			}
+			if (mappedEl.flags.isEmpty() || mappedEl.flags.contains("t")) {
+				if (!textSet) {
+					getRawTextFromUrlIfNeeded(doc, feedConfig);				
+					textSet = true;
+				}
+			}//TESTED (content_needed_test)
+			
 			mappedEl.scriptlang = meta.scriptlang;
 			mappedEl.script = meta.script;
 			mappedEl.replace = meta.replace;
+			mappedEl.groupNum = null;
 			//(no group num - just use replace, and flags "o" for xpath/gN:-1)
 			
 			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);						
@@ -640,11 +650,8 @@ public class UnstructuredAnalysisHarvester {
 	/**
 	 * processMeta - handle an individual field
 	 */
-	//TODO: source+uap are just used in the setup js engine code - should probably be able to fix that
 	private void processMeta(DocumentPojo f, metaField m, String text, SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
 
-		//TODO: only perform chaining for regex and metadata if some flag is turned on... ('c' for chain...)
-		
 		boolean bAllowDuplicates = false;
 		if ((null != m.flags) && m.flags.contains("U")) {
 			bAllowDuplicates = true;
@@ -843,10 +850,11 @@ public class UnstructuredAnalysisHarvester {
 						int nFieldNameLen = m.fieldName.length() + 1;
 						ArrayList<Object> Llist = new ArrayList<Object>(res.getLength());
 						boolean bConvertToObject = ((m.groupNum != null) && (m.groupNum == -1));
+						boolean convertToXml =  ((null != m.flags) && (m.flags.contains("x")));
 						for (int i= 0; i< res.getLength(); i++)
 						{
 							Node info_node = res.item(i);
-							if (bConvertToObject) {
+							if (bConvertToObject || convertToXml) {
 								// Try to create a JSON object out of this
 								StringWriter writer = new StringWriter();
 								try {
@@ -856,25 +864,30 @@ public class UnstructuredAnalysisHarvester {
 									continue;
 								}
 	
-								try {
-									JSONObject subObj = XML.toJSONObject(writer.toString());
-									if (xpath.endsWith("*"))  { // (can have any number of different names here)
-										Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj));
-									}//TESTED
-									else {
-										String[] rootNames = JSONObject.getNames(subObj);
-										if (1 == rootNames.length) {
-											// (don't think it can't be any other number in fact)
-											subObj = subObj.getJSONObject(rootNames[0]);
-										}
-										boolean bUnescapeHtml = ((null != m.flags) && m.flags.contains("H"));
-										Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj, bUnescapeHtml));										
-									}//TESTED
+								if (bConvertToObject) {
+									try {
+										JSONObject subObj = XML.toJSONObject(writer.toString());
+										if (xpath.endsWith("*"))  { // (can have any number of different names here)
+											Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj));
+										}//TESTED
+										else {
+											String[] rootNames = JSONObject.getNames(subObj);
+											if (1 == rootNames.length) {
+												// (don't think it can't be any other number in fact)
+												subObj = subObj.getJSONObject(rootNames[0]);
+											}
+											boolean bUnescapeHtml = ((null != m.flags) && m.flags.contains("H"));
+											Llist.add(XmlToMetadataParser.convertJsonObjectToLinkedHashMap(subObj, bUnescapeHtml));										
+										}//TESTED
+									}
+									catch (JSONException e) { // Just carry on
+										continue;
+									}
+									//TESTED
 								}
-								catch (JSONException e) { // Just carry on
-									continue;
-								}
-								//TESTED
+								else { // leave in XML form
+									Llist.add(writer.toString().substring(38)); // +38: (step over <?xml version="1.0" encoding="UTF-8"?>)
+								}//TESTED (xpath_test.json)
 							}
 							else { // Treat this as string, either directly or via regex
 								String info = info_node.getTextContent().trim();
@@ -943,6 +956,70 @@ public class UnstructuredAnalysisHarvester {
 				_context.getHarvestStatus().logMessage("Error evaluating xpath expression: " +  xpath, true);
 			}
 		}
+		else if (m.scriptlang.equalsIgnoreCase("stream")) { // XML or JSON streaming interface
+			// which one?
+			try {
+				boolean json = false;
+				boolean xml = false;
+				for (int i = 0; i < 128; ++i) {
+					if ('<' == text.charAt(i)) {
+						xml = true;
+						break;
+					}
+					if ('{' == text.charAt(i)) {
+						json = true;
+						break;
+					}
+					if (!Character.isSpaceChar(text.charAt(i))) {
+						break;
+					}
+				}//TESTED (too many spaces: meta_stream_test, test4; incorrect chars: test3, xml: test1, json: test2)
+				
+				List<DocumentPojo> docs = new LinkedList<DocumentPojo>();
+				if (xml) {
+					XmlToMetadataParser parser = new XmlToMetadataParser(Arrays.asList(m.script.split("\\s*,\\s*")), null, null, null, null, null, Integer.MAX_VALUE);
+					XMLInputFactory factory = XMLInputFactory.newInstance();
+					factory.setProperty(XMLInputFactory.IS_COALESCING, true);
+					factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+					XMLStreamReader reader = null;
+					try {							
+						reader = factory.createXMLStreamReader(new ByteArrayInputStream(text.getBytes()));
+						docs = parser.parseDocument(reader, true);
+					}
+					finally {
+						if (null != reader) reader.close();
+					}
+				}//TESTED (meta_stream_test, test1)
+				if (json) {
+					JsonReader jsonReader = null;
+					try {					
+						JsonToMetadataParser parser = new JsonToMetadataParser(null, Arrays.asList(m.script.split("\\s*,\\s*")), null, null, Integer.MAX_VALUE);
+						jsonReader = new JsonReader(new InputStreamReader(new ByteArrayInputStream(text.getBytes()), "UTF-8"));
+						jsonReader.setLenient(true);
+						docs = parser.parseDocument(jsonReader, true);
+					}
+					finally {
+						if (null != jsonReader) jsonReader.close();
+					}
+				}//TESTED (meta_stream_test test2)
+				
+				if (!docs.isEmpty()) {
+					ArrayList<String> Llist = new ArrayList<String>(docs.size());					
+					for (DocumentPojo doc: docs) {
+						if (null != doc.getFullText()) {
+							Llist.add(doc.getFullText());
+						}
+					}
+					if (Llist.size() > 0) {
+						f.addToMetadata(m.fieldName, Llist.toArray());
+					}
+				}//TESTED (meta_stream_test test1,test2)
+			}//(end try)
+			catch (Exception e) { // various parsing errors
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);				
+			}
+		}//TESTED (meta_stream_test)
+		
 		// (don't currently support other script types)
 	}
 
@@ -1111,61 +1188,57 @@ public class UnstructuredAnalysisHarvester {
 					return createRegex(script, flags).matcher(field).replaceAll(replaceWith);
 				}
 			}
-		} else if (scriptLang.equalsIgnoreCase("xpath")) {
+		} 
+		else if (scriptLang.equalsIgnoreCase("xpath")) {
 			
 			try {
-				//TODO (INF-1929): Note this uses the outdated xpath code, should upgrade (see meta xpath code)
 				createHtmlCleanerIfNeeded();
 
-				TagNode node = cleaner.clean(new ByteArrayInputStream(field
-						.getBytes()));
+				TagNode node = cleaner.clean(new ByteArrayInputStream(field.getBytes()));
 
-				String xpath = script;
+				Document doc = new DomSerializer(new CleanerProperties()).createDOM(node);
+				XPath xpa = XPathFactory.newInstance().newXPath();				
+				
+				NodeList res = (NodeList)xpa.evaluate(script, doc, XPathConstants.NODESET);
 
-				if (xpath.startsWith("/html/body/")) {
-					xpath = xpath.replace("/html/body/", "//body/");
-				} else if (xpath.startsWith("/html[1]/body[1]")) {
-					xpath = xpath.replace("/html[1]/body[1]", "//body");
+				if (0 == res.getLength()) { // No match, just return "", unlike regex we don't want anything if we don't match...
+					return "";					
 				}
-
-				Object[] data_nodes = node.evaluateXPath(xpath);
-
-				if (0 == data_nodes.length) { // No match, just return "", unlike regex we don't want anything if we don't match...
-					return "";
-				}
-				else if (1 == data_nodes.length) {
-					TagNode info_node = (TagNode) data_nodes[0];
-					
-					if ((null != flags) && flags.contains("H")) { // HTML decode
-						return StringEscapeUtils.unescapeHtml(info_node.getText().toString());
-					}
-					else {
-						return info_node.getText().toString();						
-					}					
-				}
-				else if (data_nodes.length > 0) {
+				else {
 					StringBuffer sb = new StringBuffer();
-
-					// Multiple matches are return by a tab-delmited String
-					for (Object o : data_nodes) {
-						TagNode info_node = (TagNode) o;
-						if (sb.length() > 0) {
-							sb.append('\t');
+					for (int i= 0; i< res.getLength(); i++) {
+						if (0 != i) {
+							sb.append('\n');
 						}
+						Node info_node = res.item(i);
+
 						if ((null != flags) && flags.contains("H")) { // HTML decode
-							sb.append(StringEscapeUtils.unescapeHtml(info_node.getText().toString()).trim());
+							sb.append(StringEscapeUtils.unescapeHtml(info_node.getTextContent().trim()));
+						}
+						else if ((null != flags) && flags.contains("x")) { // Leave as XML string 
+							StringWriter writer = new StringWriter();
+							try {
+								Transformer transformer = TransformerFactory.newInstance().newTransformer();
+								transformer.transform(new DOMSource(info_node), new StreamResult(writer));
+								sb.append(writer.toString().substring(38)); // (step over <?xml etc?> see under metadata field extraction
+							} 
+							catch (TransformerException e1) { // (do nothing just skip)
+							}
 						}
 						else {
-							sb.append(info_node.getText().toString().trim());
-						}
-					}
+							sb.append(info_node.getTextContent().trim());						
+						}										
+					}										
 					return sb.toString();
-				}
-
+				}//TESTED (xpath_test: object - multiple and single, text)
+				
 			} catch (IOException e) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 			} 
-			catch (XPatherException e) {
+			catch (XPathExpressionException e) {
+				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
+			} 
+			catch (ParserConfigurationException e) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 			}
 		}

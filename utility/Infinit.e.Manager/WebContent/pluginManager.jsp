@@ -1137,6 +1137,7 @@ else if (isLoggedIn == true)
 <title>Infinit.e MapReduce Plugin Manager</title>
 
    <script src="lib/jquery.js"></script>
+   <script src="lib/jquery.cookie.js"></script>
    
     <script src="lib/splitter.js"></script>
     
@@ -1224,7 +1225,8 @@ $().ready(function() {
 	$("#LowerSplitter").splitter({
 		splitHorizontal: true,
 		outline: true,
-		sizeBottom: 100, minBottom: 75, minTop: 30
+		sizeBottom: 100, minBottom: 75, minTop: 30,
+		cookie: "lowerSplitter"
 	});
 });
 </script>
@@ -1774,7 +1776,7 @@ $().ready(function() {
 			// Validate time (do this last since if it works we change the value):
 			if ("null" == frequency) // don't want to run again 
 			{
-				document.getElementById('nextruntime').value = 4070908800000;
+				document.getElementById('nextruntime').value = 4070908800000; //01-01-2099 in milliseconds! Will use this constant to mean "dont' run" - CustomHandler.DONT_RUN_TIME
 				document.getElementById('frequency').value = "NONE";
 				//TESTED
 			}

@@ -439,22 +439,38 @@ public class StructuredAnalysisHarvester
 	
 	public boolean rejectDoc(String rejectDocCriteria, DocumentPojo f) throws JSONException, ScriptException
 	{
+		return rejectDoc(rejectDocCriteria, f, true);
+	}
+	public boolean rejectDoc(String rejectDocCriteria, DocumentPojo f, boolean logMessage) throws JSONException, ScriptException
+	{
 		if (null != rejectDocCriteria) {			
 			intializeDocIfNeeded(f, _gson);			
 			
 			Object o = getValueFromScript(rejectDocCriteria, null, null, false);
-			try {
-				String rejectDoc = (String)o;
-				if (null != rejectDoc) {
-					this._context.getHarvestStatus().logMessage("SAH_reject: " + rejectDoc, true);
-					return true;
+			if (null != o) {
+				if (o instanceof String) {
+					String rejectDoc = (String)o;
+					if (null != rejectDoc) {
+						if (logMessage) {
+							this._context.getHarvestStatus().logMessage("SAH_reject: " + rejectDoc, true);
+						}
+						return true;
+					}					
 				}
-			}
-			catch (Exception e) {
-				Boolean rejectDoc = (Boolean)o;
-				if (rejectDoc) {
-					this._context.getHarvestStatus().logMessage("SAH_reject: reason not specified", true);
-					return true;
+				else if (o instanceof Boolean) {
+					Boolean rejectDoc = (Boolean)o;
+					if (rejectDoc) {
+						if (logMessage) {
+							this._context.getHarvestStatus().logMessage("SAH_reject: reason not specified", true);
+						}
+						return true;
+					}					
+				}
+				else {
+					if (logMessage) {
+						this._context.getHarvestStatus().logMessage("SAH_reject: reason not specified", true);
+					}
+					return true;					
 				}
 			}
 		}
@@ -785,7 +801,7 @@ public class StructuredAnalysisHarvester
 							List<DocumentPojo> toAdd = new ArrayList<DocumentPojo>(1);
 							toAdd.add(f);
 							try {
-								contextController.extractTextAndEntities(toAdd, source, false);
+								contextController.extractTextAndEntities(toAdd, source, false, false);
 								if (toAdd.isEmpty()) { // this failed... 
 									it.remove(); // remove the document from the list...
 									f.setTempSource(null); // (can safely corrupt this doc since it's been removed)

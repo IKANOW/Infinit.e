@@ -51,6 +51,8 @@ import com.mongodb.DBObject;
 
 public class CustomHandler 
 {
+	public final static long DONT_RUN_TIME = 4070908800000L; // 01-01-2099 in Java time, used in the GUI to mean don't run. 
+	
 	private static final Logger logger = Logger.getLogger(CustomHandler.class);
 	
 	public CustomHandler() {
@@ -413,8 +415,45 @@ public class CustomHandler
 				//check if job is already running
 				if ( ( cmr.jobidS != null ) && !cmr.jobidS.equals( "CHECKING_COMPLETION" ) &&  !cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
 				{
-					rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
-					return rp;
+					// If it is running and we're trying to turn it off .. .then kill the job:
+					com.ikanow.infinit.e.processing.custom.utils.PropertiesManager customProps = new com.ikanow.infinit.e.processing.custom.utils.PropertiesManager();
+					boolean bLocalMode = customProps.getHadoopLocalMode();
+					
+					boolean tryToKillJob = false;
+					if (!bLocalMode) { // else not possible
+						
+						// This line means: either we're NONE already (and it hasn't changed), or we've been changed to NONE
+						if ((((null == schedFreq) || (schedFreq.equalsIgnoreCase("null"))) 
+											&& (CustomMapReduceJobPojo.SCHEDULE_FREQUENCY.NONE == cmr.scheduleFreq))
+								||
+							(null != schedFreq) && (schedFreq.equalsIgnoreCase("none")))
+						{
+							long candidateNextRuntime = 0L;
+							try {
+								candidateNextRuntime = Long.parseLong(nextRunTime);
+							}
+							catch (Exception e) {}
+							if (candidateNextRuntime >= DONT_RUN_TIME) {
+								tryToKillJob = true;
+							}
+						}
+					}//TESTED - (don't run/daily/once-only) - covers all the cases, except the "theoretical" null cases
+					
+					if (tryToKillJob) {
+						// (ie is running and updating it to mean don't run anymore .. that 4e12 number is 2099 in ms, anything bigger than that is assumed to mean "don't run)
+						CustomProcessingController pxController = new CustomProcessingController();
+						if (pxController.killRunningJob(cmr)) {						
+							rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Killed job, may take a few moments for the status to update."));
+						}
+						else {
+							rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Failed to kill the job - it may not have started yet, try again in a few moments."));
+						}							
+						return rp;
+					}//TODO (INF-2395): TOTEST
+					else {
+						rp.setResponse(new ResponseObject("Update MapReduce Job",false,"Job is currently running (or not yet marked as completed).  Please wait until the job completes to update it."));
+						return rp;
+					}
 				}
 				if (cmr.jobidS != null) { // (must be checking completion, ie in bug state, so reset...)
 					cmr.jobidS = null;

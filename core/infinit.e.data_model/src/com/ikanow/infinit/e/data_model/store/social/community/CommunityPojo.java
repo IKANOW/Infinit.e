@@ -23,12 +23,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
 import org.bson.types.ObjectId;
 
 import com.mongodb.MongoException;
-
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
+import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.*;;
 
 /**
@@ -65,6 +66,7 @@ public class CommunityPojo extends BaseDbPojo
 	private int numberOfMembers = 0;
 	private Set<CommunityMemberPojo> members = null;
 	private Set<ObjectId> children = null;
+	private DocCountPojo documentInfo = null; // (added by certain API calls, stored separately in the DB, under doc_metadata.doc_counts)
 
 	public enum communityStatusEnum
 	{
@@ -377,6 +379,10 @@ public class CommunityPojo extends BaseDbPojo
 	/**
 	 * addMember
 	 * Attempts to add a user to community
+	 * 
+	 * If the person is already a member and isInvite is false, will set
+	 * the person to active
+	 * 
 	 * @param pp
 	 * @param isInvite
 	 * @throws IOException 
@@ -385,15 +391,26 @@ public class CommunityPojo extends BaseDbPojo
 	 */
 	public void addMember(PersonPojo pp, boolean isInvite) throws UnknownHostException, MongoException, IOException 
 	{
-		// If the person is not already a member of the community
-		if ( !isMember(pp.get_id()) )
+		CommunityMemberPojo old_cmp = null;
+		for ( CommunityMemberPojo cmp : this.getMembers() )
 		{
+			if ( cmp.get_id().equals(pp.get_id()) )
+			{
+				//found the user
+				old_cmp = cmp;			
+				break;
+			}
+		}
+		// If the person is not already a member of the community or pending
+		if ( old_cmp == null || old_cmp.getUserStatus().equals("pending") )
+		{			
 			// Create the new member object
 			CommunityMemberPojo cmp = new CommunityMemberPojo();
 			cmp.set_id(pp.get_id());
 			cmp.setEmail(pp.getEmail());
 			cmp.setDisplayName(pp.getDisplayName());
 			cmp.setUserType("member");
+			
 			if (isInvite)
 			{
 				cmp.setUserStatus("pending");
@@ -459,6 +476,12 @@ public class CommunityPojo extends BaseDbPojo
 				cmp.setLinks(links);
 			}
 
+			//remove the old entry if it exists
+			if ( old_cmp != null )
+			{
+				members.remove(old_cmp);
+			}
+			//TESTED removes the actually entry
 			members.add(cmp);				
 		}		
 	}
@@ -552,5 +575,13 @@ public class CommunityPojo extends BaseDbPojo
 
 	public Set<ObjectId> getChildren() {
 		return children;
+	}
+
+	public DocCountPojo getDocumentInfo() {
+		return documentInfo;
+	}
+
+	public void setDocumentInfo(DocCountPojo documentInfo) {
+		this.documentInfo = documentInfo;
 	}
 }

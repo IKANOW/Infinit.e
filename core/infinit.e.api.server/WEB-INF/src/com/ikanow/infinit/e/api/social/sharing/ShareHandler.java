@@ -319,22 +319,15 @@ public class ShareHandler
 			List<ObjectId> communityIds = new ArrayList<ObjectId>();
 			for (String idStr : idStrArray)
 			{
-				try 
+				try
 				{
 					ObjectId id = new ObjectId(idStr);
-					if (ignoreAdmin || !bAdmin) 
-					{									
-						if ((null != memberOf) && (memberOf.contains(id))) 
-						{
-							communityIds.add(id); 
-						}
-					}
-					else
-					{ // admin, allowed it
-						communityIds.add(id); 							
+					if ( isMemberOwnerAdminOfCommunity(id, ignoreAdmin, bAdmin, memberOf) )
+					{
+						communityIds.add(id);
 					}
 				}
-				catch (Exception e) {}
+				catch(Exception ex) {}
 			}
 			if (communityIds.size() > 0) 
 			{
@@ -342,7 +335,7 @@ public class ShareHandler
 				{
 					//get the comm objects for these communities, so we can grab all their parents and add them to the query					
 					BasicDBObject communities = new BasicDBObject();
-					communities.append("$in", getParentIds(communityIds));
+					communities.append("$in", getParentIds(communityIds, personIdStr, ignoreAdmin, bAdmin, memberOf));
 					query.put("communities._id", communities);
 				}
 				else
@@ -374,7 +367,7 @@ public class ShareHandler
 	 * @param child_shares
 	 * @return
 	 */
-	private List<ObjectId> getParentIds(List<ObjectId> children)
+	private List<ObjectId> getParentIds(List<ObjectId> children, String personIdStr, boolean ignoreAdmin, boolean bAdmin, HashSet<ObjectId> memberOf)
 	{
 		Set<ObjectId> communityIds = new HashSet<ObjectId>();
 		List<CommunityPojo> child_communities = CommunityPojo.listFromDb( MongoDbManager.getSocial().getCommunity().find(new BasicDBObject("_id", new BasicDBObject(MongoDbManager.in_, children))), CommunityPojo.listType());
@@ -392,10 +385,61 @@ public class ShareHandler
 			//parentTree should be populated now, add these comms to the set
 			communityIds.add(child_comm.getId());
 			if ( child_comm.getParentTree() != null )
-				communityIds.addAll(child_comm.getParentTree());
+			{
+				communityIds.addAll(getAllowedParentComms(child_comm.getParentTree(), personIdStr, ignoreAdmin, bAdmin, memberOf));
+			}
 			
 		}
 		return new ArrayList<ObjectId>(communityIds);
+	}
+	
+	/**
+	 * Returns only the communities that a user is allowed to see.
+	 * 
+	 * @param parentTree
+	 * @param personIdStr
+	 * @return
+	 */
+	private List<ObjectId> getAllowedParentComms(List<ObjectId> parentTree, String personIdStr, boolean ignoreAdmin, boolean bAdmin, HashSet<ObjectId> memberOf)
+	{
+		List<ObjectId> allowedParents = new ArrayList<ObjectId>();
+		for ( ObjectId parent_id : parentTree )
+		{
+			if ( isMemberOwnerAdminOfCommunity(parent_id, ignoreAdmin, bAdmin, memberOf) )
+			{
+				allowedParents.add(parent_id);
+			}
+		}		
+		return allowedParents;
+	}
+	
+	/**
+	 * Return true if user is a (member of the community) or (admin is true and ignoreadmin is false)
+	 * 
+	 * @param communityId
+	 * @param ignoreAdmin
+	 * @param bAdmin
+	 * @param memberOf
+	 * @return
+	 */
+	private boolean isMemberOwnerAdminOfCommunity(ObjectId communityId, boolean ignoreAdmin, boolean bAdmin, HashSet<ObjectId> memberOf)
+	{
+		try 
+		{
+			if (ignoreAdmin || !bAdmin) 
+			{									
+				if ((null != memberOf) && (memberOf.contains(communityId))) 
+				{
+					return true;
+				}
+			}
+			else
+			{ // admin, allowed it
+				return true; 							
+			}
+		}
+		catch (Exception e) {}
+		return false;
 	}
 	
 	//TODO (???): have ability to enforce uniqueness on title/type
@@ -637,7 +681,7 @@ public class ShareHandler
 			SharePojo share = null;
 			BasicDBObject dbo = null;
 			BasicDBObject query = null;
-
+			
 			// Retrieve the share to update (if it exists)
 			if (shareIdStr != null && ObjectId.isValid(shareIdStr))
 			{

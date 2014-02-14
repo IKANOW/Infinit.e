@@ -47,7 +47,7 @@ public class FeedHarvester_searchEngineSubsystem {
 	
 	private int maxDocsPerCycle = Integer.MAX_VALUE; // (should never exceed this, anyway...)
 	
-	public void generateFeedFromSearch(SourcePojo src, HarvestContext context) throws Exception {
+	public void generateFeedFromSearch(SourcePojo src, HarvestContext context, DocumentPojo docToSplit) throws Exception {
 
 		if (context.isStandalone()) {
 			maxDocsPerCycle = context.getStandaloneMaxDocs();
@@ -232,30 +232,48 @@ public class FeedHarvester_searchEngineSubsystem {
 					}
 					//TESTED (including RSS-level value being written back again and applied in SAH/UAH code)
 					
-					DocumentPojo searchDoc = new DocumentPojo();
-					// Required terms:
-					searchDoc.setUrl(url);
-					searchDoc.setScore((double)nIteratingDepth); // (spidering param)
-					// Handy terms
-					if (null != src.getHarvestStatus()) {
-						searchDoc.setModified(src.getHarvestStatus().getHarvested()); // the last time the source was harvested - can use to determine how far back to go
-					}
-					// If these exist (they won't normally), fill them:
-					searchDoc.setFullText(currFullText);
-					searchDoc.setDescription(currDesc);
-					searchDoc.setTitle(currTitle);
-
+					DocumentPojo searchDoc = docToSplit;
+					Object[] savedMeta = null;
+					if (null == searchDoc) {
+						searchDoc = new DocumentPojo();
+						// Required terms:
+						searchDoc.setUrl(url);
+						searchDoc.setScore((double)nIteratingDepth); // (spidering param)
+						// Handy terms
+						if (null != src.getHarvestStatus()) {
+							searchDoc.setModified(src.getHarvestStatus().getHarvested()); // the last time the source was harvested - can use to determine how far back to go
+						}
+						// If these exist (they won't normally), fill them:
+						searchDoc.setFullText(currFullText);
+						searchDoc.setDescription(currDesc);
+						searchDoc.setTitle(currTitle);
+					}//TOTEST
+					else if (null != searchDoc.getMetadata()){ 
+						savedMeta = searchDoc.getMetadata().remove("searchEngineSubsystem");
+							// (this is normally null)
+					}//TOTEST
 					UnstructuredAnalysisHarvester dummyUAH = new UnstructuredAnalysisHarvester();
 					boolean bMoreDocs = (nPage < nMaxPages - 1);
-					dummyUAH.executeHarvest(context, src, searchDoc, false, bMoreDocs);
-						// (the leading false means that we never sleep *before* the query, only after)
+					Object[] searchResults = null;
+					try {
+						dummyUAH.executeHarvest(context, src, searchDoc, false, bMoreDocs);
+							// (the leading false means that we never sleep *before* the query, only after)
+						searchResults = searchDoc.getMetaData().get("searchEngineSubsystem");
+					}
+					finally {
+						if (null != savedMeta) { // (this is really obscure but handle the case where someone has created this meta field already) 
+							searchDoc.getMetadata().put("searchEngineSubsystem", savedMeta);							
+						}
+						else if ((null != searchDoc) && (null != searchDoc.getMetadata())) {
+							searchDoc.getMetadata().remove("searchEngineSubsystem");
+						}
+					}//TOTEST
 					
 					//DEBUG
 					//System.out.println("NEW DOC MD: " + new com.google.gson.GsonBuilder().setPrettyPrinting().create().toJson(searchDoc.getMetadata()));
 					
 			// Create extraUrl entries from the metadata
 			
-					Object[] searchResults = searchDoc.getMetaData().get("searchEngineSubsystem");
 					if ((null != searchResults) && (searchResults.length > 0)) {
 						for (Object searchResultObj: searchResults) {
 							try {
@@ -376,7 +394,10 @@ public class FeedHarvester_searchEngineSubsystem {
 				}// end loop over pages
 				
 			}
-			catch (Exception e) {				
+			catch (Exception e) {
+				//DEBUG
+				//e.printStackTrace();
+				
 				if ((null == dedupSet) || dedupSet.isEmpty()) {
 					throw new ExtractorSourceLevelTransientException("generateFeedFromSearch: " + e.getMessage());					
 				}

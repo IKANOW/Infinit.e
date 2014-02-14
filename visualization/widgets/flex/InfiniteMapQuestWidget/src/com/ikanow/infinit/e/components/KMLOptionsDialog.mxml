@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
-			   xmlns:s="library://ns.adobe.com/flex/spark" 
-			   xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" title="KML Options" minWidth="450"
-			   paddingBottom="10" paddingTop="10" paddingLeft="10" paddingRight="10" xmlns:components="com.ikanow.infinit.e.components.*">
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" height="100%" title="KML Options" minWidth="450"
+				paddingBottom="10" paddingTop="10" paddingLeft="10" paddingRight="10" xmlns:components="com.ikanow.infinit.e.components.*">
 	
 	<fx:Script>
 		<![CDATA[
@@ -88,7 +88,7 @@
 				else
 					dropdown_evt_type.dataProvider.addItem(item.ent_type);
 			}
-				
+			
 			public function getSaveOptions():Object
 			{
 				return getOptions();

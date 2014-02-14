@@ -1,0 +1,105 @@
+    "processingPipeline": [
+        {
+            "display": "XML test",
+            "web": {"extraUrls": [
+                {
+                    "description": "fill_in_later",
+                    "fullText": "<objects><object><test1a>test1atxt<\/test1a><test1b>test1btext<\/test1b><\/object><object><test1a>test1atxt_2<\/test1a><test1b>test1btext_2<\/test1b><\/object><\/objects>",
+                    "title": "fill_in_later",
+                    "url": "test1"
+                },
+                {
+                    "description": "test2",
+                    "fullText": "<html><body><a href=\"http://www.bbc.com\">BBC<\/a><\/html><\/body>",
+                    "title": "test2",
+                    "url": "test2"
+                }
+            ]}
+        },
+        {
+            "contentMetadata": [
+                {
+                    "fieldName": "xpath_text",
+                    "index": false,
+                    "script": "//object",
+                    "scriptlang": "xpath",
+                    "store": true
+                },
+                {
+                    "fieldName": "xpath_json",
+                    "flags": "o",
+                    "index": false,
+                    "script": "//object",
+                    "scriptlang": "xpath",
+                    "store": true
+                },
+                {
+                    "fieldName": "xpath_xml",
+                    "flags": "x",
+                    "index": false,
+                    "script": "//object",
+                    "scriptlang": "xpath",
+                    "store": true
+                }
+            ],
+            "display": ""
+        },
+        {
+            "contentMetadata": [
+                {
+                    "fieldName": "test1_html",
+                    "index": false,
+                    "script": "//a[1]",
+                    "scriptlang": "xpath",
+                    "store": true
+                },
+                {
+                    "fieldName": "test2_html",
+                    "flags": "o",
+                    "index": false,
+                    "script": "//a[1]",
+                    "scriptlang": "xpath",
+                    "store": true
+                },
+                {
+                    "fieldName": "test3_html",
+                    "flags": "x",
+                    "index": false,
+                    "script": "//a[1]",
+                    "scriptlang": "xpath",
+                    "store": true
+                }
+            ],
+            "display": ""
+        },
+        {
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "description": "<objects><object><test1a>test1atxt<\/test1a><test1b>test1btext<\/test1b><\/object><object><test1a>test1atxt_2<\/test1a><test1b>test1btext_2<\/test1b><\/object><\/objects>",
+                "title": "<objects><object><test1a>test1atxt<\/test1a><test1b>test1btext<\/test1b><\/object><object><test1a>test1atxt_2<\/test1a><test1b>test1btext_2<\/test1b><\/object><\/objects>"
+            }
+        },
+        {
+            "display": "",
+            "text": [
+                {
+                    "fieldName": "fullText",
+                    "flags": "x",
+                    "script": "//objects/object[1]",
+                    "scriptlang": "xpath"
+                },
+                {
+                    "fieldName": "description",
+                    "flags": "x",
+                    "script": "//objects/object",
+                    "scriptlang": "xpath"
+                },
+                {
+                    "fieldName": "title",
+                    "script": "//object",
+                    "scriptlang": "xpath"
+                }
+            ]
+        }
+    ],

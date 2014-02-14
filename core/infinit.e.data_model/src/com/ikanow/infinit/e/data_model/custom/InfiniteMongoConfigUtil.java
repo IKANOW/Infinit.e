@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.data_model.custom;
 
 import org.apache.hadoop.conf.Configuration;
 
+import com.mongodb.DBObject;
 import com.mongodb.hadoop.util.MongoConfigUtil;
 
 public class InfiniteMongoConfigUtil extends MongoConfigUtil
@@ -27,6 +28,7 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     public static final String MAX_SPLITS = "max.splits";
     public static final String MAX_DOCS_PER_SPLIT = "max.docs.per.split";
     public static final String UPDATE_MODE = "update.incremental";
+    public static final String SOURCE_TAGS = "infinit.e.source.tags.filter";
     
     public static int getMaxSplits( Configuration conf ){
     	return conf.getInt(MAX_SPLITS, 0);
@@ -49,4 +51,13 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     {
     	conf.setInt(MAX_DOCS_PER_SPLIT, maxDocsPerSplit);
     }
+
+    public static DBObject getSourceTags(Configuration conf)
+    {
+    	return (DBObject) com.mongodb.util.JSON.parse(conf.get(SOURCE_TAGS, null));
+    }
+    public static void setSourceTags(Configuration conf, DBObject tags)
+    {
+    	conf.setStrings(SOURCE_TAGS, tags.toString());
+    }//TODO (INF-2351) TOTEST
 }

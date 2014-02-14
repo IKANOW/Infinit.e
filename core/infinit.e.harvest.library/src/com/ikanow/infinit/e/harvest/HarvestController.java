@@ -610,7 +610,7 @@ public class HarvestController implements HarvestContext
 			{
 				// Text/Entity Extraction
 				try {
-					extractTextAndEntities(toAdd, source, false);
+					extractTextAndEntities(toAdd, source, false, false);
 				}
 				catch (Exception e) {
 					handleExtractError(e, source); //handle extractor error if need be				
@@ -623,7 +623,7 @@ public class HarvestController implements HarvestContext
 		if (isEntityExtractionRequired(source))
 		{
 			try {
-				extractTextAndEntities(null, source, true);
+				extractTextAndEntities(null, source, true, false);
 			}
 			catch (Exception e) {}
 		}		
@@ -698,7 +698,7 @@ public class HarvestController implements HarvestContext
 	 * @return Any errors that occured while extracting, null if no error
 	 * @throws ExtractorSourceLevelTransientException 
 	 */
-	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source, boolean bFinalizeBatchOnly)
+	public void extractTextAndEntities(List<DocumentPojo> toAdd, SourcePojo source, boolean bFinalizeBatchOnly, boolean calledFromPipeline)
 	throws ExtractorDocumentLevelException, ExtractorSourceLevelException, 
 	ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException
 	{
@@ -797,11 +797,13 @@ public class HarvestController implements HarvestContext
 				// (pick them up next time through)
 				if (bIsKilled) {
 					i.remove();
-					doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+					if (!calledFromPipeline) {
+						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+					}
 					continue;
 				}
 
-				if ( !urlsThatError.contains(doc.getUrl()) ) //only attempt if url is okay
+				if ( calledFromPipeline || !urlsThatError.contains(doc.getUrl()) ) //only attempt if url is okay
 				{				
 					feed_count++;
 
@@ -832,6 +834,7 @@ public class HarvestController implements HarvestContext
 						else //db/filesys should already have full text extracted (unless otherwise specified)
 						{
 							if (source.getExtractType().equalsIgnoreCase("feed")) { // Need full text so get from current
+								
 								if ((null == doc.getFullText()) || !bUseRawContentWhereAvailable) {
 									bExtractedText = true;
 									if (null != currentEntityExtractor) {
@@ -862,12 +865,16 @@ public class HarvestController implements HarvestContext
 
 						//extractor can't do anything else today, return
 						i.remove();
-						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+						if (!calledFromPipeline) {
+							doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+						}
 
 						// Source error, ignore all other documents
 						while (i.hasNext()) {
 							doc = i.next();
-							doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+							if (!calledFromPipeline) {
+								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+							}
 							i.remove();
 						}
 						//TESTED
@@ -884,11 +891,16 @@ public class HarvestController implements HarvestContext
 						_harvestStatus.logMessage(errMessage.toString(), true);
 						num_error_url.incrementAndGet();
 						nUrlErrorsThisSource++;
-						urlsThatError.add(doc.getUrl());						
+						
+						if (!calledFromPipeline) {
+							urlsThatError.add(doc.getUrl());
+						}
 
 						error_on_feed_count++;
 						i.remove();
-						doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+						if (!calledFromPipeline) {
+							doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+						}
 					}
 					//TESTED
 				}

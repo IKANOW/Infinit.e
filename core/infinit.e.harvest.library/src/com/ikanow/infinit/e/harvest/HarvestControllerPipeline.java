@@ -19,7 +19,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.List;
+import java.util.ListIterator;
 
 import javax.script.ScriptException;
 
@@ -33,9 +35,13 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransie
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
+import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester_searchEngineSubsystem;
+import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
@@ -100,7 +106,7 @@ public class HarvestControllerPipeline {
 				source.setAuthentication(pxPipe.database.getAuthentication());
 				source.setDatabaseConfig(pxPipe.database);
 				source.setExtractType("Database");
-			}//TODO (INF-2223): TOTEST (wait until we have a DB to test against) ... (actually now tested - need to get test source from theo)
+			}//TESTED (NEED to build a working test file - basic_db_test needs a DB to test against)
 			if (null != pxPipe.nosql) {
 				//TODO (INF-1963): Not yet supported
 			}
@@ -164,28 +170,16 @@ public class HarvestControllerPipeline {
 				
 			}//TESTED (storageSettings_test)
 			
-			// 3] Extraction - link extraction, copy into feed pojo
-
+			// 3] Extraction - link extraction/document splitting, copy into feed pojo
+			
 			if (null != pxPipe.links) {
-				if (null != globalScript) {
-					if ((null != pxPipe.links.getGlobals()) && !pxPipe.links.getGlobals().isEmpty()) {
-						pxPipe.links.setGlobals(globalScript.toString() + "\n" + pxPipe.links.getGlobals());
-					}
-					else {
-						pxPipe.links.setGlobals(globalScript.toString());
-					}
-				}
-				if (null == source.getRssConfig()) { // Following web links from file/db
-					source.setRssConfig(new SourceRssConfigPojo());
-					source.getRssConfig().setSearchConfig(pxPipe.links);
-					
-					// Also copy across HTTP control fields:
-					source.getRssConfig().setHttpFields(pxPipe.links.getHttpFields());
-					source.getRssConfig().setProxyOverride(pxPipe.links.getProxyOverride());
-					source.getRssConfig().setUserAgent(pxPipe.links.getUserAgent());
-					source.getRssConfig().setWaitTimeOverride_ms(pxPipe.links.getWaitTimeBetweenPages_ms());					
-				}//TESTED
+				applyGlobalsToDocumentSplitting(source, pxPipe.links, globalScript, true);
 			}
+			if (null != pxPipe.splitter) {
+				applyGlobalsToDocumentSplitting(source, pxPipe.splitter, globalScript, false);
+			}
+			
+			// (same for document splitter - they're the same at this point)
 			
 			// 3-6] Everything else - just check whether we're going to need UAH/SAH
 			
@@ -223,6 +217,11 @@ public class HarvestControllerPipeline {
 				// (maybe just create a final storage settings at the end if we haven't managed to correlate
 				//  with a pre-existing one) 
 			}//TESTED (storageSettings_test)				
+			
+			// 4] If any of the pipeline elements have criteria then need to turn sah on
+			if ((null != pxPipe.criteria) && !pxPipe.criteria.isEmpty()) {
+				requiresStructuredAnalysis();
+			}//TESTED (basic_criteria_test)
 			
 		}//TESTED
 
@@ -300,17 +299,10 @@ public class HarvestControllerPipeline {
 				continue;
 			}
 			
-			if (null != pxPipe.links) {
-				if (source.getExtractType().equalsIgnoreCase("feed")) {
-					pxPipeIt.remove();
-					continue; // Going to handle this as part of feed/web processing 
-				}
-				else if ((null == pxPipe.links.getScript()) || pxPipe.links.getScript().isEmpty()) { // (follow web links, file/db)
-					pxPipeIt.remove();
-					continue; // Already handled these, just copied globals across										
-				}
-				// (else leave it in, is processed per document)
-			}//TOTEST
+			if (null != pxPipe.links) { // (already handler for feed/web in globals section, otherwise ignored)
+				pxPipeIt.remove();
+				continue; // Going to handle this as part of feed/web processing 
+			}//TESTED
 			
 			// 3] Post processing operation
 			
@@ -327,14 +319,32 @@ public class HarvestControllerPipeline {
 		
 		// The remainder of these steps are per-document...
 			
-		Iterator<DocumentPojo> docIt = toAdd.iterator();
+		ListIterator<DocumentPojo> docIt = toAdd.listIterator();
 		_firstTextExtractionInPipeline = false;
 	
 		long pipelineStartTime = new Date().getTime();
 		
 		int error_on_feed_count = 0, feed_count = 0;
-		while (docIt.hasNext()) {
-			DocumentPojo doc = docIt.next();
+		LinkedList<DocumentPojo> splitterList = null;
+		for (docIt.hasNext();;) {
+
+			DocumentPojo doc = null;
+			if (!docIt.hasNext()) {
+				if ((null == splitterList) || (splitterList.isEmpty())) {
+					break;
+				} // all done!
+				else { // add all splitterList elements to toAdd
+					while (!splitterList.isEmpty()) {
+						docIt.add(splitterList.removeLast());
+						doc = docIt.previous();
+					}
+				}//TESTED (doc_splitte_test)
+			}
+			else { 
+				doc = docIt.next();
+			}//TESTED
+
+			boolean processSpawnedDocOrNotSpawnedDoc = null == doc.getSpawnedFrom(); // (initially: only true if not spawned doc...)
 
 			// (Do this at the top so don't get foxed by any continues in the code)
 			long currTime = new Date().getTime();		
@@ -381,8 +391,27 @@ public class HarvestControllerPipeline {
 							
 				for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
 					//DEBUG
-					//System.out.println("PX EL: " + pxPipe.display);
+					//System.out.println("PX EL: " + pxPipe.display + ", " + processSpawnedDocOrNotSpawnedDoc + ", " + doc.getUrl() + ": " + toAdd.size());
 					
+					// Spawned documents only enter at their spot in the pipeline:
+					if (!processSpawnedDocOrNotSpawnedDoc) {
+						if (pxPipe == doc.getSpawnedFrom()) { // (intentionally ptr ==)
+							processSpawnedDocOrNotSpawnedDoc = true; // (next pipeline element, start processing)
+						}
+						continue; // (skip past elements, including the spawnee)
+						
+					}//TESTED (doc_splitter_test);
+					
+					// Run criteria for this pipeline element:
+					if ((null != pxPipe.criteria) && !pxPipe.criteria.isEmpty()) {
+						if (!pxPipe.criteria.startsWith("$SCRIPT")) {
+							pxPipe.criteria= "$SCRIPT(" + pxPipe.criteria + ")";
+						}//TESTED (basic_criteria_test)
+						
+						if (!_sah.rejectDoc(pxPipe.criteria, doc, false)) {
+							continue;
+						}			
+					}//TESTED (basic_criteria_test)
 					
 					//TODO (INF-2218): improve performance of doc serialization by only updating spec'd fields (note: need to change the js engine)
 					// and by sharing engine state between the SAH and UAH
@@ -398,13 +427,28 @@ public class HarvestControllerPipeline {
 					}//TESTED (metadata_doc_cache_reset)
 					
 					try {					
-						// 3] Text and linked document extraction
+						// 3] Create new documents from existing ones
 						
-						if (null != pxPipe.links) {
-							continue; // This has already been handled if pxPipe.feed or pxPipe.web
-							//TODO (INF-2138) Currently only supported for feed/web (apart from to copy globals around)
-						}
-					
+						if (null != pxPipe.splitter) {
+							if (null == splitterList) {
+								splitterList = new LinkedList<DocumentPojo>();
+							}
+							try {
+								splitDocuments(doc, source, pxPipe, splitterList);
+							}
+							catch (Exception e) {} // do nothing, still want to keep doc unless otherwise specified below
+							
+							if ((null == pxPipe.splitter.getDeleteExisting()) || pxPipe.splitter.getDeleteExisting()) {
+								// Don't keep original doc
+								docIt.remove();
+								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								break;								
+							}//TESTED (test1,test2)
+							
+						}//TESTED (doc_splitter)
+
+						// 4] Text and linked document extraction
+						
 						if (null != pxPipe.text) {
 							// IN: doc (xpath/regex) or json(doc) (js)
 							// OUT: doc.fullText, doc.title, doc.desc, (less common) doc.metadata.*
@@ -431,12 +475,17 @@ public class HarvestControllerPipeline {
 													
 							if (!handleTextEngine(pxPipe, doc, source)) {
 								error_on_feed_count++;
-								docIt.remove();
-								break; // (no more processing)								
+								
+								if ((null == pxPipe.textEngine.exitOnError) || pxPipe.textEngine.exitOnError) {
+									doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+									docIt.remove();
+									break; // (no more processing)
+								}//TESTED (engines_exit_on_error)
+								
 							}
 						} //TESTED (basic_web_test_ocOptions.json, basic_web_test_textaaOptions.json)
 						
-						// 4] Document level fields
+						// 5] Document level fields
 						
 						if (null != pxPipe.docMetadata) {
 							// IN: sah.doc
@@ -467,7 +516,7 @@ public class HarvestControllerPipeline {
 						}
 						//TESTED (fulltext_regexTests.json, basic_web_uahRawText.json)
 						
-						// 5] Entities and Associations
+						// 6] Entities and Associations
 						
 						if (null != pxPipe.entities) {
 							// IN: sah.doc.*, sah.doc.metadadata.*, 
@@ -495,12 +544,18 @@ public class HarvestControllerPipeline {
 							
 							if (!handleFeatureEngine(pxPipe, doc, source)) {
 								error_on_feed_count++;
-								docIt.remove();
-								break; // (no more processing)								
+								
+								if ((null == pxPipe.featureEngine.exitOnError) || pxPipe.featureEngine.exitOnError) {
+									doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+									docIt.remove();
+									break; // (no more processing)
+									
+								}//TESTED (engines_exit_on_error_test)
 							}
+							
 						} //TESTED (basic_web_test_ocOptions.json, basic_web_test_textaaOptions.json)
-						
-						// 6] Finishing steps:
+
+						// 7] Finishing steps:
 						
 						if (null != pxPipe.storageSettings) {							
 							// IN: doc
@@ -509,9 +564,13 @@ public class HarvestControllerPipeline {
 							
 							if (!handleStorageSettings(pxPipe, doc)) {
 								// (this is a manual rejection not an error so we're good)
+								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 								docIt.remove();
-								continue;								
+								break; // (no more processing for this document)
 							}							
+							if ((null != pxPipe.storageSettings.exitPipeline) && pxPipe.storageSettings.exitPipeline) {
+								break; // (no more processing for this document)
+							}//TESTED (basic_criteria_test)
 							
 						}//TESTED (storageSettings_test; not update - need more infrastructure) 	
 						
@@ -558,6 +617,9 @@ public class HarvestControllerPipeline {
 				break;
 			} //TESTED (c/p file_textError)
 			catch (Exception e) { // Misc doc error
+				/**/
+				e.printStackTrace();
+				
 				error_on_feed_count++;
 				this.handleDocOrSourceError(source, doc, docIt, e, false);	
 				// (don't break)
@@ -629,8 +691,6 @@ public class HarvestControllerPipeline {
 	
 	private boolean handleTextEngine(SourcePipelinePojo pxPipe, DocumentPojo doc, SourcePojo source) throws ExtractorDocumentLevelException, ExtractorSourceLevelException, ExtractorDailyLimitExceededException, ExtractorSourceLevelMajorException, ExtractorSourceLevelTransientException, IOException
 	{
-		//TODO (INF-2223): Handle criteria
-		
 		// Set default extractor up:
 		String extractor = _defaultTextExtractor;
 		if ((null != pxPipe.textEngine.engineName) && !pxPipe.textEngine.engineName.equalsIgnoreCase("default")) {
@@ -658,7 +718,12 @@ public class HarvestControllerPipeline {
 					doc.setFullText(null); // (reset)
 					updateInterDocDelayState(doc, true);
 					
-					_uah.getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
+					try {
+						_uah.getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
+					}
+					catch (Exception e) {
+						return false;
+					}						
 					_cachedRawFullText = doc.getFullText();
 					_cachedRawFullText_available = true;
 				}
@@ -681,7 +746,7 @@ public class HarvestControllerPipeline {
 			source.setExtractorOptions(pxPipe.textEngine.engineConfig);
 			ArrayList<DocumentPojo> docWrapper = new ArrayList<DocumentPojo>(1);
 			docWrapper.add(doc);
-			_hc.extractTextAndEntities(docWrapper, source, false);
+			_hc.extractTextAndEntities(docWrapper, source, false, true);
 			if (docWrapper.isEmpty()) { // Then this document has errored and needs to be removed - note logging etc has already occurred
 				return false;
 			}//TESTED (featureEngine_batch_test, remove textEngine stage; c/p from featureEngine)
@@ -717,7 +782,6 @@ public class HarvestControllerPipeline {
 	{
 		updateInterDocDelayState(doc, false);
 		
-		//TODO (INF-2223): Handle criteria
 		source.setUseTextExtractor("None");
 		if ((null != pxPipe.featureEngine.engineName) && !pxPipe.featureEngine.engineName.equalsIgnoreCase("default")) {
 			source.setUseExtractor(pxPipe.featureEngine.engineName);
@@ -728,12 +792,12 @@ public class HarvestControllerPipeline {
 		source.setExtractorOptions(pxPipe.featureEngine.engineConfig);
 		ArrayList<DocumentPojo> docWrapper = new ArrayList<DocumentPojo>(1);
 		docWrapper.add(doc);
-		_hc.extractTextAndEntities(docWrapper, source, false);
+		_hc.extractTextAndEntities(docWrapper, source, false, true);
 			// (Note if no textEngine is used and this engine supports it then also does text extraction - TESTED)
 
 		// Handle batch completion (needs to happen before docWrapper.isEmpty()==error check)
 		if (_lastDocInPipeline) {
-			_hc.extractTextAndEntities(null, source, true);
+			_hc.extractTextAndEntities(null, source, true, true); 
 		}//TESTED (featureEngine_batch_test)
 		
 		if (docWrapper.isEmpty()) { // Then this document has errored and needs to be removed
@@ -776,7 +840,7 @@ public class HarvestControllerPipeline {
 		}//TESTED (storageSettings_test)
 		if (null != pxPipe.storageSettings.onUpdateScript) {
 			_sah.handleDocumentUpdates(pxPipe.storageSettings.onUpdateScript, doc);
-		}//TODO (INF-1922) TOTEST (can't test until integrated with harvester)
+		}//TOTEST (but low risk) (INF-1922)
 		
 		if (null != pxPipe.storageSettings.metadataFieldStorage) {
 			_sah.removeUnwantedMetadataFields(pxPipe.storageSettings.metadataFieldStorage, doc);
@@ -891,4 +955,89 @@ public class HarvestControllerPipeline {
 		
 	}//TESTED minor+major(null): web_errors_test, major(docs): file_textError
 	
+	/////////////////////////
+	
+	// Document splitting logic
+	
+	private void applyGlobalsToDocumentSplitting(SourcePojo source, SourceSearchFeedConfigPojo links, StringBuffer globalScript, boolean webLinks)
+	{
+		if (null != globalScript) {
+			if ((null != links.getGlobals()) && !links.getGlobals().isEmpty()) {
+				links.setGlobals(globalScript.toString() + "\n" + links.getGlobals());
+			}
+			else {
+				links.setGlobals(globalScript.toString());
+			}
+		}//TESTED
+		
+		if (webLinks) {
+			if (null == source.getRssConfig()) { // (Just set some fields to be used by other)
+				source.setRssConfig(new SourceRssConfigPojo());
+				
+				// Also copy across HTTP control fields:
+				source.getRssConfig().setHttpFields(links.getHttpFields());
+				source.getRssConfig().setProxyOverride(links.getProxyOverride());
+				source.getRssConfig().setUserAgent(links.getUserAgent());
+				
+				source.getRssConfig().setWaitTimeOverride_ms(links.getWaitTimeBetweenPages_ms());					
+	
+			}//TESTED
+			source.getRssConfig().setSearchConfig(links);
+		}
+	}//TESTED (non-feed)
+	
+	private void splitDocuments(DocumentPojo doc, SourcePojo source, SourcePipelinePojo splitter, List<DocumentPojo> docs)
+	{
+		try {
+			if (null == source.getRssConfig()) {
+				source.setRssConfig(new SourceRssConfigPojo());
+			}
+			if (null != source.getRssConfig().getExtraUrls()) { // refreshed ready for new document
+				source.getRssConfig().setExtraUrls(null);
+			}
+			source.getRssConfig().setSearchConfig(splitter.splitter);
+
+			FeedHarvester_searchEngineSubsystem subsys = new FeedHarvester_searchEngineSubsystem();
+			subsys.generateFeedFromSearch(source, _hc, doc);
+			
+			if (null != source.getRssConfig().getExtraUrls()) {
+				for (ExtraUrlPojo newDocInfo: source.getRssConfig().getExtraUrls()) {
+					DocumentPojo newDoc = new DocumentPojo();
+					newDoc.setCreated(new Date());
+					newDoc.setModified(newDoc.getCreated());
+					newDoc.setUrl(newDocInfo.url);
+					newDoc.setTitle(newDocInfo.title);
+					newDoc.setDescription(newDocInfo.description);
+					newDoc.setFullText(newDocInfo.fullText);
+					// Published date is a bit more complex
+					if (null != newDocInfo.publishedDate) {
+						try {
+							newDoc.setPublishedDate(new Date(DateUtility.parseDate(newDocInfo.publishedDate)));						
+						}
+						catch (Exception e) {}
+					}//TESTED (test3,test4)
+					if (null == newDoc.getPublishedDate()) {
+						newDoc.setPublishedDate(doc.getPublishedDate());
+					}//TESTED (test1)
+					if (null == newDoc.getPublishedDate()) {
+						newDoc.setPublishedDate(doc.getCreated());
+					}//TESTED (test2)
+					newDoc.setSource(doc.getSource());
+					newDoc.setSourceKey(doc.getSourceKey());
+					newDoc.setCommunityId(doc.getCommunityId());
+					newDoc.setDocGeo(doc.getDocGeo());
+					
+					newDoc.setSpawnedFrom(splitter);
+					docs.add(newDoc);
+				}//end loop over URLs
+			}//TESTED
+		}
+		catch (Exception e) {
+			StringBuffer errMessage = HarvestExceptionUtils.createExceptionMessage(e);
+			_hc.getHarvestStatus().logMessage(errMessage.toString(), true);
+		}//TESTED (test4)
+		
+	}//TESTED (doc_splitter_test, see above for details)
+	
 }
+

@@ -16,6 +16,7 @@
 	<classpathentry kind="lib" path="WEB-INF/lib/jasypt-1.6.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/mail.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/servlet-api.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/juniversalchardet-1.0.3.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.generic.library"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="output" path="WEB-INF/classes"/>

@@ -52,6 +52,9 @@ public class InfiniteHadoopUtils {
 	final public static long MS_IN_DAY = 86400000;
 	final public static long SECONDS_60 = 60000;
 	
+	private static final String BUILT_IN_JOB_PATH = "file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar"; 
+	private static final String BUILT_IN_JOB_NAME = "infinit.e.hadoop.prototyping_engine.jar"; 
+
 	/**
 	 * Takes the query argument from a CustomMapReduceJobPojo
 	 * and returns either the query or post processing part
@@ -111,10 +114,10 @@ public class InfiniteHadoopUtils {
 				else 
 					return null;
 			}
-			catch (Exception e) // (not sure how we can get to here)
+			catch (Exception e) // (malformed query gets you here)
 			{
 				if ( querySpec == QuerySpec.QUERY )
-					return "{}";
+					throw new RuntimeException("Malformed query: " + query);
 				else
 					return null;
 			}
@@ -134,8 +137,6 @@ public class InfiniteHadoopUtils {
 	{		
 		String shareStringOLD = "$infinite/share/get/";
 		String shareStringNEW = "$infinite/social/share/get/";
-		String tempFileName = assignNewJarLocation(prop_custom);
-		OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
 		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW))
 		{
 			//jar is local use id to grab jar (skips authentication)
@@ -153,35 +154,48 @@ public class InfiniteHadoopUtils {
 
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
 			if (null == share) {
-				if (null != out) {
-					out.close();
-				}
 				throw new RuntimeException("Can't find JAR file or insufficient permissions");
 			}
-			if ( share.getBinaryId() != null )
-			{			
-				GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
-				file.writeTo(out);				
-			}
-			else
-			{
-				out.write(share.getBinaryData());
-			}
+			
+			String tempFileName = assignNewJarLocation(prop_custom, shareid + ".cache");
+			File tempFile = new File(tempFileName);
+			
+			// Compare dates (if it exists) to see if we need to update the cache) 
+			
+			if (!tempFile.exists() || (tempFile.lastModified() < share.getModified().getTime())) {
+				OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
+				if ( share.getBinaryId() != null )
+				{			
+					GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
+					file.writeTo(out);				
+				}
+				else
+				{
+					out.write(share.getBinaryData());
+				}
+			}//TESTED
+			
+			return tempFileName;
 		}
 		else
 		{
 			if (jarURL.startsWith("$infinite")) {
 				jarURL = jarURL.replace("$infinite", "http://localhost:8080");
 			}
-			else if (jarURL.startsWith("file://")) {
+			else if (!jarURL.startsWith("http")) {
 				// Can't access the file system, except for this one nominated file:
-				if (!jarURL.equals("file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar")) {
-					if (null != out) {
-						out.close();
-					}
+				if (!jarURL.equals(BUILT_IN_JOB_PATH)) {
 					throw new RuntimeException("Can't find JAR file or insufficient permissions");
 				}
-			}
+				jarURL = BUILT_IN_JOB_PATH.substring(7);
+				if (!(new File(jarURL).exists())) { // (this is really only when debugging)
+					// Try looking in temp path
+					jarURL = assignNewJarLocation(prop_custom, BUILT_IN_JOB_NAME);
+				}
+				return jarURL;
+			}//TESTED
+			String tempFileName = assignNewJarLocation(prop_custom, null);
+			OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
 			
 			//download jar from external site
 			URL url = new URL(jarURL);
@@ -195,11 +209,10 @@ public class InfiniteHadoopUtils {
 				out.write(buf,0,byteRead);				
 			}
 			in.close();
+			out.close();
+			return tempFileName;
 		}
-		out.close();
-		return tempFileName;
 	}
-
 
 	/**
 	 * Gets a user's communities from his user id
@@ -266,27 +279,34 @@ public class InfiniteHadoopUtils {
 	 * 
 	 * @return a unique filename for the jar file.
 	 */
-	public static String assignNewJarLocation(PropertiesManager prop_custom) 
+	public static String assignNewJarLocation(PropertiesManager prop_custom, String nameOverride) 
 	{		
 		String dirname = prop_custom.getHadoopConfigPath() + "/jars/";
 		File dir = new File(dirname);
 		if ( !dir.exists() )
 			dir.mkdir();
-		String prefix = "tempJar";
-		String suffix = ".jar";
 		
-		String lastFile = "tempJar000000.jar";
-		String[] filenames = dir.list();
-		if ( filenames.length > 0 )
-			 lastFile = filenames[filenames.length-1];
-		String increment = lastFile.replaceFirst(prefix, "");
-		increment = increment.replaceFirst(suffix, "");
-		//add 1 to increment, and add leading 0's to keep in order
-		String nextNumber = (Integer.parseInt(increment) + 1) + "";
-		String zeros = "000000" + nextNumber;
-		String newincrement = zeros.substring(zeros.length()-6);
-				
-		return dirname + prefix + newincrement + suffix;
+		if (null == nameOverride) {
+		
+			String prefix = "tempJar";
+			String suffix = ".jar";
+			
+			String lastFile = "tempJar000000.jar";
+			String[] filenames = dir.list();
+			if ( filenames.length > 0 )
+				 lastFile = filenames[filenames.length-1];
+			String increment = lastFile.replaceFirst(prefix, "");
+			increment = increment.replaceFirst(suffix, "");
+			//add 1 to increment, and add leading 0's to keep in order
+			String nextNumber = (Integer.parseInt(increment) + 1) + "";
+			String zeros = "000000" + nextNumber;
+			String newincrement = zeros.substring(zeros.length()-6);
+			
+			return dirname + prefix + newincrement + suffix;
+		}
+		else {
+			return dirname + nameOverride;			
+		}
 	}
 	/**
 	 * Removes the config file that is not being used anymore.
@@ -295,7 +315,7 @@ public class InfiniteHadoopUtils {
 	 */
 	public static void removeTempFile(String file)
 	{
-		if ( file != null )
+		if (( file != null ) && !file.endsWith(".cache") && !file.endsWith(BUILT_IN_JOB_NAME))
 		{
 			File f = new File(file);
 			f.delete();

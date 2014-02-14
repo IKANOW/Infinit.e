@@ -1,15 +1,16 @@
 <?xml version="1.0" encoding="utf-8"?>
 <components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
-	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
-	xmlns:components1="com.ikanow.infinit.e.components.*"
-	xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
-	xmlns:tilemap="com.mapquest.tilemap.*"
-	xmlns:s="library://ns.adobe.com/flex/spark"
-	xmlns:mx="library://ns.adobe.com/flex/mx"
-	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
-	creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:components1="com.ikanow.infinit.e.components.*"
+						 xmlns:ilog="http://www.ilog.com/2007/ilog/flex"
+						 xmlns:tilemap="com.mapquest.tilemap.*"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 secondToolbarButtonVisible="true"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
-	<fx:Style>
+		<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
 		@namespace mx "library://ns.adobe.com/flex/mx";
 		/* If you need to override a style in our stylesheet, or add another
@@ -21,6 +22,10 @@
 		font-family: infiniteNonCFFFont;
 		}
 		*/
+		.closeButtonInverted
+		{
+			skinClass : ClassReference("com.ikanow.infinit.e.assets.skins.CloseButtonInvertedSkin");	
+		}
 	</fx:Style>
 	<fx:Script>
 		<![CDATA[
@@ -29,59 +34,58 @@
 			import com.ikanow.infinit.e.actionscript.InfiniteMapUtils;
 			import com.ikanow.infinit.e.actionscript.KMLOptions;
 			import com.ikanow.infinit.e.components.InfininiteRollover;
-			import com.ikanow.infinit.e.components.InfiniteRolloverWindow;
+			import com.ikanow.infinit.e.components.KMLLoaderDialog;
 			import com.ikanow.infinit.e.components.KMLOptionsDialog;
-			import com.ikanow.infinit.e.components.RolloverWindow;
+			import com.ikanow.infinit.e.events.DropDownClickEvent;
+			import com.ikanow.infinit.e.events.KMLLoaderEvent;
 			import com.ikanow.infinit.e.events.KMLOptionsExportEvent;
+			import com.ikanow.infinit.e.utility.Utils;
 			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			import com.mapquest.DistanceUnits;
 			import com.mapquest.LatLngCollection;
 			import com.mapquest.tilemap.RectLL;
 			import com.mapquest.tilemap.RemoteCollection;
-			import com.mapquest.tilemap.ShapeCollection;
-			import com.mapquest.tilemap.TileMap;
 			import com.mapquest.tilemap.TileMapEvent;
 			import com.mapquest.tilemap.controls.inputdevice.MouseWheelZoomControl;
 			import com.mapquest.tilemap.controls.shadymeadow.SMLargeZoomControl;
 			import com.mapquest.tilemap.deserializers.DeserializeKML;
 			import com.mapquest.tilemap.overlays.CircleOverlay;
-			import com.mapquest.tilemap.pois.ImageMapIcon;
 			import com.mapquest.tilemap.pois.MapIcon;
 			import com.mapquest.tilemap.pois.Poi;
+			
+			import flash.utils.setTimeout;
 			
 			import mx.collections.ArrayCollection;
 			import mx.collections.XMLListCollection;
 			import mx.controls.Alert;
 			import mx.controls.LinkButton;
 			import mx.controls.Menu;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
 			import mx.events.FlexMouseEvent;
-			import mx.events.ItemClickEvent;
 			import mx.events.MenuEvent;
 			import mx.events.ResizeEvent;
 			import mx.graphics.SolidColorStroke;
 			import mx.managers.PopUpManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.rpc.http.HTTPService;
 			
+			import spark.collections.Sort;
+			import spark.collections.SortField;
 			import spark.components.BorderContainer;
 			import spark.components.Label;
 			import spark.components.VGroup;
-			import spark.effects.RemoveAction;
 			import spark.events.IndexChangeEvent;
 			import spark.primitives.Line;
 			
-			import org.alivepdf.fonts.FontFamily;
-			import org.alivepdf.fonts.Style;
-			import org.alivepdf.images.ImageFormat;
-			import org.alivepdf.images.ResizeMode;
-			import org.alivepdf.layout.Orientation;
-			import org.alivepdf.layout.Size;
-			import org.alivepdf.layout.Unit;
-			import org.alivepdf.pages.Page;
 			import org.alivepdf.pdf.PDF;
 			
-			import system.data.Map;
-			import system.data.maps.HashMap;
+			import system.data.lists.ArrayList;
 			import system.data.sets.HashSet;
 			
 			private static const MAP_OVERLAY:int = 0;
@@ -204,13 +208,13 @@
 			// Event to load the Kml into the parser
 			public function loadKml( event:Event ):void
 			{
-			/*_kmlLoader = new GoogleMapKMLLoader( _map, "Google Map Layer" );
-			_kmlLoader.showPolygonEdges = true;
-			_kmlLoader.opacity = 0.5;  //50% opacity no need for this
-			_kmlData = event.target.data;
-			
-			// Need to re-render markers first (clears other overlays) then this KML:
-			_presentationLayer.onMapSizeChanged_fromGUI( _map.boundsLL as RectLL, _map.zoom, _map );*/
+				/*_kmlLoader = new GoogleMapKMLLoader( _map, "Google Map Layer" );
+				_kmlLoader.showPolygonEdges = true;
+				_kmlLoader.opacity = 0.5;  //50% opacity no need for this
+				_kmlData = event.target.data;
+				
+				// Need to re-render markers first (clears other overlays) then this KML:
+				_presentationLayer.onMapSizeChanged_fromGUI( _map.boundsLL as RectLL, _map.zoom, _map );*/
 			}
 			
 			// Load Url of KML file and fire event upon complete to kml parser
@@ -292,17 +296,18 @@
 						for ( var i:int = 0; i < keys.length; i++ )
 						{
 							//The keys are the commid, the val is a map of name -> kml urls
-							
+							//TODO store commid with kml layer so we know who we are deleting
 							var kmlMap:Object = vals[ i ];
 							
 							for ( var x:String in kmlMap )
 							{
 								var url:String = kmlMap[ x ];
-								url = url.replace( "\$infinite/", ENDPOINT_URL );
+								url = url.replace( "\$infinite/", ENDPOINT_URL );								
 								var remoteColl:RemoteCollection = new RemoteCollection( url, DeserializeKML );
-								remoteColl.name = getKmlName( keys[ i ], x );
+								remoteColl.name = getKmlName( keys[ i ], x );								
 								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_LOADED, kmlLoaded );
-								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );
+								remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );	
+								loadingKML(remoteColl);
 								//kmlCollection.addItem( remoteColl );
 							}
 						}
@@ -391,7 +396,7 @@
 				else
 				{
 					_heatMapData.source = geoArray;
-						//(Can't have got here unless heat map visible)
+					//(Can't have got here unless heat map visible)
 				}
 			}
 			
@@ -478,25 +483,58 @@
 				displayTypes.selectedIndex = -1;
 			}
 			
+			private var kmlLoaderPopup:KMLLoaderDialog;
 			protected function kmlLayers_changeHandler( event:IndexChangeEvent ):void
 			{
-				//get the layer turned on/off and turn it on/off				
-				var kmlOption:Object = kmlLayerNames.getItemAt( event.newIndex ) as Object;
-				kmlOption.toggled = !kmlOption.toggled;
-				
-				if ( SHOW_KML_LAYERS )
+				if ( !disableKmlLayerClick )
 				{
-					if ( kmlOption.toggled )
+					if ( event.newIndex == 0 )
 					{
-						_map.addShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+						//was the import kml option
+						var kmlOption:Object = kmlLayerNames.getItemAt( event.newIndex ) as Object;
+						kmlOption.toggled = false;
+						kmlLoaderPopup = KMLLoaderDialog( PopUpManager.createPopUp( this, KMLLoaderDialog, true ) );
+						kmlLoaderPopup.setCommunities(communities);
+						PopUpManager.centerPopUp(kmlLoaderPopup);
+						kmlLoaderPopup.addEventListener(KMLLoaderEvent.LOADER_EVENT, kmlLoader_handler);
 					}
-					else
+					else				
 					{
-						_map.removeShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+						//get the layer turned on/off and turn it on/off				
+						var kmlOption:Object = kmlLayerNames.getItemAt( event.newIndex ) as Object;
+						kmlOption.toggled = !kmlOption.toggled;
+						
+						if ( SHOW_KML_LAYERS )
+						{
+							if ( kmlOption.toggled )
+							{
+								_map.addShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+							}
+							else
+							{
+								_map.removeShapeCollection( kmlCollection.getItemAt( event.newIndex ) as RemoteCollection );
+							}
+						}
 					}
 				}
 				
 				kmlLayers.selectedIndex = -1;
+			}		
+			
+			private function kmlLoader_handler(event:KMLLoaderEvent):void
+			{
+				var url:String = event.url;
+				url = url.replace( "\$infinite/", ENDPOINT_URL );
+				var remoteColl:RemoteCollection = new RemoteCollection( url, DeserializeKML );
+				remoteColl.name = getKmlName(event.community_id, event.name);
+				remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_LOADED, kmlLoaded );
+				remoteColl.addEventListener( RemoteCollection.REMOTE_COLLECTION_FAILED, kmlFailed );
+				loadingKML(remoteColl);
+				
+				if ( this.widgetOptions != null && this.widgetOptions.openKMLLayers != null && this.widgetOptions.openKMLLayers is Array )
+				{
+					this.widgetOptions.openKMLLayers.push(remoteColl.name);					
+				}
 			}
 			
 			protected function ontologyMenuChangeEvent( event:MenuEvent ):void
@@ -562,12 +600,12 @@
 				{
 					addMarkers( marker[ "lat" ], marker[ "lon" ], marker[ "size" ], marker[ "alpha" ], marker[ "tooltip" ], marker[ "evtsize" ], maxSize );
 				}
-			
+				
 				// USER OVERLAYS:
-			/*if ( ( null != _kmlData ) && ( null != _kmlLoader ) )
-			{
+				/*if ( ( null != _kmlData ) && ( null != _kmlLoader ) )
+				{
 				_kmlLoader.loadKML( _kmlData ); // now render the actual local overlays...
-			}*/
+				}*/
 			}
 			
 			/**
@@ -983,7 +1021,7 @@
 				var ba:ByteArray = new ByteArray();
 				ba.writeUTFBytes( x );
 				return ba;
-			
+				
 			}
 			
 			private function displayKMLLayers( show:Boolean ):void
@@ -1037,6 +1075,19 @@
 				return false;
 			}
 			
+			private function getCommunityIdFromName(communityName:String):String
+			{
+				for each ( var comm:Object in communities )
+				{
+					if ( comm.name == communityName )
+					{
+						return comm._id;
+					}
+				}
+				return null;
+			}
+			
+			private var kmlNeedsRenamed:Boolean = false;
 			/**
 			 * Gets the communities name and returns a string of the combined
 			 * kml name | community name
@@ -1047,14 +1098,54 @@
 			 */
 			private function getKmlName( commID:String, kmlName:String ):String
 			{
-				var returnString:String = kmlName + " | " + commID;
-				return returnString;
+				if ( communities.length > 0 )
+				{
+					var commName:String = "comm";
+					for each ( var comm:Object in communities )
+					{
+						if ( comm._id == commID )
+						{
+							commName = comm.name;
+							break;
+						}
+					}
+					var returnString:String = kmlName + " | " + commName;
+					return returnString;
+				}
+				else
+				{
+					kmlNeedsRenamed = true;
+					return kmlName + " | " + commID;
+				}
+			}
+			
+			private function renameKML():void
+			{
+				kmlNeedsRenamed = false;		
+				for (var i:int = 1; i < kmlLayerNames.length; i++ )
+				{
+					var layer:Object = kmlLayerNames.getItemAt(i);
+					var prev_name:String = layer.label;
+					var splits:Array = prev_name.split(" | "); //should be 2 items
+					var name:String = splits[0];
+					var commid:String = splits[1];
+					layer.label = getKmlName(commid, name);
+				}			
+				for each ( var rc:RemoteCollection in loadingRemoteCollections )
+				{
+					var prev_name1:String = rc.name;
+					var splits1:Array = prev_name1.split(" | "); //should be 2 items
+					var name1:String = splits1[0];
+					var commid1:String = splits1[1];
+					rc.name = getKmlName(commid1, name1);
+				}
 			}
 			
 			private function kmlFailed( event:Event ):void
 			{
 				var target:RemoteCollection = event.target as RemoteCollection;
-				trace( "Loading KML: " + target.name + " failed to init" );
+				loadingRemoteCollections.removeItemAt(getLoadingRemoteCollectionIndex(target));
+				Alert.show("Failed to load kml: " + target.name + " because: " + event.toString());
 			}
 			
 			/**
@@ -1066,6 +1157,7 @@
 			private function kmlLoaded( event:Event ):void
 			{
 				var target:RemoteCollection = event.target as RemoteCollection;
+				loadingRemoteCollections.removeItemAt(getLoadingRemoteCollectionIndex(target));
 				kmlCollection.addItem( target );
 				var layerToggled:Boolean = getKMLLayerWasToggled( target.name );
 				kmlLayerNames.addItem( { label: target.name, data: target.name, type: "check", toggled: layerToggled } );
@@ -1075,6 +1167,40 @@
 				if ( SHOW_KML_LAYERS && layerToggled )
 				{
 					_map.addShapeCollection( target );
+				}
+			}
+			
+			private function getLoadingRemoteCollectionIndex(rc:RemoteCollection):int
+			{
+				for ( var i:int = 0; i < loadingRemoteCollections.length; i++ )
+				{
+					var rc1:RemoteCollection = loadingRemoteCollections.getItemAt(i) as RemoteCollection;
+					if ( rc == rc1 )
+						return i;
+				}
+				return -1;
+			}
+			
+			private var loadingRemoteCollections:ArrayCollection = new ArrayCollection();
+			private var loadingRCTimer:Timer = new Timer(10000);
+			/**
+			 * Sets up a timer to wait 5s and displays an error if we didn't receieve new kml
+			 */
+			private function loadingKML(remoteCollection:RemoteCollection):void
+			{
+				loadingRCTimer.stop();
+				loadingRemoteCollections.addItem(remoteCollection);
+				loadingRCTimer.start();
+			}
+			
+			private function loadingRCTimer_handler(event:TimerEvent):void
+			{
+				//if any rc still exists in loadingRemoteCollections we assume they failed, display an error and clear
+				if ( loadingRemoteCollections.length > 0 )
+				{
+					var errorMessage:String = "Failed to load " + loadingRemoteCollections.length + " KML's.  This typically occurs because the KML is invalid or contains unsupported elements";
+					loadingRemoteCollections.removeAll()
+					Alert.show(errorMessage);
 				}
 			}
 			
@@ -1140,10 +1266,10 @@
 					
 					for ( var i:int = 0; i < circlePoints; i++ )
 					{
-						var theta:Number = Math.PI * ( ( 2 * i ) / circlePoints );
-						var pointLat:Number = _regionStartLatLng.lat() + ( circleLat * Math.sin( theta ) );
-						var pointLng:Number = _regionStartLatLng.lng() + ( circleLng * Math.cos( theta ) );
-						polyArray.push( new LatLng( pointLat, pointLng, true ) );
+					var theta:Number = Math.PI * ( ( 2 * i ) / circlePoints );
+					var pointLat:Number = _regionStartLatLng.lat() + ( circleLat * Math.sin( theta ) );
+					var pointLng:Number = _regionStartLatLng.lng() + ( circleLng * Math.cos( theta ) );
+					polyArray.push( new LatLng( pointLat, pointLng, true ) );
 					}*/
 					
 					var distance:Number = _regionStartLatLng.arcDistance( _regionEndLatLng );
@@ -1168,6 +1294,9 @@
 			 */
 			private function onMapReady( event:Event ):void
 			{
+				//kml timer
+				loadingRCTimer.addEventListener(TimerEvent.TIMER, loadingRCTimer_handler);
+				
 				// Map specific code:
 				this._map.setCenter( new LatLng( 20.676362, 5.992188 ), 3 );
 				this._map.addControl( new SMLargeZoomControl() );
@@ -1305,7 +1434,61 @@
 			 */
 			private function onWidgetCreationComplete():void
 			{
+				//get the comms
+				getCommunities();
+				
+				//add default kml layer
+				kmlLayerNames.addItem( { label: "Import KML...", toggled: false } );
+				kmlCollection.addItem(new RemoteCollection()); //fake object
+				kmlLayers.addEventListener(DropDownClickEvent.CLICK_EVENT, dropDownClickEvent_Handler);
 				onMapReady( null );
+			}
+			
+			private var communities:ArrayCollection = new ArrayCollection();
+			private var httpService_Community:HTTPService = new HTTPService();			
+			protected function getCommunities():void
+			{				
+				//load communities
+				httpService_Community.url = ENDPOINT_URL + "social/community/getall";
+				httpService_Community.addEventListener(ResultEvent.RESULT, community_resultHandler);
+				httpService_Community.addEventListener(FaultEvent.FAULT, community_faultHandler);
+				httpService_Community.send();
+			}
+			
+			private function community_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);			
+				if ( data.response.success.toString() == "true" )
+				{
+					var comms:Array = data.data;
+					for ( var i:int = 0; i < comms.length; i++ )
+					{
+						var community:Object = comms[i];
+						if ( !community.isPersonalCommunity )
+						{
+							communities.addItem(community);
+						}
+					}
+					
+					//now sort the array
+					var sort:Sort = new Sort();
+					var sortField:SortField = new SortField("name");
+					sort.fields = [sortField];
+					communities.sort = sort;
+					communities.refresh();
+					
+					if ( kmlNeedsRenamed )
+						renameKML();
+				}
+				else
+				{
+					Alert.show("Error getting communities" + data.response.message);
+				}
+			}
+			
+			private function community_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Error getting communities");
 			}
 			
 			// Handles selecting an option
@@ -1407,6 +1590,7 @@
 			
 			private function resetKMLCollections():void
 			{
+				//TODO just skip the first one?
 				for each ( var remoteColl:RemoteCollection in kmlCollection )
 				{
 					_map.removeShapeCollection( remoteColl );
@@ -1414,6 +1598,9 @@
 				remoteCollection.removeAll();
 				kmlCollection.removeAll();
 				kmlLayerNames.removeAll();
+				//add in default layer
+				kmlLayerNames.addItem( { label: "Import KML...", toggled: false } );
+				kmlCollection.addItem(new RemoteCollection()); //fake object
 			}
 			
 			// (options)
@@ -1589,97 +1776,225 @@
 				// Redraw the clusters with a new tooltip
 				_presentationLayer.doMapDisplayProcessing();
 			}
+			
+			private var disableKmlLayerClick:Boolean = false;
+			/**
+			 * Fired when a user clicks the delete button on a kml layer, prompt them to make sure they wanted to
+			 * 
+			 */
+			private function dropDownClickEvent_Handler(event:DropDownClickEvent):void
+			{
+				disableKmlLayerClick = true;
+				setTimeout(function():void{disableKmlLayerClick=false;},250);
+				Alert.show("Are you sure you want to permantely delete the kml file: " + event.item.data.label, "Are you sure?", Alert.YES|Alert.NO, this, 
+					function (closeEvent:CloseEvent):void
+					{
+						if ( closeEvent.detail == Alert.YES )
+						{
+							//delete the kml layer now that they've said yes
+							var label:String = event.item.data.label;
+							//var kml_name:String = label.substring(0, label.indexOf("|")-1);
+							var comm_name:String = label.substring(label.indexOf("|")+2);
+							removeKMLFromShare(comm_name, label);
+							//make sure that layer is off, and remove from list(s)
+							removeKMLFromList(label);
+							
+						}
+					}
+				);
+				
+			}
+			
+			private function removeKMLFromList(kml_name:String):void
+			{ 
+				for (var i:int = 1; i < kmlLayerNames.length; i++ )
+				{
+					var kmlOption:Object = kmlLayerNames[i];
+					if ( kmlOption.label == kml_name )
+					{
+						_map.removeShapeCollection( kmlCollection.getItemAt( i ) as RemoteCollection );
+						kmlLayerNames.removeItemAt(i);
+						kmlCollection.removeItemAt(i);
+						break;
+					}
+				}
+			}
+			
+			private var searchShareHttpService:HTTPService;
+			private var kml_name_to_delete:String;
+			private function removeKMLFromShare(community_name:String, kml_name:String):void
+			{
+				var community_id:String = getCommunityIdFromName(community_name); 
+				kml_name_to_delete = kml_name;
+				searchShareHttpService = new HTTPService();
+				searchShareHttpService.url = ENDPOINT_URL + "social/share/search?type=widgetsave&searchby=community&id=" + community_id;
+				searchShareHttpService.addEventListener(ResultEvent.RESULT, shareSearch_resultHandler);
+				searchShareHttpService.addEventListener(FaultEvent.FAULT, shareSearch_faultHandler);
+				searchShareHttpService.send();	
+			}
+			
+			private var widgetsaveCreateHttpService:HTTPService;
+			private function shareSearch_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					var widgetSave:Object = null;
+					var module_name:String = Utils.getModuleName(this);
+					for each ( var share:Object in data.data )
+					{
+						if ( share.title == module_name )
+						{
+							//found the share now remove the kml_entry
+							widgetSave = JSONDecoder.decode( share.share as String );
+							var kml_name:String = kml_name_to_delete.substring(0, kml_name_to_delete.indexOf("|")-1);
+							delete widgetSave[kml_name];							
+							widgetsaveCreateHttpService = new HTTPService();					
+							widgetsaveCreateHttpService.url = ENDPOINT_URL + "social/share/update/json/" + share._id + "/widgetsave/"+URLEncoder.encode(module_name)+"/updated%20by%20map%20widget";
+							widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
+							widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);							
+							widgetsaveCreateHttpService.method = "POST";
+							widgetsaveCreateHttpService.contentType = "application/json";
+							widgetsaveCreateHttpService.send(com.ikanow.infinit.e.widget.library.utility.JSONEncoder.encode(widgetSave));						 
+							break;
+						}
+					}	
+				}
+				else
+				{
+					Alert.show("Failed to find share to remove kml from: " + data.response.message);
+				}
+			}
+			
+			private function shareSearch_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to check for previous kml save: " + event.message);
+			}
+			
+			private function widgetSaveComplete_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to update kml save: " + event.message);
+			}
+			
+			private function widgetSaveComplete_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					//TODO was successful, remove from map if its on and remove from kml layers list now
+					Alert.show("Deleted KML successfully");
+				}
+				else
+				{
+					Alert.show("Failed to update kml save: " + data.response.message);
+				}
+			}
 		]]>
 	</fx:Script>
 	<fx:Declarations>
 		<!-- Place non-visual elements (e.g., services, value objects) here -->
 	</fx:Declarations>
-
+		
+	<components:helpContent>
+		<s:VGroup width="100%" height="100%" 
+				  horizontalAlign="center" gap="5" 
+				  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
+			
+			<s:RichEditableText editable="false" multiline="true" maxWidth="300" >
+				<s:textFlow>
+					<s:TextFlow>
+						<s:p>
+							The Map is a tool for displaying documents and entities with geo data on a map.  It displays documents and entities in both clusters and a heatmap.  Custom KML layers can also be loaded (but Mapquest only supports a small subset of the KML language currently).  More details on using the Map can be found <s:a href="https://ikanow.jira.com/wiki/display/INFAPI/Map">here</s:a>
+						</s:p>
+					</s:TextFlow>
+				</s:textFlow>
+			</s:RichEditableText>
+		</s:VGroup>
+	</components:helpContent>
+	
 	<!-- If you would like this widget to be styled similar to the other infinite widgets
-		you may place items in the headerContent section shown below and they will be drawn at
-		the top of the widget.  If you want to use similar looking buttons explore the
-		com.ikanow.infinit.e.widget.library.components.* items looking for components
-		prefixed with Widget*.  Other components may be added to the header as well.
+	you may place items in the headerContent section shown below and they will be drawn at
+	the top of the widget.  If you want to use similar looking buttons explore the
+	com.ikanow.infinit.e.widget.library.components.* items looking for components
+	prefixed with Widget*.  Other components may be added to the header as well.
 	-->
-	<components:headerContent>
-		<s:HGroup gap="-3">
-
-			<!-- Ignore Filter Toggle Button -->
-			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
-				toolTip="Ignore Workspace Filtering - Show All Results"
-				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
-
-			<!-- Zoom Toggle Button -->
-			<components:WidgetZoomToggleButton id="zoomToggleButton"
-				toolTip="Enter click-to-filter mode/leave click-to-zoom mode (and disable auto-zoom)"
-				change="zoomToggleButton_changeHandler(event)" />
-
-			<!-- Region Select Toggle Button -->
-			<components:WidgetRegionSelectToggleButton id="regionSelectToggleButton"
-				toolTip="Enter region selection mode"
-				change="regionSelectToggleButton_changeHandler(event)" />
-
-			<!-- Map Overlays Drop Down List -->
-			<components:WidgetPromptDropDownList id="overlayOptions"
-				width="95"
-				selectedIndex="{ MAP_OVERLAY }"
-				change="setTimeout( overlayOptions_changeHandler, 100, event )"
-				listWidth="93"
-				prompt="Overlays">
-				<components:dataProvider>
-					<s:ArrayList source="[Map,Satellite]" />
-				</components:dataProvider>
-			</components:WidgetPromptDropDownList>
-
-			<!-- Show Options Drop Down List -->
-			<components:WidgetPromptCheckBoxDropDownList id="showOptions"
-				width="76"
-				selectedIndex="-1"
-				dataProvider="{ _presentationLayer.getShowOptions() }"
-				change="setTimeout( showOptions_changeHandler, 100, event )"
-				listWidth="190"
-				prompt="Show" />
-
-			<!-- Display Types Drop Down List -->
-			<components:WidgetPromptCheckBoxDropDownList id="displayTypes"
-				width="125"
-				selectedIndex="-1"
-				dataProvider="{ _presentationLayer.getAllowedOntologyTypes() }"
-				change="setTimeout( displayTypes_changeHandler, 100, event )"
-				listWidth="170"
-				prompt="Display Types" />
-
-			<!-- Display Types Drop Down List -->
-			<components:WidgetPromptCheckBoxDropDownList id="kmlLayers"
-				width="125"
-				selectedIndex="-1"
-				dataProvider="{ kmlLayerNames }"
-				change="setTimeout( kmlLayers_changeHandler, 100, event )"
-				listWidth="170"
-				prompt="KML Layers" />
-
-		</s:HGroup>
-	</components:headerContent>
-
+	<components:leftHeaderContent>
+		<!-- Ignore Filter Toggle Button -->
+		<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+												   toolTip="Ignore Workspace Filtering - Show All Results"
+												   click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+		
+		<!-- Zoom Toggle Button -->
+		<components:WidgetZoomToggleButton id="zoomToggleButton"
+										   toolTip="Enter click-to-filter mode/leave click-to-zoom mode (and disable auto-zoom)"
+										   change="zoomToggleButton_changeHandler(event)" />
+		
+		<!-- Region Select Toggle Button -->
+		<components:WidgetRegionSelectToggleButton id="regionSelectToggleButton"
+												   toolTip="Enter region selection mode"
+												   change="regionSelectToggleButton_changeHandler(event)" />
+	</components:leftHeaderContent>
+	
+	<components:secondHeaderContent>
+		<!-- Map Overlays Drop Down List -->
+		<components:WidgetPromptDropDownList id="overlayOptions"
+											 width="95"
+											 selectedIndex="{ MAP_OVERLAY }"
+											 change="setTimeout( overlayOptions_changeHandler, 100, event )"
+											 listWidth="93" height="32"
+											 prompt="Overlays">
+			<components:dataProvider>
+				<s:ArrayList source="[Map,Satellite]" />
+			</components:dataProvider>
+		</components:WidgetPromptDropDownList>
+		
+		<!-- Show Options Drop Down List -->
+		<components:WidgetPromptCheckBoxDropDownList id="showOptions"
+													 width="76" height="32"
+													 selectedIndex="-1"
+													 dataProvider="{ _presentationLayer.getShowOptions() }"
+													 change="setTimeout( showOptions_changeHandler, 100, event )"
+													 listWidth="190"
+													 prompt="Show" />
+		
+		<!-- Display Types Drop Down List -->
+		<components:WidgetPromptCheckBoxDropDownList id="displayTypes"
+													 width="125" height="32"
+													 selectedIndex="-1"
+													 dataProvider="{ _presentationLayer.getAllowedOntologyTypes() }"
+													 change="setTimeout( displayTypes_changeHandler, 100, event )"
+													 listWidth="170"
+													 prompt="Display Types" />
+		
+		<!-- Display Types Drop Down List -->
+		<components:WidgetPromptCheckBoxDropDownList id="kmlLayers"
+													 width="125" height="32"
+													 selectedIndex="-1"
+													 dataProvider="{ kmlLayerNames }"
+													 change="setTimeout( kmlLayers_changeHandler, 100, event )" 														 
+													 listWidth="170"
+													 prompt="KML Layers" itemRenderer="com.ikanow.infinit.e.renderers.KMLLayersDropDownItemRenderer" />
+	</components:secondHeaderContent>	
+	
 	<s:HGroup 
 		width="100%"
 		height="100%">
 		<s:Group id="_mapgroup"
-			width="100%"
-			height="100%"
-			x="0"
-			y="0">
-
+				 width="100%"
+				 height="100%"
+				 x="0"
+				 y="0">
+			
 			<!-- Heatmap -->
 			<ilog:DensityHeatMap id="_heatMapMiddelay"
-				width="100%"
-				height="100%"
-				dataProvider="{ _heatMapData }"
-				alpha="0.75"
-				depth="1"
-				mouseEnabled="false"
-				pointSize="30"
-				pointValue="10">
+								 width="100%"
+								 height="100%"
+								 dataProvider="{ _heatMapData }"
+								 alpha="0.75"
+								 depth="1"
+								 mouseEnabled="false"
+								 pointSize="30"
+								 pointValue="10">
 				<ilog:colorModel>
 					<ilog:ColorModel>
 						<ilog:ColorEntry 
@@ -1696,15 +2011,15 @@
 					</ilog:ColorModel>
 				</ilog:colorModel>
 			</ilog:DensityHeatMap>
-
+			
 			<!-- Map -->
 			<tilemap:TilemapComponent id="_map"
-				x="0"
-				y="0"
-				width="100%"
-				height="100%"
-				key="{ API_KEY }"
-				zoom="4" />
+									  x="0"
+									  y="0"
+									  width="100%"
+									  height="100%"
+									  key="{ API_KEY }"
+									  zoom="4" />
 		</s:Group>
 	</s:HGroup>
 	<fx:Script source="com/ikanow/infinit/e/actionscript/InfiniteMapModelLayer.as" />

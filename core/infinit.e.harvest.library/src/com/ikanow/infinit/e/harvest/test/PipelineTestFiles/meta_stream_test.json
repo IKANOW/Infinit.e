@@ -1,0 +1,50 @@
+    "processingPipeline": [
+        {
+            "display": "XML test",
+            "web": {"extraUrls": [
+                {
+                    "description": "test1",
+                    "fullText": "   <objects><object1><test1a>test1atxt<\/test1a><test1b>test1btext<\/test1b><\/object1><object2><test1a>test1atxt_2<\/test1a><test1b>test1btext_2<\/test1b><\/object2><\/objects>",
+                    "title": "test1",
+                    "url": "test1"
+                },
+                {
+                    "description": "test2",
+                    "fullText": " { \"objects\": { \"object3\": [ { \"test2a\": \"test2atxt\", \"test2b\": \"test2btext\" }, { \"test2a\": \"test2atxt_2\", \"test2b\": \"test2btext_2\" }] } }",
+                    "title": "test2",
+                    "url": "test2"
+                },
+                {
+                    "description": "test3",
+                    "fullText": " |  <objects><object1><test1a>test1atxt<\/test1a><test1b>test1btext<\/test1b><\/object1><object2><test1a>test1atxt_2<\/test1a><test1b>test1btext_2<\/test1b><\/object2><\/objects>",
+                    "title": "test3 - fail",
+                    "url": "test3"
+                },
+                {
+                    "description": "test4",
+                    "fullText": "                                                                                                                                                                                                    { \"objects\": { \"object3\": [ { \"test2a\": \"test2atxt\", \"test2b\": \"test2btext\" }, { \"test2a\": \"test2atxt_2\", \"test2b\": \"test2btext_2\" }] } }",
+                    "title": "test4",
+                    "url": "test4"
+                }
+            ]}
+        },
+        {
+            "contentMetadata": [
+                {
+                    "fieldName": "fast_extractor1",
+                    "index": false,
+                    "script": "object1,object2,*object3",
+                    "scriptlang": "stream",
+                    "store": true
+                },
+                {
+                    "fieldName": "fast_extractor2",
+                    "index": false,
+                    "script": "objects",
+                    "scriptlang": "stream",
+                    "store": true
+                }
+            ],
+            "display": ""
+        }
+    ],

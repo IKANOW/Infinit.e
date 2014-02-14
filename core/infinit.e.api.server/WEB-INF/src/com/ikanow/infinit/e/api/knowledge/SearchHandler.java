@@ -70,6 +70,7 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.data_model.utils.ContentUtils;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -111,7 +112,7 @@ public class SearchHandler
 
 		// Need to do a quick decomposition of the term to fit in with analyzed strings
 		String escapedterm = null;
-		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(term));
+		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
 		TermAttribute termAtt = st.addAttribute(TermAttribute.class);
 		StringBuffer sb = new StringBuffer();
 		try {
@@ -345,7 +346,7 @@ public class SearchHandler
 
 		// Need to do a quick decomposition of the term to fit in with analyzed strings
 		String escapedterm = null;
-		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(term));
+		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
 		TermAttribute termAtt = st.addAttribute(TermAttribute.class);
 		StringBuffer sb = new StringBuffer();
 		try {
@@ -476,7 +477,7 @@ public class SearchHandler
 			}	
 
 			String escapedterm = null;
-			StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(term));
+			StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
 			TermAttribute termAtt = st.addAttribute(TermAttribute.class);
 			StringBuffer sb = new StringBuffer();
 			try {

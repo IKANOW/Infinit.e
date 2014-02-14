@@ -1,0 +1,93 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "title": "test1",
+                        "description": "test1",
+                        "fullText": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "title": "test2",
+                        "description": "test2",
+                        "fullText": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "title": "test3",
+                        "description": "test3",
+                        "fullText": "test3",
+                        "url": "test3"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scripts": [
+                    "//write code here"
+                ],
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "display": "all of them",
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "alltest",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ]
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test1",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "return _doc.title == \"test1\"",
+            "display": "test1"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test2",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "return _doc.title == \"test2\"",
+            "display": "test2"
+        },
+        {
+            "storageSettings": {
+                "exitPipeline": true
+            },
+            "criteria": "return _doc.title != \"test3\"",
+            "display": ""
+        },
+        {
+            "display": "test3",
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test3",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ]
+        }
+    ],

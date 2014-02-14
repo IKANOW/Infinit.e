@@ -50,6 +50,8 @@ public class SourceSearchFeedConfigPojo {
 	
 	private Boolean stopPaginatingOnDuplicate = null; // If true (default: false) then will stop paginating (or link following if no pagination set the first time it sees a duplicate record)
 	
+	private Boolean deleteExisting = null; //PIPELINE ONLY: for "splitter" usage, will remove the original document after generating the splits if default or "true"; if false, the original document continues along the pipeline.
+	
 	// Getters and setters
 	
 	public String getUserAgent() {
@@ -141,6 +143,12 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public boolean getStopPaginatingOnDuplicate() {
 		return null == stopPaginatingOnDuplicate ? false : stopPaginatingOnDuplicate;
+	}
+	public Boolean getDeleteExisting() {
+		return deleteExisting;
+	}
+	public void setDeleteExisting(Boolean deleteExisting) {
+		this.deleteExisting = deleteExisting;
 	}
 	
 }

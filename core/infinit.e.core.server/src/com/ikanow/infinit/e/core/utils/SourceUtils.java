@@ -604,7 +604,10 @@ public class SourceUtils {
 		if (docsAdded > 0) {
 			if (1 == source.getCommunityIds().size()) { // (simple/usual case, just 1 community)
 				query = new BasicDBObject(DocCountPojo._id_, source.getCommunityIds().iterator().next());
-				update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, docsAdded - nDocsDeleted));		
+				update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, docsAdded - nDocsDeleted));	
+				if ((docsAdded != 0) || (nDocsDeleted != 0)) {
+					update.put(DbManager.set_, new BasicDBObject(DocCountPojo.extracted_, new Date()));
+				}
 				DbManager.getDocument().getCounts().update(query, update, true, false);
 			}
 			else if (!source.getCommunityIds().isEmpty()) { // Complex case since docs can belong to diff communities (but they're usually somewhat grouped)
@@ -620,10 +623,13 @@ public class SourceUtils {
 				for (Map.Entry<ObjectId, Integer> communityInfo: communityMap.entrySet()) {
 					query = new BasicDBObject(DocCountPojo._id_, communityInfo.getKey());
 					update = new BasicDBObject(MongoDbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, communityInfo.getValue() - nDocsDeleted_byCommunity));
+					if ((communityInfo.getValue() != 0) || (nDocsDeleted_byCommunity != 0)) {
+						update.put(DbManager.set_, new BasicDBObject(DocCountPojo.extracted_, new Date()));
+					}
 					DbManager.getDocument().getCounts().update(query, update, true, false);
 					// (true for upsert, false for multi add)
 				}
-			}
+			}//(never called in practice - tested up until 5/2/2014)
 		}
 	}//TESTED (actually, except for multi community sources, which can't happen at the moment anyway)
 
