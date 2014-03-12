@@ -32,8 +32,6 @@
 
 	<fx:Script>
 		<![CDATA[
-			import assets.EmbeddedAssets;
-			
 			import com.ikanow.infinit.e.model.presentation.login.LoginModel;
 			import com.ikanow.infinit.e.model.presentation.login.LoginNavigator;
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
@@ -41,6 +39,8 @@
 			
 			import mx.controls.Alert;
 			import mx.events.FlexEvent;
+			
+			import assets.EmbeddedAssets;
 			
 			[Bindable]
 			[Inject]
@@ -85,6 +85,13 @@
 				}
 				else
 					logo_poweredby.visible = true;
+				
+				var old_username:String = getOldUsername();
+				if ( old_username != null )
+				{
+					userName.text = old_username;
+					checkboxRememberMe.selected = true;
+				}
 			}
 			
 			protected function hideHandler():void
@@ -100,13 +107,18 @@
 			protected function input_enterHandler():void
 			{
 				if ( loginButton.enabled )
-				{
+				{					
 					login();
 				}
 			}
 			
 			protected function login():void
 			{
+				if ( checkboxRememberMe.selected )
+					rememberMe();
+				else
+					removeOldUsername();
+				
 				loginButton.setFocus();
 				Mouse.cursor = MouseCursor.ARROW;
 				model.login( userName.text, password.text );
@@ -127,6 +139,22 @@
 			protected function showHandler():void
 			{
 				loginButton.enabled = false;
+			}
+			
+			private function rememberMe():void
+			{
+				//store username in localstorage
+				ExternalInterface.call("addToLocalStorage", "infinite_username", userName.text);
+			}
+			
+			private function getOldUsername():String
+			{
+				return ExternalInterface.call("getFromLocalStorage", "infinite_username");
+			}
+			
+			private function removeOldUsername():void
+			{
+				ExternalInterface.call("removeFromLocalStorage", "infinite_username");
 			}
 		]]>
 	</fx:Script>
@@ -288,6 +316,11 @@
 					mouseEnabled.loadingData="false"
 					validator="{ passwordValidator }" />
 
+				<!-- Remember me -->
+				<s:CheckBox id="checkboxRememberMe" 
+							label="Remember me" 
+							styleName="lightGreyHeader" />
+				
 				<!-- Forgot Password Button -->
 				<common:InfButton id="forgotPassword"
 					label="{ resourceManager.getString( 'infinite', 'loginView.forgotPassword' ) }"

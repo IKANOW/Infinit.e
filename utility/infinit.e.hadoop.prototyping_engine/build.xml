@@ -10,7 +10,7 @@
 	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
 	<property name="dir.build.jar" value="${dir.build}/jar"/>
 	<property name="dir.dist" value="dist"/>
-	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
+	<property name="infinit.e.data_model.location" value="${workspace.root}/ikanow_infinit.e_community/core/infinit.e.data_model"/>
 	
 	<property name="target" value="1.6"/>
 	<property name="source" value="1.6"/>
@@ -111,7 +111,7 @@
 			</mapper>
 			<path>
 			  <!-- Get a list of all the excluded files, add manually to classpath -->
-			  <fileset dir="${dir.lib}" includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar RangeMap.jar"/>
+				  <fileset dir="${dir.lib}" includes="commons*"/>
 			</path>
 		</pathconvert>
 
@@ -133,7 +133,7 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}"/>
 
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="commons*"/>
 		</jar>
 	</target>
 	

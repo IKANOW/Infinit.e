@@ -350,13 +350,20 @@ public class JsonToMetadataParser {
 	 * Converts a JsonObject to a LinkedHashMap.
 	 * @param json  JSONObject to convert
 	 */
+	static private int capacity(int expectedSize) {
+	    if (expectedSize < 3) {
+	        return expectedSize + 1;
+	    }
+        return expectedSize + expectedSize / 3;
+	}
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JsonObject json)
 	{
 		return convertJsonObjectToLinkedHashMap(json, false);
 	}
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JsonObject json, boolean bHtmlUnescape)
 	{
-		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>();
+		int length = json.entrySet().size();
+		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>(capacity(length));
 		for (Map.Entry<String, JsonElement> jsonKeyEl: json.entrySet())
 		{
 			JsonElement jsonEl = jsonKeyEl.getValue();
@@ -391,6 +398,9 @@ public class JsonToMetadataParser {
 			JsonElement jsonEl = jarray.get(i);
 			if (jsonEl.isJsonObject()) {
 				o[i] = convertJsonObjectToLinkedHashMap(jsonEl.getAsJsonObject(), bHtmlUnescape);
+			}
+			else if (jsonEl.isJsonArray()) {
+				o[i] = handleJsonArray(jsonEl.getAsJsonArray(), bHtmlUnescape);				
 			}
 			else if (jsonEl.isJsonPrimitive()) {
 				if (bHtmlUnescape) {

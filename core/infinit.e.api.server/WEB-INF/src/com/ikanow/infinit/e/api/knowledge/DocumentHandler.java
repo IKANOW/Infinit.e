@@ -84,14 +84,20 @@ public class DocumentHandler
 			}
 			query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
 				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
-			BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
+			
+			BasicDBObject fieldsQ = new BasicDBObject();
+			if (!bReturnFullText) {
+				fieldsQ.put(DocumentPojo.fullText_, 0); // (XML/JSON have fullText as part of pojo)
+			}
+			
+			BasicDBObject dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query, fieldsQ);
 
 			if ((null == dbo) || 
 					((null != dbo.get(DocumentPojo.url_)) &&  dbo.getString(DocumentPojo.url_).startsWith("?DEL?")))
 			{
 				if (null != id) { // this might be the update id...					
 					query = new BasicDBObject(DocumentPojo.updateId_, id);
-					dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query);
+					dbo = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query, fieldsQ);
 				}
 			}
 			//TESTED (update case, normal case, and intermediate case where both update and original still exist)

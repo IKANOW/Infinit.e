@@ -31,15 +31,20 @@ function convertToPipeline(source) {
 	    var _postProc = null;
 	    var _searchIndexes = null;
 	
+	    var _authentication = source.authentication;
+	    
 	    // 1] Extractor logic
-	
+	    
 	    if (source.file) {
 	        _extractor.file = source.file;
 	        _extractor.file.url = source.url;
 	    } 
 	    else if (source.database) {
-	        _extractor.sql = source.database;
-	        _extractor.sql.url = source.url;
+	        _extractor.database = source.database;
+	        _extractor.database.url = source.url;
+	        if (null != _authentication) {
+	        	_extractor.database.authentication = _authentication;
+	        }
 	    }
 	    else {
 	        if (source.rss) {
@@ -72,6 +77,9 @@ function convertToPipeline(source) {
 	                _extractor.feed = _feedOrWeb;
 	            }//TESTED
 	            
+		        if (null != _authentication) {
+		        	_feedOrWeb.authentication = _authentication;
+		        }
 	            if (_feedOrWeb.searchConfig) {
 	                _links = _feedOrWeb.searchConfig;
 	            }//TESTED

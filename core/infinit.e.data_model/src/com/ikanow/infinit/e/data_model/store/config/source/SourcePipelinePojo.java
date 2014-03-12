@@ -53,6 +53,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	
 	public SourceSearchFeedConfigPojo splitter;
 	public SourceSearchFeedConfigPojo links;
+	public List<DocumentJoinSpecPojo> joins;
 	
 	// 1.4] Text and Linked-Document extraction
 	
@@ -99,7 +100,24 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Integer distributionFactor; // (EXPERIMENTAL) If specified, attempts to distribute the source across many threads
 	}
 	
-	// 2.3] Text and Linked-Document extraction
+	// 2.3] Secondary document extraction
+
+	//TODO (INF-2479): add support for this in the GUI and pipeline engine (it's just a copy/paste of existing operations)
+	public static class DocumentJoinSpecPojo {
+		public String iterateOver; // allows multiple joins to be created in the case where the key is an array)
+		public String fieldName; // specifies the (and the field to copy the joins into, in the top level metadata field)
+		public String accessorScript; // the script ($SCRIPT or substitution as normal) that defines the key string used to get the join 
+		public enum DocumentJoinSpecType { document, metadata };
+		public DocumentJoinSpecType joinType; // if "document" takes entire document object, if "metadata" (DEFAULT) only the metadata object (ignored if a custom join)
+		public String fieldFilterList; // if starts with + or nothing then a list of fields to include (top-level only), if starts with -, a list of fields to exclude (supports nested via dot notation) 
+		public String rootMetadataField; // for metadata/custom joins, the top level field to copy into the document metadata 
+		public Boolean importEntities; // (document only) if true, default false, the entities are imported and then discarded from the metadata
+		public String entityTypeFilterList; // if starts with + or nothing then list of types to include, if starts with -, a list to exclude (not associations with excluded entities will also be excluded)
+		public Boolean importAssociations; // (document only, ignored unless importEntities:true) if true, default false, the association are imported and then discarded from the metadata
+		public String associationCategoryFilterList; // if starts with + or nothing then list of verb categories to include, if starts with -, a list to exclude		
+	}
+	
+	// 2.4] Text and Linked-Document extraction
 	
 	public static class AutomatedTextExtractionSpecPojo {
 		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
@@ -117,7 +135,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		//(note headers and footers are no longer supported - you can just do this manually anyway now)
 	}
 	
-	// 2.4] Document-level field (including metadata extraction)
+	// 2.5] Document-level field (including metadata extraction)
 	
 	public static class DocumentSpecPojo {
 		public String title; // The string expression or $SCRIPT(...) specifying the document title
@@ -141,7 +159,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Boolean index; // Whether this field should be full-text indexed or just stored in the DB
 	}
 	
-	// 2.5] Entities and Associations
+	// 2.6] Entities and Associations
 	
 	public static class AutomatedEntityExtractionSpecPojo {
 		public String engineName; // The name of the text engine to use (can be fully qualified (eg "com.ikanow.infinit.e.harvest.boilerpipe"), or just the name (eg "boilerpipe") if the engine is registered in the Infinit.e system configuration)
@@ -151,7 +169,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public String assocFilter; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only) 
 	}
 	
-	// 2.6] Finishing steps
+	// 2.7] Finishing steps
 	
 	public static class StorageSettingsPojo {
 		public String rejectDocCriteria; 	//OPTIONAL: If populated, runs a user script function and if return value is non-null doesn't create the object and logs the output.  *Not* wrapped in $SCRIPT().

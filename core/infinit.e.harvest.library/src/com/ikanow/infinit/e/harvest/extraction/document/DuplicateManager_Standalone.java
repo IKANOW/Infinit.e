@@ -37,8 +37,9 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	/**
 	 * Tests to see if duplicates exist based on defined key
 	 * 
-	 * @param collection
-	 * @param key
+	 * @param title - currently ignored
+	 * @param description - currently ignored
+	 * @param duplicateSources - list of sources containing a duplicate URL, filled in transiently by calls to this function
 	 * @return boolean (true/false)
 	 */
 	public boolean isDuplicate_UrlTitleDescription(String url, String title, String description, SourcePojo source, List<String> duplicateSources) {
@@ -48,8 +49,7 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	/**
 	 * Tests to see if duplicates exist based on defined key
 	 * 
-	 * @param collection
-	 * @param key
+	 * @param duplicateSources - list of sources containing a duplicate URL, filled in transiently by calls to this function
 	 * @return boolean (true/false)
 	 */
 	public boolean isDuplicate_Url(String url, SourcePojo source, List<String> duplicateSources) {
@@ -63,10 +63,6 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 	 * the modified date is then checked to see if the file has been updated.
 	 * True is returned if the file has been updated, false otherwise.
 	 * 
-	 * @param collection
-	 * @param modifiedDate
-	 * @param url
-	 * @param title
 	 * @return boolean (true/false)
 	 */
 	public boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source) {

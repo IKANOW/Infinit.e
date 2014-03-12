@@ -588,12 +588,12 @@ package com.ikanow.infinit.e.widget.library.components
 		private var _secondToolbarVisible:Boolean;
 		private var secondToolbarVisibleChanged:Boolean = false;
 		
-		private function get secondToolbarVisible():Boolean
+		public function get secondToolbarVisible():Boolean
 		{
 			return _secondToolbarVisible;
 		}
 		
-		private function set secondToolbarVisible( value:Boolean ):void
+		public function set secondToolbarVisible( value:Boolean ):void
 		{
 			_secondToolbarVisible = value;
 			

@@ -15,6 +15,9 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		public var documents:ArrayCollection = new ArrayCollection();
 		
+		public var queryElements:ArrayCollection = new ArrayCollection();
+		public var queryLogic:String = null;
+		
 		public var dragSource:String = null;
 		
 		//======================================

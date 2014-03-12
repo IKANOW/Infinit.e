@@ -13,7 +13,9 @@ var _emit_list = [];
 
 function emit(_key, _val)
 {
-	_val._id = null;
+	if (null != _val) {
+		_val._id = null;
+	}
 	_emit_list.push({key:_key, val:_val});
 }
 

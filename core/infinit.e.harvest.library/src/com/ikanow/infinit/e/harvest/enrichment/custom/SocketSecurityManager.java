@@ -35,14 +35,14 @@ public class SocketSecurityManager extends SecurityManager
 	{	
 		Boolean lock = javascriptLock.get();
 		if ( lock != null && lock )
-		{
+		{			
 			//if failed we are using our javascript security
 			//deny for 10.*
 			//deny for 192.186.*
 			//deny for 127.*
-			if ( host.matches("^(10\\.|127\\.|192.168\\.).*") )
+			if ( host.matches("^(10\\.|127\\.|192\\.168\\.|172\\.1[6-9]|172\\.[2-9][0-9]).*") )
 			{
-				throw new SecurityException("Hosts: 10.*, 192.168.*, 127.* are not allowed to be connected to");
+				throw new SecurityException("Hosts: 10.*, 192.168.*, 127.*, 172.16+ are not allowed to be connected to");
 			}
 		}
 		// Always do this: so we're the union of configured restrictions+the above custom restrictions
@@ -147,6 +147,20 @@ public class SocketSecurityManager extends SecurityManager
 		}
 		super.checkExec(cmd);
 	}	
+
+	//TODO:
+	@Override
+	public void checkPackageAccess(String packageName) {
+		Boolean lock = javascriptLock.get();
+		if ( lock != null && lock )
+		{
+			if (packageName.startsWith("com.ikanow.infinit.e.")) {
+				throw new SecurityException("Not allowed access to these packages");
+			}
+		}
+		super.checkPackageAccess(packageName);
+	}//TOTEST	
+	
 	
 	//TODO (INF-2118): This didn't work, amongst other things it stopped regexes from working
 //	@Override
@@ -164,4 +178,80 @@ public class SocketSecurityManager extends SecurityManager
 //		super.checkPermission(permission);				
 //	}//TESTED (TestSecurityManager.testReflection)
 //	
+
+	/////////////////////////////////////////////////
+	
+	//CODE TO COMMENT IN AND TEST
+	
+//	@Override
+//	public void checkAccess(Thread t) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Change thread attributes is not allowed");
+//		}
+//		super.checkAccess(t);		
+//	}//TOTEST
+//
+//	@Override
+//	public void checkAccess(ThreadGroup g) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Change thread attributes is not allowed");
+//		}
+//		super.checkAccess(g);		
+//	}//TOTEST
+//
+//	@Override
+//	public void checkExit(int status) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Exit is not allowed");
+//		}
+//		super.checkExit(status);		
+//	}//TOTEST
+//	
+//	@Override
+//	public void checkSecurityAccess(String target) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			if ((target != null) && !target.startsWith("get") && !target.startsWith("print")) {
+//				throw new SecurityException("Security Access can only be read only");
+//			}
+//		}
+//		super.checkSecurityAccess(target);		
+//	}//TOTEST
+//	
+//	@Override
+//	public void checkLink(String lib) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Linking is not allowed");
+//		}
+//		super.checkLink(lib);		
+//	}//TOTEST
+//	
+//	@Override
+//	public void checkPropertiesAccess() {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Access to system properties is not allowed");
+//		}
+//		super.checkPropertiesAccess();		
+//	}//TOTEST
+//	
+//	@Override
+//	public void checkPropertyAccess(String key) {
+//		Boolean lock = javascriptLock.get();
+//		if ( lock != null && lock )
+//		{
+//			throw new SecurityException("Access to system properties is not allowed");
+//		}
+//		super.checkPropertyAccess(key);		
+//	}//TOTEST
 }

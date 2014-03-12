@@ -89,41 +89,44 @@ public class XmlToMetadataParser {
 	 * Converts a JsonObject to a LinkedHashMap.
 	 * @param json  JSONObject to convert
 	 */
+	static private int capacity(int expectedSize) {
+	    if (expectedSize < 3) {
+	        return expectedSize + 1;
+	    }
+        return expectedSize + expectedSize / 3;
+	}
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json)
 	{
 		return convertJsonObjectToLinkedHashMap(json, false);
 	}
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JSONObject json, boolean bHtmlUnescape)
 	{
-		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>();
+		int length = json.length();
+		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>(capacity(length));
 		String[] names = JSONObject.getNames(json);
 		if (null == names) { // (empty object)
 			return null;
 		}
 		for (String name: names)
 		{
-			JSONObject rec = null;
-			JSONArray jarray = null;
 			try {
-				jarray = json.getJSONArray(name);
-				list.put(name, handleJsonArray(jarray, bHtmlUnescape));
-			} catch (JSONException e2) {
-				try {
-					rec = json.getJSONObject(name);
-					list.put(name, convertJsonObjectToLinkedHashMap(rec, bHtmlUnescape));
-				} catch (JSONException e) {
-					try {
-						if (bHtmlUnescape) {
-							list.put(name,StringEscapeUtils.unescapeHtml(json.getString(name)));
-						}
-						else {
-							list.put(name,json.getString(name));
-						}
-					} catch (JSONException e1) {
-						e1.printStackTrace();
-					}
+				Object unknownType =  json.get(name);
+				if (unknownType instanceof JSONArray) {
+					list.put(name, handleJsonArray((JSONArray)unknownType, bHtmlUnescape));
 				}
+				else if (unknownType instanceof JSONObject) {
+					list.put(name, convertJsonObjectToLinkedHashMap((JSONObject)unknownType, bHtmlUnescape));
+				}
+				else {
+					if (bHtmlUnescape) {
+						list.put(name,StringEscapeUtils.unescapeHtml(unknownType.toString()));
+					}
+					else {
+						list.put(name,unknownType.toString());
+					}
+				} 
 			}
+			catch (JSONException e2) { }
 		}
 		if (list.size() > 0)
 		{
@@ -137,21 +140,24 @@ public class XmlToMetadataParser {
 		Object o[] = new Object[jarray.length()];
 		for (int i = 0; i < jarray.length(); i++)
 		{
-			JSONObject tem;
 			try {
-				tem = jarray.getJSONObject(i);
-				o[i] = convertJsonObjectToLinkedHashMap(tem, bHtmlUnescape);
-			} catch (JSONException e) {
-				try {
+				Object unknownType =  jarray.get(i);
+				if (unknownType instanceof JSONObject) {
+					o[i] = convertJsonObjectToLinkedHashMap((JSONObject)unknownType, bHtmlUnescape);					
+				}
+				else if (unknownType instanceof JSONArray) {
+					o[i] = handleJsonArray((JSONArray) unknownType, bHtmlUnescape);
+				}
+				else {
 					if (bHtmlUnescape) {
-						o[i] = StringEscapeUtils.unescapeHtml(jarray.getString(i));
+						o[i] = StringEscapeUtils.unescapeHtml(unknownType.toString());
 					}
 					else {
-						o[i] = jarray.getString(i);						
-					}
-				} catch (JSONException e1) {
-					e1.printStackTrace();
-				}
+						o[i] = unknownType.toString();						
+					}					
+				}				
+				
+			} catch (JSONException e) {
 			}
 		}
 		return o;
@@ -183,15 +189,6 @@ public class XmlToMetadataParser {
 			{
 				String tagName = reader.getLocalName();
 			
-				if (null != doc) {
-					fullText.append("<").append(tagName);
-					for (int ii = 0; ii < reader.getAttributeCount(); ++ii) {
-						fullText.append(" ");
-						fullText.append(reader.getAttributeLocalName(ii)).append("=\"").append(reader.getAttributeValue(ii)).append('"');
-					}
-					fullText.append(">");
-				}//TESTED
-				
 				if (null == levelOneFields || levelOneFields.size() == 0) {
 					levelOneFields = new ArrayList<String>();
 					levelOneFields.add(tagName);
@@ -219,6 +216,15 @@ public class XmlToMetadataParser {
 					}
 					justIgnored = false;
 				}
+				if (null != doc) {
+					fullText.append("<").append(tagName);
+					for (int ii = 0; ii < reader.getAttributeCount(); ++ii) {
+						fullText.append(" ");
+						fullText.append(reader.getAttributeLocalName(ii)).append("=\"").append(reader.getAttributeValue(ii)).append('"');
+					}
+					fullText.append(">");
+				}//TESTED
+				
 				hitIdentifier = tagName.equalsIgnoreCase(PKElement);
 				
 				if (!justIgnored && (null != this.AttributePrefix)) { // otherwise ignore attributes anyway

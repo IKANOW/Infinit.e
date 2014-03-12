@@ -106,7 +106,11 @@ package com.ikanow.infinit.e.shared.control.base
 			}
 			else
 			{
-				Alert.show( ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serviceCallUnsuccessfulMessage', [ serviceCallDescription ] ) + '   Reason: ' + result.response.message, ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serviceCallUnsuccessful' ) );
+				var reason:String = result.response.message;
+				if (reason.length > 1024) {
+					reason = reason.substring(0, 1024) + '...';
+				}
+				Alert.show( ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serviceCallUnsuccessfulMessage', [ serviceCallDescription ] ) + '   Reason: ' + reason, ResourceManager.getInstance().getString( 'infinite', 'infiniteController.serviceCallUnsuccessful' ) );
 			}
 			
 			return false;

@@ -1803,6 +1803,19 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 		
 		try
 		{
+			if (source.has("searchCycle_secs")) {
+				int searchCycle_secs = source.getInt("searchCycle_secs");
+				if (searchCycle_secs >= 0) {
+					enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+				}
+				else {
+					enableOrDisable = (String) request.getAttribute("locale_EnableSource");
+				}
+			} 
+			else {
+				enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+			}
+			
 			messageToDisplay = JSONresponse.getString("message");
 			
 			if (jsonObject.has("data"))

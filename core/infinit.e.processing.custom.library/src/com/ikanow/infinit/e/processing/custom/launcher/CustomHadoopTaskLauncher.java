@@ -25,6 +25,7 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.StringWriter;
 import java.io.Writer;
+import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Date;
@@ -36,6 +37,7 @@ import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.filecache.DistributedCache;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
@@ -43,6 +45,7 @@ import org.apache.hadoop.mapreduce.Job;
 import org.apache.hadoop.mapreduce.InputFormat;
 import org.apache.hadoop.mapreduce.OutputFormat;
 import org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat;
+import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
@@ -54,8 +57,10 @@ import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoSplitter;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -72,12 +77,16 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	private PropertiesManager props_custom = null;
 	private boolean bLocalMode;
 	private Integer nDebugLimit;
+	private boolean bTestMode = false;
 	
 	public CustomHadoopTaskLauncher(boolean bLocalMode_, Integer nDebugLimit_, PropertiesManager prop_custom_)
 	{
 		bLocalMode = bLocalMode_;
 		nDebugLimit = nDebugLimit_;
 		props_custom = prop_custom_;
+		if (null != nDebugLimit) {
+			bTestMode = true;			
+		}
 	}
 	
 	@SuppressWarnings({ "unchecked", "rawtypes" })
@@ -90,7 +99,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		else if ( null != job.incrementalMode )
 			job.incrementalMode = false; // (not allowed to be in incremental mode and not update mode)
 		
-		createConfigXML(xml, job.jobtitle,job.inputCollection, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), outputCollection, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments, job.incrementalMode);
+		createConfigXML(xml, job.jobtitle,job.inputCollection, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), outputCollection, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments, job.incrementalMode, job.submitterID);
 		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
 				
@@ -98,9 +107,18 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		Thread.currentThread().setContextClassLoader(child);
 
 		// Check version: for now, any infinit.e.data_model with an VersionTest class is acceptable
+		boolean dataModelLoaded = true;
 		try {
-			URLClassLoader versionTest = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, null);			
-			Class.forName("com.ikanow.infinit.e.data_model.custom.InfiniteMongoVersionTest", true, versionTest);
+			URLClassLoader versionTest = new URLClassLoader (new URL[] { new File(tempJarLocation).toURI().toURL() }, null);
+			try {
+				Class.forName("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, versionTest);				
+			}
+			catch (ClassNotFoundException e2) {
+				//(this is fine, will use the cached version)
+				dataModelLoaded = false;
+			}
+			if (dataModelLoaded)
+				Class.forName("com.ikanow.infinit.e.data_model.custom.InfiniteMongoVersionTest", true, versionTest);
 		} 
 		catch (ClassNotFoundException e1) {
 			throw new RuntimeException("This JAR is compiled with too old a version of the data-model, please recompile with Jan 2014 (rc2) onwards");
@@ -133,43 +151,125 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		// Now run the JAR file
 		try {
+			BasicDBObject advancedConfigurationDbo = null;
+			try {
+				advancedConfigurationDbo = (null != job.query) ? ((BasicDBObject) com.mongodb.util.JSON.parse(job.query)) : (new BasicDBObject());
+			}
+			catch (Exception e) {
+				advancedConfigurationDbo = new BasicDBObject();
+			}
+			boolean esMode = advancedConfigurationDbo.containsField("qt") && !job.isCustomTable;
+			if (esMode && !job.inputCollection.equals("doc_metadata.metadata")) {
+				throw new RuntimeException("Infinit.e Queries are only supported on doc_metadata - use MongoDB queries instead.");
+			}
 
 			config.setBoolean("mapred.used.genericoptionsparser", true); // (just stops an annoying warning from appearing)
-			if (bLocalMode) {
+			if (bLocalMode) { // local job tracker and FS mode
 				config.set("mapred.job.tracker", "local");
 				config.set("fs.default.name", "local");		
 			}
 			else {
-				String trackerUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+				if (bTestMode) { // run job tracker locally but FS mode remotely
+					config.set("mapred.job.tracker", "local");					
+				}
+				else { // normal job tracker
+					String trackerUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
+					config.set("mapred.job.tracker", trackerUrl);
+				}
 				String fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
-				config.set("mapred.job.tracker", trackerUrl);
 				config.set("fs.default.name", fsUrl);				
 			}
+			if (!dataModelLoaded && !(bTestMode || bLocalMode)) { // If running distributed and no data model loaded then add ourselves
+				Path jarToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/lib/", "infinit.e.data_model.jar", config);
+				DistributedCache.addFileToClassPath(jarToCache, config);
+				jarToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/lib/", "infinit.e.processing.custom.library.jar", config);
+				DistributedCache.addFileToClassPath(jarToCache, config);
+			}//TESTED
+			
+			// Debug scripts (only if they exist), and only in non local/test mode
+			if (!bLocalMode && !bTestMode) {
+				
+				try {
+					Path scriptToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/scripts/", "custom_map_error_handler.sh", config);
+					config.set("mapred.map.task.debug.script", "custom_map_error_handler.sh " + job.jobtitle);
+					config.set("mapreduce.map.debug.script", "custom_map_error_handler.sh " + job.jobtitle);						
+					DistributedCache.createSymlink(config);
+					DistributedCache.addCacheFile(scriptToCache.toUri(), config);
+				}
+				catch (Exception e) {} // just carry on
+				
+				try {
+					Path scriptToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/scripts/", "custom_reduce_error_handler.sh", config);
+					config.set("mapred.reduce.task.debug.script", "custom_reduce_error_handler.sh " + job.jobtitle);
+					config.set("mapreduce.reduce.debug.script", "custom_reduce_error_handler.sh " + job.jobtitle);						
+					DistributedCache.createSymlink(config);
+					DistributedCache.addCacheFile(scriptToCache.toUri(), config);
+				}
+				catch (Exception e) {} // just carry on
+				
+			}//TOTEST
+			
+			// Manually specified caches
+			List<URL> localJarCaches = 
+					InfiniteHadoopUtils.handleCacheList(advancedConfigurationDbo.get("$caches"), job, config, props_custom);			
 			
 			Job hj = new Job( config );
 			try {
-				BasicDBObject advancedConfigurationDbo = null;
-				try {
-					advancedConfigurationDbo = (null != job.query) ? ((BasicDBObject) com.mongodb.util.JSON.parse(job.query)) : (new BasicDBObject());
-				}
-				catch (Exception e) {
-					advancedConfigurationDbo = new BasicDBObject();
-				}
 				
+				if (null != localJarCaches) {
+					if (bLocalMode || bTestMode) {
+						Method method = URLClassLoader.class.getDeclaredMethod("addURL", new Class[]{URL.class});
+						method.setAccessible(true);
+						method.invoke(child, localJarCaches.toArray());
+						
+					}//TOTEST (tested logically)
+				}				
 				Class<?> classToLoad = Class.forName (job.mapper, true, child);			
 				hj.setJarByClass(classToLoad);
-				hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
-				if ((null != job.exportToHdfs) && job.exportToHdfs) {				
+				
+				if (job.inputCollection.equalsIgnoreCase("filesystem")) {
+					String inputPath = null;
+					try {
+						inputPath = MongoDbUtil.getProperty(advancedConfigurationDbo, "file.url");
+						if (!inputPath.endsWith("/")) {
+							inputPath = inputPath + "/";
+						}
+					}
+					catch (Exception e) {}
+					if (null == inputPath) {
+						throw new RuntimeException("Must specify 'file.url' if reading from filesystem.");
+					}
+					inputPath = InfiniteHadoopUtils.authenticateInputDirectory(job, inputPath);
+					
+					InfiniteFileInputFormat.addInputPath(hj, new Path(inputPath + "*/*")); // (that extra bit makes it recursive)
+					InfiniteFileInputFormat.setMaxInputSplitSize(hj, 33554432); // (32MB)
+					InfiniteFileInputFormat.setInfiniteInputPathFilter(hj, config);
+					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat", true, child));
+				}
+				else {
+					if (esMode) {
+						hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.processing.custom.utils.InfiniteElasticsearchMongoInputFormat", true, child));						
+					}
+					else {
+						hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat", true, child));
+					}
+				}
+				if ((null != job.exportToHdfs) && job.exportToHdfs) {
+					
+					//TODO (INF-2469): Also, if the output key is BSON then also run as text (but output as JSON?)
+					
+					Path outPath = InfiniteHadoopUtils.ensureOutputDirectory(job, props_custom);
+					
 					if ((null != job.outputKey) && (null != job.outputValue) && job.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && job.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
 					{
 						// (slight hack before I sort out the horrendous job class - if key/val both text and exporting to HDFS then output as Text)
 						hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.TextOutputFormat", true, child));
+						TextOutputFormat.setOutputPath(hj, outPath);
 					}//TESTED
 					else {
 						hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("org.apache.hadoop.mapreduce.lib.output.SequenceFileOutputFormat", true, child));					
+						SequenceFileOutputFormat.setOutputPath(hj, outPath);
 					}//TESTED
-					Path outPath = InfiniteHadoopUtils.ensureOutputDirectory(job, props_custom);
-					SequenceFileOutputFormat.setOutputPath(hj, outPath);
 				}
 				else { // normal case, stays in MongoDB
 					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat", true, child));
@@ -210,11 +310,12 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				hj.setOutputValueClass(Class.forName (job.outputValue, true, child));
 				
 				hj.setJobName(job.jobtitle);
+				currJobName = job.jobtitle;
 			}
 			catch (Error e) { // (messing about with class loaders = lots of chances for errors!)
 				throw new RuntimeException(e.getMessage(), e);
 			}
-			if (bLocalMode) {				
+			if (bTestMode || bLocalMode) {				
 				hj.submit();
 				currThreadId = null;
 				Logger.getRootLogger().addAppender(this);
@@ -257,7 +358,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		String jobid = null;
 		try
 		{				
-			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments, job.incrementalMode);
+			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments, job.incrementalMode, job.submitterID);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", props_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
@@ -320,7 +421,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	 * @param output
 	 * @throws IOException 
 	 */
-	private String createConfigXML_commandLine( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputDatabase, String outputKey, String outputValue, String tempOutputCollection, String arguments, Boolean incrementalMode) throws IOException
+	private String createConfigXML_commandLine( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputDatabase, String outputKey, String outputValue, String tempOutputCollection, String arguments, Boolean incrementalMode, ObjectId userId) throws IOException
 	{		
 		
 		if ( configLocation == null )
@@ -329,13 +430,13 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		File configFile = new File(configLocation);
 		FileWriter fstream = new FileWriter(configFile);
 		BufferedWriter out = new BufferedWriter(fstream);
-		createConfigXML(out, title, input, InfiniteHadoopUtils.getQueryOrProcessing(query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments, incrementalMode);
+		createConfigXML(out, title, input, InfiniteHadoopUtils.getQueryOrProcessing(query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments, incrementalMode, userId);
 		fstream.close();
 			
 		return configLocation;
 	}	
 	
-	private void createConfigXML( Writer out, String title, String input, String fields, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments, Boolean incrementalMode) throws IOException
+	private void createConfigXML( Writer out, String title, String input, String fields, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments, Boolean incrementalMode, ObjectId userId) throws IOException
 	{
 		String dbserver = prop_general.getDatabaseServer();
 		output = outputDatabase + "." + tempOutputCollection;
@@ -353,6 +454,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		else {
 			oldQueryObj = new BasicDBObject();
 		}
+		boolean elasticsearchQuery = oldQueryObj.containsField("qt") && !isCustomTable;
 		int nLimit = 0;
 		if (oldQueryObj.containsField("$limit")) {
 			nLimit = oldQueryObj.getInt("$limit");
@@ -381,29 +483,40 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		String mapperValueClass = oldQueryObj.getString("$mapper_value_class", "");
 		oldQueryObj.remove("$mapper_key_class");
 		oldQueryObj.remove("$mapper_value_class");
+		String cacheList = null;
+		Object cacheObj = oldQueryObj.get("$caches");
+		if (null != cacheObj) {
+			cacheList = cacheObj.toString(); // (either array of strings, or single string)
+			if (!cacheList.startsWith("[")) {
+				cacheList = "[" + cacheList + "]"; // ("must" now be valid array)
+			}
+			oldQueryObj.remove("$caches");
+		}//TESTED
 		
 		if (null != nDebugLimit) { // (debug mode override)
 			nLimit = nDebugLimit;
-			this.bTestMode = true;
 		}
 		boolean tmpIncMode = ( null != incrementalMode) && incrementalMode; 
 		
 		if ( !isCustomTable )
 		{
-			oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
-			oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
-			query = oldQueryObj.toString();
+			if (elasticsearchQuery) {
+				oldQueryObj.put("communityIds", communityIds);
+			}
+			else {
+				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
+				oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
+			}
 		}
 		else
 		{
 			//get the custom table (and database)
 			input = CustomOutputManager.getCustomDbAndCollection(input);
 		}		
+		query = oldQueryObj.toString();
+		
 		if ( arguments == null )
 			arguments = "";
-		
-		// For logging in local mode:
-		currQuery = query;
 		
 		// Generic configuration
 		out.write("<?xml version=\"1.0\"?>\n<configuration>");
@@ -416,7 +529,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				"\n\t<property><!-- Run the job in the foreground and wait for response, or background it? --><name>mongo.job.background</name><value>false</value></property>"+
 				"\n\t<property><!-- If you are reading from mongo, the URI --><name>mongo.input.uri</name><value>mongodb://"+dbserver+"/"+input+"</value></property>"+  
 				"\n\t<property><!-- If you are writing to mongo, the URI --><name>mongo.output.uri</name><value>mongodb://"+dbserver+"/"+output+"</value>  </property>"+  
-				"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + query + "</value></property>"+
+				"\n\t<property><!-- The query, in JSON, to execute [OPTIONAL] --><name>mongo.input.query</name><value>" + StringEscapeUtils.escapeXml(query) + "</value></property>"+
 				"\n\t<property><!-- The fields, in JSON, to read [OPTIONAL] --><name>mongo.input.fields</name><value>"+( (fields==null) ? ("") : fields )+"</value></property>"+
 				"\n\t<property><!-- A JSON sort specification for read [OPTIONAL] --><name>mongo.input.sort</name><value></value></property>"+
 				"\n\t<property><!-- The number of documents to limit to for read [OPTIONAL] --><name>mongo.input.limit</name><value>" + nLimit + "</value><!-- 0 == no limit --></property>"+
@@ -438,11 +551,17 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		// Infinit.e specific configuration
 		
 		out.write(
+				"\n\t<property><!-- User Arguments [optional] --><name>infinit.e.userid</name><value>"+ StringEscapeUtils.escapeXml(userId.toString())+"</value></property>"+
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
 				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+
 				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>update.incremental</name><value>"+tmpIncMode+"</value></property>"
 			);		
+		if (null != cacheList) {
+			out.write(
+					"\n\t<property><!-- Infinit.e cache list [optional] --><name>infinit.e.cache.list</name><value>"+cacheList+"</value></property>"
+				);						
+		}//TESTED
 		if (null != srcTags) {
 			out.write(
 					"\n\t<property><!-- Infinit.e src tags filter [optional] --><name>infinit.e.source.tags.filter</name><value>"+srcTags.toString()+"</value></property>"
@@ -479,9 +598,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	private String currLocalJobId = null;
 	private String currSanityCheck = null;
 	private String currThreadId = null;
-	private String currQuery = null;
+	private String currJobName = null;
 	private StringBuffer currLocalJobErrs = new StringBuffer();
-	private boolean bTestMode = false;
 	
 	@Override
 	public void close() {
@@ -495,15 +613,27 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	@Override
 	protected void append(LoggingEvent arg0) {
 		
-		if (null == currThreadId) { // this is one of the first message that is printed out so get the thread...
-			if (arg0.getLoggerName().equals("com.mongodb.hadoop.input.MongoInputSplit")) {
-				if ((null != currQuery) && arg0.getRenderedMessage().contains(currQuery)) {
+		// Get current thread id (need to check these even if we have them so we don't log them multiple times)
+		if (arg0.getLoggerName().equals("com.ikanow.infinit.e.data_model.custom.InfiniteFileInputReader")) {
+			if ((null != currJobName) && arg0.getRenderedMessage().startsWith(currJobName + ":")) {
+				if (null == currThreadId) { // this is one of the first message that is printed out so get the thread...
 					currThreadId = arg0.getThreadName();
 					currSanityCheck = "Task:attempt_" + currLocalJobId.substring(4) + "_";
 				}
+				return; // (don't log this)
 			}
 		}//TESTED
-		else if ((null != currThreadId) && arg0.getLoggerName().equals("org.apache.hadoop.mapred.Task")) {
+		else if (arg0.getLoggerName().equals("com.ikanow.infinit.e.data_model.custom.InfiniteMongoRecordReader")) {
+			if ((null != currJobName) && arg0.getRenderedMessage().startsWith(currJobName + ":")) {
+				if (null == currThreadId) { // this is one of the first message that is printed out so get the thread...
+					currThreadId = arg0.getThreadName();
+					currSanityCheck = "Task:attempt_" + currLocalJobId.substring(4) + "_";
+				}
+				return; // (don't log this)
+			}
+		}//TESTED
+
+		if ((null != currThreadId) && arg0.getLoggerName().equals("org.apache.hadoop.mapred.Task")) {
 			if (arg0.getRenderedMessage().startsWith(currSanityCheck)) {
 				// This is to check we didn't accidentally get someone else's messages
 				if (!currThreadId.equals(arg0.getThreadName())) {
@@ -528,7 +658,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				}
 			}
 		}//TESTED (uncaught exception)
-		else if (!arg0.getLoggerName().startsWith("org.apache.hadoop")) {
+		else if (!arg0.getLoggerName().startsWith("org.apache.hadoop") && !arg0.getLoggerName().startsWith("com.mongodb.hadoop.")) {
 			if (arg0.getThreadName().equals(currThreadId)) {
 				
 				if ((arg0.getLevel() == Level.ERROR)|| bTestMode) {

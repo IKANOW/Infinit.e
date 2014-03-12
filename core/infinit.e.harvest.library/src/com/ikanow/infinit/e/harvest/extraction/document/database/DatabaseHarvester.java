@@ -109,6 +109,12 @@ public class DatabaseHarvester implements HarvesterInterface
 			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + e.getMessage(), false, false);
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
+		finally {
+			// (ie these can be deleted once the harvest is complete)
+			docsToAdd = null;
+			docsToUpdate = null;
+			docsToDelete = null;			
+		}
 	}
 	
 	/**

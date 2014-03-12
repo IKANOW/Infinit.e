@@ -251,6 +251,9 @@ public class CustomHandler
 					cmr.inputCollection = inputCollection;
 					if ((null == jarURL) || jarURL.equals("null")) {
 						cmr.jarURL = null;
+						// Force the types:
+						outputKey = "org.apache.hadoop.io.Text";
+						outputValue = "com.mongodb.hadoop.io.BSONWritable";
 					}
 					else {
 						cmr.jarURL = jarURL;
@@ -322,6 +325,20 @@ public class CustomHandler
 						cmr.arguments = json;
 					else
 						cmr.arguments = null;
+					
+					if ((null == cmr.jarURL) && (null != cmr.arguments) && !cmr.arguments.isEmpty()) {
+						// In saved query, if arguments is valid BSON then copy over query
+						try {
+							Object tmpQuery = com.mongodb.util.JSON.parse(cmr.arguments);
+							if (tmpQuery instanceof BasicDBObject) {
+								cmr.query = cmr.arguments;
+							}
+						}
+						catch (Exception e) {} // fine just carry on
+					}
+					else if ((null == cmr.jarURL)) { // ie args == null, copy from query
+						cmr.arguments = cmr.query;
+					}
 					
 					//try to work out dependencies, error out if they fail
 					if ( (null != jobsToDependOn) && !jobsToDependOn.equals("null"))
@@ -555,6 +572,11 @@ public class CustomHandler
 						else
 							cmr.query = "{}";
 					}
+					if (null == cmr.jarURL) { // (if in savedQuery mode, force types to be Text/BSONWritable)
+						// Force the types:
+						outputKey = "org.apache.hadoop.io.Text";
+						outputValue = "com.mongodb.hadoop.io.BSONWritable";						
+					}
 					if ( (null != outputKey) && !outputKey.equals("null"))
 					{
 						cmr.outputKey = outputKey;
@@ -611,6 +633,20 @@ public class CustomHandler
 					{
 						cmr.arguments = null;
 					}
+					if ((null == cmr.jarURL) && (null != cmr.arguments) && !cmr.arguments.isEmpty()) {
+						// In saved query, if arguments is valid BSON then copy over query
+						try {
+							Object tmpQuery = com.mongodb.util.JSON.parse(cmr.arguments);
+							if (tmpQuery instanceof BasicDBObject) {
+								cmr.query = cmr.arguments;
+							}
+						}
+						catch (Exception e) {} // fine just carry on
+					}
+					else if ((null == cmr.jarURL)) { // ie args == null, copy from query
+						cmr.arguments = cmr.query;
+					}
+					
 				} 
 				catch (IllegalArgumentException e)
 				{
@@ -671,6 +707,8 @@ public class CustomHandler
 				return "feature.association";
 			if ( input == INPUT_COLLECTIONS.FEATURE_ENTITIES )
 				return "feature.entity";			
+			if ( input == INPUT_COLLECTIONS.FILESYSTEM )
+				return "filesystem";			
 		}
 		catch (Exception ex)
 		{
@@ -861,7 +899,7 @@ public class CustomHandler
 				// Run the job
 				CustomProcessingController pxController = null;
 				if (null != _debugLimit) {
-					pxController = new CustomProcessingController(true, _debugLimit);					
+					pxController = new CustomProcessingController(_debugLimit);					
 				}
 				else {
 					pxController = new CustomProcessingController();

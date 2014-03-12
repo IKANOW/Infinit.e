@@ -1,3 +1,8 @@
 /bin
 /dist
 /build
+#Local HDFS tests
+/input
+/completed
+/in_progress
+/cache

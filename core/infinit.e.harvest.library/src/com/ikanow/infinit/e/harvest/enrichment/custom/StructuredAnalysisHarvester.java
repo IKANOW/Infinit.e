@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -41,6 +40,7 @@ import org.json.JSONObject;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.DocumentSpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo;
@@ -297,12 +297,25 @@ public class StructuredAnalysisHarvester
 	// (Utility function for optimization)
 	private void intializeDocIfNeeded(DocumentPojo f, Gson g) throws JSONException, ScriptException {
 		if (null == _document) {
-			// Convert the DocumentPojo Object to a JSON document using GsonBuilder
-			_document = new JSONObject(g.toJson(f));
-			// Add the document (JSONObject) to the engine
-			if (null != _scriptEngine) {
-		        _scriptEngine.put("document", _document);
-		        _securityManager.eval(_scriptEngine, JavaScriptUtils.initScript);
+			// (don't need assocs or ents)
+			List<EntityPojo> ents = f.getEntities();
+			List<AssociationPojo> assocs = f.getAssociations();
+			f.setEntities(null);
+			f.setAssociations(null);
+			try {
+				
+				// Convert the DocumentPojo Object to a JSON document using GsonBuilder
+				String docStr = g.toJson(f);
+				_document = new JSONObject(docStr);
+				// Add the document (JSONObject) to the engine
+				if (null != _scriptEngine) {
+			        _scriptEngine.put("document", docStr);
+			        _securityManager.eval(_scriptEngine, JavaScriptUtils.initScript);
+				}
+			}
+			finally {
+				f.setEntities(ents);
+				f.setAssociations(assocs);
 			}
 		}
 	}//TESTED
@@ -316,7 +329,7 @@ public class StructuredAnalysisHarvester
 		try
 		{
 			if (null != caches) {
-				CacheUtils.addJSONCachesToEngine(caches, _scriptEngine, communityIds, _context);
+				CacheUtils.addJSONCachesToEngine(caches, _scriptEngine, _securityManager, communityIds, _context);
 			}
 		}
 		catch (Exception ex)
@@ -361,7 +374,7 @@ public class StructuredAnalysisHarvester
 							f.getMetadata().remove(metaField);
 						}
 						else { // more complex case, nested delete							
-							recursiveNestedMapDelete(metaField.split("\\s*\\.\\s*"), 0, f.getMetadata());						
+							MongoDbUtil.recursiveNestedMapDelete(metaField.split("\\s*\\.\\s*"), 0, f.getMetadata());						
 						}
 					}//(end loop over metaFields)
 					
@@ -370,72 +383,6 @@ public class StructuredAnalysisHarvester
 			}
 		}//(if metadata exists)		
 	}//TESTED (legacy code)
-	
-	// Recursive utility function for removeUnwantedMetadataFields()
-	
-	@SuppressWarnings("rawtypes")
-	private void recursiveNestedMapDelete(String[] fieldList, int currPos, Map currMap) {
-		String metaFieldEl = fieldList[currPos]; 
-		if (currPos == (fieldList.length - 1)) {
-			currMap.remove(metaFieldEl);
-		}//TESTED (metadataStorage_test:removeString, etc)
-		else {
-			Object metaFieldElValOrVals = currMap.get(metaFieldEl);								
-			if (null != metaFieldElValOrVals) {
-				if (metaFieldElValOrVals instanceof Map) {
-					Map map = (Map)metaFieldElValOrVals;
-					recursiveNestedMapDelete(fieldList, currPos + 1, map);
-					if (map.isEmpty()) {
-						currMap.remove(metaFieldEl);
-					}//TESTED (metadataStorage_test:object)
-					
-				}//TESTED (metadataStorage_test:object, :nestedArrayOfStrings, etc)
-				else if (metaFieldElValOrVals instanceof Object[]) {					
-					Object[] candidateMaps = (Object[])metaFieldElValOrVals;
-					boolean allEmpty = (candidateMaps.length > 0);
-					for (Object candidateMap: candidateMaps) {
-						if (candidateMap instanceof Map) {
-							Map map = (Map)candidateMap;
-							recursiveNestedMapDelete(fieldList, currPos + 1, map);
-							allEmpty &= map.isEmpty();
-						}
-						else allEmpty = false;							
-					}
-					if (allEmpty) {
-						currMap.remove(metaFieldEl);
-					}//TESTED (metadataStorage_test:test2,test3)
-				}//TESTED (length 1: metadataStorage_test:removeString, etc; length2: :test2,test3) 
-				else if (metaFieldElValOrVals instanceof Map[]) {
-					Map[] maps = (Map[])metaFieldElValOrVals;
-					boolean allEmpty = (maps.length > 0);
-					for (Map map: maps) {
-						recursiveNestedMapDelete(fieldList, currPos + 1, map);
-						allEmpty &= map.isEmpty();
-					}
-					if (allEmpty) {
-						currMap.remove(metaFieldEl);						
-					}
-				}//(basically the same as the clause above, doesn't seem to occur in practice)
-				else if (metaFieldElValOrVals instanceof Collection) {
-					Collection candidateMaps = (Collection)metaFieldElValOrVals;
-					boolean allEmpty = (candidateMaps.size() > 0);
-					for (Object candidateMap: candidateMaps) {
-						if (candidateMap instanceof Map) {
-							Map map = (Map)candidateMap;
-							recursiveNestedMapDelete(fieldList, currPos + 1, map);
-							allEmpty &= map.isEmpty();
-						}
-						else allEmpty = false;
-					}					
-					if (allEmpty) {
-						currMap.remove(metaFieldEl);						
-					}//TESTED (metadataStorage_test:nestedMapArray, metadataStorage_test:nestedMapArray2, metadataStorage_test:nestedMixedArray)
-				}//TESTED (length>1: metadataStorage_test:nestedMixedArray,nestedMapArray)
-					
-			}
-		}//(end if at the start/middle of the nested object tree)
-			
-	}//TESTED
 	
 	public boolean rejectDoc(String rejectDocCriteria, DocumentPojo f) throws JSONException, ScriptException
 	{
@@ -501,7 +448,7 @@ public class StructuredAnalysisHarvester
 					_isParsingScriptInitialized = true;
 				}
 				DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
-		        _scriptEngine.put("old_document", new JSONObject(_gson.toJson(doc)));
+		        _scriptEngine.put("old_document", _gson.toJson(doc));
 		        try {
 		        	_securityManager.eval(_scriptEngine,JavaScriptUtils.initOnUpdateScript);
 		        	Object returnVal = _securityManager.eval(_scriptEngine, onUpdateScript);
@@ -562,7 +509,7 @@ public class StructuredAnalysisHarvester
 	
 	// Private class variables
 	private static Logger logger;
-	private JSONObject _document = null;
+	private JSONObject _document = null; //TODO (INF-2488): change all the JSONObject logic to LinkedHashMap and (generic) Array so can just replace this with a string...
 	private Gson _gson = null;
 	private JSONObject _iterator = null;
 	private String _iteratorIndex = null;
@@ -1133,6 +1080,11 @@ public class StructuredAnalysisHarvester
 						String field = entityRecords.getString(i);
 						long nIndex = Long.valueOf(i);
 						
+						if (null != esp.getType()) { // (else cannot be a valid entity, must just be a list)
+							EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
+							if (entity != null) entities.add(entity);	
+						}
+						
 						// Does the association break out into multiple associations?
 						if (esp.getEntities() != null)
 						{
@@ -1156,10 +1108,6 @@ public class StructuredAnalysisHarvester
 								}
 							}										
 						}//TESTED (error case, mixed object)
-						else {
-							EntityPojo entity = getEntity(esp, field, String.valueOf(i), f);
-							if (entity != null) entities.add(entity);	
-						}
 					}
 				}
 
@@ -1179,6 +1127,11 @@ public class StructuredAnalysisHarvester
 							_iterator = savedIterator = entityRecords.getJSONObject(i);
 						}
 
+						if (null != esp.getType()) { // (else cannot be a valid entity, must just be a list)
+							EntityPojo entity = getEntity(esp, null, String.valueOf(i), f);
+							if (entity != null) entities.add(entity);
+						}
+						
 						// Does the entity break out into multiple entities?
 						if (esp.getEntities() != null)
 						{
@@ -1193,11 +1146,6 @@ public class StructuredAnalysisHarvester
 									entities.add(e);
 								}
 							}
-						}
-						else
-						{
-							EntityPojo entity = getEntity(esp, null, String.valueOf(i), f);
-							if (entity != null) entities.add(entity);	
 						}
 					}
 				}
@@ -1299,7 +1247,7 @@ public class StructuredAnalysisHarvester
 			}
 			else // Always log failure to get a dname - to remove this, specify a creationCriteriaScript
 			{
-				_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required disambiguatedName from: ").append(esp.getDisambiguated_name()).toString(), true);
+				_context.getHarvestStatus().logMessage(new StringBuffer("Failed to get required disambiguated_name from: ").append(esp.getDisambiguated_name()).toString(), true);
 				return null;
 			}
 			
@@ -1789,6 +1737,11 @@ public class StructuredAnalysisHarvester
 									String field = assocRecords.getString(i);
 									long nIndex = Long.valueOf(i);
 									
+									if (null != esp.getVerb_category()) { // (ie a mandatory field is present)										
+										AssociationPojo association = getAssociation(esp, field, nIndex, f);
+										if (association != null) associations.add(association);
+									}//TESTED
+									
 									// Does the association break out into multiple associations?
 									if (esp.getAssociations() != null)
 									{
@@ -1812,10 +1765,6 @@ public class StructuredAnalysisHarvester
 											}
 										}										
 									}//TESTED (error case)
-									if (null != esp.getVerb_category()) { // (ie a mandatory field is present)										
-										AssociationPojo association = getAssociation(esp, field, nIndex, f);
-										if (association != null) associations.add(association);
-									}//TESTED
 								}
 							}
 
@@ -1833,6 +1782,11 @@ public class StructuredAnalysisHarvester
 										_iterator = savedIterator = assocRecords.getJSONObject(i);
 									}
 
+									if (null != esp.getVerb_category()) { // (ie a mandatory field is present)										
+										AssociationPojo association = getAssociation(esp, null, Long.valueOf(i), f);
+										if (association != null) associations.add(association);	
+									}//TESTED
+									
 									// Does the association break out into multiple associations?
 									if (esp.getAssociations() != null)
 									{
@@ -1847,11 +1801,6 @@ public class StructuredAnalysisHarvester
 												associations.add(e);
 											}
 										}
-									}
-									else
-									{
-										AssociationPojo association = getAssociation(esp, null, Long.valueOf(i), f);
-										if (association != null) associations.add(association);	
 									}
 									
 								}//(else if is json object)
@@ -3258,25 +3207,27 @@ public class StructuredAnalysisHarvester
 				else
 				{
 					JSONObject jo = json.getJSONObject(node);
-					if (jo.get(field) instanceof JSONArray)
+					Object testJo = jo.get(field);
+					if (testJo instanceof JSONArray)
 					{
-						o = jo.getJSONArray(field).getString(0);
+						o = ((JSONArray)testJo).getString(0);
 					}
 					else
 					{
-						o = jo.getString(field);
+						o = testJo;
 					}
 				}
 			}
 			else
 			{
-				if (json.get(field) instanceof JSONArray)
+				Object testJo = json.get(field);
+				if (testJo instanceof JSONArray)
 				{
-					o = json.getJSONArray(field).getString(0);
+					o = ((JSONArray)testJo).getString(0);
 				}
 				else
 				{
-					o = json.getString(field);
+					o = testJo;
 				}
 			}
 		}

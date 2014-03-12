@@ -58,6 +58,7 @@ import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResultPojo;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResultPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.api.knowledge.DimensionListPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.community.CommunityPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.person.PersonPojoApiMap;
@@ -165,6 +166,17 @@ public class InfiniteDriver
 	}
 	
 	/**
+	 * Returns the currently set cookie, can be used to
+	 * get the cookie after you login.
+	 * 
+	 * @return
+	 */
+	public String getCookie()
+	{
+		return cookie;
+	}
+	
+	/**
 	 * Logs the user in specified by setUser() using the password
 	 * specified by setPassword().
 	 * @return true if the user was logged in successfully.
@@ -205,12 +217,31 @@ public class InfiniteDriver
 	 */
 	public Boolean login(String username, String password, ResponseObject responseObject)
 	{
+		try
+		{
+			return doLogin(username, encryptWithoutEncode(password), responseObject);
+		}
+		catch (Exception ex)
+		{
+			ex.printStackTrace();
+		}
+		return null;
+	}
+	
+	public Boolean login_encrypted(String username, String encrypted_password, ResponseObject responseObject)
+	{
+		return doLogin(username, encrypted_password, responseObject);
+	}
+	
+	private Boolean doLogin(String username, String password, ResponseObject responseObject)
+	{
 		if (null != apiKey) { // Have an API key, don't need to login....
 			return true;
 		}		
 		cookie = null;
-		try {
-			String address = apiRoot + "auth/login/" + username + "/" + encryptEncodePassword(password);
+		try 
+		{
+			String address = apiRoot + "auth/login/" + username + "/" + URLEncoder.encode(password, "UTF-8");
 			String loginResult;
 			loginResult = sendRequest(address, null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(loginResult, ResponsePojo.class);
@@ -968,6 +999,61 @@ public class InfiniteDriver
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
+	// KNOWLEDGE - DOCUMENT - GET
+	public DocumentPojo getDocument(String docid, ResponseObject responseObject)
+	{
+		return getDocument(docid,false,false,responseObject);
+	}	
+	public DocumentPojo getDocument(String docid, boolean returnFullText, boolean returnRawData, ResponseObject responseObject)
+	{
+		try
+		{
+			StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/get/");
+			theUrl.append(docid);
+			theUrl.append("?returnFullText=").append(returnFullText);
+			theUrl.append("?returnRawData=").append(returnRawData);
+			
+			String getResult = sendRequest(theUrl.toString(), null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class, DocumentPojo.class, new DocumentPojoApiMap());  
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+			return (DocumentPojo)internal_responsePojo.getData();
+		}
+		catch (Exception ex)
+		{
+			ex.printStackTrace();
+		}
+		return null;
+	}
+	
+	public DocumentPojo getDocument(String sourceKey, String url, ResponseObject responseObject)
+	{
+		return getDocument(sourceKey, url, false, false, responseObject);
+	}
+	public DocumentPojo getDocument(String sourceKey, String url, boolean returnFullText, boolean returnRawData, ResponseObject responseObject)
+	{
+		try
+		{
+			StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/get/");
+			theUrl.append(sourceKey).append("/").append(url);
+			theUrl.append("?returnFullText=").append(returnFullText);
+			theUrl.append("?returnRawData=").append(returnRawData);
+			
+			String getResult = sendRequest(theUrl.toString(), null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class, DocumentPojo.class, new DocumentPojoApiMap());  
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+			return (DocumentPojo)internal_responsePojo.getData();
+		}
+		catch (Exception ex)
+		{
+			ex.printStackTrace();
+		}
+		return null;
+	}
+	
+	//////////////////////////////////////////////////////////////////////////////////////////////
+	
 	// CUSTOM - CREATE PLUGIN TASK
 	
 	// The following fields of taskConfig are filled in (string unless otherwise specified):
@@ -1487,6 +1573,30 @@ public class InfiniteDriver
 			} // not Json, just carry on...
 		}		
 	}//TESTED
+	
+	public DimensionListPojo getEntitySuggest(String searchterm, String communityIdStr, boolean includeGeo, boolean includeLinkData, ResponseObject response)
+	{		
+		try 
+		{
+			StringBuilder url = new StringBuilder(apiRoot).append("knowledge/feature/entitySuggest/");			
+			url.append(URLEncoder.encode(searchterm,"UTF-8"));
+			url.append("/");			
+			url.append(URLEncoder.encode(communityIdStr,"UTF-8"));
+			
+			String json = sendRequest(url.toString(), null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(json, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			response = shallowCopy(response, internal_ro);
+			
+			return new Gson().fromJson((JsonElement)internal_responsePojo.getData(), DimensionListPojo.class);		
+		}
+		catch (Exception e) 
+		{
+			response.setSuccess(false);
+			response.setMessage(e.getMessage());
+		}
+		return null;
+	}
 	
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////

@@ -20,11 +20,26 @@ import java.util.List;
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.JobContext;
+import org.apache.hadoop.mapreduce.RecordReader;
+import org.apache.hadoop.mapreduce.TaskAttemptContext;
+import org.bson.BSONObject;
 
 import com.mongodb.hadoop.MongoInputFormat;
+import com.mongodb.hadoop.input.MongoInputSplit;
 
 public class InfiniteMongoInputFormat extends MongoInputFormat
-{	
+{
+	// Just needed to insert a log message that lets me do local debugging...
+	@Override
+    public RecordReader<Object, BSONObject> createRecordReader( InputSplit split, TaskAttemptContext context ){
+        if ( !( split instanceof MongoInputSplit ) )
+            throw new IllegalStateException( "Creation of a new RecordReader requires a MongoInputSplit instance." );
+
+        final MongoInputSplit mis = (MongoInputSplit) split;
+
+        return new InfiniteMongoRecordReader( mis );
+    }	
+	
 	@Override
 	public List<InputSplit> getSplits(JobContext context) 
 	{

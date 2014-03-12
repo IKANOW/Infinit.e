@@ -21,6 +21,7 @@
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:mx="library://ns.adobe.com/flex/mx"
 	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+	secondToolbarButtonVisible="true"
 	currentState="nodata"
 	creationComplete="{ try { onWidgetCreationComplete(event); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 
@@ -1544,75 +1545,92 @@
 			alpha="0.5" />
 	</fx:Declarations>
 
-	<!-- Header -->
-	<components:headerContent>
-
-		<s:HGroup gap="-3">
-
-			<!-- Drag icon -->
-			<components:WidgetHeaderDragImage
-				id="dragImage"  
-				mouseDown="widgetheaderdragimage1_mouseDownHandler(event)" 
-				toolTip="Drag this to another widget/the query bar to send visible entities" />
+	<components:helpContent>
+		<s:VGroup width="100%" height="100%" 
+				  horizontalAlign="center" gap="5" 
+				  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
 			
-			<!-- Ignore Filter Toggle Button -->
-			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
-				toolTip="Ignore Workspace Filtering - Show All Results"
-				click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
+			<s:RichEditableText editable="false" multiline="true" maxWidth="300" >
+				<s:textFlow>
+					<s:TextFlow>
+						<s:p>
+							The Sentiment Widget show entities associated with sentiment, of all types, on a single scale (with various sort options). Use the "Show Only" text box to filter entities based on their types or content. You can drag selected entities into the query bar (which will search for those entities together with the selected sentiment polarity). More details on using the Sentiment widget can be found <s:a href="https://ikanow.jira.com/wiki/display/INFAPI/Sentiment">here</s:a>
+						</s:p>
+					</s:TextFlow>
+				</s:textFlow>
+			</s:RichEditableText>
+		</s:VGroup>
+	</components:helpContent>
+	
+	<!-- Header -->
+	<components:leftHeaderContent>
 
-			<!-- Entities Drop Down List -->
-			<components:WidgetDropDownList id="entityToSend"
-				width="140"
-				selectedIndex="-1"
-				labelFunction="formatLabel"
-				dataProvider="{ topEntitiesCombo }"
-				listWidth="400"
-				prompt="Entities" />
+		<!-- Drag icon -->
+		<components:WidgetHeaderDragImage
+			id="dragImage"  
+			mouseDown="widgetheaderdragimage1_mouseDownHandler(event)" 
+			toolTip="Drag this to another widget/the query bar to send visible entities" />
+		
+		<!-- Ignore Filter Toggle Button -->
+		<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+			toolTip="Ignore Workspace Filtering - Show All Results"
+			click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
 
-			<!-- Add to Query Button -->
-			<components:WidgetPlusButton id="addToQueryButton"
-				toolTip="Add to Query (including +/-/* sentiment)"
-				click="send2Query(event)" />
+		<!-- Add to Query Button -->
+		<components:WidgetPlusButton id="addToQueryButton"
+			toolTip="Add to Query (including +/-/* sentiment)"
+			click="send2Query(event)" />
 
-			<!-- External search button -->
-			<components:WidgetHeaderButton id="doExternalSearchButton"
-				height="100%"
-				label="{ ExternalInterface.call( 'getSearchProvider' ) }"
-				toolTip="Perform external search on the selected entity"
-				includeInLayout="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }"
-				click="createExternalSearch(event)"
-				visible="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }" />
-
-			<!-- Sort Options Drop Down List -->
-			<components:WidgetDropDownList id="sortOptions"
-				width="168"
-				selectedIndex="{ SORT_BY_SIGNIFICANCE }"
-				change="setTimeout( sortOptions_changeHandler, 100, event )"
-				listWidth="266">
-				<components:dataProvider>
-					<s:ArrayList source="[Rank by Significance,Rank by Coverage,Rank by Frequency,Rank by Positive Sentiment,Rank by Negative Sentiment,Rank by Positive Aggregate Sentiment,Rank by Negative Aggregate Sentiment]" />
-				</components:dataProvider>
-			</components:WidgetDropDownList>
-
-			<!-- regex filtering box -->
-			<s:HGroup 
-				height="100%"
-				paddingBottom="2"
-				paddingLeft="5"
-				paddingRight="7"
-				paddingTop="2"
-				verticalAlign="middle">
-				<components:WidgetTextInput id="regexFilter"
-					width="100"
-					toolTip="Enter a regex string to filter entities on name, type or dimension"
-					change="onChangeEntityFilter(event)"
-					prompt="Show only:" />
-			</s:HGroup>
-
+		<!-- regex filtering box -->
+		<s:HGroup 
+			height="100%"
+			paddingBottom="2"
+			paddingLeft="5"
+			paddingRight="7"
+			paddingTop="2"
+			verticalAlign="middle">
+			<components:WidgetTextInput id="regexFilter"
+				width="100"
+				toolTip="Enter a regex string to filter entities on name, type or dimension"
+				change="onChangeEntityFilter(event)"
+				prompt="Show only:" />
 		</s:HGroup>
 
-	</components:headerContent>
+	</components:leftHeaderContent>
 
+	<components:secondHeaderContent>
+		
+		<!-- Entities Drop Down List -->
+		<components:WidgetDropDownList id="entityToSend"
+									   width="140"
+									   selectedIndex="-1"
+									   labelFunction="formatLabel"
+									   dataProvider="{ topEntitiesCombo }"
+									   listWidth="400"
+									   prompt="Entities" />
+		
+		<!-- External search button -->
+		<components:WidgetHeaderButton id="doExternalSearchButton"
+									   height="100%"
+									   label="{ ExternalInterface.call( 'getSearchProvider' ) }"
+									   toolTip="Perform external search on the selected entity"
+									   includeInLayout="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }"
+									   click="createExternalSearch(event)"
+									   visible="{ !( ExternalInterface.call( 'getSearchProvider' ) == null || ExternalInterface.call( 'getSearchProvider' ) == '' ) }" />
+		
+		<!-- Sort Options Drop Down List -->
+		<components:WidgetDropDownList id="sortOptions"
+									   width="168"
+									   selectedIndex="{ SORT_BY_SIGNIFICANCE }"
+									   change="setTimeout( sortOptions_changeHandler, 100, event )"
+									   listWidth="266">
+			<components:dataProvider>
+				<s:ArrayList source="[Rank by Significance,Rank by Coverage,Rank by Frequency,Rank by Positive Sentiment,Rank by Negative Sentiment,Rank by Positive Aggregate Sentiment,Rank by Negative Aggregate Sentiment]" />
+			</components:dataProvider>
+		</components:WidgetDropDownList>
+		
+	</components:secondHeaderContent>
+	
 	<s:VGroup 
 		width="100%"
 		height="100%"

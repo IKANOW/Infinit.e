@@ -1155,8 +1155,7 @@ public class SourceHandler
 					source.getRssConfig().setUpdateCycle_secs(1); // always update
 				}
 			}
-			
-			HarvestController harvester = new HarvestController();
+			HarvestController harvester = new HarvestController(true);
 			if (nNumDocsToReturn > 100) { // (seems reasonable)
 				nNumDocsToReturn = 100;
 			}

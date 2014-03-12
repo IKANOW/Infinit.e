@@ -268,6 +268,23 @@ public class ScoringUtils
 	private static final double _s3_dGEO_BUCKETS = 100.0;
 	double _s2_maxGeoQueryCoverage = 0.0; 	              
 	
+	public void clearAsMuchMemoryAsPossible()
+	{
+		_s0_entityTypeFilter = null;
+		_s0_assocVerbFilter = null;
+		_s0_multiCommunityHandler = null;
+		_s0_standaloneEventAggregator = null;
+		_s0_lowAccuracyAssociationAggregator_events = null;
+		_s0_lowAccuracyAssociationAggregator_facts = null;
+		_s3_geoBuckets = null;
+		_s1_dManualGeoDecay_latLonInvdecay = null;
+		// Need this: _s1_entitiesInDataset
+		_s1_noEntityBuckets = null;
+		_s1_aliasSummary = null;
+		_s3_pqDocs = null;
+		_s3_pqEnt = null;		
+	}
+	
 // Top level logic
 	
 	@SuppressWarnings("unchecked")
@@ -544,9 +561,35 @@ public class ScoringUtils
 	{		
 		double s0_nQuerySubsetDocCountInv = 1.0/(double)_s0_nQuerySubsetDocCount;
 		
+		//DEBUG (INF-2498): testing memory usage			
+//		int ndocs = 0;
+//		long nmem = 0L;
+//		long start = new Date().getTime();
+
 		for ( DBObject f0 : docs)
 		{
 			BasicDBObject f = (BasicDBObject)f0;
+
+			//DEBUG (INF-2498): testing memory usage			
+//			ndocs++;
+//			long len = f.toString().length();
+//			long evtlen = 0;
+//			long metalen = 0;
+//			long desclen = 0;
+//			if (null != f.get("associations")) {
+//				evtlen = f.get("associations").toString().length();
+//			}
+//			if (null != f.get("metadata")) {
+//				metalen = f.get("metadata").toString().length();
+//			}
+//			if (null != f.get("description")) {
+//				desclen = f.get("description").toString().length();
+//			}
+//			nmem += len;
+//			long now = new Date().getTime() - start;
+//			System.out.println("TIME=" + now/1000 + " OBJ=" + ndocs + " AVG=" + nmem/ndocs + " URL=" + f.getString("url") + " ~SIZE=" + len + " ~MEM=" + nmem + " SYS=" +  Runtime.getRuntime().totalMemory() + " EVTLEN=" + evtlen + " METALEN=" + metalen + " DESCLEN=" + desclen);						
+			//END DEBUG
+			
 			// Simple handling for standalone events
 			if ((null != _s0_standaloneEventAggregator) && !_s0_bNeedToCalcSig) {
 				//if _s0_bNeedToCalcSig then do this elsewhere
@@ -1218,7 +1261,6 @@ public class ScoringUtils
 					else if ((_s3_pqDocs.size() >= nToClientLimit) && (nToClientLimit > 0)) {
 						TempDocBucket qsf = _s3_pqDocs.first();
 						if (entBucket.doc.totalScore > qsf.totalScore) {
-							qsf.bPromoted = false;
 							entBucket.doc.bPromoted = true;
 							_s3_pqDocs.add(entBucket.doc);							
 							if (_s3_pqDocs.size() > nToClientLimit) { // (size might stay the same if this is a duplicate)								
@@ -1227,6 +1269,8 @@ public class ScoringUtils
 								TempDocBucket tdb = it.next(); 
 								it.remove(); // (ie remove the first object)
 
+								tdb.bPromoted = false;
+								
 								// Phase "1": middle ranking (used to be good, not so much any more)
 								if (null != _s0_standaloneEventAggregator) {
 									ScoringUtils_Associations.addStandaloneEvents(tdb.dbo, tdb.aggSignificance, 1, _s0_standaloneEventAggregator, 
@@ -1243,9 +1287,8 @@ public class ScoringUtils
 																					_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, 
 																						_s0_assocVerbFilter, false, false, true);
 								}//TESTED
-								
-							}//TESTED
 
+							}//TESTED
 						}
 						else { // Not promoting
 							shp.unusedDbo = entBucket.dbo; // (might save me the trouble of cloning a few times...)													
@@ -1328,10 +1371,22 @@ public class ScoringUtils
 					
 					EntSigHolder qsf = _s3_pqEnt.element();
 					if (shp.datasetSignificance > qsf.datasetSignificance) {
-						_s3_pqEnt.remove();
+						EntSigHolder toRemove = _s3_pqEnt.remove();
 						_s3_pqEnt.add(shp);
+						
+						toRemove.entityInstances = null; // (don't need this any more can be gc'd)
+						if (null != toRemove.masterAliasSH) {
+							toRemove.masterAliasSH.entityInstances = null;
+								// (can only promote one masterAliasSH so no risk this will remove an active entityInstances)
+						}
 					}
+					else {
+						shp.entityInstances = null; // (don't need this any more can be gc'd)						
+					}//TESTED
 				}				
+			}//TESTED
+			else {
+				shp.entityInstances = null; // (don't need this any more, can be gc'd)
 			}//TESTED
 			
 			// (NOTE LOCAL SHP CANNOT BE USED FROM HERE - IE NO MORE CODE IN THIS LOOP!)	
@@ -1640,21 +1695,28 @@ public class ScoringUtils
 				BasicDBObject ent = qsf.unusedDbo;
 				if (null == ent) {
 					int nTries = 0;
-					for (TempEntityInDocBucket tefb: qsf.entityInstances) {
-						// (Try to find an entity that wasn't promoted ie can now be re-used
-						//  if we can't find one quite quickly then bail out and we'll pay the cost of cloning it)
-						if (!tefb.doc.bPromoted) {
-							ent = tefb.dbo;
-							break;
+					if (null != qsf.entityInstances) { // (should never be null but just to be on the safe side...
+						for (TempEntityInDocBucket tefb: qsf.entityInstances) {
+							// (Try to find an entity that wasn't promoted ie can now be re-used
+							//  if we can't find one quite quickly then bail out and we'll pay the cost of cloning it)
+							if (!tefb.doc.bPromoted) {
+								ent = tefb.dbo;
+								break;
+							}
+							else if (++nTries > 10) {
+								break;
+							}
 						}
-						else if (++nTries > 10) {
-							break;
+						if (null == ent) {
+							ent = qsf.entityInstances.get(0).dbo;
 						}
 					}
-					if (null == ent) {
-						ent = qsf.entityInstances.get(0).dbo;
+					else { // (no entityInstances, something alias-related has gone wrong, just skip) 
+						continue;
 					}
 				}//TESTED
+				qsf.entityInstances = null; // (don't need this any more, can be gc'd)
+				
 				try {
 
 					if (null != qsf.aliasInfo) {

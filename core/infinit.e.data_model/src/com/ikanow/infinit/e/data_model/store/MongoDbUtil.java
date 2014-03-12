@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.store;
 
 import java.text.ParseException;
+import java.util.Collection;
 import java.util.Date;
 import java.util.Iterator;
 import java.util.List;
@@ -52,6 +53,12 @@ public class MongoDbUtil {
 	    }
 	    return (T) result;		
 	}//TESTED
+	
+	public static void removeProperty(BasicDBObject dbo, String fieldInDotNotation) {
+	    final String[] keys = fieldInDotNotation.split( "\\." );
+	    recursiveNestedMapDelete(keys, 0, dbo);
+	}//TESTED
+
 	
     public static JsonElement encode(DBCursor cursor) {
         JsonArray result = new JsonArray();
@@ -224,4 +231,71 @@ public class MongoDbUtil {
 		}
 		return out;
 	}//TESTED
+
+	// UTILS:
+	
+	@SuppressWarnings("rawtypes")
+	public static void recursiveNestedMapDelete(String[] fieldList, int currPos, Map currMap) {
+		String metaFieldEl = fieldList[currPos]; 
+		if (currPos == (fieldList.length - 1)) {
+			currMap.remove(metaFieldEl);
+		}//TESTED (metadataStorage_test:removeString, etc)
+		else {
+			Object metaFieldElValOrVals = currMap.get(metaFieldEl);								
+			if (null != metaFieldElValOrVals) {
+				if (metaFieldElValOrVals instanceof Map) {
+					Map map = (Map)metaFieldElValOrVals;
+					recursiveNestedMapDelete(fieldList, currPos + 1, map);
+					if (map.isEmpty()) {
+						currMap.remove(metaFieldEl);
+					}//TESTED (metadataStorage_test:object)
+					
+				}//TESTED (metadataStorage_test:object, :nestedArrayOfStrings, etc)
+				else if (metaFieldElValOrVals instanceof Object[]) {					
+					Object[] candidateMaps = (Object[])metaFieldElValOrVals;
+					boolean allEmpty = (candidateMaps.length > 0);
+					for (Object candidateMap: candidateMaps) {
+						if (candidateMap instanceof Map) {
+							Map map = (Map)candidateMap;
+							recursiveNestedMapDelete(fieldList, currPos + 1, map);
+							allEmpty &= map.isEmpty();
+						}
+						else allEmpty = false;							
+					}
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);
+					}//TESTED (metadataStorage_test:test2,test3)
+				}//TESTED (length 1: metadataStorage_test:removeString, etc; length2: :test2,test3) 
+				else if (metaFieldElValOrVals instanceof Map[]) {
+					Map[] maps = (Map[])metaFieldElValOrVals;
+					boolean allEmpty = (maps.length > 0);
+					for (Map map: maps) {
+						recursiveNestedMapDelete(fieldList, currPos + 1, map);
+						allEmpty &= map.isEmpty();
+					}
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);						
+					}
+				}//(basically the same as the clause above, doesn't seem to occur in practice)
+				else if (metaFieldElValOrVals instanceof Collection) {
+					Collection candidateMaps = (Collection)metaFieldElValOrVals;
+					boolean allEmpty = (candidateMaps.size() > 0);
+					for (Object candidateMap: candidateMaps) {
+						if (candidateMap instanceof Map) {
+							Map map = (Map)candidateMap;
+							recursiveNestedMapDelete(fieldList, currPos + 1, map);
+							allEmpty &= map.isEmpty();
+						}
+						else allEmpty = false;
+					}					
+					if (allEmpty) {
+						currMap.remove(metaFieldEl);						
+					}//TESTED (metadataStorage_test:nestedMapArray, metadataStorage_test:nestedMapArray2, metadataStorage_test:nestedMixedArray)
+				}//TESTED (length>1: metadataStorage_test:nestedMixedArray,nestedMapArray)
+					
+			}
+		}//(end if at the start/middle of the nested object tree)
+			
+	}//TESTED
+	
 }

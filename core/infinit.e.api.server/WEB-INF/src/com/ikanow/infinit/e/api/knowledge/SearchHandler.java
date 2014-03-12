@@ -199,7 +199,8 @@ public class SearchHandler
 		int nDocsAdded = 0;
 		
 		if (null != extraEntries) { // Put the alias masters at the top:
-			System.out.println(Arrays.toString(extraEntries.toArray()));
+			//DEBUG
+			//System.out.println(Arrays.toString(extraEntries.toArray()));
 			for (EntityFeaturePojo alias: extraEntries) {
 				SearchSuggestPojo sp = new SearchSuggestPojo();
 				if (null != alias.getDimension()) {

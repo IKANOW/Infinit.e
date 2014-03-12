@@ -543,7 +543,7 @@ public class SourceUtils {
 		
 	// Updates "in_progress" to either "success" or "error", increments the doccount (per source and per community)
 
-	public static void updateHarvestStatus(SourcePojo source, HarvestEnum harvestStatus, List<DocumentPojo> added, long nDocsDeleted) {
+	public static void updateHarvestStatus(SourcePojo source, HarvestEnum harvestStatus, List<DocumentPojo> added, long nDocsDeleted, String extraMessage) {
 		// Handle successful harvests where the max docs were reached, so don't want to respect the searchCycle
 		if ((harvestStatus == HarvestEnum.success) && (source.reachedMaxDocs())) {
 			harvestStatus = HarvestEnum.success_iteration;
@@ -555,6 +555,15 @@ public class SourceUtils {
 		BasicDBObject setClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, harvestStatus.toString());
 		if ((null != added) && !added.isEmpty()) {
 			setClause.put(SourceHarvestStatusPojo.sourceQuery_extracted_, new Date());
+		}
+		if (null != extraMessage) {
+			if ((null == source.getHarvestStatus()) || (null == source.getHarvestStatus().getHarvest_message())) {
+				setClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, extraMessage);
+			}
+			else {
+				source.getHarvestStatus().setHarvest_message(source.getHarvestStatus().getHarvest_message() + "\n" + extraMessage);
+				setClause.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, source.getHarvestStatus().getHarvest_message());
+			}
 		}
 		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, setClause);
 

@@ -89,7 +89,9 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	/**
 	 * Tests to see if duplicates exist based on defined key
 	 * 
-	 * @param collection
+	 * @param title - currently ignored
+	 * @param description - currently ignored
+	 * @param duplicateSources - list of sources containing a duplicate URL, filled in transiently by calls to this function
 	 * @param key
 	 * @return boolean (true/false)
 	 */
@@ -105,8 +107,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	/**
 	 * Tests to see if duplicates exist based on defined key
 	 * 
-	 * @param collection
-	 * @param key
+	 * @param duplicateSources - list of sources containing a duplicate URL, filled in transiently by calls to this function
 	 * @return boolean (true/false)
 	 */
 	public boolean isDuplicate_Url(String url, SourcePojo source, List<String> duplicateSources) {

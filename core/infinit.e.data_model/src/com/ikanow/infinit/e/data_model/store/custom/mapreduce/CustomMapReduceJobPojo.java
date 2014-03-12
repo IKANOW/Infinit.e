@@ -110,6 +110,8 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public Boolean exportToHdfs; // If (present AND true), the output is written to hdfs://user/tomcat
 	public static final String exportToHdfs_ = "exportToHdfs";
 	// (need to start moving these guys to private...)
+	public List<String> tempErrors = null; // (get copied into the message string on completion/error)
+	public static final String tempErrors_ = "tempErrors";
 	
 	public enum SCHEDULE_FREQUENCY
 	{
@@ -122,7 +124,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	
 	public enum INPUT_COLLECTIONS
 	{	
-		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS;
+		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS, FILESYSTEM;
 	}
 
 	// Getters and setters

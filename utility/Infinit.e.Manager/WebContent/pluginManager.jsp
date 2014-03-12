@@ -29,7 +29,7 @@ limitations under the License.
 	static String API_ROOT = null;
 	static String SHARE_ROOT = "$infinite/share/get/";
 	static Boolean DEBUG_MODE = false;
-	static Boolean showAll = false;
+	static Boolean showAll = true;
 	static Boolean localCookie = false;
 	static String user = null;
 	static String communityList = null; // (generated from generateCommunityList)
@@ -262,13 +262,14 @@ limitations under the License.
     	return null;
 	}
 	
-	public static String postUrl(String addr, String userarguments, String exportToHdfs, HttpServletRequest request, HttpServletResponse response)
+	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, HttpServletRequest request, HttpServletResponse response)
 	{
 		String charset = "UTF-8";		
 		try
 		{
 			jobPojo postObj = new jobPojo();
 			postObj.arguments = userarguments;
+			postObj.query = query;
 			postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
 			
 			//if ( userarguments.equals("") )
@@ -294,6 +295,7 @@ limitations under the License.
             }
             
             String json = buffer.toString();
+            
             buffer.flush();
             buffer.close();
             output.close();
@@ -754,7 +756,7 @@ limitations under the License.
 			url += frequency + "/";
 		}
 		url += java.net.URLEncoder.encode(mapper, charset) + "/" + java.net.URLEncoder.encode(reducer, charset) + "/" + java.net.URLEncoder.encode(combiner, charset) + "/";
-		url += java.net.URLEncoder.encode(query, charset) + "/"; 
+		url += "null" + "/"; // Post query to avoid it getting too long 
 		url += java.net.URLEncoder.encode(inputcollection, charset) + "/";
 		url += outputKey + "/";
 		url += outputValue + "/";
@@ -784,7 +786,7 @@ limitations under the License.
 		//if (true) return false;		
 		
 		//String json = stringOfUrl(url, request, response);
-		String json = postUrl(url,userarguments,exportToHdfs,request,response);
+		String json = postUrl(url,query,userarguments,exportToHdfs,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
              
         if ( resp == null )
@@ -823,7 +825,7 @@ if (API_ROOT == null)
 			API_ROOT = (String) engine.get("output");
 		}catch (Exception e)
 		{
-			System.err.println(e.toString());
+			System.err.println(e.toString() + " , " + realContextPath + "/AppConstants.js");
 		}
 	}
 	if (null == API_ROOT) { 
@@ -848,7 +850,7 @@ if (isLoggedIn == null)
 
 else if (isLoggedIn == true)
 {
-	showAll = (request.getParameter("sudo") != null);
+	showAll = (request.getParameter("personal") == null);
 	
 	if (request.getParameter("logout") != null)
 	{
@@ -1468,6 +1470,10 @@ $().ready(function() {
 			{
 				inputcollection.value = "FEATURE_ASSOCS";
 			}
+			else if (jsonObj.inputCollection == "filesystem")
+			{
+				inputcollection.value = "FILESYSTEM";
+			}
 			else 
 			{
 				inputcollection.value = jsonObj.inputCollection;
@@ -1680,7 +1686,7 @@ $().ready(function() {
 			appendResults = document.getElementById('appendResults').value;
 			exportToHdfs = document.getElementById('exportToHdfs').value;
 			ageout = document.getElementById('ageout').value;
-			query = document.getElementById('query').value;	
+			query = queryEditor.getValue();	
 			userarguments = document.getElementById('userarguments');
 			userarguments_internal = document.getElementById('userarguments_internal');
 			userarguments.value = argsEditor.getValue(); 
@@ -1688,6 +1694,66 @@ $().ready(function() {
 			reusejar_checked = document.getElementById('reusejar_check').checked;
 			jar_url = document.getElementById('jar_url').value;
 			var select = document.getElementById( 'communities' );
+			
+			//quicky .. if query points to a saved workspace then pull out the JSON and use that...
+			try {
+				if (null != query) {
+
+					if ((0 == query.indexOf('http')) && (query.indexOf('?query=') > 0)) {
+						var urlquery = query.replace(/.*\?query=([^&]+)[\s\S]*/, '$1');
+						var leftOverQuery = query.replace(/http.*/, "");
+						if (leftOverQuery.indexOf('{') >= 0) {
+							try {
+								leftOverQuery = eval('(' + leftOverQuery + ')');
+							}
+							catch (err) {
+								leftOverQuery = null;
+							}
+						}
+						else {
+							leftOverQuery = null;
+						}
+						if (null != urlquery) {
+							urlquery = decodeURIComponent(urlquery);
+							urlqueryJson = eval('(' + urlquery + ')');
+							try {
+							if (null != leftOverQuery) {
+								for (var x in leftOverQuery) {
+									urlqueryJson[x] = leftOverQuery[x];
+								}
+							}
+							}catch (err) { alert(err); }/**/
+							
+							for ( var i = 0, l = select.options.length, o; i < l; i++ )
+							{
+								o = select.options[i];
+								var selected = false;
+								for (var x in urlqueryJson.communityIds) {
+									if (o.value == urlqueryJson.communityIds[x]) {
+										selected = true;
+										break;
+									}
+								}
+								o.selected = selected;
+							}
+							urlquery = JSON.stringify(urlqueryJson, null, 2);
+							queryEditor.setValue(urlquery);
+							document.getElementById('query').value = urlquery;
+							query = urlquery;
+							
+							// If this is the case and userargs was JSON then clear it otherwise it gets used over query
+							if (0 == userarguments.value.indexOf('{')) {
+								userarguments.value = "";
+							}
+						}
+					}
+					//(else it's fine this is just a normal query not a 'copy workspace')
+				}
+			}
+			catch (err) {
+				alert("Error pasting workspace link: " + err.message);
+				return false;
+			}
 			
 			// Hidden entries
 			DBId = document.getElementById('DBId').value;
@@ -1969,6 +2035,7 @@ $().ready(function() {
 								<option value="DOC_CONTENT">Document Content Collection</option>
 								<option value="FEATURE_ENTITIES">Aggregated Entity Collection</option>
 								<option value="FEATURE_ASSOCS">Aggregated Association Collection</option>
+								<option value="FILESYSTEM">Distributed Filesystem</option>
 								<% out.print(inputCollectionList); %>
 							</select>
 						</td>
@@ -2135,7 +2202,7 @@ else if (isLoggedIn == false)
 	{
 		if(logMeIn(request.getParameter("logintext"),request.getParameter("passwordtext"), request, response))
 		{
-			showAll = (request.getParameter("sudo") != null);
+			showAll = (request.getParameter("personal") == null);
 			DEBUG_MODE = (request.getParameter("debug") != null);
 			out.println("<meta http-equiv=\"refresh\" content=\"0\">");
 			out.println("Login Success");

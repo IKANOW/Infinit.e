@@ -56,9 +56,12 @@
 			import mx.graphics.IFill;
 			import mx.graphics.SolidColor;
 			import mx.utils.StringUtil;
+			
 			import org.alivepdf.pdf.PDF;
-			import spark.events.IndexChangeEvent;
+			
 			import spark.events.GridEvent;
+			import spark.events.IndexChangeEvent;
+			
 			import system.data.Collection;
 			import system.data.Iterator;
 			import system.data.Map;
@@ -67,7 +70,7 @@
 			import system.data.sets.HashSet;
 			
 			//viewstate constants
-			private static const SOURCE_VIEW:int = 0;
+			private static const SOURCE_VIEW:int = 0; // (default to entity types)
 			
 			private static const ENTITY_VIEW:int = 1;
 			
@@ -231,6 +234,8 @@
 				populateTopResultsLists();
 				//populate all results 
 				populateAllResultsLists();
+				
+				resultsOptions_changeHandler(null);
 			}
 			
 			/**
@@ -257,13 +262,20 @@
 			 */
 			public function populateAllResultsLists():void
 			{
-				populateAllEntityLists( currAllData.getEntities() );
+				populateAllEntityLists( currAllData.getEntities(true) );
 				//populate all results associations
-				populateAllAssociationLists( currAllData.getFacts() );
-				populateAllAssociationLists( currAllData.getEvents() );
+				populateAllAssociationLists( currAllData.getFacts(true) );
+				populateAllAssociationLists( currAllData.getEvents(true) );
 				//populate all results sources
-				populateAllSourceTypeList( currAllData.getSourceTypeCounts() );
-				populateAllSourceKeyList( currAllData.getSourceKeyCounts() );
+				var checkIfEmpty:ArrayCollection = currAllData.getSourceTypeCounts(true);
+				if (checkIfEmpty.length == 0)
+					checkIfEmpty = currData.getSourceTypeCounts();				
+				populateAllSourceTypeList( checkIfEmpty );
+				
+				checkIfEmpty = currAllData.getSourceKeyCounts(true);
+				if (checkIfEmpty.length == 0)
+					checkIfEmpty = currData.getSourceKeyCounts();				
+				populateAllSourceKeyList( checkIfEmpty );
 			}
 			
 			/**
@@ -297,14 +309,6 @@
 			public function onInit( context:IWidgetContext ):void
 			{
 				_context = context;
-				clearAllData();
-				_activeEntityTypeArrayList = _allEntityTypeArrayList;
-				_activeEntityArrayList = _allEntitiesArrayList;
-				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
-				_activeAssociationArrayList = _allAssociationsArrayList;
-				_activeSourceTypeArrayList = _allSourceTypeArrayList;
-				_activeSourceKeyArrayList = _allSourceKeyArrayList;
-				currentView = ALL_VIEW;
 			}
 			
 			/**
@@ -345,11 +349,15 @@
 					//setTimeout( resetIgnoreLocalFilter, 1000 );
 				}
 				
-				if ( isNewData(_context.getQuery_TopResults().getTopDocuments()) )
+				if ( (currentView == TOP_VIEW) || isNewData(_context.getQuery_TopResults().getTopDocuments()) )
 				{
 					currData = _context.getQuery_TopResults();
 					currAllData = _context.getQuery_AllResults();
 					populateLists();
+				}
+				else { // All view and old data, can just changed the top results
+					clearTopResultsData();
+					populateTopResultsLists();
 				}
 			}
 			
@@ -358,17 +366,24 @@
 				var isNew:Boolean = false;
 				if ( lastDocIdMap != null ) //check against old map
 				{
-					for each ( var doc:Object in docs )
+					if (lastDocIdMap.size() != docs.length) {
+						isNew = true;
+					}
+					else //
 					{
-						//compare results
-						if ( !lastDocIdMap.containsKey(doc._id) )
+						for each ( var doc:Object in docs )
 						{
-							isNew = true;
-							break;
+							//compare results
+							if ( !lastDocIdMap.containsKey(doc._id) )
+							{
+								isNew = true;
+								break;
+							}
 						}
-					}		
-				} else 	isNew = true; //first time through
-					
+					}
+				} else 	
+					isNew = true; //first time through
+
 				if ( isNew )
 				{
 					//create new map
@@ -667,7 +682,14 @@
 			 */
 			private function onWidgetCreationComplete():void
 			{
-			
+				clearAllData();
+				_activeEntityTypeArrayList = _allEntityTypeArrayList;				
+				_activeEntityArrayList = _allEntitiesArrayList;
+				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
+				_activeAssociationArrayList = _allAssociationsArrayList;
+				_activeSourceTypeArrayList = _allSourceTypeArrayList;
+				_activeSourceKeyArrayList = _allSourceKeyArrayList;
+				currentView = ALL_VIEW;			
 			}
 			
 			
@@ -875,7 +897,11 @@
 				_displayEntitiesNamesArrayList.removeAll();
 				
 				//adjust data providers to meet new result sets to be displayed
-				if ( event.newIndex == TOP_VIEW )
+				var index:int = currentView;
+				if (null != event) 
+					index = event.newIndex;
+				
+				if ( index == TOP_VIEW )
 				{
 					currentView = TOP_VIEW;
 					setActiveToTop();
@@ -890,8 +916,7 @@
 			
 			private function setActiveToTop():void
 			{
-				_activeEntityTypeArrayList = _topEntityTypeArrayList;
-				_activeEntityArrayList = _topEntitiesArrayList;
+				_activeEntityArrayList = _topEntitiesArrayList;				
 				_activeAssociationTypeArrayList = _topAssociationTypeArrayList;
 				_activeAssociationArrayList = _topAssociationsArrayList;
 				_activeSourceTypeArrayList = _topSourceTypeArrayList;
@@ -900,7 +925,7 @@
 				
 			private function setActiveToAll():void
 			{
-				_activeEntityTypeArrayList = _allEntityTypeArrayList;
+				_activeEntityTypeArrayList = _allEntityTypeArrayList;				
 				_activeEntityArrayList = _allEntitiesArrayList;
 				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
 				_activeAssociationArrayList = _allAssociationsArrayList;
@@ -1052,6 +1077,7 @@
 				<s:HGroup 
 					width="100%"
 					height="50%">
+					
 					<mx:PieChart id="sourceTypeChart"
 						height="100%"
 						width="100%"
@@ -1123,11 +1149,11 @@
 
 		<!--Entities View Panel-->
 		<mx:Canvas id="entities"
-			label="Entities">
+				   label="Entities">
 			<!--<mx:Panel id="entityPanel"
-				height="100%"
-				width="100%"
-				title="Entity Distribution ({ _currentView })">-->
+			height="100%"
+			width="100%"
+			title="Entity Distribution ({ _currentView })">-->
 			<s:HGroup 
 				width="100%"
 				height="100%">
@@ -1136,22 +1162,22 @@
 					height="100%"
 					width="25%">
 					<s:TextInput id="searchEntTypes"
-						width="100%"
-						keyUp="filterEntities()" />
+								 width="100%"
+								 keyUp="filterEntities()" />
 					<s:List id="entList1"
-						width="100%"
-						height="100%"
-						dataProvider="{ _activeEntityTypeArrayList }"
-						change="entityTypeIndex_changeHandler(event)" />
+							width="100%"
+							height="100%"
+							dataProvider="{ _activeEntityTypeArrayList }"
+							change="entityTypeIndex_changeHandler(event)" />
 				</s:VGroup>
-
+				
 				<!--Specific Entities Filter / DataGrid-->
 				<s:VGroup 
 					height="100%"
 					width="75%">
 					<s:TextInput id="searchEntities"
-						width="100%"
-						keyUp="filterEntities()" />
+								 width="100%"
+								 keyUp="filterEntities()" />
 					<s:DataGrid  
 						id="entityDataGrid"
 						doubleClickEnabled="true"
@@ -1177,7 +1203,7 @@
 			</s:HGroup>
 			<!--</mx:Panel>-->
 		</mx:Canvas>
-
+		
 		<!--Associations View Panel-->
 		<mx:Canvas id="associations"
 			label="Associations">

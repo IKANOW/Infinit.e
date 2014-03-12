@@ -775,6 +775,24 @@ package com.ikanow.infinit.e.query.model.manager
 		 */
 		public function updateQueryFromWidgetDragDrop( widgetInfo:WidgetDragObject ):void
 		{
+			//GENERIC QUERY ELEMENTS
+			
+			if ( ( null != widgetInfo.queryElements ) && ( widgetInfo.queryElements.length > 0 ) )
+			{
+				newQuery = QueryUtil.getQueryStringObject( currentQueryStringRequest );
+				
+				newQuery[ 'qt' ] = widgetInfo.queryElements;
+				
+				queryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
+				
+				// Call update and navigate once per doc
+				queryEvent = new QueryEvent( QueryEvent.UPDATE_QUERY_NAVIGATE );
+				queryEvent.widgetInfo = widgetInfo;
+				queryEvent.searchType = null;
+				queryEvent.queryString = queryString;
+				dispatcher.dispatchEvent( queryEvent );
+			}
+			
 			//ENTS
 			
 			if ( ( null != widgetInfo.entities ) && ( widgetInfo.entities.length > 0 ) )
@@ -786,7 +804,19 @@ package com.ikanow.infinit.e.query.model.manager
 				for each ( ent in widgetInfo.entities )
 				{
 					qt = new Object();
-					qt[ 'entity' ] = ent[ 'index' ];
+					if ( null != ent[ 'index' ] )
+					{
+						qt[ 'entity' ] = ent[ 'index' ];
+					}
+					else if ( null != ent[ 'type' ] && null != ent[ 'disambiguated_name' ] )
+					{
+						qt[ 'entityValue' ] = ent[ 'disambiguated_name' ];
+						qt[ 'entityType' ] = ent[ 'type' ];
+					}
+					else if ( null != ent[ 'type' ] ) 
+					{
+						qt[ 'entityType' ] = ent[ 'type' ];
+					}
 					qts.addItem( qt );
 				}
 				newQuery[ 'qt' ] = qts;

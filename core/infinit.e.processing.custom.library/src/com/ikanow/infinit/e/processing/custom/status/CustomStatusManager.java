@@ -50,6 +50,8 @@ public class CustomStatusManager {
 	 */
 	public void setJobComplete(CustomMapReduceJobPojo cmr, boolean isComplete, boolean isError, float mapProgress, float reduceProgress, String errorMessage) 
 	{		
+		// (Note, inc_ and unset_ are added in one place each, so can't use them without ensuring you combine existing uses)  
+		
 		BasicDBObject updates = new BasicDBObject();
 		BasicDBObject update = new BasicDBObject();
 		try
@@ -117,10 +119,26 @@ public class CustomStatusManager {
 					else {
 						errorMessage += "\n" + completionStatus;
 					}					
+					if ((null != cmr.tempErrors) && !cmr.tempErrors.isEmpty()) { // Individual errors reported from map/combine/reduce
+						StringBuffer sb = new StringBuffer(errorMessage).append("\n\nLog Messages:\n\n");
+						for (String err: cmr.tempErrors) {
+							sb.append(err).append("\n");
+						}
+						errorMessage = sb.toString();
+						update.put(MongoDbManager.unset_, new BasicDBObject(CustomMapReduceJobPojo.tempErrors_, 1));
+					}
 					updates.append(CustomMapReduceJobPojo.errorMessage_, errorMessage); // (will often be null)					
 				}
 				else
 				{
+					if ((null != cmr.tempErrors) && !cmr.tempErrors.isEmpty()) { // Individual errors reported from map/combine/reduce
+						StringBuffer sb = new StringBuffer(errorMessage).append("\n\nLog Messages:\n\n");
+						for (String err: cmr.tempErrors) {
+							sb.append(err).append("\n");
+						}
+						errorMessage = sb.toString();
+						update.put(MongoDbManager.unset_, new BasicDBObject(CustomMapReduceJobPojo.tempErrors_, 1));
+					}
 					//failed, just append error message										
 					updates.append(CustomMapReduceJobPojo.errorMessage_, errorMessage);
 					incs.append(CustomMapReduceJobPojo.timesFailed_,1);					
@@ -141,8 +159,7 @@ public class CustomStatusManager {
 		}
 		catch (Exception ex)
 		{
-			/**/
-			ex.printStackTrace();
+			//ex.printStackTrace();
 			_logger.info("job_error_updating_status_title=" + cmr.jobtitle + " job_error_updating_status_id=" + cmr._id.toString() + " job_error_updating_status_message=" + InfiniteHadoopUtils.createExceptionMessage(ex));
 		}		
 		finally { // It's really bad if this doesn't happen, so do it here so that it always gets called

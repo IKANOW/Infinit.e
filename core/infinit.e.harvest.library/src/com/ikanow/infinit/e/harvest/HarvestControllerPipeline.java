@@ -64,10 +64,16 @@ public class HarvestControllerPipeline {
 	
 	// Object initialization:
 	
+	public void clearState() {
+		// (just ensure the memory associated with this can be removed)
+		_sah = null;
+		_uah = null;		
+	}
+	
 	private void intializeState()
 	{
-		_sah = null;
-		_uah = null;
+		clearState();
+		
 		_defaultTextExtractor = null;
 		// (don't re-initialize nInterDocDelay_ms that is always set from the parent hc)
 		// (don't re-initialize _props, that can persist)
@@ -100,12 +106,13 @@ public class HarvestControllerPipeline {
 		for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
 			
 			// 1] Input source, copy into src pojo
+			//(note "extractType" should be filled in anyway from SourceHandler.savedSource->SourcePojo.fillInSourcePipelineFields)
 			
 			if (null != pxPipe.database) {
 				source.setUrl(pxPipe.database.getUrl());
 				source.setAuthentication(pxPipe.database.getAuthentication());
 				source.setDatabaseConfig(pxPipe.database);
-				source.setExtractType("Database");
+				source.setExtractType("Database"); 
 			}//TESTED (NEED to build a working test file - basic_db_test needs a DB to test against)
 			if (null != pxPipe.nosql) {
 				//TODO (INF-1963): Not yet supported
@@ -158,6 +165,7 @@ public class HarvestControllerPipeline {
 				}
 				if (null != pxPipe.harvest.distributionFactor) {
 					source.setDistributionFactor(pxPipe.harvest.distributionFactor);
+					//(note "distributionFactor" should be filled in anyway from SourceHandler.savedSource->SourcePojo.fillInSourcePipelineFields)
 				}
 				if (null != pxPipe.harvest.maxDocs_perCycle) { 
 					//per cycle max docs (-> success_iteration if exceeded, ie next cycle will start again)

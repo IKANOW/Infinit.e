@@ -413,6 +413,7 @@ public class FileHarvester implements HarvesterInterface {
 								// (still don't add this to updates because we've added the source URL to the delete list)
 								// (hence approximate create with the updateId...)
 							}
+							//TODO (INF-2485) else still need to do deduplication (in the else case) to handle the same URL appearing in different parent files 
 						}
 						//TESTED
 					}
@@ -421,8 +422,8 @@ public class FileHarvester implements HarvesterInterface {
 						doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
 						docsToUpdate.add(doc);
 					}
-					else {
-						if (!duplicateSources.isEmpty()) {
+					else { // if duplicateSources is non-empty then this URL is a duplicate of one from a different source 
+						if (!duplicateSources.isEmpty()) { 
 							doc.setDuplicateFrom(duplicateSources.getFirst());
 						}
 						docsToAdd.add(doc);
@@ -562,9 +563,15 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setCreated(new Date());						
 						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
 							if (1 == numPartials) {
-								doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append('.').append(urlType).toString());
-									// (we always set sourceUrl as the true url of the file, so want to differentiate the URL with
-									//  some useful information)
+								String urlString = f.getUrlString();
+								if (urlString.endsWith(urlType)) {
+									doctoAdd.setUrl(urlString);
+								}
+								else {
+									doctoAdd.setUrl(new StringBuffer(urlString).append('.').append(urlType).toString());
+								}
+								// (we always set sourceUrl as the true url of the file, so want to differentiate the URL with
+								//  some useful information)
 							}
 							else if (null == doctoAdd.getMetadata()) { // Line oriented case
 								doctoAdd.setUrl(new StringBuffer(f.getUrlString()).append("/").append(nIndex).append('.').append(urlType).toString());
@@ -920,6 +927,13 @@ public class FileHarvester implements HarvesterInterface {
 			errors++;
 			_context.getHarvestStatus().update(source,new Date(),HarvestEnum.error,e.getMessage(), true, false);
 		}		
+		finally {
+			// (ie these can be deleted once the harvest is complete)
+			this.files = null;
+			this.docsToAdd = null;
+			this.docsToUpdate = null;
+			this.docsToRemove = null;			
+		}
 	}
 	
 	// Renaming utility

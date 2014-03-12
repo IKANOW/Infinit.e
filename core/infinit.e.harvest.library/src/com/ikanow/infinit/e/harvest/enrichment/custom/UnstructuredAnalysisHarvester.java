@@ -58,7 +58,6 @@ import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.DomSerializer;
 import org.htmlcleaner.HtmlCleaner;
 import org.htmlcleaner.TagNode;
-import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.XML;
@@ -78,7 +77,9 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.Context;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
+import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.extraction.document.file.JsonToMetadataParser;
@@ -732,6 +733,9 @@ public class UnstructuredAnalysisHarvester {
 			
 			try 
 			{
+				//TODO (INF-2488): in new format, this should only happen in between contentMeta blocks/docs
+				// (also should be able to use SAH _document object I think?)
+				
 				// Javascript: the user passes in 
 				Object[] currField = f.getMetadata().get(m.fieldName);
 				if ((null == m.flags) || m.flags.isEmpty()) {
@@ -745,18 +749,26 @@ public class UnstructuredAnalysisHarvester {
 					if (m.flags.contains("t")) { // text
 						engine.put("text", text);							
 					}
-					if (m.flags.contains("d")) { // entire document
+					if (m.flags.contains("d")) { // entire document (minus ents and assocs)
 						GsonBuilder gb = new GsonBuilder();
-						Gson g = gb.create();	
-						JSONObject document = new JSONObject(g.toJson(f));
-				        engine.put("document", document);
-				        securityManager.eval(engine, JavaScriptUtils.initScript);			        						
+						Gson g = gb.create();
+						List<EntityPojo> ents = f.getEntities();
+						List<AssociationPojo> assocs = f.getAssociations();
+						try {
+							f.setEntities(null);
+							f.setAssociations(null);
+					        engine.put("document", g.toJson(f));
+					        securityManager.eval(engine, JavaScriptUtils.initScript);
+						}
+						finally {
+							f.setEntities(ents);
+							f.setAssociations(assocs);
+						}
 					}
 					if (m.flags.contains("m")) { // metadata
 						GsonBuilder gb = new GsonBuilder();
 						Gson g = gb.create();	
-						JSONObject iterator = new JSONObject(g.toJson(f.getMetadata()));
-						engine.put("_metadata", iterator);
+						engine.put("_metadata", g.toJson(f.getMetadata()));
 						securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
 					}
 				}//(end flags processing)
@@ -766,8 +778,7 @@ public class UnstructuredAnalysisHarvester {
 					
 					GsonBuilder gb = new GsonBuilder();
 					Gson g = gb.create();	
-					JSONArray iterator = new JSONArray(g.toJson(currField));
-					engine.put("_iterator", iterator);
+					engine.put("_iterator", g.toJson(currField));
 					securityManager.eval(engine, JavaScriptUtils.iteratorDocScript);		        	
 				}
 				//TESTED (handling of flags, and replacing of existing fields, including when field is null but specified)
@@ -794,7 +805,7 @@ public class UnstructuredAnalysisHarvester {
 				// e.printStackTrace();
 				//DEBUG (don't output log messages per doc)
 				//logger.error(e.getMessage());
-			} catch (JSONException e) {
+			} catch (Exception e) {
 				
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
 
@@ -1257,15 +1268,23 @@ public class UnstructuredAnalysisHarvester {
 				if (flags.contains("d")) { // entire document
 					GsonBuilder gb = new GsonBuilder();
 					Gson g = gb.create();	
-					JSONObject document = new JSONObject(g.toJson(f));
-			        engine.put("document", document);
-			        securityManager.eval(engine, JavaScriptUtils.initScript);			        						
+					List<EntityPojo> ents = f.getEntities();
+					List<AssociationPojo> assocs = f.getAssociations();
+					try {
+						f.setEntities(null);
+						f.setAssociations(null);
+				        engine.put("document", g.toJson(f));
+				        securityManager.eval(engine, JavaScriptUtils.initScript);
+					}
+					finally {
+						f.setEntities(ents);
+						f.setAssociations(assocs);
+					}
 				}
 				if (flags.contains("m")) { // metadata
 					GsonBuilder gb = new GsonBuilder();
 					Gson g = gb.create();	
-					JSONObject iterator = new JSONObject(g.toJson(f.getMetadata()));
-					engine.put("_metadata", iterator);
+					engine.put("_metadata", g.toJson(f.getMetadata()));
 					securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
 				}
 				Object returnVal = securityManager.eval(engine, script);
@@ -1402,7 +1421,7 @@ public class UnstructuredAnalysisHarvester {
 		try
 		{
 			if (null != caches) {
-				CacheUtils.addJSONCachesToEngine(caches, engine, communityIds, _context);
+				CacheUtils.addJSONCachesToEngine(caches, engine, securityManager, communityIds, _context);
 			}
 		}
 		catch (Exception ex)

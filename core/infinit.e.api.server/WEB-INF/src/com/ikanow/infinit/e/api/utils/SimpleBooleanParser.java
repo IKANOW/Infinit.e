@@ -48,22 +48,35 @@ public class SimpleBooleanParser {
 		
 		try {
 			for (int nType = tok.nextToken(); nType != StreamTokenizer.TT_EOF; nType = tok.nextToken()) {
+				//DEBUG
+				//System.out.println("INIT " + curr);
+				
 				switch (nType) {
 				
 				case (int)'(':
+					
 					// Create a new node
 					treeNodeStack.push(curr);
 					curr.terms.push((curr = new SimpleBooleanParserMTree(true, bNegate)));
+					//DEBUG
+					//System.out.println("( " + curr);
+					
 					bNegate = false;
 					break;
 				
 				case (int)')':
+					//DEBUG
+					//System.out.println(")");
+				
 					if (bNegate) {
 						return null; // (error)
 					}
 					//if no operator set to AND, pop from stack
 					boolean bExit = false;
 					for (; !bExit && (null != curr);) {
+						//DEBUG
+						//System.out.println("finding end: " + curr.nTerm + " / " + ((int)curr.op) + " / " + curr.terms + " ? " + curr);
+						
 						if ('\0' == curr.op) {
 							curr.op = '&';
 						}
@@ -76,12 +89,12 @@ public class SimpleBooleanParser {
 							curr = null;
 						}
 					}
-					if ((null != curr) && ('\0' == curr.op)) {
-						curr.op = '&';
-					}
 					break;
 				
 				case StreamTokenizer.TT_NUMBER:
+					//DEBUG
+					//System.out.println("number: " + tok.nval);
+					
 					if (bNegate) {
 						curr.terms.push(new SimpleBooleanParserMTree(-1*(int)tok.nval));
 						bNegate = false;
@@ -93,6 +106,9 @@ public class SimpleBooleanParser {
 					//TESTED: bNegate for numbers in parser5
 					
 				case StreamTokenizer.TT_WORD: // "and" or "or"
+					//DEBUG
+					//System.out.println("word: " + tok.sval);
+					
 					if (bNegate) {
 						return null; // (error)
 					}
@@ -110,8 +126,11 @@ public class SimpleBooleanParser {
 						else {
 							return null;
 						}
-					}//TESTED parser1
+					}//TESTED parser1					
 					else if (('&' == curr.op) && tok.sval.equals("or")) {
+						//DEBUG
+						//System.out.println("&&&&&&&&&&&&&");
+						
 						// Operator has changed to one of lower precedence
 						// Basically the same as if the current expression had brackets...
 						// So pop the current expression down and replace it with an OR
@@ -129,17 +148,25 @@ public class SimpleBooleanParser {
 						curr.op = '|';
 					}
 					else if (('|' == curr.op) && tok.sval.equals("and")) {
+
 						// Operator has changed to one of higher precedence
 						// Basically the same as if the "future" expression had brackets
-						int nOldTerm = curr.terms.pop().nTerm;
+						SimpleBooleanParserMTree toPop = curr.terms.pop(); 
+						//DEBUG
+						//System.out.println("|||||||||||||||||||||||||||| " + toPop.nTerm + " / " + curr.terms.size());
+						
 						treeNodeStack.push(curr);
 						curr.terms.push((curr = new SimpleBooleanParserMTree(false, false)));
 						curr.op = '&';
-						curr.terms.push(new SimpleBooleanParserMTree(nOldTerm));
-					}//TESTED parser2
+						curr.terms.push(toPop);
+					}//TESTED parser2 parser 8
 					// else nothing to do
 					break;
 				}
+			}//(end loop over tokens)
+			
+			if (start.op == '\0') {
+				start.op = '&';
 			}
 		}
 		catch (IOException e) {

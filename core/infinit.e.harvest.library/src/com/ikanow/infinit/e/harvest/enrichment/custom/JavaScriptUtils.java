@@ -23,7 +23,7 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 
 import com.mongodb.BasicDBList;
-import com.mongodb.BasicDBObject;
+//import com.mongodb.BasicDBObject; // (used directly in the javascript now)
 
 /**
  * JavaScriptUtils
@@ -170,7 +170,10 @@ public class JavaScriptUtils
 		StringBuffer sbSub3 = new StringBuffer();
 		sbSub3.append("function s3(el) {").append('\n');
 		sbSub3.append("el.constructor.toString();").append("\n"); // Will crash out if is too complex
-		sbSub3.append("var currObj = objFactory.clone()").append('\n');
+		// Replaced with 2 lines following, so I can create objects with smaller initial capacity
+		//sbSub3.append("var currObj = objFactory.clone();").append('\n');
+		sbSub3.append("var len = 0; for (var prop in el) { len++; }").append('\n');
+		sbSub3.append("var currObj = new com.mongodb.BasicDBObject(Math.ceil(1.3*len));").append('\n');
 		sbSub3.append("for (var prop in el) {").append('\n');
 		sbSub3.append("var subel = el[prop];").append('\n');
 		sbSub3.append("if (subel == null) {}").append('\n');
@@ -200,12 +203,13 @@ public class JavaScriptUtils
 	{		
 		try {
 			engine.put("output", returnVal);
-			
-			BasicDBObject objFactory = new BasicDBObject();
+
+			// Use BasicDBObject directly so I can reduce memory usage by setting the initial capacity depending on the size of the JSON array
+//			BasicDBObject objFactory = new BasicDBObject();
+//			engine.put("objFactory", objFactory);
 			BasicDBList listFactory = new BasicDBList();
-			BasicDBList outList = new BasicDBList();
-			engine.put("objFactory", objFactory);
 			engine.put("listFactory", listFactory);
+			BasicDBList outList = new BasicDBList();
 			engine.put("outList", outList);
 	
 			engine.eval("s1(output);");

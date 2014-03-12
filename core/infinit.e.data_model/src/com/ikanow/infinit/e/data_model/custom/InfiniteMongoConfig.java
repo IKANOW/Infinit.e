@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.data_model.custom;
 
 import org.apache.hadoop.conf.Configuration;
 
+import com.mongodb.BasicDBList;
 import com.mongodb.DBObject;
 import com.mongodb.hadoop.MongoConfig;
 
@@ -56,4 +57,10 @@ public class InfiniteMongoConfig extends MongoConfig
 		return InfiniteMongoConfigUtil.getSourceTags( _conf );
 	}
 	
+	public void setCacheList(BasicDBList cacheList) {
+		InfiniteMongoConfigUtil.setCacheList( _conf, cacheList );		
+	}
+	public BasicDBList getCacheList() {
+		return InfiniteMongoConfigUtil.getCacheList( _conf );
+	}
 }

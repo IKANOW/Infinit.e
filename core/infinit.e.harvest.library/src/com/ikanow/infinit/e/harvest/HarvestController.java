@@ -167,12 +167,14 @@ public class HarvestController implements HarvestContext
 	 *  
 	 * @throws IOException 
 	 */
+	public HarvestController() throws IOException { this(false); }
+	
 	@SuppressWarnings("rawtypes")
-	public HarvestController() throws IOException 
+	public HarvestController(boolean overrideTypeSettings) throws IOException 
 	{
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
-		if (this.isStandalone()) { // (override API settings in test mode)
+		if (overrideTypeSettings) { // (override API settings in test mode)
 			sTypes = "Feed,File,Database";
 		}
 		String sType[] = sTypes.split("\\s*,\\s*");
@@ -406,7 +408,12 @@ public class HarvestController implements HarvestContext
 
 		if (null != source.getProcessingPipeline()) {
 			procPipeline.setInterDocDelayTime(nBetweenFeedDocs_ms);
-			procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
+			try {
+				procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
+			}
+			finally { // (ensure can clear memory)
+				procPipeline.clearState();
+			}
 		}
 		else { // Old logic (more complex, less functional)
 			enrichSource(source, toAdd, toUpdate, toRemove);
@@ -598,9 +605,6 @@ public class HarvestController implements HarvestContext
 			}
 			toAdd = sah.executeHarvest(this, source, toAdd);
 			// (if usah exists then this runs usah)
-
-			// Get doc entity and event count
-			getFeedEntityAndEventCount(toAdd);
 		}
 
 		// Perform text and entity extraction
@@ -996,21 +1000,6 @@ public class HarvestController implements HarvestContext
 	}//TESTED (just that the instanceofs work)
 
 	/**
-	 * getFeedEntityAndEventCount
-	 * Iterate over a list of DocumentPojos and count the number of entities and events
-	 * @param toAdd
-	 */
-	private void getFeedEntityAndEventCount(List<DocumentPojo> toAdd)
-	{
-		for (DocumentPojo doc : toAdd)
-		{
-			if ( doc.getEntities() != null )
-				num_ent_extracted.addAndGet(doc.getEntities().size());
-			if ( doc.getAssociations() != null )
-				num_event_extracted.addAndGet(doc.getAssociations().size());
-		}
-	}
-	/**
 	 * Prints out some quick info about how the harvester performed
 	 */
 	public static void logHarvesterStats()
@@ -1146,6 +1135,7 @@ public class HarvestController implements HarvestContext
 			{
 				if ( doc.getEntities() != null )
 				{
+					num_ent_extracted.addAndGet(doc.getEntities().size());
 					for ( EntityPojo entity : doc.getEntities() )
 					{
 						if ( entity.getGeotag() != null )
@@ -1155,6 +1145,10 @@ public class HarvestController implements HarvestContext
 							}
 						}
 					}
+				}
+				if ( doc.getAssociations() != null ) 
+				{
+					num_event_extracted.addAndGet(doc.getAssociations().size());
 				}
 			}
 		}

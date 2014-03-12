@@ -1,8 +1,6 @@
-package com.ikanow.infinit.e.harvest.enrichment.custom;
+package com.ikanow.infinit.e.utility.hadoop;
 
 import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
@@ -17,13 +15,22 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
-import com.ikanow.infinit.e.harvest.HarvestContext;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
 
 public class CacheUtils 
 {
+	
+	public static class JavascriptSecurityManager {
+
+		public void setJavascriptFlag(boolean b) {
+			//(just so it compiles)
+		}
+		//(port this across later)
+	}
+	
 	/**
 	 * Creates a default map of caches and then tries to grab a share for each id given and create a 
 	 * cache with that name.
@@ -35,23 +42,29 @@ public class CacheUtils
 	 * @throws ScriptException
 	 * @throws JSONException 
 	 */	
-	public static void addJSONCachesToEngine(Map<String, ObjectId> caches, ScriptEngine engine, JavascriptSecurityManager secManager, Set<ObjectId> communityIds, HarvestContext _context2) throws ScriptException, JSONException 
+	public static void addJSONCachesToEngine(BasicDBList caches, ScriptEngine engine, JavascriptSecurityManager secManager, boolean debugMode) throws ScriptException, JSONException 
 	{
-		boolean testMode = _context2.isStandalone();
-		
 		if ( null != engine )
 		{
 			engine.eval("_cache = {}");
 			engine.eval("_custom = {}");
 			//get json from shares
-			for ( String cacheName : caches.keySet())
+			for ( Object cacheNameObj : caches) 
 			{
-				ObjectId shareId = caches.get(cacheName);
-				String json = getShareFromDB(shareId, communityIds);
+				String cacheName = (String)cacheNameObj;
+				ObjectId shareId = null;
+				String json = null;
+				try {
+					shareId = new ObjectId(cacheName);
+				}
+				catch (Exception e) {};
 				
+				if (null != shareId) {
+					json = getShareFromDB(shareId);
+				}				
 				if (null == json) { // not a share, maybe it's a custom job?
-					if (!createCustomCache(engine, secManager, cacheName, shareId.toString(), communityIds)) {
-						createSourceCache(engine, secManager, cacheName, shareId.toString(), communityIds, testMode);
+					if (!createCustomCache(engine, secManager, cacheName, cacheName)) {
+						createSourceCache(engine, secManager, cacheName, cacheName, debugMode);
 					}
 				}
 				else { // is a share
@@ -71,10 +84,10 @@ public class CacheUtils
 	 * @param communityIds
 	 * @return
 	 */
-	private static String getShareFromDB(ObjectId shareId, Set<ObjectId> communityIds) 
+	private static String getShareFromDB(ObjectId shareId) 
 	{
 		BasicDBObject query = new BasicDBObject(SharePojo._id_, shareId);
-		query.put("communities._id",new BasicDBObject( MongoDbManager.in_,communityIds.toArray()));
+		// (already authenticated by this point)
 		DBObject dbo = DbManager.getSocial().getShare().findOne(query);
 		if ( dbo != null )
 		{
@@ -88,7 +101,7 @@ public class CacheUtils
 	 * Code for managing larger caches (represented as custom objects)
 	 */
 
-	public static synchronized boolean createCustomCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String jobNameOrShareId, Set<ObjectId> communityIds) {
+	public static synchronized boolean createCustomCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String jobNameOrShareId) {
 		try {
 			if (null == _customCache) {
 				_customCache = new HashMap<String, CustomCacheInJavascript>();
@@ -99,8 +112,9 @@ public class CacheUtils
 			String jobName = null;
 			ObjectId jobId = null;
 			CustomMapReduceJobPojo customJob = null;
-			BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo.communityIds_, 
-														new BasicDBObject(DbManager.in_, communityIds));
+			BasicDBObject query = new BasicDBObject();
+				// (already authenticated by this point)
+			
 			try {
 				jobId = new ObjectId(jobNameOrShareId);
 				query.put(CustomMapReduceJobPojo._id_, jobId);
@@ -166,6 +180,9 @@ public class CacheUtils
 			// 5) Add object to js
 			
 			if (null != cacheElement) {
+				//DEBUG
+				//System.out.println("ADDED " + jobAlias);
+				
 				_customCache.put(jobNameOrShareId, cacheElement);
 				engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
 				engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
@@ -182,7 +199,7 @@ public class CacheUtils
 	/**
 	 * Code for managing larger caches (represented as communities)
 	 */
-	public static synchronized void createSourceCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String sourceKeyOrId, Set<ObjectId> communityIds, boolean testMode)
+	public static synchronized void createSourceCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String sourceKeyOrId, boolean testMode)
 	{
 		try {
 			if (null == _customCache) {
@@ -194,8 +211,9 @@ public class CacheUtils
 			String sourceKey = null;
 			ObjectId sourceId = null;
 			SourcePojo source = null;
-			BasicDBObject query = new BasicDBObject(SourcePojo.communityIds_, 
-														new BasicDBObject(DbManager.in_, communityIds));
+			BasicDBObject query = new BasicDBObject();
+				// (already authenticated by this point)
+			
 			try {
 				sourceId = new ObjectId(sourceKeyOrId);
 				query.put(SourcePojo._id_, sourceId);
@@ -236,6 +254,9 @@ public class CacheUtils
 			// 3) Add object to js
 			
 			if (null != cacheElement) {
+				//DEBUG
+				//System.out.println("ADDED " + jobAlias);
+				
 				_customCache.put(sourceKeyOrId, cacheElement);
 				engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
 				engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
@@ -299,18 +320,25 @@ public class CacheUtils
 				}//TESTED
 				try {
 					BasicDBObject query  = null;
-					if (null != _baseQuery) {
+					if ((null == key) || (0 == key.length())) {
+						query = new BasicDBObject();  // (0 length => get first element)
+					}
+					else if (null != _baseQuery) {
 						query = (BasicDBObject) _baseQuery.clone();
 					}
 					else {
 						query = new BasicDBObject();
 					}
 					if (null == _keyField) { // string lookup
-						query.put("key", key);
+						if ((null != key) && (0 != key.length())) {
+							query.put("key", key);
+						}
 						dbo = (BasicDBObject) _cacheCollection.findOne(query);
 					}//TESTED
 					else {
-						query.put(_keyField, key);
+						if ((null != key) && (0 != key.length())) {
+							query.put(_keyField, key);
+						}
 						dbo = (BasicDBObject) _cacheCollection.findOne(query);					
 					}//TESTED
 
@@ -359,6 +387,9 @@ public class CacheUtils
 			_cache = cache;
 			_engine = engine;
 			_secManager = secManager;
+		}
+		public Object get() {
+			return get(null);
 		}
 		public Object get(String key) {
 			//DEBUG

@@ -158,7 +158,7 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}">
 				<!-- Just include classes required for querying -->
-				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/aliases/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />
@@ -210,7 +210,7 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}">
 				<!-- Just include classes required for querying -->
-				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/aliases/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />

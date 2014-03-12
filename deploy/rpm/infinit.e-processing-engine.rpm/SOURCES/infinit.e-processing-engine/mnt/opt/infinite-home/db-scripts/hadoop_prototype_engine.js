@@ -9,15 +9,13 @@ x = {
         "jarURL" : "file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar",
         "inputCollection" : "doc_metadata.metadata",
         "outputCollection" : "504f63b5e4b0ced482f8b490_1",
-        "lastCompletionTime" : ISODate("2012-09-11T16:21:02Z"),
-        "nextRunTime" : NumberLong("9223372036854775807"),
+        "nextRunTime" : NumberLong("4070908800000"),
         "jobidN" : 0,
         "scheduleFreq" : "NONE",
-        "firstSchedule" : ISODate("2012-09-11T16:19:02Z"),
-        "timesRan" : 1,
+        "firstSchedule" : ISODate("2099-01-01T00:00:00Z"),
+        "timesRan" : 0,
         "timesFailed" : 0,
         "isCustomTable" : false,
-        "lastRunTime" : ISODate("2012-09-11T16:20:02Z"),
         "mapper" : "com.ikanow.infinit.e.utility.hadoop.HadoopPrototypingTool$JavascriptMapper",
         "reducer" : "com.ikanow.infinit.e.utility.hadoop.HadoopPrototypingTool$JavascriptReducer",
         "combiner" : "com.ikanow.infinit.e.utility.hadoop.HadoopPrototypingTool$JavascriptCombiner",
@@ -32,7 +30,8 @@ x = {
         "waitingOn" : [ ],
         "isUpdatingOutput" : false,
         "outputCollectionTemp" : "504f63b5e4b0ced482f8b490_2",
-        "arguments" : "function map(key, val) {\r\n  emit( {'id': val._id}, val );\r\n} \r\nfunction reduce(key, vals) { \r\n   for (x in vals) {\r\n      emit( key, vals[x] ); \r\n      break;\r\n   }\r\n}\r\ncombine = reduce;\r\n"
+        "arguments" : "function map(key, val) {\r\n  emit( {'id': val._id}, val );\r\n} \r\nfunction reduce(key, vals) { \r\n   for (x in vals) {\r\n      emit( key, vals[x] ); \r\n      break;\r\n   }\r\n}\r\ncombine = reduce;\r\n",
+        "exportToHdfs" : false
 };
 db.customlookup.insert(x);
 

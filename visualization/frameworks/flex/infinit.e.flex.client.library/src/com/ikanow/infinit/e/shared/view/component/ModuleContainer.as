@@ -442,6 +442,9 @@ package com.ikanow.infinit.e.shared.view.component
 			
 			addEventListener( ModuleEvent.ERROR, function( e:ModuleEvent ):void
 			{
+				if (e.errorText.length > 1024) {
+					e.errorText = e.errorText.substring(0, 1024) + '...';
+				}
 				Alert.show( e.errorText );
 				dispatchEvent( new CloseEvent( CloseEvent.CLOSE ) );
 			} );
@@ -488,18 +491,27 @@ package com.ikanow.infinit.e.shared.view.component
 		
 		protected function onIoError( event:IOErrorEvent ):void
 		{
+			if (event.text.length > 1024) {
+				event.text = event.text.substring(0, 1024) + '...';
+			}
 			Alert.show( event.text );
 			dispatchEvent( new CloseEvent( CloseEvent.CLOSE ) );
 		}
 		
 		protected function onNetworkError( event:SecurityErrorEvent ):void
 		{
+			if (event.text.length > 1024) {
+				event.text = event.text.substring(0, 1024) + '...';
+			}
 			Alert.show( event.text );
 			dispatchEvent( new CloseEvent( CloseEvent.CLOSE ) );
 		}
 		
 		protected function onSecurityError( event:SecurityErrorEvent ):void
 		{
+			if (event.text.length > 1024) {
+				event.text = event.text.substring(0, 1024) + '...';
+			}
 			Alert.show( event.text );
 			dispatchEvent( new CloseEvent( CloseEvent.CLOSE ) );
 		}

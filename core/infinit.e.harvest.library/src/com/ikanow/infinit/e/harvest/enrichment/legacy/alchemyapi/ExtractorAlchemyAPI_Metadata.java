@@ -95,9 +95,14 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		Boolean bConceptsEnabled = null;
 		Boolean bStrict = null;
 		Integer batchSize = null;
-		Integer numKeywords = null;
-				
+		Integer numKeywords = null;				
+		String apiKey = null;
+		
 		if ((null != source) && (null != source.getExtractorOptions())) {
+			try {
+				apiKey = source.getExtractorOptions().get("app.alchemyapi-metadata.apiKeyOverride");
+			}
+			catch (Exception e){}
 			try {
 				String s = source.getExtractorOptions().get("app.alchemyapi-metadata.sentiment");
 				if (null != s) bSentimentEnabled = Boolean.parseBoolean(s);				
@@ -181,6 +186,9 @@ public class ExtractorAlchemyAPI_Metadata implements IEntityExtractor, ITextExtr
 		if (null != bConceptsEnabled) { // (ie defaults to true)
 			_bConceptExtraction = bConceptsEnabled;
 		}			
+		if (null != apiKey) {
+			_alch.SetAPIKey(apiKey);
+		}
 	}
 	
 	//_______________________________________________________________________

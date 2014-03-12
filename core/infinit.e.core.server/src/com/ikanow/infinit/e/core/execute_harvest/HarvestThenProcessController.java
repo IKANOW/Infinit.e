@@ -233,10 +233,10 @@ public class HarvestThenProcessController {
 			        					(HarvestEnum.in_progress != source.getHarvestStatus().getHarvest_status()))
 			        		{
 			        			// (If I can revert to old status)
-			        			SourceUtils.updateHarvestStatus(sourceToDelete, source.getHarvestStatus().getHarvest_status(), null, 0);
+			        			SourceUtils.updateHarvestStatus(sourceToDelete, source.getHarvestStatus().getHarvest_status(), null, 0, null);
 			        		}
 			        		else {
-			        			SourceUtils.updateHarvestStatus(sourceToDelete, HarvestEnum.success, null, 0);        			
+			        			SourceUtils.updateHarvestStatus(sourceToDelete, HarvestEnum.success, null, 0, null);        			
 			        		}
 			        	}
 						break;
@@ -264,7 +264,7 @@ public class HarvestThenProcessController {
 	
 	static private class SourceHarvesterRunnable implements Runnable {
 		
-		// Per-thread accessors for HC and GPCoh it		
+		// Per-thread accessors for HC and GPC		
 		private static ThreadLocal<HarvestController> _harvesterController;
 		private static ThreadLocal<GenericProcessingController> _genericController;
 		
@@ -300,8 +300,11 @@ public class HarvestThenProcessController {
 		private SourcePojo _sourceToProcess = null;
 		
 		public void run() {
+		
+			HarvestController hc;
+			GenericProcessingController gpc;
 			
-			try {
+			try {				
 				if (null == _harvesterController.get()) { // Some sort of internal bug? No idea...
 					_harvesterController.set(new HarvestController());
 				}
@@ -313,14 +316,16 @@ public class HarvestThenProcessController {
 				List<DocumentPojo> toUpdate = new LinkedList<DocumentPojo>();
 				List<DocumentPojo> toRemove = new LinkedList<DocumentPojo>();				
 				
-				_harvesterController.get().harvestSource(_sourceToProcess, toAdd, toUpdate, toRemove);
+				hc = _harvesterController.get();
+				hc.harvestSource(_sourceToProcess, toAdd, toUpdate, toRemove);
 					// (toAdd includes toUpdate)
 				
 				if (HarvestEnum.error != _sourceToProcess.getHarvestStatus().getHarvest_status()) {
-					_genericController.get().processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove, _sourceToProcess);
+					gpc = _genericController.get();
+					gpc.processDocuments(SourceUtils.getHarvestType(_sourceToProcess), toAdd, toUpdate, toRemove, _sourceToProcess);
 						// (toRemove includes toUpdate)
 					
-					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, toRemove.size());
+					SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.success, toAdd, toRemove.size(), null);
 						// (note also releases the "in_progress" lock)
 						// (note also prunes sources based on "maxDocs")
 						// (also handles the intra-source distribution logic)
@@ -328,12 +333,12 @@ public class HarvestThenProcessController {
 				// (if we've declared error, then "in_progress" lock already released so nothing to do)
 			}
 			catch (Error e) { // Don't like to catch these, but otherwise we leak away sources
-				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0);					
+				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0, "Source error: " + e.getMessage());					
 				_logger.error("Source error on " + _sourceToProcess.getKey() + ": " + e.getMessage());
 				e.printStackTrace();				
 			}
 			catch (Exception e) { // Limit any problems to a single source
-				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0);					
+				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0, "Source error: " + e.getMessage());					
 				_logger.error("Source error on " + _sourceToProcess.getKey() + ": " + e.getMessage());
 				e.printStackTrace();
 			}			

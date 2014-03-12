@@ -799,6 +799,7 @@ public class SourcePojo extends BaseDbPojo {
 						else { // (searchCycle_secs < 0 ie want to suspend source)
 							searchCycle_secs = -Math.abs(px.harvest.searchCycle_secs);
 						}
+						distributionFactor = px.harvest.distributionFactor;
 					}//TESTED
 					else if ((null != searchCycle_secs) && (searchCycle_secs < 0)) {
 						// No search cycle specfiied, source suspended

@@ -55,17 +55,14 @@ public class CustomProcessingController {
 	private Integer _nDebugLimit = null;
 	
 	public CustomProcessingController() {
-		this(null, null);
+		this(null);
 	}
-	public CustomProcessingController(Boolean bLocalMode, Integer debugLimit) {
+	public CustomProcessingController(Integer debugLimit) {
 		prop_custom = new com.ikanow.infinit.e.processing.custom.utils.PropertiesManager();
 		_statusManager = new CustomStatusManager(prop_custom);
 		_nDebugLimit = debugLimit;
 		
 		_bLocalMode = prop_custom.getHadoopLocalMode();
-		if (null != bLocalMode) {
-			_bLocalMode = bLocalMode;
-		}
 		try {
 			@SuppressWarnings("unused")
 			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), new Configuration());
@@ -127,6 +124,7 @@ public class CustomProcessingController {
 			}
 			else {
 
+				//TODO should only allow _JARS_ owned by admin to be run - 
 				if (prop_custom.getHarvestSecurity()) {
 					if (!AuthUtils.isAdmin(job.submitterID)) {
 						throw new RuntimeException("Permissions error: in secure mode, only admins can launch Hadoop");

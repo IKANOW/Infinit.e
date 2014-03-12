@@ -22,14 +22,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 
 import javax.xml.parsers.ParserConfigurationException;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.filecache.DistributedCache;
+import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.bson.types.ObjectId;
@@ -37,6 +43,7 @@ import org.xml.sax.SAXException;
 
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
@@ -137,27 +144,44 @@ public class InfiniteHadoopUtils {
 	{		
 		String shareStringOLD = "$infinite/share/get/";
 		String shareStringNEW = "$infinite/social/share/get/";
-		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW))
+		//jar is local use id to grab jar (skips authentication)
+		String shareid = null;
+		try {
+			new ObjectId(jarURL);
+			shareid = jarURL;
+		}
+		catch (Exception e) {} // that's fine it's just not a raw ObjectId
+		
+		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW) || (null != shareid) )
 		{
-			//jar is local use id to grab jar (skips authentication)
-			String shareid = null;
-			if ( jarURL.startsWith(shareStringOLD) )
-			{
-				shareid = jarURL.substring(shareStringOLD.length());
-			}
-			else
-			{
-				shareid = jarURL.substring(shareStringNEW.length());
+			if (null == shareid) {
+				if ( jarURL.startsWith(shareStringOLD) )
+				{
+					shareid = jarURL.substring(shareStringOLD.length());
+				}
+				else
+				{
+					shareid = jarURL.substring(shareStringNEW.length());
+				}
 			}
 			BasicDBObject query = new BasicDBObject(SharePojo._id_, new ObjectId(shareid));
 			query.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(MongoDbManager.in_, communityIds));
 
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
 			if (null == share) {
-				throw new RuntimeException("Can't find JAR file or insufficient permissions");
+				throw new RuntimeException("Can't find JAR file or share or custom table or source, or insufficient permissions");
 			}
-			
-			String tempFileName = assignNewJarLocation(prop_custom, shareid + ".cache");
+			String extension = ".cache";
+			if ((null != share.getMediaType()) && (share.getMediaType().contains("java-archive"))) {
+				extension = ".cache.jar";
+			}
+			else if ((null != share.getMediaType()) && (share.getMediaType().contains("gzip"))) {
+				extension = ".cache.tgz";
+			}
+			else if ((null != share.getMediaType()) && (share.getMediaType().contains("zip"))) {
+				extension = ".cache.zip";
+			}
+			String tempFileName = assignNewJarLocation(prop_custom, shareid + extension);
 			File tempFile = new File(tempFileName);
 			
 			// Compare dates (if it exists) to see if we need to update the cache) 
@@ -315,7 +339,7 @@ public class InfiniteHadoopUtils {
 	 */
 	public static void removeTempFile(String file)
 	{
-		if (( file != null ) && !file.endsWith(".cache") && !file.endsWith(BUILT_IN_JOB_NAME))
+		if (( file != null ) && !file.contains(".cache") && !file.endsWith(BUILT_IN_JOB_NAME))
 		{
 			File f = new File(file);
 			f.delete();
@@ -366,6 +390,34 @@ public class InfiniteHadoopUtils {
 	
 	// Some HDFS utilities
 	
+	// Ensure the input directory is allowed, exceptions out if not allowed
+	
+	public static String authenticateInputDirectory(CustomMapReduceJobPojo cmr, String path) {
+		if (path.startsWith("hdfs://")) {
+			path = path.substring(7);
+		}
+		if (path.startsWith("hdfs:")) {
+			path = path.substring(5);
+		}
+		if (path.startsWith("/user/tomcat/")) { // the home directory from which everything is run			
+			path = path.substring(13);
+		}
+		if (path.startsWith("/")) {			
+			path = path.substring(1);
+		}
+		String[] pathCheck = path.split("/", 3);
+		if (pathCheck.length > 1) {
+			for (ObjectId communityId: cmr.communityIds) {	
+				if (pathCheck[1].contains(communityId.toString())) {				
+					return path;
+				}
+			}
+		}
+		throw new RuntimeException("Access to this directory is not authenticated: the second directory level must contain a matching community ID - eg 'completed/50bcd6fffbf0fd0b27875a7c/', 'input/52b1be6145ce02c2c6fbab9e,50bcd6fffbf0fd0b27875a7c/' etc");
+	}
+	
+	// Create an output directory
+	
 	public static Path ensureOutputDirectory(CustomMapReduceJobPojo cmr, PropertiesManager prop_custom) throws IOException, SAXException, ParserConfigurationException {
 		Configuration config = HadoopUtils.getConfiguration(prop_custom);
 		Path path = HadoopUtils.getPathForJob(cmr, config, true);
@@ -397,4 +449,134 @@ public class InfiniteHadoopUtils {
 			fs.rename(pathTmp, pathFinal);
 		}
 	}
+	
+	// Cache a local file so can be used in a distributed cache
+	
+	public static Path cacheLocalFile(String localPath, String localName, Configuration config) throws IOException {
+		FileSystem fs = FileSystem.get(config);
+		Path toDir = new Path("cache");
+		Path destFile = new Path("cache/" + localName);
+		File fromFile = new File(localPath + "/" + localName);
+		if (!fromFile.exists()) {
+			throw new IOException("Source file does not exist: " + fromFile.toString());
+		}
+		boolean needToCopyFile = true;
+		if (!fs.exists(toDir)) { // (ie relative to WD)
+			fs.mkdirs(toDir);
+		}
+		else {
+			// Now check if the file already exists
+			if (fs.exists(destFile)) {
+				FileStatus fsStat = fs.getFileStatus(destFile);
+				if ((fsStat.getLen() == fromFile.length())
+						&&
+						(fromFile.lastModified() <= fsStat.getModificationTime()))
+				{
+					needToCopyFile = false;
+				}
+			}
+		}
+		if (needToCopyFile) {
+			fs.copyFromLocalFile(false, true, new Path(localPath + "/" + localName), destFile); 
+		}
+		return new Path(fs.getFileStatus(destFile).getPath().toUri().getPath());
+			// (apparently the path has to be in absolute format without even the hdfs:// at the front?!)
+	}//TESTED
+	
+	// Handle a list of cache files of various types:
+	// - shares
+	// - files
+	// (returns a list of cached JAR files for local mode running - you're on your own for other cached files though)
+	
+	@SuppressWarnings("rawtypes")
+	public static List<URL> handleCacheList(Object cacheFileList, CustomMapReduceJobPojo job, Configuration config, PropertiesManager prop_custom) throws MalformedURLException, IOException, Exception {
+		if (null == cacheFileList) {
+			return null;
+		}
+		LinkedList<URL> localJarCache = null;
+		
+		Collection cacheFiles = null;
+		if (cacheFileList instanceof String) { // comma separated list
+			String[] cacheFilesArray = ((String) cacheFileList).split("\\s*,\\s*");
+			cacheFiles = Arrays.asList(cacheFilesArray);
+		}
+		else {
+			cacheFiles = (Collection) cacheFileList;
+		}		
+		for (Object cache: cacheFiles) {
+			String cacheStr = (String) cache;
+			ObjectId cacheId = null;
+			try {
+				cacheId = new ObjectId(cacheStr);
+			}
+			catch (Exception e) {} // fine
+			
+			FileSystem fs = null;
+			
+			if ((null != cacheId) || cacheStr.startsWith("http:") || cacheStr.startsWith("https:") || cacheStr.startsWith("$")) {
+				if (null != cacheId) { // this might be a custom cache in which case just bypass all this, handled in the main list
+					BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo._id_, cacheId);
+					query.put(CustomMapReduceJobPojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
+					if (null != DbManager.getCustom().getLookup().findOne(query)) {
+						continue; // carry on...)
+					}//TESTED
+					query = new BasicDBObject(SourcePojo._id_, cacheId);
+					query.put(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
+					if (null != DbManager.getIngest().getSource().findOne(query)) {
+						continue; // carry on...)
+					}//TESTED
+				}				
+				
+				// Use existing code to cache to local fs (and then onwards to HDFS!)
+				URL localPathURL = new File(downloadJarFile(cacheStr, job.communityIds, prop_custom)).toURI().toURL(); 
+				String localPath = localPathURL.getPath();
+				String pathMinusName = localPath.substring(0, localPath.lastIndexOf('/') + 1);
+				String name = localPath.substring(localPath.lastIndexOf('/') + 1);
+				Path distPath = cacheLocalFile(pathMinusName, name, config);
+				if (name.endsWith(".jar")) {
+					if (null == localJarCache) {
+						localJarCache = new LinkedList<URL>();
+					}
+					localJarCache.add(localPathURL);
+					DistributedCache.addFileToClassPath(distPath, config);
+				}//TESTED
+				else if (name.endsWith(".zip") || name.endsWith("gz")) {
+					DistributedCache.addCacheArchive(distPath.toUri(), config);
+				}//TESTED
+				else {
+					DistributedCache.addCacheFile(distPath.toUri(), config);
+				}//TESTED
+			}
+			else { // this is the location of a file (it is almost certainly an input/output path)
+				// Oh could also be sourceKey or custom job title
+				BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, cacheStr);
+				query.put(CustomMapReduceJobPojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
+				if (null != DbManager.getCustom().getLookup().findOne(query)) {
+					continue; // carry on...)
+				}//TESTED
+				query = new BasicDBObject(SourcePojo.key_, cacheStr);
+				query.put(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
+				if (null != DbManager.getIngest().getSource().findOne(query)) {
+					continue; // carry on...)
+				}//TESTED				
+				
+				String path = authenticateInputDirectory(job, cacheStr);
+				if (null == fs) {
+					fs = FileSystem.get(config);
+				}
+				Path distPath = new Path(fs.getFileStatus(new Path(path)).getPath().toUri().getPath());
+				if (path.endsWith(".jar")) {
+					DistributedCache.addFileToClassPath(distPath, config);
+				}//TESTED
+				else if (path.endsWith(".zip") || path.endsWith("gz")) {
+					DistributedCache.addCacheArchive(distPath.toUri(), config);
+				}//TESTED
+				else {
+					DistributedCache.addCacheFile(distPath.toUri(), config);
+				}//TESTED
+			}//TESTED
+		}		
+		return localJarCache;
+	}//TOTEST (logically TESTED but needs local testing)
+	
 }

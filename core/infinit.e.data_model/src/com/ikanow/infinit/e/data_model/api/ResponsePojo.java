@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.api;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Set;
 
@@ -23,6 +24,8 @@ import javax.xml.bind.annotation.XmlRootElement;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
+import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 
 
 // Annotations example for Jackson (used for json writing to ensure root element is proper name)
@@ -359,5 +362,54 @@ public class ResponsePojo extends BaseApiPojo
 	}
 	public void setOther(Object other) {
 		this.other = other;
+	}
+	
+	//////////////////////// FROM DB CODE
+	
+	public static ResponsePojo fromDb(BasicDBObject bson) {
+		BasicDBObject bson2 = new BasicDBObject();
+		bson2.put("stats", bson.get("stats"));
+		bson2.put("response", bson.get("response"));
+		ResponsePojo rp = ResponsePojo.fromApi(bson2.toString(), ResponsePojo.class);
+		
+		// Now all the elements!
+		Object evtTimeline=null, facets=null, times=null, entities=null, events=null, 
+				facts=null, summaries=null, sources=null, sourceMetaTags=null, sourceMetaTypes=null, moments=null, other=null;
+			
+		evtTimeline = bson.get("eventsTimeline");
+		facets = bson.get("facets");
+		times = bson.get("times");
+		entities = bson.get("entities");
+		events = bson.get("events");
+		facts = bson.get("facts");
+		summaries = bson.get("summaries");
+		sources = bson.get("sources");
+		sourceMetaTags = bson.get("sourceMetatags");
+		sourceMetaTypes = bson.get("sourceMetaTypes");
+		moments = bson.get("moments");
+		other = bson.get("other");
+		
+		rp.setEventsTimeline(evtTimeline);
+		rp.setFacets(facets);
+		rp.setTimes(times, rp.getTimeInterval()==null?0:rp.getTimeInterval());
+		rp.setEntities(entities);
+		rp.setEvents(events);
+		rp.setFacts(facts);
+		rp.setSummaries(summaries);
+		rp.setSources(sources);
+		rp.setSourceMetaTags(sourceMetaTags);
+		rp.setSourceMetaTypes(sourceMetaTypes);
+		rp.setMoments(moments, rp.getMomentInterval());
+		rp.setOther(other);
+		
+		// The main data object is discarded in the original fromApi() call, so put it back now
+		Object docData = bson.get("data");
+		if (null != docData) {
+			rp.setData((BasicDBList)docData, (BasePojoApiMap<BasicDBList>)null);			
+		}
+		else { // (ensure there's always an empty list)
+			rp.setData(new ArrayList<BasicDBObject>(0), (BasePojoApiMap<BasicDBObject>)null);
+		}		
+		return rp;
 	}
 }

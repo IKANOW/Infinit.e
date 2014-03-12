@@ -55,7 +55,6 @@ import com.mongodb.DBObject;
 import com.mongodb.WriteResult;
 import com.mongodb.gridfs.GridFSDBFile;
 import com.mongodb.gridfs.GridFSInputFile;
-import com.mongodb.util.JSON;
 
 public class ShareHandler 
 {
@@ -446,61 +445,6 @@ public class ShareHandler
 	//TODO (???): for updates, have the ability to fail if document has changed in meantime...
 	
 	/**
-	 * addShare
-	 * @param ownerIdStr
-	 * @param type
-	 * @param title
-	 * @param description
-	 * @param json
-	 * @return
-	 */
-	public ResponsePojo addShare(String ownerIdStr, String type, String title, String description, String json)
-	{
-		ResponsePojo rp = new ResponsePojo();
-		try
-		{
-			DBObject o = (DBObject) JSON.parse(json);
-			if (null == o)
-			{
-				rp.setResponse(new ResponseObject("Share", false, "Share object is not a valid JSON object."));
-			}
-			else
-			{
-				// Create a new SharePojo object
-				SharePojo share = new SharePojo();
-				share.set_id(new ObjectId());
-				share.setCreated(new Date());
-				share.setModified(new Date());
-				share.setType(type);
-				share.setTitle(title);
-				share.setDescription(description);
-				share.setShare(json);
-				HashSet<ObjectId> endorsedSet = new HashSet<ObjectId>();
-				share.setEndorsed(endorsedSet); // (you're always endorsed within your own community)
-				endorsedSet.add(new ObjectId(ownerIdStr));				
-
-				// Get ShareOwnerPojo object and personal community
-				PersonPojo owner = getPerson(new ObjectId(ownerIdStr));
-				share.setOwner(getOwner(owner));
-				share.setCommunities(getPersonalCommunity(owner));
-
-				// Serialize the ID and Dates in the object to MongoDB format
-				// Save the document to the share collection
-				DbManager.getSocial().getShare().save(share.toDb());
-				rp.setResponse(new ResponseObject("Share", true, "New share added successfully. ID in data field."));
-				rp.setData(share.get_id().toString(), null);
-			}
-		}
-		catch (Exception e)
-		{
-			logger.error("Exception Message: " + e.getMessage(), e);
-			rp.setResponse(new ResponseObject("Share", false, "Unable to add share: " + e.getMessage()));
-		}
-		return rp;
-	}
-	
-	
-	/**
 	 * addBinary
 	 * @param ownerIdStr
 	 * @param type
@@ -665,7 +609,7 @@ public class ShareHandler
 
 	
 	/**
-	 * saveJson
+	 * saveJson (handles both add and update)
 	 * @param shareIdStr
 	 * @param type
 	 * @param title
@@ -782,6 +726,10 @@ public class ShareHandler
 				share.setTitle(title);
 				share.setDescription(description);
 				share.setShare(json);
+				
+				HashSet<ObjectId> endorsedSet = new HashSet<ObjectId>();
+				share.setEndorsed(endorsedSet); // (you're always endorsed within your own community)
+				endorsedSet.add(new ObjectId(ownerIdStr));				
 				
 				// Get ShareOwnerPojo object and personal community
 				PersonPojo owner = getPerson(new ObjectId(ownerIdStr));

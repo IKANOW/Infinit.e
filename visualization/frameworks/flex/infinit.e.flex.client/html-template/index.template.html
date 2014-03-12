@@ -201,6 +201,30 @@
 			function doEvalForFlash(str) {
 			    return eval(str);
 			}
+			
+			function addToLocalStorage(key, data)
+			{
+				if(typeof(Storage)!=="undefined")
+  				{
+  					localStorage.setItem(key, data);
+  				}
+			}
+			
+			function getFromLocalStorage(key)
+			{
+				if(typeof(Storage)!=="undefined")
+  				{
+  					return localStorage.getItem(key);
+  				}
+			}
+			
+			function removeFromLocalStorage(key)
+			{
+				if(typeof(Storage)!=="undefined")
+  				{
+  					localStorage.removeItem(key);
+  				}
+			}
         </script>
     </head>
     

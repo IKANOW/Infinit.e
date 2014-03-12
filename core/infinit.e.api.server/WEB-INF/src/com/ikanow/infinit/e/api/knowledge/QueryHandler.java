@@ -27,6 +27,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
 import org.apache.commons.lang.time.DateUtils;
@@ -68,6 +70,7 @@ import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
@@ -91,6 +94,17 @@ public class QueryHandler {
 	private static final Logger _logger = Logger.getLogger(QueryHandler.class);
 	
 	public QueryHandler() {}
+	
+	private static Semaphore _concurrentAccessLock = null;
+	private boolean acquireConcurrentAccessLock() throws InterruptedException {
+		if (null == _concurrentAccessLock) {
+			_concurrentAccessLock = new Semaphore(2);
+		}
+		return _concurrentAccessLock.tryAcquire(10, TimeUnit.MINUTES);
+	}
+	private void releaseConcurrentAccessLock() {
+		_concurrentAccessLock.release();
+	}
 	
 	// Query cache (re-created per request, but there's some static things in here for performance):
 	private AliasLookupTable _aliasLookup = null;
@@ -132,132 +146,24 @@ public class QueryHandler {
 		
 		//(timing)
 		long nQuerySetupTime = System.currentTimeMillis();
-		
-		// Intialize alias if so required:
-		if ((null == query.expandAlias) || query.expandAlias) {
-			AliasManager aliasManager = AliasManager.getAliasManager();
-			if (null != aliasManager) {
-				_aliasLookup = aliasManager.getAliasLookupTable(communityIdStrList, communityIdStrs, null, userIdStr);
-			}
-		}
-		// (end initialize index)
-		
-		// Create a multi-index to check against all relevant shards:
-		StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.globalDocumentIndexCollection_);
-		sb.append(',').append(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_);
-		for (String sCommunityId: communityIdStrs) {
-			sb.append(',').append("docs_").append(sCommunityId);
-		}
-		sb.append('/').append(DocumentPojoIndexMap.documentType_);
-		ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(sb.toString());
+	
+		ElasticSearchManager indexMgr = getIndexManager(communityIdStrs);
 		SearchRequestBuilder searchSettings = indexMgr.getSearchOptions();
 
-		BoolFilterBuilder parentFilterObj = 
-			FilterBuilders.boolFilter().must(FilterBuilders.termsFilter(DocumentPojo.communityId_, communityIdStrs));
-		
-		BaseQueryBuilder queryObj = null;
-		
-	// 0.1] Input data (/filtering)
-
-		if (null != query.input.name) { // This is actually a share id visible to this user
-			try {
-				query = getStoredQueryArtefact(query.input.name, query, userIdStr);
-			}
-			catch (Exception e) {
-				rp.setResponse(new ResponseObject("Query", false, "Query error: " + e.getMessage()));
-				return rp;
-			}
-		}
-		BoolFilterBuilder sourceFilter = this.parseSourceManagement(query.input);
-		
-		if (null != sourceFilter) {
-			parentFilterObj = parentFilterObj.must(sourceFilter);
-		}//TESTED
-		
-	// 0.2] Output filtering	
-		
-		// Output filters: parse (also used by aggregation, scoring)
-		
-		String[] entityTypeFilterStrings = null;
-		String[] assocVerbFilterStrings = null;
-		if ((null != query.output) && (null != query.output.filter)) {
-			if (null != query.output.filter.entityTypes) {
-				entityTypeFilterStrings = query.output.filter.entityTypes;
-				if (0 == entityTypeFilterStrings.length) {
-					entityTypeFilterStrings = null;
-				}
-				else if ((1 == entityTypeFilterStrings.length) && (entityTypeFilterStrings[0].isEmpty())) {
-					entityTypeFilterStrings = null;					
-				}
-				// (note this is important because it means we can always check entityTypeFilterStrings[0].getCharAt(0) for -ve filtering)
-			}
-			if (null != query.output.filter.assocVerbs) {
-				assocVerbFilterStrings = query.output.filter.assocVerbs;				
-				if (0 == assocVerbFilterStrings.length) {
-					assocVerbFilterStrings = null;
-				}
-				else if ((1 == assocVerbFilterStrings.length) && (assocVerbFilterStrings[0].isEmpty())) {
-					assocVerbFilterStrings = null;					
-				}
-				// (note this is important because it means we can always check assocVerbFilterStrings[0].getCharAt(0) for -ve filtering)
-			}
-		}
-		
-		// Now apply output filters to query
-		
-		BoolFilterBuilder outputFilter = this.parseOutputFiltering(entityTypeFilterStrings, assocVerbFilterStrings);
-		if (null != outputFilter) {
-			parentFilterObj = parentFilterObj.must(outputFilter);
-		}
-		//TESTED
-		
-	// 0.3] Query terms
-		
 		StringBuffer querySummary = new StringBuffer();
-		int nQueryElements = 0;
-		
-		if (null != query.qt) {
-			nQueryElements = query.qt.size();
-			
-			if (nQueryElements > 0) { // NORMAL CASE
-				
-				this.handleEntityExpansion(DbManager.getFeature().getEntity(), query.qt, userIdStr, communityIdStrList);
-				
-				BaseQueryBuilder queryElements[] = new BaseQueryBuilder[nQueryElements];
-				StringBuffer sQueryElements[] = new StringBuffer[nQueryElements];
-				for (int i = 0; i < nQueryElements; ++i) {
-					_extraFullTextTerms = null;	
-					queryElements[i] = this.parseQueryTerm(query.qt.get(i), (sQueryElements[i] = new StringBuffer()));
-					
-					// Extra full text terms generated by aliasing:
-					if (null != _extraFullTextTerms) {
-						BoolQueryBuilder extraTerms = QueryBuilders.boolQuery().should(queryElements[i]);
-						StringBuffer discard = new StringBuffer(); // (we already have added the info the query elements)
-						for (AdvancedQueryPojo.QueryTermPojo qtExtra: _extraFullTextTerms) {
-							extraTerms = extraTerms.should(this.parseQueryTerm(qtExtra, discard));
-						}
-						queryElements[i] = extraTerms; 
-						_extraFullTextTerms = null; // (reset ready for next term...) 
-					}//TESTED				
-					
-				}//end loop over query terms
-				
-				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);	
-				
-				if (null == queryObj) { //error parsing logic
-					errorString.append(": Error parsing logic");
-					return null;
-				}
+		BaseQueryBuilder queryObj = null;
+		InternalTempFilterInfo tempFilterInfo = null;
+		try {
+			queryObj = getBaseQuery(query, communityIdStrs, communityIdStrList, userIdStr, querySummary);
+			if (null == queryObj) { // only occurs if has 1 element with ftext starting $cache:
+				return getSavedQueryInstead(query.qt.get(0).ftext.substring(7), communityIdStrs); // (step over cache preamble)
 			}
-			else { //(QT exists but doesn't have any elements)
-				queryObj = QueryBuilders.matchAllQuery();
-				querySummary.append('*');
-			}
-		}//TESTED
-		else {
-			queryObj = QueryBuilders.matchAllQuery();
-			querySummary.append('*');				
-		} //(QT not specified)
+			tempFilterInfo = getBaseFilter(query, communityIdStrs);
+		}
+		catch (Exception e) {
+			errorString.append(": " + e.getMessage());
+			return null;
+		}
 		
 		//DEBUG
 		//querySummary.append(new Gson().toJson(query, AdvancedQueryPojo.class));
@@ -350,7 +256,7 @@ public class QueryHandler {
 			if (!_aggregationAccuracy.equals("full")) {
 				bLowAccuracyDecay = true;
 			}
-			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score, parentFilterObj, bLowAccuracyDecay);
+			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score, tempFilterInfo.parentFilterObj, bLowAccuracyDecay);
 			
 			if (null == _scoringParams.adjustAggregateSig) { // auto-decide .. if ftext is set and is non-trivial
 				if ((null != query.score.timeProx) || (null != query.score.geoProx)) {
@@ -412,7 +318,9 @@ public class QueryHandler {
 					// (allow source aggregation)
 				}
 			}
-			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings, searchSettings, bSpecialCase?parentFilterObj:null);
+			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, 
+														tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, 
+															searchSettings, bSpecialCase?tempFilterInfo.parentFilterObj:null);
 
 			// In partial accuracy case, restore aggregation
 			if (null != manualEntsNumReturn) {
@@ -445,13 +353,13 @@ public class QueryHandler {
 		{
 			// (Can bypass all other settings)				
 			searchSettings.setQuery(query.raw.query);
-			queryResults = indexMgr.doQuery(null, parentFilterObj, searchSettings);
+			queryResults = indexMgr.doQuery(null, tempFilterInfo.parentFilterObj, searchSettings);
 		}//TESTED '{ "raw": { "match_all": {} } }'
 		else 
 		{
 			// Where I can, use the source filter as part of the query so that
 			// facets will apply to query+filter, not just filter
-			queryObj = QueryBuilders.boolQuery().must(queryObj).must(QueryBuilders.constantScoreQuery(parentFilterObj).boost(0.0F));
+			queryObj = QueryBuilders.boolQuery().must(queryObj).must(QueryBuilders.constantScoreQuery(tempFilterInfo.parentFilterObj).boost(0.0F));
 			
 			queryResults = indexMgr.doQuery(queryObj, null, searchSettings);
 		}//TESTED '{}' etc
@@ -527,16 +435,35 @@ public class QueryHandler {
 			}
 			
 			scoreStats = new ScoringUtils();
-			scoreStats.setAliasLookupTable(_aliasLookup);
-			docs = scoreStats.calcTFIDFAndFilter(DbManager.getDocument().getMetadata(), 
-														docs0, query.score, query.output, stats, bLowAccuracyDecay,
-															nRecordsToSkip, nRecordsToOutput, 
-																communityIdStrs,
-																entityTypeFilterStrings, assocVerbFilterStrings,
-																standaloneEvents, 
-																lowAccuracyAggregatedEntities, 
-																lowAccuracyAggregatedGeo, extraAliasAggregatedGeo,
-																lowAccuracyAggregatedEvents, lowAccuracyAggregatedFacts);
+			try {
+				boolean lockAcquired = true;
+				try {
+					lockAcquired = this.acquireConcurrentAccessLock();
+					
+				} catch (InterruptedException e) {
+					//(that's fine just carry on)
+					lockAcquired = false;
+				}
+				if (!lockAcquired) {
+					rp.setResponse(new ResponseObject("Query", false, "Query engine busy, please try again later."));
+					return rp;
+				}
+				
+				scoreStats.setAliasLookupTable(_aliasLookup);
+				docs = scoreStats.calcTFIDFAndFilter(DbManager.getDocument().getMetadata(), 
+															docs0, query.score, query.output, stats, bLowAccuracyDecay,
+																nRecordsToSkip, nRecordsToOutput, 
+																	communityIdStrs,
+																	tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings,
+																	standaloneEvents, 
+																	lowAccuracyAggregatedEntities, 
+																	lowAccuracyAggregatedGeo, extraAliasAggregatedGeo,
+																					lowAccuracyAggregatedEvents, lowAccuracyAggregatedFacts);
+			}
+			finally {
+				scoreStats.clearAsMuchMemoryAsPossible();
+				this.releaseConcurrentAccessLock();
+			}			
 			nProcTime += (System.currentTimeMillis() - nProcTime_tmp);
 		}
 		else {
@@ -578,9 +505,11 @@ public class QueryHandler {
 			if (0.0 == query.score.sigWeight) {
 				scoreStats = null; // (don't calculate event/fact aggregated significance if it's not wanted)
 			}
-			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, entityTypeFilterStrings, assocVerbFilterStrings, extraAliasAggregatedGeo);
+			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, extraAliasAggregatedGeo);
 			
 		} // (end facets not overwritten)			
+		
+		scoreStats = null; // (now definitely never need scoreStats)
 		
 		// 0.9.3] Documents
 		if  (query.output.docs.enable) {
@@ -619,14 +548,278 @@ public class QueryHandler {
 		// Exceptions percolate up to the resource and are handled there...
 		return rp;
 	}
+		
+////////////////////////////////////////////////////////////////////////
+	
+	// Utility version of the above query call - just converts the advanced query pojo into an elasticsearch object that can
+	// be queried
+
+	public static class QueryInfo {
+		public ElasticSearchManager indexMgr;
+		public BaseQueryBuilder queryObj;
+		public String querySummary;
+	}
+	
+	public QueryInfo convertInfiniteQuery(AdvancedQueryPojo query, String[] communityIdStrs, String userIdStr) {
+		// Fill in the blanks (a decent attempt has been made to fill out the blanks inside these options)
+		if (null == query.input) {
+			query.input = new AdvancedQueryPojo.QueryInputPojo();				
+		}
+		if (null == query.score) {
+			query.score = new AdvancedQueryPojo.QueryScorePojo();				
+		}
+		if (null == query.output) {
+			query.output = new AdvancedQueryPojo.QueryOutputPojo();
+		}		
+		if (null == query.output.docs) { // (Docs are sufficiently important we'll make sure they're always present)
+			query.output.docs = new AdvancedQueryPojo.QueryOutputPojo.DocumentOutputPojo();
+		}
+
+		// Other intialization
+		_nNow = System.currentTimeMillis();
+		
+		// Now onto the logic:
+		QueryInfo queryInfo = new QueryInfo();
+		
+		StringBuffer sb = new StringBuffer(userIdStr);
+		for (String sCommunityId: communityIdStrs) {
+			sb.append(',').append(sCommunityId);
+		}
+		
+		queryInfo.indexMgr = getIndexManager(communityIdStrs);
+		StringBuffer info = new StringBuffer();
+		queryInfo.queryObj = getBaseQuery(query, communityIdStrs, sb.toString(), userIdStr, info);
+		queryInfo.querySummary = info.toString();
+		InternalTempFilterInfo tempFilterInfo = getBaseFilter(query, communityIdStrs);
+		queryInfo.queryObj = QueryBuilders.boolQuery().must(queryInfo.queryObj).
+								must(QueryBuilders.constantScoreQuery(tempFilterInfo.parentFilterObj).boost(0.0F));
+		
+		return queryInfo;
+	}//TOTEST
 	
 ////////////////////////////////////////////////////////////////////////
 	
-// 1] QUERY UTILITIES	
+//0b] QUERY BREAKDOWN	
+
+////////////////////////////////////////////////////////////////////////
 	
+	// 0.b.1) indexes
+	
+	private ElasticSearchManager getIndexManager(String[] communityIdStrs)
+	{
+		// Create a multi-index to check against all relevant shards:
+		StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.globalDocumentIndexCollection_);
+		sb.append(',').append(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_);
+		for (String sCommunityId: communityIdStrs) {
+			sb.append(',').append("docs_").append(sCommunityId);
+		}
+		sb.append('/').append(DocumentPojoIndexMap.documentType_);
+		ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(sb.toString());
+		return indexMgr;
+	}//TESTED (cut and paste from original code)
+	
+////////////////////////////////////////////////////////////////////////
+	
+	// 0.b.1) filter
+	
+	private static class InternalTempFilterInfo {
+		BoolFilterBuilder parentFilterObj;
+		String[] entityTypeFilterStrings;
+		String[] assocVerbFilterStrings;
+	}
+	
+	private InternalTempFilterInfo getBaseFilter(AdvancedQueryPojo query, String communityIdStrs[])
+	{
+		BoolFilterBuilder parentFilterObj = 
+				FilterBuilders.boolFilter().must(FilterBuilders.termsFilter(DocumentPojo.communityId_, communityIdStrs));
+			
+		BoolFilterBuilder sourceFilter = this.parseSourceManagement(query.input);
+		
+		if (null != sourceFilter) {
+			parentFilterObj = parentFilterObj.must(sourceFilter);
+		}//TESTED
+		
+	// 0.2] Output filtering	
+		
+		// Output filters: parse (also used by aggregation, scoring)
+		
+		String[] entityTypeFilterStrings = null;
+		String[] assocVerbFilterStrings = null;
+		if ((null != query.output) && (null != query.output.filter)) {
+			if (null != query.output.filter.entityTypes) {
+				entityTypeFilterStrings = query.output.filter.entityTypes;
+				if (0 == entityTypeFilterStrings.length) {
+					entityTypeFilterStrings = null;
+				}
+				else if ((1 == entityTypeFilterStrings.length) && (entityTypeFilterStrings[0].isEmpty())) {
+					entityTypeFilterStrings = null;					
+				}
+				// (note this is important because it means we can always check entityTypeFilterStrings[0].getCharAt(0) for -ve filtering)
+			}
+			if (null != query.output.filter.assocVerbs) {
+				assocVerbFilterStrings = query.output.filter.assocVerbs;				
+				if (0 == assocVerbFilterStrings.length) {
+					assocVerbFilterStrings = null;
+				}
+				else if ((1 == assocVerbFilterStrings.length) && (assocVerbFilterStrings[0].isEmpty())) {
+					assocVerbFilterStrings = null;					
+				}
+				// (note this is important because it means we can always check assocVerbFilterStrings[0].getCharAt(0) for -ve filtering)
+			}
+		}
+		
+		// Now apply output filters to query
+		
+		BoolFilterBuilder outputFilter = this.parseOutputFiltering(entityTypeFilterStrings, assocVerbFilterStrings);
+		if (null != outputFilter) {
+			parentFilterObj = parentFilterObj.must(outputFilter);
+		}
+		//TESTED
+
+		InternalTempFilterInfo out = new InternalTempFilterInfo();
+		out.parentFilterObj = parentFilterObj;
+		out.entityTypeFilterStrings = entityTypeFilterStrings;
+		out.assocVerbFilterStrings = assocVerbFilterStrings;
+		
+		return out;
+	}//TESTED (cut/paste from original code)
+	
+////////////////////////////////////////////////////////////////////////
+	
+	// 0.b.2] Query
+	// (if it returns null then call getSavedQueryInstead instead)
+	
+	private BaseQueryBuilder getBaseQuery(AdvancedQueryPojo query, String communityIdStrs[], String communityIdStrList, String userIdStr, StringBuffer querySummary)
+	{
+		// Intialize alias if so required:
+		if ((null == query.expandAlias) || query.expandAlias) {
+			AliasManager aliasManager = AliasManager.getAliasManager();
+			if (null != aliasManager) {
+				_aliasLookup = aliasManager.getAliasLookupTable(null, communityIdStrs, null, userIdStr);
+			}
+		}
+		// (end initialize index)
+		
+		BaseQueryBuilder queryObj = null;
+		
+	// 0.1] Input data (/filtering)
+
+		if (null != query.input.name) { // This is actually a share id visible to this user
+			query = getStoredQueryArtefact(query.input.name, query, userIdStr);
+		}
+		
+	// 0.3] Query terms
+		
+		int nQueryElements = 0;
+		
+		if (null != query.qt) {
+			nQueryElements = query.qt.size();
+			
+			if ((1 == nQueryElements) && (null != query.qt.get(0).ftext) && (query.qt.get(0).ftext.startsWith("$cache:"))) {
+				return null;
+			}
+			if (nQueryElements > 0) { // NORMAL CASE
+				
+				this.handleEntityExpansion(DbManager.getFeature().getEntity(), query.qt, userIdStr, communityIdStrList);
+				
+				BaseQueryBuilder queryElements[] = new BaseQueryBuilder[nQueryElements];
+				StringBuffer sQueryElements[] = new StringBuffer[nQueryElements];
+				for (int i = 0; i < nQueryElements; ++i) {
+					_extraFullTextTerms = null;	
+					queryElements[i] = this.parseQueryTerm(query.qt.get(i), (sQueryElements[i] = new StringBuffer()));
+					
+					// Extra full text terms generated by aliasing:
+					if (null != _extraFullTextTerms) {
+						BoolQueryBuilder extraTerms = QueryBuilders.boolQuery().should(queryElements[i]);
+						StringBuffer discard = new StringBuffer(); // (we already have added the info the query elements)
+						for (AdvancedQueryPojo.QueryTermPojo qtExtra: _extraFullTextTerms) {
+							extraTerms = extraTerms.should(this.parseQueryTerm(qtExtra, discard));
+						}
+						queryElements[i] = extraTerms; 
+						_extraFullTextTerms = null; // (reset ready for next term...) 
+					}//TESTED				
+					
+				}//end loop over query terms
+				
+				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);	
+				
+				if (null == queryObj) { //error parsing logic
+					throw new RuntimeException("Error parsing logic");
+				}
+			}
+			else { //(QT exists but doesn't have any elements)
+				queryObj = QueryBuilders.matchAllQuery();
+				querySummary.append('*');
+			}
+		}//TESTED
+		else {
+			queryObj = QueryBuilders.matchAllQuery();
+			querySummary.append('*');				
+		} //(QT not specified)
+		
+		return queryObj;
+	}//TESTED (cut/paste from original code)
+	
+////////////////////////////////////////////////////////////////////////
+	
+//1] QUERY UTILITIES	
+
 ////////////////////////////////////////////////////////////////////////
 	
 // 1.0] Stored queries/datasets
+
+	// Saved queries (ie the entire dataset)
+	
+	static private ResponsePojo getSavedQueryInstead(String storedQueryNameOrId, String[] communityIdStrs) {
+		ObjectId oid = null;
+		BasicDBObject query = null;
+		try {
+			oid = new ObjectId(storedQueryNameOrId);
+			query = new BasicDBObject(CustomMapReduceJobPojo._id_, oid);
+		}
+		catch (Exception e) {
+			query = new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, storedQueryNameOrId);			
+		}
+		CustomMapReduceJobPojo savedJob = CustomMapReduceJobPojo.fromDb(DbManager.getCustom().getLookup().findOne(query), CustomMapReduceJobPojo.class);
+		
+		if (null != savedJob) { // Is this even a saved job?
+			if (null != savedJob.jarURL) {				
+				savedJob = null;
+			}
+		}
+		if (null != savedJob) { // Authorization
+			boolean auth = false;
+			String communityIdStrList = Arrays.toString(communityIdStrs);
+			for (ObjectId commId: savedJob.communityIds) {
+				
+				if (communityIdStrList.contains(commId.toString())) {
+					auth = true;
+					break;
+				}
+			}
+			if (!auth) {
+				savedJob = null;
+			}
+		}
+		if (null == savedJob) {
+			throw new RuntimeException("Can't find saved query, or is a custom job not a query, or authorization error");
+		}
+		// OK go get the results of the job
+		DBCollection coll = DbManager.getCollection(savedJob.getOutputDatabase(), savedJob.outputCollection);
+		BasicDBObject result = (BasicDBObject) coll.findOne(); // (at some point support multiple saved queries)
+		if (null == result) {
+			throw new RuntimeException("Saved query is empty");			
+		}
+		BasicDBObject apiResultToConvert = (BasicDBObject) result.get("value");
+		if (null == apiResultToConvert) {
+			throw new RuntimeException("Saved query has invalid format");			
+		}
+		
+		ResponsePojo rp = ResponsePojo.fromDb(apiResultToConvert);
+		return rp;
+	}//TESTED
+	
+	// Stored queries (ie just the query JSON)
 	
 	static AdvancedQueryPojo getStoredQueryArtefact(String shareIdStr, AdvancedQueryPojo query, String userIdStr) {
 		
@@ -753,6 +946,10 @@ public class QueryHandler {
 	// 1.1] Free text (Lucene)	
 		
 		if (null != qt.ftext) { // NOTE term building code below depends on this being 1st clause
+			if (qt.ftext.startsWith("$cache")) { // currently not supported
+				throw new RuntimeException("Don't currently support nested cached queries - coming soon.");
+			}
+			
 			sQueryTerm.append('(');
 			if (null != qt.metadataField) {
 				sQueryTerm.append(qt.metadataField).append(':');				
@@ -996,7 +1193,16 @@ public class QueryHandler {
 				}
 			}//TESTED logic3a,b,f - actual_name expansion
 			
-			if ((null != qt.entityOpt) && qt.entityOpt.rawText) {
+			boolean isKeyword = false;
+			if (null != qt.entity) {
+				isKeyword = qt.entity.endsWith("/keyword");
+			}
+			else if (null != qt.entityType) {
+				isKeyword = qt.entityType.equalsIgnoreCase("Keyword");
+			}
+			
+			if (((null != qt.entityOpt) && qt.entityOpt.rawText) || isKeyword)
+			{
 				if (null == this._extraFullTextTerms) {
 					_extraFullTextTerms = new LinkedList<AdvancedQueryPojo.QueryTermPojo>();
 				}
@@ -1234,6 +1440,15 @@ public class QueryHandler {
 			if (time.min.equals("now")) { 
 				nMinTime = nMaxTime;
 			}
+			else if (time.min.startsWith("now")) { // now+N[hdmy] 
+				// now+Xi or now-Xi
+				long sgn = 1L;
+				if ('-' == time.min.charAt(3)) { //now+ or now-
+					sgn = -1L;
+				}
+				long offset = sgn*getInterval(time.min.substring(4), 'd'); // (default interval is day)
+				nMinTime = new Date().getTime() + offset;
+			}
 			else {
 				try {
 					nMinTime = Long.parseLong(time.min); // (unix time format)
@@ -1250,28 +1465,39 @@ public class QueryHandler {
 		}
 		if ((null != time.max) && (time.max.length() > 0)) {
 			if (!time.max.equals("now")) { // (What we have by default)
-				try {
-					nMaxTime = Long.parseLong(time.max); // (unix time format)
-					if (nMaxTime <= 99999999) { // More likely to be YYYYMMDD
+				if (time.max.startsWith("now")) { // now+N[hdmy] 
+					// now+Xi or now-Xi
+					long sgn = 1L;
+					if ('-' == time.max.charAt(3)) { //now+ or now-
+						sgn = -1L;
+					}
+					long offset = sgn*getInterval(time.max.substring(4), 'd'); // (default interval is day)
+					nMaxTime = new Date().getTime() + offset;
+				}
+				else {
+					try {
+						nMaxTime = Long.parseLong(time.max); // (unix time format)
+						if (nMaxTime <= 99999999) { // More likely to be YYYYMMDD
+							// OK try a bunch of common date parsing formats
+							nMaxTime = parseDate(time.max);
+							
+							// max time, so should be 24h-1s ahead ...
+							nMaxTime = nMaxTime - (nMaxTime % (24*3600*1000));
+							nMaxTime += 24*3600*1000 - 1;										
+							
+						} //TESTED (logic5, logic10 for maxtime)
+					}
+					catch (NumberFormatException e) {
 						// OK try a bunch of common date parsing formats
 						nMaxTime = parseDate(time.max);
 						
-						// max time, so should be 24h-1s ahead ...
-						nMaxTime = nMaxTime - (nMaxTime % (24*3600*1000));
-						nMaxTime += 24*3600*1000 - 1;										
-						
-					} //TESTED (logic5, logic10 for maxtime)
+						// If day only is specified, should be the entire day...
+						if (!time.max.contains(":")) {
+							nMaxTime = nMaxTime - (nMaxTime % (24*3600*1000));
+							nMaxTime += 24*3600*1000 - 1;							
+						}
+					}//TOTEST max time
 				}
-				catch (NumberFormatException e) {
-					// OK try a bunch of common date parsing formats
-					nMaxTime = parseDate(time.max);
-					
-					// If day only is specified, should be the entire day...
-					if (!time.max.contains(":")) {
-						nMaxTime = nMaxTime - (nMaxTime % (24*3600*1000));
-						nMaxTime += 24*3600*1000 - 1;							
-					}
-				}//TOTEST max time
 			}				
 		} //TESTED (logic5)
 		
@@ -2026,7 +2252,7 @@ public class QueryHandler {
 		
 			BasicDBObject query = new BasicDBObject();
 			query.put("_id", new BasicDBObject("$in", ids));
-			BasicDBObject fields = new BasicDBObject(); // (used to discard community ids -plus legacy versions-, now need it)
+			BasicDBObject fields = new BasicDBObject(DocumentPojo.fullText_, 0); // (used to discard community ids -plus legacy versions-, now need it)
 			if (!output.docs.metadata) {
 				fields.put(DocumentPojo.metadata_, 0);
 			}
@@ -2095,10 +2321,11 @@ public class QueryHandler {
 	
 // 5] Unit testing code
 
-	//static private final QueryController _test = new QueryController(true); 
+	//static private final QueryHandler _test = new QueryHandler(true); 
 	
 	@SuppressWarnings("unused")
-	private QueryHandler(boolean bTest) {
+	private QueryHandler(boolean bTest) {		
+		_scoringParams = new AdvancedQueryPojo.QueryScorePojo();
 		this.testParsingCode();
 	}
 	
@@ -2106,7 +2333,7 @@ public class QueryHandler {
 
 		// (these are used for logic testing below)
 		List<BaseQueryBuilder> qtTerms = new LinkedList<BaseQueryBuilder>(); 
-		List<StringBuffer> qtReadTerms = new LinkedList<StringBuffer>(); 
+		List<StringBuffer> qtReadTerms = new LinkedList<StringBuffer>(); 		
 		
 	// Various query terms
 
@@ -2524,6 +2751,24 @@ public class QueryHandler {
 		parseransQ = "not ((((dist(*.geotag, (40.12,-71.34)) < 100km)) or ((((publishedDate:[0 TO Thu Sep 16 15:52:37 EDT 2010])) or ((etext\\ test) AND (entities.index:\"entity/type\"))) and ((ftext) AND (etext\\ \\+test)))) or ((ftext +test)))";
 		if (!parseransQ.equals(result.toString())) {
 			System.out.println("Fail p7"); System.out.println(parseransQ); System.out.println(result.toString());			
+		}
+		
+		// Pure parsing tests:
+		
+		String parser8 = "( 1 OR 2 ) OR ( 3 OR 4 ) AND 5";
+		tree = SimpleBooleanParser.parseExpression(parser8);
+		parserres = SimpleBooleanParser.traverse(tree, false);
+		parserans = "$0: | ($1 $2 ) $2: | (2 1 ) $1: & (5 $3 ) $3: | (4 3 ) ";
+		if (!parserans.equals(parserres)) {
+			System.out.println("Fail p8"); System.out.println(parser8); System.out.println(parserres);
+		}
+		
+		String parser9 = "(( 1 OR 2 ) OR ( 3 OR 4 )) AND 5";
+		tree = SimpleBooleanParser.parseExpression(parser9);
+		parserres = SimpleBooleanParser.traverse(tree, false);
+		parserans = "$0: & (5 $1 ) $1: | ($2 $3 ) $3: | (2 1 ) $2: | (4 3 ) ";
+		if (!parserans.equals(parserres)) {
+			System.out.println("Fail p9"); System.out.println(parser9); System.out.println(parserres);
 		}
 		
 // Some proximity test code

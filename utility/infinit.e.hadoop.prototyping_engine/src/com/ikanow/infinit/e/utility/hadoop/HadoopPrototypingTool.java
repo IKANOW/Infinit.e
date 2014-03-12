@@ -33,6 +33,9 @@ import org.bson.BasicBSONObject;
 import org.bson.types.BasicBSONList;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.custom.InfiniteMongoConfig;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
+import com.mongodb.BasicDBList;
 import com.mongodb.hadoop.io.BSONWritable;
 import com.mongodb.hadoop.util.MongoTool;
 import com.mongodb.util.JSON;
@@ -102,6 +105,8 @@ public class HadoopPrototypingTool extends MongoTool {
 			try {
 				((Invocable) _engine).invokeFunction("internal_mapper", (Object[])null);
 			} catch (Exception e) {
+				//e.printStackTrace();
+				
 				//TODO (INF-1891): running on system/sentiment/enron community, get a bunch of "unterminated string literal"
 				// fails on: 4db7887ade327f612ca33ce3, 4fe6d7c2e4b0ec981064a0d5, 4fe8648de4b0d96833fa757d, 4fea0e9de4b08cca3fd181d5, 4fea2afce4b0f44772f0f4bb, etc
 				// (compare this with SAH js input and fix, then start throwing exception again)
@@ -150,12 +155,27 @@ public class HadoopPrototypingTool extends MongoTool {
 	
 	public static class JavascriptMapper extends Mapper<Object, BSONObject, BSONWritable, BSONWritable> {
 		private JavascriptUtils _javascript = new JavascriptUtils();
+
+		@Override
+		public void setup(Context context) {
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
+			
+			// Set up cache if one is specified
+			InfiniteMongoConfig config = new InfiniteMongoConfig(context.getConfiguration());
+			BasicDBList caches = config.getCacheList();
+			if ((null != caches) && !caches.isEmpty()) {				
+				try {
+					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, null, (config.getLimit() > 0));
+				} catch (Exception e) {
+					throw new RuntimeException("Error setting up caches: " + caches);
+				}
+			}
+		}
 		
+		@Override
 		public void map( Object key, BSONObject value, Context context ) throws IOException, InterruptedException
 		{
-			if (!_javascript.isInitialized()) {
-				_javascript.setupJavascript(context.getConfiguration().get("arguments"));
-			}
 			_javascript.map(key, value);
 			
 			BasicBSONList out = _javascript.generateOutput();
@@ -163,6 +183,12 @@ public class HadoopPrototypingTool extends MongoTool {
 				BSONWritable bsonObj = (BSONWritable) bson;
 				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
 				BSONWritable outval = (BSONWritable) bsonObj.get("val");
+				if (null == outkey) {
+					throw new IOException("Map: Can't output a null key from " + value.get("_id"));					
+				}
+				if (null == outval) {					
+					throw new IOException("Map: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + value.get("_id"));
+				}
 				context.write(outkey, outval);
 			}
 		}
@@ -172,12 +198,26 @@ public class HadoopPrototypingTool extends MongoTool {
 	{
 		private JavascriptUtils _javascript = new JavascriptUtils();
 		
+		@Override
+		public void setup(Context context) {
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
+
+			// Set up cache if one is specified
+			InfiniteMongoConfig config = new InfiniteMongoConfig(context.getConfiguration());
+			BasicDBList caches = config.getCacheList();
+			if ((null != caches) && !caches.isEmpty()) {				
+				try {
+					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, null, (config.getLimit() > 0));
+				} catch (Exception e) {
+					throw new RuntimeException("Error setting up caches: " + caches);
+				}
+			}
+		}
+		
 		public void reduce( BSONWritable key, Iterable<BSONWritable> values, Context context )
 		throws IOException, InterruptedException
 		{
-			if (!_javascript.isInitialized()) {
-				_javascript.setupJavascript(context.getConfiguration().get("arguments"));
-			}
 			_javascript.combine(key, values);
 
 			BasicBSONList out = _javascript.generateOutput();
@@ -185,6 +225,12 @@ public class HadoopPrototypingTool extends MongoTool {
 				BSONWritable bsonObj = (BSONWritable) bson;
 				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
 				BSONWritable outval = (BSONWritable) bsonObj.get("val");
+				if (null == outkey) {
+					throw new IOException("Combine: Can't output a null key from " + key);					
+				}
+				if (null == outval) {					
+					throw new IOException("Combine: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
+				}
 				context.write(outkey, outval);
 			}
 		}
@@ -194,19 +240,39 @@ public class HadoopPrototypingTool extends MongoTool {
 	{
 		private JavascriptUtils _javascript = new JavascriptUtils();
 		
+		@Override
+		public void setup(Context context) {
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
+
+			// Set up cache if one is specified
+			InfiniteMongoConfig config = new InfiniteMongoConfig(context.getConfiguration());
+			BasicDBList caches = config.getCacheList();
+			if ((null != caches) && !caches.isEmpty()) {				
+				try {
+					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, null, (config.getLimit() > 0));
+				} catch (Exception e) {
+					throw new RuntimeException("Error setting up caches: " + caches);
+				}
+			}
+		}
+		
 		public void reduce( BSONWritable key, Iterable<BSONWritable> values, Context context )
 		throws IOException, InterruptedException
 		{
-			if (!_javascript.isInitialized()) {
-				_javascript.setupJavascript(context.getConfiguration().get("arguments"));
-			}
 			_javascript.reduce(key, values);
-
+			
 			BasicBSONList out = _javascript.generateOutput();
 			for (Object bson: out) {
 				BSONWritable bsonObj = (BSONWritable) bson;
 				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
 				BSONWritable outval = (BSONWritable) bsonObj.get("val");
+				if (null == outkey) {
+					throw new IOException("Reduce: Can't output a null key from " + key);					
+				}
+				if (null == outval) {					
+					throw new IOException("Reduce: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
+				}
 				context.write(outkey, outval);
 			}
 		}

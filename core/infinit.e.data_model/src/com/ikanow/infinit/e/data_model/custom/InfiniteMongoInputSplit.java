@@ -100,7 +100,8 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 				}
 			}
 			
-	        log.info( "Created InfiniteMongoInputSplit cursor: min=" + minObj + ", max=" + maxObj + ", query=" + query );
+			//DEBUG
+	        //log.info( "Created InfiniteMongoInputSplit cursor: min=" + minObj + ", max=" + maxObj + ", query=" + query );
 			
 			
 			if (_notimeout) _cursor.setOptions( Bytes.QUERYOPTION_NOTIMEOUT );
@@ -109,5 +110,6 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 
 		return _cursor;
 	}	
-    private static final Log log = LogFactory.getLog( InfiniteMongoInputSplit.class );
+    @SuppressWarnings("unused")
+	private static final Log log = LogFactory.getLog( InfiniteMongoInputSplit.class );
 }

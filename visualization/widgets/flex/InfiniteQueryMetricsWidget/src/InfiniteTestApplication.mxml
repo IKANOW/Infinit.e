@@ -42,7 +42,7 @@
 			import mx.rpc.events.ResultEvent;
 			import flexlib.mdi.events.MDIWindowEvent;
 			
-			private var API_SERVER:String = "http://infinite.ikanow.com/api/"; 	//api url address of infinite api server
+			private var API_SERVER:String = "https://infinite.ikanow.com/api/"; 	//api url address of infinite api server
 			
 			private var COMMUNITYID:String = ""; //community id to search on, gets populated during load
 			
