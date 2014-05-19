@@ -60,6 +60,7 @@ import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResul
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DimensionListPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
+import com.ikanow.infinit.e.data_model.api.knowledge.SearchSuggestPojo;
 import com.ikanow.infinit.e.data_model.api.social.community.CommunityPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.person.PersonPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
@@ -370,7 +371,8 @@ public class InfiniteDriver
 
 	public String addToCommunity(String communityId, String personId, ResponseObject responseObject )
 	{
-		try{
+		try
+		{
 			String addToCommunityAddress = apiRoot + "social/community/member/invite/" + URLEncoder.encode(communityId,"UTF-8") + "/" +
 					URLEncoder.encode(personId,"UTF-8") + "/";
 			String inviteresult = sendRequest(addToCommunityAddress, null);
@@ -390,9 +392,32 @@ public class InfiniteDriver
 		return null;
 	}
 	
+	public String joinCommunity(String communityId, ResponseObject responseObject )
+	{
+		try
+		{
+			String addToCommunityAddress = apiRoot + "social/community/member/join/" + URLEncoder.encode(communityId,"UTF-8");
+			String inviteresult = sendRequest(addToCommunityAddress, null);
+
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(inviteresult, ResponsePojo.class, CommunityPojo.class, new CommunityPojoApiMap()); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+
+			return responseObject.getMessage();
+
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+	
 	public String forcefullyAddToCommunity(String communityId, String personId, ResponseObject responseObject )
 	{
-		try{
+		try
+		{
 			String addToCommunityAddress = apiRoot + "social/community/member/invite/" + URLEncoder.encode(communityId,"UTF-8") + "/" +
 					URLEncoder.encode(personId,"UTF-8") + "/?skipinvitation=true";
 			String inviteresult = sendRequest(addToCommunityAddress, null);
@@ -414,7 +439,8 @@ public class InfiniteDriver
 	
 	public CommunityPojo getCommunity(String communityIdentifier, ResponseObject responseObject )
 	{
-		try{
+		try
+		{
 			String getCommunityAddress = apiRoot + "social/community/get/" + URLEncoder.encode(communityIdentifier,"UTF-8") + "";
 			String getResult = sendRequest(getCommunityAddress, null);
 
@@ -433,9 +459,36 @@ public class InfiniteDriver
 		return null;
 	}
 	
+	public List<CommunityPojo> getPublicCommunities(ResponseObject responseObject)
+	{
+		try
+		{
+			String getCommunityAddress = apiRoot + "social/community/getpublic";
+			String getResult = sendRequest(getCommunityAddress, null);
+			
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+			
+			List<CommunityPojo> communities = null;
+			
+			communities = ApiManager.mapListFromApi((JsonElement)internal_responsePojo.getData(), 
+															CommunityPojo.listType(), null);			
+			
+			return communities;
+		}
+		catch (Exception e) 
+		{
+			responseObject.setSuccess(false);
+			responseObject.setMessage(e.getMessage());
+		}		
+		return null;
+	}
+	
 	public List<CommunityPojo> getAllCommunity(ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String getCommunityAddress = apiRoot + "social/community/getall";
 			String getResult = sendRequest(getCommunityAddress, null);
 			
@@ -460,7 +513,8 @@ public class InfiniteDriver
 
 	public Boolean deleteCommunity(String communityId, ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String addToCommunityAddress = apiRoot + "social/community/remove/" + URLEncoder.encode(communityId,"UTF-8");
 			String inviteresult = sendRequest(addToCommunityAddress, null);
 
@@ -505,6 +559,27 @@ public class InfiniteDriver
 		{
 			String updateCommunityMemberUrl = apiRoot + "social/community/member/update/type/" + URLEncoder.encode(communityId,"UTF-8") + 
 			"/" + URLEncoder.encode(personId,"UTF-8") + "/" + URLEncoder.encode(userType,"UTF-8");
+			String updateResult = sendRequest(updateCommunityMemberUrl, null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(updateResult, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+
+			return responseObject.isSuccess();
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return false;
+	}
+	
+	public Boolean updateCommunityMemberStatus(String communityId, String personId, String userStatus, ResponseObject responseObject)
+	{
+		try
+		{
+			String updateCommunityMemberUrl = apiRoot + "social/community/member/update/status/" + URLEncoder.encode(communityId,"UTF-8") + 
+			"/" + URLEncoder.encode(personId,"UTF-8") + "/" + URLEncoder.encode(userStatus,"UTF-8");
 			String updateResult = sendRequest(updateCommunityMemberUrl, null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(updateResult, ResponsePojo.class); 
 			ResponseObject internal_ro = internal_responsePojo.getResponse();
@@ -703,7 +778,8 @@ public class InfiniteDriver
 	
 	public String deletePerson(String personId, ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String deletePersonAddress = apiRoot + "social/person/delete/" + URLEncoder.encode(personId,"UTF-8");
 			String deleteResult = sendRequest(deletePersonAddress, null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(deleteResult, ResponsePojo.class); 
@@ -728,7 +804,8 @@ public class InfiniteDriver
 	 */
 	public PersonPojo getPerson(String personId, ResponseObject responseObject)
 	{
-		try{
+		try
+		{
 			String getPersonAddress = apiRoot + "social/person/get";
 
 			if (personId != null)
@@ -749,7 +826,33 @@ public class InfiniteDriver
 		return null;
 	}
 
+	/**
+	 * listPerson
+	 * 
+	 * @param responseObject
+	 * @return
+	 */
+	public List<PersonPojo> listPerson(ResponseObject responseObject)
+	{
+		try
+		{
+			String listPersonAddress = apiRoot + "social/person/list";			
+			String getResult = sendRequest(listPersonAddress, null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();			
+			responseObject = shallowCopy(responseObject, internal_ro);
+			List<PersonPojo> people = null;
+			people = ApiManager.mapListFromApi((JsonElement)internal_responsePojo.getData(), PersonPojo.listType(), new PersonPojoApiMap());
+			
+			return people;									
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
 
+		return null;
+	}
 
 	public String registerPerson(String first_name, String last_name, String phone, String email, String password, String accountType, ResponseObject responseObject) 
 	{
@@ -858,11 +961,12 @@ public class InfiniteDriver
 		return responseObject.getMessage();
 	}
 	
-	public String updatePersonEmail(String id, String newEmail, ResponseObject responseObject) 
+	public String updatePersonPassword(String id, String newPassword, ResponseObject responseObject) 
 	{
-		try{
-			String updateEmailAddress = apiRoot + "social/person/update/password/" + URLEncoder.encode(id,"UTF-8") + "/" + URLEncoder.encode(newEmail,"UTF-8");
-			String updateResult = sendRequest(updateEmailAddress, null);
+		try
+		{
+			String updatePasswordAddress = apiRoot + "social/person/update/password/" + URLEncoder.encode(id,"UTF-8") + "/" + URLEncoder.encode(newPassword,"UTF-8");
+			String updateResult = sendRequest(updatePasswordAddress, null);
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(updateResult, ResponsePojo.class); 
 			ResponseObject internal_ro = internal_responsePojo.getResponse();
 			responseObject = shallowCopy(responseObject, internal_ro);
@@ -983,11 +1087,10 @@ public class InfiniteDriver
 		StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/query/");
 		boolean bFirstComm = true;
 		for (ObjectId commId: communities) {
-			if (!bFirstComm) {
-				bFirstComm = false;
+			if (!bFirstComm) 
 				theUrl.append(',');
-			}
 			theUrl.append(commId.toString());
+			bFirstComm = false;
 		}
 		String testResult = sendRequest(theUrl.toString(), query.toApi());
 		
@@ -1596,6 +1699,32 @@ public class InfiniteDriver
 			response.setMessage(e.getMessage());
 		}
 		return null;
+	}
+	
+	public List<SearchSuggestPojo> getGeoSuggest(Double latitude, Double longitude, String communityIdStr, ResponseObject response)
+	{
+		List<SearchSuggestPojo> locations = null;
+		try 
+		{
+			String searchterm = latitude + "," + longitude;
+			StringBuilder url = new StringBuilder(apiRoot).append("knowledge/feature/geoSuggest/");			
+			url.append(URLEncoder.encode(searchterm,"UTF-8"));
+			url.append("/");			
+			url.append(URLEncoder.encode(communityIdStr,"UTF-8"));
+			
+			String json = sendRequest(url.toString(), null);
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(json, ResponsePojo.class); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			response = shallowCopy(response, internal_ro);
+			
+			locations = ApiManager.mapListFromApi((JsonElement)internal_responsePojo.getData(), SearchSuggestPojo.listType(), null);			
+		}
+		catch (Exception e) 
+		{
+			response.setSuccess(false);
+			response.setMessage(e.getMessage());
+		}
+		return locations;
 	}
 	
 	

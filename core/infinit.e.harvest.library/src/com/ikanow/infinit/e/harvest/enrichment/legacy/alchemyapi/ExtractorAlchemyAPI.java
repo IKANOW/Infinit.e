@@ -34,6 +34,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
+import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
@@ -49,10 +50,12 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 	private static final int MAX_LENGTH = 145000;
 
 	// Post processing to clean up people and geo entities
-	AlchemyEntityPersonCleanser postProcPerson = null;
-	AlchemyEntityGeoCleanser postProcGeo = null;
+	protected AlchemyEntityPersonCleanser postProcPerson = null;
+	protected AlchemyEntityGeoCleanser postProcGeo = null;
 	private boolean _bConceptExtraction = false;
 
+	protected TextExtractorTika _tikaExtractor = null;
+	
 	//_______________________________________________________________________
 	//_____________________________INITIALIZATION________________
 	//_______________________________________________________________________
@@ -396,6 +399,27 @@ public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor
 			return;
 		}
 		configure(partialDoc.getTempSource());
+		
+		// Quick check: if it's PDF then send it to tika instead
+		String tmpUrl = partialDoc.getUrl(); 
+		int endIndex = tmpUrl.indexOf('?');
+		if (endIndex > 0) {
+			tmpUrl = tmpUrl.substring(0, endIndex);
+		}
+		endIndex = tmpUrl.indexOf('#');
+		if (endIndex > 0) {
+			tmpUrl = tmpUrl.substring(0, endIndex);
+		}
+		if (tmpUrl.endsWith(".pdf") || tmpUrl.endsWith(".doc") || tmpUrl.endsWith(".docx") || tmpUrl.endsWith(".xls") || tmpUrl.endsWith(".xlsx"))
+		{ 
+			//(eventually should detect error from AApi and send to tika on certain error types)
+			if (null == _tikaExtractor) {
+				_tikaExtractor = new TextExtractorTika();
+			}
+			_tikaExtractor.extractText(partialDoc);
+			return;
+		}
+		//TESTED
 		
 		String json_doc = null;
 		try

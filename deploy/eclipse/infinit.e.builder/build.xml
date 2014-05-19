@@ -25,10 +25,10 @@
 		<fileset dir="${rpm}" includes="**/*"/>
 	</move>
 	
-	<!-- Link elasticsearch to the current highest version -->
-	<move todir="${basedir}/../infinit.e.elasticsearch.driver">
+	<!-- Link elasticsearch to the current highest production version -->
+	<copy todir="${basedir}/../infinit.e.elasticsearch.driver">
 	    <fileset dir="${basedir}/../infinit.e.elasticsearch.driver_0.19"/>
-	</move>
+	</copy>
 	    	
 	<!-- All the dir paths -->
 	<property name="infinit.e.data_model.location" value="${basedir}/../infinit.e.data_model"/>
@@ -51,13 +51,18 @@
 	<property name="InfiniteTimelineWidget.location" value="${basedir}/../InfiniteTimelineWidget"/>
 	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
+	<property name="InfiniteKibanaConnector.location" value="${basedir}/../infinit.e.kibana_connector"/>
+	
 	<property name="chrome.extension.source-updater.location" value="${basedir}/../chrome.extension.source-updater"/>
+	<property name="infinit.e.records.server.location" value="${basedir}/../infinit.e.records.server"/>
+	
 	<property name="infinit.e.web.location" value="${basedir}/../infinit.e.web"/>
 	<property name="Infinit.e.Manager.location" value="${basedir}/../Infinit.e.Manager"/>
 	<property name="infinit.e-config.rpm.location" value="${basedir}/../infinit.e-config.rpm"/>
 	<property name="infinit.e-index-engine.rpm.location" value="${basedir}/../infinit.e-index-engine.rpm"/>
 	<property name="infinit.e-interface-engine.rpm.location" value="${basedir}/../infinit.e-interface-engine.rpm"/>
 	<property name="infinit.e-processing-engine.rpm.location" value="${basedir}/../infinit.e-processing-engine.rpm"/>
+	<property name="infinit.e-record-engine.rpm.location" value="${basedir}/../infinit.e-record-engine.rpm"/>
 	<property name="infinit.e-db-instance.rpm.location" value="${basedir}/../infinit.e-db-instance.rpm"/>
 	
 	<!-- =================================
@@ -99,6 +104,7 @@
 			<property name="basedir" value="${infinit.e.flex.location}"/>
 			<!-- (Also builds the flex.client.library which builds the widget.library) -->
 		</ant>
+		
 		<!-- Widgets (depends on widget.library build) -->
 		<ant antfile="${InfiniteDocBrowserWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteDocBrowserWidget.location}"/>
@@ -130,17 +136,25 @@
 		<ant antfile="${InfiniteEntityProfiler.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteEntityProfiler.location}"/>
 		</ant>
+		<ant antfile="${InfiniteKibanaConnector.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteKibanaConnector.location}"/>
+		</ant>
 
+		<!-- Non widgets that need to be built after the widget -->
 		<ant antfile="${chrome.extension.source-updater.location}/build.xml">
 			<property name="basedir" value="${chrome.extension.source-updater.location}"/>
 		</ant>
+		<ant antfile="${infinit.e.records.server.location}/build.xml">
+			<property name="basedir" value="${infinit.e.records.server.location}"/>
+		</ant>
+		
+		<!-- Misc other GUI components -->		
 		<ant antfile="${infinit.e.web.location}/build.xml">
 			<property name="basedir" value="${infinit.e.web.location}"/>
 		</ant>
 		<ant antfile="${Infinit.e.Manager.location}/build.xml">
 			<property name="basedir" value="${Infinit.e.Manager.location}"/>
 		</ant>
-
 		
 		<!-- RPM builders -->
 				
@@ -156,6 +170,9 @@
 		<ant antfile="${infinit.e-processing-engine.rpm.location}/build.xml">
 			<property name="basedir" value="${infinit.e-processing-engine.rpm.location}"/>
 		</ant>
+		<ant antfile="${infinit.e-record-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${infinit.e-record-engine.rpm.location}"/>
+		</ant>
 		<ant antfile="${infinit.e-db-instance.rpm.location}/build.xml">
 			<property name="basedir" value="${infinit.e-db-instance.rpm.location}"/>
 		</ant>
@@ -170,6 +187,7 @@
 			<fileset dir="${infinit.e-index-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
 			<fileset dir="${infinit.e-interface-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
 			<fileset dir="${infinit.e-processing-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
+			<fileset dir="${infinit.e-record-engine.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
 			<fileset dir="${infinit.e-db-instance.rpm.location}/RPMS/noarch/" includes="*.rpm"/>
 		</copy>
 	    <!--  OFFLINE -->

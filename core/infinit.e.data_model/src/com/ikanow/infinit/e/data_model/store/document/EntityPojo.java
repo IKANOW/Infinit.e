@@ -35,8 +35,10 @@ public class EntityPojo
 	final public static String docQuery_index_ = "entities.index";
 	private String actual_name;
 	final public static String actual_name_ = "actual_name";
+	final public static String docQuery_actual_name_ = "entities.actual_name";
 	private String type;
 	final public static String type_ = "type";
+	final public static String docQuery_type_ = "entities.type";
 	private Double relevance;
 	final public static String relevance_ = "relevance";
 	private Long frequency; 
@@ -49,6 +51,7 @@ public class EntityPojo
 	final public static String docUpdate_doccount_ = "entities.$.doccount";
 	private GeoPojo geotag;
 	final public static String geotag_ = "geotag";
+	final public static String docQuery_geotag_ = "entities.geotag";
 	public enum Dimension { What, When, Where, Who };
 	private Dimension dimension; 
 	final public static String dimension_ = "dimension";
@@ -56,8 +59,10 @@ public class EntityPojo
 	final public static String linkdata_ = "linkdata";
 	private Double sentiment;
 	final public static String sentiment_ = "sentiment";
+	final public static String docQuery_sentiment_ = "entities.sentiment";
 	private String ontology_type = null; //for classifying using ontologies, currently only geo
 	final public static String ontology_type_ = "ontology_type";
+	final public static String docQuery_ontology_type_ = "entities.ontology_type";
 	
 	// The following fields are calculated on a per query basis but are not currently ever stored:
 	private Double significance; // (the document significance - not very interesting compared to...)

@@ -188,6 +188,7 @@ public class DocumentPojo extends BaseDbPojo {
 	private transient String duplicateFrom = null; // Indicates this document should be cloned from the DB entry with matching URL, "duplicateFrom" source
 	private transient DocumentPojo cloneFrom = null; // Indicate this document should be cloned from the "cloneFrom" in memory copy after enrichment 
 	private transient SourcePipelinePojo spawnedFrom = null; // Indicates this document was spawned from a "document splitter" (so should ignore previous pipeline elements)
+	private transient boolean hasDefaultUrl = false; // (for files only) if true then can skip an extra dedup step  
 	
 	////////////////////////////////////////////////////////////////////////////////
 
@@ -710,6 +711,14 @@ public class DocumentPojo extends BaseDbPojo {
 
 	public void setSpawnedFrom(SourcePipelinePojo spawnedFrom) {
 		this.spawnedFrom = spawnedFrom;
+	}
+
+	public boolean getHasDefaultUrl() {
+		return hasDefaultUrl;
+	}
+
+	public void setHasDefaultUrl(boolean hasDefaultUrl) {
+		this.hasDefaultUrl = hasDefaultUrl;
 	}
 
 }

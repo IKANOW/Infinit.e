@@ -40,15 +40,29 @@ import com.mongodb.hadoop.io.BSONWritable;
 
 public class MongoDbUtil {
 
-	@SuppressWarnings("unchecked")
+	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public static <T> T getProperty(DBObject dbo, String fieldInDotNotation) {
 	    final String[] keys = fieldInDotNotation.split( "\\." );
 	    DBObject current = dbo;
 	    Object result = null;
 	    for ( int i = 0; i < keys.length; i++ ) {
 	        result = current.get( keys[i] );
+	        if (null == result) {
+	        	return null;
+	        }
+	        if (result instanceof Collection) {
+	        	result = ((Collection)result).iterator().next();
+	        }
+	        else if (result instanceof Object[]) {
+	        	result = ((Object[])result)[0];
+	        }
 	        if ( i + 1 < keys.length ) {
-	            current = (DBObject) result;
+	        	if (current instanceof DBObject) {
+	        		current = (DBObject) result;
+	        	}
+	        	else {
+	        		return null;
+	        	}
 	        }
 	    }
 	    return (T) result;		
@@ -163,6 +177,7 @@ public class MongoDbUtil {
         return result;
     }//TESTED
     private static ThreadSafeSimpleDateFormat _format = new ThreadSafeSimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
+    private static ThreadSafeSimpleDateFormat _format2 = new ThreadSafeSimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.S'Z'");
 
     public static Object encodeUnknown(JsonElement from) {
 		if (from.isJsonArray()) { // Array
@@ -176,7 +191,11 @@ public class MongoDbUtil {
 					try {
 						return _format.parse(obj.get("$date").getAsString());
 					} catch (ParseException e) {
-						return null;
+						try {
+							return _format2.parse(obj.get("$date").getAsString());
+						} catch (ParseException e2) {
+							return null;
+						}
 					}
 				}//TESTED
 				else if (obj.has("$oid")) {

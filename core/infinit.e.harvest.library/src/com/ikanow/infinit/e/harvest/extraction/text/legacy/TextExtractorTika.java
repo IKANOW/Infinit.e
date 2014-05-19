@@ -24,7 +24,9 @@ public class TextExtractorTika implements ITextExtractor {
 	public String getName() {
 		return "Tika";
 	}
+	protected Tika _tika = new Tika();
 
+	
 	@Override
 	public void extractText(DocumentPojo partialDoc)
 			throws ExtractorDailyLimitExceededException,
@@ -35,10 +37,9 @@ public class TextExtractorTika implements ITextExtractor {
 		}
 		
 		try {
-			Tika tika = new Tika();
 			
 			// Disable the string length limit
-			tika.setMaxStringLength(-1);
+			_tika.setMaxStringLength(-1);
 			//input = new FileInputStream(new File(resourceLocation));
 			// Create a metadata object to contain the metadata
 			Metadata metadata = new Metadata();
@@ -70,7 +71,7 @@ public class TextExtractorTika implements ITextExtractor {
 			catch (Exception e) { // Try one more time, this time exception out all the way
 				urlStream = urlConnect.getInputStream();					 
 			}
-			String fullText = tika.parseToString(urlStream, metadata);
+			String fullText = _tika.parseToString(urlStream, metadata);
 			partialDoc.setFullText(fullText);				
 
 			if ((null != fullText) && (null == partialDoc.getDescription())) {
@@ -82,52 +83,7 @@ public class TextExtractorTika implements ITextExtractor {
 				}
 				partialDoc.setDescription(fullText.substring(0,descCap));
 			}
-			
-			// If the metadata contains a more plausible date then use that
-			try {
-				String title = metadata.get(Metadata.TITLE);
-				if (null != title) {
-					partialDoc.setTitle(title);
-				}
-			}
-			catch (Exception e) { // Fine just carry on						
-			}
-			try { 
-				Date date = metadata.getDate(Metadata.CREATION_DATE); // MS Word
-				if (null != date) { 
-					partialDoc.setPublishedDate(date);
-				}
-				else {
-					date = metadata.getDate(Metadata.DATE); // Dublin
-					if (null != date) {
-						partialDoc.setPublishedDate(date);
-					}
-					else {
-						date = metadata.getDate(Metadata.ORIGINAL_DATE);
-						if (null != date) {
-							partialDoc.setPublishedDate(date);
-						}
-					}
-				}
-			}
-			catch (Exception e) { // Fine just carry on						
-			}
-			// If the metadata contains a geotag then apply that:
-			try {
-				String lat = metadata.get(Metadata.LATITUDE);
-				String lon = metadata.get(Metadata.LONGITUDE);
-				if ((null != lat) && (null != lon)) {
-					GeoPojo gt = new GeoPojo();
-					gt.lat = Double.parseDouble(lat);
-					gt.lon = Double.parseDouble(lon);
-					partialDoc.setDocGeo(gt);
-				}
-			}
-			catch (Exception e) { // Fine just carry on						
-			}
-			
-			// Save the entire metadata:
-			partialDoc.addToMetadata("_FILE_METADATA_", metadata);
+			addMetadata(partialDoc, metadata);
 		} 
 		catch (TikaException e) {
 			throw new ExtractorDocumentLevelException(e.getMessage());
@@ -138,6 +94,54 @@ public class TextExtractorTika implements ITextExtractor {
 	}
 	//TESTED (called from SAH, from UAH, and directly from HC) - pdf only but beyond that it's a tika problem not an Infinit.e one
 
+	public static void addMetadata(DocumentPojo partialDoc, Metadata metadata) {
+		// If the metadata contains a more plausible date then use that
+		try {
+			String title = metadata.get(Metadata.TITLE);
+			if (null != title) {
+				partialDoc.setTitle(title);
+			}
+		}
+		catch (Exception e) { // Fine just carry on						
+		}
+		try { 
+			Date date = metadata.getDate(Metadata.CREATION_DATE); // MS Word
+			if (null != date) { 
+				partialDoc.setPublishedDate(date);
+			}
+			else {
+				date = metadata.getDate(Metadata.DATE); // Dublin
+				if (null != date) {
+					partialDoc.setPublishedDate(date);
+				}
+				else {
+					date = metadata.getDate(Metadata.ORIGINAL_DATE);
+					if (null != date) {
+						partialDoc.setPublishedDate(date);
+					}
+				}
+			}
+		}
+		catch (Exception e) { // Fine just carry on						
+		}
+		// If the metadata contains a geotag then apply that:
+		try {
+			String lat = metadata.get(Metadata.LATITUDE);
+			String lon = metadata.get(Metadata.LONGITUDE);
+			if ((null != lat) && (null != lon)) {
+				GeoPojo gt = new GeoPojo();
+				gt.lat = Double.parseDouble(lat);
+				gt.lon = Double.parseDouble(lon);
+				partialDoc.setDocGeo(gt);
+			}
+		}
+		catch (Exception e) { // Fine just carry on						
+		}
+		
+		// Save the entire metadata:
+		partialDoc.addToMetadata("_FILE_METADATA_", metadata);		
+	}
+	
 	@Override
 	public String getCapability(EntityExtractorEnum capability) {
 		if (capability == EntityExtractorEnum.URLTextExtraction_local)

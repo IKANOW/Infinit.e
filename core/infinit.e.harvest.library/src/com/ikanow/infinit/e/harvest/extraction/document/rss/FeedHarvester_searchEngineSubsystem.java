@@ -174,6 +174,9 @@ public class FeedHarvester_searchEngineSubsystem {
 				
 				for (int nPage = 0; nPage < nMaxPages; ++nPage) {										
 					if ((dedupSet.size() >= maxDocsPerCycle) || stopPaginating) {
+						if (dedupSet.size() >= maxDocsPerCycle) {
+							src.setReachedMaxDocs();
+						}
 						break;
 					}
 					// Will use this to check if we reached a page limit (eg some sites will just repeat the same page over and over again)

@@ -94,7 +94,13 @@ function hasUrl(url, source)
 
 function isRSS(url)
 {
+	//TODO (INF-2528): apparently this breaks everything?
 	//get the extension of the page if there is one
+//	var urlpatt = new RegExp("/rss.[a-z]+(\\?|$)","i");
+//	if (urlpatt.test(url)) {
+//		return true;
+//	}
+		
 	var extIndex = url.lastIndexOf(".");
 	if ( extIndex > -1 )
 	{

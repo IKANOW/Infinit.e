@@ -26,6 +26,7 @@ import au.com.bytecode.opencsv.CSVParser;
 import com.google.gson.JsonObject;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.harvest.extraction.document.file.JsonToMetadataParser.ObjectLength;
 
 public class CsvToMetadataParser {
 
@@ -37,10 +38,17 @@ public class CsvToMetadataParser {
 	
 	private char _quoteChar = '"';
 	
+	// Track approximate memory usage
+	private ObjectLength _memUsage = new ObjectLength();			
+	public long getMemUsage() {
+		return _memUsage.memory*12; // 6x for overhead, 2x for string->byte
+	}
+	
 	public List<DocumentPojo> parseDocument(BufferedReader lineReader, SourcePojo source) throws IOException {
 		String line;
 		List<DocumentPojo> partials = new LinkedList<DocumentPojo>();
 		int docs = 0;
+		_memUsage.memory = 0;
 		
 		CSVParser parser = null;
 		Object[] indexToField = null;
@@ -134,7 +142,7 @@ public class CsvToMetadataParser {
 					if ((null != primaryKey) && (null != source.getFileConfig().XmlSourceName)) {
 						newDoc.setUrl(source.getFileConfig().XmlSourceName + primaryKey);
 					}//TESTED
-					newDoc.addToMetadata("csv", JsonToMetadataParser.convertJsonObjectToLinkedHashMap(json));
+					newDoc.addToMetadata("csv", JsonToMetadataParser.convertJsonObjectToLinkedHashMap(json, _memUsage));					
 				}
 				catch (Exception e) {} // can just skip over the line and carry on
 				

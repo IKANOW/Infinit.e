@@ -121,7 +121,7 @@
 			</mapper>
 			<path>
 			  <!-- Get a list of all the excluded files, add manually to classpath -->
-			  <fileset dir="${dir.lib}" includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar RangeMap.jar"/>
+			  	<fileset dir="${dir.lib}" includes="*.jar"/>
 			</path>
 		</pathconvert>
 
@@ -143,7 +143,7 @@
 			</manifest>
 			<fileset dir="${dir.build.classes}"/>
 
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="commons* jchronic*" />
 		</jar>
 	</target>
 	

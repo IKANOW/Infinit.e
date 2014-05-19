@@ -235,6 +235,10 @@ public class InfiniteFileInputXmlParser implements InfiniteFileInputParser {
 				break;
 				} // (end switch)
 			}
+		} catch (RuntimeException e2) {
+			// Don't throw exception, just recover and move onto next split			
+			//throw new IOException("record " + _oneUp + ": " + e.getMessage(), e);
+			
 		} catch (XMLStreamException e) {
 			// Don't throw exception, just recover and move onto next split			
 			//throw new IOException("record " + _oneUp + ": " + e.getMessage(), e);

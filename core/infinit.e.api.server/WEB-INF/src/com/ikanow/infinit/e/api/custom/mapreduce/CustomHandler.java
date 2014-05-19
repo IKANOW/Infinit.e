@@ -70,7 +70,7 @@ public class CustomHandler
 	 * @param jobid
 	 * @return
 	 */
-	public ResponsePojo getJobResults(String userid, String jobid, int limit, String fields ) 
+	public ResponsePojo getJobResults(String userid, String jobid, int limit, String fields, String findStr, String sortStr ) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		
@@ -99,7 +99,14 @@ public class CustomHandler
 					//get results collection if done and return
 					if ( ( cmr.lastCompletionTime != null ) || (cmr.mapper.equals("none") && cmr.exportToHdfs))
 					{
-						BasicDBObject queryDbo = new BasicDBObject();
+						BasicDBObject queryDbo = null;
+						if (null != findStr) {
+							queryDbo = (BasicDBObject) com.mongodb.util.JSON.parse(findStr);
+						}
+						else {
+							queryDbo = new BasicDBObject();	
+						}//TOTEST
+						
 						BasicDBObject fieldsDbo = new BasicDBObject();
 						if (null != fields) {
 							fieldsDbo = (BasicDBObject) com.mongodb.util.JSON.parse("{" + fields + "}");
@@ -108,15 +115,21 @@ public class CustomHandler
 						//return the results:
 						
 						// Need to handle sorting...
-						String sortField = "_id";
-						int sortDir = 1;
-						BasicDBObject postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(cmr.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
-						if ( postProcObject != null )
-						{
-							sortField = postProcObject.getString("sortField", "_id");
-							sortDir = postProcObject.getInt("sortDirection", 1);
-						}//TESTED (post proc and no post proc)
-						BasicDBObject sort = new BasicDBObject(sortField, sortDir);
+						BasicDBObject sort = null;
+						if (null != sortStr) { //override
+							sort = (BasicDBObject) com.mongodb.util.JSON.parse(sortStr);
+						}
+						else { //defaults
+							String sortField = "_id";
+							int sortDir = 1;
+							BasicDBObject postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(cmr.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
+							if ( postProcObject != null )
+							{
+								sortField = postProcObject.getString("sortField", "_id");
+								sortDir = postProcObject.getInt("sortDirection", 1);
+							}//TESTED (post proc and no post proc)
+							sort = new BasicDBObject(sortField, sortDir);
+						}//TOTEST
 						
 						// Case 1: DB
 						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
@@ -218,7 +231,7 @@ public class CustomHandler
 	 * @param userid
 	 * @return
 	 */
-	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
+	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		List<ObjectId> commids = new ArrayList<ObjectId>(); 
@@ -321,6 +334,8 @@ public class CustomHandler
 					}
 					cmr.appendResults = append;
 					cmr.appendAgeOutInDays = ageOut;
+					cmr.incrementalMode = incrementalMode;
+					
 					if ( json != null && !json.equals("null") )
 						cmr.arguments = json;
 					else
@@ -406,7 +421,7 @@ public class CustomHandler
 		return rp;
 	}
 	
-	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
+	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
@@ -607,6 +622,11 @@ public class CustomHandler
 							cmr.appendAgeOutInDays = 0.0;
 						}
 					}
+					if (null != incrementalMode) 
+					{
+						cmr.incrementalMode = incrementalMode;
+					}
+					
 					if (null != exportToHdfs) {
 						cmr.exportToHdfs = exportToHdfs;
 					}
@@ -707,6 +727,8 @@ public class CustomHandler
 				return "feature.association";
 			if ( input == INPUT_COLLECTIONS.FEATURE_ENTITIES )
 				return "feature.entity";			
+			if ( input == INPUT_COLLECTIONS.FEATURE_TEMPORAL )
+				return "feature.temporal";			
 			if ( input == INPUT_COLLECTIONS.FILESYSTEM )
 				return "filesystem";			
 		}

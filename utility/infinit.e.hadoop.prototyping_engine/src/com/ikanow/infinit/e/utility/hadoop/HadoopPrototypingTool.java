@@ -31,11 +31,11 @@ import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 import org.bson.BasicBSONObject;
 import org.bson.types.BasicBSONList;
-import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoConfig;
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.mongodb.BasicDBList;
+import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.io.BSONWritable;
 import com.mongodb.hadoop.util.MongoTool;
 import com.mongodb.util.JSON;
@@ -54,7 +54,7 @@ public class HadoopPrototypingTool extends MongoTool {
 		
 		protected boolean isInitialized() { return (_engine != null); }
 		
-		public BSONWritable clone() { return new BSONWritable(); }
+		public Object clone(Boolean topLevel) { return topLevel ? new BSONWritable() : new BasicDBObject(); }
 		
 		//////////////////////////////////////////////////////
 		
@@ -98,8 +98,7 @@ public class HadoopPrototypingTool extends MongoTool {
 		
 		protected void map(Object key, BSONObject value)
 		{
-			ObjectId inkey = (ObjectId)key;
-			_engine.put("_map_input_key", inkey.toString());
+			_engine.put("_map_input_key", key.toString());
 			String valueStr = value.toString(); // (these BSON objects are actually DBObjects, hence have a sensible toString())
 			_engine.put("_map_input_value", valueStr);
 			try {

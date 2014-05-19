@@ -15,15 +15,24 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.api;
 
+import java.lang.reflect.Type;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Set;
 
 import javax.xml.bind.annotation.XmlRootElement;
 
+import org.elasticsearch.common.text.Text;
+
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
+import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 
@@ -35,6 +44,29 @@ import com.mongodb.BasicDBObject;
 @XmlRootElement( name = "response" ) 
 public class ResponsePojo extends BaseApiPojo
 {
+	// (some grovelling to avoid class def errors in earlier versions)
+	static private Integer _esVersion = null;
+	static private Class<?> _esTextClass = null;
+	
+	@Override
+	public GsonBuilder extendBuilder(GsonBuilder gb) {
+		if (null == _esVersion) {
+			// (some grovelling to avoid class def errors in earlier versions)
+			_esVersion = ElasticSearchManager.getVersion();
+		}
+		if (_esVersion >= 100) {
+			if (null == _esTextClass) {
+				try {
+					_esTextClass = Class.forName("org.elasticsearch.common.text.Text");
+				} 
+				catch (ClassNotFoundException e) {
+					return gb;
+				}
+			}
+			gb = gb.registerTypeAdapter(_esTextClass, new TextSerializer());
+		}
+		return gb;
+	}
 	//////////////////////////////////////////
 	
 	// Mapping handler (the ResponsePojo is a slightly special case because it can contain 
@@ -411,5 +443,22 @@ public class ResponsePojo extends BaseApiPojo
 			rp.setData(new ArrayList<BasicDBObject>(0), (BasePojoApiMap<BasicDBObject>)null);
 		}		
 		return rp;
+	}
+	
+	///////////////////////////////////////////////
+	
+	// Serializer to handle facets which use Strings (0.19-) or Text (1.0)
+	// (Don't do this in the BaseApiPojo since that can be called from Hadoop which
+	//  doesn't know internally about elasticsearch - yet!)
+	
+	// Just convert elasticsearch text objects to strings
+	
+	protected static class TextSerializer implements JsonSerializer<Text> 
+	{
+		@Override
+		public JsonElement serialize(Text text, Type typeOfT, JsonSerializationContext context)
+		{
+			return new JsonPrimitive(text.toString());
+		}
 	}
 }

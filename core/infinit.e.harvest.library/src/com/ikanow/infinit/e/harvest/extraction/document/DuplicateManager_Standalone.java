@@ -81,4 +81,16 @@ public class DuplicateManager_Standalone implements DuplicateManager {
 		return null;
 	}
 
+	@Override
+	public Date getLastModifiedDate() {
+		// (just return null)
+		return null;
+	}
+
+	@Override
+	public ObjectId getLastModifiedDocId() {
+		// (just return null)
+		return null;
+	}
+
 }

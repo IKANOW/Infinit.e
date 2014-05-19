@@ -161,27 +161,11 @@
 		    </path>
 		 </pathconvert>
 			
-		  <pathconvert property="libs.elasticsearch" pathsep=" ">
-		    <mapper>
-		      <chainedmapper>
-		        <!-- remove absolute path -->
-		        <flattenmapper />
-		        <!-- add lib/ prefix -->
-		      	<globmapper from="*" to="es-libs/*" />		      	
-		      </chainedmapper>
-		    </mapper>
-		    <path>
-		      <fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
-		        <include name="**/*.jar" />
-		      </fileset>
-		    </path>
-		 </pathconvert>
-		
 		<jar destFile="${dir.build.jar}/${ant.project.name}.jar" basedir="${dir.build.classes}"  filesetmanifest="mergewithoutmain" excludes="META-INF/*.SF META-INF/INDEX.LIST">
 			<manifest>
 				<attribute name="Built-By" value="${user.name}"/>
 		        <attribute name="Main-Class" value="com.ikanow.infinit.e.core.CoreMain" />
-				<attribute name="Class-Path" value="infinit.e.data_model.jar infinit.e.harvest.library.jar infinit.e.query.library.jar infinit.e.processing.custom.library.jar infinit.e.processing.generic.library.jar ${libs.jar.bundled} ${libs.elasticsearch}"/>
+				<attribute name="Class-Path" value="infinit.e.data_model.jar infinit.e.harvest.library.jar infinit.e.query.library.jar infinit.e.processing.custom.library.jar infinit.e.processing.generic.library.jar ${libs.jar.bundled}"/>
 				<attribute name="Specification-Title" value="${specification.title}"/>
 				<attribute name="Specification-Version" value="${specification.version}"/>
 				<attribute name="Specification-Vendor" value="${specification.vendor}"/>

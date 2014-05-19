@@ -28,6 +28,8 @@ public class SourceFileConfigPojo {
 	public String pathExclude = null; // optional regex (files and directories) - must match entire path, note directories end with "/"
 	public String renameAfterParse = null; // If "" deletes the file after processing; otherwise if non-null renames to specified string with escapes $path and $name
 	public Integer maxDepth = null; // (optional, defaults to 5): controls the maximum depth through the file system that the harvester will traverse
+	public enum StreamingType { normal, streaming, managed };
+	public StreamingType mode; // (serializes to/from string): defaults to normal - if streaming, will not deduplicate across old files. Managed is not yet supported but will remove docs from deleted files.
 	
 	// For samba shares
 	public String username = null;

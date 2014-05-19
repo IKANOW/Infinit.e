@@ -35,6 +35,7 @@ import com.google.gson.GsonBuilder;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.ikanow.infinit.e.data_model.index.BaseIndexPojo;
@@ -384,12 +385,25 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			synchronizeWithIndex(doc);
 				// (does most of the transformations - the default index pojo does the rest)
 			
+			// Going to do tags manually to convert them to lower case:
+			Set<String> tags = doc.getTags();
+			doc.setTags(null);
+			
 			// GSON transformation:
 			JsonElement je = new EntityPojoIndexMap().extendBuilder( 
 								new AssociationPojoIndexMap().extendBuilder(
 										BaseIndexPojo.getDefaultBuilder())).
 								create().toJsonTree(doc, typeOfT);	
 
+			// Write tags back in (as lower case):
+			if (null != tags) {
+				JsonArray ja = new JsonArray();
+				for (String tag: tags) {
+					ja.add(new JsonPrimitive(tag.toLowerCase()));
+				}
+				je.getAsJsonObject().add(DocumentPojo.tags_, ja);
+			}//TESTED
+			
 			// Convert object names in metadata
 			if ((null != doc.getMetadata()) && !doc.getMetadata().isEmpty()) {
 				if (je.isJsonObject()) {

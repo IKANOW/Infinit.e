@@ -51,6 +51,12 @@
 		<mkdir dir="${dir.rpms}"/>
 		<symlink link="../${modified_name}.rpm" resource="${ant.project.name}.rpm" />		
 		
+		<copy file="../infinit.e.elasticsearch.driver_1.0/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar"/>
+			
 		<copy file="../infinit.e.api.server/dist/querydecayscript.jar" 
 					tofile="./SOURCES/infinit.e-index-engine/usr/share/java/elasticsearch/plugins/scoringscripts/querydecayscript.jar"/>
 	</target>

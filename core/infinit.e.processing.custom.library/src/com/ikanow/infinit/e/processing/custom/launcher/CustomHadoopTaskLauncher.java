@@ -51,12 +51,15 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
 import org.bson.types.ObjectId;
+import org.elasticsearch.common.joda.time.Interval;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.api.knowledge.QueryHandler;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoSplitter;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -69,6 +72,7 @@ import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
 
 public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 
@@ -441,6 +445,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		String dbserver = prop_general.getDatabaseServer();
 		output = outputDatabase + "." + tempOutputCollection;
 
+		
 		int nSplits = 8;
 		int nDocsPerSplit = 12500;
 		
@@ -498,22 +503,53 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}
 		boolean tmpIncMode = ( null != incrementalMode) && incrementalMode; 
 		
+		Date fromOverride = null;
+		Date toOverride = null;
+		Object fromOverrideObj = oldQueryObj.remove("$tmin");
+		Object toOverrideObj = oldQueryObj.remove("$tmax");
+		if (null != fromOverrideObj) {
+			fromOverride = dateStringFromObject(fromOverrideObj, true);
+		}
+		if (null != toOverrideObj) {
+			toOverride = dateStringFromObject(toOverrideObj, false);
+		}
+		
 		if ( !isCustomTable )
 		{
 			if (elasticsearchQuery) {
 				oldQueryObj.put("communityIds", communityIds);
+				//tmin/tmax not supported - already have that capability as part of the query
 			}
 			else {
-				oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
-				oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
+				if (input.equals("feature.temporal")) {
+					if ((null != fromOverride) || (null != toOverride)) {
+						oldQueryObj.put("value.maxTime", createDateRange(fromOverride, toOverride, true));
+					}//TESTED
+					oldQueryObj.put("_id.c", new BasicDBObject(DbManager.in_, communityIds));
+				}
+				else {
+					oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
+					if ((null != fromOverride) || (null != toOverride)) {
+						oldQueryObj.put("_id", createDateRange(fromOverride, toOverride, false));
+					}//TESTED			
+					if (input.equals("doc_metadata.metadata")) {
+						oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
+					}
+				}
 			}
 		}
 		else
 		{
+			if ((null != fromOverride) || (null != toOverride)) {
+				oldQueryObj.put("_id", createDateRange(fromOverride, toOverride, false));
+			}//TESTED
 			//get the custom table (and database)
 			input = CustomOutputManager.getCustomDbAndCollection(input);
 		}		
 		query = oldQueryObj.toString();
+		
+		/**/
+		System.out.println("QUERY=== " + query);
 		
 		if ( arguments == null )
 			arguments = "";
@@ -590,6 +626,62 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}
 	}
 
+	private static Date dateStringFromObject(Object o, boolean minNotMax) {
+		if (null == o) {
+			return null;
+		}
+		else if (o instanceof Long) {
+			return new Date((Long)o);
+		}
+		else if (o instanceof Integer) {
+			return new Date((long)(int)(Integer)o);
+		}
+		else if (o instanceof Date) {
+			return (Date)o;
+		}
+		else if (o instanceof DBObject) {
+			o = ((DBObject) o).get("$date");
+		}
+		if (o instanceof String) {
+			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
+			if (minNotMax) {
+				time.min = (String) o;
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime());
+				return i.getStart().toDate();
+			}
+			else {
+				time.max = (String) o;
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime());
+				return i.getEnd().toDate();				
+			}
+		}
+		else {
+			return null;
+		}
+	}//TESTED: relative string. string, $date obj, number - parse failure + success
+	
+	private static BasicDBObject createDateRange(Date min, Date max, boolean timeNotOid) {
+		BasicDBObject toFrom = new BasicDBObject();
+		if (null != min) {
+			if (timeNotOid) {
+				toFrom.put(DbManager.gte_, min.getTime());
+			}
+			else {
+				toFrom.put(DbManager.gte_, new ObjectId(min));
+				
+			}
+		}
+		if (null != max) {
+			if (timeNotOid) {
+				toFrom.put(DbManager.lte_, max.getTime());
+			}
+			else {
+				toFrom.put(DbManager.lte_, new ObjectId(max));				
+			}
+		}
+		return toFrom;
+	}//TESTED (min/max, _id/time)
+	
 	////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////
 	

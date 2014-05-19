@@ -22,8 +22,8 @@ import java.util.Date;
 import java.util.List;
 
 import org.bson.types.ObjectId;
-
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
@@ -44,12 +44,15 @@ public class BaseApiPojo {
 	}
 	// Allows API owner to enforce some custom serializations
 	final public static GsonBuilder getDefaultBuilder() {
-		return new GsonBuilder()
-			.registerTypeAdapter(ObjectId.class, new ObjectIdSerializer())
-			.registerTypeAdapter(ObjectId.class, new ObjectIdDeserializer())
-			.registerTypeAdapter(Date.class, new DateDeserializer())
-			.registerTypeAdapter(Date.class, new DateSerializer())
-			;
+		GsonBuilder gb = 
+			new GsonBuilder()
+				.registerTypeAdapter(ObjectId.class, new ObjectIdSerializer())
+				.registerTypeAdapter(ObjectId.class, new ObjectIdDeserializer())
+				.registerTypeAdapter(Date.class, new DateDeserializer())
+				.registerTypeAdapter(Date.class, new DateSerializer())			
+				.registerTypeAdapter(JsonArray.class, new JsonArraySerializer())
+				;
+		return gb;
 	}
 	private static GsonBuilder extendBuilder_internal(GsonBuilder gp) {
 		return gp;
@@ -267,6 +270,14 @@ public class BaseApiPojo {
 		{
 			ThreadSafeSimpleDateFormat tsdf = new ThreadSafeSimpleDateFormat("MMM d, yyyy hh:mm:ss a 'UTC'");
 			return new JsonPrimitive(tsdf.format(date));
+		}
+	}
+	protected static class JsonArraySerializer implements JsonSerializer<JsonArray> 
+	{
+		@Override
+		public JsonElement serialize(JsonArray jsonArray, Type typeOfT, JsonSerializationContext context)
+		{
+			return jsonArray;
 		}
 	}
 }

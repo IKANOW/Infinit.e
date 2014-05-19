@@ -25,6 +25,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import org.apache.commons.codec.binary.Base64;
@@ -747,6 +748,9 @@ public class SourcePojo extends BaseDbPojo {
 		return transformed;
 	}//TESTED (legacy)
 	
+	//(ugh need to store this logstash-domain-specific information here, might need to update it from time to time buy should remain reasonably simple)
+	private static Pattern _getLogstashUrlRegex = Pattern.compile("(?:bucket|host|url|uri|path)[\\s\\n\\r]*=>[\\s\\n\\r]*['\"]([^'\"]+)", Pattern.CASE_INSENSITIVE);
+	
 	public String getRepresentativeUrl() {
 		if (null == this.getProcessingPipeline()) {
 			if (null != this.getUrl()) {
@@ -763,6 +767,17 @@ public class SourcePojo extends BaseDbPojo {
 			}
 			else if (null != px.database) {
 				return px.database.getUrl();
+			}
+			else if (null != px.logstash) {
+				String url = null;
+				try {
+					Matcher m1 =  _getLogstashUrlRegex.matcher(px.logstash.config);
+					if (m1.find()) { // (get the first)
+						url = m1.group(1);
+					}
+				}
+				catch (Exception e) {} // return null will error out
+				return url;
 			}
 			else {
 				SourceRssConfigPojo webOrFeed = px.feed;
@@ -787,6 +802,9 @@ public class SourcePojo extends BaseDbPojo {
 				}
 				else if (null != px.database) {
 					this.extractType = "Database";					
+				}
+				else if (null != px.logstash) {
+					this.extractType = "Logstash";					
 				}
 				else if ((null != px.web) || (null != px.feed)) {
 					this.extractType = "Feed";					

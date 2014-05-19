@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.data_model.store.config.source;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.regex.Pattern;
 
 import org.bson.types.ObjectId;
 
@@ -40,7 +41,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public SourceFileConfigPojo file;
 	public SourceRssConfigPojo feed;
 	public SourceRssConfigPojo web;
-	public SourceNoSqlConfigPojo nosql = null; 
+	public SourceNoSqlConfigPojo nosql = null;
+	public LogstashExtractorPojo logstash;
 
 	// 1.2] Global operations
 	
@@ -80,6 +82,13 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	////////////////////////////////////////////////////////
 	
 	// 2] Sub-classes:
+	
+	// 2.1] Extractors
+	
+	public static class LogstashExtractorPojo {
+		public String config; // The logstash-formatted configuration object
+		public Boolean streaming; // if false (defaults to true), then source is "stashed" forever instead of being aged out
+	}
 	
 	// 2.2] Global operations
 	
@@ -166,7 +175,9 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Boolean exitOnError; //OPTIONAL: if present and false, then on error tries to keep going (ie as if the pipeline element did not exist)
 		public LinkedHashMap<String, String> engineConfig; // The configuration object to be passed to the engine
 		public String entityFilter; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
-		public String assocFilter; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only) 
+		public String assocFilter; // (regex applied to new-line separated association indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
+		transient public Pattern entityRegex;
+		transient public Pattern assocRegex;
 	}
 	
 	// 2.7] Finishing steps

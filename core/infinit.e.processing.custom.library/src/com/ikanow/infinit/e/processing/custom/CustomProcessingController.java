@@ -90,7 +90,7 @@ public class CustomProcessingController {
 		long time_setup = 0;
 		try
 		{
-			CustomOutputManager.shardOutputCollection(job);
+			CustomOutputManager.prepareOutputCollection(job);
 
 			// This may be a saved query, if so handle that separately
 			if (null == job.jarURL) {
@@ -124,7 +124,8 @@ public class CustomProcessingController {
 			}
 			else {
 
-				//TODO should only allow _JARS_ owned by admin to be run - 
+				//TODO (INF-2118)... should only allow _JARS_ owned by admin to be run - (also have some mechanism for allowing admins to upload JARs
+				// but not provide them to other users?!)
 				if (prop_custom.getHarvestSecurity()) {
 					if (!AuthUtils.isAdmin(job.submitterID)) {
 						throw new RuntimeException("Permissions error: in secure mode, only admins can launch Hadoop");

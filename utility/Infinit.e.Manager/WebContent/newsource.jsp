@@ -562,6 +562,7 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	sources.append("<option value=\"infinite_share_upload\">Infinit.e ZIP Archives/JSON Share Example</option>");
 	sources.append("<option value=\"infinite_custom_ingest\">Infinit.e Custom Analytics Example</option>");
 	sources.append("<option value=\"database\">Basic SQL Database Example</option>");
+	sources.append("<option value=\"logstash\">Logstash Template</option>");
 	sources.append("<option value=\"\">------------------User/Shared templates:</option>");
 	
 	String apiAddress = "social/share/search/?searchby=type&type=source_template";

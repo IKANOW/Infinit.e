@@ -88,6 +88,9 @@ import com.mongodb.ReadPreference;
 // Advanced Queries
 //
 
+//(remove this during active development - want to just depress a deprecation warning but no way of doing this for both 0.19 and 1.0)
+//@SuppressWarnings("deprecation")
+@SuppressWarnings("all")
 public class QueryHandler {
 
 	private final StringBuffer _logMsg = new StringBuffer();	
@@ -372,7 +375,7 @@ public class QueryHandler {
 		long nProcTime_tmp = System.currentTimeMillis();
 		
 		StatisticsPojo stats = new StatisticsPojo();			
-		stats.found = queryResults.hits().getTotalHits();
+		stats.found = queryResults.getHits().getTotalHits();
         stats.start = (long)nRecordsToSkip;
         
 		if (nRecordsToGet > 0) {
@@ -906,7 +909,7 @@ public class QueryHandler {
 				outputFilter = FilterBuilders.boolFilter();
 								
 				outputFilter.must(FilterBuilders.nestedFilter(DocumentPojo.entities_, 
-						FilterBuilders.termsFilter(EntityPojo.type_, entityTypeFilterStrings)));
+						FilterBuilders.termsFilter(EntityPojo.docQuery_type_, entityTypeFilterStrings)));
 			}
 		}
 		if (null != assocVerbFilterStrings) {
@@ -920,7 +923,7 @@ public class QueryHandler {
 					sb.setLength(0);
 					sb.append('"').append(assocVerb).append('"');
 					verbFilter.should(FilterBuilders.nestedFilter(DocumentPojo.associations_, 
-							QueryBuilders.queryString(sb.toString()).field(AssociationPojo.verb_category_)));
+							QueryBuilders.queryString(sb.toString()).field(AssociationPojo.docQuery_verb_category_)));
 					//(closest to exact that we can manage, obv verb_cat should actually be not_analyzed)
 				}
 				outputFilter.must(verbFilter);
@@ -945,7 +948,10 @@ public class QueryHandler {
 
 	// 1.1] Free text (Lucene)	
 		
+		boolean nonEmpty = false;
+		
 		if (null != qt.ftext) { // NOTE term building code below depends on this being 1st clause
+			nonEmpty = true;
 			if (qt.ftext.startsWith("$cache")) { // currently not supported
 				throw new RuntimeException("Don't currently support nested cached queries - coming soon.");
 			}
@@ -972,6 +978,7 @@ public class QueryHandler {
 	// 1.2] Exact text	
 		
 		if (null != qt.etext) { // NOTE term building code below depends on this being 2nd clause
+			nonEmpty = true;
 			BaseQueryBuilder termQ = null;
 			if (sQueryTerm.length() > 1) {
 				sQueryTerm.append(" AND ");
@@ -1009,12 +1016,13 @@ public class QueryHandler {
 	// 1.3] Entity 	
 		
 		if ((null != qt.entity) || (null != qt.entityValue) || ((null == qt.assoc) && (null != qt.sentiment))) { // (if no association specified then sentiment applies to entities)
+			nonEmpty = true;
 			if (sQueryTerm.length() > 1) {
 				sQueryTerm.append(" AND ");
 			}
 			sQueryTerm.append('(');
 			
-			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.entities_, this.parseEntityTerm(qt, sQueryTerm)).scoreMode("max").boost((float)1.0);
+			BaseQueryBuilder termQ = QueryBuilders.nestedQuery(DocumentPojo.entities_, this.parseEntityTerm(qt, sQueryTerm, EntityPojo.docQuery_index_)).scoreMode("max").boost((float)1.0);
 			
 			if (null == term) {
 				term = termQ;
@@ -1032,6 +1040,7 @@ public class QueryHandler {
 	// 1.4] Dates
 		
 		if (null != qt.time) {
+			nonEmpty = true;
 			if (sQueryTerm.length() > 1) {
 				sQueryTerm.append(" AND ");
 			}
@@ -1056,6 +1065,7 @@ public class QueryHandler {
 		
 		if (null != qt.geo) 
 		{
+			nonEmpty = true;
 			if (sQueryTerm.length() > 1) 
 			{
 				sQueryTerm.append(" AND ");
@@ -1085,6 +1095,7 @@ public class QueryHandler {
 		if (null == qt.assoc) qt.assoc = qt.event;
 			//(continue to support the old "event" name for another release)
 		if (null != qt.assoc) {
+			nonEmpty = true;
 			if (sQueryTerm.length() > 1) {
 				sQueryTerm.append(" AND ");
 			}
@@ -1105,6 +1116,10 @@ public class QueryHandler {
 			
 			sQueryTerm.append(')');								
 		} // (end event)
+
+		if (!nonEmpty) {
+			throw new RuntimeException("One+ of your query terms is empty!");
+		}//TOTEST
 		
 		sQueryTerm.append(')');					
 		return term;
@@ -1130,10 +1145,6 @@ public class QueryHandler {
 	
 	// 1.2.1] Entity term parsing
 	
-	BaseQueryBuilder parseEntityTerm(AdvancedQueryPojo.QueryTermPojo qt, StringBuffer sQueryTerm)
-	{
-		return parseEntityTerm(qt, sQueryTerm, EntityPojo.index_);
-	}
 	BaseQueryBuilder parseEntityTerm(AdvancedQueryPojo.QueryTermPojo qt, StringBuffer sQueryTerm, String sFieldName)
 	{
 		BaseQueryBuilder termQ = null;
@@ -1187,7 +1198,7 @@ public class QueryHandler {
 				if (null != _tmpAliasMap) {
 					String[] terms = _tmpAliasMap.get(qt.entity).toArray(new String[0]);
 					if ((null != terms) && (terms.length > 0)) {
-						termQ = termBoolQ.should(QueryBuilders.termsQuery(EntityPojo.actual_name_, terms));
+						termQ = termBoolQ.should(QueryBuilders.termsQuery(EntityPojo.docQuery_actual_name_, terms));
 						sQueryTerm.append(" OR actual_name:$aliases");
 					}
 				}
@@ -1212,14 +1223,14 @@ public class QueryHandler {
 					dName = qt.entity.substring(0, nIndex2);
 				}//TESTED
 
-				if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
+				if (EntityPojo.docQuery_index_ == sFieldName) { // (note: can use pointers here)
 					AdvancedQueryPojo.QueryTermPojo qtExtra = new AdvancedQueryPojo.QueryTermPojo();
 					qtExtra.etext = dName;
 					_extraFullTextTerms.add(qtExtra);
 					sQueryTerm.append(" OR ((\"").append(dName).append('"').append("))");
 				}
-				else if (AssociationPojo.geo_index_ != sFieldName) { // (geo has no non-indexed form)
-					String nonIndexField = (AssociationPojo.entity1_index_ == sFieldName) ? AssociationPojo.entity1_ : AssociationPojo.entity2_;
+				else if (AssociationPojo.docQuery_geo_index_ != sFieldName) { // (geo has no non-indexed form)
+					String nonIndexField = (AssociationPojo.docQuery_entity1_index_ == sFieldName) ? AssociationPojo.docQuery_entity1_ : AssociationPojo.docQuery_entity2_;
 					if (null == termBoolQ) {
 						termBoolQ = QueryBuilders.boolQuery();
 					}
@@ -1246,8 +1257,8 @@ public class QueryHandler {
 							_extraFullTextTerms = new LinkedList<AdvancedQueryPojo.QueryTermPojo>();
 						}
 						String nonIndexField = null;
-						if (AssociationPojo.geo_index_ != sFieldName) { // (geo has no non-indexed form)
-							nonIndexField = (AssociationPojo.entity1_index_ == sFieldName) ? AssociationPojo.entity1_ : AssociationPojo.entity2_;
+						if (AssociationPojo.docQuery_geo_index_ != sFieldName) { // (geo has no non-indexed form)
+							nonIndexField = (AssociationPojo.docQuery_entity1_index_ == sFieldName) ? AssociationPojo.docQuery_entity1_ : AssociationPojo.docQuery_entity2_;
 						}
 						
 						// (slightly annoying because I have to derive the dnames for all of them) 
@@ -1255,7 +1266,7 @@ public class QueryHandler {
 							int nIndex2 = alias.lastIndexOf('/');
 							String dName = alias.substring(0, nIndex2);
 							
-							if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
+							if (EntityPojo.docQuery_index_ == sFieldName) { // (note: can use pointers here)
 								AdvancedQueryPojo.QueryTermPojo qtExtra = new AdvancedQueryPojo.QueryTermPojo();
 								qtExtra.etext = dName;
 								_extraFullTextTerms.add(qtExtra);
@@ -1264,7 +1275,7 @@ public class QueryHandler {
 								termQ = termBoolQ = termBoolQ.should(CrossVersionQueryBuilders.matchPhraseQuery(nonIndexField, dName));
 							}
 						}
-						if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
+						if (EntityPojo.docQuery_index_ == sFieldName) { // (note: can use pointers here)
 							sQueryTerm.append(" OR (($manual_aliases").append("))");
 						}
 						else if (null != nonIndexField) {
@@ -1276,15 +1287,15 @@ public class QueryHandler {
 					// Recall: we're abusing linkdata to contain aliases:
 					if ((null != masterAlias.getSemanticLinks()) && !masterAlias.getSemanticLinks().isEmpty()) {
 						String nonIndexField = null;
-						if (AssociationPojo.geo_index_ != sFieldName) { // (geo has no non-indexed form)
-							nonIndexField = (AssociationPojo.entity1_index_ == sFieldName) ? AssociationPojo.entity1_ : AssociationPojo.entity2_;
+						if (AssociationPojo.docQuery_geo_index_ != sFieldName) { // (geo has no non-indexed form)
+							nonIndexField = (AssociationPojo.docQuery_entity1_index_ == sFieldName) ? AssociationPojo.docQuery_entity1_ : AssociationPojo.docQuery_entity2_;
 						}
 						
 						if (null == this._extraFullTextTerms) {
 							_extraFullTextTerms = new LinkedList<AdvancedQueryPojo.QueryTermPojo>();
 						}
 						for (String textAlias: masterAlias.getSemanticLinks()) {
-							if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
+							if (EntityPojo.docQuery_index_ == sFieldName) { // (note: can use pointers here)
 								AdvancedQueryPojo.QueryTermPojo qtExtra = new AdvancedQueryPojo.QueryTermPojo();
 								qtExtra.etext = textAlias;
 								_extraFullTextTerms.add(qtExtra);
@@ -1293,7 +1304,7 @@ public class QueryHandler {
 								termQ = termBoolQ = termBoolQ.should(CrossVersionQueryBuilders.matchPhraseQuery(nonIndexField, textAlias));
 							}
 						}
-						if (EntityPojo.index_ == sFieldName) { // (note: can use pointers here)
+						if (EntityPojo.docQuery_index_ == sFieldName) { // (note: can use pointers here)
 							sQueryTerm.append(" OR (($manual_text_aliases").append("))");
 						}
 						else if (null != nonIndexField) {
@@ -1312,8 +1323,8 @@ public class QueryHandler {
 						
 		// Sentiment... only apply for entities (association sentiment is handled in parseAssociationTerm)
 		
-		if ((null != qt.sentiment) && (EntityPojo.index_ == sFieldName)) { // (note: can use pointers here)
-			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(EntityPojo.sentiment_);
+		if ((null != qt.sentiment) && (EntityPojo.docQuery_index_ == sFieldName)) { // (note: can use pointers here)
+			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(EntityPojo.docQuery_sentiment_);
 			if (null != qt.sentiment.min) {
 				sentimentQ.from(qt.sentiment.min);
 			}
@@ -1370,6 +1381,7 @@ public class QueryHandler {
 		if (null != _tmpEntityExpansionList) {
 			try {
 				_tmpAliasMap = SearchHandler.findAliases(entityFeatureDb, EntityPojo.index_, _tmpEntityExpansionList, userIdStr, communityIdList);
+				//(NOTE: this is intentionally _not_ EntityPojo.docQuery_index, that's just for referencing nested queries/filters in elasticsearch)
 			}
 			catch (Exception e) {
 				// Just carry on without expansion
@@ -1434,7 +1446,7 @@ public class QueryHandler {
 	
 	// 1.2.2.1] Even lower level date parsing
 	
-	private static Interval parseMinMaxDates(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, long nMinTime, long nMaxTime) {
+	public static Interval parseMinMaxDates(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, long nMinTime, long nMaxTime) {
 		
 		if ((null != time.min) && (time.min.length() > 0)) {
 			if (time.min.equals("now")) { 
@@ -1557,14 +1569,14 @@ public class QueryHandler {
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 					{						
 						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(geo.dist).point(lat, lon)).boost(1.0F));
-						subQ.must(QueryBuilders.termQuery(EntityPojo.ontology_type_, ont_terms.toArray()));	
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.docQuery_geotag_).distance(geo.dist).point(lat, lon)).boost(1.0F));
+						subQ.must(QueryBuilders.termQuery(EntityPojo.docQuery_ontology_type_, ont_terms.toArray()));	
 						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 					}
 					
 					//ASSOC AND DOCGEO (only added if ont is point or null)
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0));
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.docQuery_geotag_).distance(geo.dist).point(lat, lon)).scoreMode("max").boost((float)1.0));
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
 						boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(geo.dist).point(lat, lon)));					
 				}
@@ -1576,13 +1588,13 @@ public class QueryHandler {
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 					{
 						//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).boost(1.0F));
-						subQ.must(QueryBuilders.termsQuery(EntityPojo.ontology_type_, ont_terms.toArray()));													
+						BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(EntityPojo.docQuery_geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).boost(1.0F));
+						subQ.must(QueryBuilders.termsQuery(EntityPojo.docQuery_ontology_type_, ont_terms.toArray()));													
 						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 					}
 					//ASSOC AND DOCGEO (only added if ont is point or null)
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).scoreMode("max").boost((float)1.0));
+						boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoDistanceFilter(AssociationPojo.docQuery_geotag_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)).scoreMode("max").boost((float)1.0));
 					if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
 						boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoDistanceFilter(DocumentPojo.docGeo_).distance(Double.parseDouble(geo.dist), DistanceUnit.KILOMETERS).point(lat, lon)));
 				}
@@ -1619,14 +1631,14 @@ public class QueryHandler {
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ENT )
 				{
 					//use a 2nd variable so we dont have to keep casting termQ to BoolQuery
-					BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(EntityPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost(1.0F));
-					subQ.must(QueryBuilders.termsQuery(EntityPojo.ontology_type_, ont_terms.toArray()));													
+					BoolQueryBuilder subQ = QueryBuilders.boolQuery().must(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(EntityPojo.docQuery_geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).boost(1.0F));
+					subQ.must(QueryBuilders.termsQuery(EntityPojo.docQuery_ontology_type_, ont_terms.toArray()));													
 					boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.entities_, subQ).scoreMode("max").boost((float)1.0));
 				}
 				
 				//ASSOC AND DOCGEO (only added if ont is point or null)			
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.ASSOC )
-					boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoBoundingBoxFilter(AssociationPojo.geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).scoreMode("max").boost((float)1.0));
+					boolQ.should(QueryBuilders.nestedQuery(DocumentPojo.associations_, FilterBuilders.geoBoundingBoxFilter(AssociationPojo.docQuery_geotag_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)).scoreMode("max").boost((float)1.0));
 				if ( parseFields == GeoParseField.ALL || parseFields == GeoParseField.DOC )
 					boolQ.should(QueryBuilders.constantScoreQuery(FilterBuilders.geoBoundingBoxFilter(DocumentPojo.docGeo_).topLeft(latmax,lonmin).bottomRight(latmin, lonmax)));
 							
@@ -1661,6 +1673,7 @@ public class QueryHandler {
 					"yyyy'-'MM'-'dd hh:mm:ss", "dd MMM yy hh:mm:ss", "dd MMM yyyy hh:mm:ss",
 					"MM/dd/yy hh:mm:ss", "MM/dd/yyyy hh:mm:ss", "MM.dd.yy hh:mm:ss", "MM.dd.yyyy hh:mm:ss",
 					 DateFormatUtils.ISO_DATE_FORMAT.getPattern(),
+					 DateFormatUtils.ISO_DATETIME_FORMAT.getPattern(),
 					 DateFormatUtils.ISO_DATE_TIME_ZONE_FORMAT.getPattern(),
 					 DateFormatUtils.ISO_DATETIME_TIME_ZONE_FORMAT.getPattern(),
 					 DateFormatUtils.SMTP_DATETIME_FORMAT.getPattern()
@@ -1691,7 +1704,7 @@ public class QueryHandler {
 		if (null != assoc.entity1) {
 			bFirstTerm = false;
 			sQueryTerm.append("(");			
-			this.parseAssociationSubTerm(assoc.entity1, sQueryTerm, query, AssociationPojo.entity1_, AssociationPojo.entity1_index_);
+			this.parseAssociationSubTerm(assoc.entity1, sQueryTerm, query, AssociationPojo.docQuery_entity1_, AssociationPojo.docQuery_entity1_index_);
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TESTED
@@ -1701,7 +1714,7 @@ public class QueryHandler {
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(");
-			this.parseAssociationSubTerm(assoc.entity2, sQueryTerm, query, AssociationPojo.entity2_, AssociationPojo.entity2_index_);
+			this.parseAssociationSubTerm(assoc.entity2, sQueryTerm, query, AssociationPojo.docQuery_entity2_, AssociationPojo.docQuery_entity2_index_);
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TESTED
@@ -1712,8 +1725,8 @@ public class QueryHandler {
 			bFirstTerm = false;
 			sQueryTerm.append("(verb,verb_category:").append(assoc.verb).append(")");
 			
-			query.must(QueryBuilders.boolQuery().should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.verb_)).
-													should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.verb_category_)));
+			query.must(QueryBuilders.boolQuery().should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.docQuery_verb_)).
+													should(QueryBuilders.queryString(assoc.verb).field(AssociationPojo.docQuery_verb_category_)));
 			
 			sQueryTerm.append(')');
 			nTerms++;
@@ -1736,35 +1749,42 @@ public class QueryHandler {
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(");
+			
+			// Top level: one of start OR end has to start inside the range (this is the first bit)
+			// OR it must envelop the query 
+			
 			// OK this one is a bit tricky because an event has a start+end time ... I think both
 			// have to be inside the time range (fortunately because that's the easy case!)
 			// (Note time_start and time_end don't exist inside the document object)
 			StringBuffer sbDummy = new StringBuffer();
 			BoolQueryBuilder combo2 = QueryBuilders.boolQuery();
-			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.time_start_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_start_));
 			sQueryTerm.append(") OR/CONTAINS (");
-			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.time_end_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_end_));
 			// (complex bit, start must be < and end must be >)
 			BoolQueryBuilder combo3 = QueryBuilders.boolQuery();
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo event1 = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo event2 = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
 			sQueryTerm.append("))");
-			event1.min = "0";
-			event1.max = assoc.time.min;
-			event1.min = assoc.time.max;
-			event1.max = "999900"; // (ie the end of time, sort of!)
-			combo3.must(this.parseDateTerm(event1, sbDummy, AssociationPojo.time_start_));
-			combo3.must(this.parseDateTerm(event2, sbDummy, AssociationPojo.time_end_));
-			query.must(combo2).must(combo3);
+			event1.min = "10010101";
+			event1.max = assoc.time.min; 
+			event2.min = assoc.time.max; 
+			event2.max = "99990101"; // (ie the end of time, sort of!)
+			combo3.must(this.parseDateTerm(event1, sbDummy, AssociationPojo.docQuery_time_start_)); // ie start time earlier than query
+			combo3.must(this.parseDateTerm(event2, sbDummy, AssociationPojo.docQuery_time_end_)); // AND end time later than query
+			
+			query.must(combo2.should(combo3));
+			
+			query.must(combo2); // (this one is very simple - either one of the times must be inside the range)
 			nTerms++;
-		}//TOTEST
+		}//TESTED
 		if (null != assoc.type) {
 			if (!bFirstTerm) {
 				sQueryTerm.append(" AND ");				
 			}
 			bFirstTerm = false;
 			sQueryTerm.append("(event_type:").append(assoc.type).append(")");
-			query.must(QueryBuilders.termQuery(AssociationPojo.assoc_type_, assoc.type));
+			query.must(QueryBuilders.termQuery(AssociationPojo.docQuery_assoc_type_, assoc.type));
 			sQueryTerm.append(')');
 			nTerms++;
 		}//TOTEST
@@ -1773,7 +1793,7 @@ public class QueryHandler {
 				sQueryTerm.append(" AND ");				
 			}			
 			bFirstTerm = false;
-			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(AssociationPojo.sentiment_);			
+			RangeQueryBuilder sentimentQ = QueryBuilders.rangeQuery(AssociationPojo.docQuery_sentiment_);			
 			if (null != sentiment.min) {
 				sentimentQ.from(sentiment.min);
 			}
@@ -2009,7 +2029,7 @@ public class QueryHandler {
 		}
 		if ((null != geoDecay) && (null != parentFilterObj)) { // Regardless of high/low accuracy, add 0.5% filter
 			
-			GeoDistanceFilterBuilder geoFilter = FilterBuilders.geoDistanceFilter(EntityPojo.geotag_).
+			GeoDistanceFilterBuilder geoFilter = FilterBuilders.geoDistanceFilter(EntityPojo.docQuery_geotag_).
 													point(geoDecay[0], geoDecay[1]).distance(200.0/geoDecay[2], DistanceUnit.KILOMETERS);
 			
 			parentFilterObj.must(FilterBuilders.nestedFilter(DocumentPojo.entities_, geoFilter));

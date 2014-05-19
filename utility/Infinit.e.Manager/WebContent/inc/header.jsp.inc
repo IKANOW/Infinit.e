@@ -14,7 +14,7 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 			JSONObject person = personResponse.getJSONObject("data");		
 			String firstName = person.getString("firstName");
 			String lastName = person.getString("lastName");
-			name = "Welcome, " + firstName + " " + lastName;
+			name = firstName + " " + lastName;
 		}
 	} 
 	catch (Exception e) 

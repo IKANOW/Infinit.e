@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry kind="var" path="TOMCAT_HOME/lib/servlet-api.jar"/>
+	<classpathentry kind="var" path="TOMCAT_HOME/lib/jasper.jar"/>
+	<classpathentry kind="var" path="TOMCAT_HOME/lib/jsp-api.jar"/>
+	<classpathentry kind="var" path="TOMCAT_HOME/lib/el-api.jar"/>
+	<classpathentry kind="var" path="TOMCAT_HOME/lib/annotations-api.jar"/>
+	<classpathentry kind="src" path="WEB-INF/src"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/google-collect-1.0-rc1.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/javax.servlet.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/log4j-1.2.16.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/org.restlet.ext.servlet.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/org.restlet.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/servlet-api.jar"/>
+	<classpathentry kind="lib" path="WEB-INF/lib/org.json.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
+	<classpathentry kind="output" path="WEB-INF/classes"/>
+</classpath>

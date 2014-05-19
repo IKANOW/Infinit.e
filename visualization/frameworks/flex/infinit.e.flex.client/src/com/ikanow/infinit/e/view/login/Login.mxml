@@ -318,7 +318,7 @@
 
 				<!-- Remember me -->
 				<s:CheckBox id="checkboxRememberMe" 
-							label="Remember me" 
+							label="{ resourceManager.getString( 'infinite', 'loginView.rememberMe' ) }"
 							styleName="lightGreyHeader" />
 				
 				<!-- Forgot Password Button -->

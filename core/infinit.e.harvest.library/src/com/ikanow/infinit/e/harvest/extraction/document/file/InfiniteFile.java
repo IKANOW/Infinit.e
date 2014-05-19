@@ -17,7 +17,6 @@ package com.ikanow.infinit.e.harvest.extraction.document.file;
 
 import java.io.File;
 import java.io.FileInputStream;
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -25,7 +24,7 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.net.UnknownHostException;
+import java.util.Date;
 
 import org.apache.commons.io.FileUtils;
 
@@ -40,44 +39,60 @@ public class InfiniteFile {
 
 	// Constructors:
 	
-	public static InfiniteFile create(String url) throws MalformedURLException, SmbException {
+	public static InfiniteFile create(String url) throws IOException {
 		return new InfiniteFile(url);			
 	}
-	public static InfiniteFile create(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
-		if (url.startsWith("s3://")) {
-			return new AwsInfiniteFile(url, auth);
+	public static InfiniteFile create(String url, NtlmPasswordAuthentication auth) throws IOException {
+		try {
+			if (url.startsWith("s3://")) {
+				return new AwsInfiniteFile(url, auth);
+			}
+			else if (url.startsWith(InternalInfiniteFile.INFINITE_PREFIX)) {
+				return new InternalInfiniteFile(url, auth);
+			}
+			else {
+				return new InfiniteFile(url, auth);
+			}
 		}
-		else if (url.startsWith(InternalInfiniteFile.INFINITE_PREFIX)) {
-			return new InternalInfiniteFile(url, auth);
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
 		}
-		else {
-			return new InfiniteFile(url, auth);
-		}
+		
 	}
 	
 	////////////////////////////
 	
 	protected InfiniteFile() {}
 	
-	protected InfiniteFile(String url) throws MalformedURLException, SmbException {
-		if (url.startsWith("file://")) {
-			_localFile = new File(url.substring(7)); // ie "file://", path is relative to ~tomcat I guess
+	protected InfiniteFile(String url) throws IOException {
+		try {
+			if (url.startsWith("file://")) {
+				_localFile = new File(url.substring(7)); // ie "file://", path is relative to ~tomcat I guess
+			}
+			else if (url.startsWith("file:")) { // (apparently the jcifs doesn't need the "//" bit in file)
+				_localFile = new File(url.substring(5)); // ie "file:", path is relative to ~tomcat I guess
+			}
+			else {
+				_smbFile = new SmbFile(url);
+				if (!_smbFile.exists()) {
+					throw new MalformedURLException(url + " NOT FOUND");
+				}
+			}
 		}
-		else if (url.startsWith("file:")) { // (apparently the jcifs doesn't need the "//" bit in file)
-			_localFile = new File(url.substring(5)); // ie "file:", path is relative to ~tomcat I guess
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
 		}
-		else {
-			_smbFile = new SmbFile(url);
+	}
+	protected InfiniteFile(String url, NtlmPasswordAuthentication auth) throws IOException {
+		try {
+			_smbFile = new SmbFile(url, auth);
+			_auth = auth;
 			if (!_smbFile.exists()) {
 				throw new MalformedURLException(url + " NOT FOUND");
 			}
 		}
-	}
-	protected InfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
-		_smbFile = new SmbFile(url, auth);
-		_auth = auth;
-		if (!_smbFile.exists()) {
-			throw new MalformedURLException(url + " NOT FOUND");
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
 		}
 	}
 	private InfiniteFile(SmbFile smbFile, NtlmPasswordAuthentication auth) {	
@@ -90,47 +105,66 @@ public class InfiniteFile {
 	
 	// Access input stream from file
 	
-	public InputStream getInputStream() throws SmbException, MalformedURLException, UnknownHostException, FileNotFoundException {
-		if (null != _smbFile) {
-			return new SmbFileInputStream(_smbFile);
+	public InputStream getInputStream() throws IOException {
+		try {
+			if (null != _smbFile) {
+				return new SmbFileInputStream(_smbFile);
+			}
+			else if (null != _localFile) {
+				return new FileInputStream(_localFile);
+			}
 		}
-		else if (null != _localFile) {
-			return new FileInputStream(_localFile);
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
 		}
 		return null;
 	}
 	
-	public InfiniteFile[] listFiles() throws SmbException {
+	public InfiniteFile[] listFiles() throws IOException {
+		try {
+			return listFiles(null);
+		}
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
+		}
+	}
+	public InfiniteFile[] listFiles(Date optionalFilterDate) throws IOException {
+		// (filterDate does nothing for file types)
 		
-		_overwriteTime = 0L;
-		InfiniteFile[] fileList = null;
-		if (null != _smbFile) {
-			SmbFile[] smbFileList = _smbFile.listFiles(); 
-			if (null != smbFileList) {
-				fileList = new InfiniteFile[smbFileList.length];
-				for (int i = 0; i < smbFileList.length; ++i) {
-					fileList[i] = new InfiniteFile(smbFileList[i], _auth);
-					long fileTime = fileList[i].getDate();
-					if (fileTime > _overwriteTime) {
-						_overwriteTime = fileTime;
-					}//TESTED (2*.1, 2*.2)
+		try {
+			_overwriteTime = 0L;
+			InfiniteFile[] fileList = null;
+			if (null != _smbFile) {
+				SmbFile[] smbFileList = _smbFile.listFiles(); 
+				if (null != smbFileList) {
+					fileList = new InfiniteFile[smbFileList.length];
+					for (int i = 0; i < smbFileList.length; ++i) {
+						fileList[i] = new InfiniteFile(smbFileList[i], _auth);
+						long fileTime = fileList[i].getDate();
+						if (fileTime > _overwriteTime) {
+							_overwriteTime = fileTime;
+						}//TESTED (2*.1, 2*.2)
+					}
 				}
 			}
-		}
-		else {
-			File[] localFileList = _localFile.listFiles(); 
-			if (null != localFileList) {
-				fileList = new InfiniteFile[localFileList.length];
-				for (int i = 0; i < localFileList.length; ++i) {
-					fileList[i] = new InfiniteFile(localFileList[i]);
-					long fileTime = fileList[i].getDate();
-					if (fileTime > _overwriteTime) {
-						_overwriteTime = fileTime;
-					}//TESTED (1.1, 1.2)
+			else {
+				File[] localFileList = _localFile.listFiles(); 
+				if (null != localFileList) {
+					fileList = new InfiniteFile[localFileList.length];
+					for (int i = 0; i < localFileList.length; ++i) {
+						fileList[i] = new InfiniteFile(localFileList[i]);
+						long fileTime = fileList[i].getDate();
+						if (fileTime > _overwriteTime) {
+							_overwriteTime = fileTime;
+						}//TESTED (1.1, 1.2)
+					}
 				}
 			}
+			return fileList;
 		}
-		return fileList;
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
+		}
 	}
 	
 	public void delete() throws IOException {
@@ -177,12 +211,17 @@ public class InfiniteFile {
 		}//TESTED (InternalInfiniteFile, 7.9)
 	}//TESTED
 	
-	public boolean isDirectory() throws SmbException {
-		if (null != _smbFile) {
-			return _smbFile.isDirectory(); 
+	public boolean isDirectory() throws IOException {
+		try {
+			if (null != _smbFile) {
+				return _smbFile.isDirectory(); 
+			}
+			else {
+				return _localFile.isDirectory();
+			}
 		}
-		else {
-			return _localFile.isDirectory();
+		catch (SmbException e) {
+			throw new IOException(e.getMessage(), e);
 		}
 	}
 	@SuppressWarnings("deprecation")

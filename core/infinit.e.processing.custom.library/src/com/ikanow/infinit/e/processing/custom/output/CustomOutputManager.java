@@ -30,6 +30,7 @@ import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
@@ -40,46 +41,86 @@ public class CustomOutputManager {
 	private static Logger _logger = Logger.getLogger(CustomOutputManager.class);
 	
 	/**
-	 * Attempt to shard the output collection.  If the collection
-	 * is already sharded it will just spit back an error which
-	 * is fine.
-	 * 
-	 * @param outputCollection
+	 * Tidy up the output collection _before_ it is written into
 	 */
-	public static void shardOutputCollection(CustomMapReduceJobPojo job) 
+	public static void prepareOutputCollection(CustomMapReduceJobPojo job) 
 	{
-		//enable sharding for the custommr db incase it hasn't been
+		//enable sharding for the custommr db in case it hasn't happened yet (eg first time through/user intervention etc)
 		DbManager.getDB("admin").command(new BasicDBObject("enablesharding", job.getOutputDatabase()));
-		//enable sharding for the output collection (does nothing if already sharded)
-		if ( job.outputCollection != null )
+		DBCollection target = null;
+		
+		if ( job.outputCollection != null ) // (should never be null, just for robustness)
 		{
-			BasicDBObject command = new BasicDBObject("shardcollection", job.getOutputDatabase() + "." + job.outputCollection);
-			command.append("key", new BasicDBObject("_id", 1));
-			DbManager.getDB("admin").command(command);
-			
-			if ((null != job.incrementalMode) && job.incrementalMode) {
-				DBCollection target = DbManager.getCollection(job.getOutputDatabase(), job.outputCollection);
-				target.ensureIndex(new BasicDBObject("key", 1));
-				target.ensureIndex(new BasicDBObject("_updateId", 1));
-			}//TODO (INF-2126): TOTEST
+			if ((null != job.appendResults) && job.appendResults) { // then we're going to write into collection 
 				
+				//ensure indexes if necessary
+				if ((null != job.incrementalMode) && job.incrementalMode) {
+					target = DbManager.getCollection(job.getOutputDatabase(), job.outputCollection);
+					target.ensureIndex(new BasicDBObject("key", 1));
+				}//TODO (INF-2126): TOTEST
+			}				
 		}
-		//enable sharding on temp output collection (only needed in non-append mode)
+		//drop the collection into which data is going to be written (clears existing sharding)
+		//will reshard once job is complete - has a couple of advantages over immediately resharding
+		//- shard command seemed to be ignored intermittently (race condition vs drop?)
+		//- with many output threads (eg no reduce), sharding seemed to get messed up, and doesn't offer any
+		//  *write* advantage performance wise anyway 
 		if ((null == job.appendResults) || !job.appendResults) { // then we're going to write into temp
 			
-			// Need to do this in case we're swapping from append to !append
 			try {
-				DbManager.getCollection(job.getOutputDatabase(), job.outputCollectionTemp).drop();
+				target = DbManager.getCollection(job.getOutputDatabase(), job.outputCollectionTemp);
+				target.drop();
+				DbManager.getDB(job.getOutputDatabase()).getLastError();
 			}
 			catch (Exception e) {} // That's fine, it probably just doesn't exist yet...
-			if ( job.outputCollectionTemp != null )
+		}
+		// If we need any indexes for sorting/whatever then declare them here, which is faster
+		// (SOME DUPLICATION OF CODE VS moveTempOutput)
+		// POST PROCESSING CONFIGURATION:
+		BasicDBObject postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(job.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
+		if (( postProcObject != null ) && ( target != null ) )
+		{
+			int limit = postProcObject.getInt("limit", 0);
+			String sortField = (String) postProcObject.get("sortField");
+			int sortDir = postProcObject.getInt("sortDirection", 1);
+			if ((limit > 0) && (null == sortField)) {
+				sortField = "_id";					
+			}
+			if (null != sortField) {
+				target.ensureIndex(new BasicDBObject(sortField, sortDir));
+			}
+			Object indexOrIndexes = postProcObject.get("indexes");
+			if (null != indexOrIndexes) {
+				if (indexOrIndexes instanceof BasicDBList) {
+					for (Object index: (BasicDBList)indexOrIndexes) {
+						target.ensureIndex((DBObject)index);
+					}
+				}
+				else if (indexOrIndexes instanceof BasicDBObject) {
+					target.ensureIndex((DBObject)indexOrIndexes);					
+				}
+			}//TOTEST
+		}//TOTEST
+		
+	}
+	
+	/**
+	 * Tidy up the output collection _after_ it is written into
+	 */
+	public static void shardOutputCollection(CustomMapReduceJobPojo job) {
+		try {
+			// (Does nothing if already sharded, ie safe to call in both append and non-append modes)
+			if ( job.outputCollection != null ) // (should never be null, just for robustness)
 			{
-				BasicDBObject command1 = new BasicDBObject("shardcollection", job.getOutputDatabase() + "." + job.outputCollectionTemp);
+				BasicDBObject command1 = new BasicDBObject("shardcollection", job.getOutputDatabase() + "." + job.outputCollection);
 				command1.append("key", new BasicDBObject("_id", 1));
 				DbManager.getDB("admin").command(command1);
 			}
 		}
+		catch (Exception e) {} // (do nothing shouldn't be possible to exception out, this is just for safety vs try/finally calling clause)
 	}
+	
+	
 	/**
 	 * Moves the output of a job from output_tmp to output and deletes
 	 * the tmp collection.
@@ -113,6 +154,7 @@ public class CustomOutputManager {
 		{
 			///////////////////////////////////////////////////////////////////////
 			// POST PROCESSING CONFIGURATION:
+			// (SOME DUPLICATION OF CODE VS prepareOutputCollection)
 			postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(cmr.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
 			if ( postProcObject != null )
 			{
@@ -136,29 +178,36 @@ public class CustomOutputManager {
 		//step 2a if not appending results then work on temp collection and swap to main
 		if ( (null == cmr.appendResults) || !cmr.appendResults ) //format temp then change lookup pointer to temp collection
 		{
-			if (limit > 0) {
-				BasicDBObject query = new BasicDBObject();
-				limitCollection(DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp), query, sortField, sortDir, limit);
-			}//TESTED
-			else if (hasSort) {
-				DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).ensureIndex(sort);				
-			}
-			
-			//swap the output collections
 			BasicDBObject notappendupdates = new BasicDBObject(CustomMapReduceJobPojo.outputCollection_, cmr.outputCollectionTemp);
-			notappendupdates.append(CustomMapReduceJobPojo.outputCollectionTemp_, cmr.outputCollection);
-			DbManager.getCustom().getLookup().findAndModify(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id), 
-																new BasicDBObject(MongoDbManager.set_, notappendupdates));						
-			String temp = cmr.outputCollectionTemp;
-			cmr.outputCollectionTemp = cmr.outputCollection;
-			cmr.outputCollection = temp;
-
-			//step3a clean up temp output collection so we can use it again (non-append only...)
-			// (drop it, removing chunks)
 			try {
-				DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
+				if (limit > 0) {
+					BasicDBObject query = new BasicDBObject();
+					limitCollection(DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp), query, sortField, sortDir, limit);
+				}//TESTED
+				else if (hasSort) { // (will do nothing if already enabled)
+					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).ensureIndex(sort);				
+				}
+				
+				//swap the output collections
+				notappendupdates.append(CustomMapReduceJobPojo.outputCollectionTemp_, cmr.outputCollection);
+				String temp = cmr.outputCollectionTemp;
+				cmr.outputCollectionTemp = cmr.outputCollection;
+				cmr.outputCollection = temp;
+
+				//step3a clean up temp output collection so we can use it again (non-append only...)
+				// (drop it, removing chunks)
+				try {
+					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).drop();
+				}
+				catch (Exception e) {} // That's fine, it probably just doesn't exist yet...
 			}
-			catch (Exception e) {} // That's fine, it probably just doesn't exist yet...
+			finally {
+				// In all cases: shard the output collection (will generate a sensible initial set of splits, or do nothing if already sharded)
+				shardOutputCollection(cmr);
+				
+				DbManager.getCustom().getLookup().findAndModify(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id), 
+						new BasicDBObject(MongoDbManager.set_, notappendupdates));										
+			}
 		}
 		else //step 2b if appending results then drop modified results in output collection
 		{
@@ -173,12 +222,7 @@ public class CustomOutputManager {
 					Date lastAgeOut = new Date(((new Date()).getTime() - ageOutMS));
 					BasicDBObject queryTerm = new BasicDBObject(MongoDbManager.lt_,new ObjectId(lastAgeOut));
 					
-					if ((null == cmr.incrementalMode) || !cmr.incrementalMode) {
-						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).remove(new BasicDBObject("_id", queryTerm));
-					}
-					else { // if in incremental mode then use _updateId instead
-						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).remove(new BasicDBObject("_updateId", queryTerm));
-					}//TODO (INF-2126) TOTEST
+					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).remove(new BasicDBObject("_id", queryTerm));
 				}
 				
 				if (limit > 0) {
@@ -196,10 +240,20 @@ public class CustomOutputManager {
 				}
 			}
 			finally {
+				//TODO (INF-2508): re-shard the collection just in case the intial sharding failed - one issue here is that
+				// if the DB did a terrible job of allocating chunks (which does happen, not sure how frequently - appears to be mainly if no reducer/combiner is used) 
+				// the data won't get tidied up ... what I should do is call the (fixed-and-ported-to-Java) getSplitKeysForChunks() function instead every time
+				// (need to add fix of not calling if only one split point is calculated)
+				
+				// In all cases: shard the output collection (will generate a sensible initial set of splits, or do nothing if already sharded)
+				shardOutputCollection(cmr);
+				
 				DbManager.getCustom().getLookup().findAndModify(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id), 
 											new BasicDBObject(MongoDbManager.set_, new BasicDBObject("isUpdatingOutput", false)));
 			}
-		}
+			
+		}//(end append vs non-append)
+		
 	}	
 	
 	/**

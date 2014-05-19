@@ -66,6 +66,8 @@ public class CustomInterface extends ServerResource
 	private int limit = 0;
 	private CustomMapReduceJobPojo jsonPojo = new CustomMapReduceJobPojo();
 	private Integer debugLimit = null;
+	private String findStr = null;
+	private String sortStr = null;
 	
 	private CustomHandler customhandler = null;
 	
@@ -117,6 +119,8 @@ public class CustomInterface extends ServerResource
 		 if ((null != fields)) {
 			 json = fields;
 		 }
+		 findStr = queryOptions.get("find");
+		 sortStr = queryOptions.get("sort");
 		 
 		 String quickRun = queryOptions.get("quickRun");
 		 if ((null != quickRun) && ( (quickRun.equals("1")) || (quickRun.equalsIgnoreCase("true")) )) 
@@ -317,15 +321,15 @@ public class CustomInterface extends ServerResource
 			 {
 				 if ( action.equals("getresults") )
 				 {
-					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit, json); 
+					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit, json, findStr, sortStr); 
 				 }
 				 else if ( action.equals("schedule"))
 				 {
-					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
+					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
 				 }
 				 else if ( action.equals("update") )
 				 {
-					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
+					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
 				 }
 				 else if ( action.equals("getjobs"))
 				 {

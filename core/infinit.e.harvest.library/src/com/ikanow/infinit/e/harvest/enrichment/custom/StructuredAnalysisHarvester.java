@@ -99,6 +99,7 @@ public class StructuredAnalysisHarvester
 	
 	public void resetDocumentCache() {
 		this._document = null;
+		this._docPojo = null;
 	}
 	
 	// Load global functions
@@ -307,6 +308,7 @@ public class StructuredAnalysisHarvester
 				// Convert the DocumentPojo Object to a JSON document using GsonBuilder
 				String docStr = g.toJson(f);
 				_document = new JSONObject(docStr);
+				_docPojo = f;
 				// Add the document (JSONObject) to the engine
 				if (null != _scriptEngine) {
 			        _scriptEngine.put("document", docStr);
@@ -472,6 +474,7 @@ public class StructuredAnalysisHarvester
 			}
 			
 			_document = null;
+			_docPojo = null;
 			intializeDocIfNeeded(f, _gson);
 			
 		}//TESTED (end if callback-on-update)
@@ -510,6 +513,7 @@ public class StructuredAnalysisHarvester
 	// Private class variables
 	private static Logger logger;
 	private JSONObject _document = null; //TODO (INF-2488): change all the JSONObject logic to LinkedHashMap and (generic) Array so can just replace this with a string...
+	private DocumentPojo _docPojo = null;
 	private Gson _gson = null;
 	private JSONObject _iterator = null;
 	private String _iteratorIndex = null;
@@ -584,6 +588,7 @@ public class StructuredAnalysisHarvester
 				{ 
 					resetEntityCache();
 					_document = null;
+					_docPojo = null;
 						// (don't create this until needed, since it might need to be (re)serialized after a call
 						//  to the UAH which would obviously be undesirable)
 								        					
@@ -781,6 +786,7 @@ public class StructuredAnalysisHarvester
 							String sTmpFullText = f.getFullText();
 							f.setFullText(null); // (no need to serialize this, can save some cycles)
 							_document = null;
+							_docPojo = null;
 							intializeDocIfNeeded(f, g);							
 					        f.setFullText(sTmpFullText); //(restore)
 						}
@@ -973,6 +979,7 @@ public class StructuredAnalysisHarvester
 				finally
 				{
 					_document = null;
+					_docPojo = null;
 				}
 			} // (end loop over documents)
 		} // (end if SAH specified)	
@@ -1232,7 +1239,7 @@ public class StructuredAnalysisHarvester
 				// Field - passed in via simple string array from getEntities
 				if (field != null)
 				{
-					disambiguatedName = field + getFormattedTextFromField(esp.getDisambiguated_name(), field);
+					disambiguatedName = getFormattedTextFromField(esp.getDisambiguated_name(), field);
 				}
 				else
 				{
@@ -1389,12 +1396,19 @@ public class StructuredAnalysisHarvester
 				}
 			}
 			else {
-				EntityPojo.Dimension enumDimension = EntityPojo.Dimension.valueOf(dimension);
-				if (null == enumDimension) {
-					return null; // (invalid dimension)
+				try {
+					EntityPojo.Dimension enumDimension = EntityPojo.Dimension.valueOf(dimension);
+					if (null == enumDimension) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
+						return null; // (invalid dimension)
+					}
+					else {
+						e.setDimension(enumDimension);
+					}
 				}
-				else {
-					e.setDimension(enumDimension);
+				catch (Exception e2) {
+					_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
+					return null; // (invalid dimension)					
 				}
 			}
 			
@@ -1635,7 +1649,7 @@ public class StructuredAnalysisHarvester
 							AssociationSpecPojo newAssoc = new AssociationSpecPojo();
 							// Entity1
 							if (assocToCreate[0] !=null) { 
-								newAssoc.setEntity1_index(assocToCreate[0]);
+								newAssoc.setEntity1_index(assocToCreate[0].replace("$", "${$}"));
 								currIt.put("entity1_index", assocToCreate[0]);
 							}
 							else {
@@ -1645,7 +1659,7 @@ public class StructuredAnalysisHarvester
 							
 							// Entity2
 							if (assocToCreate[1] !=null) { 
-								newAssoc.setEntity2_index(assocToCreate[1]); 
+								newAssoc.setEntity2_index(assocToCreate[1].replace("$", "${$}")); 
 								currIt.put("entity2_index", assocToCreate[1]);
 							}
 							else {
@@ -1655,21 +1669,21 @@ public class StructuredAnalysisHarvester
 							
 							// Geo_index
 							if (assocToCreate[2] !=null) { 
-								newAssoc.setGeo_index(assocToCreate[2]); 
+								newAssoc.setGeo_index(assocToCreate[2].replace("$", "${$}")); 
 								currIt.put("geo_index", assocToCreate[2]);
 							}
 							else { newAssoc.setGeo_index(esp.getGeo_index()); }
 							
 							// Time_start
 							if (assocToCreate[3] !=null) { 
-								newAssoc.setTime_start(assocToCreate[3]);
+								newAssoc.setTime_start(assocToCreate[3].replace("$", "${$}"));
 								currIt.put("time_start", assocToCreate[3]);
 							}
 							else { newAssoc.setTime_start(esp.getTime_start()); }
 							
 							// Time_end
 							if (assocToCreate[4] !=null) { 
-								newAssoc.setTime_end(assocToCreate[4]);
+								newAssoc.setTime_end(assocToCreate[4].replace("$", "${$}"));
 								currIt.put("time_end", assocToCreate[4]);
 							}
 							else { newAssoc.setTime_end(esp.getTime_end()); }
@@ -1690,7 +1704,7 @@ public class StructuredAnalysisHarvester
 							if (association != null) associations.add(association);
 							_iterator = savedIterator;
 						}
-						//TESTED
+						//TESTED (including the ${$} escaping)
 					}
 				}
 				// END - Multiplicative/Additive Association Creation
@@ -3078,9 +3092,14 @@ public class StructuredAnalysisHarvester
 		   
 		   // Retrieve the field information matched with the RegEx
 		   String match = (m.group(1) != null) ? m.group(1): m.group(2);
-		   
-		   // Retrieve the data from the JSON field and append
-		   String sreplace = getStringFromJsonField(match, value); 
+		   String sreplace;
+		   if ((null != match) && match.equals("$")) { // $ escaping via ${$}
+			   sreplace = "$";
+		   }//TESTED
+		   else {
+			   // Retrieve the data from the JSON field and append
+			   sreplace = getStringFromJsonField(match, value);
+		   }
 		   if (null == sreplace) {
 			   return null;
 		   }
@@ -3106,10 +3125,13 @@ public class StructuredAnalysisHarvester
 	{
 		try
 		{
-			if ((null != value) && (fieldLocation.equalsIgnoreCase("$value") || fieldLocation.equalsIgnoreCase("${value}")))
+			if ((null != value) && fieldLocation.equalsIgnoreCase("value")) // ($value when iterating)
 			{
 				return value;
-			}			
+			}//TESTED
+			if ((null == _iterator) && (null != _docPojo) && fieldLocation.equalsIgnoreCase("fullText")) { // another special case
+				return _docPojo.getFullText();
+			}//TESTED
 			return (String)getValueFromJsonField(fieldLocation);
 		}
 		catch (Exception e)

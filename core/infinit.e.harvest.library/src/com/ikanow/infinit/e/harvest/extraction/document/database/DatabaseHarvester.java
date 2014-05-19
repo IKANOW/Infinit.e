@@ -106,7 +106,7 @@ public class DatabaseHarvester implements HarvesterInterface
 		} 
 		catch (Exception e)
 		{
-			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + e.getMessage(), false, false);
+			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: " + e.getMessage() + ": " + e.getClass().toString(), false, false);
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
 		finally {
@@ -152,7 +152,14 @@ public class DatabaseHarvester implements HarvesterInterface
 			String password = source.getAuthentication().getPassword();
 			
 			if (userName != null && userName.length() > 0) rdbms.setUser(userName);
-			if (password != null && password.length() > 0) rdbms.setPassword(new TextEncryption().decrypt(password));
+			if (password != null && password.length() > 0) {
+				try {
+					rdbms.setPassword(new TextEncryption().decrypt(password));
+				}
+				catch (Exception e) { // not encrypted
+					rdbms.setPassword(password);					
+				}
+			}
 		}
 		
 		// Some horrible logic to handle a DB cycle being >max records

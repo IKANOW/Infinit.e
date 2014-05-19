@@ -338,10 +338,12 @@ public class SourceUtils {
 							if ((distributionToken != fullSource.getDistributionFactor()) ||
 									(0 != fullSource.getHarvestStatus().getDistributionTokensComplete()))
 							{
-								if ((new Date().getTime() - fullSource.getHarvestStatus().getHarvested().getTime()) >
-										_ONEDAY) // (ie older than a day)
-								{
-									distributionToken = fullSource.getDistributionFactor(); // ie start again
+								if (null != fullSource.getHarvestStatus().getRealHarvested()) { // harvested is useless here because it's already been updated
+									if ((new Date().getTime() - fullSource.getHarvestStatus().getRealHarvested().getTime()) >
+											_ONEDAY) // (ie older than a day)
+									{
+										distributionToken = fullSource.getDistributionFactor(); // ie start again
+									}
 								}
 							}//TESTED
 						}//(end check for any existing state)					

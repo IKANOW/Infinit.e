@@ -15,7 +15,6 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.extraction.document.file;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
@@ -23,7 +22,6 @@ import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URLDecoder;
-import java.net.UnknownHostException;
 import java.util.Date;
 
 import com.amazonaws.auth.BasicAWSCredentials;
@@ -36,13 +34,12 @@ import com.amazonaws.services.s3.model.S3Object;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
 
 import jcifs.smb.NtlmPasswordAuthentication;
-import jcifs.smb.SmbException;
 
 public class AwsInfiniteFile extends InfiniteFile {
 
 	// Constructors
 	
-	public AwsInfiniteFile(String url, NtlmPasswordAuthentication auth) throws MalformedURLException, SmbException {
+	public AwsInfiniteFile(String url, NtlmPasswordAuthentication auth) throws IOException {
 		BasicAWSCredentials awsAuth = new BasicAWSCredentials(auth.getUsername(), auth.getPassword());
 		AmazonS3Client client = new AmazonS3Client(awsAuth);
 		_awsClient = (Object)client;
@@ -92,13 +89,17 @@ public class AwsInfiniteFile extends InfiniteFile {
 	// Accessors:
 	
 	@Override
-	public InputStream getInputStream() throws SmbException, MalformedURLException, UnknownHostException, FileNotFoundException {
+	public InputStream getInputStream() throws IOException {
 		S3Object s3Obj = ((AmazonS3Client)_awsClient).getObject(_awsBucketName, _awsObjectName);
 		return s3Obj.getObjectContent();
 	}
 	
 	@Override
 	public InfiniteFile[] listFiles()  {
+		return listFiles(null);
+	}
+	@Override
+	public InfiniteFile[] listFiles(Date optionalFilterDate)  {
 		InfiniteFile[] fileList = null;
 		ObjectListing list = null;
 		_overwriteTime = 0L;
@@ -168,7 +169,7 @@ public class AwsInfiniteFile extends InfiniteFile {
 	}//TESTED (3.4, 3.5)
 	
 	@Override
-	public boolean isDirectory() throws SmbException {
+	public boolean isDirectory() throws IOException {
 		return (null == _awsFileMeta_lastDate);
 	}	
 	

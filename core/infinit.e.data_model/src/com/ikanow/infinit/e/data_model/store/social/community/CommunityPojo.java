@@ -418,6 +418,7 @@ public class CommunityPojo extends BaseDbPojo
 			else
 			{
 				cmp.setUserStatus("active");
+				this.setNumberOfMembers(this.getNumberOfMembers()+1);				
 			}
 
 			// Set the userAttributes based on default

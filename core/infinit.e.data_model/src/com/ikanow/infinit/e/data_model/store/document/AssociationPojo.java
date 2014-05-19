@@ -33,31 +33,44 @@ public class AssociationPojo extends BaseDbPojo
 	
 	private String entity1 = null;
 	final public static String entity1_ = "entity1";
+	final public static String docQuery_entity1_ = "associations.entity1";
 	private String entity1_index = null;
 	final public static String entity1_index_ = "entity1_index";
+	final public static String docQuery_entity1_index_ = "associations.entity1_index";
 	private String verb = null;
 	final public static String verb_ = "verb";
+	final public static String docQuery_verb_ = "associations.verb";
 	private String verb_category = null;
 	final public static String verb_category_ = "verb_category";
+	final public static String docQuery_verb_category_ = "associations.verb_category";
 	private String entity2 = null;
 	final public static String entity2_ = "entity2";
+	final public static String docQuery_entity2_ = "associations.entity2";
 	private String entity2_index = null;
 	final public static String entity2_index_ = "entity2_index";
+	final public static String docQuery_entity2_index_ = "associations.entity2_index";
 	private String time_start = null; // (Standardize: ISO yyyy-MM-dd['T'HH:mm:ss], or "(freeform text)")
 	final public static String time_start_ = "time_start";
+	final public static String docQuery_time_start_ = "associations.time_start";
 	private String time_end = null; // (Standardize: ISO yyyy-MM-dd['T'HH:mm:ss], or "(freeform text)")
 	final public static String time_end_ = "time_end";
+	final public static String docQuery_time_end_ = "associations.time_end";
 	private GeoPojo geotag = null;
 	final public static String geotag_ = "geotag";
+	final public static String docQuery_geotag_ = "associations.geotag";
 	private String geo_index = null;
 	final public static String geo_index_ = "geo_index";
+	final public static String docQuery_geo_index_ = "associations.geo_index";
 	private String assoc_type = null;
 	final public static String assoc_type_ = "assoc_type";
+	final public static String docQuery_assoc_type_ = "associations.assoc_type";
 	private Double sentiment = null; // directed sentiment from ent1 to ent2
 	final public static String sentiment_ = "sentiment";
+	final public static String docQuery_sentiment_ = "associations.sentiment";
 	
 	private String assoc_index = null; // (for counting on in facets)	
 	final public static String assoc_index_ = "assoc_index";
+	final public static String docQuery_assoc_index_ = "associations.assoc_index";
 	
 	// The following fields are calculated on a per query basis but are not currently ever stored:
 	// (in fact these fields are currently only generated for standalone events or aggregated events, not document children):	

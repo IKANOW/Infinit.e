@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 0.18.7-8
+Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 0.19, infinit.e-index-engine >= v0.3
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -127,6 +127,7 @@ Infinit.e harvesting and cleansing services
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite_indexer.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite-px-engine.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/sync_features.sh

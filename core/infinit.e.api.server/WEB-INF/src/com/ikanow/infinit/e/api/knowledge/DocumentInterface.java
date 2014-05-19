@@ -101,11 +101,11 @@ public class DocumentInterface extends ServerResource
 	public Representation get()
 	{
 		ResponsePojo rp = new ResponsePojo(); 
-		 Date startTime = new Date();	
+		 Date startTime = new Date();			
 		 
 		 if ( needCookie )
 		 {
-			 cookieLookup = RESTTools.cookieLookup(cookie);
+			 cookieLookup = RESTTools.cookieLookup(cookie);			 
 			 if ( cookieLookup == null )
 			 {
 				 rp = new ResponsePojo();
@@ -113,14 +113,15 @@ public class DocumentInterface extends ServerResource
 			 }
 			 else
 			 {
+				 boolean isAdmin = RESTTools.adminLookup(cookieLookup);
 				 if ( action.equals("doc"))
 				 {
-					 rp = this.docHandler.getInfo(cookieLookup, sourcekey, docid, bReturnFullText, returnRawData);
+					 rp = this.docHandler.getInfo(cookieLookup, sourcekey, docid, bReturnFullText, returnRawData, isAdmin);
 					 //return full text takes precedence over raw data
 				 }
 				 else if ( action.equals("file"))
 				 {
-					rp = this.docHandler.getFileContents(cookieLookup, sourcekey, docid); 
+					rp = this.docHandler.getFileContents(cookieLookup, sourcekey, docid, isAdmin); 
 				 }
 				 
 				 if ( !bReturnFullText && returnRawData && rp.getResponse().isSuccess() )

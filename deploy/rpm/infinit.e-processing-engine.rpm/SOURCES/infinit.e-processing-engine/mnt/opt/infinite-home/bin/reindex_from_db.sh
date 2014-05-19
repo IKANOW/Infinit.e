@@ -45,7 +45,7 @@ while [ 1 ]; do
 		rm -f $DONE
 	fi 
 	echo "Chunk starting at $START"
-	java -jar /opt/infinite-home/lib/infinit.e.mongo-indexer.jar $TYPE $REBUILD --skip $START --limit $LIMIT | tee -a $DONE || exit -1
+	/opt/infinite-home/bin/infinite_indexer.sh $TYPE $REBUILD --skip $START --limit $LIMIT | tee -a $DONE || exit -1
 	echo $START >> $STATE
 	if grep "^Found 0 records to sync" $DONE; then
 		echo "Done" >> $STATE

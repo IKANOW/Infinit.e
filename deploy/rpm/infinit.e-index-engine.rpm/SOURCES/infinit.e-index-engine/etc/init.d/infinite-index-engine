@@ -63,7 +63,14 @@ start() {
     for i in `seq 1 $ES_NUM_NODES`; do
        echo -n $"Starting $NAME $i: "
        mkdir -p $WORK_DIR
-       daemon --pidfile=${PID_FILE}.$i --user $ES_USER $DAEMON $JAVA_OPTS -p ${PID_FILE}.$i $DAEMON_OPTS 
+       if [ -d /usr/share/elasticsearch ]; then
+          #1.0:
+          daemon --pidfile=${PID_FILE}.$i --user $ES_USER $DAEMON $JAVA_OPTS -p ${PID_FILE}.$i -d $DAEMON_OPTS
+       else
+          #0.19:
+          daemon --pidfile=${PID_FILE}.$i --user $ES_USER $DAEMON $JAVA_OPTS -p ${PID_FILE}.$i $DAEMON_OPTS
+       fi
+       	 
        RETVAL=$?
        echo
        [ $RETVAL -ne 0 ] && break

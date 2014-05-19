@@ -24,8 +24,8 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 import org.apache.commons.codec.binary.Base64;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.log4j.Logger;
-import org.elasticsearch.common.Hex;
 
 import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -133,7 +133,7 @@ public class PasswordEncryption {
 			m.reset();
 			m.update(toHash.getBytes(Charset.forName("UTF8")));
 			byte[] digest = m.digest();
-			return new String(Hex.encodeHex(digest));			
+			return new String(Hex.encodeHex(digest));
 		}
 		catch (Exception ex)
 		{

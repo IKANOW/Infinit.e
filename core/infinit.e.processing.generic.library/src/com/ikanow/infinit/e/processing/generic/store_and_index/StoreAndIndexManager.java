@@ -28,6 +28,7 @@ import java.util.TreeMap;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
+import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 
 import com.google.gson.reflect.TypeToken;
@@ -64,6 +65,7 @@ public class StoreAndIndexManager {
 	private boolean bStoreRawContent = false; // (store the raw as well as the processed data)
 	private boolean bStoreMetadataAsContent = false; // (store the metadata in the content block)
 	
+	public final static String DELETION_INDICATOR = "?DEL?";
 	private String harvesterUUID = null;
 	public String getUUID() { return harvesterUUID; }
 	
@@ -79,10 +81,10 @@ public class StoreAndIndexManager {
 		bStoreMetadataAsContent = pm.storeMetadataAsContent();
 		
 		try {
-			StringBuffer sb = new StringBuffer("?DEL?").append(java.net.InetAddress.getLocalHost().getHostName());
+			StringBuffer sb = new StringBuffer(DELETION_INDICATOR).append(java.net.InetAddress.getLocalHost().getHostName());
 			harvesterUUID = sb.toString();
 		} catch (UnknownHostException e) {
-			harvesterUUID = "?DEL?UNKNOWN";
+			harvesterUUID = DELETION_INDICATOR + "UNKNOWN";
 		}
 	}
 	
@@ -265,7 +267,7 @@ public class StoreAndIndexManager {
 	{
 		if (null == _softDeleter) {
 			BasicDBObject softDeleter = new BasicDBObject(DocumentPojo.url_, harvesterUUID);
-			softDeleter.put(DocumentPojo.index_, "?DEL?");
+			softDeleter.put(DocumentPojo.index_, DELETION_INDICATOR);
 				// (used in CustomHadoopTaskLauncher.createConfigXML)
 			_softDeleter = new BasicDBObject(DbManager.set_, softDeleter);
 		}
@@ -332,7 +334,7 @@ public class StoreAndIndexManager {
 	 * CALLED FROM:	deleteSource(...) 
 	 * @returns the number of docs deleted
 	 */
-	public long removeFromDatastoreAndIndex_bySourceKey(String sourceKey, boolean definitelyNoContent, String communityId) {
+	public long removeFromDatastoreAndIndex_bySourceKey(String sourceKey, ObjectId lessThanId, boolean definitelyNoContent, String communityId) {
 				
 		try {			
 			if (!definitelyNoContent) {
@@ -340,15 +342,40 @@ public class StoreAndIndexManager {
 					// (will just check index and pull out if the doc has no external content)
 			}
 			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+			if (null != lessThanId) { // Multiple threads running for this source
+				// First check whether one of the other threads has already deleted the source:
+				BasicDBObject oneFinalCheckQuery = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+				BasicDBObject oneFinalCheckFields = new BasicDBObject(DocumentPojo.index_, 1);
+				BasicDBObject firstDocToBeUpdated = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(oneFinalCheckQuery, oneFinalCheckFields);
+				if ((null == firstDocToBeUpdated) || firstDocToBeUpdated.getString(DocumentPojo.index_, "").equals(DELETION_INDICATOR))
+				{
+					//(ie grab the first doc in natural order and tell me if it's been soft-deleted yet, if so do nothing)
+					return 0;
+				}//TESTED
+				
+				// That check isn't perfect because of race conditions, so we'll still add the !="?DEL?" check to the 
+				// update as well:				
+				query.put(DocumentPojo._id_, new BasicDBObject(DbManager.lte_, lessThanId));
+				query.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, DELETION_INDICATOR));
+			}//TESTED
+			
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
 			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
-			CommandResult result = DbManager.getDocument().getLastError("metadata");
+			// (don't do getLastError just yet since it can block waiting for completion)
 			
 			// Quick delete for index though:
 			StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_).append(",docs_").append(communityId).append('/').append(DocumentPojoIndexMap.documentType_);
 			ElasticSearchManager indexManager = IndexManager.getIndex(sb.toString());
-			indexManager.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey));
+			BaseQueryBuilder soloOrCombinedQuery = QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey);
+			if (null != lessThanId) {
+				//(_id isn't indexed - _uid is and == _type + "#" + _id)
+				soloOrCombinedQuery = QueryBuilders.boolQuery().must(soloOrCombinedQuery).
+										must(QueryBuilders.rangeQuery("_uid").lte("document_index#" + lessThanId.toString()));
+				
+			}//TESTED
+			indexManager.doDeleteByQuery(soloOrCombinedQuery);						
 			
+			CommandResult result = DbManager.getDocument().getLastError("metadata");
 			return result.getLong("n", 0);
 			
 		} catch (Exception e) {
@@ -371,11 +398,12 @@ public class StoreAndIndexManager {
 	
 	private ElasticSearchManager _cachedIndexManagerForSourceXxxDeletion = null;
 	private ObjectId _cachedCommunityIdForSourceXxxDeletion = null;
-	public long removeFromDatastoreAndIndex_bySourceUrl(String sourceUrl, ObjectId communityId) {
+	public long removeFromDatastoreAndIndex_bySourceUrl(String sourceUrl, String sourceKey, ObjectId communityId) {
 				
 		try {			
 			// (never any content)
 			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceUrl_, sourceUrl);
+			query.put(DocumentPojo.sourceKey_, sourceKey);
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
 			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
 			CommandResult result = DbManager.getDocument().getLastError("metadata");
@@ -386,7 +414,11 @@ public class StoreAndIndexManager {
 				_cachedIndexManagerForSourceXxxDeletion = IndexManager.getIndex(sb.toString());
 				_cachedCommunityIdForSourceXxxDeletion = communityId;
 			}//TESTED
-			_cachedIndexManagerForSourceXxxDeletion.doDeleteByQuery(QueryBuilders.termQuery(DocumentPojo.sourceUrl_, sourceUrl));
+			_cachedIndexManagerForSourceXxxDeletion.doDeleteByQuery(
+					QueryBuilders.boolQuery()
+						.must(QueryBuilders.termQuery(DocumentPojo.sourceUrl_, sourceUrl))
+						.must(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey))
+					);
 			
 			return result.getLong("n", 0);
 			
@@ -448,7 +480,7 @@ public class StoreAndIndexManager {
 				}
 				if (!deletedSources.contains(f.getSourceKey())) {
 					deletedSources.add(f.getSourceKey());
-					long srcRemoved = removeFromDatastoreAndIndex_bySourceKey(f.getSourceKey(), true, f.getCommunityId().toString());
+					long srcRemoved = removeFromDatastoreAndIndex_bySourceKey(f.getSourceKey(), f.getId(), true, f.getCommunityId().toString());
 					if (srcRemoved > 0) {
 						updateDocCountsOnTheFly(-srcRemoved, f.getSourceKey(), f.getCommunityId());						
 					}
@@ -479,7 +511,7 @@ public class StoreAndIndexManager {
 				}//TESTED
 				cachedSourceKey = sourceKey;
 			}
-			removed += removeFromDatastoreAndIndex_bySourceUrl(srcUrl, communityId);
+			removed += removeFromDatastoreAndIndex_bySourceUrl(srcUrl, sourceKey, communityId);
 		}//TESTED
 		if ((removed > 0) && (null != sourceKey)) {
 			updateDocCountsOnTheFly(-removed, sourceKey, communityId);

@@ -1,0 +1,7 @@
+input {
+  collectd {
+    path => "/root/odin-poc-data/proxy_logs/may_known_cnc.csv"
+    start_position => beginning
+    type => "proxy_logs"
+  }
+}

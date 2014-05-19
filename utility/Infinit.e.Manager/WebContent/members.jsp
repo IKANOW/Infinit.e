@@ -567,6 +567,10 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("members.jsp?");
+				
+		if ( this.communityid != null )
+			baseUrl.append("communityid=").append(this.communityid ).append("&");
+		
 		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append('&');
 		
 		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";

@@ -12,13 +12,14 @@
         	<!-- (hardwire this)
             <zipfileset excludes="META-INF/*.SF" src="../../core/infinit.e.data_model/dist/infinit.e.data_model.jar"/>
             -->
-            <zipfileset excludes="META-INF/*.SF" src="lib/infinit.e.data_model.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-cli-1.2.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-httpclient-3.1.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/commons-logging-1.1.1.jar"/>
+        	<!-- (hardwire this)
             <zipfileset excludes="META-INF/*.SF" src="lib/jackson-core-asl-1.8.1.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/jackson-mapper-asl-1.8.1.jar"/>
             <zipfileset excludes="META-INF/*.SF" src="lib/jackson-xc-1.8.1.jar"/>
+            -->
         </jar>
     </target>
 </project>

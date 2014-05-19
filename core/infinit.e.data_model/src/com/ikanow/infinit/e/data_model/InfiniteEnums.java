@@ -22,6 +22,7 @@ public class InfiniteEnums
 	public static final int FEEDS = 2;
 	public static final int DATABASE = 4;
 	public static final int FILES = 8;
+	public static final int LOGSTASH = 16;
 	
 	public static int castExtractType(String type)
 	{
@@ -31,6 +32,8 @@ public class InfiniteEnums
 			return DATABASE;
 		else if ( type.toLowerCase().equals("file"))
 			return FILES;
+		else if ( type.toLowerCase().equals("logstash"))
+			return LOGSTASH;
 		return 0;
 	}
 	

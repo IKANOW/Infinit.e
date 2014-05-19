@@ -24,6 +24,7 @@ import java.net.URL;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
@@ -62,6 +63,7 @@ import org.json.JSONException;
 import org.json.JSONObject;
 import org.json.XML;
 import org.w3c.dom.Document;
+import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
@@ -696,6 +698,9 @@ public class UnstructuredAnalysisHarvester {
 							toAdd = metaPattern.matcher(toAdd).replaceFirst(
 									m.replace);
 						}
+						if ((null != m.flags) && m.flags.contains("H"))	{
+							toAdd = StringEscapeUtils.unescapeHtml(toAdd);
+						}
 						prefix.setLength(nFieldNameLen);
 						prefix.append(toAdd);
 						String dupCheck = prefix.toString();
@@ -788,6 +793,9 @@ public class UnstructuredAnalysisHarvester {
 				if (null != returnVal) {
 					if (returnVal instanceof String) { // The only easy case
 						Object[] array = new Object[1];
+						if ((null != m.flags) && m.flags.contains("H"))	{
+							returnVal = StringEscapeUtils.unescapeHtml((String)returnVal);
+						}
 						array[0] = returnVal;
 						f.addToMetadata(m.fieldName, array);
 					} else { // complex object or array - in either case the engine turns these into
@@ -865,7 +873,10 @@ public class UnstructuredAnalysisHarvester {
 						for (int i= 0; i< res.getLength(); i++)
 						{
 							Node info_node = res.item(i);
-							if (bConvertToObject || convertToXml) {
+							if ((null != m.flags) && (m.flags.contains("g"))) {
+								Llist.add(parseHtmlTable(info_node, m.replace));
+							}
+							else if (bConvertToObject || convertToXml) {
 								// Try to create a JSON object out of this
 								StringWriter writer = new StringWriter();
 								try {
@@ -1289,6 +1300,9 @@ public class UnstructuredAnalysisHarvester {
 				}
 				Object returnVal = securityManager.eval(engine, script);
 				field = (String) returnVal; // (If not a string or is null then will exception out)
+				if ((null != flags) && flags.contains("H") && (null != field)) { // HTML decode
+					field = StringEscapeUtils.unescapeHtml(field);
+				}
 			}
 			catch (Exception e) {
 				_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
@@ -1300,6 +1314,133 @@ public class UnstructuredAnalysisHarvester {
 			}
 		}
 		return field;
+	}
+	
+	// Handles parsing of HTML tables to Objects that can be easily printed as JSON. (flag = g)
+	// 1] No Replace Value - The first row of the table will be set as the headers
+	// 2] Replace Value = "[]" - Headers will be set to the column count number (beginning with 0) eg "0","1"
+	// 3a] Replace Value = "[one,two,three]" - The provided headers will be set as the headers
+	// 3b] Replace Values set, but more data columns than values provided - Additional columns that were not
+	//		specified will be assigned it's column count number. eg "specified","1","2"
+	// 4] Replace Value = "[one,null,three]" - Columns specified as null in the provided header will be skipped.
+	//		eg "one","three"
+	
+	private static HashMap<String, Object> parseHtmlTable(Node table_node, String replaceWith)
+	{
+		if (table_node.getNodeName().equalsIgnoreCase("table") && table_node.hasChildNodes())
+		{
+			Node topNode = table_node;
+			
+			boolean tbody = table_node.getFirstChild().getNodeName().equalsIgnoreCase("tbody");
+			
+			if (tbody)
+				topNode = table_node.getFirstChild();
+			
+			if (topNode.hasChildNodes())
+			{
+				NodeList rows = topNode.getChildNodes();
+				
+				List<String> headers = null;
+				ArrayList<HashMap<String, String>> data = null;
+				int headerLength = 0;
+				boolean[] skip = null;
+				
+				if (null != replaceWith)
+				{
+					if (replaceWith.equals("[]")){
+						headers = new ArrayList<String>();
+						headerLength = 0;
+					} // TESTED (by eye - 2)
+					else
+					{
+						//Remove square brackets
+						if(replaceWith.startsWith("[") && replaceWith.endsWith("]"))
+							replaceWith = replaceWith.substring(1, replaceWith.length()-1);
+						//Turn the provided list of headers into a list object
+						headers = Arrays.asList(replaceWith.split("\\s*,\\s*"));
+						headerLength = headers.size();
+						skip = new boolean[headerLength];
+						for(int h = 0; h < headerLength; h++)
+						{
+							String val = headers.get(h);
+							if (val.length() == 0 || val.equalsIgnoreCase("null"))
+								skip[h] = true;
+							else
+								skip[h] = false;
+						}
+						
+					}// TESTED (by eye - 3a)
+				}
+				
+				//traverse rows
+				for(int i = 0; i < rows.getLength(); i++)
+				{
+					Node row = rows.item(i);
+					if (row.getNodeName().equalsIgnoreCase("tr") || row.getNodeName().equalsIgnoreCase("th"))
+					{
+						//If the header value has not been set, the first row will be set as the headers
+						if (null == headers)
+						{
+							//Traverse through cells
+							headers = new ArrayList<String>();
+							if (row.hasChildNodes())
+							{
+								NodeList cells = row.getChildNodes();
+								headerLength = cells.getLength();
+								skip = new boolean[headerLength];
+								for (int j = 0; j < headerLength; j++)
+								{
+									headers.add(cells.item(j).getTextContent());
+									skip[j] = false;
+								}
+							} // TESTED (by eye - 1)
+						} 
+						else
+						{
+							if (null == data)
+							{
+								data = new ArrayList<HashMap<String,String>>();
+							}
+							if (row.hasChildNodes())
+							{
+								HashMap<String,String> cellList = new HashMap<String,String>();
+								NodeList cells = row.getChildNodes();
+								for (int j = 0; j < cells.getLength(); j++)
+								{
+									// Skip Code (TESTED by eye - 4)
+									if (headerLength == 0 || (j < headerLength && skip[j] == false))
+									{
+										String key = Integer.toString(j); // TESTED (by eye - 3b)
+										if (j < headerLength)
+											key = headers.get(j);
+	
+										cellList.put(key, cells.item(j).getTextContent());
+									}
+								}
+								data.add(cellList);
+							}
+							
+						}
+					}
+				}
+				//Create final hashmap containing attributes
+				HashMap<String,Object> table_attrib = new HashMap<String, Object>();
+				
+				NamedNodeMap nnm = table_node.getAttributes();
+				for (int i = 0; i < nnm.getLength(); i++)
+				{
+					Node att = nnm.item(i);
+					table_attrib.put(att.getNodeName(), att.getNodeValue());
+				}
+				table_attrib.put("table", data);
+				
+				//TESTED (by eye) attributes added to table value
+				// eg: {"id":"search","cellpadding":"1","table":[{"Status":"B","two":"ONE6313" ......
+				
+				return table_attrib;
+			}			
+		}
+		return null;
 	}
 
 	private static Pattern createRegex(String regEx, String flags) {

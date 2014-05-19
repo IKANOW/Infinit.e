@@ -67,6 +67,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	
 	private boolean _bCalculatedMostRecentlyModifiedFile = false;
 	private Date _mostRecentlyModifiedFile = null;
+	private ObjectId _mostRecentlyModifiedDocId = null;
 	private int _replicaSetDistributionRatio = -1; 
 	
 /////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -81,6 +82,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		
 		_bCalculatedMostRecentlyModifiedFile = false;
 		_mostRecentlyModifiedFile = null;
+		_mostRecentlyModifiedDocId = null;
 		
 		com.ikanow.infinit.e.data_model.utils.PropertiesManager dataModelProps = new com.ikanow.infinit.e.data_model.utils.PropertiesManager();
 		_replicaSetDistributionRatio = 1 + dataModelProps.getDocDbReadDistributionRatio();
@@ -161,12 +163,32 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
 					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
 					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
+					if (null != source.getDistributionFactor()) { // (need the created date also 
+						mostRecentFields.put(DocumentPojo.created_, 1);
+					}
 					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
 					if (mostRecentDocs.count() > 0) {
 						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
 						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);
-					}
-				}
+						_mostRecentlyModifiedDocId = (ObjectId) mostRecentDocDbo.get(DocumentPojo._id_);	
+						
+						if (null != source.getDistributionFactor()) { // This is a slightly more complex case because other...
+							//...threads for this source could be writing documents asynchronously ... so we're just going to disable everything
+							//if the most recent doc is _after_ our last harvest time (since this means we've already started harvesting the new source)
+							Date mostRecentlyModifedFile_createdTime = (Date) mostRecentDocDbo.get(DocumentPojo.created_);
+							if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvested() && (null != mostRecentlyModifedFile_createdTime))) {
+								if (mostRecentlyModifedFile_createdTime.after(source.getHarvestStatus().getHarvested())) {
+									_mostRecentlyModifiedFile = null;
+									_mostRecentlyModifiedDocId = null;				
+								}
+							}
+							else { // If we don't have a date then force a "slow" dedup
+								_mostRecentlyModifiedFile = null;
+								_mostRecentlyModifiedDocId = null;
+							}
+						}//TESTED
+					}//(found docs)
+				}//(success mode)
 			}
 			catch (Exception e) {} // If anything goes wrong will just check all files (slower)			
 		}//TESTED
@@ -179,6 +201,10 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 				return false;
 			}
 		}//TESTED
+		else if (null == sourceUrl) {
+			return true; // (for custom checking - if we couldn't get a cached value to compare against then assume we are inspecting)
+		}
+		
 		
 		// No short cut, go the long way round:		
 		
@@ -222,12 +248,33 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
 					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
 					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
+					if (null != source.getDistributionFactor()) { // (need the created date also 
+						mostRecentFields.put(DocumentPojo.created_, 1);
+					}
 					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
 					if (mostRecentDocs.count() > 0) {
 						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
-						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);
-					}
-				}
+						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);						
+						_mostRecentlyModifiedDocId = (ObjectId) mostRecentDocDbo.get(DocumentPojo._id_);	
+						
+						if (null != source.getDistributionFactor()) { // This is a slightly more complex case because other...
+							//...threads for this source could be writing documents asynchronously ... so we're just going to disable everything
+							//if the most recent doc is _after_ our last harvest time
+							Date mostRecentlyModifedFile_createdTime = (Date) mostRecentDocDbo.get(DocumentPojo.created_);
+							if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvested() && (null != mostRecentlyModifedFile_createdTime))) {								
+								if (mostRecentlyModifedFile_createdTime.after(source.getHarvestStatus().getHarvested())) {
+									_mostRecentlyModifiedFile = null;
+									_mostRecentlyModifiedDocId = null;									
+								}
+							}
+							else { // If we don't have a date then force a "slow" dedup
+								_mostRecentlyModifiedFile = null;
+								_mostRecentlyModifiedDocId = null;
+							}
+						}//TESTED
+						
+					}//TESTED (found docs)
+				}//(success mode)
 			}
 			catch (Exception e) {} // If anything goes wrong will just check all files (slower)			
 		}//TESTED
@@ -468,4 +515,13 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		
 	}//TESTED (created different types of duplicate, put print statements in, tested by hand)
 
+	@Override
+	public Date getLastModifiedDate() {
+		return _mostRecentlyModifiedFile;
+	}
+
+	@Override
+	public ObjectId getLastModifiedDocId() {
+		return _mostRecentlyModifiedDocId;
+	}
 }

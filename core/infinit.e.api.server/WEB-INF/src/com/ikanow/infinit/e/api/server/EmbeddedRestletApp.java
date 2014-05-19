@@ -212,6 +212,8 @@ public class EmbeddedRestletApp extends Application
         	// (This is obsolete but leave in for another couple of releases)
         attach(router, "/knowledge/feature/assocSuggest/{ent1}/{verb}/{ent2}/{field}/{communityids}",SearchInterface.class);
         
+      
+
 // UISETUP:
         
         //BETA NAMING
@@ -371,5 +373,12 @@ public class EmbeddedRestletApp extends Application
     	}
     	router.attach(url, clazz);
     	router.attach(url + "/", clazz);
+    }
+    @SuppressWarnings("unused")
+	static private void attachPrefix(Router router, String url,  Class<? extends ServerResource> clazz) {
+    	if (url.endsWith("/")) {
+    		throw new IllegalArgumentException("Trailing / is automatically added as option");
+    	}
+    	router.attach(url, clazz).setMatchingMode(Template.MODE_STARTS_WITH);
     }
 }  

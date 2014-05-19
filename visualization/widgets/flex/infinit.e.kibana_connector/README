@@ -1,0 +1,8 @@
+To install:
+1] Copy WAR into /opt/tomcat-infinite/interface-engine/webapps on each API node
+2] chown tomcat.tomcat <file>
+3] chmod 644 <file>
+4] In widget uploader (linked from /manager homepage), create a widget with the following SWF and image URLs (check "provide URL"):
+SWF URL: ./infinit.e.javascript_connector/InfiniteJavascriptConnector.swf
+Image URL: ./infinit.e.javascript_connector/Thumbnail.png
+(other fields are up to you - if uploading to the system community so everyone can see then ensure you have admin credentials)

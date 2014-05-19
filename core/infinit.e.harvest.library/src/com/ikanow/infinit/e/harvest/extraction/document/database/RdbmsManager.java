@@ -216,7 +216,7 @@ public class RdbmsManager {
 			// If an exception occurs log the error
 			logger.error("SQL Exception Message: " + e.getMessage(), e);
 			// Set the error message
-			return "Cannot close the result set : " + this.className;
+			return "Cannot close the result set : " + this.className + ", reason: " + e.getMessage();
 		}
 		// Close the statement
 		try {
@@ -227,7 +227,7 @@ public class RdbmsManager {
 			// If an exception occurs log the error
 			logger.error("SQL Exception Message: " + e.getMessage(), e);
 			// Set the error message
-			return "Cannot close the statement : " + this.className;
+			return "Cannot close the statement : " + this.className + ", reason: " + e.getMessage();
 		}
 		// Close the connection
 		try {
@@ -239,7 +239,7 @@ public class RdbmsManager {
 			// If an exception occurs log the error
 			logger.error("SQL Exception Message: " + e.getMessage(), e);
 			// Set the error message
-			return "Cannot close the connection : " + this.className;
+			return "Cannot close the connection : " + this.className + ", reason: " + e.getMessage();
 		}
 		return errorMessage;
 	}
@@ -271,12 +271,12 @@ public class RdbmsManager {
 		catch (ClassNotFoundException e) 
 		{
 			logger.error("Class Not Found Exception Message: " + e.getMessage(), e);
-			return "Cannot find class : " + this.className;
+			return "Cannot find class : " + this.className + ", reason: " + e.getMessage();
 		}
 		catch (SQLException e) 
 		{
 			logger.error("SQL Exception Message: " + e.getMessage(), e);
-			return "Cannot establish connection to the database : " + this.url;
+			return "Cannot establish connection to the database : " + this.url + ", reason: " + e.getMessage();
 		}
 		
 		if ( con != null ) 
@@ -301,7 +301,7 @@ public class RdbmsManager {
 				// If an exception occurs log the error
 				logger.error("SQL Exception Message: " + e.getMessage(), e);
 				// set the error message
-				return "Cannot execute the query : " + this.query;
+				return "Cannot execute the query : " + this.query + ", reason: " + e.getMessage();
 			}
 		}
 		return errorMessage;

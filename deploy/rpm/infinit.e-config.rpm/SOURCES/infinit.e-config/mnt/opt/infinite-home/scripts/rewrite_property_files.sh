@@ -187,6 +187,8 @@ else
 	setParam HADOOP_MAX_CONCURRENT "$HADOOP_MAX_CONCURRENT" $SERVICE_PROPERTY_FILE
 	setParam HADOOP_LOCALMODE "$HADOOP_LOCALMODE" $SERVICE_PROPERTY_FILE
 	
+	setParam API_AGG_ACCURACY "$API_AGG_ACCURACY" $SERVICE_PROPERTY_FILE	
+	
 	chown tomcat.tomcat $SERVICE_PROPERTY_FILE
 	################### End infinite.service.properties ###########################
 

@@ -15,13 +15,10 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.test;
 
-import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.UnsupportedEncodingException;
 import java.net.MalformedURLException;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Scanner;
@@ -29,7 +26,6 @@ import java.util.Scanner;
 import org.bson.types.ObjectId;
 
 import jcifs.smb.NtlmPasswordAuthentication;
-import jcifs.smb.SmbException;
 
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.harvest.extraction.document.file.InfiniteFile;
@@ -39,14 +35,10 @@ public class InternalInfiniteFileTest {
 
 	/**
 	 * @param args
-	 * @throws MalformedURLException 
 	 * @throws URISyntaxException 
-	 * @throws UnsupportedEncodingException 
-	 * @throws FileNotFoundException 
-	 * @throws UnknownHostException 
-	 * @throws SmbException 
+	 * @throws IOException 
 	 */
-	public static void main(String[] args) throws MalformedURLException, UnsupportedEncodingException, URISyntaxException, SmbException, UnknownHostException, FileNotFoundException {
+	public static void main(String[] args) throws URISyntaxException, IOException {
 		// Configuration:
 		
 		System.out.println(Arrays.toString(args));

@@ -4,7 +4,6 @@
 
 CONFDIR=/opt/infinite-home/config/
 BINDIR=/opt/infinite-home/bin/
-LIBDIR=/opt/infinite-home/lib/
 SCRIPTDIR=/opt/infinite-home/db-scripts/
 LOGDIR=/opt/infinite-home/logs
 MONGODB=
@@ -52,7 +51,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "Completed frequency recalculation phase 1" >> $LOGDIR/sync_time.txt
 
 			# (Phase 2 of frequency update)
-			java -jar $LIBDIR/infinit.e.mongo-indexer.jar --entity --verify --query feature.tmpCalcFreqCounts >> $LOGDIR/sync_time.txt
+			$BINDIR/infinite_indexer.sh --entity --verify --query feature.tmpCalcFreqCounts >> $LOGDIR/sync_time.txt
 			/usr/bin/mongo --quiet $MONGODB/feature --eval '{db.tmpCalcFreqCounts.drop()}'
             date >> $LOGDIR/sync_time.txt
 			echo "Completed frequency recalculation phase 2" >> $LOGDIR/sync_time.txt

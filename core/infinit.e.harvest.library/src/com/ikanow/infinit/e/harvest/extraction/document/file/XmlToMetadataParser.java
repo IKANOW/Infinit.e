@@ -40,6 +40,12 @@ public class XmlToMetadataParser {
 	private int nMaxDocs = Integer.MAX_VALUE;
 	private int nCurrDocs = 0;
 
+	// Track approximate memory usage
+	private long _memUsage = 0;	
+	public long getMemUsage() {
+		return _memUsage*2; // (2x for string->byte)
+	}
+	
 	public XmlToMetadataParser()
 	{
 		levelOneFields = new ArrayList<String>();
@@ -177,6 +183,7 @@ public class XmlToMetadataParser {
 		boolean justIgnored = false;
 		boolean hitIdentifier = false;
 		nCurrDocs = 0;
+		_memUsage = 0;
 
 		StringBuffer fullText = new StringBuffer();
 		
@@ -311,7 +318,10 @@ public class XmlToMetadataParser {
 							}
 						}
 						doc.setFullText(fullText.toString());
+						_memUsage += sb.length()*4L; // 3x - one for full text, 3x for the object + overhead
+						sb.setLength(0);
 						sb.delete(0, sb.length());
+						
 						docList.add(doc);
 						doc = null;
 						if (++nCurrDocs >= nMaxDocs) {

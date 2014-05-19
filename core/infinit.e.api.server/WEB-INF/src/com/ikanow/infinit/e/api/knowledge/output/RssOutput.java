@@ -57,8 +57,12 @@ private static final Logger logger = Logger.getLogger(RssOutput.class);
 		feed.setPublishedDate( new Date( System.currentTimeMillis() ) );
 		feed.setFeedType( feedType ); // set the type of your feed
 		String urlRoot = props.getUrlRoot();
-		if (null != urlRoot)
+		if (null != urlRoot) {
 			feed.setLink(urlRoot.replace("/api/", ""));
+		}
+		else { // feed.link needs to be specified, otherwise RSS feed will fail:
+			feed.setLink("http://www.ikanow.com/#SET_YOUR_URL_ROOT");
+		}
 		
 		// Establish the list to contain the feeds
 		List<SyndEntry> entries = new ArrayList<SyndEntry>();

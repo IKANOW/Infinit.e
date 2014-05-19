@@ -28,6 +28,12 @@ public class JsonToMetadataParser {
 	private int nMaxDocs = Integer.MAX_VALUE;
 	private int nCurrDocs = 0;
 	
+	// Track approximate memory usage
+	private ObjectLength _memUsage = new ObjectLength();			
+	public long getMemUsage() {
+		return _memUsage.memory*10; // 5x for overhead, 2x for string->byte
+	}
+	
 	public JsonToMetadataParser(String sourceName, List<String> objectIdentifiers, String primaryKey, List<String> fieldsThatNeedToExist, int nMaxDocs)
 	{
 		if (nMaxDocs > 0) {
@@ -63,6 +69,7 @@ public class JsonToMetadataParser {
 		List<DocumentPojo> docList = new ArrayList<DocumentPojo>();
 		JsonParser parser = new JsonParser();
 		nCurrDocs = 0;
+		_memUsage.memory = 0;
 		
 		// Different cases:
 		// {} 
@@ -150,7 +157,7 @@ public class JsonToMetadataParser {
 			doc.setFullText(meta.toString());
 		}
 		else if (meta.isJsonObject()) {
-			doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
+			doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject(), _memUsage));
 		}
 		return doc;
 		
@@ -191,7 +198,7 @@ public class JsonToMetadataParser {
 							doc.setFullText(meta.toString());
 						}
 						else {
-							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject()));
+							doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject(), _memUsage));
 						}
 						docList.add(doc);
 						if (++nCurrDocs >= nMaxDocs) {
@@ -217,7 +224,7 @@ public class JsonToMetadataParser {
 								doc.setFullText(meta2.toString());
 							}
 							else {
-								doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject()));
+								doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject(), _memUsage));
 							}
 							docList.add(doc);						
 							if (++nCurrDocs >= nMaxDocs) {
@@ -346,6 +353,10 @@ public class JsonToMetadataParser {
 
 	// Utility - conversion
 
+	public static class ObjectLength {
+		public long memory = 0;
+	}
+	
 	/**
 	 * Converts a JsonObject to a LinkedHashMap.
 	 * @param json  JSONObject to convert
@@ -360,26 +371,42 @@ public class JsonToMetadataParser {
 	{
 		return convertJsonObjectToLinkedHashMap(json, false);
 	}
+	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JsonObject json, ObjectLength size)
+	{
+		return convertJsonObjectToLinkedHashMap(json, false, size);
+	}
 	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JsonObject json, boolean bHtmlUnescape)
+	{
+		return convertJsonObjectToLinkedHashMap(json, bHtmlUnescape, null);
+	}
+	static public LinkedHashMap<String,Object> convertJsonObjectToLinkedHashMap(JsonObject json, boolean bHtmlUnescape, ObjectLength size)
 	{
 		int length = json.entrySet().size();
 		LinkedHashMap<String,Object> list = new LinkedHashMap<String,Object>(capacity(length));
 		for (Map.Entry<String, JsonElement> jsonKeyEl: json.entrySet())
 		{
 			JsonElement jsonEl = jsonKeyEl.getValue();
+			if (null != size) {
+				size.memory += jsonKeyEl.getKey().length();
+			}
 			if (jsonEl.isJsonArray()) {
-				list.put(jsonKeyEl.getKey(), handleJsonArray(jsonEl.getAsJsonArray(), bHtmlUnescape));
+				list.put(jsonKeyEl.getKey(), handleJsonArray(jsonEl.getAsJsonArray(), bHtmlUnescape, size));
 			}
 			else if (jsonEl.isJsonObject()) {
-				list.put(jsonKeyEl.getKey(), convertJsonObjectToLinkedHashMap(jsonEl.getAsJsonObject(), bHtmlUnescape));				
+				list.put(jsonKeyEl.getKey(), convertJsonObjectToLinkedHashMap(jsonEl.getAsJsonObject(), bHtmlUnescape, size));				
 			}
 			else if (jsonEl.isJsonPrimitive()) {
+				String val;
 				if (bHtmlUnescape) {
-					list.put(jsonKeyEl.getKey(), StringEscapeUtils.unescapeHtml(jsonEl.getAsString()));					
+					val = StringEscapeUtils.unescapeHtml(jsonEl.getAsString());
 				}
 				else {
-					list.put(jsonKeyEl.getKey(), jsonEl.getAsString());
+					val = jsonEl.getAsString();
 				}
+				if (null != size) {
+					size.memory += val.length();
+				}
+				list.put(jsonKeyEl.getKey(), val);
 			}
 		}
 		if (list.size() > 0)
@@ -390,17 +417,17 @@ public class JsonToMetadataParser {
 	}
 	//TESTED
 	
-	static private Object[] handleJsonArray(JsonArray jarray, boolean bHtmlUnescape)
+	static private Object[] handleJsonArray(JsonArray jarray, boolean bHtmlUnescape, ObjectLength size)
 	{
 		Object o[] = new Object[jarray.size()];
 		for (int i = 0; i < jarray.size(); i++)
 		{
 			JsonElement jsonEl = jarray.get(i);
 			if (jsonEl.isJsonObject()) {
-				o[i] = convertJsonObjectToLinkedHashMap(jsonEl.getAsJsonObject(), bHtmlUnescape);
+				o[i] = convertJsonObjectToLinkedHashMap(jsonEl.getAsJsonObject(), bHtmlUnescape, size);
 			}
 			else if (jsonEl.isJsonArray()) {
-				o[i] = handleJsonArray(jsonEl.getAsJsonArray(), bHtmlUnescape);				
+				o[i] = handleJsonArray(jsonEl.getAsJsonArray(), bHtmlUnescape, size);				
 			}
 			else if (jsonEl.isJsonPrimitive()) {
 				if (bHtmlUnescape) {
@@ -408,6 +435,9 @@ public class JsonToMetadataParser {
 				}
 				else {
 					o[i] = jsonEl.getAsString();
+				}
+				if (null != size) {
+					size.memory += ((String)o[i]).length();
 				}
 			}
 		}

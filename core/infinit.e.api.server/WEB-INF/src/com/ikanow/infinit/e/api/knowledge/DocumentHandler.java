@@ -61,11 +61,12 @@ public class DocumentHandler
 	
 	/**
 	 * Get information function that returns the user information in the form of a JSON String.
+	 * @param isAdmin 
 	 * 
 	 * @param  key	the key definition of the user ( example email@email.com )
 	 * @return      a JSON string representation of the person information on success
 	 */
-	public ResponsePojo getInfo(String userIdStr, String sourceKey, String idStrOrUrl, boolean bReturnFullText, boolean returnRawData) 
+	public ResponsePojo getInfo(String userIdStr, String sourceKey, String idStrOrUrl, boolean bReturnFullText, boolean returnRawData, boolean isAdmin) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -82,7 +83,9 @@ public class DocumentHandler
 				query.put(DocumentPojo.sourceKey_, sourceKey);
 				query.put(DocumentPojo.url_, idStrOrUrl);
 			}
-			query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
+			
+			if ( !isAdmin )
+				query.put(DocumentPojo.communityId_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
 				// (use DBObject here because DocumentPojo is pretty big and this call could conceivably have perf implications)
 			
 			BasicDBObject fieldsQ = new BasicDBObject();
@@ -199,12 +202,14 @@ public class DocumentHandler
 		return rp;
 	}
 	
-	public ResponsePojo getFileContents(String userIdStr, String sourceKey, String relativePath) {
+	public ResponsePojo getFileContents(String userIdStr, String sourceKey, String relativePath, boolean isAdmin) 
+	{
 		ResponsePojo rp = new ResponsePojo();
 		
 		try  {
 			BasicDBObject query = new BasicDBObject(SourcePojo.key_, sourceKey);
-			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
+			if ( !isAdmin )
+				query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, SocialUtils.getUserCommunities(userIdStr)));
 			BasicDBObject fields = new BasicDBObject(SourcePojo.url_, 1);
 			fields.put(SourcePojo.extractType_, 1);
 			fields.put(SourcePojo.file_, 1);

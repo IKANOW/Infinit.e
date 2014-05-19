@@ -838,5 +838,22 @@ var SAMPLE_SOURCES = {
 			                    	   }
 			                       }
 			                       ]
+		},
+		
+		"logstash": {
+			"description": "Use logstash to pull records into the logstash-specific index (does not generate Infinit.e documents like other harvest types).",
+			"extractType": "Logstash",
+			"isPublic": true,
+			"mediaType": "Record",
+			"title": "Logstash template source",			
+			"processingPipeline": [
+			                       {
+			                    	   "display": "Just contains a string in which to put the logstash configuration (minus the output, which is appended by Infinit.e)",
+			                    	   "logstash": {
+			                    		   "config": "input {\n}\n\nfilter {\n}\n\n",
+			                    		   "streaming": true
+			                    	   }
+			                       }
+			                       ]
 		}
 }

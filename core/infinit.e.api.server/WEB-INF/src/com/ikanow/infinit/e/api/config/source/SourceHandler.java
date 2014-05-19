@@ -309,6 +309,18 @@ public class SourceHandler
 			
 			BasicDBObject query = null;
 	
+			//SPECIAL CASE: IF AN ACTIVE LOGSTASH HARVEST THEN CHECK BEFORE WE'LL PUBLISH:
+			if (source.getExtractType().equalsIgnoreCase("logstash") && 
+					((null == source.getSearchCycle_secs()) || (source.getSearchCycle_secs() > 0)))
+			{
+				ResponsePojo rpTest = this.testSource(sourceString, 0, false, false, userIdStr);
+				if (!rpTest.getResponse().isSuccess()) { 
+					rp.setResponse(new ResponseObject("Source", false, "Logstash not publishable. Error: " + rpTest.getResponse().getMessage()));
+					return rp;
+				}
+				
+			}//TESTED
+			
 			///////////////////////////////////////////////////////////////////////
 			// If source._id == null this should be a new source
 			if ((source.getId() == null) && (source.getKey() == null))
@@ -646,7 +658,7 @@ public class SourceHandler
 			long nDocsDeleted = 0;
 			if (null != source.getKey()) { // or may delete everything!
 				StoreAndIndexManager dataStore = new StoreAndIndexManager();
-				nDocsDeleted = dataStore.removeFromDatastoreAndIndex_bySourceKey(source.getKey(), false, communityId.toString());
+				nDocsDeleted = dataStore.removeFromDatastoreAndIndex_bySourceKey(source.getKey(), null, false, communityId.toString());
 				
 				DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, new ObjectId(communityIdStr)), 
 						new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, -nDocsDeleted)));
@@ -661,6 +673,17 @@ public class SourceHandler
 					catch (Exception e) {} // Just carry on, shouldn't ever happen and it's too late to do anything about it
 					//TESTED					
 				}
+				else { // !bDocsOnly, ie delete source also
+					DbManager.getIngest().getSource().remove(queryDbo);					
+				}
+				if ((null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("logstash")) {
+					BasicDBObject logStashMessage = new BasicDBObject();
+					logStashMessage.put("_id", source.getId());
+					logStashMessage.put("deleteOnlyCommunityId", communityId);
+					logStashMessage.put("sourceKey", source.getKey());
+					DbManager.getIngest().getLogHarvesterQ().save(logStashMessage);
+					// (the rest of this is async, so we're done here)
+				}//TESTED
 				
 				// Do all this last:
 				// (Not so critical if we time out here, the next harvest cycle should finish it; though would like to be able to offload this
@@ -668,9 +691,11 @@ public class SourceHandler
 				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
 				dataStore.removeSoftDeletedDocuments();
 				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());				
-			}			
+			}	
+			else if (!bDocsOnly) { // (null source key, just remove the source)
+				DbManager.getIngest().getSource().remove(queryDbo);				
+			}
 			if (!bDocsOnly) { // Also deleting the entire source
-				DbManager.getIngest().getSource().remove(queryDbo);
 				rp.setResponse(new ResponseObject("Delete Source", true, "Deleted source and all documents: " + nDocsDeleted));			
 			}
 			else { 				
@@ -1191,12 +1216,35 @@ public class SourceHandler
 				}
 				rp.setResponse(new ResponseObject("Test Source",true,"successfully returned " + toAdd.size() + " docs: " + message));			
 				try {
-					if (bReturnFullText) {
+					// If grabbing full text
+					// Also some logstash specific logic - these aren't docs so just output the entire record
+					boolean isLogstash = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("logstash");
+					List<BasicDBObject> logstashRecords = null;
+					if (bReturnFullText || isLogstash) {
 						for (DocumentPojo doc: toAdd) {
-							doc.makeFullTextNonTransient();
+							if (isLogstash) {
+								if (null == logstashRecords) {
+									logstashRecords = new ArrayList<BasicDBObject>(toAdd.size());									
+								}
+								BasicDBObject dbo = (BasicDBObject) doc.getMetadata().get("logstash_record")[0];
+								Object test = dbo.get("_id");
+								if ((null != test) && (test instanceof ObjectId)) {
+									dbo.remove("_id"); // (unless it's a custom _id added from logstash then remove it)
+								}
+								logstashRecords.add(dbo);
+							}//TESTED
+							else if (bReturnFullText) {
+								doc.makeFullTextNonTransient();
+							}
 						}
-					}
-					rp.setData(toAdd, new DocumentPojoApiMap());
+					}//TESTED
+					if (null != logstashRecords) {
+						rp.setData(logstashRecords, (BasePojoApiMap<BasicDBObject>)null);						
+					}//TESTED
+					else {
+						rp.setData(toAdd, new DocumentPojoApiMap());
+					}//TESTED
+					
 					//Test deserialization:
 					rp.toApi();
 				}
@@ -1577,35 +1625,41 @@ public class SourceHandler
 				//set the search cycle secs in order of user -> toplevel -> nonexist
 				//if turning off: set to negative of user - toplevel or -1
 				//if turning on: set to positive of user - toplevel or null
-				BasicDBObject update = new BasicDBObject();				
+				BasicDBObject update = new BasicDBObject(SourcePojo.modified_, new Date());				
 				int searchCycle_secs = Math.abs( getSearchCycleSecs(source) );
 				if ( shouldSuspend )
 				{
 					//turn off the source
 					if ( searchCycle_secs > 0 )
 					{
-						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", -searchCycle_secs));
+						update.put(SourcePojo.searchCycle_secs_, -searchCycle_secs);
 					}
 					else
 					{
-						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", -1));						
+						update.put(SourcePojo.searchCycle_secs_, -1);						
 					}
 				}
 				else
 				{
+					//SPECIAL CASE: DON'T ALLOW THIS FOR LOGSTASH SOURCES BECAUSE NEED TO VALIDATE BEFORE RE-ACTIVATING
+					if (source.getExtractType().equalsIgnoreCase("logstash")) {
+						rp.setResponse(new ResponseObject("suspendSource", false, "Can't un-suspend logstash sources using this API call, unsuspend manually (eg from the Source Editor form)"));
+						return rp;
+					}//TESTED
+					
 					//turn on the source
 					if ( searchCycle_secs > 1 )
 					{
-						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", searchCycle_secs));						
+						update.put(SourcePojo.searchCycle_secs_, searchCycle_secs);						
 					}
 					else
 					{
-						update.put(MongoDbManager.set_, new BasicDBObject("searchCycle_secs", null));
+						update.put(SourcePojo.searchCycle_secs_, null);
 					}
 				}
 				
 				//save the source
-				DbManager.getIngest().getSource().update(query, update);
+				DbManager.getIngest().getSource().update(query, new BasicDBObject(MongoDbManager.set_, update));
 				rp.setResponse(new ResponseObject("suspendSource", true, "Source suspended/unsuspended successfully"));
 			}
 			else
@@ -1618,7 +1672,7 @@ public class SourceHandler
 			rp.setResponse(new ResponseObject("suspendSource", false, "must be owner or admin to suspend this source"));
 		}
 		return rp;
-	}
+	}//TODO (INF-2549) TOTEST (community owner/mod, source owner)
 
 	/**
 	 * Returns the searchCycle_secs for a source.  Will attempt to grab a users source
@@ -1649,6 +1703,7 @@ public class SourceHandler
 		//if that doesn't exist, return 0
 		return 0;
 	}		
-	
+
+	//TODO (INF-2533): Logstash: Handle delete source, delete source docs
 }
 

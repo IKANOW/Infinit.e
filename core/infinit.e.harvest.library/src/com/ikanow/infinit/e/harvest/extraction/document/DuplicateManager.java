@@ -72,5 +72,18 @@ public interface DuplicateManager {
 	 */
 	boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source);
 	
-	boolean needsUpdated_Url(Date modifiedDate, String url, SourcePojo source);	
+	/**
+	 * Only available after the first call to needsUpdated_SourceUrl after a reset
+	 * (and then not always - eg only if previous cycle was a success)
+	 * Returns the "modified" date of the most recently harvested document
+	 * For files this is the file time on disk
+	 * For custom jobs this is the time the record was created (last record in the virtual directory case)
+	 * 
+	 * @return Date (modified time of last document harvested, or null it not available)
+	 */
+	Date getLastModifiedDate();
+	
+	boolean needsUpdated_Url(Date modifiedDate, String url, SourcePojo source);
+
+	ObjectId getLastModifiedDocId();	
 }

@@ -2,6 +2,16 @@
 <classpath>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/jna.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/log4j.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/lucene-analyzers.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/lucene-core.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/lucene-highlighter.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/lucene-memory.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/lucene-queries.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/snappy-java.jar"/>
+	<classpathentry kind="lib" path="../infinit.e.elasticsearch.driver_0.19/lib/sigar/sigar-1.6.4.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

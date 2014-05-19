@@ -35,12 +35,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryFilterBuilder;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.search.facet.Facet;
-import org.elasticsearch.search.facet.FacetBuilders;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet.Entry;
-import org.elasticsearch.search.facet.datehistogram.DateHistogramFacetBuilder;
 import org.elasticsearch.search.facet.terms.TermsFacet;
-import org.elasticsearch.search.facet.terms.TermsFacetBuilder;
+import org.elasticsearch.search.facets.CrossVersionFacetBuilder;
+import org.elasticsearch.search.facets.CrossVersionFacetBuilders;
+import org.elasticsearch.search.facets.FacetUtils;
 
 import com.ikanow.infinit.e.api.knowledge.QueryHandler;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
@@ -95,29 +95,28 @@ public class AggregationUtils {
 				else {
 					geoCounts = new TreeSet<GeoAggregationPojo>();					
 				}
-				for (TermsFacet.Entry geo: geoFacet.entries()) {										
-					String geohash = geo.term().substring(2);
+				for (TermsFacet.Entry geo: geoFacet.getEntries()) {										
+					String geohash = FacetUtils.getTerm(geo).substring(2);
 					double[] loc =  GeoHashUtils.decode(geohash);
 					GeoAggregationPojo geoObj = new GeoAggregationPojo(loc[0],loc[1]);
-					geoObj.count = geo.count();
-					geoObj.type = GeoOntologyMapping.decodeOntologyCode(geo.term().charAt(0));
+					geoObj.count = geo.getCount();
+					geoObj.type = GeoOntologyMapping.decodeOntologyCode(FacetUtils.getTerm(geo).charAt(0));
 					geoCounts.add(geoObj);
 					// (note this aggregates geo points whose decoded lat/logns are the same, which can result in slightly fewer records than requested)
 					// (note the aggregation writes the aggregated count into geoObj.count)
 					
 					if (geoObj.count > nHighestCount) { // (the counts can be modified by the add command above)
-						nHighestCount = geo.count();
+						nHighestCount = geo.getCount();
 					}
 					if (geoObj.count < nLowestCount) {
-						nLowestCount = geo.count();
+						nLowestCount = geo.getCount();
 					}
 				}
 				rp.setGeo(geoCounts, nHighestCount, nLowestCount);
 			}//(TESTED)
-			
 			if (facet.getKey().equals("time")) {
 				DateHistogramFacet timeFacet = (DateHistogramFacet)facet.getValue();
-				rp.setTimes(timeFacet.entries(), QueryHandler.getInterval(aggOutParams.timesInterval, 'm'));
+				rp.setTimes(timeFacet.getEntries(), QueryHandler.getInterval(aggOutParams.timesInterval, 'm'));
 			}//(TESTED)
 			
 			if (facet.getKey().equals("events")) {
@@ -132,15 +131,15 @@ public class AggregationUtils {
 			
 			if (facet.getKey().equals("sourceTags")) {
 				TermsFacet tagsFacet = (TermsFacet)facet.getValue();
-				rp.setSourceMetaTags(tagsFacet.entries());
+				rp.setSourceMetaTags(tagsFacet.getEntries());
 			}
 			if (facet.getKey().equals("sourceTypes")) {
 				TermsFacet typesFacet = (TermsFacet)facet.getValue();
-				rp.setSourceMetaTypes(typesFacet.entries());
+				rp.setSourceMetaTypes(typesFacet.getEntries());
 			}
 			if (facet.getKey().equals("sourceKeys")) {
 				TermsFacet keysFacet = (TermsFacet)facet.getValue();
-				rp.setSources(keysFacet.entries());
+				rp.setSources(keysFacet.getEntries());
 			}
 			//TESTED x3
 			
@@ -151,7 +150,7 @@ public class AggregationUtils {
 				if (null == moments) {
 					moments = new HashMap<String, List<? extends Entry>>();
 				}
-				moments.put(facet.getKey().substring(8), momentFacet.entries());
+				moments.put(facet.getKey().substring(8), momentFacet.getEntries());
 			}//TESTED
 				
 		}//(end loop over generated facets)	
@@ -176,7 +175,7 @@ public class AggregationUtils {
 		// Geo
 		
 		if ((null != aggregation) && (null != aggregation.geoNumReturn) && (aggregation.geoNumReturn > 0)) {
-			TermsFacetBuilder fb = FacetBuilders.termsFacet("geo").field(DocumentPojo.locs_).size(aggregation.geoNumReturn);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb = CrossVersionFacetBuilders.termsFacet("geo").field(DocumentPojo.locs_).size(aggregation.geoNumReturn);
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
@@ -190,7 +189,7 @@ public class AggregationUtils {
 			if (aggregation.timesInterval.contains("m")) {
 				aggregation.timesInterval = "month";
 			}
-			DateHistogramFacetBuilder fb = FacetBuilders.dateHistogramFacet("time").field(DocumentPojo.publishedDate_).interval(aggregation.timesInterval);
+			CrossVersionFacetBuilder.DateHistogramFacetBuilder fb = CrossVersionFacetBuilders.dateHistogramFacet("time").field(DocumentPojo.publishedDate_).interval(aggregation.timesInterval);
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
@@ -216,7 +215,7 @@ public class AggregationUtils {
 			if (null != aggregation.moments.entityList) {
 				for (String entIndex: aggregation.moments.entityList) {
 					
-					DateHistogramFacetBuilder fb = FacetBuilders.dateHistogramFacet("moments." + entIndex).
+					CrossVersionFacetBuilder.DateHistogramFacetBuilder fb = CrossVersionFacetBuilders.dateHistogramFacet("moments." + entIndex).
 													field(DocumentPojo.publishedDate_).interval(aggregation.moments.timesInterval);
 					
 					EntityFeaturePojo alias = null;
@@ -356,7 +355,7 @@ public class AggregationUtils {
 			//System.out.println("REGEX==" + regex.toString());			
 			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 			
-			TermsFacetBuilder fb = FacetBuilders.termsFacet("events").field(AssociationPojo.assoc_index_).size(aggregation.eventsNumReturn).nested(DocumentPojo.associations_);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb = CrossVersionFacetBuilders.termsFacet("events").field(AssociationPojo.assoc_index_).size(aggregation.eventsNumReturn).nested(DocumentPojo.associations_);
 			fb.regex(regex.toString());
 			
 			// Gross raw handling for facets
@@ -394,7 +393,7 @@ public class AggregationUtils {
 			//System.out.println("REGEX==" + regex.toString());			
 			//TESTED (all combinations of 1/2 people, 1/2 verbs)			
 						
-			TermsFacetBuilder fb = FacetBuilders.termsFacet("facts").field(AssociationPojo.assoc_index_).size(aggregation.factsNumReturn).nested(DocumentPojo.associations_);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb = CrossVersionFacetBuilders.termsFacet("facts").field(AssociationPojo.assoc_index_).size(aggregation.factsNumReturn).nested(DocumentPojo.associations_);
 			fb.regex(regex.toString());
 			
 			// Gross raw handling for facets
@@ -407,8 +406,8 @@ public class AggregationUtils {
 		// Source management/monitoring
 		
 		if ((null != aggregation) && (null != aggregation.sourceMetadata) && (aggregation.sourceMetadata > 0)) {
-			TermsFacetBuilder fb = FacetBuilders.termsFacet("sourceTags").field(DocumentPojo.tags_).size(aggregation.sourceMetadata).facetFilter(parentFilterObj);
-			TermsFacetBuilder fb1 = FacetBuilders.termsFacet("sourceTypes").field(DocumentPojo.mediaType_).size(aggregation.sourceMetadata).facetFilter(parentFilterObj);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb = CrossVersionFacetBuilders.termsFacet("sourceTags").field(DocumentPojo.tags_).size(aggregation.sourceMetadata).facetFilter(parentFilterObj);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb1 = CrossVersionFacetBuilders.termsFacet("sourceTypes").field(DocumentPojo.mediaType_).size(aggregation.sourceMetadata).facetFilter(parentFilterObj);
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
@@ -419,7 +418,7 @@ public class AggregationUtils {
 		}
 		
 		if ((null != aggregation) && (null != aggregation.sources) && (aggregation.sources > 0)) {
-			TermsFacetBuilder fb = FacetBuilders.termsFacet("sourceKeys").field(DocumentPojo.sourceKey_).size(aggregation.sources);
+			CrossVersionFacetBuilder.TermsFacetBuilder fb = CrossVersionFacetBuilders.termsFacet("sourceKeys").field(DocumentPojo.sourceKey_).size(aggregation.sources);
 			// Gross raw handling for facets
 			if (null != parentFilterObj) {
 				fb = fb.facetFilter(parentFilterObj);
@@ -437,7 +436,7 @@ public class AggregationUtils {
 																	ScoringUtils scoreStats, AliasLookupTable aliasLookup,
 																	String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
-		ArrayList<BasicDBObject> facetList = new ArrayList<BasicDBObject>(facet.entries().size());
+		ArrayList<BasicDBObject> facetList = new ArrayList<BasicDBObject>(facet.getEntries().size());
 		
 		// (These 2 might be needed if we alias and there are filter strings specified)
 		HashSet<String> entTypeFilter = null;		
@@ -452,11 +451,11 @@ public class AggregationUtils {
 		@SuppressWarnings("unused")
 		int nFacetEl = 0; // (this will get used later)
 		
-		for (TermsFacet.Entry facetEl: facet.entries()) {
+		for (TermsFacet.Entry facetEl: facet.getEntries()) {
 			//DEBUG
-			//System.out.println("TERM= " + facetEl.getTerm());
+			//System.out.println("TERM= " + FacetUtils.getTerm(facetEl));
 			
-			String term = facetEl.getTerm().substring(sEventOrFact.length() + 1); // (step over "Fact|" or "Event|"
+			String term = FacetUtils.getTerm(facetEl).substring(sEventOrFact.length() + 1); // (step over "Fact|" or "Event|"
 			//TEST CASES:
 //			if (nFacetEl < terms.size()) {
 //				term = terms.get(nFacetEl);

@@ -41,7 +41,8 @@ public class MongoDbManager {
 	public static final String lt_ = "$lt"; 
 	public static final String lte_ = "$lte"; 
 	public static final String all_ = "$all"; 
-	public static final String in_ = "$in"; 
+	public static final String in_ = "$in";
+	public static final String nin_ = "$nin"; 
 	public static final String each_ = "$each"; 
 	public static final String set_ = "$set"; 
 	public static final String unset_ = "$unset"; 
@@ -350,6 +351,7 @@ public class MongoDbManager {
 		private Mongo _savedMongo;
 
 		private DBCollection _ingest_source;
+		private DBCollection _ingest_log_harvester_q;
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
@@ -361,6 +363,12 @@ public class MongoDbManager {
 				_ingest_source = _savedMongo.getDB("ingest").getCollection("source");										
 			}
 			return _ingest_source;
+		}
+		public DBCollection getLogHarvesterQ() {
+			if (null == _ingest_log_harvester_q) {
+				_ingest_log_harvester_q = _savedMongo.getDB("ingest").getCollection("log_harvester_q");										
+			}
+			return _ingest_log_harvester_q;
 		}
 	}
 

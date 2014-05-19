@@ -21,10 +21,11 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Map;
 
+
+import org.apache.commons.codec.binary.Hex;
 //import org.apache.log4j.Logger;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
-import org.elasticsearch.common.Hex;
 
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.IndexManager;

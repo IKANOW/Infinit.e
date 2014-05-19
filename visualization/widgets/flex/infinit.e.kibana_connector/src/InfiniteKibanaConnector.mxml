@@ -1,0 +1,322 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2012, The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:flexiframe="http://code.google.com/p/flex-iframe/"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:fw="com.ikanow.infinit.e.widget.library.framework.*"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 widgetClose="widgetmodule1_closeHandler(event)"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">	
+	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+		<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		/* If you need to override a style in our stylesheet, or add another
+		style that we did not support you can do so here, an example has been commented out
+		Please see documentation about over-riding MX component styles to display fonts*/
+		/*
+		mx|Text
+		{
+		font-family: infiniteNonCFFFont;
+		}
+		*/
+	</fx:Style>
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.components.InfiniteFlexIFrame;
+			import com.ikanow.infinit.e.widget.library.framework.Spinner;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
+			import flash.events.Event;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.events.CloseEvent;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import org.alivepdf.pdf.PDF;
+			
+			private var _savedCommunity:int = -1;
+			private var _savedUsername:String = "";
+			private var _savedCode:String = null;
+			
+			private var _context:IWidgetContext;
+			
+			private var titleArray:ArrayCollection = new ArrayCollection();
+			
+			private var API_SERVER:String = flash.external.ExternalInterface.call("getEndPointUrl");
+			
+			private var URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json" 
+			//private var URL:String = "./kibanaBin/dist/index.html#Kibana_StashedTemplate.json"  //test application URL
+			//private var URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html"  //flex.client URL
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
+			{
+				//Nothing to do
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				//Nothing to do
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 * 
+			 */
+			public function onReceiveNewQuery():void
+			{
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				var savedOptions:Object = new Object();
+				//(nothing to do)
+				return savedOptions;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			// CALLBACK
+			public function getCommunityIds():String
+			{
+				try {
+					var query:Object = _context.getCurrentQuery();
+					
+					return query.communityIds;
+					
+				}
+				catch (e:Error) {
+					return "error";
+					Alert.show("getCommunityIds: " + e.message);
+				}
+				return "";
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete():void
+			{
+				try {
+					ExternalInterface.addCallback( "getCommunityIds", getCommunityIds );
+					stashedToggleBtn.selected = true;
+					stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+				}
+				catch (e:Error) {
+					Alert.show("getCommunityIds: " + e.message);
+				}				
+			}
+			
+			protected function widgetmodule1_closeHandler(event:Event):void
+			{
+				jsIFrameKibana.removeIFrame();
+			}
+			
+			private function setSpinnerState(state:Boolean):void
+			{
+				if (state)
+				{
+					this.leftHeaderContent.enabled = false;
+					this.spinner.visible = true;
+					this.spinner.play();					
+				}
+				else 
+				{
+					this.leftHeaderContent.enabled = true;
+					this.spinner.stop();					
+					this.spinner.visible = false;
+				}
+			}
+			
+			protected function jsIFrameKibana_frameLoadHandler(event:Event):void
+			{
+				// For some reason some annoying scroll bars get added to the parent div
+				// going to remove them:
+				var jsCall:String = "document.getElementById(\"" + jsIFrameKibana.getDivId().substring(7) + "\").style.overflow = \"hidden\";";
+				flash.external.ExternalInterface.call("eval", jsCall); 
+				
+				//if (null == event)
+				//Alert.show("DONE: " + jsCall);
+			}
+			//1 for live toggle button, 0 for stashed toggle button
+			private var stashedToggle:Object = {selected:false};
+			private function switchToLiveToggle(buttonId:int){
+				stashedToggle.selected = !stashedToggle.selected; 
+				if(buttonId == 1){
+					if(liveToggle.selected==true){
+						stashedToggleBtn.selected = false;
+						stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}else if(liveToggle.selected==false){
+						stashedToggleBtn.selected = true;
+						stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}
+				} else if(buttonId == 0){
+					if(stashedToggleBtn.selected ==true){
+						liveToggle.selected= false;
+						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}else if(stashedToggleBtn.selected == false){
+						liveToggle.selected=true;
+						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}
+				}
+				var divid:String = "document.getElementById(\""+jsIFrameKibana.getDivId()+"\").contentWindow";
+				var fn:String = divid+".infiniteJsConnector.setLive";
+				ExternalInterface.call(fn,stashedToggle.selected);
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!--
+		<s:HTTPService id="getCommunityService"
+		result="getCommunityServiceResult(event)"
+		fault="getCommunityServiceFault(event)"/>
+		-->
+	</fx:Declarations>
+	
+	<components:helpContent>
+		<s:VGroup width="100%" height="100%" 
+				  horizontalAlign="center" gap="5" 
+				  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
+			
+			<s:RichEditableText editable="false" multiline="true" maxWidth="300" >
+				<s:textFlow>
+					<s:TextFlow>
+						<s:p>
+							The Infinit.e Record Analyzer uses elasticsearch's Kibana to view the new lightweight "record" type (not documents) - eg ingested by logstash or generated by a custom plugin. Currently this widget does not provide much integration with the other widgets, eg the ability to share queries and results - these will be added as the capability matures.   
+						</s:p>
+					</s:TextFlow>
+				</s:textFlow>
+			</s:RichEditableText>
+		</s:VGroup>
+	</components:helpContent>
+	
+	<!-- Header -->
+	<components:leftHeaderContent>
+		
+		<components:WidgetToggleButton id="liveToggle"
+									   label="View Live"
+										toolTip="View streaming records"
+										click="switchToLiveToggle(1);" />
+		
+		<components:WidgetToggleButton id="stashedToggleBtn"
+										label="View Saved"
+										toolTip="View saved/demonstration record sets"
+										click="switchToLiveToggle(0);" />
+	</components:leftHeaderContent>
+	
+	<components:InfiniteFlexIFrame id="jsIFrameKibana"
+								   frameLoad="jsIFrameKibana_frameLoadHandler(event)"						     
+								   label="JS"
+								   width="100%"
+								   height="100%"
+								   overlayDetection="true"
+								   source="{URL}" />
+	
+	<fw:Spinner id="spinner" visible="false" horizontalCenter="0" verticalCenter="0"/>
+	
+</components:WidgetModule>

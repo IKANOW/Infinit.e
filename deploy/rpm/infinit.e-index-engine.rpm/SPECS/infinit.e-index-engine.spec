@@ -4,7 +4,7 @@ Summary: Infinit.e index engine SOLR API
 Name: infinit.e-index-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: elasticsearch >= 0.18.7, infinit.e-config
+Requires: elasticsearch >= 0.19, infinit.e-config
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -23,14 +23,25 @@ Infinit.e index engine using ElasticSearch
 	if [ $1 -eq 2 ]; then
 
 ###########################################################################
-# THIS IS AN UPGRADE
+# PRE: THIS IS AN UPGRADE
 		service infinite-index-engine stop || :
 	fi
+	
+###########################################################################
+# PRE: INSTALL *AND* UPGRADE
+
+	# VERSION 1.x additional steps
+	if [ -d /usr/share/elasticsearch/ ]; then
+		# link old link for bw compatibility:
+		cd /usr/share/java
+		rm -rf /usr/share/java/elasticsearch
+		ln -sf /usr/share/elasticsearch/
+	fi	
 	
 %post
 
 ###########################################################################
-# INSTALL *AND* UPGRADE
+# POST: INSTALL *AND* UPGRADE
 
 	if [ -d /etc/security ]; then
 		if [ -f /etc/security/limits.conf ]; then
@@ -42,8 +53,36 @@ Infinit.e index engine using ElasticSearch
 		echo "elasticsearch    -       memlock         unlimited" >> /etc/security/limits.conf
 	fi
 
+	# VERSION 1.x additional steps
+	if [ -d /usr/share/elasticsearch/ ]; then
+	
+		# install plugins:
+		# (temporary, will be done in preinstall code once 1.0 becomes the default)
+		cd /usr/share/elasticsearch/plugins
+		
+		mkdir -p /usr/share/elasticsearch/plugins
+		rm -rf analysis-icu
+		unzip /mnt/opt/elasticsearch-infinite/plugins/analysis-icu.zip
+		rm -rf bigdesk
+		unzip /mnt/opt/elasticsearch-infinite/plugins/bigdesk.zip
+		rm -rf head
+		unzip /mnt/opt/elasticsearch-infinite/plugins/head.zip
+		
+		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+		rm -rf cloud-aws
+		if [ "$USE_AWS" = "1" ]; then
+			unzip /mnt/opt/elasticsearch-infinite/plugins/cloud-aws.zip
+		fi
+		
+		#(re-)install compatibility layer
+		yes | cp /mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
+	else
+		#(re-)install compatibility layer
+		yes | cp /mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar /usr/share/java/elasticsearch/lib		
+	fi
+
 ###########################################################################
-# INSTALL *AND* UPGRADE
+# POST: INSTALL *AND* UPGRADE
 # Handle relocation:
 
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
@@ -85,10 +124,12 @@ Infinit.e index engine using ElasticSearch
 	chkconfig infinite-index-engine on
 	
 	# Load AWS plugin:
-	USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
-	if [ "$USE_AWS" = "1" ]; then
-		# Try for both 0.18 and 0.19 (this is a bit of a disaster at the moment, versions aren't auto-detecting...)
-		res=$(/usr/share/java/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.10.0/)
+	if [ ! -d /usr/share/elasticsearch/ ]; then
+		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+		if [ "$USE_AWS" = "1" ]; then
+			# Try for both 0.18 and 0.19 but not 1.0.x (this is a bit of a disaster at the moment, versions aren't auto-detecting...)
+			res=$(/usr/share/java/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.10.0/)
+		fi
 	fi	
 	
 	# (service started in posttrans)
@@ -97,7 +138,7 @@ Infinit.e index engine using ElasticSearch
 	if [ $1 -eq 0 ]; then
 
 ###########################################################################
-# THIS IS AN *UN"INSTALL NOT AN UPGRADE
+# PREUN: THIS IS AN *UN"INSTALL NOT AN UPGRADE
 
 		# (Stop ES instance)
 		service infinite-index-engine stop
@@ -129,13 +170,13 @@ Infinit.e index engine using ElasticSearch
 	fi
 
 ###########################################################################
-# UNINSTALL *AND* UPGRADE
+# PRE-UN: UNINSTALL *AND* UPGRADE
 
 
 %posttrans
 
 ###########################################################################
-# FINAL STEP FOR INSTALLS AND UPGRADES
+# POST-TRANS: FINAL STEP FOR INSTALLS AND UPGRADES
 	# Start service
 	service infinite-index-engine start
 	
@@ -156,6 +197,14 @@ Infinit.e index engine using ElasticSearch
 %dir /mnt/opt/elasticsearch-infinite/
 %dir /mnt/opt/elasticsearch-infinite/config
 %dir /mnt/opt/elasticsearch-infinite/scripts
+%dir /mnt/opt/elasticsearch-infinite/plugins
+#(mostly temporary):
+/mnt/opt/elasticsearch-infinite/plugins/analysis-icu.zip
+/mnt/opt/elasticsearch-infinite/plugins/bigdesk.zip
+/mnt/opt/elasticsearch-infinite/plugins/head.zip
+/mnt/opt/elasticsearch-infinite/plugins/cloud-aws.zip
+/mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar
+/mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar
 
 %config %attr(755,root,root) /etc/init.d/infinite-index-engine
 %config /etc/sysconfig/infinite-index-engine
@@ -168,4 +217,3 @@ Infinit.e index engine using ElasticSearch
 
 %dir /usr/share/java/elasticsearch/plugins/scoringscripts/
 /usr/share/java/elasticsearch/plugins/scoringscripts/querydecayscript.jar
-

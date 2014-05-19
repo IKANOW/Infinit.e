@@ -158,6 +158,9 @@ public class PropertiesManager {
 		}
 		return s;
 	}
+	public String getLogstashAllowedInputs() {
+		return this.getProperty("harvest.logstash.allowed_inputs");
+	}
 	
 // DB class names for DbHarvester
 	

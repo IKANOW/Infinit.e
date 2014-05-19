@@ -332,7 +332,6 @@ public class QueryInterface extends ServerResource
 		if (data == null ) {
 			rp = new ResponsePojo();
 			rp.setResponse(new ResponseObject("Query", false, errorString.toString()));
-			System.out.println(rp.toApi());
 			data = rp.toApi();
 		}
 		return new StringRepresentation(data, mediaType);

@@ -15,12 +15,17 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.custom;
 
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.UnsupportedEncodingException;
+import java.net.MalformedURLException;
+import java.net.URISyntaxException;
 import java.util.Date;
 
 import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapreduce.lib.input.CombineFileSplit;
 import org.apache.hadoop.mapreduce.InputSplit;
 import org.apache.hadoop.mapreduce.RecordReader;
@@ -133,7 +138,19 @@ public class InfiniteFileInputReader extends RecordReader<Object, BSONObject> {
 			
 			// Step 1: get input stream
 			_fs = FileSystem.get(_config);
-			_inStream = _fs.open(_fileSplit.getPath(_currFile));
+			try {
+				_inStream = _fs.open(_fileSplit.getPath(_currFile));
+			}
+			catch (FileNotFoundException e) { // probably: this is a spare mapper, and the original mapper has deleted this file using renameAfterParse
+				_currFile++;
+				if (_currFile < _numFiles) {
+					_inStream = null;
+					return nextKeyValue();		// (just a lazy way of getting to the next file)		
+				}
+				else {
+					return false; // all done
+				}
+			}
 			
 			_splitDate = new Date(_fs.getFileStatus(_fileSplit.getPath(_currFile)).getModificationTime());
 			
@@ -169,6 +186,23 @@ public class InfiniteFileInputReader extends RecordReader<Object, BSONObject> {
 		}//TESTED
 		_record = _parser.getNextRecord();
 		if (null == _record) { // Finished this file - are there any others?
+			// Move/delete on completion
+			if (null != _fileConfig.renameAfterParse) {
+				try {
+					if (_fileConfig.renameAfterParse.isEmpty() || _fileConfig.renameAfterParse.equals(".")) { // (delete)
+						_fs.delete(_fileSplit.getPath(_currFile), false);
+					}
+					else { // (rename - some c/p from file harvester but with strings replaced with paths)
+							_fs.rename(_fileSplit.getPath(_currFile), 
+									createNewName(_fileSplit.getPath(_currFile), _fileConfig.renameAfterParse));
+						}
+					}
+				catch (Exception e) {
+					//e.printStackTrace();
+					// We're just going to move on if we can't delete the file, it's probably a permissions error
+				}
+			}//TESTED (delete and move) - local filesystem and HDFS
+			
 			_currFile++;
 			if (_currFile < _numFiles) {
 				_parser.close(); // (closes everything down)
@@ -198,4 +232,13 @@ public class InfiniteFileInputReader extends RecordReader<Object, BSONObject> {
 		return true;
 	}//TESTED
 
+	// Renaming utility - copied from FileHarvester.createNewName
+	
+	private static Path createNewName(Path subFile, String replacement) throws MalformedURLException, UnsupportedEncodingException, URISyntaxException {
+		String path = subFile.toUri().toString(); // (currently the entire string)
+		String name = subFile.getName();
+		int startOfName = path.lastIndexOf(name);
+		return new Path(replacement.replace("$name", name).replace("$path", path.substring(0, startOfName - 1)));
+	}//TESTED - local file system and HDFS
+	
 }

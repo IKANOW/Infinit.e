@@ -70,6 +70,10 @@ log.files.mail.from=MAIL_FROM
 log.files.mail.to=MAIL_TO
 
 #####################################################
+# API accuracy - needed because of saved queries
+api.aggregation.accuracy=API_AGG_ACCURACY
+
+#####################################################
 # Entity and Text Extractor Properties
 extractor.key.alchemyapi=ALCHEMY_KEY
 extractor.key.opencalais=OPENCALAIS_KEY

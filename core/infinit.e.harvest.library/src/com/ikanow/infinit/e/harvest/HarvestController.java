@@ -72,6 +72,7 @@ import com.ikanow.infinit.e.harvest.extraction.document.HarvestStatus_Standalone
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.database.DatabaseHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
+import com.ikanow.infinit.e.harvest.extraction.document.logstash.LogstashHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
@@ -116,13 +117,17 @@ public class HarvestController implements HarvestContext
 	public void setStandaloneMode(int nMaxDocs, boolean bRealDedup) {
 		_bIsStandalone = true;
 		urlsThatError.clear(); // (for api testing, obviously don't want to stop trying if we get an error)
-		if (nMaxDocs > 0) {
+		if (nMaxDocs >= 0) {
 			_nMaxDocs = nMaxDocs;
 		}
 		if (!bRealDedup) {
 			_duplicateManager = new DuplicateManager_Standalone();
 		}
 		_harvestStatus = new HarvestStatus_Standalone();
+
+		if (null != dynamicExtractorClassCache) { // (standalone so don't cache extractors)
+			dynamicExtractorClassCache.clear();
+		}		
 	}
 	public int getStandaloneMaxDocs() {
 		return _nMaxDocs;
@@ -175,7 +180,7 @@ public class HarvestController implements HarvestContext
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
 		if (overrideTypeSettings) { // (override API settings in test mode)
-			sTypes = "Feed,File,Database";
+			sTypes = "Feed,File,Database,Logstash";
 		}
 		String sType[] = sTypes.split("\\s*,\\s*");
 
@@ -192,6 +197,17 @@ public class HarvestController implements HarvestContext
 				catch(NoClassDefFoundError e) {
 					logger.error(s + " not supported: " + e.getMessage());
 				}				
+			}
+			else if (s.equalsIgnoreCase("logstash")) {
+				try {
+					this.harvesters.add(new LogstashHarvester());
+				}
+				catch (Exception e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}								
 			}
 			else if (s.equalsIgnoreCase("file")) {
 
@@ -1225,7 +1241,7 @@ public class HarvestController implements HarvestContext
 					dynamicExtractorClassCache = new HashMap<String, Class<?> >();
 				}
 
-				Class<?> classToLoad = dynamicExtractorClassCache.get(extractorInfo.getTitle());
+				Class<?> classToLoad = dynamicExtractorClassCache.get(extractorInfo.getTitle());				
 				if (null == classToLoad) {				
 					JarAsByteArrayClassLoader child = new JarAsByteArrayClassLoader (jarBytes, savedClassLoader);
 					

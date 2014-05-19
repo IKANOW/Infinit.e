@@ -22,7 +22,6 @@ import java.io.InputStream;
 import java.net.MalformedURLException;
 import java.net.URI;
 import java.net.URISyntaxException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
@@ -46,7 +45,6 @@ import com.mongodb.DBObject;
 import com.mongodb.gridfs.GridFSDBFile;
 
 import jcifs.smb.NtlmPasswordAuthentication;
-import jcifs.smb.SmbException;
 
 public class InternalInfiniteFile extends InfiniteFile {
 	
@@ -201,8 +199,14 @@ public class InternalInfiniteFile extends InfiniteFile {
 		_isDirectory = true;
 		_originalUrl = parent._originalUrl;
 		_isCustom = true;
-		_overwriteTime = parent._overwriteTime;
-	}//TESTED (6.2.2)
+		if (null != endId) {
+			_overwriteTime = endId.getTime();			
+		}
+		else if (null != startId) {
+			_overwriteTime = startId.getTime();			
+		}
+		else _overwriteTime = parent._overwriteTime;
+	}//TESTED (6.2.2) (custom _overwriteTime by hand)
 	
 	// Custom/file
 
@@ -211,15 +215,41 @@ public class InternalInfiniteFile extends InfiniteFile {
 		_isDirectory = false;
 		_originalUrl = parent._originalUrl;
 		_isCustom = true;
-		_overwriteTime = parent._overwriteTime;
-	}//TESTED (4.2)	
+		
+		Object id = _resultObj.get("_id");
+		if ((null != id) && (id instanceof ObjectId)) {
+			_overwriteTime = ((ObjectId)id).getTime();
+		}
+		else _overwriteTime = parent._overwriteTime;
+		// (backup for odd/old custom jobs)
+
+	}//TESTED (4.2) (custom _overwriteTime by hand)
 	
 	//////////////////////////////////////////////////////////////////
 
 	// INTERFACE METHODS
 	
+	// INTERNAL SPECIFIC
+	
+	// For custom jobs - if this is an incremental job then process slightly differently
+	
+	public boolean isIncremental() {
+		if (_isCustom) {
+			if (null != _resultObj) {
+				boolean b1 = _resultObj.getBoolean(CustomMapReduceJobPojo.appendResults_, false);
+				if (b1) {
+					b1 &= _resultObj.getBoolean(CustomMapReduceJobPojo.incrementalMode_, false);
+				}
+				return b1;
+			}
+		}
+		return false;
+	}
+	
+	// OVERRIDING
+	
 	@Override
-	public InputStream getInputStream() throws SmbException, MalformedURLException, UnknownHostException, FileNotFoundException {
+	public InputStream getInputStream() throws IOException {
 		if (!_isDirectory) {
 			if (_isShare && (null == _zipView)) {
 				String jsonShare = (String) _resultObj.get(SharePojo.share_);
@@ -247,6 +277,10 @@ public class InternalInfiniteFile extends InfiniteFile {
 
 	@Override
 	public InfiniteFile[] listFiles()  {
+		return listFiles(null);
+	}
+	@Override
+	public InfiniteFile[] listFiles(Date optionalFilterDate)  {
 		if (_isDirectory) {
 			if (_isShare) { // must be a zip file
 				ArrayList<InfiniteFile> zipFiles = new ArrayList<InfiniteFile>();
@@ -299,44 +333,73 @@ public class InternalInfiniteFile extends InfiniteFile {
 
 							//Handle current case where custom jobs are all dumped in with the wrong _id type							
 							if ((null != minId) || (null != maxId)) {
+								if ((null != maxId) && (null != optionalFilterDate)) { // (also used on the files below)
+									
+									if (maxId.getTime() < optionalFilterDate.getTime()) {
+										// (the "getTime()"s can overlap across chunks so we have to use minId
+										//  and accept that we'll often deserialize 1+ extra chunk every harvest)
+										continue;
+									}
+								}//TESTED (by hand)
+								
 								InternalInfiniteFile split = new InternalInfiniteFile(this, minId, maxId);
 								virtualDirs[added] = split;
 								added++;
-							}//TESTED (5.2.2, 6.2.2)
+							}//TESTED (5.2.2, 6.2.2) (chunk skipping by hand)
 						}
 						dbc.close();
-						
-						if (added > 1) { // (might not be a perfect partition but still better than nothing) 
-							return virtualDirs;
-						}//TESTED (5.2.2, 6.2.2)
-						else{
-							outColl = MongoDbManager.getCollection(outputDatabase, outputCollection);
-							dbc = outColl.find();
-						}//TESTED (5.2.2, 6.2.2)
-					}//TESTED
+						return virtualDirs;
+					}//TESTED (5.2.2, 6.2.2)
 				}//TESTED
 				else { // Virtual directory
-					
 					BasicDBObject query = new BasicDBObject();
 					if (null != _virtualDirStartLimit) {
-						query.put("_id", new BasicDBObject(MongoDbManager.gte_, _virtualDirStartLimit));
+						if (null != optionalFilterDate) {
+							ObjectId altStartId = new ObjectId((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
+								//(zero out the inc/machine ids so this query is independent to calling service)
+							
+							if (altStartId.compareTo(_virtualDirStartLimit) > 0) { // (altStartId > _virtualDirStartLimit)
+								query.put(MongoDbManager.gte_, altStartId);
+							}
+							else {
+								query.put(MongoDbManager.gte_, _virtualDirStartLimit);								
+							}
+						}//TESTED (by hand)
+						else { // normal case
+							query.put(MongoDbManager.gte_, _virtualDirStartLimit);
+						}
 					}
+					else if (null != optionalFilterDate) { // (first chunk so always overwrite with optionalFilter date if applicable)
+						ObjectId altStartId = new ObjectId((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
+						query.put(MongoDbManager.gte_, altStartId);						
+					}//TESTED (by hand)
 					if (null != _virtualDirEndLimit) {
-						query.put("_id", new BasicDBObject(MongoDbManager.lt_, _virtualDirEndLimit));						
+						query.put(MongoDbManager.lt_, _virtualDirEndLimit);						
 					}		
 
 					outColl = MongoDbManager.getCollection(outputDatabase, outputCollection);
-					dbc = outColl.find(query);
-				}//TESTED (6.2.2)
+					dbc = outColl.find(new BasicDBObject("_id", query));
+				}//TESTED (6.2.2) (doc skipping by hand)
+				
 				if (null != outColl) { // has files, create the actual file objects
+					//DEBUG
+					//System.out.println("CHUNK: GOT " + dbc.count());
 					
 					int docCount = dbc.count();
 					InfiniteFile[] docs = new InfiniteFile[docCount];
 					int added= 0;
 					for (DBObject docObj: dbc) {
+						// (if didn't use a query then apply internal filter date by hand)
+						if ((null == _virtualDirStartLimit) && (null == _virtualDirEndLimit) && (null != optionalFilterDate)) {
+							ObjectId docId = (ObjectId) docObj.get("_id");
+							if (optionalFilterDate.getTime() > docId.getTime()) {
+								continue;
+							}
+						}//TESTED
+						
 						InternalInfiniteFile doc = new InternalInfiniteFile(this, (BasicDBObject) docObj);
 						docs[added] = doc;
-						added++;						
+						added++;					
 					}
 					dbc.close();					
 					return docs;
@@ -355,7 +418,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 	//delete and rename will just call the InfiniteFile versions, which will exception out
 	
 	@Override
-	public boolean isDirectory() throws SmbException {
+	public boolean isDirectory() throws IOException {
 		return _isDirectory;
 	}
 	
@@ -391,14 +454,20 @@ public class InternalInfiniteFile extends InfiniteFile {
 				return "";									
 			}//TESTED (4.3)
 			else { // just make it _id, it's the user's responsibility to assign a primary key if you need to keep this unique
-				return _resultObj.getObjectId("_id").toString();
+				ObjectId updateId = _resultObj.getObjectId("_updateId", null);
+				if (null == updateId) {
+					return _resultObj.getObjectId("_id").toString();
+				}
+				else { // I am a modified old object so retain my name for dedup...
+					return updateId.toString();
+				}//TOTEST
 			}//TESTED (4.2.1)
 		}
 	}//TESTED
 	
 	@Override
 	public long getDate() {
-		if (null != _overwriteTime) {
+		if (null != _overwriteTime) { // (for custom needs to be the date the harvest completed? TODO: is that true, because _id would be awesome...)
 			return _overwriteTime;
 		}
 		if (_isShare) {

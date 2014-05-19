@@ -472,7 +472,7 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			List<String> newTags = new ArrayList<String>();
 			for (String s : formTags)
 			{
-				newTags.add(s);
+				newTags.add(s.trim());
 			}
 			community.put("tags", newTags);
 			
@@ -540,7 +540,7 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 		{
 			String nameStr = URLEncoder.encode(name, "UTF-8");
 			String descriptionStr = URLEncoder.encode(description, "UTF-8");
-			String tagsStr = URLEncoder.encode(tags, "UTF-8");
+			String tagsStr = URLEncoder.encode(trimTagString(tags), "UTF-8");
 			String parentIdStr = null;
 			if ((null != parentId) && (parentId.length() > 0)) {
 				parentIdStr = URLEncoder.encode(parentId, "UTF-8");
@@ -574,7 +574,20 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 	}
 } // TESTED
 
-
+private String trimTagString(String tagStr)
+{
+	String[] tags = tagStr.split(",");
+	StringBuilder sb = new StringBuilder();
+	
+	for (int i = 0; i < tags.length; i++)
+	{
+		String s = tags[i];
+		if ( i > 0 )
+			sb.append(",");
+		sb.append(s.trim());				
+	}
+	return sb.toString();
+}
 
 
 //deleteAccount -

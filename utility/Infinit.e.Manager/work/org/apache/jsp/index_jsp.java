@@ -1170,6 +1170,9 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 	boolean isLoggedIn = false;
 	messageToDisplay = "";
 	
+	/**/
+	System.out.println(API_ROOT + " " + localCookie + " " + request.getParameter("username") + " " + request.getParameter("password") );
+	
 	// Page request is a post back from the login form
 	if (request.getParameter("username") != null && request.getParameter("password") != null) 
 	{

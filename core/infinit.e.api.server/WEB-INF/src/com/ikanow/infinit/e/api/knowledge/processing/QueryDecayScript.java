@@ -16,9 +16,10 @@
 package com.ikanow.infinit.e.api.knowledge.processing;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
-import org.elasticsearch.index.field.data.strings.StringDocFieldData;
+import org.elasticsearch.index.field.ScriptFieldUtils;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
 import org.elasticsearch.script.AbstractDoubleSearchScript;
 import org.elasticsearch.search.lookup.DocLookup;
@@ -64,9 +65,9 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 			double newlon = 0.0;
 			double minModifier = 0;
 					
-			StringDocFieldData docfield = (StringDocFieldData)doc.get("locs");
-			String[] locs = docfield.getValues();
-			if ( locs.length != 0 )
+			Object docfield = doc.get("locs");
+			List<String> locs = ScriptFieldUtils.getStrings(docfield);
+			if ( locs.size() != 0 )
 			{
 				double paramlat = (Double) paramObjects.get(1);
 				double paramlon = (Double) paramObjects.get(2);				
@@ -113,9 +114,8 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 		if ( tdecay > 0 )
 		{
 			long now = (Long)paramObjects.get(4);					
-			long pubdate = doc.numeric("publishedDate").getLongValue();
-			tfactor = 1.0 / (1.0 + tdecay*Math.abs(now-pubdate));
-			
+			long pubdate = ScriptFieldUtils.getLong(doc.get("publishedDate"));
+			tfactor = 1.0 / (1.0 + tdecay*Math.abs(now-pubdate));			
 		}
 		
 		//If only for decay field (param decayfield=true) return geo*time, otherwise return geo*time*score		

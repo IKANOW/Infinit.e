@@ -1,0 +1,31 @@
+input {
+  file {
+    path => "/root/odin-poc-data/proxy_logs/may_known_cnc.csv"
+    start_position => beginning
+    type => "proxy_logs"
+  }
+}
+filter {
+	if [type] == "proxy_logs" {
+		csv {
+			columns => ["Device_Name","SimpleDate","Event_Date","Source_IP","Source_Port","Destination_IP","Destination_Port","Protocol","Vendor_Alert","MSS_Action","Logging_Device_IP","Application","Bytes_Received","Bytes_Sent","Dest._Country","Message","Message_Type","MSS_Log_Source_IP","MSS_Log_Source_Type","MSS_Log_Source_UUID","network_protocol_id","OS_Type","PIX_Main-Code","PIX_Sub-Code","Port","Product_ID","Product","Rule","Rule_Identifier","Sensor_Name","Class","Translate_Destination_IP","Translate_Destination_Port","Translate_Source_IP"]
+		}
+		if [Device_Name] == "Device Name" {
+			drop {}
+		}
+	    mutate {
+	       	convert => [ "Bytes_Received", "integer" ]
+        	convert => [ "Bytes_Sent", "integer" ]
+	    }
+	  	date {
+	  		timezone => "Europe/London"
+	    	match => [ "Event_Date" , "yyyy-MM-dd'T'HH:mm:ss" ]
+  		}
+  		geoip {
+  			source => "Destination_IP"
+ 			fields => ["timezone","location","latitude","longitude"]
+  		}
+	}
+}
+output {
+}

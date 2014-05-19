@@ -17,11 +17,14 @@ package com.ikanow.infinit.e.harvest;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.regex.Pattern;
 
 import javax.script.ScriptException;
 
@@ -37,7 +40,9 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
+import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester_searchEngineSubsystem;
@@ -136,6 +141,9 @@ public class HarvestControllerPipeline {
 				source.setRssConfig(pxPipe.web);
 				source.setExtractType("Feed"); // (feed/web use the same base extractor, called "Feed" for legacy reasons)
 			}//TESTED (basic_web_test*.json)
+			else if (null != pxPipe.logstash) {
+				source.setExtractType("Logstash");				
+			}
 			
 			// 2] Globals - copy across harvest control parameters, if any
 			
@@ -625,8 +633,7 @@ public class HarvestControllerPipeline {
 				break;
 			} //TESTED (c/p file_textError)
 			catch (Exception e) { // Misc doc error
-				/**/
-				e.printStackTrace();
+				//e.printStackTrace();
 				
 				error_on_feed_count++;
 				this.handleDocOrSourceError(source, doc, docIt, e, false);	
@@ -803,6 +810,121 @@ public class HarvestControllerPipeline {
 		_hc.extractTextAndEntities(docWrapper, source, false, true);
 			// (Note if no textEngine is used and this engine supports it then also does text extraction - TESTED)
 
+		// Apply entity filter if present
+		HashSet<String> removedEntities = null;
+		if ((null != pxPipe.featureEngine.entityFilter) && !pxPipe.featureEngine.entityFilter.isEmpty()) {
+			if ((null != doc.getEntities()) && !doc.getEntities().isEmpty()) {
+				boolean assocsToRemove = (null != doc.getAssociations()) && !doc.getAssociations().isEmpty();
+				boolean includeOnly = true;
+				if (pxPipe.featureEngine.entityFilter.startsWith("-")) {
+					includeOnly = false;
+				}//TOTEST (hand tested, script TBD)
+				if (null == pxPipe.featureEngine.entityRegex) {
+					String toRegex = pxPipe.featureEngine.entityFilter;
+					if (pxPipe.featureEngine.entityFilter.startsWith("-") || pxPipe.featureEngine.entityFilter.startsWith("+")) {
+						toRegex = pxPipe.featureEngine.entityFilter.substring(1);
+					}
+					pxPipe.featureEngine.entityRegex = Pattern.compile(toRegex, Pattern.CASE_INSENSITIVE);
+				}//TOTEST (hand tested, script TBD)
+				Iterator<EntityPojo> it = doc.getEntities().iterator();
+				while (it.hasNext()) {
+					String index = it.next().getIndex();
+					boolean remove = false;
+					if (pxPipe.featureEngine.entityRegex.matcher(index).find()) { // found
+						remove = !includeOnly;
+					}//TOTEST (hand tested, script TBD)
+					else { // not found
+						remove = includeOnly;
+					}//TOTEST (hand tested, script TBD)
+					if (remove) { // exclude
+						it.remove();
+						if (assocsToRemove) {
+							if (null == removedEntities) {
+								removedEntities = new HashSet<String>();
+							}
+							removedEntities.add(index);
+						}
+					}//TOTEST (hand tested, script TBD)
+				}//(end loop over entities)
+			}//(end if has entities)
+		}//(end if has entity filter)
+		
+		if ((null != pxPipe.featureEngine.assocFilter) || (null != removedEntities)) {
+			if ((null != doc.getAssociations()) && !doc.getAssociations().isEmpty()) {
+				boolean includeOnly = true;
+				if ((null != pxPipe.featureEngine.assocFilter) && !pxPipe.featureEngine.assocFilter.isEmpty()) {
+					if (pxPipe.featureEngine.assocFilter.startsWith("-")) {
+						includeOnly = false;
+					}//TOTEST
+					if (null == pxPipe.featureEngine.assocRegex) {
+						String toRegex = pxPipe.featureEngine.assocFilter;
+						if (pxPipe.featureEngine.assocFilter.startsWith("-") || pxPipe.featureEngine.assocFilter.startsWith("+")) {
+							toRegex = pxPipe.featureEngine.assocFilter.substring(1);
+						}
+						pxPipe.featureEngine.assocRegex = Pattern.compile(toRegex, Pattern.CASE_INSENSITIVE);
+					}//TOTEST
+				}
+				Iterator<AssociationPojo> it = doc.getAssociations().iterator();
+				while (it.hasNext()) {
+					AssociationPojo assoc = it.next();
+					boolean removed = false;
+					boolean matched = (null == pxPipe.featureEngine.assocRegex); // (ie always match if no regex spec'd)
+					for (String index: Arrays.asList(assoc.getEntity1_index(), assoc.getEntity2_index(), assoc.getGeo_index())) {
+						if (null != index) {
+							if ((null != removedEntities) && removedEntities.contains(index)) {
+								it.remove();
+								removed = true;
+								break;
+							}//TOTEST (hand tested, script TBD)
+							if (null != pxPipe.featureEngine.assocRegex) {
+								boolean remove = false;
+								if (pxPipe.featureEngine.assocRegex.matcher(index).find()) { // found
+									matched = true;
+									remove = !includeOnly;
+								}//TOTEST (hand tested, script TBD)
+								if (remove) { // exclude
+									it.remove();
+									removed = true;
+									break;
+								}//TOTEST (hand tested, script TBD)						
+							}
+						}//(end if index present)
+					}//(end loop over indexes)
+					if (removed) {
+						continue;
+					}
+					// Verb cat:
+					if ((null != pxPipe.featureEngine.assocRegex) && (null != assoc.getVerb_category())) {
+						boolean remove = false;
+						if (pxPipe.featureEngine.assocRegex.matcher(assoc.getVerb_category()).find()) { // found
+							matched = true;
+							remove = !includeOnly;
+						}//TOTEST (hand tested, script TBD)
+						if (remove) { // exclude
+							it.remove();
+							continue;
+						}//TOTEST (hand tested, script TBD)						
+					}
+					// Verb
+					if ((null != pxPipe.featureEngine.assocRegex) && (null != assoc.getVerb())) {
+						boolean remove = false;
+						if (pxPipe.featureEngine.assocRegex.matcher(assoc.getVerb()).find()) { // found
+							matched = true;
+							remove = !includeOnly;
+						}//TOTEST (hand tested, script TBD)
+						if (remove) { // exclude
+							it.remove();
+							continue;
+						}//TOTEST (hand tested, script TBD)
+					}
+					if (includeOnly && !matched) {
+						it.remove();
+					}//TESTED (hand tested, script TBD)
+					
+				}//(end loop over associations)
+			}//(end if associations present)
+		}//(end if association filter present, or entity filter removed entries so need to sync)
+		
 		// Handle batch completion (needs to happen before docWrapper.isEmpty()==error check)
 		if (_lastDocInPipeline) {
 			_hc.extractTextAndEntities(null, source, true, true); 
@@ -1030,8 +1152,10 @@ public class HarvestControllerPipeline {
 					if (null == newDoc.getPublishedDate()) {
 						newDoc.setPublishedDate(doc.getCreated());
 					}//TESTED (test2)
+					newDoc.setTempSource(source);
 					newDoc.setSource(doc.getSource());
 					newDoc.setSourceKey(doc.getSourceKey());
+					newDoc.setSourceUrl(doc.getSourceUrl()); // (otherwise won't be able to delete child docs that come from a file)
 					newDoc.setCommunityId(doc.getCommunityId());
 					newDoc.setDocGeo(doc.getDocGeo());
 					

@@ -1,0 +1,116 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- WHEN RUNNING FROM ECLIPSE, CHECK 2 THINGS:
+		1] YOU NEED TO HAVE RUN THE BUILD.XML ON THE DATA MODEL JAR FIRST (/WHENEVER YOU THEN CHANGE THE DATA MODEL)
+		2] IF YOU GET AN UNSUPPORTED CLASS VERSION ERROR FROM JAVAC THEN MOST LIKELY THE ANT IS RUNNING AGAINST A 
+		   DEFAULT JRE, YOU CAN CHANGE IT FROM "RUN AS>ANT..." 
+-->
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="infinit.e.records" default="war" basedir=".">
+	<property name="dir.src" value="WEB-INF/src"/>
+	<property name="dir.lib" value="WEB-INF/lib"/>
+	<property name="dir.war" value="war"/>
+	<property name="dir.build" value="build"/>
+	<property name="dir.build.classes" value="${dir.build}/classes"/>
+	<property name="dir.build.test.classes" value="${dir.build}/test-classes"/>
+	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
+	<property name="dir.build.war" value="${dir.build}/${dir.war}"/>
+	<property name="dir.build.jar" value="${dir.build}/${dir.jar}"/>
+	<property name="dir.static" value="WebContent/static"/>
+	<property name="dir.dist" value="dist"/>
+	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
+	<property name="infinit.e.kibana_connector.location" value="../infinit.e.kibana_connector"/>
+	<property name="es.lib.location" value="../infinit.e.elasticsearch.driver_1.0/lib/"/>
+	<property name="target" value="1.6"/>
+	<property name="source" value="1.6"/>
+	<property name="debuglevel" value="source,lines,vars"/>	
+	
+	<property name="manifest.name" value="com/ikanow/infinit/e"/>
+	<property name="specification.title" value="infinit.e generic app server"/>
+	<property name="specification.version" value="0.25"/>
+	<property name="specification.vendor" value="${vendor}"/>
+	<property name="implementation.title" value="com.ikanow.infinit.e"/>
+	<property name="implementation.version" value="build${build.number}"/>
+	<property name="implementation.vendor" value="${vendor}"/>
+	
+	<path id="infinit.e.data_model.classpath">
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	</path>
+    <path id="infinit.e.api.classpath">
+        <pathelement location="${dir.build.classes}"/>
+    	
+    	<fileset dir="${dir.lib}">
+        	<include name="**/*.jar"/>
+        </fileset>
+    	<fileset dir="${es.lib.location}">
+        	<include name="**/*.jar"/>
+        </fileset>
+        <path refid="infinit.e.data_model.classpath"/>
+	</path>
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.dist}"/>
+		<delete file="${dir.lib}/infinit.e.data_model.jar"/>
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+		<copy file="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar" tofile="${dir.lib}/infinit.e.data_model.jar"/>
+		<copy todir="${dir.static}/InfiniteKibanaConnector/">
+			<filelist dir="${infinit.e.kibana_connector.location}/dist/">
+				<file name="InfiniteKibanaConnector.swf"/>
+				<file name="Thumbnail.png"/>
+			</filelist>
+		</copy>
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+	
+	<!-- ================================= 
+	  target: compile  
+	  compile the source code using javac            
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+		<mkdir dir="${dir.build.classes}"/>
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+			<classpath refid="infinit.e.api.classpath"/>
+		</javac>
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	
+	<!-- =================================
+			target: test
+	==================================-->	
+	
+	<!-- =================================
+	target: war
+	create the war file
+	================================= -->
+	<target name="war" depends="compile" description="Generates ${ant.project.name}.war file in to the '${dir.build.war}' directory.">
+		<mkdir dir="${dir.dist}"/>
+		
+		<delete file="${dir.lib}/infinit.e.data_model.jar"/>
+		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
+			<classes dir="${dir.build.classes}"/>
+			<fileset dir="WebContent" />
+			<lib dir="${dir.lib}" includes="**/*.jar"/>
+		</war>
+	</target>
+</project>

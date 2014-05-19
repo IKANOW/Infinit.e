@@ -121,6 +121,7 @@ limitations under the License.
 		float mapProgress;
 		float reduceProgress;
 		Boolean appendResults;
+		Boolean incrementalMode;
 		Boolean exportToHdfs;
 		Double appendAgeOutInDays;
 		String[] jobDependencies;
@@ -262,7 +263,7 @@ limitations under the License.
     	return null;
 	}
 	
-	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, HttpServletRequest request, HttpServletResponse response)
+	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, String incrementalMode, HttpServletRequest request, HttpServletResponse response)
 	{
 		String charset = "UTF-8";		
 		try
@@ -271,6 +272,7 @@ limitations under the License.
 			postObj.arguments = userarguments;
 			postObj.query = query;
 			postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
+			postObj.incrementalMode = Boolean.parseBoolean(incrementalMode);
 			
 			//if ( userarguments.equals("") )
 			//	userarguments = "null";
@@ -682,6 +684,7 @@ limitations under the License.
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
 			String appendResults, String ageout, String exportToHdfs,
+			String incrementalMode,
 			Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
@@ -691,7 +694,7 @@ limitations under the License.
 		
 		String s = null;
 		if((null == (s = installTask(pluginId, title, description, frequency, nextruntime, inputcollection, currJarUrl, 
-						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, exportToHdfs, jobdepend, userarguments,
+						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, exportToHdfs, incrementalMode, jobdepend, userarguments,
 				communities, request, response))))
 		{
 			return "Task Added/Updated Successfully!";
@@ -716,7 +719,7 @@ limitations under the License.
 			Long nextruntime, String inputcollection, 
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
-			String appendResults, String ageout, String exportToHdfs, Set<String> jobdepend, String userarguments,
+			String appendResults, String ageout, String exportToHdfs, String incrementalMode, Set<String> jobdepend, String userarguments,
 			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		String charset = "UTF-8";
@@ -786,7 +789,7 @@ limitations under the License.
 		//if (true) return false;		
 		
 		//String json = stringOfUrl(url, request, response);
-		String json = postUrl(url,query,userarguments,exportToHdfs,request,response);
+		String json = postUrl(url,query,userarguments,exportToHdfs,incrementalMode,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
              
         if ( resp == null )
@@ -1103,6 +1106,7 @@ else if (isLoggedIn == true)
 							request.getAttribute("appendResults").toString(),
 							request.getAttribute("ageout").toString(),
 							request.getAttribute("exportToHdfs").toString(),							
+							request.getAttribute("updateResults").toString(),							
 							jobdeps,
 							request.getAttribute("userarguments").toString(),
 							communities, request, response));
@@ -1314,6 +1318,7 @@ $().ready(function() {
 			jar_url = document.getElementById('jar_url');
 			var select = document.getElementById( 'communities' );
 			appendResults = document.getElementById( 'appendResults' );
+			updateResults = document.getElementById( 'updateResults' );
 			ageout = document.getElementById( 'ageout' );
 			exportToHdfs = document.getElementById( 'exportToHdfs' );			
 			var jobdepend = document.getElementById( 'jobdepend' );
@@ -1363,6 +1368,7 @@ $().ready(function() {
 				outputKey.value = "com.mongodb.hadoop.io.BSONWritable";
 				outputValue.value = "com.mongodb.hadoop.io.BSONWritable";
 				appendResults.value = "false";
+				updateResults.value = "false";
 				exportToHdfs.value = "false";
 				ageout.value = "0";
 				queryEditor.setValue("{}");
@@ -1466,6 +1472,10 @@ $().ready(function() {
 			{
 				inputcollection.value = "FEATURE_ENTITIES";
 			}
+			else if (jsonObj.inputCollection == "feature.temporal")
+			{
+				inputcollection.value = "FEATURE_TEMPORAL";
+			}
 			else if (jsonObj.inputCollection == "feature.association")
 			{
 				inputcollection.value = "FEATURE_ASSOCS";
@@ -1498,7 +1508,9 @@ $().ready(function() {
 			}
 			outputKey.value = jsonObj.outputKey;
 			outputValue.value = jsonObj.outputValue;
-			appendResults.value = jsonObj.appendResults
+			appendResults.value = jsonObj.appendResults;
+			if (null != jsonObj.incrementalMode)
+				updateResults.value = jsonObj.incrementalMode;
 			ageout.value = jsonObj.appendAgeOutInDays;
 			if (null == jsonObj.exportToHdfs)
 				jsonObj.exportToHdfs = false;
@@ -1659,13 +1671,19 @@ $().ready(function() {
 		{
 			ageOutLabel = document.getElementById('ageoutLabel');
 			ageOutValue = document.getElementById('ageout');
+			updateLabel = document.getElementById('updateResultsLabel');
+			updateValue = document.getElementById('updateResults');
 			if (document.getElementById('appendResults').value == "false") {
 				ageOutLabel.style.display = "none";
 				ageOutValue.style.display = "none";				
+				updateLabel.style.display = "none";
+				updateValue.style.display = "none";				
 			}
 			else {
 				ageOutLabel.style.display = "";
 				ageOutValue.style.display = "";												
+				updateLabel.style.display = "";
+				updateValue.style.display = "";				
 			}
 		}//TESTED
 		
@@ -1684,6 +1702,7 @@ $().ready(function() {
 			outputKey = document.getElementById('outputkey').value;
 			outputValue = document.getElementById('outputvalue').value;
 			appendResults = document.getElementById('appendResults').value;
+			updateResults = document.getElementById('updateResults').value;
 			exportToHdfs = document.getElementById('exportToHdfs').value;
 			ageout = document.getElementById('ageout').value;
 			query = queryEditor.getValue();	
@@ -2033,7 +2052,8 @@ $().ready(function() {
 							<select name="inputcollection" id="inputcollection" onchange="auto_add_jobdep()">
 								<option value="DOC_METADATA">Document Metadata Collection</option>
 								<option value="DOC_CONTENT">Document Content Collection</option>
-								<option value="FEATURE_ENTITIES">Aggregated Entity Collection</option>
+								<option value="FEATURE_ENTITIES">Aggregated Entity Collection (all time)</option>
+								<option value="FEATURE_TEMPORAL">Aggregated Daily Entity Collection</option>
 								<option value="FEATURE_ASSOCS">Aggregated Association Collection</option>
 								<option value="FILESYSTEM">Distributed Filesystem</option>
 								<% out.print(inputCollectionList); %>
@@ -2110,6 +2130,15 @@ $().ready(function() {
 	                  <tr>
 	                    <td id="ageoutLabel">Age out in days:</td>
 	                    <td><input type="text" name="ageout" id="ageout" size="10" /></td>
+	                  </tr>
+	                  <tr>
+	                    <td id="updateResultsLabel">Merge Mode:</td>
+						<td>
+							<select name="updateResults" id="updateResults">																
+								<option value="false">append</option>
+								<option value="true">extra reduce step</option>
+							</select>
+						</td>
 	                  </tr>
 	                  <tr>
 	                    <td>Job dependencies:</td>

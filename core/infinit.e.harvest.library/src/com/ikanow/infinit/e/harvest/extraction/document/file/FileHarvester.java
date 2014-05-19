@@ -69,6 +69,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceFileConfigPojo.StreamingType;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -107,10 +108,16 @@ public class FileHarvester implements HarvesterInterface {
 	private List<DocumentPojo> docsToUpdate = null;
 	private List<DocumentPojo> docsToRemove = null;
 
+	private boolean _deleteExistingFilesBySourceKey = false;
 	private HashSet<String> sourceUrlsGettingUpdated = null; 
 		// (tells us source URLs that are being deleted)
 	
 	private HarvestContext _context;
+	
+	// Some internal state
+	private boolean _streaming = false; // (new mode, currently unused)
+	private boolean _customJob = false; // (some logic is different)
+	private Date _customLastRecordWritten = null;
 	
 	// Formatting office docs: allows HTML/XML output and to push options from the parsers into the tika instance
 	private Tika _tika = null;
@@ -125,6 +132,9 @@ public class FileHarvester implements HarvesterInterface {
 	
 	// Security:
 	private boolean harvestSecureMode = false;
+	
+	// Try to avoid blowing up the memory:
+	private long _memUsage = 0;
 	
 	/**
 	 * Get a specific doc to return the bytes for
@@ -183,8 +193,8 @@ public class FileHarvester implements HarvesterInterface {
 	
 	private static InfiniteFile searchFileShare( SourcePojo source, String searchFile ) throws Exception 
 	{
-		//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
-		// This is v undesirable and should be fixed once the underlying bug has been fixed
+		// Made this synchronized to work around what looks like deadlock issue in code
+		// This is undesirable and should be fixed once the underlying bug has been fixed
 		// (note in practice this is only an issue for multiple threads going to the same domain)
 		InfiniteFile f;
 		synchronized (FileHarvester.class) {
@@ -252,6 +262,7 @@ public class FileHarvester implements HarvesterInterface {
 	 */
 	private List<DocumentPojo> getFiles(SourcePojo source) throws Exception {
 		InfiniteFile file = null;
+		_deleteExistingFilesBySourceKey = false;
 		try 
 		{
 			if (source.getUrl().startsWith("inf://")) { // Infinit.e share/custom object
@@ -259,17 +270,22 @@ public class FileHarvester implements HarvesterInterface {
 				file = InfiniteFile.create(source.getUrl(), auth);	
 
 				if (source.getUrl().startsWith("inf://custom/")) {
-					boolean deleteAnyExistingFiles = false;
+					_customJob = true;
 					// A few cases: 
 					// 1] If first time, or source has completed:
 					// Quick check of share/custom date vs last imported doc in this case:
+					ObjectId customLastRecordId = null;
 					if ((null == source.getHarvestStatus()) || (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
 					{					
 						if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
 							return files;
 						}//TESTED			
 						else {
-							deleteAnyExistingFiles = true;
+							_customLastRecordWritten = _context.getDuplicateManager().getLastModifiedDate();
+							customLastRecordId = _context.getDuplicateManager().getLastModifiedDocId();
+							_context.getDuplicateManager().resetForNewSource();
+								// (reset the saved state since I faked my harvest status)
+							_deleteExistingFilesBySourceKey = true;
 						}//TESTED
 					}
 					else { // 2] If in the middle of a multiple harvest cycle....
@@ -285,19 +301,41 @@ public class FileHarvester implements HarvesterInterface {
 							//  even in non-append mode ... so if the file time is different than the most recent doc then
 							//  the job must have been re-run)
 							if (_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
-								deleteAnyExistingFiles = true;								
+								_deleteExistingFilesBySourceKey = true;								
 							}
+							_customLastRecordWritten = _context.getDuplicateManager().getLastModifiedDate();
+							customLastRecordId = _context.getDuplicateManager().getLastModifiedDocId();
+							_context.getDuplicateManager().resetForNewSource();
+								// (reset the saved state since I faked my harvest status)
 						}
 						finally { // (rewrite original)
 							source.getHarvestStatus().setHarvest_status(saved);
 						}
 					}//TESTED
+					if (_streaming) { // Never delete files...
+						_deleteExistingFilesBySourceKey = false;
+					}//TESTED
+					
+					if (null == customLastRecordId) { // no docs, so no need for this
+						// (or -in the case of distributed sources- the new harvest has already begun)
+						_deleteExistingFilesBySourceKey = false;						
+					}//TESTED
+
+					// Incremental updates: never delete anything, only process new objects
+					InternalInfiniteFile customHandle = (InternalInfiniteFile)file;
+					if (customHandle.isIncremental()) {
+						_deleteExistingFilesBySourceKey = false;
+					}//TOTEST
 					
 					// Finally, if we wanted to delete the files then go ahead now:
-					if (deleteAnyExistingFiles) {
+					if (_deleteExistingFilesBySourceKey) {						
 						// For now, support only "non-append" mode efficiently:
 						// Always delete all the old docs, updated docs will work but inefficiently (will delete and re-create)
 						DocumentPojo docRepresentingSrcKey = new DocumentPojo();
+						if (null != source.getDistributionFactor()) {
+							// If split across multiple docs then need a more expensive delete (note: still indexed)
+							docRepresentingSrcKey.setId(customLastRecordId);
+						}
 						docRepresentingSrcKey.setCommunityId(source.getCommunityIds().iterator().next());
 						docRepresentingSrcKey.setSourceKey(source.getKey());
 						this.docsToRemove.add(docRepresentingSrcKey);						
@@ -393,28 +431,39 @@ public class FileHarvester implements HarvesterInterface {
 				try {			
 					duplicateSources.clear();
 					if (null != doc.getSourceUrl()) { 
-						
-						// For XML files we delete everything that already exists (via docsToRemove) and then add new docs
-						docsToAdd.add(doc);	
 
-						// However still need to check for duplicates so can update entities correctly
-						// We only do this if the source URL changes ... note that we don't currently handle
-						// adding existing docs to different files ... if that happens then you'll end up with duplicate
-						// documents with the same URL but different sourceUrls
+						boolean add = true;
+
+						// However still need to check for duplicates so can update entities correctly (+maintain _ids, etc)
+						// We only do this if the source URL changes (unless URL is taken from the object in which case all bets are off) 
 						
-						if (sourceUrlsGettingUpdated.contains(doc.getSourceUrl()))
-						{
+						boolean sourceUrlUpdated = sourceUrlsGettingUpdated.contains(doc.getSourceUrl());
+						if (!doc.getHasDefaultUrl() || sourceUrlUpdated) { // src URL for a given URL							
 							// (only if the the sourceUrl is not new...)
 							if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
 								doc.setUpdateId(qr.getLastDuplicateId()); // (set _id to doc we're going to replace)
-								if (null != doc.getUpdateId()) {
-									doc.setCreated(new Date(doc.getUpdateId().getTime()));
+								
+								if (!sourceUrlUpdated && !_deleteExistingFilesBySourceKey) {
+									// Here update instead so we delete the old doc and add the new one
+									add = false;
+									docsToUpdate.add(doc);
 								}//TESTED
-								// (still don't add this to updates because we've added the source URL to the delete list)
-								// (hence approximate create with the updateId...)
+								else {
+									// (else *still* don't add this to updates because we've added the source URL or source key to the delete list)
+									// (hence approximate create with the updateId...)
+									if (null != doc.getUpdateId()) {
+										doc.setCreated(new Date(doc.getUpdateId().getTime()));
+									}//TESTED									
+								}//TESTED
 							}
-							//TODO (INF-2485) else still need to do deduplication (in the else case) to handle the same URL appearing in different parent files 
-						}
+							//(note we don't get about duplicate sources in this case - just too complex+rare a case)
+							
+						}//TESTED (src url changing, different src url, non-default URL)
+						
+						// For composite files we (almost always) delete everything that already exists (via docsToRemove) and then add new docs
+						if (add) {
+							docsToAdd.add(doc);
+						}						
 						//TESTED
 					}
 					else if (qr.isDuplicate_Url(doc.getUrl(), source, duplicateSources)) {
@@ -476,19 +525,25 @@ public class FileHarvester implements HarvesterInterface {
 			int debugMaxDocs =  Integer.MAX_VALUE; // by default don't set this, it's only for debug mode
 			if (_context.isStandalone()) { // debug mode
 				debugMaxDocs = maxDocsPerCycle; 
-			}
+			}			
 			
 			//fast check to see if the file has changed before processing (or if it never existed)
 			if(needsUpdated_SourceUrl(modDate, f.getUrlString(), source))
 			{
 				if (0 != modDate.getTime()) { // if it ==0 then sourceUrl doesn't exist at all, no need to delete
+					// This file already exists - in normal/managed mode will re-create
+					// In streaming mode, simple skip over
+					if (_streaming) {
+						return;
+					}//TESTED
+					
 					DocumentPojo docRepresentingSrcUrl = new DocumentPojo();
 					docRepresentingSrcUrl.setSourceUrl(f.getUrlString());
 					docRepresentingSrcUrl.setSourceKey(source.getKey());
 					docRepresentingSrcUrl.setCommunityId(source.getCommunityIds().iterator().next());
 					sourceUrlsGettingUpdated.add(docRepresentingSrcUrl.getSourceUrl());
 					this.docsToRemove.add(docRepresentingSrcUrl);
-						// (can add documents with just source URL, are treated differently in the core libraries)
+						// (can add documents with just source URL, are treated differently in the core libraries)					
 				}
 				
 				SourceFileConfigPojo fileSystem = source.getFileConfig();
@@ -517,6 +572,7 @@ public class FileHarvester implements HarvesterInterface {
 						try {							
 							xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
 							partials = xmlParser.parseDocument(xmlStreamReader);
+							_memUsage += xmlParser.getMemUsage();
 						}
 						finally {
 							if (null != xmlStreamReader) xmlStreamReader.close();
@@ -528,6 +584,7 @@ public class FileHarvester implements HarvesterInterface {
 							jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
 							jsonReader.setLenient(true);
 							partials = jsonParser.parseDocument(jsonReader);
+							_memUsage += jsonParser.getMemUsage();
 						}
 						finally {
 							if (null != jsonReader) jsonReader.close();
@@ -538,7 +595,9 @@ public class FileHarvester implements HarvesterInterface {
 						BufferedReader lineReader = null;
 						try {
 							lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
-							partials = new CsvToMetadataParser(debugMaxDocs).parseDocument(lineReader, source);
+							CsvToMetadataParser lineParser = new CsvToMetadataParser(debugMaxDocs);
+							partials = lineParser.parseDocument(lineReader, source);
+							_memUsage += lineParser.getMemUsage();							
 						}
 						finally {
 							if (null != lineReader) lineReader.close();
@@ -552,7 +611,7 @@ public class FileHarvester implements HarvesterInterface {
 						// Do nothing, unlikely to happen...
 					}					
 					int nIndex = 0;
-					int numPartials = partials.size();
+					int numPartials = partials.size();					
 					for (DocumentPojo doctoAdd : partials)
 					{
 						nIndex++;
@@ -560,8 +619,11 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setSourceKey(source.getKey());
 						doctoAdd.setMediaType(source.getMediaType());
 						doctoAdd.setModified(new Date(fileTimestamp));
-						doctoAdd.setCreated(new Date());						
-						if(null == doctoAdd.getUrl()) { // Normally gets set in xmlParser.parseIncident() - some fallback cases (usually md5)
+						doctoAdd.setCreated(new Date());				
+						
+						if(null == doctoAdd.getUrl()) { // Can be set in the parser or here
+							doctoAdd.setHasDefaultUrl(true); // (ie cannot occur in a different src URL)
+							
 							if (1 == numPartials) {
 								String urlString = f.getUrlString();
 								if (urlString.endsWith(urlType)) {
@@ -590,8 +652,7 @@ public class FileHarvester implements HarvesterInterface {
 						doctoAdd.setSourceUrl(f.getUrlString());
 
 						// Always add to files because I'm deleting the source URL
-						files.add(doctoAdd);
-						
+						files.add(doctoAdd);						
 					}//TESTED 
 					
 				} catch (XMLStreamException e1) {
@@ -609,7 +670,7 @@ public class FileHarvester implements HarvesterInterface {
 					errors++;
 					_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e1).toString(), true);					
 				}
-			}
+			}//(end if needs updated)
 		}
 		else //Tika supports Excel,Word,Powerpoint,Visio, & Outlook Documents
 		{
@@ -669,6 +730,8 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setUrl(f.getUrlString());
 					doc.setTitle(f.getName().toString());
 					doc.setPublishedDate(new Date(fileTimestamp));
+					
+					_memUsage += (250L*(doc.getFullText().length() + doc.getDescription().length()))/100L; // 25% overhead, 2x for string->byte
 					
 					// If the metadata contains a more plausible date then use that
 					try {
@@ -762,17 +825,11 @@ public class FileHarvester implements HarvesterInterface {
 				} // end exception handling
 			} // end dedup check
 		} // end XML vs "office" app
+		
+		//DEBUG
+		//System.out.println("FILE=" + files.size() + " / MEM=" + _memUsage + " VS " + Runtime.getRuntime().totalMemory());
 	}
 
-	//TODO (INF-1831): this takes far too long and also hogs the file harvest sync
-	// I think best would be to push files into a multimap and then read down the modified
-	// times until one hits a modified that misses
-	// (for success_iteration will need to do something different ... not sure what though?
-	//  need to spot the last file of the success_iteration and then restart logic from there
-	//  but v unclear how to do that... maybe something like step through docs (N:=maxdocs/10? /50?) at a time, check Nth ...
-	//  if the doc isn't there then loop back and try all of them from there until another collision occurs?!
-	//  ugh it would be nice to have sensible iterators in Java.... instead will have to fill another list as I go...)
-	
 	private void traverse( InfiniteFile f, SourcePojo source, int depth ) throws Exception {
 		if( depth == 0 ) {
 			return;
@@ -780,20 +837,32 @@ public class FileHarvester implements HarvesterInterface {
 
 		InfiniteFile[] l;
 		try {
-			//TODO (INF-1406): made this synchronized to work around what looks like deadlock issue in code
-			// This is v undesirable and should be fixed once the underlying bug has been fixed
+			// Made this synchronized to work around what looks like deadlock issue in code
+			// This is undesirable and should be fixed once the underlying bug has been fixed
 			// (note in practice this is only an issue for multiple threads going to the same domain)
 			synchronized (FileHarvester.class) {
-				l = f.listFiles();
+				if (_customJob && (null != _customLastRecordWritten)) {
+					l = f.listFiles(_customLastRecordWritten);
+				}
+				else {
+					l = f.listFiles();
+				}
 				
 				for(int i = 0; l != null && i < l.length; i++ ) {
 					if (null == l[i]) break; // (reached the end of the list)
 				
+					// Check what the deal with memory usage is:
+					// (Allow 25% of current heap)
+					if ((_memUsage*4) > Runtime.getRuntime().totalMemory()) {						
+						source.setReachedMaxDocs();						
+						break;
+					}//TESTED
+					
 					// Check to see if the item is a directory or a file that needs to parsed
 					// if it is a file then parse the sucker using tika 
 					// if it is a directory then use recursion to dive into the directory
 					if (files.size() >= this.maxDocsPerCycle) {
-						source.setReachedMaxDocs();
+						source.setReachedMaxDocs();						
 						break;
 					}
 					if( l[i].isDirectory() ) {
@@ -807,6 +876,9 @@ public class FileHarvester implements HarvesterInterface {
 						}//TESTED
 						if (bProcess) {
 							traverse( l[i], source, depth - 1 );
+							if (source.reachedMaxDocs()) { // (express elevator back to recursion root)
+								return;
+							}
 						}
 					}
 					else {
@@ -840,7 +912,8 @@ public class FileHarvester implements HarvesterInterface {
 							if (!_context.isStandalone()) {
 								if ((null != source.getFileConfig()) && (null != source.getFileConfig().renameAfterParse)) {
 									try {
-										if (0 == source.getFileConfig().renameAfterParse.length()) { // delete it
+										if (source.getFileConfig().renameAfterParse.isEmpty() || source.getFileConfig().renameAfterParse.equals(".")) 
+										{ // delete it
 											l[i].delete();
 										}//TESTED
 										else {
@@ -852,9 +925,9 @@ public class FileHarvester implements HarvesterInterface {
 									}
 								}//TESTED
 							}
-						}
-					}
-				}
+						}//(not excluded)
+					}//(file not directory)
+				}//(end loop over directory files)
 			}
 			// (End INF-1406 sync bug, see above explanation)
 
@@ -909,6 +982,15 @@ public class FileHarvester implements HarvesterInterface {
 		}
 		try 
 		{
+			// Defaults to some "normal" mode that involves trying to spot existing files that have been modified and re-creating their harvested docs
+			// In streaming mode it will just skip over those files and carry on
+			// (It should be particularly useful for custom mode, can just re-run the same job on he last day's data and the source will keep adding them)
+			if ((null != source.getFileConfig()) && (null != source.getFileConfig().mode) 
+					&& (StreamingType.streaming == source.getFileConfig().mode))
+			{
+				_streaming = true;
+			}
+			
 			//logger.debug("Source: " + source.getUrl());
 
 			//create new list for files

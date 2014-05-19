@@ -21,7 +21,7 @@ function showMessageToDisplay()
 
 
 // openTestSourceWindow - 
-function openTestSourceWindow(strTitle, strResponseMessage, strHarvesterOutput)
+function openTestSourceWindow(strTitle, strResponseMessage, strHarvesterOutput, popupsBlockedLocalizedError)
 {
 	try
 	{
@@ -29,12 +29,19 @@ function openTestSourceWindow(strTitle, strResponseMessage, strHarvesterOutput)
 		var response = decodeURIComponent(strResponseMessage);
 		strHarvesterOutput = strHarvesterOutput.replace(/\+/gi, "%20");
 		var harvester = decodeURIComponent(strHarvesterOutput);
-		testSourcePage = testSourcePage.replace(/FDHGFHTRNHKSDFNCDS/, strTitle);
-		testSourcePage = testSourcePage.replace(/WQEGMNFKSDCNITRHGHHBF/, response);
-		testSourcePage = testSourcePage.replace(/FNHGESGDFbhgfhytSDFJJU/, harvester);
 		testSourceWindow = window.open('','','width=1024,height=800');
-		testSourceWindow.document.write(testSourcePage);		
-		testSourceWindow.focus();
+		
+		if (null == testSourceWindow) {
+			alert(popupsBlockedLocalizedError);
+			return;
+		}
+		else {
+			testSourceWindow.title = strTitle;
+			testSourceWindow.response = response;
+			testSourceWindow.harvester = harvester;
+			testSourceWindow.document.write(testSourcePage);
+			testSourceWindow.focus();
+		}
 	}
 	catch (err)
 	{
@@ -90,7 +97,7 @@ var testSourcePage = ""+
 "<!-- Begin header.jsp  -->" +
 "	<table bgcolor=\"black\" cellpadding=\"4\" cellspacing=\"1\" width=\"100%\" >" +
 "		<tr>" +
-"			<td style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'>FDHGFHTRNHKSDFNCDS</td>" +
+"			<td id=\"title\" style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'>SOURCE_TITLE</td>" +
 "		</tr>" +
 "		<tr bgcolor=\"white\">" +
 "			<td>" +
@@ -102,12 +109,12 @@ var testSourcePage = ""+
 "<table cellpadding=\"2\">" +
 "	<tr>" +
 "		<td>" +
-"			<textarea cols=\"120\" rows=\"5\" id=\"responseMessage\" name=\"responseMessage\" readonly=\"readonly\">WQEGMNFKSDCNITRHGHHBF</textarea>" +
+"			<textarea cols=\"120\" rows=\"5\" id=\"responseMessage\" name=\"responseMessage\" readonly=\"readonly\">HARVEST_RESPONSE</textarea>" +
 "		</td>" +
 "	</tr>" +
 "	<tr>" +
 "		<td>" +
-"			<textarea cols=\"120\" id=\"harvesterOutput\" name=\"harvesterOutput\" readonly=\"readonly\">FNHGESGDFbhgfhytSDFJJU</textarea>" +
+"			<textarea cols=\"120\" id=\"harvesterOutput\" name=\"harvesterOutput\" readonly=\"readonly\">RETURNED_DOCUMENTS</textarea>" +
 "		</td>" +
 "	</tr>" +
 "</table>" +
@@ -132,6 +139,9 @@ var testSourcePage = ""+
 "});"+
 "sourceJsonEditor.setSize(\"1000px\", \"600px\");"+
 "sourceJsonEditor.on(\"gutterClick\", foldFunc);"+
+"document.getElementById(\"title\").innerHTML = title;"+
+"document.getElementById(\"responseMessage\").value = response;"+
+"sourceJsonEditor.setValue(harvester);"+
 "</script>"+
 
 "</body>" +

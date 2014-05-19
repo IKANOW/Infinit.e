@@ -21,11 +21,15 @@ import java.net.URLConnection;
 import java.util.Map;
 import java.util.Scanner;
 
+import org.apache.tika.Tika;
+import org.apache.tika.metadata.Metadata;
+
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.ProxyManager;
 
@@ -33,8 +37,10 @@ import de.l3s.boilerpipe.extractors.ArticleExtractor;
 
 public class TextExtractorBoilerpipe implements ITextExtractor
 {
-	PropertiesManager _props = null;
+	protected PropertiesManager _props = null;
 	protected String _defaultUserAgent = null;
+	
+	protected Tika _tika = null;
 	
 	@Override
 	public String getName() { return "boilerplate"; }
@@ -91,8 +97,23 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						catch (Exception e) { // Try one more time, this time exception out all the way
 							urlStream = urlConnect.getInputStream();					 
 						}
-						text = new Scanner(urlStream, "UTF-8").useDelimiter("\\A").next();
-						partialDoc.setFullText(text);
+						
+						String contentType = urlConnect.getContentType();
+						
+						if ((null != contentType) && contentType.contains("html")) { // HTML
+							text = new Scanner(urlStream, "UTF-8").useDelimiter("\\A").next();
+							partialDoc.setFullText(text);																			
+						}
+						else { // not HTML, send to tika instead
+							if (null == _tika) {
+								_tika = new Tika();
+							}
+							Metadata metadata = new Metadata();
+							text = _tika.parseToString(urlStream, metadata);
+							partialDoc.setFullText(text);					
+							TextExtractorTika.addMetadata(partialDoc, metadata);
+							return; // (don't send to boilerpipe in this case - eventually if set to output as HTML then can I guess?)
+						}//TESTED
 					}
 					if (partialDoc.getFullText().length() < 2097152) { //2MB max
 						text = ArticleExtractor.INSTANCE.getText(partialDoc.getFullText());	

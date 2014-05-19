@@ -17,16 +17,21 @@ package com.ikanow.infinit.e.data_model.api.knowledge;
 
 import java.util.List;
 
+import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 
 public class SearchSuggestPojo 
 {
+	//@SuppressWarnings("unchecked")
+	static public TypeToken<List<SearchSuggestPojo>> listType() { return new TypeToken<List<SearchSuggestPojo>>(){}; }
+	
 	private String dimension;
 	private String value; 
 	private String type;
 	private GeoPojo geotag;
 	private String ontology_type;
 	private List<Object> linkdata; // this is actually a Link<String> but Java doesn't agree 
+	private Double score;
 	
 	public String getDimension() {
 		return dimension;
@@ -70,5 +75,11 @@ public class SearchSuggestPojo
 	}
 	public String getOntology_type() {
 		return ontology_type;
+	}
+	public Double getScore() {
+		return score;
+	}
+	public void setScore(Double score) {
+		this.score = score;
 	}
 }

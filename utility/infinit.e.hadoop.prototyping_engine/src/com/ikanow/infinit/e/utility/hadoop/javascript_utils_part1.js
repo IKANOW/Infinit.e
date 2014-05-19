@@ -29,7 +29,7 @@ function s1(el) {
 		s2(el, 1);
 	}
 	else if (typeof el == 'object') {
-		outList.add(s3(el));
+		outList.add(s3(el, 0));
 	}
 	else if (typeof el == 'number') {
 		outList.add(el);
@@ -47,7 +47,7 @@ function s2(el, master_list) {
 			list.add(s2(subel, 0));
 		}
 		else if (typeof subel == 'object') {
-			list.add(s3(subel));
+			list.add(s3(subel, master_list));
 		}
 		else if (typeof subel == 'number') {
 			list.add(subel);
@@ -58,7 +58,7 @@ function s2(el, master_list) {
 	}
 	return list;
 }
-function s3(el) {
+function s3(el, depth) {
 	el.constructor.toString();
 	
 	// MongoDB specific:
@@ -71,16 +71,17 @@ function s3(el) {
 		
 	}
 	
-	// Others:
-	var currObj = objFactory.clone();
+	// If called with depth==0 or 1 (1 from master list, 0 from s3 from master list, -1 if called from within a nested object or array)
+	var currObj = (depth >= 0)  ? objFactory.clone(true) : objFactory.clone(false);		
+
 	for (var prop in el) {
 		var subel = el[prop];
 		if (subel == null) {}
 		else if (subel instanceof Array) {
-			currObj.put(prop, s2(subel, 0));
+			currObj.put(prop, s2(subel, depth - 1));
 		}
 		else if (typeof subel == 'object') {
-			currObj.put(prop, s3(subel));
+			currObj.put(prop, s3(subel, depth - 1));
 		}
 		else if (typeof subel == 'number') {
 			currObj.put(prop, subel);

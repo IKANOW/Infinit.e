@@ -10,6 +10,12 @@ else
 	cluster_name=$(aws dtags --filter "resource-id=$this_instance" --filter "key=cluster-name" --simple | gawk '{ print $4 }' | tr "," "\n")
 	case "$1" in 
 		config_ips)
+			# Special case: if the order needs to be different because the mongods were intialized that way
+			#(file should be space separated hostnames, no port)
+			if [ -s "/opt/db-home/config_ips_override" ]; then
+				echo $(cat /opt/db-home/config_ips_override)
+				exit 0
+			fi
 			if [ $cluster_name ]; then
 			
 				#First try to use DNS names, fallback to legacy private IPs (which work badly if you need to restart a config server)

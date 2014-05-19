@@ -30,19 +30,16 @@ import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
-import org.apache.lucene.analysis.tokenattributes.TermAttribute;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.util.Version;
+import org.apache.lucene.queryParser.CrossVersionQueryParser;
+import org.apache.lucene.search.CrossVersionIndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.document.Field;
-import org.apache.lucene.search.Searcher;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.CrossVersionIndexWriter;
 import org.apache.lucene.store.RAMDirectory;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.queryParser.QueryParser;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.bson.types.ObjectId;
 import org.elasticsearch.action.search.SearchResponse;
@@ -62,17 +59,22 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.DimensionListPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.SearchSuggestPojo;
+import com.ikanow.infinit.e.data_model.api.knowledge.SearchSuggestPojoApiMap;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.feature.entity.EntityFeaturePojoIndexMap;
 import com.ikanow.infinit.e.data_model.index.feature.event.AssociationFeaturePojoIndexMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.data_model.store.feature.geo.GeoFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.ContentUtils;
 import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
 import com.mongodb.DBCollection;
 
 
@@ -83,7 +85,9 @@ import com.mongodb.DBCollection;
  * @author cmorgan
  *
  */
-@SuppressWarnings("deprecation")
+//(remove this during active development - want to just depress a deprecation warning but no way of doing this for both 0.19 and 1.0)
+//@SuppressWarnings("deprecation")
+@SuppressWarnings("all")
 public class SearchHandler 
 {
 	private static final Logger logger = Logger.getLogger(SearchHandler.class);
@@ -113,22 +117,27 @@ public class SearchHandler
 		// Need to do a quick decomposition of the term to fit in with analyzed strings
 		String escapedterm = null;
 		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
-		TermAttribute termAtt = st.addAttribute(TermAttribute.class);
+		CharTermAttribute termAtt = st.addAttribute(CharTermAttribute.class);
 		StringBuffer sb = new StringBuffer();
 		try {
-			while (st.incrementToken()) {
-				if (sb.length() > 0) {
-					sb.append(" +");
+			try {
+				st.reset();
+				while (st.incrementToken()) {
+					if (sb.length() > 0) {
+						sb.append(" +");
+					}
+					else {
+						sb.append('+');						
+					}
+					sb.append(termAtt.toString());
 				}
-				else {
-					sb.append('+');						
-				}
-				sb.append(termAtt.term());
 			}
-			st.close();
+			finally {
+				st.close();			
+			}
 		} catch (IOException e) {
 			e.printStackTrace();
-		}			
+		}		
 
 		if (!term.endsWith(" ") || (0 == sb.length())) { // Could be in the middle of typing, stick a * on the end
 			sb.append('*');
@@ -343,63 +352,160 @@ public class SearchHandler
 	public ResponsePojo getSuggestionsGeo(String userIdStr, String term, String communityIdStrList) 
 	{			
 		ResponsePojo rp = new ResponsePojo();
-		ElasticSearchManager gazIndex = ElasticSearchManager.getIndex("geo_index");
-
-		// Need to do a quick decomposition of the term to fit in with analyzed strings
-		String escapedterm = null;
-		StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
-		TermAttribute termAtt = st.addAttribute(TermAttribute.class);
-		StringBuffer sb = new StringBuffer();
-		try {
-			while (st.incrementToken()) {
-				if (sb.length() > 0) {
-					sb.append(" +");
-				}
-				else {
-					sb.append('+');						
-				}
-				sb.append(termAtt.term());
-			}
-			st.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}			
-
-		if (!term.endsWith(" ") || (0 == sb.length())) { // Could be in the middle of typing, stick a * on the end
-			sb.append('*');
-		}//TESTED			
-		escapedterm = sb.toString();			
-
-		// Create the search query
-
-		SearchRequestBuilder searchOptions = gazIndex.getSearchOptions();
-		BaseQueryBuilder queryObj1 = QueryBuilders.queryString(escapedterm).defaultField("search_field");	
-
-		//TODO (INF-1279): support community specific geo (ie communityIds $exists:false or communityIds $in array)
-
-		BaseQueryBuilder queryObj = QueryBuilders.boolQuery().must(queryObj1);
-
-		searchOptions.addSort("population", SortOrder.DESC);
-		searchOptions.addFields("search_field", "population");
-		searchOptions.setSize(20);
-
-		// Perform the search
-
-		SearchResponse rsp = gazIndex.doQuery(queryObj, searchOptions);
-
-		// Format the return values
-
-		SearchHit[] docs = rsp.getHits().getHits();			
-		Set<String> suggestions = new HashSet<String>();		
-		for (SearchHit hit: docs) 
+		
+		//validate term object to be a lat,lng or location
+		if ( term == null )
+			rp.setResponse(new ResponseObject("Suggestions Geo", false, "search term is required, was not provided"));
+		
+		boolean isLatLng = false;
+		Double[] latlng = new Double[2];
+		String[] terms = term.split(",");
+		if ( terms.length == 2 )
 		{
-			String suggestion = (String) hit.field("search_field").value();			
-			suggestions.add(suggestion);
+			try
+			{
+				latlng[0] = Double.parseDouble(terms[0]);
+				latlng[1] = Double.parseDouble(terms[1]);
+				isLatLng = true;
+			}
+			catch (Exception e)
+			{
+				//could not parse as double, treat as location
+				//just fall through
+			}
 		}
-		String[] suggestionArray = new String[suggestions.size()];
-		rp.setData(Arrays.asList(suggestions.toArray(suggestionArray)), (BasePojoApiMap<String>)null);				
+		List<SearchSuggestPojo> locations = null;
+		if ( isLatLng )
+		{
+			//lookup location name via lat/lng
+			 locations = reverseGeoLookup(latlng[0], latlng[1]);
+			
+		}
+		else
+		{
+			//lookup lat/lngs via location name
+			rp.setResponse(new ResponseObject("Suggestions Geo", false, "Search term provided could not be parsed as lat, lng... geotag lookup by name not yet supported."));
+			return rp;
+		}
+		
+		rp.setData(locations, new SearchSuggestPojoApiMap());
 		rp.setResponse(new ResponseObject("Suggestions Geo", true, term));
 		return rp;
+	}
+	
+	private static Double MAXIMUM_DISTANCE_IN_METERS = 50000.0;
+	/**
+	 * Performs a reverse geolookup, takes a lat/lon and returns a list of nearby
+	 * locations
+	 * 
+	 * @param latitude
+	 * @param longitude
+	 * @return
+	 */
+	private  List<SearchSuggestPojo> reverseGeoLookup(Double latitude, Double longitude)
+	{
+		List<SearchSuggestPojo> locations = null;
+		
+		BasicDBList results = runGeoNear(latitude, longitude);
+		
+		if ( results != null)
+		{
+			locations = new ArrayList<SearchSuggestPojo>();
+			if ( results.size() > 0 )
+			{
+				for ( int i = 0; i < 10 && i < results.size(); i++ )
+				{
+					BasicDBObject result = (BasicDBObject) results.get(i);
+					Double distance = result.getDouble("dis");
+					BasicDBObject obj = (BasicDBObject) result.get("obj");
+					locations.add( buildLocation(obj, distance) );
+				}
+			}
+		}
+		return locations;
+	}
+	
+	/**
+	 * Sends a geonear command to the feature.geo database.  Returns back
+	 * a list of the nearest 10 locations
+	 *  
+	 * @param lat
+	 * @param lon
+	 * @return
+	 */
+	private BasicDBList runGeoNear(Double lat, Double lon)
+	{
+		String location = null;
+		BasicDBObject command = new BasicDBObject("geoNear", "geo");
+		Double[] coordinates = {lat,lon};
+		command.put("near", coordinates);
+		command.put("maxDistance", MAXIMUM_DISTANCE_IN_METERS);
+		CommandResult commandResult = MongoDbManager.getDB("feature").command(command);
+		if ( commandResult.ok() && commandResult.containsField("results") )
+		{
+			BasicDBList results = (BasicDBList)commandResult.get("results");
+			return results;			
+		}
+		
+		return null;
+	}
+	
+	/**
+	 * Takes a geonear result object and returns a searchsuggestpojo
+	 * 
+	 * @param location
+	 * @param distance
+	 * @return
+	 */
+	private SearchSuggestPojo buildLocation(BasicDBObject location, Double distance)
+	{
+		GeoFeaturePojo feature = GeoFeaturePojo.fromDb(location, GeoFeaturePojo.class);
+		SearchSuggestPojo suggest = new SearchSuggestPojo();
+		suggest.setOntology_type(feature.getOntology_type());
+		suggest.setScore(distance);			
+		suggest.setValue(buildLocation(feature));
+		suggest.setGeotag(new GeoPojo(feature.getGeoindex().lat, feature.getGeoindex().lon));
+		return suggest;
+	}
+	
+	/**
+	 * Takes a feature.geo object from the geonear results and tries
+	 * to build out an object matching city, region, country or
+	 * search_field if all those are null.
+	 * 
+	 * @param location
+	 * @param distance 
+	 * @return
+	 */
+	private String buildLocation(GeoFeaturePojo feature)
+	{
+		StringBuilder result = new StringBuilder();
+		boolean needComma = false;
+		if ( feature.getCity() != null )
+		{
+			result.append(feature.getCity());
+			needComma = true;
+		}
+		if ( feature.getRegion() != null )
+		{
+			if ( needComma )
+				result.append(", ");
+			result.append(feature.getRegion());
+			needComma = true;
+		}
+		if ( feature.getCountry() != null )
+		{
+			if ( needComma )
+				result.append(", ");
+			result.append(feature.getCountry());
+			needComma = true;
+		}
+		
+		if ( result.length() == 0 )
+		{
+			result.append(feature.getSearch_field());
+		}
+		return result.toString();
 	}
 
 	// Event suggestions code
@@ -479,17 +585,23 @@ public class SearchHandler
 
 			String escapedterm = null;
 			StandardTokenizer st = new StandardTokenizer(Version.LUCENE_30, new StringReader(ContentUtils.stripDiacritics(term)));
-			TermAttribute termAtt = st.addAttribute(TermAttribute.class);
+			CharTermAttribute termAtt = st.addAttribute(CharTermAttribute.class);
 			StringBuffer sb = new StringBuffer();
 			try {
-				while (st.incrementToken()) {
-					if (sb.length() > 0) {
-						sb.append(" +");
+				try {
+					st.reset();
+					while (st.incrementToken()) {
+						if (sb.length() > 0) {
+							sb.append(" +");
+						}
+						else {
+							sb.append('+');						
+						}
+						sb.append(termAtt.toString());
 					}
-					else {
-						sb.append('+');						
-					}
-					sb.append(termAtt.term());
+				}
+				finally {
+					st.close();
 				}
 			} catch (IOException e) {
 				e.printStackTrace();
@@ -762,7 +874,7 @@ public class SearchHandler
 	
 	// INTERNAL SEARCHING OF ALIAS MASTERS (USES LUCENE)
 	
-	private static Searcher _aliasSearcherCache = null;
+	private static CrossVersionIndexSearcher _aliasSearcherCache = null;
 	private static Date _searcherCacheLastCreated = null;
 	private static EntityFeaturePojo[] indexToSearchCacheIndexes = null;
 
@@ -778,9 +890,7 @@ public class SearchHandler
 		RAMDirectory idx = new RAMDirectory();
 
 		try {
-
-			IndexWriterConfig config = new IndexWriterConfig(Version.LUCENE_30, new StandardAnalyzer(Version.LUCENE_30));
-			IndexWriter writer = new IndexWriter(idx, config);
+			CrossVersionIndexWriter writer = new CrossVersionIndexWriter(idx, Version.LUCENE_30, new StandardAnalyzer(Version.LUCENE_30));
 			int nAdded = 0;
 			indexToSearchCacheIndexes = new EntityFeaturePojo[aliasTable.masters().size()];
 			for (EntityFeaturePojo alias: aliasTable.masters()) {
@@ -789,9 +899,7 @@ public class SearchHandler
 						&& !alias.getIndex().equalsIgnoreCase("discard") && !alias.getAlias().contains(alias.getIndex()))
 				{
 					// (that last check just means there's no point in including the alias if it has itself as a sub-alias) 
-					Document doc = new Document();
-					doc.add(new Field("name", alias.getDisambiguatedName(), Field.Store.NO, Field.Index.ANALYZED));
-					writer.addDocument(doc);
+					writer.addSingleAnalyzedUnstoredFieldDocument("name", alias.getDisambiguatedName());
 					indexToSearchCacheIndexes[nAdded] = alias;
 					nAdded++;
 					//System.out.println("CACHE ADD: " + alias.getDisambiguatedName() + ": " + nAdded + " - " + alias.getIndex());
@@ -800,7 +908,13 @@ public class SearchHandler
 			writer.close();
 			
 			if (nAdded > 0) {
-				_aliasSearcherCache = new IndexSearcher(idx);
+				if (null != _aliasSearcherCache) {
+					try {
+						_aliasSearcherCache.getIndexReader().close();
+					}
+					catch (Exception e) {}					
+				}
+				_aliasSearcherCache = new CrossVersionIndexSearcher(idx);
 				if (null != _aliasSearcherCache) {
 					_searcherCacheLastCreated = aliasTable.getLastModified();
 				}
@@ -834,7 +948,7 @@ public class SearchHandler
 					}
 				}//TESTED (end special case, "*" wildcard)
 				else {
-					Query query = new QueryParser(Version.LUCENE_30, "name", new StandardAnalyzer(Version.LUCENE_30)).parse(term);
+					Query query = new CrossVersionQueryParser(Version.LUCENE_30, "name", new StandardAnalyzer(Version.LUCENE_30)).parse(term);
 					TopDocs results = _aliasSearcherCache.search(query, aliasTable.masters().size());
 					ScoreDoc[] hits = results.scoreDocs;
 					if (hits.length > 0) {

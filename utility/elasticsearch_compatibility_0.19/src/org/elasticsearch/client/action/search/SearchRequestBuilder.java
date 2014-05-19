@@ -9,7 +9,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
-import org.elasticsearch.search.facet.AbstractFacetBuilder;
+import org.elasticsearch.search.facets.CrossVersionFacetBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 
@@ -66,8 +66,8 @@ public class SearchRequestBuilder {
 		_delegate.setFacets(facets);
 		return this;
 	}
-	public SearchRequestBuilder addFacet(AbstractFacetBuilder facet) {
-		_delegate.addFacet(facet);
+	public SearchRequestBuilder addFacet(CrossVersionFacetBuilder facet) {
+		_delegate.addFacet(facet.getVersionedInterface());
 		return this;
 	}
 	public SearchRequestBuilder setQuery(QueryBuilder query) {

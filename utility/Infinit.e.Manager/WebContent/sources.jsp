@@ -60,6 +60,8 @@ limitations under the License.
 	String shareid = "";
 	String sourceid = "";
 	String sourceShowRss = "style=\"display: none\";";
+	String sourceShowLogstash = "style=\"display: none\";";
+	String sourceOnyShowLogstash = "style=\"display: none\";";	
 	String enableOrDisable = "";
 	String formShareId = "";
 	String shareJson = "";
@@ -439,6 +441,7 @@ limitations under the License.
     
    	<script type="text/javascript" src="lib/codemirror.js"></script>
    	<script type="text/javascript" src="lib/languages/javascript.js"></script>
+   	<script type="text/javascript" src="lib/languages/ruby.js"></script>
 	<link rel="stylesheet" type="text/css" href="lib/codemirror.css" />
     <script src="lib/codemirror_extra/dialog/dialog.js"></script>
     <link rel="stylesheet" href="lib/codemirror_extra/dialog/dialog.css"/>
@@ -533,6 +536,7 @@ function clock()
 		sourceJsonEditor_sah.setSize(newWidth, newHeight);
 		sourceJsonEditor_uah.setSize(newWidth, newHeight);
 		sourceJsonEditor_rss.setSize(newWidth, newHeight);
+		sourceJsonEditor_logstash.setSize(newWidth, newHeight);
 	}
   }
   $(window).resize(function(){
@@ -555,6 +559,11 @@ function clock()
 			}			
 			else if ("none" != sourceJsonEditor_rss.display.wrapper.style.display) {
 				editor = sourceJsonEditor_rss;
+			}			
+			else if ("none" != sourceJsonEditor_logstash.display.wrapper.style.display) {
+				// Not supported:
+				alert("<fmt:message key='source.code.action.check_format.logstash'/>\n");
+				return true;
 			}			
 		}
 		
@@ -615,6 +624,7 @@ function clock()
 			var sah = sourceJsonEditor_sah.getValue();
 			var uah = sourceJsonEditor_uah.getValue();
 			var rss = sourceJsonEditor_rss.getValue();
+			var logstash = sourceJsonEditor_logstash.getValue();
 
 			if ((null != sah) && (sah.trim() != "")) {
 				if (null == srcObj.structuredAnalysis) {
@@ -624,22 +634,25 @@ function clock()
 				srcObj.structuredAnalysis.scriptEngine = "javascript";
 			}
 
-			if ((null != uah) && (uah.trim() != "")) {
-				if (null == srcObj.processingPipeline) { // (legacy format)
-					if (null == srcObj.unstructuredAnalysis) {
-						srcObj.unstructuredAnalysis = {};
-					}
-					srcObj.unstructuredAnalysis.script = uah;
-				}
-				else { // Processing pipeline: find the globals block 
-					var globals = null;
-					for (var x in srcObj.processingPipeline) {
-						var pxPipe = srcObj.processingPipeline[x];
-						if (pxPipe.globals) {
-							globals = pxPipe.globals;
-							break;
+			
+			if (null != srcObj.processingPipeline) { // (handle the 2 pipeline cases, logstash and JS)
+				var globals = null;					
+				for (var x in srcObj.processingPipeline) {
+					var pxPipe = srcObj.processingPipeline[x];
+					if (pxPipe.logstash) {
+						if ((null != logstash) && (logstash.trim() != "")) {
+							pxPipe.logstash.config = logstash;
+						}			
+						else {
+							delete pxPipe.logstash.config;
 						}
 					}
+					if (pxPipe.globals) {
+						globals = pxPipe.globals;
+						break;
+					}
+				}
+				if ((null != uah) && (uah.trim() != "")) {
 					if (null == globals) { // no globals, insert
 						globals = {};
 						srcObj.processingPipeline.splice(1, 0, { "globals": globals });
@@ -649,6 +662,21 @@ function clock()
 						globals.scripts = [];
 					}
 					globals.scripts[0] = uah;
+				}
+				else {
+					if (null != globals) {
+						delete globals.scripts;
+					}
+					//(else nothing to do)
+				}
+			}
+			
+			if ((null != uah) && (uah.trim() != "")) {
+				if (null == srcObj.processingPipeline) { // (legacy format)
+					if (null == srcObj.unstructuredAnalysis) {
+						srcObj.unstructuredAnalysis = {};
+					}
+					srcObj.unstructuredAnalysis.script = uah;
 				}
 			}
 
@@ -678,8 +706,14 @@ function clock()
 			}
 			else if (srcObj.processingPipeline) {
 				var globals = null;
+				sourceJsonEditor_logstash.setValue("");
 				for (var x in srcObj.processingPipeline) {
 					var pxPipe = srcObj.processingPipeline[x];
+					if (pxPipe.logstash) {
+						if (null != pxPipe.logstash.config) {
+							sourceJsonEditor_logstash.setValue(pxPipe.logstash.config);
+						}
+					}
 					if (pxPipe.globals) {
 						globals = pxPipe.globals;
 						break;
@@ -702,7 +736,7 @@ function clock()
 			}
 			else {
 				sourceJsonEditor_rss.setValue("");
-			}			
+			}
 		}//TESTED
 		
 		// Set the display:
@@ -710,6 +744,7 @@ function clock()
 		sourceJsonEditor_sah.display.wrapper.style.display = "none";
 		sourceJsonEditor_uah.display.wrapper.style.display = "none";			
 		sourceJsonEditor_rss.display.wrapper.style.display = "none";
+		sourceJsonEditor_logstash.display.wrapper.style.display = "none";
 		the_editor.display.wrapper.style.display = null;
 		
 		if (the_editor == sourceJsonEditor) {
@@ -717,29 +752,41 @@ function clock()
 			$("#toJsS").css("font-weight", "normal");
 			$("#toJsU").css("font-weight", "normal");
 			$("#toJsRss").css("font-weight", "normal");			
+			$("#toJsLog").css("font-weight", "normal");			
 		}
 		if (the_editor == sourceJsonEditor_sah) {
 			$("#toJson").css("font-weight", "normal");
 			$("#toJsS").css("font-weight", "bold");
 			$("#toJsU").css("font-weight", "normal");
 			$("#toJsRss").css("font-weight", "normal");			
+			$("#toJsLog").css("font-weight", "normal");			
 		}
 		if (the_editor == sourceJsonEditor_uah) {
 			$("#toJson").css("font-weight", "normal");
 			$("#toJsS").css("font-weight", "normal");
 			$("#toJsU").css("font-weight", "bold");
 			$("#toJsRss").css("font-weight", "normal");			
+			$("#toJsLog").css("font-weight", "normal");			
 		}
 		if (the_editor == sourceJsonEditor_rss) {
 			$("#toJson").css("font-weight", "normal");
 			$("#toJsS").css("font-weight", "normal");
 			$("#toJsU").css("font-weight", "normal");
 			$("#toJsRss").css("font-weight", "bold");			
+			$("#toJsLog").css("font-weight", "normal");			
+		}
+		if (the_editor == sourceJsonEditor_logstash) {
+			$("#toJson").css("font-weight", "normal");
+			$("#toJsS").css("font-weight", "normal");
+			$("#toJsU").css("font-weight", "normal");
+			$("#toJsRss").css("font-weight", "normal");			
+			$("#toJsLog").css("font-weight", "bold");			
 		}
 		sourceJsonEditor.refresh();
 		sourceJsonEditor_sah.refresh();
 		sourceJsonEditor_uah.refresh();
 		sourceJsonEditor_rss.refresh();
+		sourceJsonEditor_logstash.refresh();
 		the_editor.focus();
 	}//TESTED
 	function removeStatusFields()
@@ -928,7 +975,7 @@ function clock()
 	{ 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay.replace("'", "\\'") %>');
+		alert('<%=messageToDisplay.replace("'", "\\'").replaceAll("[\n\r]", " ") %>');
 	</script>
 <% } %>
 
@@ -943,7 +990,7 @@ function clock()
 		messageToDisplay = "";
 %>
 	<script language="javascript" type="text/javascript">
-		openTestSourceWindow("<fmt:message key='source.result.test.title'/>", '<%=messageToOutput %>', '<%=output %>');
+		openTestSourceWindow("<fmt:message key='source.result.test.title'/>", '<%=messageToOutput %>', '<%=output %>', "<fmt:message key='source.editor.popups_blocked'/>");
 	</script>
 <% } %>
 
@@ -1079,13 +1126,14 @@ function clock()
 						if (pipelineMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.show_js.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJs" value="JS" />
+						<input type="button" title="<fmt:message key='source.code.show_js.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJs" value="JS" <%=sourceOnyShowLogstash %> />
+						<input type="button" title="<fmt:message key='source.code.show_logstash.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_logstash)" id="toJsLog" value="LS" <%=sourceShowLogstash%> />
 <%
 						// If in pipelineMode 
 						if (enterpriseMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="UI" />
+						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="UI"  <%=sourceOnyShowLogstash %>/>
 <% } // (end enterpriseMode) %>
 <% } else { %>
 						<input type="button" title="<fmt:message key='source.code.show_uah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
@@ -1107,6 +1155,7 @@ function clock()
 						<textarea id="Source_JSON_uahScript" name="Source_JSON_uahScript"></textarea>
 						<textarea id="Source_JSON_sahScript" name="Source_JSON_sahScript"></textarea>
 						<textarea id="Source_JSON_rssScript" name="Source_JSON_rssScript"></textarea>
+						<textarea id="Source_JSON_logstash" name="Source_JSON_logstash"></textarea>
 					</div>
 					</div>
 				</td>
@@ -1155,6 +1204,17 @@ function clock()
 	sourceJsonEditor_rss.setSize("100%", "100%");
 	sourceJsonEditor_rss.display.wrapper.style.display = "none";
 	sourceJsonEditor_rss.on("gutterClick", foldFunc);
+	
+	var sourceJsonEditor_logstash = CodeMirror.fromTextArea(document.getElementById("Source_JSON_logstash"), {
+		mode: "ruby",
+		lineNumbers: true,
+		matchBrackets: true,
+		indentUnit: 4,
+		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
+	});
+	sourceJsonEditor_logstash.setSize("100%", "100%");
+	sourceJsonEditor_logstash.display.wrapper.style.display = "none";
+	sourceJsonEditor_logstash.on("gutterClick", foldFunc);
 	
 	var sourceJsonEditor = CodeMirror.fromTextArea(document.getElementById("Source_JSON"), {
 		mode: "application/json",
@@ -1514,6 +1574,8 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			
 			// Finally, decide whether to show JS-RSS tab
 			sourceShowRss = "style=\"display: none\";";
+			sourceShowLogstash = "style=\"display: none\";";
+			sourceOnyShowLogstash = "";
 			try {
 				String sourceType = source.getString("extractType"); 
 				if ((null != sourceType) && sourceType.equalsIgnoreCase("Feed")) {
@@ -1524,6 +1586,10 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 							sourceShowRss = "";
 						}
 					}
+				}
+				if ((null != sourceType) && sourceType.equalsIgnoreCase("Logstash")) {
+					sourceShowLogstash = "";
+					sourceOnyShowLogstash = "style=\"display: none\";";
 				}
 			}catch (Exception e) {} // do nothing, this block doesn't exist
 		} 
@@ -1797,6 +1863,31 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 		// (just used for )
 		JSONObject source = new JSONObject(sourceJson);
 		pipelineMode = source.has("processingPipeline");
+		String newCommunity = null;
+		
+		// Overwrite the community id if that is required:
+		// (the tabs/type/title etc are still out of date, but that doesn't typically result in problems so we'll live with that)
+		if (!source.has("communityIds")) { 
+			newCommunity = communityId;
+		}//TESTED
+		else { // check community vs dropdown
+			JSONArray com = source.getJSONArray("communityIds");
+			if (1 == com.length()) {
+				String tempCommunityId = com.getString(0);
+				if (!communityId.equals(tempCommunityId)) {
+					newCommunity = communityId;
+				}
+			}//TESTED
+			else {
+				newCommunity = communityId;
+			}//TESTED
+		}
+		if (null != newCommunity) {
+			JSONArray communityIds = new JSONArray();
+			communityIds.put(newCommunity);
+			source.put("communityIds", communityIds);
+			sourceJson = source.toString(4);			
+		}//TESTED
 		
 		JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
 		JSONObject JSONresponse = jsonObject.getJSONObject("response");
@@ -1815,6 +1906,27 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 			else {
 				enableOrDisable = (String) request.getAttribute("localized_DisableSource");
 			}
+			
+			// Finally, decide whether to show JS-RSS tab
+			sourceShowRss = "style=\"display: none\";";
+			sourceShowLogstash = "style=\"display: none\";";
+			sourceOnyShowLogstash = "";
+			try {
+				String sourceType = source.getString("extractType"); 
+				if ((null != sourceType) && sourceType.equalsIgnoreCase("Feed")) {
+					JSONObject rss = source.getJSONObject("rss");
+					if (null != rss) {
+						JSONObject searchConfig = rss.getJSONObject("searchConfig");
+						if (null != searchConfig) {
+							sourceShowRss = "";
+						}
+					}
+				}
+				if ((null != sourceType) && sourceType.equalsIgnoreCase("Logstash")) {
+					sourceShowLogstash = "";
+					sourceOnyShowLogstash = "style=\"display: none\";";
+				}
+			}catch (Exception e) {} // do nothing, this block doesn't exist
 			
 			messageToDisplay = JSONresponse.getString("message");
 			

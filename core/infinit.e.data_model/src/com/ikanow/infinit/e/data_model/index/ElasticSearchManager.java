@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.index;
 
+import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -24,13 +25,13 @@ import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasUtils;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsRequest;
-import org.elasticsearch.action.admin.indices.exists.IndicesExistsResponse;
+import org.elasticsearch.action.admin.indices.exists.IndexExistsUtils;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.action.admin.indices.settings.UpdateSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.UpdateSettingsUtils;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -43,6 +44,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.CrossVersionClient;
 import org.elasticsearch.client.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.client.action.delete.DeleteRequestBuilder;
+import org.elasticsearch.client.action.delete.DeleteResponseUtils;
 import org.elasticsearch.client.action.deletebyquery.DeleteByQueryRequestBuilder;
 import org.elasticsearch.client.action.get.GetRequestBuilder;
 import org.elasticsearch.client.action.index.IndexRequestBuilder;
@@ -53,7 +55,6 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
-
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.query.BaseFilterBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
@@ -73,6 +74,24 @@ import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 //
 
 public class ElasticSearchManager {
+	
+	///////////////////////////////////////////////////////////////////////////////////////
+
+	// Return the ElasticSearch version (based on the compatibility layer in use, not
+	// the actual detected version), in format major*100 + minor (no patch).
+	// Returns 0.19 for anything 0.19 or earlier.
+	
+	public static int getVersion() { 
+		try {
+			Method getVersion = CrossVersionClient.class.getMethod("getVersion", (Class<?>[]) null);
+			if (null == getVersion) { // (better late than never!)
+				return 19; // 0.19==default (theoretical possiblity it's 0.18 as well)
+			}
+			return (Integer)getVersion.invoke((Object)null, (Object[])null);
+		} catch (Exception e) {
+			return 19; // 0.19==default (theoretical possiblity it's 0.18 as well)
+		}
+	}//TODO (INF-2461): TOTEST
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 
@@ -197,8 +216,7 @@ public class ElasticSearchManager {
 			tmp = new TransportClient(snode);
 			client = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
 		
-			IndicesExistsResponse ier = client.admin().indices().exists(new IndicesExistsRequest(indexName)).actionGet();
-			if (!ier.exists()) {
+			if (!IndexExistsUtils.exists(client.admin().indices(), indexName)) {
 				return false;
 			}
 			client.admin().cluster().health(new ClusterHealthRequest(indexName).waitForYellowStatus()).actionGet();
@@ -328,7 +346,7 @@ public class ElasticSearchManager {
 			grb.setFields(sFields);
 		}
 		GetResponse gr = grb.execute().actionGet();
-		Map<String, GetField> fieldsMap = gr.fields();
+		Map<String, GetField> fieldsMap = gr.getFields();
 		if (null != fieldsMap) {
 			if (fieldsMap.isEmpty()) {
 				fieldsMap = null;
@@ -357,7 +375,7 @@ public class ElasticSearchManager {
 		}
 		drb.setConsistencyLevel(WriteConsistencyLevel.ONE);
 		DeleteResponse dr = drb.execute().actionGet();
-		return !dr.notFound();
+		return DeleteResponseUtils.isFound(dr);
 		
 	}//TESTED (including children)
 		
@@ -444,8 +462,7 @@ public class ElasticSearchManager {
 		
 		JsonArray docJsonArray = docsJson.getAsJsonArray();
 		for (JsonElement docJson: docJsonArray) {
-			IndexRequest ir = new IndexRequest();
-			ir.index(_sIndexName);
+			IndexRequest ir = new IndexRequest(_sIndexName);
 			ir.type(_sIndexType);
 			if (null != sParentId) {
 				ir.parent(sParentId);
@@ -487,10 +504,7 @@ public class ElasticSearchManager {
 		BulkRequestBuilder brb = _elasticClient.prepareBulk();
 		for (String id: ids) {
 			
-			DeleteRequest dr = new DeleteRequest();
-			dr.index(_sIndexName);
-			dr.type(_sIndexType);
-			dr.id(id);
+			DeleteRequest dr = new DeleteRequest(_sIndexName, _sIndexType, id);
 			if (null != sParentId) {
 				dr.parent(sParentId);
 			}
@@ -635,18 +649,18 @@ public class ElasticSearchManager {
 	public void createAlias(String sAliasName) {
 		try {
 			IndicesAliasesRequest iar = new IndicesAliasesRequest();
-			iar.addAlias(_sIndexName, sAliasName);
+			IndicesAliasUtils.addAlias(iar, sAliasName, _sIndexName);
 			_elasticClient.admin().indices().aliases(iar).actionGet();
 		}
 		catch (Exception e) {
 			// Don't worry if this fails, probably just already exists
 		}
-	}
+	}//TESTED
 	
 	public void removeAlias(String sAliasName) {
 		try {
 			IndicesAliasesRequest iar = new IndicesAliasesRequest();
-			iar.removeAlias(_sIndexName, sAliasName);
+			IndicesAliasUtils.removeAlias(iar, sAliasName, _sIndexName);
 			_elasticClient.admin().indices().aliases(iar).actionGet();
 		}
 		catch (Exception e) {
@@ -845,7 +859,7 @@ public class ElasticSearchManager {
 		ClusterHealthResponse health = 
 			_elasticClient.admin().cluster().health(new ClusterHealthRequest(sIndexName)).actionGet();
 		
-		ClusterIndexHealth indexStatus = health.indices().get(sIndexName);
+		ClusterIndexHealth indexStatus = health.getIndices().get(sIndexName);
 		if ((null != indexStatus) && (1 == indexStatus.getShards().size())) { // 1 shard => this is a "data local" index
 						
 			int nNumNodes = health.getNumberOfDataNodes();
@@ -856,8 +870,7 @@ public class ElasticSearchManager {
 			else {
 				localSettings.put("number_of_replicas", 1); // (System doesn't work very well if has no replicas?)				
 			}
-			_elasticClient.admin().indices().updateSettings(
-					new UpdateSettingsRequest(sIndexName).settings(localSettings.build())).actionGet();
+			UpdateSettingsUtils.updateSettings(_elasticClient.admin().indices(), sIndexName, localSettings.build());
 			
 			//(Wait for above operation to be completed)
 			_elasticClient.admin().cluster().health(new ClusterHealthRequest(sIndexName).waitForYellowStatus()).actionGet();
@@ -878,8 +891,7 @@ public class ElasticSearchManager {
 				if (nNewReplicas != nReplicas) { // Change the number of replicas
 					Builder localSettings = ImmutableSettings.settingsBuilder();
 					localSettings.put("number_of_replicas", nNewReplicas); 
-					_elasticClient.admin().indices().updateSettings(
-							new UpdateSettingsRequest(sIndexName).settings(localSettings.build())).actionGet();
+					UpdateSettingsUtils.updateSettings(_elasticClient.admin().indices(), sIndexName, localSettings.build());
 					
 					//(Wait for above operation to be completed)
 					_elasticClient.admin().cluster().health(new ClusterHealthRequest(sIndexName).waitForYellowStatus()).actionGet();				

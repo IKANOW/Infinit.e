@@ -18,6 +18,10 @@ package com.ikanow.infinit.e.processing.generic;
 import java.util.HashMap;
 import java.util.List;
 
+
+
+
+
 //import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.elasticsearch.common.settings.ImmutableSettings;
@@ -53,7 +57,7 @@ import com.mongodb.DBObject;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
-import org.elasticsearch.common.collect.ImmutableMap;
+import org.elasticsearch.common.collect.CrossVersionImmutableMapOfImmutableMaps;
 
 //DEBUG (alias corruption)
 //import org.elasticsearch.action.admin.indices.status.IndexStatus;
@@ -330,11 +334,11 @@ public class GenericProcessingController {
 			bRebuildDocsIndex |= bPingMainIndexFailed;
 			
 			// check the main index has the "collection" alias - if not then rebuild everything
-			
+
 			if (!bPingMainIndexFailed && (null == _aliasInfo)) { 
 				ElasticSearchManager docIndex = ElasticSearchManager.getIndex(DocumentPojoIndexMap.globalDocumentIndex_);
 				ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
-				_aliasInfo = clusterState.getState().getMetaData().getAliases();
+				_aliasInfo = CrossVersionImmutableMapOfImmutableMaps.getAliases(clusterState.getState().getMetaData());
 				if (!_aliasInfo.containsKey(DocumentPojoIndexMap.globalDocumentIndexCollection_)) {
 					bRebuildDocsIndex = true;
 				}
@@ -478,7 +482,7 @@ public class GenericProcessingController {
 					//DEBUG (alias corruption)
 //					if (null == _aliasInfo) {
 //						ClusterStateResponse clusterState = docIndex.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
-//						_aliasInfo = clusterState.getState().getMetaData().getAliases();
+//						_aliasInfo = CrossVersionImmutableMapOfImmutableMaps.getAliases(clusterState.getState().getMetaData());
 //					}
 //					else {
 //						if (_aliasInfo.containsKey(sGroupIndex)) { // has no aliases, we're not good
@@ -546,9 +550,11 @@ public class GenericProcessingController {
 		
 		String sGroupIndex = null; // for indexing, ie always a single index
 		String sAliasIndex = null; // for querying, ie will point to doc_commid, doc_commid_1, etc
+		ObjectId communityId = null;
 		try {
-			sGroupIndex = new StringBuffer("doc_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
-			sAliasIndex = new StringBuffer("docs_").append(new ObjectId(nameOrCommunityIdStr).toString()).toString();
+			communityId = new ObjectId(nameOrCommunityIdStr);
+			sGroupIndex = new StringBuffer("doc_").append(communityId.toString()).toString();
+			sAliasIndex = new StringBuffer("docs_").append(communityId.toString()).toString();
 		}
 		catch (Exception e) {
 			sGroupIndex = nameOrCommunityIdStr;
@@ -584,6 +590,50 @@ public class GenericProcessingController {
 			docIndex.deleteMe();			
 		}
 		//TESTED (parent, children, and personal)
+		
+		// Also need to delete any records indexes:
+		// It's a bit more complex because we're not exactly sure which indexes exist:
+		
+		if (null != communityId) {
+			ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(DocumentPojoIndexMap.globalDocumentIndex_); 
+				// (just something that's guaranteed to exist)
+
+			String stashedIndex = "recs_" + communityId.toString();
+			String liveIndicesPrefix = "recs_t_" + communityId.toString();
+			
+			ClusterStateResponse clusterState = indexMgr.getRawClient().admin().cluster().state(new ClusterStateRequest()).actionGet();
+			String indices[] = clusterState.getState().getMetaData().getConcreteAllOpenIndices();
+			for (String index: indices) {
+				if (index.startsWith(stashedIndex) || index.startsWith(liveIndicesPrefix)) {
+					ElasticSearchManager.getIndex(index).deleteMe();
+				}
+			}//TESTED
+			
+			// THIS CODE ONLY WORKS ON ES-1.0+ ... so have replaced with the less efficient code above
+			
+			// First off: stashed interface:
+			
+//			String stashedIndex = "recs_" + communityId.toString();
+//			ClusterStateResponse retVal = indexMgr.getRawClient().admin().cluster().prepareState()
+//					.setIndices(stashedIndex)
+//					.setRoutingTable(false).setNodes(false).setListenerThreaded(false).get();
+//			
+//			if (!retVal.getState().getMetaData().getIndices().isEmpty()) {
+//				ElasticSearchManager.getIndex(stashedIndex).deleteMe();
+//			}//TESTED
+//			// (else doesn't exist...)
+//			
+//			// Second: all the time-indexed versions
+//			
+//			String indexPattern = new StringBuffer("recs_t_").append(communityId.toString()).append("*").toString();
+//			retVal = indexMgr.getRawClient().admin().cluster().prepareState()
+//					.setIndices(indexPattern)
+//					.setRoutingTable(false).setNodes(false).setListenerThreaded(false).get();
+//
+//			for (IndexMetaData indexMetadata: retVal.getState().getMetaData()) {
+//				ElasticSearchManager.getIndex(indexMetadata.index()).deleteMe();
+//			}//TESTED
+		}//TESTED
 	}
 	//TESTED (personal and system)
 		
@@ -619,7 +669,7 @@ public class GenericProcessingController {
 	private static HashMap<String, String> _docIndexMap = null;
 	private static String _assocIndex = null;
 	private static String _entityIndex = null;
-	private static ImmutableMap<String, ImmutableMap<String, AliasMetaData>> _aliasInfo = null;
+	private static CrossVersionImmutableMapOfImmutableMaps<AliasMetaData> _aliasInfo = null;
 		
 	//TODO (INF-1136): Test and integrate this (phase 1), then implement the index splitting code (phase 2)
 	
