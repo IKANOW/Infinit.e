@@ -332,6 +332,26 @@ public class InfiniteDriver
 		}
 	}
 	
+	public Boolean deactivateUser(String username)
+	{
+		try
+		{
+			String deactivateAddress = apiRoot + "auth/deactivate?username=" + URLEncoder.encode(username,"UTF-8");
+			
+			String deactivateResult = sendRequest(deactivateAddress, null);
+
+			ResponsePojo response = ResponsePojo.fromApi(deactivateResult, ResponsePojo.class);
+			return response.getResponse().isSuccess();
+
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return false;
+	}
+	
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// SOCIAL - COMMUNITIES
@@ -912,30 +932,30 @@ public class InfiniteDriver
 	
 	public String updatePerson(String first_name, String last_name, String phone, String email, String password, String accountType, ResponseObject responseObject) 
 	{
-		try {
+		try 
+		{
 			Date date = new Date();
 			SimpleDateFormat formatter = new SimpleDateFormat("MMM dd, yyyy kk:mm:ss aa");
 			String today = formatter.format(date);
-			String encrypted_password;
-
-			encrypted_password = encryptWithoutEncode(password);
+			String encrypted_password = null;
+			
+			if ( password != null )
+				encrypted_password = encryptWithoutEncode(password);
 
 
 			WordPressUserPojo wpuser = new WordPressUserPojo();
 			WordPressAuthPojo wpauth = new WordPressAuthPojo();
-
-			wpuser.setCreated(today);
+			
 			wpuser.setModified(today);
 			wpuser.setFirstname(first_name);
 			wpuser.setLastname(last_name);
 			wpuser.setPhone(phone);
 			ArrayList<String> emailArray = new ArrayList<String>();
-			emailArray.add(email);
+			emailArray.add(email);			
 			wpuser.setEmail(emailArray);
 			wpauth.setWPUserID(email);
 			wpauth.setPassword(encrypted_password);
 			wpauth.setAccountType(accountType);
-			wpauth.setCreated(today);
 			wpauth.setModified(today);
 
 			return updatePerson(wpuser, wpauth, responseObject);
@@ -1602,9 +1622,14 @@ public class InfiniteDriver
 			discard.setDisambiguatedName("DISCARD");
 			discard.setType("SPECIAL");
 			discard.setIndex("DISCARD");
+			EntityFeaturePojo docDiscard = new EntityFeaturePojo();
+			docDiscard.setDisambiguatedName("DOCUMENT_DISCARD");
+			docDiscard.setType("SPECIAL");
+			docDiscard.setIndex("DOCUMENT_DISCARD");
 			contentForNewAliases = new BasicDBObject("DISCARD", discard.toDb());
+			contentForNewAliases.put("DOCUMENT_DISCARD", docDiscard);
 			ResponseObject response = new ResponseObject();
-			shareForNewAliases = this.addShareJSON("Alias Share " + communityIdStr, "An alias share for a specific community", "infinite-entity-alias", "{}", response);
+			shareForNewAliases = this.addShareJSON("Alias Share: " + communityIdStr, "An alias share for a specific community", "infinite-entity-alias", "{}", response);
 			if ((null == shareForNewAliases) || !response.isSuccess()) {
 				return null;
 			}//TESTED
@@ -1946,5 +1971,33 @@ public class InfiniteDriver
 		toCopy.setSuccess(fromCopy.isSuccess());
 		toCopy.setTime(fromCopy.getTime());
 		return fromCopy;
+	}
+	
+	///////////////////////////////////////////////////////////////////////
+	///////////////////////////////////////////////////////////////////////
+	
+	// Start of some test code
+	// Run standalone RESTlet API on 8184 pointing to the right place
+	// Invoke with username and password
+	
+	public static void main(String[] args) {
+		if (args.length < 2) {
+			System.out.println("*** CALL WITH username password as args");
+			System.exit(-1);
+		}
+		InfiniteDriver.setDefaultApiRoot("http://localhost:8184/");
+		InfiniteDriver infDriver = new InfiniteDriver();
+		ResponseObject responseObject = new ResponseObject();
+		infDriver.login(args[0], args[1], responseObject);
+		System.out.println("DRIVER LOGIN = " + responseObject.isSuccess() + " : " + responseObject.getMessage());
+		List<PersonPojo> people = infDriver.listPerson(responseObject);
+		System.out.println("DRIVER LIST PEOPLE = " + responseObject.isSuccess() + " : " + responseObject.getMessage());
+		
+		if (null != people) {
+			System.out.println("FOUND " + people.size());
+			if (people.size() > 0) {
+				System.out.println("EXAMPLE " + people.iterator().next().toDb());				
+			}
+		}
 	}
 }

@@ -74,6 +74,8 @@ package com.ikanow.infinit.e.shared.event
 		
 		public static const UPDATE_QUERY_NAVIGATE:String = "updateQueryAndNavigate";
 		
+		public static const OVERWRITE_QUERY_NAVIGATE:String = "overwriteQueryAndNavigate";
+		
 		public static const EDIT_QUERY_TERM:String = "editQueryTermEvent";
 		
 		public static const CANCEL_EDIT_QUERY_TERM:String = "cancelEditQueryTermEvent";

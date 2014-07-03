@@ -19,6 +19,7 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
@@ -62,13 +63,16 @@ import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.SimpleBooleanParser;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
+import com.ikanow.infinit.e.data_model.control.DocumentQueueControlPojo;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
+import com.ikanow.infinit.e.data_model.interfaces.query.IQueryExtension;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
@@ -117,7 +121,8 @@ public class QueryHandler {
 	
 	private static PropertiesManager _properties = null;
 	private static com.ikanow.infinit.e.data_model.utils.PropertiesManager _dataModelProps = null;
-	private static String _aggregationAccuracy = "full"; 
+	private static String _aggregationAccuracy = "full";
+	private static ArrayList<Class<IQueryExtension>> _queryExtensions = null;
 	
 	private AdvancedQueryPojo.QueryScorePojo _scoringParams;
 		// (need this here so we can set the adjust param for complex queries)
@@ -128,14 +133,35 @@ public class QueryHandler {
 	
 // 0] Top level processing
 	
-	public ResponsePojo doQuery(String userIdStr, AdvancedQueryPojo query, String communityIdStrList, StringBuffer errorString) throws UnknownHostException, MongoException, IOException {
+	public ResponsePojo doQuery(String userIdStr, AdvancedQueryPojo query, String communityIdStrList, StringBuffer errorString) throws UnknownHostException, MongoException, IOException, InstantiationException, IllegalAccessException {
 
 		if (null == _properties) {
 			_properties = new PropertiesManager();
 			_aggregationAccuracy = _properties.getAggregationAccuracy();
 			_dataModelProps = new com.ikanow.infinit.e.data_model.utils.PropertiesManager();
 			_replicaSetDistributionRatio = 1 + _dataModelProps.getDocDbReadDistributionRatio();
+			
+			String[] queryExtensions = _properties.getQueryExtensions();
+			if (null != queryExtensions) {
+				_queryExtensions = new ArrayList<Class<IQueryExtension>>(queryExtensions.length);
+				for (String s: queryExtensions) {
+					try {
+						Class<IQueryExtension> queryExtensionClass = (Class<IQueryExtension>) Class.forName(s);
+						_queryExtensions.add(queryExtensionClass);
+					}
+					catch (Exception e) {
+						_logger.error("Failed to load query extension: " + s, e);
+					}
+					catch (Error e) {
+						_logger.error("Failed to load query extension: " + s, e);						
+					}
+				}//(end list over query extensions)
+				if (_queryExtensions.isEmpty()) {
+					_queryExtensions = null;
+				}
+			}//TESTED (see test.QueryExtensionsTestCode)
 		}
+		ObjectId queryId = null;
 		_scoringParams = query.score;
 		
 		// (NOTE CAN'T ACCESS "query" UNTIL AFTER 0.1 BECAUSE THAT CAN CHANGE IT) 
@@ -159,11 +185,16 @@ public class QueryHandler {
 		try {
 			queryObj = getBaseQuery(query, communityIdStrs, communityIdStrList, userIdStr, querySummary);
 			if (null == queryObj) { // only occurs if has 1 element with ftext starting $cache:
-				return getSavedQueryInstead(query.qt.get(0).ftext.substring(7), communityIdStrs); // (step over cache preamble)
+				return getSavedQueryInstead(query.qt.get(0).ftext.substring(7), communityIdStrs, query); // (step over cache preamble)
 			}
 			tempFilterInfo = getBaseFilter(query, communityIdStrs);
 		}
 		catch (Exception e) {
+			Globals.populateStackTrace(errorString, e);
+			if (null != e.getCause()) {
+				errorString.append("[CAUSE=").append(e.getCause().getMessage()).append("]");
+				Globals.populateStackTrace(errorString, e.getCause());				
+			}
 			errorString.append(": " + e.getMessage());
 			return null;
 		}
@@ -347,6 +378,20 @@ public class QueryHandler {
 		
 	// 0.6] Perform Lucene query
 		
+		// 0.6.1: query extensions: pre-query hook
+		ArrayList<IQueryExtension> queryExtensions = null;
+		if (null != _queryExtensions) {
+			queryId = new ObjectId();
+			queryExtensions = new ArrayList<IQueryExtension>(_queryExtensions.size());
+			for (Class<IQueryExtension> queryExtensionClass: _queryExtensions) {
+				// Don't catch any exceptions thrown here - let it bubble upwards
+				IQueryExtension queryExtension = queryExtensionClass.newInstance();
+				queryExtension.preQueryActivities(queryId, query, communityIdStrs);
+				queryExtensions.add(queryExtension);
+			}
+		}//TESTED (see test.QueryExtensionsTestCode)
+		
+		// 0.6.2: the main query
 		if ((null != query.explain) && query.explain) { // (for diagnostic - will return lucene explanation)
 			searchSettings.setExplain(true);
 		}
@@ -520,14 +565,24 @@ public class QueryHandler {
 				rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
 			}
 			else { // (ensure there's always an empty list)
-				rp.setData(new ArrayList<BasicDBObject>(0), (BasePojoApiMap<BasicDBObject>)null);
+				docs = new ArrayList<BasicDBObject>(0);
+				rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
 			}
 		}
 		else { // (ensure there's always an empty list)
-			rp.setData(new ArrayList<BasicDBObject>(0), (BasePojoApiMap<BasicDBObject>)null);
+			docs = new ArrayList<BasicDBObject>(0);
+			rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
 		}
 		
-		// 0.9.4] Timing/logging
+		// 0.9.4] query extensions: post-query hook
+		if (null != queryExtensions) {
+			for (IQueryExtension queryExtension: queryExtensions) {
+				// Don't catch any exceptions thrown here - let it bubble upwards
+				queryExtension.postQueryActivities(queryId, docs, rp);
+			}
+		}//TESTED (see test.QueryExtensionsTestCode)
+		
+		// 0.9.5] Timing/logging
 		
 		long nTotalTime = System.currentTimeMillis() - nSysTime;
 		rp.getResponse().setTime(nTotalTime);
@@ -744,7 +799,7 @@ public class QueryHandler {
 					
 				}//end loop over query terms
 				
-				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);	
+				queryObj = this.parseLogic(query.logic, queryElements, sQueryElements, querySummary);
 				
 				if (null == queryObj) { //error parsing logic
 					throw new RuntimeException("Error parsing logic");
@@ -773,17 +828,18 @@ public class QueryHandler {
 
 	// Saved queries (ie the entire dataset)
 	
-	static private ResponsePojo getSavedQueryInstead(String storedQueryNameOrId, String[] communityIdStrs) {
+	private ResponsePojo getSavedQueryInstead(String storedQueryNameOrId, String[] communityIdStrs, AdvancedQueryPojo query) {
+		ResponsePojo rp = null;
 		ObjectId oid = null;
-		BasicDBObject query = null;
+		BasicDBObject jobQuery = null;
 		try {
 			oid = new ObjectId(storedQueryNameOrId);
-			query = new BasicDBObject(CustomMapReduceJobPojo._id_, oid);
+			jobQuery = new BasicDBObject(CustomMapReduceJobPojo._id_, oid);
 		}
 		catch (Exception e) {
-			query = new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, storedQueryNameOrId);			
+			jobQuery = new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, storedQueryNameOrId);			
 		}
-		CustomMapReduceJobPojo savedJob = CustomMapReduceJobPojo.fromDb(DbManager.getCustom().getLookup().findOne(query), CustomMapReduceJobPojo.class);
+		CustomMapReduceJobPojo savedJob = CustomMapReduceJobPojo.fromDb(DbManager.getCustom().getLookup().findOne(jobQuery), CustomMapReduceJobPojo.class);
 		
 		if (null != savedJob) { // Is this even a saved job?
 			if (null != savedJob.jarURL) {				
@@ -803,23 +859,81 @@ public class QueryHandler {
 			if (!auth) {
 				savedJob = null;
 			}
+			if (null == savedJob) {
+				throw new RuntimeException("Can't find saved query, or is a custom job not a query, or authorization error");
+			}
+			// OK go get the results of the job
+			DBCollection coll = DbManager.getCollection(savedJob.getOutputDatabase(), savedJob.outputCollection);
+			BasicDBObject result = (BasicDBObject) coll.findOne(); // (at some point support multiple saved queries)
+			if (null == result) {
+				throw new RuntimeException("Saved query is empty");			
+			}
+			BasicDBObject apiResultToConvert = (BasicDBObject) result.get("value");
+			if (null == apiResultToConvert) {
+				throw new RuntimeException("Saved query has invalid format");			
+			}
+			rp = ResponsePojo.fromDb(apiResultToConvert);
 		}
-		if (null == savedJob) {
-			throw new RuntimeException("Can't find saved query, or is a custom job not a query, or authorization error");
+		else if (null != oid) { // Support new user/doc queues
+			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(jobQuery), SharePojo.class);
+			if ((null == share) || (null == share.getShare()) ||
+					(!share.getType().equals(DocumentQueueControlPojo.UserQueue) && !share.getType().equals(DocumentQueueControlPojo.SavedQueryQueue))
+					)
+			{
+				throw new RuntimeException("Can't find saved query, or is a custom job not a query, or authorization error");								
+			}
+			else { // share.share is a  DocumentQueueControlPojo
+				DocumentQueueControlPojo queue = DocumentQueueControlPojo.fromApi(share.getShare(), DocumentQueueControlPojo.class);
+				BasicDBObject docQuery1 = new BasicDBObject(DocumentPojo._id_, new BasicDBObject(DbManager.in_, queue.getQueueList()));
+				BasicDBObject docQuery2 = new BasicDBObject(DocumentPojo.updateId_, new BasicDBObject(DbManager.in_, queue.getQueueList()));
+				BasicDBObject docQuery = new BasicDBObject(DbManager.or_, Arrays.asList(docQuery1, docQuery2));
+				DBCursor dbc = DbManager.getDocument().getMetadata().find(docQuery).limit(query.score.numAnalyze);
+				ScoringUtils scoreStats = new ScoringUtils();
+				List<BasicDBObject> docs = null;
+				StatisticsPojo stats = new StatisticsPojo();
+				stats.setSavedScores(query.output.docs.skip, dbc.count());
+				try {
+					boolean lockAcquired = true;
+					try {
+						lockAcquired = this.acquireConcurrentAccessLock();
+						
+					} catch (InterruptedException e) {
+						//(that's fine just carry on)
+						lockAcquired = false;
+					}
+					if (!lockAcquired) {
+						rp.setResponse(new ResponseObject("Query", false, "Query engine busy, please try again later."));
+						return rp;
+					}
+					scoreStats.setAliasLookupTable(_aliasLookup);
+					docs = scoreStats.calcTFIDFAndFilter(DbManager.getDocument().getMetadata(), 
+															dbc, query.score, query.output, stats, false,
+															query.output.docs.skip, query.output.docs.numReturn, 
+																		communityIdStrs,
+																		null, null,
+																		null, 
+																		null, 
+																		null, null,
+																		null, null);
+				}
+				finally {
+					scoreStats.clearAsMuchMemoryAsPossible();
+					this.releaseConcurrentAccessLock();
+				}
+				rp = new ResponsePojo();
+				rp.setResponse(new ResponseObject("Query", true, "Saved Query: " + share.getTitle()));
+				rp.setStats(stats);
+				if ((null != docs) && (docs.size() > 0)) {
+					rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
+				}
+				else { // (ensure there's always an empty list)
+					docs = new ArrayList<BasicDBObject>(0);
+					rp.setData(docs, (BasePojoApiMap<BasicDBObject>)null);
+				}
+			}//end if user or saved query queue
 		}
-		// OK go get the results of the job
-		DBCollection coll = DbManager.getCollection(savedJob.getOutputDatabase(), savedJob.outputCollection);
-		BasicDBObject result = (BasicDBObject) coll.findOne(); // (at some point support multiple saved queries)
-		if (null == result) {
-			throw new RuntimeException("Saved query is empty");			
-		}
-		BasicDBObject apiResultToConvert = (BasicDBObject) result.get("value");
-		if (null == apiResultToConvert) {
-			throw new RuntimeException("Saved query has invalid format");			
-		}
-		
-		ResponsePojo rp = ResponsePojo.fromDb(apiResultToConvert);
 		return rp;
+		
 	}//TESTED
 	
 	// Stored queries (ie just the query JSON)
@@ -900,9 +1014,50 @@ public class QueryHandler {
 	
 // 1.X2] Output filter parsing	
 
+	private BoolFilterBuilder addNegativeSelectorToFilter(EntityFeaturePojo docDiscardAlias, BoolFilterBuilder outputFilter, int recursionLevel) {
+		if ((null != docDiscardAlias.getAlias()) && !docDiscardAlias.getAlias().isEmpty()) {
+			if (null == outputFilter) {
+				outputFilter = FilterBuilders.boolFilter();				
+			}
+			outputFilter = outputFilter.mustNot(FilterBuilders.nestedFilter(DocumentPojo.entities_, 
+												FilterBuilders.termsFilter(EntityPojo.docQuery_index_, docDiscardAlias.getAlias().toArray())));
+			
+			if (recursionLevel <= 1) { // (only go two deep for now)
+				for (String aliasIndex: docDiscardAlias.getAlias()) {
+					EntityFeaturePojo docDiscardSubAlias = _aliasLookup.getAliases(aliasIndex);
+					if (null != docDiscardSubAlias) {
+						outputFilter = addNegativeSelectorToFilter(docDiscardSubAlias, outputFilter, 1 + recursionLevel);
+					}
+				}//TESTED
+			}
+			
+		}//TESTED (by hand)
+		if (null != docDiscardAlias.getSemanticLinks()) { // (recall: we've abused this field for text queries)
+			for (String textQuery: docDiscardAlias.getSemanticLinks()) {
+				//(probably not a very efficient construct, but nothing about this is efficient, just functional, so we'll leave it for now)
+				outputFilter = outputFilter.mustNot(FilterBuilders.queryFilter(
+						CrossVersionQueryBuilders.matchPhraseQuery(DocumentPojo.fullText_, textQuery)));
+				outputFilter = outputFilter.mustNot(FilterBuilders.queryFilter(
+						CrossVersionQueryBuilders.matchPhraseQuery("_all", textQuery)));
+			}
+		}//TESTED (by hand)
+		return outputFilter;
+	}//TESTED
+	
 	BoolFilterBuilder parseOutputFiltering(String[] entityTypeFilterStrings, String[] assocVerbFilterStrings)
 	{
 		BoolFilterBuilder outputFilter = null;
+		
+		// First off: document discard aliases:
+		
+		if (null != _aliasLookup) { // Check out the document discard table...			
+			EntityFeaturePojo docDiscardAlias = _aliasLookup.getAliases("DOCUMENT_DISCARD");
+			if (null != docDiscardAlias) {				
+				outputFilter = addNegativeSelectorToFilter(docDiscardAlias, outputFilter, 0);
+			}						
+		}//TESTED (by hand, nothing repeatable)
+		
+		// Other simple filter types:
 		
 		if (null != entityTypeFilterStrings) {
 			if ('-' != entityTypeFilterStrings[0].charAt(0)) { // (negative entity type, don't add to filter)
@@ -1459,7 +1614,19 @@ public class QueryHandler {
 					sgn = -1L;
 				}
 				long offset = sgn*getInterval(time.min.substring(4), 'd'); // (default interval is day)
-				nMinTime = new Date().getTime() + offset;
+				nMinTime = nMaxTime + offset; // (maxtime is now)
+			}
+			else if (time.min.equals("midnight")) { 
+				nMinTime = DateUtils.truncate(new Date(nMaxTime), Calendar.DAY_OF_MONTH).getTime();
+			}
+			else if (time.min.startsWith("midnight")) { // midnight+N[hdmy] 
+				// midnight+Xi or midnight-Xi
+				long sgn = 1L;
+				if ('-' == time.min.charAt(8)) { //now+ or now-
+					sgn = -1L;
+				}
+				long offset = sgn*getInterval(time.min.substring(9), 'd'); // (default interval is day)
+				nMinTime = DateUtils.truncate(new Date(nMaxTime), Calendar.DAY_OF_MONTH).getTime() + offset; // (maxtime is now)
 			}
 			else {
 				try {
@@ -1476,7 +1643,19 @@ public class QueryHandler {
 			}
 		}
 		if ((null != time.max) && (time.max.length() > 0)) {
-			if (!time.max.equals("now")) { // (What we have by default)
+			if (time.max.equals("midnight")) { 
+				nMaxTime = DateUtils.truncate(new Date(nMaxTime), Calendar.DAY_OF_MONTH).getTime();
+			}
+			else if (time.max.startsWith("midnight")) { // midnight+N[hdmy] 
+				// midnight+Xi or midnight-Xi
+				long sgn = 1L;
+				if ('-' == time.max.charAt(8)) { //now+ or now-
+					sgn = -1L;
+				}
+				long offset = sgn*getInterval(time.min.substring(9), 'd'); // (default interval is day)
+				nMaxTime = DateUtils.truncate(new Date(nMaxTime), Calendar.DAY_OF_MONTH).getTime() + offset; // (maxtime is now)
+			}
+			else if (!time.max.equals("now")) { // (What we have by default)
 				if (time.max.startsWith("now")) { // now+N[hdmy] 
 					// now+Xi or now-Xi
 					long sgn = 1L;
@@ -1484,7 +1663,7 @@ public class QueryHandler {
 						sgn = -1L;
 					}
 					long offset = sgn*getInterval(time.max.substring(4), 'd'); // (default interval is day)
-					nMaxTime = new Date().getTime() + offset;
+					nMaxTime = nMaxTime + offset; // (maxtime is now)
 				}
 				else {
 					try {

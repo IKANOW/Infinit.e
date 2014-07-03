@@ -51,6 +51,8 @@ limitations under the License.
 	String isPublicChecked = "";
 	String usersCanSelfRegister = "";
 	String usersCanSelfRegisterChecked = "";
+	String isCommAttrDisabled = "disabled=\"true\"";
+	String commAttrEditable = "(editable after creation)";
 	
 	String userAttributesAreReadonly = "disabled=\"disabled\"";
 	String parentIdIsReadonly="";
@@ -326,28 +328,28 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="30%">Owner:</td>
 						<td bgcolor="#ffffff" width="70%"><%=ownerDisplayName %> - <%=ownerEmail %></td>
 					</tr>
-					<tr valign="top">
-						<td bgcolor="#ffffff" width="30%">Community Attributes:</td>
+					<tr valign="top" >
+						<td bgcolor="#ffffff" width="30%">Community Attributes <%=commAttrEditable %>:</td>
 						<td bgcolor="#ffffff" width="70%">
 							<table cellpadding="5" cellspacing="1" width="100%">
 								<tr>
-									<td><input type="checkbox" name="isPublic" <%=isPublicChecked %> 
+									<td><input type="checkbox" name="isPublic" <%=isPublicChecked %> <%=isCommAttrDisabled %>
 										 /> Is Public</td>
 								</tr>
 								<tr>
-									<td><input type="checkbox" name="usersCanSelfRegister" <%=usersCanSelfRegisterChecked %>
+									<td><input type="checkbox" name="usersCanSelfRegister" <%=usersCanSelfRegisterChecked %> <%=isCommAttrDisabled %>
 										 /> Users Can Self Register</td>
 								</tr>
 								<tr>
-									<td><input type="checkbox" name="registrationRequiresApproval" <%=registrationRequiresApprovalChecked %>
+									<td><input type="checkbox" name="registrationRequiresApproval" <%=registrationRequiresApprovalChecked %> <%=isCommAttrDisabled %>
 										 /> Registration Requires Approval</td>
 								</tr>
 								<tr>
-									<td><input type="checkbox" name="usersCanCreateSubCommunities" <%=usersCanCreateSubCommunitiesChecked %>
+									<td><input type="checkbox" name="usersCanCreateSubCommunities" <%=usersCanCreateSubCommunitiesChecked %> <%=isCommAttrDisabled %>
 										 /> Users Can Create Subcommunites</td>
 								</tr>
 								<tr>
-									<td><input type="checkbox" name="publishMemberOverride" <%=publishMemberOverrideChecked %>
+									<td><input type="checkbox" name="publishMemberOverride" <%=publishMemberOverrideChecked %> <%=isCommAttrDisabled %>
 										 /> Members are visible to other members</td>
 								</tr>
 							</table>
@@ -622,7 +624,8 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 		try 
 		{
 			editTableTitle = "Edit Community";
-			
+			isCommAttrDisabled = "";
+			commAttrEditable = "";
 			// Get person from API
 			JSONObject communityResponse = new JSONObject( getCommunity(id, request, response) );
 			JSONObject community = communityResponse.getJSONObject("data");
@@ -710,6 +713,8 @@ private void clearForm()
 	ownerEmail = "";
 	editMembersLink = "";
 	addMembersLink = "";
+	isCommAttrDisabled = "disabled=\"true\"";
+	commAttrEditable = "(editable after creation)";
 }  // TESTED
 
 

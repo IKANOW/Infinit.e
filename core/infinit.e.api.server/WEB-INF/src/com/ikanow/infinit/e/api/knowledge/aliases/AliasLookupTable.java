@@ -27,7 +27,7 @@ import org.apache.log4j.Logger;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 import com.mongodb.util.JSON;

@@ -444,7 +444,9 @@ public class InternalInfiniteFileTest {
 	//(just returns first line)
 	private static String getContentsSample(InputStream in) {
 		Scanner s = new Scanner(in, "UTF-8");
-		return (s.useDelimiter("\n").next());		
+		String line = s.useDelimiter("\n").next();
+		s.close();
+		return line;		
 		//return (s.useDelimiter("\\A").next());		
 	}
 	

@@ -113,6 +113,9 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public List<String> tempErrors = null; // (get copied into the message string on completion/error)
 	public static final String tempErrors_ = "tempErrors";
 	
+	public static final String selfMerge_ = "selfMerge";
+	public Boolean selfMerge;
+	
 	public enum SCHEDULE_FREQUENCY
 	{
 		NONE,

@@ -7,10 +7,25 @@ package com.ikanow.infinit.e.widget.library.components
 	public class WidgetHSlider extends HSlider
 	{
 		[Bindable] public var label:String = "Value: ";
+		[Bindable] public var mymax:Number;
+		
+		public function set bindable_maximum(max:Number):void
+		{
+			maximum = max;
+			mymax = max;
+		}
 		
 		public function WidgetHSlider()
 		{
 			super();
+		}
+		/**
+		 * @private
+		 */
+		override protected function initializationComplete():void
+		{
+			super.initializationComplete();
+			mymax = maximum;
 		}
 		
 		/**

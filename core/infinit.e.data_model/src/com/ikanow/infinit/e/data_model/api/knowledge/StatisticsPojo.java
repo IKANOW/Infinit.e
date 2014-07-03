@@ -59,7 +59,14 @@ public class StatisticsPojo extends BaseApiPojo {
 		scoring = null;
 	}
 	
-	
+	public void setSavedScores(long start, long found) {
+		this.found = found;
+		this.start = start;
+		maxScore = (float)1.0;
+		avgScore = (float)1.0;
+		// Empty array:
+		scoring = new HashMap<ObjectId, Score>();
+	}
 	public void setScore(SearchHits elasticHits, boolean bDecay, boolean bExplain) {
         if (Float.isNaN(maxScore)) {
         	maxScore = (float) 0.0;

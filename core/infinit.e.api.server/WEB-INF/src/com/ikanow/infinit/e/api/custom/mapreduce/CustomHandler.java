@@ -231,7 +231,7 @@ public class CustomHandler
 	 * @param userid
 	 * @return
 	 */
-	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
+	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun, Boolean selfMerge)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		List<ObjectId> commids = new ArrayList<ObjectId>(); 
@@ -335,6 +335,7 @@ public class CustomHandler
 					cmr.appendResults = append;
 					cmr.appendAgeOutInDays = ageOut;
 					cmr.incrementalMode = incrementalMode;
+					cmr.selfMerge = selfMerge;
 					
 					if ( json != null && !json.equals("null") )
 						cmr.arguments = json;
@@ -421,7 +422,7 @@ public class CustomHandler
 		return rp;
 	}
 	
-	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun)
+	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun, Boolean selfMerge)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
@@ -625,6 +626,10 @@ public class CustomHandler
 					if (null != incrementalMode) 
 					{
 						cmr.incrementalMode = incrementalMode;
+					}
+					if (null != selfMerge) 
+					{
+						cmr.selfMerge = selfMerge;
 					}
 					
 					if (null != exportToHdfs) {

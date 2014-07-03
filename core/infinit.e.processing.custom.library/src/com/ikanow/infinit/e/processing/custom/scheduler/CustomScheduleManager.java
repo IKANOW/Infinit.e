@@ -15,17 +15,29 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.custom.scheduler;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
+import java.util.List;
+import java.util.Set;
 
+import org.bson.types.ObjectId;
+
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.control.DocumentQueueControlPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo.SCHEDULE_FREQUENCY;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
+import com.ikanow.infinit.e.data_model.utils.MongoApplicationLock;
+import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
+import com.mongodb.CommandResult;
 import com.mongodb.DBObject;
 
 public class CustomScheduleManager {
@@ -45,6 +57,8 @@ public class CustomScheduleManager {
 		}
 		return true;
 	}//TESTED
+	
+	////////////////////////////////////////////////////////////////////
 	
 	/**
 	 * Look for jobs that have not started yet but are scheduled for some point in the future
@@ -161,4 +175,169 @@ public class CustomScheduleManager {
 		}
 		return cal.getTimeInMillis();
 	}
+
+	////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////
+	////////////////////////////////////////////////////////////////////
+	
+	// Saved Query Handling
+
+	// Somewhat confusingly there are now 2 different types of saved query:
+	// The original one, handled by CustomSavedQueryTaskLauncher
+	// - this "re-uses" the CustomMapReducePojo object
+	// - stores the entire query result in one object, including aggregations (can easily >16MB and break)
+	// - you can store snapshots in append mode
+	// - never really found a use
+	// The new one, handled via DocumentQueueControlPojos embedded in shares
+	// - writes the _ids into the shares, the existing API query is required to get them out
+	
+	private static MongoApplicationLock _appLock = null;
+	
+	public static void doneWithSavedQueryCache()
+	{
+		_appLock.release();
+	}
+	
+	public static void createOrUpdatedSavedQueryCache()
+	{
+		if (null == _appLock) { 
+			_appLock = MongoApplicationLock.getLock(DbManager.getCustom().getSavedQueryCache().getDB().getName());
+		}
+		// the built-in applock acquisition code requires more persistent threads so we use the alternate mechanism that
+		// just wipes out anything that hasn't been used in the last 2 minutes and then uses the existing contention handling to
+		// allow one thread to grab it
+		_appLock.clearStaleLocksOnTime(120);
+		if (_appLock.acquire(100)) {
+			BasicDBObject query = new BasicDBObject(SharePojo.type_, DocumentQueueControlPojo.SavedQueryQueue);
+			List<SharePojo> savedQueries = SharePojo.listFromDb(DbManager.getSocial().getShare().find(query), SharePojo.listType());
+			if (null != savedQueries) {
+				for (SharePojo savedQueryShare: savedQueries) {
+					if (null != savedQueryShare.getShare()) {
+						DocumentQueueControlPojo savedQuery = DocumentQueueControlPojo.fromApi(savedQueryShare.getShare(), DocumentQueueControlPojo.class);
+						
+						// Is this query well formed?
+						if ((null != savedQuery.getQueryInfo()) && 
+								((null != savedQuery.getQueryInfo().getQuery()) || (null != savedQuery.getQueryInfo().getQueryId())))
+						{
+							Date now = new Date();
+							long freqOffset;
+							// Check if it's time to run the query
+							if (savedQuery.getQueryInfo().getFrequency() == DocumentQueueControlPojo.SavedQueryInfo.DocQueueFrequency.Hourly)
+							{
+								freqOffset = 3600L*1000L;
+								//(nothing to do here, just run whenever)
+							}//TESTED (test3)
+							else if (savedQuery.getQueryInfo().getFrequency() == DocumentQueueControlPojo.SavedQueryInfo.DocQueueFrequency.Daily)
+							{
+								if (null != savedQuery.getQueryInfo().getFrequencyOffset()) { // hour of day
+									freqOffset = 12L*3600L*1000L; // (already check vs hour of day so be more relaxed) 
+									Calendar calendar = GregorianCalendar.getInstance();
+									calendar.setTime(now);
+
+									//DEBUG
+									//System.out.println("DAILY: " + calendar.get(Calendar.HOUR_OF_DAY) + " VS " + savedQuery.getQueryInfo().getFrequencyOffset());	
+									
+									if (calendar.get(Calendar.HOUR_OF_DAY) != savedQuery.getQueryInfo().getFrequencyOffset()) {
+										continue;
+									}//TESTED (test4)
+								}
+								else {
+									freqOffset = 24L*3600L*1000L; // (just run every 24 hours) 									
+								}
+							}//TESTED (test4)
+							else if (savedQuery.getQueryInfo().getFrequency() == DocumentQueueControlPojo.SavedQueryInfo.DocQueueFrequency.Weekly)
+							{
+								if (null != savedQuery.getQueryInfo().getFrequencyOffset()) { // day of week
+									freqOffset = 3L*24L*3600L*1000L; // (already check vs day of week so be more relaxed) 
+									Calendar calendar = GregorianCalendar.getInstance();
+									calendar.setTime(now);
+
+									//DEBUG
+									//System.out.println("WEEKLY: " + calendar.get(Calendar.DAY_OF_WEEK) + " VS " + savedQuery.getQueryInfo().getFrequencyOffset());
+									
+									if (calendar.get(Calendar.DAY_OF_WEEK) != savedQuery.getQueryInfo().getFrequencyOffset()) {
+										continue;
+									}
+								}
+								else {
+									freqOffset = 7L*24L*3600L*1000L;	//(just run every 7 days)
+								}
+							}//TESTED (test5)
+							else continue; // (no -supported- frequency, don't run)
+							
+							long nowTime = now.getTime();
+
+							/**/
+							//DEBUG
+							System.out.println("Comparing: " + savedQuery.getQueryInfo().getLastRun() + " VS " + now + " @ " + freqOffset/1000L);
+							
+							if ((null == savedQuery.getQueryInfo().getLastRun()) ||
+									((nowTime - savedQuery.getQueryInfo().getLastRun().getTime()) > freqOffset))
+							{
+								//(does nothing if the share already exists)
+								DbManager.getCustom().getSavedQueryCache().insert(savedQueryShare.toDb());
+								CommandResult cr = DbManager.getCustom().getSavedQueryCache().getDB().getLastError();
+								
+								if (null == cr.get("err")) { // if we've actually done something, update the main share table also
+									savedQuery.getQueryInfo().setLastRun(now);
+									savedQueryShare.setShare(savedQuery.toApi());
+									// (this will overwrite the existing version)
+									DbManager.getSocial().getShare().save(savedQueryShare.toDb());								
+								}//TESTED (by hand with prints)
+								
+							}//TESTED (test3-5)
+							
+						} // (end saved query actually has a query)
+					}
+				}//(end loop over saved queries)
+			}
+		}//(end acquired app lock)
+	}//TESTED
+
+	public static DocumentQueueControlPojo getSavedQueryToRun()
+	{
+		DocumentQueueControlPojo toReturn = null;
+		try {
+			SharePojo savedQueryShare = SharePojo.fromDb(DbManager.getCustom().getSavedQueryCache().findAndRemove(new BasicDBObject()), SharePojo.class);
+			if (null == savedQueryShare) { // nothing to process
+				return null;
+			}//TESTED (test1)
+			toReturn = DocumentQueueControlPojo.fromApi(savedQueryShare.getShare(), DocumentQueueControlPojo.class);
+			
+			// Get the user communities and append the query if possible
+			Set<ObjectId> userAccess = AuthUtils.getCommunities(savedQueryShare.getOwner().get_id());
+			if (userAccess.isEmpty()) {
+				return toReturn; // (_parentShare is null so will be discarded)
+			}
+			if (null != toReturn.getQueryInfo().getQueryId()) {
+				BasicDBObject queryQuery = new BasicDBObject(SharePojo._id_, toReturn.getQueryInfo().getQueryId());
+				queryQuery.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(DbManager.in_, userAccess));
+				SharePojo shareContainingQuery = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(queryQuery), SharePojo.class);
+
+				if (null == shareContainingQuery) {
+					return toReturn; // (_parentShare is null so will be discarded)
+				}
+				toReturn.getQueryInfo().setQuery(AdvancedQueryPojo.fromApi(shareContainingQuery.getShare(), AdvancedQueryPojo.class));
+			}//TESTED (test6)
+			
+			if (null != toReturn.getQueryInfo().getQuery()) {
+				// Check the communityIds...
+				if (null != toReturn.getQueryInfo().getQuery().communityIds) {
+					ArrayList<ObjectId> revisedCommunityList = new ArrayList<ObjectId>(toReturn.getQueryInfo().getQuery().communityIds.size());
+					for (ObjectId commId: toReturn.getQueryInfo().getQuery().communityIds) {
+						if (userAccess.contains(commId)) {
+							revisedCommunityList.add(commId);
+						}
+					}//(end loop over unchecked communities)
+					toReturn.getQueryInfo().getQuery().communityIds = revisedCommunityList;
+				}
+			}//TESTED (test1)
+			toReturn._parentShare = savedQueryShare; // (if this is null then the subsequent processing will ignore this)
+		}
+		catch (Exception e) { // (this is some internal horror so log)
+			e.printStackTrace();
+		}
+		return toReturn;
+	}//TESTED (test1,test6)
+	
 }

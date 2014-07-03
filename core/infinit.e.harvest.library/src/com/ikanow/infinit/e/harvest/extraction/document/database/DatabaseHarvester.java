@@ -137,14 +137,22 @@ public class DatabaseHarvester implements HarvesterInterface
 		String dt = source.getDatabaseConfig().getDatabaseType();	
 		
 		// Create the jdbcUrl connection string for the manager
-		jdbcUrl = rdbms.getConnectionString(dt,  
+		String workaroundDbType = properties.getJdbcUrl(dt);
+		if (null == workaroundDbType) {
+			workaroundDbType = dt;
+		}
+		jdbcUrl = rdbms.getConnectionString(workaroundDbType,  
 				source.getDatabaseConfig().getHostname(), source.getDatabaseConfig().getPort(), 
 				source.getDatabaseConfig().getDatabaseName());
 		rdbms.setUrl(jdbcUrl);
 		
 		// Set the class name to load for JDBC, i.e. com.mysql.jdbc.Driver for MySql
-		rdbms.setClassName(properties.getJdbcClass(source.getDatabaseConfig().getDatabaseType()));
-
+		rdbms.setClassName(properties.getJdbcClass(dt));
+		if (null == rdbms.getClassName()) {
+			_context.getHarvestStatus().update(source, new Date(), HarvestEnum.error, "Error when harvesting DB: No class for type: " + dt, false, true);
+			return;
+		}
+		
 		// If authentication is required to access the database set the user/pass here
 		if ( source.getAuthentication() != null ) 
 		{
@@ -486,23 +494,22 @@ public class DatabaseHarvester implements HarvesterInterface
 		// Set up Feed object to be used to contain information
 		DocumentPojo doc = null;
 	
+		// Check to see if the commit type is a insert or update
+		if (commitType == CommitType.insert) 
+		{
+			// create the doc pojo
+			doc = new DocumentPojo();
+			doc.setUrl(docUrl);
+			doc.setCreated(new Date());				
+		}
+		else 
+		{	
+			//TODO (INF-1300): support for updated docs (will want to save old creation time, zap everything else?)
+		}		
+		doc.setModified(new Date());
+			
 		try 
 		{	
-			// Check to see if the commit type is a insert or update
-			if (commitType == CommitType.insert) 
-			{
-				// create the doc pojo
-				doc = new DocumentPojo();
-				doc.setUrl(docUrl);
-				doc.setCreated(new Date());				
-			}
-			else 
-			{	
-				//TODO (INF-1300): support for updated docs (will want to save old creation time, zap everything else?)
-			}
-			
-			doc.setModified(new Date());
-			
 			// Strip out html if it is present
 			if (null != source.getDatabaseConfig().getTitle()) {
 				if (rs.getString(source.getDatabaseConfig().getTitle()) != null)
@@ -510,14 +517,32 @@ public class DatabaseHarvester implements HarvesterInterface
 					doc.setTitle(rs.getString(source.getDatabaseConfig().getTitle()).replaceAll("\\<.*?\\>", ""));
 				}
 			}
+		}
+		catch (SQLException e) 
+		{
+			//DEBUG (don't log per record exceptions)
+			//logger.error("Error on add: Exception Message: " + e.getMessage(), e);
+			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on add: ", e).toString(), true);
+		}
 			
+		try 
+		{	
 			if (null != source.getDatabaseConfig().getSnippet()) {
 				if (rs.getString(source.getDatabaseConfig().getSnippet()) != null)
 				{
 					doc.setDescription(rs.getString(source.getDatabaseConfig().getSnippet()).replaceAll("\\<.*?\\>", ""));
 				}
 			}
+		}
+		catch (SQLException e) 
+		{
+			//DEBUG (don't log per record exceptions)
+			//logger.error("Error on add: Exception Message: " + e.getMessage(), e);
+			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on add: ", e).toString(), true);
+		}
 
+		try 
+		{	
 			if (null != source.getDatabaseConfig().getPublishedDate()) {
 				if (rs.getString(source.getDatabaseConfig().getPublishedDate()) != null)
 				{
@@ -542,7 +567,16 @@ public class DatabaseHarvester implements HarvesterInterface
 			{
 				doc.setPublishedDate(new Date());
 			}
+		}
+		catch (SQLException e) 
+		{
+			//DEBUG (don't log per record exceptions)
+			//logger.error("Error on add: Exception Message: " + e.getMessage(), e);
+			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage("Error on add: ", e).toString(), true);
+		}
 			
+		try 
+		{	
 	        // Create a list of metadata to be added to the doc
 			for ( int i = 1; i <= md.getColumnCount(); i++ ) 
 			{

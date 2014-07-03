@@ -57,7 +57,7 @@ import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.AssociationUtils;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;

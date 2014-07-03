@@ -325,11 +325,11 @@ public class CustomInterface extends ServerResource
 				 }
 				 else if ( action.equals("schedule"))
 				 {
-					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
+					 rp = this.customhandler.scheduleJob(cookieLookup, title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun, jsonPojo.selfMerge);
 				 }
 				 else if ( action.equals("update") )
 				 {
-					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun);
+					 rp = this.customhandler.updateJob(cookieLookup, (jobid==null)?(title):(jobid), title, desc, communityIds, jarURL, nextRunTime, freqSched, mapperClass, reducerClass, combinerClass, query, inputColl, outputKey, outputValue,appendResults,ageOutInDays,jsonPojo.incrementalMode,jobsToDependOn,jsonPojo.arguments, jsonPojo.exportToHdfs, bQuickRun, jsonPojo.selfMerge);
 				 }
 				 else if ( action.equals("getjobs"))
 				 {

@@ -204,6 +204,15 @@ package com.ikanow.infinit.e.widget.library.data
 			this.sendFilter();//sends call off to infinite to let all modules know filter is done
 		}
 		
+		public function filterByDocumentSet(filteredDocs:ArrayCollection, filterDescription:String):void
+		{
+			if ( null == filterDescription )
+				filterDescription = ("Unknown document set");
+
+			_currFilterResults = ResultSet.createFilteredDocumentSet(_currFilterResults, filteredDocs, filterDescription);
+			this.sendFilter();//sends call off to infinite to let all modules know filter is done			
+		}
+		
 		public function filterByDocField(filterDataSet:FilterDataSetEnum, values:Set, field:String = "_id", filterDescription:String=null):void
 		{
 			var docSet:ArrayCollection = getDataSetToApplyFilterTo(filterDataSet); 			

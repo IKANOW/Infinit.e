@@ -42,6 +42,8 @@ public class SharePojo extends BaseDbPojo
 	final public static String owner_ = "owner";
 	private Set<ObjectId> endorsed = null; 
 	final public static String endorsed_ = "endorsed";
+	private Set<ObjectId> readWrite = null; 
+	final public static String readWrite_ = "readWrite";
 	private String type = null;
 	final public static String type_ = "type";
 	private String title = null;
@@ -391,5 +393,11 @@ public class SharePojo extends BaseDbPojo
 	}
 	public Set<ObjectId> getEndorsed() {
 		return endorsed;
+	}
+	public Set<ObjectId> getReadWrite() {
+		return readWrite;
+	}
+	public void setReadWrite(Set<ObjectId> readWrite) {
+		this.readWrite = readWrite;
 	}
 }

@@ -22,7 +22,7 @@ my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep "^$CL
 case "$1" in
  
 		config_ips)
-			echo "$CONFIG_SERVERS"
+			echo "$CONFIG_SERVERS" | sed 's/,/ /g'
 		;;
 
 		my_ip)

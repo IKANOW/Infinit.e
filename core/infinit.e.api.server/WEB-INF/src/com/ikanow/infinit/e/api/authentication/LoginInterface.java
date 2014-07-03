@@ -192,7 +192,8 @@ public class LoginInterface extends ServerResource
 		}
 		else if (urlStr.contains("auth/deactivate"))
 		{
-			user = parameters.getUsername();	
+			user = parameters.getUsername();
+			cookie = request.getCookies().getFirstValue("infinitecookie",true);
 			action = "deactivate";
 
 			mustComeFromAuthority = true;

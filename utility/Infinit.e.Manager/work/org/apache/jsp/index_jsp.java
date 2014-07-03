@@ -978,7 +978,7 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 			JSONObject person = personResponse.getJSONObject("data");		
 			String firstName = person.getString("firstName");
 			String lastName = person.getString("lastName");
-			name = "Welcome, " + firstName + " " + lastName;
+			name = firstName + " " + lastName;
 		}
 	} 
 	catch (Exception e) 
@@ -1169,9 +1169,6 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 
 	boolean isLoggedIn = false;
 	messageToDisplay = "";
-	
-	/**/
-	System.out.println(API_ROOT + " " + localCookie + " " + request.getParameter("username") + " " + request.getParameter("password") );
 	
 	// Page request is a post back from the login form
 	if (request.getParameter("username") != null && request.getParameter("password") != null) 

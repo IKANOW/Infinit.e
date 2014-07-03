@@ -30,11 +30,13 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
+import com.ikanow.infinit.e.data_model.control.DocumentQueueControlPojo;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.processing.custom.launcher.CustomHadoopTaskLauncher;
+import com.ikanow.infinit.e.processing.custom.launcher.CustomSavedQueryQueueLauncher;
 import com.ikanow.infinit.e.processing.custom.launcher.CustomSavedQueryTaskLauncher;
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
 import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
@@ -69,6 +71,15 @@ public class CustomProcessingController {
 			if (_bLocalMode) {
 				System.out.println("Will run hadoop locally (infrastructure appears to exist).");				
 			}
+		}
+		catch (Error e) {
+			if (_bLocalMode) {
+				System.out.println("Will run hadoop locally (no infrastructure).");				
+			}
+			else {
+				System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
+			}
+			_bHadoopEnabled = false;			
 		}
 		catch (Exception e) { // Hadoop doesn't work
 			if (_bLocalMode) {
@@ -371,4 +382,36 @@ public class CustomProcessingController {
 		}
 		return incompleteJobsMap.isEmpty();
 	}
+	public void runThroughSavedQueues()
+	{
+		CustomScheduleManager.createOrUpdatedSavedQueryCache();
+
+		// Spend at most 5 minutes per iteration
+		long startTime = new Date().getTime();
+		long iterationTime = startTime;
+		
+		DocumentQueueControlPojo savedQuery = CustomScheduleManager.getSavedQueryToRun();
+		while (null != savedQuery) {
+			CustomSavedQueryQueueLauncher.executeQuery(savedQuery);
+			
+			long timeTaken = new Date().getTime();
+
+			//DEBUG
+			//System.out.println("Query took: " + (timeTaken - iterationTime)/1000L + " total="+(timeTaken - startTime)/1000L);			
+						
+			if ((timeTaken - startTime) > 5L*60000L) {
+				break;
+			}
+			savedQuery = CustomScheduleManager.getSavedQueryToRun();
+			
+			if (null != savedQuery) {
+				try {
+					Thread.sleep(timeTaken - iterationTime); // (at most 50% duty cycle)
+				}
+				catch (Exception e) {}
+				
+				iterationTime = new Date().getTime();
+			}//TESTED (test2)
+		}
+	}//TESTED (CustomSavedQueryTestCode:*)
 }

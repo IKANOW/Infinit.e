@@ -18,18 +18,27 @@ package com.ikanow.infinit.e.widget.library.data
 	import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
 	import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
 	import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 	import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+	import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
-	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
+	
+	import flash.external.ExternalInterface;
+	
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.rpc.events.FaultEvent;
 	import mx.rpc.events.ResultEvent;
 	import mx.rpc.http.mxml.HTTPService;
+	import mx.utils.LinkedList;
+	
+	import system.data.List;
 	import system.data.Map;
 	import system.data.Set;
+	import system.data.lists.ArrayList;
 	import system.data.stacks.ArrayStack;
 	
 	public class WidgetContext_Local implements IWidgetContext
@@ -56,7 +65,7 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		// HTTP requests
 		// Queue (for the moment we'll just have 1 HTTP service and Q)
-		private var _serviceQueue:ArrayStack = null;
+		private var _serviceQueue:mx.utils.LinkedList = null;
 		
 		// HTTP service
 		private var _httpService:HTTPService = null;
@@ -76,7 +85,7 @@ package com.ikanow.infinit.e.widget.library.data
 		{
 			_callingWidget = widget;
 			_globalContext = widgetContext;
-			_serviceQueue = new ArrayStack();
+			_serviceQueue = new mx.utils.LinkedList();
 			_httpService = new HTTPService();
 		}
 		
@@ -171,10 +180,10 @@ package com.ikanow.infinit.e.widget.library.data
 			doQueryObject[ "callback" ] = callback;
 			doQueryObject[ "isLocalQuery" ] = isLocalQuery;
 			doQueryObject[ "saveQueryName" ] = saveQueryName;
-			_serviceQueue.push( doQueryObject );
+			_serviceQueue.push( doQueryObject ); // pushes to the *end*
 			
 			// If there's nothing ahead of me in the Q, initiate query
-			if ( 1 == _serviceQueue.size() )
+			if ( _serviceQueue.length == 1 )
 			{
 				this.initiateQuery();
 			}
@@ -187,6 +196,17 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		// filtering
 		
+		public function filterByDocumentSet(filteredDocs:ArrayCollection, filterDescription:String):void
+		{
+			if ( null != _overrideContext )
+			{
+				_overrideContext.filterByDocumentSet( filteredDocs, filterDescription );
+			}
+			else
+			{
+				_globalContext.filterByDocumentSet( filteredDocs, filterDescription );
+			}
+		}
 		public function filterByDocField( filterDataSet:FilterDataSetEnum, values:Set, field:String = "_id", filterDescription:String = null ):void
 		{
 			if ( null != _overrideContext )
@@ -399,7 +419,7 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		private function initiateQuery():void
 		{
-			var doQueryObject:Object = _serviceQueue.peek(); // (ie leave on the Q, needed on success/failure)
+			var doQueryObject:Object = _serviceQueue.head.value; // (ie leave on the Q, needed on success/failure aka 'peek')
 			
 			if ( null != doQueryObject )
 			{
@@ -407,16 +427,26 @@ package com.ikanow.infinit.e.widget.library.data
 				{
 					_httpService.addEventListener( ResultEvent.RESULT, onLocalQuerySuccess );
 					_httpService.addEventListener( FaultEvent.FAULT, onLocalQueryFailure );
+
+					//NOT SUPPORTED do by hand instead
+					//if ( !_globalContext.getFramework().invokeQueryEngine( doQueryObject.queryObject, _httpService ) )
+					//{
+					//	doQueryObject.callback( null, "InvokeError" );
+					//}
 					
-					if ( !_globalContext.getFramework().invokeQueryEngine( doQueryObject.queryObject, _httpService ) )
-					{
-						doQueryObject.callback( null, "InvokeError" );
-					}
+					_httpService.url = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/query/" + doQueryObject.queryObject.communityIds;
+					_httpService.method = "POST";
+					_httpService.contentType = "application/json";
+
+					// (.communityIds is not used for anything, and this way I can put wildcards in the URL)
+					doQueryObject.queryObject.communityIds = null;
+										
+					_httpService.send(JSONEncoder.encode(doQueryObject.queryObject));						
 				}
 				else
 				{
 					// all done with this (note multiple global invocations will just overwrite each other)
-					_serviceQueue.pop();
+					_serviceQueue.shift(); // pops from the *head*
 					_globalContext.getFramework().invokeQueryEngine( doQueryObject.queryObject );
 				}
 			}
@@ -426,11 +456,11 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		private function onLocalQueryFailure( event:FaultEvent ):void
 		{
-			var doQueryObject:Object = _serviceQueue.pop(); // (now take off the Q)
+			var doQueryObject:Object = _serviceQueue.shift().value; // (now take off the *head* of Q)
 			doQueryObject.callback( null, "Query Fault: " + event.type + " (" + event.fault.faultCode + ")" );
 			
 			// Next query:
-			if ( _serviceQueue.size() > 0 )
+			if ( _serviceQueue.length  > 0 )
 			{
 				this.initiateQuery();
 			}
@@ -440,27 +470,33 @@ package com.ikanow.infinit.e.widget.library.data
 		
 		private function onLocalQuerySuccess( event:ResultEvent ):void
 		{
-			var doQueryObject:Object = _serviceQueue.pop(); // (now take off the Q)
-			var data:Object = JSONDecoder.decode( event.result as String );
-			
-			if ( data.response.success.toString() == "true" )
-			{
-				//TODO parse the results
-				//var queryResults:QueryResults = new QueryResults();
-				//queryResults.populateQueryResults(data, null, context);
-				//TODO call the callback
+			try {
+				var doQueryObject:Object = _serviceQueue.shift().value; // (now take off the *head* of the Q)
 				
-				//TODO save the query
+				// Run next query first so it can go on in parallel with doQueryObject.callback, which might be time consuming:
+				if ( _serviceQueue.length > 0 )
+				{
+					this.initiateQuery();
+				}			
+				
+				var data:Object = JSONDecoder.decode( event.result as String );
+				
+				if ( data.response.success.toString() == "true" )
+				{
+					var queryResults:QueryResults = new QueryResults();
+					queryResults.populateQueryResults(data, null, this);				
+					var resultSet:ResultSet = ResultSet.createBaseQuery(queryResults, doQueryObject.queryObject, data.response.message);
+					_globalContext.getSavedQueries().put( doQueryObject.saveQueryName, resultSet);
+					doQueryObject.callback( resultSet, data.response.message );
+				}				
+	
+				else
+				{ // Some failure
+					doQueryObject.callback( null, data.response.message );
+				}
 			}
-			else
-			{ // Some failure
-				doQueryObject.callback( null, data.response.message );
-			}
-			
-			// Next query:
-			if ( _serviceQueue.size() > 0 )
-			{
-				this.initiateQuery();
+			catch (e:Error) {
+				doQueryObject.callback(null, e.message);
 			}
 		}
 	}

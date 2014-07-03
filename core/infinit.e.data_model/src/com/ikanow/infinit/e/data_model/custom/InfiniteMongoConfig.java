@@ -63,4 +63,11 @@ public class InfiniteMongoConfig extends MongoConfig
 	public BasicDBList getCacheList() {
 		return InfiniteMongoConfigUtil.getCacheList( _conf );
 	}
+	
+	public void setSelfMerge(String selfMerge) {
+		InfiniteMongoConfigUtil.setSelfMerge( _conf, selfMerge );		
+	}
+	public String getSelfMerge() {
+		return InfiniteMongoConfigUtil.getSelfMerge( _conf );
+	}
 }

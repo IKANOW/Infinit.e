@@ -73,8 +73,7 @@ limitations under the License.
 			
 			private var API_SERVER:String = flash.external.ExternalInterface.call("getEndPointUrl");
 			
-			private var URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json" 
-			//private var URL:String = "./kibanaBin/dist/index.html#Kibana_StashedTemplate.json"  //test application URL
+			private var URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json"
 			//private var URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html"  //flex.client URL
 			
 			/**
@@ -182,9 +181,14 @@ limitations under the License.
 			public function getCommunityIds():String
 			{
 				try {
-					var query:Object = _context.getCurrentQuery();
-					
-					return query.communityIds;
+					if (cidsFilter.selected)
+					{
+						var query:Object = _context.getCurrentQuery();						
+						return query.communityIds;						
+					}
+					else {
+						return "";
+					}
 					
 				}
 				catch (e:Error) {
@@ -205,6 +209,8 @@ limitations under the License.
 					ExternalInterface.addCallback( "getCommunityIds", getCommunityIds );
 					stashedToggleBtn.selected = true;
 					stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					
+					filterToggle.selected = true;
 				}
 				catch (e:Error) {
 					Alert.show("getCommunityIds: " + e.message);
@@ -268,6 +274,19 @@ limitations under the License.
 				ExternalInterface.call(fn,stashedToggle.selected);
 			}
 			
+			private var cidsFilter:Object = {selected:false};
+			private function cidFilterToggle():void
+			{
+				cidsFilter.selected = !cidsFilter.selected;
+				if(cidsFilter.selected==true){
+					filterToggle.label = "ON";
+					filterToggle.selected = true;
+				}else if(cidsFilter.selected==false){
+					filterToggle.label = "OFF";
+					filterToggle.selected = false;
+				}
+			}
+			
 		]]>
 	</fx:Script>
 	<fx:Declarations>
@@ -307,6 +326,20 @@ limitations under the License.
 										label="View Saved"
 										toolTip="View saved/demonstration record sets"
 										click="switchToLiveToggle(0);" />
+		
+		<components:WidgetHeaderLabel text="Community Filter:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+		
+		<components:WidgetToggleButton id="filterToggle"
+									   label="OFF"
+									   toolTip="Toggle community filtering"
+									   click="cidFilterToggle();" />
 	</components:leftHeaderContent>
 	
 	<components:InfiniteFlexIFrame id="jsIFrameKibana"

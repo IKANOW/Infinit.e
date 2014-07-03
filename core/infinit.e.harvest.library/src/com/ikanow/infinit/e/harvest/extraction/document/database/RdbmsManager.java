@@ -292,9 +292,15 @@ public class RdbmsManager {
 			 			this.resultSet.next();		 			
 		 		}
 		 		else { // otherwise use JDBC
-		 			this.resultSet.relative(recordsToSkip);
+			 		try {
+			 			this.resultSet.relative(recordsToSkip);
+			 		}
+			 		catch (Exception e) { // try the oracle workaround)
+				 		for(int i = 0; i < recordsToSkip; i++)
+				 			this.resultSet.next();		 					 			
+			 		}
 		 		}
-			    this.metaData = this.resultSet.getMetaData();
+	 			this.metaData = this.resultSet.getMetaData();
 			}
 		    catch (SQLException e) 
 		    {
@@ -338,7 +344,7 @@ public class RdbmsManager {
 			}
 			else {
 				return "jdbc:" + databaseType + ":" + databaseName;					
-			}			
+			}	
 		}
 	}
 		

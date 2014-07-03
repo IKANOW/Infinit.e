@@ -32,6 +32,7 @@
 
 	<fx:Script>
 		<![CDATA[
+			import com.adobe.utils.StringUtil;
 			import com.ikanow.infinit.e.model.presentation.login.LoginModel;
 			import com.ikanow.infinit.e.model.presentation.login.LoginNavigator;
 			import com.ikanow.infinit.e.shared.model.constant.Constants;
@@ -101,6 +102,7 @@
 			
 			protected function input_changeHandler():void
 			{
+				userName.text = StringUtil.trim(userName.text);
 				loginButton.enabled = userName.valid && password.valid;
 			}
 			

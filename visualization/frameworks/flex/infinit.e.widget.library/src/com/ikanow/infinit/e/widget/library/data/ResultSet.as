@@ -31,11 +31,12 @@ package com.ikanow.infinit.e.widget.library.data
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 	import com.ikanow.infinit.e.widget.library.utility.Authentication;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
+	
 	import mx.collections.ArrayCollection;
-	import mx.controls.Alert;
 	import mx.controls.Alert;
 	import mx.formatters.DateFormatter;
 	import mx.utils.ObjectUtil;
+	
 	import system.data.Map;
 	import system.data.maps.HashMap;
 	
@@ -51,6 +52,8 @@ package com.ikanow.infinit.e.widget.library.data
 		//======================================
 		// private properties 
 		//======================================
+		
+		private var _date:Date = new Date();
 		
 		// Type of object: base (false) or derived (true)
 		private var _bDerived:Boolean = false;
@@ -204,6 +207,11 @@ package com.ikanow.infinit.e.widget.library.data
 		//======================================
 		// public methods 
 		//======================================
+		
+		public function getQueryDate():Date
+		{
+			return _date;
+		}
 		
 		/**
 		 * An array collection of IResultSet objects representing *either* a query and its sub-queried children

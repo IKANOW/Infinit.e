@@ -27,6 +27,7 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryOperatorTypes;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryStringTypes;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryTermTypes;
+	import com.ikanow.infinit.e.shared.model.manager.SetupManager;
 	import com.ikanow.infinit.e.shared.model.manager.base.InfiniteManager;
 	import com.ikanow.infinit.e.shared.model.vo.QueryObject;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputAggregationOptions;
@@ -53,11 +54,14 @@ package com.ikanow.infinit.e.query.model.manager
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
 	import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
+	
 	import flash.external.*;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.collections.SortField;
 	import mx.controls.Alert;
+	import mx.events.CloseEvent;
 	import mx.resources.ResourceManager;
 	import mx.utils.ObjectUtil;
 	
@@ -82,6 +86,12 @@ package com.ikanow.infinit.e.query.model.manager
 		 * The current sources
 		 */
 		public var sources:ArrayCollection;
+		
+		[Inject( "setupManager", bind = "true" )]
+		/**
+		 * The setup manager to send queries to
+		 */
+		public var setupManager:SetupManager;
 		
 		[Inject]
 		public var workspaceSettingsModel:WorkspaceSettingsModel;
@@ -367,6 +377,93 @@ package com.ikanow.infinit.e.query.model.manager
 			runQuery( queryString, true );
 		}
 		
+		protected var _overwrite_badCommunitySet:ArrayCollection = null;
+		protected var _overwrite_restrictedCommunitySet:ArrayCollection = null;
+		protected var _overwrite_tempSetup:Setup = null;
+		public function overwriteQueryAndNavigate( queryString:QueryString ):void
+		{
+			try {
+				_overwrite_tempSetup = new Setup();
+				_overwrite_tempSetup.queryString = queryString;
+	
+				//There's a complication here: must be a subset of the currently selected communities (for security reasons)
+				
+				if ((null != queryString.communityIds) && (queryString.communityIds.length > 0))
+					_overwrite_restrictedCommunitySet = queryString.communityIds;
+				else
+					_overwrite_restrictedCommunitySet = this.lastQueryString.communityIds;
+				_overwrite_badCommunitySet = null;
+				
+				var i:int = 0;
+				for each (var commId:String in _overwrite_restrictedCommunitySet)
+				{
+					var found:Boolean = false;
+					for each (var selComm:Object in selectedCommunities)
+					{
+						if (selComm._id == commId) {
+							found = true;
+							break;
+						}
+					}
+					if (!found) {
+						if (null == _overwrite_badCommunitySet) {
+							_overwrite_badCommunitySet = new ArrayCollection();
+						}
+						_overwrite_badCommunitySet.addItem(commId);
+						_overwrite_restrictedCommunitySet.removeItemAt(i);
+					}
+					i++;
+				}
+				if (null != _overwrite_badCommunitySet) {
+					// (would be better to inject communities - ie selected and unselected - and get the title)
+					var message:String = "The widget attempted to select the following communities:\n\n";
+					for each (var badComm:String in _overwrite_badCommunitySet) {
+						message += badComm + " (unknown name - check in the source manager)\n";
+					}
+					message += "\nDo you wish to enable these automatically (eg do you trust the source)?";
+					mx.controls.Alert.show(message,"Warning", mx.controls.Alert.YES | mx.controls.Alert.NO, null, overwriteQueryAndNavigate_SecurityCheck);
+				}		
+				else 
+					overwriteQueryAndNavigate_SecurityCheck(null);
+			}
+			catch(e:Error) {
+			}
+		}
+		
+		protected function overwriteQueryAndNavigate_SecurityCheck(event:CloseEvent):void
+		{
+			try {
+				if((null == event) || (event.detail == Alert.YES)) {
+					if (null != _overwrite_badCommunitySet)
+						_overwrite_restrictedCommunitySet.addAll(_overwrite_badCommunitySet);
+				}
+				
+				_overwrite_tempSetup.communityIds = _overwrite_restrictedCommunitySet.toArray();
+				
+				var newQueryString:QueryStringRequest = updateQuery( _overwrite_tempSetup.queryString );
+				
+				// These have already been set by the query builder code from the controller
+				newQueryString.qt = currentQueryStringRequest.qt;
+				newQueryString.logic = currentQueryStringRequest.logic;
+					
+				newQueryString.communityIds = _overwrite_tempSetup.communityIds;
+				
+				// set the current query string
+				currentQueryStringRequest = newQueryString.clone();			
+			}
+			catch (e:Error) { 
+				/**/
+				mx.controls.Alert.show(e.getStackTrace());
+			}
+				
+			var navigationEvent:NavigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+			navigationEvent.navigationItemId = NavigationConstants.QUERY_BUILDER_ID;
+			dispatcher.dispatchEvent( navigationEvent );
+						
+			navigationEvent = new NavigationEvent( NavigationEvent.NAVIGATE_BY_ID );
+			navigationEvent.navigationItemId = NavigationConstants.WORKSPACES_QUERY_ID;
+			dispatcher.dispatchEvent( navigationEvent );			
+		}
 		/**
 		 * Reset
 		 * Used to reset on logout

@@ -124,7 +124,7 @@ HSliderThumbSkin and HSliderTrackSkin classes, respectively.
 								  skinClass="spark.skins.spark.HSliderThumbSkin" />																
 					</s:Group>					
 				</s:HGroup>
-				<s:Label text="{hostComponent.maximum}"
+				<s:Label text="{hostComponent.mymax}"
 						 fontSize="9" />
 			</s:HGroup>
 		</s:VGroup>

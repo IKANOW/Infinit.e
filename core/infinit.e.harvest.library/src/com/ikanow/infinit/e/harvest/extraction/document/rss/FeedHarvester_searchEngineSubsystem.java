@@ -35,6 +35,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.E
 import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.Context;
+import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
@@ -215,6 +216,12 @@ public class FeedHarvester_searchEngineSubsystem {
 					}
 					if (null != feedConfig.getSearchConfig().getExtraMeta()) {
 						dummyUAHconfig.CopyMeta(feedConfig.getSearchConfig().getExtraMeta());
+						// Legacy -> Pipeline port
+						for (metaField extraMeta: dummyUAHconfig.getMeta()) {
+							if (null == extraMeta.context) { // mandatory in legacy, discarded in pipeline!
+								extraMeta.context = Context.First;
+							}
+						}
 					}
 					dummyUAHconfig.setScript(feedConfig.getSearchConfig().getGlobals());
 					dummyUAHconfig.AddMetaField("searchEngineSubsystem", Context.All, feedConfig.getSearchConfig().getScript(), "javascript", feedConfig.getSearchConfig().getScriptflags());

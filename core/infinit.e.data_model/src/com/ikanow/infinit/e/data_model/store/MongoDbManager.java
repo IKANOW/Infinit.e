@@ -380,6 +380,7 @@ public class MongoDbManager {
 		private Mongo _savedMongo;
 
 		private DBCollection _config_customlookup;
+		private DBCollection _config_customSavedQueryCache;
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
@@ -391,6 +392,12 @@ public class MongoDbManager {
 				_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");										
 			}
 			return _config_customlookup;
+		}
+		public DBCollection getSavedQueryCache() {
+			if (null == _config_customSavedQueryCache) {
+				_config_customSavedQueryCache = _savedMongo.getDB("custommr").getCollection("saved_query_cache");										
+			}
+			return _config_customSavedQueryCache;
 		}
 	}
 	

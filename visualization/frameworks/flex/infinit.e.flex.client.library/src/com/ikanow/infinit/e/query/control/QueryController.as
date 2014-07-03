@@ -26,7 +26,9 @@ package com.ikanow.infinit.e.query.control
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceResult;
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
+	
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.resources.ResourceManager;
@@ -313,6 +315,17 @@ package com.ikanow.infinit.e.query.control
 			queryManager.updateQueryFromWidgetDragDrop( event.widgetInfo );
 		}
 		
+		[EventHandler( event = "QueryEvent.OVERWRITE_QUERY_NAVIGATE" )]
+		/**
+		 * Saves the query advanced scoring settings, navigates to a new page
+		 * @param event
+		 */
+		public function overwriteQueryAndNavigate( event:QueryEvent ):void
+		{
+			var queryString:QueryString = event.queryString as QueryString;
+			queryBuilderModel.setLastQueryString(queryString);
+			queryManager.overwriteQueryAndNavigate( queryString );
+		}
 		[EventHandler( event = "QueryEvent.UPDATE_QUERY_NAVIGATE" )]
 		/**
 		 * Saves the query advanced scoring settings, navigates to a new page

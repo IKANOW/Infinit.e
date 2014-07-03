@@ -49,6 +49,11 @@ Infinit.e base enterprise install
 #
 # FINAL STEP FOR INSTALLS AND UPGRADES
 #
+	#Centos5 doesn't support the logstash repo so remove
+	 if cat /etc/redhat-release | grep -iq 'release 5'; then
+	 	rm -f /etc/yum.repos.d/logstash.repo
+	 fi	
+
 	#Insert or update record-oriented widgets
 	sh /mnt/opt/logstash-infinite/scripts/insert_or_update_widgets.sh > /dev/null
 	

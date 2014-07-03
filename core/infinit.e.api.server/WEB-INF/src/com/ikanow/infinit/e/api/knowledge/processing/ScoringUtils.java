@@ -15,6 +15,8 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge.processing;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -26,6 +28,7 @@ import java.util.Map;
 import java.util.TreeSet;
 
 import org.apache.log4j.Logger;
+import org.bson.BSONCallback;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.knowledge.QueryHandler;
@@ -47,9 +50,13 @@ import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBCallback;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.DBDecoder;
+import com.mongodb.DBDecoderFactory;
 import com.mongodb.DBObject;
+import com.mongodb.DefaultDBCallback;
 
 public class ScoringUtils 
 {	
@@ -460,7 +467,7 @@ public class ScoringUtils
 				// ... conversely if the index/db get out of sync, the other way round can be correct, but this way is safer)
 		}
 		_s0_globalDocCount = (double)nGlobalDocCount;
-		stage1_initialCountingLoop(docs, scoreParams, scores, standaloneEventsReturn, communityIds.length);
+		stage1_initialCountingLoop(docs, scoreParams, (int) nToClientLimit, scores, standaloneEventsReturn, communityIds.length);
 		
 		//Exit if not generating documents or entity aggregations:
 		if (!_s0_bNeedToCalcSig) {
@@ -554,131 +561,128 @@ public class ScoringUtils
 	
 	@SuppressWarnings("unchecked")
 	private void stage1_initialCountingLoop(DBCursor docs, 
-										AdvancedQueryPojo.QueryScorePojo scoreParams, 
+										AdvancedQueryPojo.QueryScorePojo scoreParams,
+										int toReturn,
 										StatisticsPojo scores,
 										LinkedList<BasicDBObject> standaloneEventsReturn, 
 										int nCommunities)
 	{		
 		double s0_nQuerySubsetDocCountInv = 1.0/(double)_s0_nQuerySubsetDocCount;
 		
-		//DEBUG (INF-2498): testing memory usage			
-//		int ndocs = 0;
-//		long nmem = 0L;
-//		long start = new Date().getTime();
-
-		for ( DBObject f0 : docs)
-		{
-			BasicDBObject f = (BasicDBObject)f0;
-
-			//DEBUG (INF-2498): testing memory usage			
-//			ndocs++;
-//			long len = f.toString().length();
-//			long evtlen = 0;
-//			long metalen = 0;
-//			long desclen = 0;
-//			if (null != f.get("associations")) {
-//				evtlen = f.get("associations").toString().length();
-//			}
-//			if (null != f.get("metadata")) {
-//				metalen = f.get("metadata").toString().length();
-//			}
-//			if (null != f.get("description")) {
-//				desclen = f.get("description").toString().length();
-//			}
-//			nmem += len;
-//			long now = new Date().getTime() - start;
-//			System.out.println("TIME=" + now/1000 + " OBJ=" + ndocs + " AVG=" + nmem/ndocs + " URL=" + f.getString("url") + " ~SIZE=" + len + " ~MEM=" + nmem + " SYS=" +  Runtime.getRuntime().totalMemory() + " EVTLEN=" + evtlen + " METALEN=" + metalen + " DESCLEN=" + desclen);						
-			//END DEBUG
+		// Some memory management:
+		DBCollection dbc = MongoDbManager.getDocument().getMetadata();
+		DBDecoderFactory defaultDecoder = dbc.getDBDecoderFactory();
+		
+		try {
+			SizeReportingBasicBSONDecoder sizeReportingDecoder = new SizeReportingBasicBSONDecoder();
+			dbc.setDBDecoderFactory(sizeReportingDecoder);
 			
-			// Simple handling for standalone events
-			if ((null != _s0_standaloneEventAggregator) && !_s0_bNeedToCalcSig) {
-				//if _s0_bNeedToCalcSig then do this elsewhere
-				ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, 
-																_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
-																	_s0_bEvents, _s0_bSummaries, _s0_bFacts);
-			}//TESTED
+			long currMemUsage = 0;
+			int ndocs = 0;
+			long lastBatch = 0L;
 			
-			if (!_s0_bNeedToCalcSig) {
-				continue;
-			}//TESTED
-	
-			if (nCommunities > 1) { // (could have pan-community entities)
-				ObjectId communityId = (ObjectId) f.get(DocumentPojo.communityId_);
-				if (null != communityId) { // (have big problems if so, but anyway!)
-					_s0_multiCommunityHandler.community_getIdAndInitialize(communityId, _s1_entitiesInDataset);
-						// (returns an int community id but also sets it into the cache, so just use that below)
-				}
-			}//TESTED		
-			
-			TempDocBucket docBucket = new TempDocBucket();
-			docBucket.dbo = f;
-			ObjectId id = (ObjectId) f.get(DocumentPojo._id_);
-			
-			// If we're going to weight relevance in, or we need the geo temporal decay:
-			if ((0 != scoreParams.relWeight) || (null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
-				StatisticsPojo.Score scoreObj = scores.getScore().get(id);
-				if (null != scoreObj) {
-					docBucket.explain = scoreObj.explain; // (will normally be null)
-					docBucket.luceneScore = scoreObj.score;
-					if ((null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
-						if (scoreObj.decay >= 0.0) {
-							docBucket.geoTemporalDecay = scoreObj.decay;
-						}
-						// (see also below for low accuracy geo scoring)
-					}
-				}
-			}//TESTED
-			else if (this._s0_sortingByDate) {
-				StatisticsPojo.Score scoreObj = scores.getScore().get(id);
-				if (null != scoreObj) {
-					docBucket.nLuceneIndex = scoreObj.nIndex;			
-				}				
-			}			
-			docBucket.manualWeighting = this.getManualScoreWeights(scoreParams, f);
-			
-			BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
-			if (null != l) {
-	
-				long nEntsInDoc = l.size();
-				double dBestGeoScore = 0.0; // (for low accuracy geo only)
-				for(Iterator<?> e0 = l.iterator(); e0.hasNext();){					
-					BasicDBObject e = (BasicDBObject)e0.next();
-
-					BasicDBObject tmpGeotag = null;
-					if (_s3_bLowAccuracyGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
-						// low accuracy geo, need to look for geotag
-						tmpGeotag = (BasicDBObject) e.get(EntityPojo.geotag_);
-					}
-										
-					// Get attributes
+			for ( DBObject f0 : docs)
+			{
+				BasicDBObject f = (BasicDBObject)f0;
+				long newMemUsage = sizeReportingDecoder.getSize();
+				if ((newMemUsage - currMemUsage) > 0) { // check every batch					
+					long now = new Date().getTime();
 					
-					double freq = -1.0;
-					long ntotaldoccount = -1;
-					String entity_index;
-					Double sentiment = null;
-					try {
-						sentiment = (Double) e.get(EntityPojo.sentiment_);
-						ntotaldoccount = e.getLong(EntityPojo.doccount_);
-						freq = e.getDouble(EntityPojo.frequency_);
-						entity_index = e.getString(EntityPojo.index_);
-						if (null == entity_index) {
-							// Just bypass the entity 
-							e.put(EntityPojo.significance_, 0.0);
-							nEntsInDoc--;
+					//DEBUG
+					//logger.warn(ndocs + " : " + (now - lastBatch) + " : " + newMemUsage + " VS " + Runtime.getRuntime().maxMemory());
+					
+					// Check vs total memory:
+					long runtimeMem = Runtime.getRuntime().maxMemory();
+					// note newMemUsage is the input memory ... gets expanded ~6x by the BSON-ification, allowed at most 1/4rd of memory...
+					// Also if we're taking more than 20s for a batch then limp over the limit and exit...
+					if (((newMemUsage*24) > runtimeMem)
+							||
+						(((now - lastBatch) > 20000L) && (ndocs >= toReturn)))							
+					{
+						logger.error("Query truncated memUsage=" + newMemUsage + ", memory=" + runtimeMem + ", docs=" + ndocs + ", totaldocs=" + scores.found);
+						break;
+					}//TESTED
+					currMemUsage = newMemUsage;
+					lastBatch = now;
+				}//TESTED
+				ndocs++;				
+				
+				// Simple handling for standalone events
+				if ((null != _s0_standaloneEventAggregator) && !_s0_bNeedToCalcSig) {
+					//if _s0_bNeedToCalcSig then do this elsewhere
+					ScoringUtils_Associations.addStandaloneEvents(f, 0.0, 0, _s0_standaloneEventAggregator, 
+																	_s0_bEntityTypeFilterPositive, _s0_bAssocVerbFilterPositive, _s0_entityTypeFilter, _s0_assocVerbFilter, 
+																		_s0_bEvents, _s0_bSummaries, _s0_bFacts);
+				}//TESTED
+				
+				if (!_s0_bNeedToCalcSig) {
+					continue;
+				}//TESTED
+		
+				if (nCommunities > 1) { // (could have pan-community entities)
+					ObjectId communityId = (ObjectId) f.get(DocumentPojo.communityId_);
+					if (null != communityId) { // (have big problems if so, but anyway!)
+						int retval = _s0_multiCommunityHandler.community_getIdAndInitialize(communityId, _s1_entitiesInDataset);
+							// (returns an int community id but also sets it into the cache, so just use that below)
+						if (Integer.MIN_VALUE == retval) {
+							//this document cannot be viewed from within this set of communities
 							continue;
 						}
 					}
-					catch (Exception ex) {
+				}//TESTED		
+				
+				TempDocBucket docBucket = new TempDocBucket();
+				docBucket.dbo = f;
+				ObjectId id = (ObjectId) f.get(DocumentPojo._id_);
+				
+				// If we're going to weight relevance in, or we need the geo temporal decay:
+				if ((0 != scoreParams.relWeight) || (null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
+					StatisticsPojo.Score scoreObj = scores.getScore().get(id);
+					if (null != scoreObj) {
+						docBucket.explain = scoreObj.explain; // (will normally be null)
+						docBucket.luceneScore = scoreObj.score;
+						if ((null != scoreParams.timeProx) || (null != scoreParams.geoProx)) {
+							if (scoreObj.decay >= 0.0) {
+								docBucket.geoTemporalDecay = scoreObj.decay;
+							}
+							// (see also below for low accuracy geo scoring)
+						}
+					}
+					else {
+						docBucket.luceneScore = 1.0;
+					}
+				}//TESTED
+				else if (this._s0_sortingByDate) {
+					StatisticsPojo.Score scoreObj = scores.getScore().get(id);
+					if (null != scoreObj) {
+						docBucket.nLuceneIndex = scoreObj.nIndex;			
+					}				
+				}			
+				docBucket.manualWeighting = this.getManualScoreWeights(scoreParams, f);
+				
+				BasicDBList l = (BasicDBList)(f.get(DocumentPojo.entities_));
+				if (null != l) {
+		
+					long nEntsInDoc = l.size();
+					double dBestGeoScore = 0.0; // (for low accuracy geo only)
+					for(Iterator<?> e0 = l.iterator(); e0.hasNext();){					
+						BasicDBObject e = (BasicDBObject)e0.next();	
+						BasicDBObject tmpGeotag = null;
+						if (_s3_bLowAccuracyGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
+							// low accuracy geo, need to look for geotag
+							tmpGeotag = (BasicDBObject) e.get(EntityPojo.geotag_);
+						}
+											
+						// Get attributes
+						
+						double freq = -1.0;
+						long ntotaldoccount = -1;
+						String entity_index;
+						Double sentiment = null;
 						try {
-							String sfreq;
-							if (ntotaldoccount < 0) {
-								sfreq = e.getString(EntityPojo.doccount_) ;
-								ntotaldoccount = Long.valueOf(sfreq);								
-							}
-							if (freq < -0.5) {
-								sfreq = e.getString(EntityPojo.frequency_) ;
-								freq = Long.valueOf(sfreq).doubleValue();
-							}
+							sentiment = (Double) e.get(EntityPojo.sentiment_);
+							ntotaldoccount = e.getLong(EntityPojo.doccount_);
+							freq = e.getDouble(EntityPojo.frequency_);
 							entity_index = e.getString(EntityPojo.index_);
 							if (null == entity_index) {
 								// Just bypass the entity 
@@ -687,195 +691,218 @@ public class ScoringUtils
 								continue;
 							}
 						}
-						catch (Exception e2) {						
-							// Just bypass the entity 
-							e.put(EntityPojo.significance_, 0.0);
-							nEntsInDoc--;
-							continue;						
-						}
-					}//TESTED
-					
-					// First loop through is just counting
-					
-					// Retrieve entity (create/initialzie if necessary)
-					EntSigHolder shp = _s1_entitiesInDataset.get(entity_index);
-					if (null == shp) {		
-						if (ntotaldoccount > (long)_s0_globalDocCount) { // obviously can't have more entities-in-dos than docs... 
-							ntotaldoccount = (long)_s0_globalDocCount;
-						}
-						shp = new EntSigHolder(entity_index, ntotaldoccount, _s0_multiCommunityHandler);						
-						
-						// Stage 1a alias handling: set up infrastructure, calculate doc overlap
-						if (null != _s1_aliasLookup) {
-							stage1_initAlias(shp);
-						}
-						if ((null != shp.aliasInfo) && (null == shp.masterAliasSH)) { // this is the discard alias
-							nEntsInDoc--;
-							continue;
-						}//TESTED
-						
-						// Check if entity is in type filter list
-						if (null != _s0_entityTypeFilter) {
-							String entType = null;
-							if (null != shp.aliasInfo) {
-								entType = shp.aliasInfo.getType();
-							}
-							else {
-								entType = e.getString(EntityPojo.type_);
-							}
-							if (_s0_bEntityTypeFilterPositive) {
-								if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+						catch (Exception ex) {
+							try {
+								String sfreq;
+								if (ntotaldoccount < 0) {
+									sfreq = e.getString(EntityPojo.doccount_) ;
+									ntotaldoccount = Long.valueOf(sfreq);								
+								}
+								if (freq < -0.5) {
+									sfreq = e.getString(EntityPojo.frequency_) ;
+									freq = Long.valueOf(sfreq).doubleValue();
+								}
+								entity_index = e.getString(EntityPojo.index_);
+								if (null == entity_index) {
+									// Just bypass the entity 
+									e.put(EntityPojo.significance_, 0.0);
 									nEntsInDoc--;
 									continue;
 								}
 							}
-							else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
-								//(negative filter)
+							catch (Exception e2) {						
+								// Just bypass the entity 
+								e.put(EntityPojo.significance_, 0.0);
 								nEntsInDoc--;
-								continue;
-							}
-							
-						}//TESTED (end entity filter)
-						
-						// Geo:
-						if (null != shp.aliasInfo) {
-							if (null != shp.aliasInfo.getGeotag()) { //Geo, overwrite/create tmpGeotag
-								if (_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
-									// Always capture alias geo, even if not in low accuracy mode because we add it to the 
-									// legitimate geo:
-									if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && 
-											(null == _s3_geoBuckets))
-									{
-										// Initialize the buckets if this is for aggregation not just decay
-										_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 									
-									}
-									
-									if (null == tmpGeotag) {
-										tmpGeotag = new BasicDBObject();
-									}
-									tmpGeotag.put(GeoPojo.lat_, shp.aliasInfo.getGeotag().lat);
-									tmpGeotag.put(GeoPojo.lon_, shp.aliasInfo.getGeotag().lon);
-	
-									if (null != shp.aliasInfo.getOntology_type()) {
-										e.put(EntityPojo.ontology_type_, shp.aliasInfo.getOntology_type());
-									}
-								}
-							}
-						}//TESTED (end geo for aggregation or decay)
-						
-						_s1_entitiesInDataset.put(entity_index, shp);
-						// end Stage 1a alias handling
-					}//(end if is alias)
-					
-					// Stage 1b alias handling: calculate document counts (taking overlaps into account)
-					if (null != shp.masterAliasSH) {
-						// Counts:
-						shp.masterAliasSH.nTotalDocCount++; 
-							// docs including overlaps
-						shp.masterAliasSH.avgFreqOverQuerySubset += freq;
-
-						// Keep track of overlaps:
-						if (f != shp.masterAliasSH.unusedDbo) {
-							shp.masterAliasSH.unusedDbo = f;
-								// (note this is only used in stage 1, alias.unusedDbo is re-used differently in stage 3/4)
-							shp.masterAliasSH.nDocCountInQuerySubset++;
-								// non-overlapping docs ie < shp.nDocCountInQuerySubset
-						}
-						
-						// Sentiment:
-						shp.masterAliasSH.positiveSentiment += shp.positiveSentiment;
-						shp.masterAliasSH.negativeSentiment += shp.negativeSentiment;
-						if (null != sentiment) {
-							shp.masterAliasSH.nTotalSentimentValues++;
-						}
-						
-					}//TESTED (end if is alias)
-					// end Stage 1b
-										
-					// Pan-community logic (this needs to be before the entity object is updated)
-					if (_s0_multiCommunityHandler.isActive()) {
-						_s0_multiCommunityHandler.community_updateCorrelations(shp, ntotaldoccount, entity_index);
-					}		
-					else { // (Once we've started multi-community logic, this is no longer desirable)
-						if ((ntotaldoccount > shp.nTotalDocCount) && (ntotaldoccount <= _s0_globalDocCount)) {
-							shp.nTotalDocCount = ntotaldoccount;
-						}						
-						//(note there used to be some cases where we adjusted for dc/tf==0, but the 
-						// underlying issue in the data model that caused this has been fixed, so it's 
-						// now a pathological case that can be ignored)
-					}//(TESTED)
-					
-					// Update counts:
-					_s1_sumFreqInQuerySubset += freq;
-					shp.avgFreqOverQuerySubset += freq;
-					shp.nDocCountInQuerySubset++; 
-					shp.decayedDocCountInQuerySubset += docBucket.geoTemporalDecay;
-						// (note this doesn't handle low accuracy geo-decay ... we'll address that via a separate term)
-
-					TempEntityInDocBucket entBucket = new TempEntityInDocBucket();
-					entBucket.dbo = e;
-					entBucket.freq = freq;
-					entBucket.doc = docBucket;
-					shp.entityInstances.add(entBucket);
-					if (null != tmpGeotag) { // (only needed for low accuracy geo aggregation)
-						
-						if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && (null == shp.geotag)) { // (first time for shp only)
-							shp.geotag = tmpGeotag;
-							shp.geotaggedEntity = e; // (ie for onto type, which has been overwritten in the alias case...)
-						}						
-						if (null != _s1_dManualGeoDecay_latLonInvdecay) {
-							// Emulate scripted Lucene calculations
-							double minlat = tmpGeotag.getDouble(GeoPojo.lat_);
-							double minlon = tmpGeotag.getDouble(GeoPojo.lon_);
-							double paramlat = _s1_dManualGeoDecay_latLonInvdecay[0];
-							double paramlon = _s1_dManualGeoDecay_latLonInvdecay[1];
-							double gdecay = _s1_dManualGeoDecay_latLonInvdecay[2];
-							char ontCode = GeoOntologyMapping.encodeOntologyCode(e.getString(EntityPojo.ontology_type_));
-							double dDecay = QueryDecayScript.getGeoDecay(minlat, minlon, paramlat, paramlon, gdecay, ontCode);
-							if (dDecay > dBestGeoScore) {
-								dBestGeoScore = dDecay;
+								continue;						
 							}
 						}//TESTED
-					}//(end if entity has geo and need to process entity geo)
-					
-					if (freq > shp.maxFreq) {
-						shp.maxFreq = freq;
-					}
-					// Sentiment:
-					if ((null != sentiment) && (Math.abs(sentiment) <= 1.1)) { // (actually 1.0)
-						shp.nTotalSentimentValues++;
-						if (sentiment > 0.0) {
-							shp.positiveSentiment += sentiment;
-						}
-						else {
-							shp.negativeSentiment += sentiment;							
-						}
-					}
-					else if (null != sentiment) { // corrupt sentiment for some reason?!
-						e.put(EntityPojo.sentiment_, null);
-					}
-					docBucket.docLength += freq;
-					
-				} //(end loop over entities)
-				
-				docBucket.nLeftToProcess = nEntsInDoc;
-				docBucket.nEntsInDoc = (int) nEntsInDoc;
-				
-				if (null != this._s1_dManualGeoDecay_latLonInvdecay) { // Low accuracy geo-calculations
-					docBucket.geoTemporalDecay *= dBestGeoScore;
-					docBucket.luceneScore *= dBestGeoScore;
-					_s2_dAvgLowAccuracyGeoDecay += dBestGeoScore*s0_nQuerySubsetDocCountInv;
-				}//TESTED				
-				
-			} // (end if feed has entities)
+						
+						// First loop through is just counting
+						
+						// Retrieve entity (create/initialzie if necessary)
+						EntSigHolder shp = _s1_entitiesInDataset.get(entity_index);
+						if (null == shp) {		
+							if (ntotaldoccount > (long)_s0_globalDocCount) { // obviously can't have more entities-in-dos than docs... 
+								ntotaldoccount = (long)_s0_globalDocCount;
+							}
+							shp = new EntSigHolder(entity_index, ntotaldoccount, _s0_multiCommunityHandler);						
+							
+							// Stage 1a alias handling: set up infrastructure, calculate doc overlap
+							if (null != _s1_aliasLookup) {
+								stage1_initAlias(shp);
+							}
+							if ((null != shp.aliasInfo) && (null == shp.masterAliasSH)) { // this is the discard alias
+								nEntsInDoc--;
+								continue;
+							}//TESTED
+							
+							// Check if entity is in type filter list
+							if (null != _s0_entityTypeFilter) {
+								String entType = null;
+								if (null != shp.aliasInfo) {
+									entType = shp.aliasInfo.getType();
+								}
+								else {
+									entType = e.getString(EntityPojo.type_);
+								}
+								if (_s0_bEntityTypeFilterPositive) {
+									if ((null != entType) && !_s0_entityTypeFilter.contains(entType.toLowerCase())) {
+										nEntsInDoc--;
+										continue;
+									}
+								}
+								else if ((null != entType) && _s0_entityTypeFilter.contains(entType.toLowerCase())) {
+									//(negative filter)
+									nEntsInDoc--;
+									continue;
+								}
+								
+							}//TESTED (end entity filter)
+							
+							// Geo:
+							if (null != shp.aliasInfo) {
+								if (null != shp.aliasInfo.getGeotag()) { //Geo, overwrite/create tmpGeotag
+									if (_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo || (null != _s1_dManualGeoDecay_latLonInvdecay)) { 
+										// Always capture alias geo, even if not in low accuracy mode because we add it to the 
+										// legitimate geo:
+										if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && 
+												(null == _s3_geoBuckets))
+										{
+											// Initialize the buckets if this is for aggregation not just decay
+											_s3_geoBuckets = (LinkedList<EntSigHolder>[])new LinkedList[_s3_nGEO_BUCKETS]; 									
+										}
+										
+										if (null == tmpGeotag) {
+											tmpGeotag = new BasicDBObject();
+										}
+										tmpGeotag.put(GeoPojo.lat_, shp.aliasInfo.getGeotag().lat);
+										tmpGeotag.put(GeoPojo.lon_, shp.aliasInfo.getGeotag().lon);
+		
+										if (null != shp.aliasInfo.getOntology_type()) {
+											e.put(EntityPojo.ontology_type_, shp.aliasInfo.getOntology_type());
+										}
+									}
+								}
+							}//TESTED (end geo for aggregation or decay)
+							
+							_s1_entitiesInDataset.put(entity_index, shp);
+							// end Stage 1a alias handling
+						}//(end if is alias)
+						
+						// Stage 1b alias handling: calculate document counts (taking overlaps into account)
+						if (null != shp.masterAliasSH) {
+							// Counts:
+							shp.masterAliasSH.nTotalDocCount++; 
+								// docs including overlaps
+							shp.masterAliasSH.avgFreqOverQuerySubset += freq;
 	
-			// Handle documents with no entities - can still promote them
-			if (0 == docBucket.nLeftToProcess) { // (use this rather than doc length in case all the entities had freq 0)
-				_s1_noEntityBuckets.add(docBucket);				
-			}
-			
-		} // (end loop over feeds)
-		//TESTED
+							// Keep track of overlaps:
+							if (f != shp.masterAliasSH.unusedDbo) {
+								shp.masterAliasSH.unusedDbo = f;
+									// (note this is only used in stage 1, alias.unusedDbo is re-used differently in stage 3/4)
+								shp.masterAliasSH.nDocCountInQuerySubset++;
+									// non-overlapping docs ie < shp.nDocCountInQuerySubset
+							}
+							
+							// Sentiment:
+							shp.masterAliasSH.positiveSentiment += shp.positiveSentiment;
+							shp.masterAliasSH.negativeSentiment += shp.negativeSentiment;
+							if (null != sentiment) {
+								shp.masterAliasSH.nTotalSentimentValues++;
+							}
+							
+						}//TESTED (end if is alias)
+						// end Stage 1b
+											
+						// Pan-community logic (this needs to be before the entity object is updated)
+						if (_s0_multiCommunityHandler.isActive()) {
+							_s0_multiCommunityHandler.community_updateCorrelations(shp, ntotaldoccount, entity_index);
+						}		
+						else { // (Once we've started multi-community logic, this is no longer desirable)
+							if ((ntotaldoccount > shp.nTotalDocCount) && (ntotaldoccount <= _s0_globalDocCount)) {
+								shp.nTotalDocCount = ntotaldoccount;
+							}						
+							//(note there used to be some cases where we adjusted for dc/tf==0, but the 
+							// underlying issue in the data model that caused this has been fixed, so it's 
+							// now a pathological case that can be ignored)
+						}//(TESTED)
+						
+						// Update counts:
+						_s1_sumFreqInQuerySubset += freq;
+						shp.avgFreqOverQuerySubset += freq;
+						shp.nDocCountInQuerySubset++; 
+						shp.decayedDocCountInQuerySubset += docBucket.geoTemporalDecay;
+							// (note this doesn't handle low accuracy geo-decay ... we'll address that via a separate term)
+	
+						TempEntityInDocBucket entBucket = new TempEntityInDocBucket();
+						entBucket.dbo = e;
+						entBucket.freq = freq;
+						entBucket.doc = docBucket;
+						shp.entityInstances.add(entBucket);
+						if (null != tmpGeotag) { // (only needed for low accuracy geo aggregation)
+							
+							if ((_s3_bLowAccuracyGeo || _s3_bExtraAliasGeo) && (null == shp.geotag)) { // (first time for shp only)
+								shp.geotag = tmpGeotag;
+								shp.geotaggedEntity = e; // (ie for onto type, which has been overwritten in the alias case...)
+							}						
+							if (null != _s1_dManualGeoDecay_latLonInvdecay) {
+								// Emulate scripted Lucene calculations
+								double minlat = tmpGeotag.getDouble(GeoPojo.lat_);
+								double minlon = tmpGeotag.getDouble(GeoPojo.lon_);
+								double paramlat = _s1_dManualGeoDecay_latLonInvdecay[0];
+								double paramlon = _s1_dManualGeoDecay_latLonInvdecay[1];
+								double gdecay = _s1_dManualGeoDecay_latLonInvdecay[2];
+								char ontCode = GeoOntologyMapping.encodeOntologyCode(e.getString(EntityPojo.ontology_type_));
+								double dDecay = QueryDecayScript.getGeoDecay(minlat, minlon, paramlat, paramlon, gdecay, ontCode);
+								if (dDecay > dBestGeoScore) {
+									dBestGeoScore = dDecay;
+								}
+							}//TESTED
+						}//(end if entity has geo and need to process entity geo)
+						
+						if (freq > shp.maxFreq) {
+							shp.maxFreq = freq;
+						}
+						// Sentiment:
+						if ((null != sentiment) && (Math.abs(sentiment) <= 1.1)) { // (actually 1.0)
+							shp.nTotalSentimentValues++;
+							if (sentiment > 0.0) {
+								shp.positiveSentiment += sentiment;
+							}
+							else {
+								shp.negativeSentiment += sentiment;							
+							}
+						}
+						else if (null != sentiment) { // corrupt sentiment for some reason?!
+							e.put(EntityPojo.sentiment_, null);
+						}
+						docBucket.docLength += freq;
+						
+					} //(end loop over entities)
+					
+					docBucket.nLeftToProcess = nEntsInDoc;
+					docBucket.nEntsInDoc = (int) nEntsInDoc;
+					
+					if (null != this._s1_dManualGeoDecay_latLonInvdecay) { // Low accuracy geo-calculations
+						docBucket.geoTemporalDecay *= dBestGeoScore;
+						docBucket.luceneScore *= dBestGeoScore;
+						_s2_dAvgLowAccuracyGeoDecay += dBestGeoScore*s0_nQuerySubsetDocCountInv;
+					}//TESTED				
+					
+				} // (end if feed has entities)
+		
+				// Handle documents with no entities - can still promote them
+				if (0 == docBucket.nLeftToProcess) { // (use this rather than doc length in case all the entities had freq 0)
+					_s1_noEntityBuckets.add(docBucket);				
+				}
+				
+			} // (end loop over feeds)
+			//TESTED
+		}
+		finally {
+			dbc.setDBDecoderFactory(defaultDecoder);			
+		}
 	}
 	
 /////////////////////////////////////////////////////////////	
@@ -1821,6 +1848,10 @@ public class ScoringUtils
 	private void stage1_initAlias(EntSigHolder shp) {
 		EntityFeaturePojo alias = _s1_aliasLookup.getAliasMaster(shp.index);
 		if (null != alias) { // overwrite index
+			if (alias.getIndex().equalsIgnoreCase("document_discard")) {
+				// (document discard... shouldn't have this document at this point, we'll just carry on if we do though)
+				return;
+			}
 			if (alias.getIndex().equalsIgnoreCase("discard")) {
 				shp.aliasInfo = alias;
 				shp.masterAliasSH = null;
@@ -1947,5 +1978,54 @@ public class ScoringUtils
 			}
 		}		
 	}//TESTED
+	
+	// MEMORY HANDLING UTILITY
+	
+	public static class SizeReportingBasicBSONDecoder extends org.bson.BasicBSONDecoder implements DBDecoderFactory, DBDecoder {
+		@Override
+		public int decode(byte[] b, BSONCallback callback) {
+			int size = super.decode(b, callback);
+			_size += size;
+			return size;
+		}
+		@Override
+		public int decode(InputStream in, BSONCallback callback)
+				throws IOException {
+			int size = super.decode(in, callback);
+			_size += size;
+			return size;
+		}
+		public void resetSize() {
+			_size = 0;
+		}
+		public long getSize() {
+			return _size;
+		}
+		protected long _size = 0;
+		@Override
+		public DBDecoder create() {
+			return this;
+		}
+		@Override
+		public DBObject decode(byte[] b, DBCollection collection) {
+	        DBCallback cbk = getDBCallback(collection);
+	        cbk.reset();
+	        decode(b, cbk);
+	        return (DBObject) cbk.get();
+		}
+		
+		@Override
+		public DBObject decode(InputStream in, DBCollection collection)
+				throws IOException {
+	        DBCallback cbk = getDBCallback(collection);
+	        cbk.reset();
+	        decode(in, cbk);
+	        return (DBObject) cbk.get();
+		}
+		@Override
+		public DBCallback getDBCallback(DBCollection collection) {
+			return new DefaultDBCallback(collection);
+		}
+	}
 	
 }

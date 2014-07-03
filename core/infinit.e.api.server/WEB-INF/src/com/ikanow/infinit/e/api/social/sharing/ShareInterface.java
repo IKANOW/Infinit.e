@@ -76,6 +76,7 @@ public class ShareInterface extends ServerResource
 	private boolean jsonOnly = false; 
 	private boolean ignoreAdmin = false;
 	private boolean isEndorsed = false;	
+	private boolean readWrite = false; // (by default is read only)
 	
 	/**
 	 * ShareResource
@@ -153,7 +154,9 @@ public class ShareInterface extends ServerResource
 			if ((queryOptions.get("searchParent") != null) && (queryOptions.get("searchParent").equalsIgnoreCase("true"))) {
 				searchParent = true;
 			}
-			
+			if ((queryOptions.get("readWrite") != null) && (queryOptions.get("readWrite").equalsIgnoreCase("true"))) {
+				readWrite = true;
+			}			
 
 			// Get Share by ID
 			if ( urlStr.contains("/share/get/") )
@@ -408,7 +411,7 @@ public class ShareInterface extends ServerResource
 				 }
 				 else if (action.equals("addCommunity"))
 				 {
-					 rp = this.shareController.addCommunity(personId, shareId, communityId, comment);
+					 rp = this.shareController.addCommunity(personId, shareId, communityId, comment, readWrite);
 				 }
 				 else if (action.equals("removeCommunity"))
 				 {

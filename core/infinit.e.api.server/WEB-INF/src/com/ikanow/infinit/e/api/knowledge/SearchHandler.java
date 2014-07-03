@@ -71,7 +71,7 @@ import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeat
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.feature.geo.GeoFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.ContentUtils;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.CommandResult;

@@ -31,6 +31,7 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     public static final String UPDATE_MODE = "update.incremental";
     public static final String SOURCE_TAGS = "infinit.e.source.tags.filter";
     public static final String CACHE_LIST = "infinit.e.cache.list";
+    public static final String SELF_MERGE = "infinit.e.selfMerge";
     
     public static int getMaxSplits( Configuration conf ){
     	return conf.getInt(MAX_SPLITS, 0);
@@ -70,6 +71,15 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     public static void setCacheList(Configuration conf, BasicDBList cacheList)
     {
     	conf.setStrings(CACHE_LIST, cacheList.toString());
+    }
+    
+    public static String getSelfMerge(Configuration conf)
+    {
+    	return conf.get(SELF_MERGE);
+    }
+    public static void setSelfMerge(Configuration conf, String selfMerge)
+    {
+    	conf.set(SELF_MERGE, selfMerge);
     }
     
 }

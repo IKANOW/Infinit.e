@@ -53,7 +53,7 @@ import com.ikanow.infinit.e.data_model.Globals.Identity;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -121,6 +121,7 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		// SOURCE OVERRIDE
 		
 		Boolean bWriteMetadata = null;
+		String apiKey = null;
 		
 		if ((null != source) && (null != source.getExtractorOptions())) {
 			try {
@@ -128,7 +129,11 @@ public class ExtractorOpenCalais implements IEntityExtractor
 				if (null != s) bWriteMetadata = Boolean.parseBoolean(s);
 			}
 			catch (Exception e){}
-		}
+			try {
+				apiKey = source.getExtractorOptions().get("app.opencalais.apiKeyOverride");
+			}
+			catch (Exception e){}
+		}		
 		
 		// DEFAULT CONFIGURATION
 		
@@ -145,6 +150,9 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		
 		if (null != bWriteMetadata) {
 			bAddRawEventsToMetadata = bWriteMetadata;
+		}
+		if (null != apiKey) {
+			this.CALAIS_LICENSE = apiKey;
 		}
 	}	
 	//_______________________________________________________________________

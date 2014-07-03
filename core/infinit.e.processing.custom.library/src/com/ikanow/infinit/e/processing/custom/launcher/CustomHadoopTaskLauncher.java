@@ -103,7 +103,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		else if ( null != job.incrementalMode )
 			job.incrementalMode = false; // (not allowed to be in incremental mode and not update mode)
 		
-		createConfigXML(xml, job.jobtitle,job.inputCollection, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), outputCollection, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments, job.incrementalMode, job.submitterID);
+		createConfigXML(xml, job.jobtitle,job.inputCollection, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), job.isCustomTable, job.getOutputDatabase(), job._id.toString(), outputCollection, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.outputKey, job.outputValue,job.arguments, job.incrementalMode, job.submitterID, job.selfMerge, job.outputCollection, job.appendResults);
 		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
 				
@@ -362,7 +362,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		String jobid = null;
 		try
 		{				
-			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments, job.incrementalMode, job.submitterID);
+			job.tempConfigXMLLocation = createConfigXML_commandLine(job.jobtitle,job.inputCollection,job._id.toString(),job.tempConfigXMLLocation, job.mapper, job.reducer, job.combiner, InfiniteHadoopUtils.getQueryOrProcessing(job.query,InfiniteHadoopUtils.QuerySpec.QUERY), job.communityIds, job.isCustomTable, job.getOutputDatabase(), job.outputKey, job.outputValue,job.outputCollectionTemp,job.arguments, job.incrementalMode, job.submitterID, job.selfMerge, job.outputCollection, job.appendResults);
 			Runtime rt = Runtime.getRuntime();
 			String[] commands = new String[]{"hadoop","--config", props_custom.getHadoopConfigPath() + "/hadoop", "jar", jar, "-conf", job.tempConfigXMLLocation};			
 			String command = "";
@@ -425,7 +425,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	 * @param output
 	 * @throws IOException 
 	 */
-	private String createConfigXML_commandLine( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputDatabase, String outputKey, String outputValue, String tempOutputCollection, String arguments, Boolean incrementalMode, ObjectId userId) throws IOException
+	private String createConfigXML_commandLine( String title, String input, String output, String configLocation, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, boolean isCustomTable, String outputDatabase, String outputKey, String outputValue, String tempOutputCollection, String arguments, Boolean incrementalMode, ObjectId userId, Boolean selfMerge, String originalOutputCollection, Boolean appendResults) throws IOException
 	{		
 		
 		if ( configLocation == null )
@@ -434,15 +434,15 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		File configFile = new File(configLocation);
 		FileWriter fstream = new FileWriter(configFile);
 		BufferedWriter out = new BufferedWriter(fstream);
-		createConfigXML(out, title, input, InfiniteHadoopUtils.getQueryOrProcessing(query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments, incrementalMode, userId);
+		createConfigXML(out, title, input, InfiniteHadoopUtils.getQueryOrProcessing(query,InfiniteHadoopUtils.QuerySpec.INPUTFIELDS), isCustomTable, outputDatabase, output, tempOutputCollection, mapper, reducer, combiner, query, communityIds, outputKey, outputValue, arguments, incrementalMode, userId, selfMerge, originalOutputCollection, appendResults);
 		fstream.close();
 			
 		return configLocation;
 	}	
 	
-	private void createConfigXML( Writer out, String title, String input, String fields, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments, Boolean incrementalMode, ObjectId userId) throws IOException
+	private void createConfigXML( Writer out, String title, String input, String fields, boolean isCustomTable, String outputDatabase, String output, String tempOutputCollection, String mapper, String reducer, String combiner, String query, List<ObjectId> communityIds, String outputKey, String outputValue, String arguments, Boolean incrementalMode, ObjectId userId, Boolean selfMerge, String originalOutputCollection, Boolean appendResults) throws IOException
 	{
-		String dbserver = prop_general.getDatabaseServer();
+		String dbserver = prop_general.getDatabaseServer();		
 		output = outputDatabase + "." + tempOutputCollection;
 
 		
@@ -548,9 +548,6 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}		
 		query = oldQueryObj.toString();
 		
-		/**/
-		System.out.println("QUERY=== " + query);
-		
 		if ( arguments == null )
 			arguments = "";
 		
@@ -558,7 +555,6 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		out.write("<?xml version=\"1.0\"?>\n<configuration>");
 		
 		// Mongo specific configuration
-		
 		out.write(
 				"\n\t<property><!-- name of job shown in jobtracker --><name>mongo.job.name</name><value>"+title+"</value></property>"+
 				"\n\t<property><!-- run the job verbosely ? --><name>mongo.job.verbose</name><value>true</value></property>"+
@@ -602,6 +598,14 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			out.write(
 					"\n\t<property><!-- Infinit.e src tags filter [optional] --><name>infinit.e.source.tags.filter</name><value>"+srcTags.toString()+"</value></property>"
 				);			
+		}
+		
+		if ( null != selfMerge && selfMerge && originalOutputCollection != null )
+		{
+			originalOutputCollection  = "mongodb://"+dbserver+"/" + outputDatabase + "." + originalOutputCollection;
+			out.write(
+					"\n\t<property><!-- This jobs output collection for passing into the mapper along with input collection [optional] --><name>infinit.e.selfMerge</name><value>"+originalOutputCollection+"</value></property>"
+					);
 		}
 		
 		// Closing thoughts:

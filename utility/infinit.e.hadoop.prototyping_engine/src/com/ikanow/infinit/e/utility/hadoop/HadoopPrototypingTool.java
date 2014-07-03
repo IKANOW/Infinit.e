@@ -26,7 +26,9 @@ import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
 import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.ReduceContext;
 import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.TaskInputOutputContext;
 import org.apache.hadoop.util.ToolRunner;
 import org.bson.BSONObject;
 import org.bson.BasicBSONObject;
@@ -49,17 +51,54 @@ public class HadoopPrototypingTool extends MongoTool {
 	public static class JavascriptUtils {
 		private ScriptEngineManager _factory = null;
 		private ScriptEngine _engine = null;
-
+		private boolean _memoryOptimized = false;
+		private TaskInputOutputContext<?, ?, BSONWritable, BSONWritable> _context = null;
+		private ReduceContext<BSONWritable, BSONWritable, BSONWritable, BSONWritable> _reduceContext = null;
+		
 		//////////////////////////////////////////////////////
+		
+		// (Java side) Interface
 		
 		protected boolean isInitialized() { return (_engine != null); }
 		
+		protected boolean isMemoryOptimized() { return _memoryOptimized; }
+		
+		// (JS side) Interface
+		
 		public Object clone(Boolean topLevel) { return topLevel ? new BSONWritable() : new BasicDBObject(); }
+		
+		// "Streaming" output (less efficient, more memory friendly)
+		
+		public void write(BSONWritable key, BSONWritable value) throws IOException, InterruptedException {
+			_context.write(key, value);
+		}//TESTED
+		
+		// "Streaming" input (less efficient, more memory friendly)
+		
+		public boolean hasNext() throws IOException, InterruptedException {
+			boolean hasNext = _reduceContext.getValues().iterator().hasNext();
+			return hasNext;
+		}//TESTED
+		
+		public String next() throws IOException, InterruptedException {
+			BSONWritable next = _reduceContext.getValues().iterator().next();
+			if (null == next) {
+				return null;
+			}
+			else {
+				return JSON.serialize(MongoDbUtil.convert(next));
+			}
+		}//TESTED
 		
 		//////////////////////////////////////////////////////
 		
-		protected void setupJavascript(String script)
+		protected void setupJavascript(String script,
+				TaskInputOutputContext<?, ?, BSONWritable, BSONWritable> context, // for output
+				ReduceContext<BSONWritable, BSONWritable, BSONWritable, BSONWritable> reduceContext // for streaming input
+				)
 		{
+			_context = context;
+			_reduceContext = reduceContext;
 			if (null == _engine) {
 				_factory = new ScriptEngineManager();
 				_engine = _factory.getEngineByName("JavaScript");	
@@ -69,6 +108,31 @@ public class HadoopPrototypingTool extends MongoTool {
 					_engine.eval(script);
 					InputStream in2 = HadoopPrototypingTool.class.getResourceAsStream("javascript_utils_part2.js");
 					_engine.eval(new Scanner(in2).useDelimiter("\\A").next());
+					
+					// We've loaded the script so now we can check for memory-optimization mode
+					try {
+						Object memOptimizationMode = _engine.get("_memoryOptimization");
+						if (null != memOptimizationMode) {
+							if (memOptimizationMode instanceof Boolean) {
+								_memoryOptimized = (Boolean)memOptimizationMode;
+							}
+							else {
+								_memoryOptimized = Boolean.parseBoolean(memOptimizationMode.toString());
+							}
+						}//TESTED
+						
+						if (_memoryOptimized) { 
+							// (do it this way because in the future might want to separate these 2 out)
+							_engine.put("_inContext", this);
+							_engine.put("_outContext", this);
+							setupOutput();
+						}
+					}
+					catch (Exception e) {} // we don't care about errors for this clause specifically
+					
+					// Now overwrite it to ensure it's always present
+					_engine.put("_memoryOptimization", _memoryOptimized);
+					
 				} catch (ScriptException e) {
 					throw new RuntimeException("setupJavascript: " + e.getMessage());
 				}
@@ -76,21 +140,24 @@ public class HadoopPrototypingTool extends MongoTool {
 			}
 		}		
 		
-		protected BasicBSONList generateOutput()
-		{
+		protected void setupOutput() {
 			JavascriptUtils objFactory = this; // (clone creates BSONWritables)
 			BasicBSONList listFactory = new BasicBSONList();
-			BasicBSONList outList = new BasicBSONList();
 			_engine.put("objFactory", objFactory);
 			_engine.put("listFactory", listFactory);
-			_engine.put("outList", outList);
-	
+		}
+		
+		protected BasicBSONList generateOutput()
+		{			
+			setupOutput();
+			BasicBSONList outList = new BasicBSONList();
+			_engine.put("outList", outList);			
+			
 			try {
 				_engine.eval("s1(_emit_list); ");
 			} catch (ScriptException e) {
 				throw new RuntimeException("generateOutput: " + e.getMessage());
 			}
-
 			return outList;			
 		}
 		
@@ -115,12 +182,15 @@ public class HadoopPrototypingTool extends MongoTool {
 		}
 		protected void combine(BSONWritable key, Iterable<BSONWritable> values)
 		{
-			ArrayList<BasicBSONObject> tmpValues = new ArrayList<BasicBSONObject>();
-			for (BSONWritable val: values) {
-				tmpValues.add(new BasicBSONObject(val.toMap()));
-			}
 			_engine.put("_combine_input_key", JSON.serialize(new BasicBSONObject(key.toMap())));
-			_engine.put("_combine_input_values", JSON.serialize(tmpValues));
+			if (!this.isMemoryOptimized()) {
+				
+				ArrayList<BasicBSONObject> tmpValues = new ArrayList<BasicBSONObject>();
+				for (BSONWritable val: values) {
+					tmpValues.add(new BasicBSONObject(val.toMap()));
+				}
+				_engine.put("_combine_input_values", JSON.serialize(tmpValues));
+			}
 			try {
 				((Invocable) _engine).invokeFunction("internal_combiner", (Object[])null);
 			} catch (ScriptException e) {
@@ -136,12 +206,14 @@ public class HadoopPrototypingTool extends MongoTool {
 		}
 		protected void reduce(BSONWritable key, Iterable<BSONWritable> values)
 		{
-			ArrayList<BasicBSONObject> tmpValues = new ArrayList<BasicBSONObject>();
-			for (BSONWritable val: values) {
-				tmpValues.add(new BasicBSONObject(val.toMap()));
-			}
 			_engine.put("_reduce_input_key", JSON.serialize(new BasicBSONObject(key.toMap())));
-			_engine.put("_reduce_input_values", JSON.serialize(tmpValues));
+			if (!this.isMemoryOptimized()) {
+				ArrayList<BasicBSONObject> tmpValues = new ArrayList<BasicBSONObject>();
+				for (BSONWritable val: values) {
+					tmpValues.add(new BasicBSONObject(val.toMap()));
+				}
+				_engine.put("_reduce_input_values", JSON.serialize(tmpValues));
+			}
 			try {
 				((Invocable) _engine).invokeFunction("internal_reducer", (Object[])null);
 			} catch (ScriptException e) {
@@ -157,7 +229,7 @@ public class HadoopPrototypingTool extends MongoTool {
 
 		@Override
 		public void setup(Context context) {
-			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"), context, null);
 			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
 			
 			// Set up cache if one is specified
@@ -177,18 +249,20 @@ public class HadoopPrototypingTool extends MongoTool {
 		{
 			_javascript.map(key, value);
 			
-			BasicBSONList out = _javascript.generateOutput();
-			for (Object bson: out) {
-				BSONWritable bsonObj = (BSONWritable) bson;
-				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
-				BSONWritable outval = (BSONWritable) bsonObj.get("val");
-				if (null == outkey) {
-					throw new IOException("Map: Can't output a null key from " + value.get("_id"));					
+			if (!_javascript.isMemoryOptimized()) {
+				BasicBSONList out = _javascript.generateOutput();
+				for (Object bson: out) {
+					BSONWritable bsonObj = (BSONWritable) bson;
+					BSONWritable outkey = (BSONWritable) bsonObj.get("key");
+					BSONWritable outval = (BSONWritable) bsonObj.get("val");
+					if (null == outkey) {
+						throw new IOException("Map: Can't output a null key from " + value.get("_id"));					
+					}
+					if (null == outval) {					
+						throw new IOException("Map: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + value.get("_id"));
+					}
+					context.write(outkey, outval);
 				}
-				if (null == outval) {					
-					throw new IOException("Map: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + value.get("_id"));
-				}
-				context.write(outkey, outval);
 			}
 		}
 	}
@@ -199,7 +273,7 @@ public class HadoopPrototypingTool extends MongoTool {
 		
 		@Override
 		public void setup(Context context) {
-			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"), context, context);
 			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
 
 			// Set up cache if one is specified
@@ -219,18 +293,20 @@ public class HadoopPrototypingTool extends MongoTool {
 		{
 			_javascript.combine(key, values);
 
-			BasicBSONList out = _javascript.generateOutput();
-			for (Object bson: out) {
-				BSONWritable bsonObj = (BSONWritable) bson;
-				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
-				BSONWritable outval = (BSONWritable) bsonObj.get("val");
-				if (null == outkey) {
-					throw new IOException("Combine: Can't output a null key from " + key);					
+			if (!_javascript.isMemoryOptimized()) {
+				BasicBSONList out = _javascript.generateOutput();
+				for (Object bson: out) {
+					BSONWritable bsonObj = (BSONWritable) bson;
+					BSONWritable outkey = (BSONWritable) bsonObj.get("key");
+					BSONWritable outval = (BSONWritable) bsonObj.get("val");
+					if (null == outkey) {
+						throw new IOException("Combine: Can't output a null key from " + key);					
+					}
+					if (null == outval) {					
+						throw new IOException("Combine: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
+					}
+					context.write(outkey, outval);
 				}
-				if (null == outval) {					
-					throw new IOException("Combine: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
-				}
-				context.write(outkey, outval);
 			}
 		}
 	}
@@ -241,7 +317,7 @@ public class HadoopPrototypingTool extends MongoTool {
 		
 		@Override
 		public void setup(Context context) {
-			_javascript.setupJavascript(context.getConfiguration().get("arguments"));
+			_javascript.setupJavascript(context.getConfiguration().get("arguments"), context, context);
 			_javascript._engine.put("_query", context.getConfiguration().get("mongo.input.query"));
 
 			// Set up cache if one is specified
@@ -261,18 +337,20 @@ public class HadoopPrototypingTool extends MongoTool {
 		{
 			_javascript.reduce(key, values);
 			
-			BasicBSONList out = _javascript.generateOutput();
-			for (Object bson: out) {
-				BSONWritable bsonObj = (BSONWritable) bson;
-				BSONWritable outkey = (BSONWritable) bsonObj.get("key");
-				BSONWritable outval = (BSONWritable) bsonObj.get("val");
-				if (null == outkey) {
-					throw new IOException("Reduce: Can't output a null key from " + key);					
+			if (!_javascript.isMemoryOptimized()) {
+				BasicBSONList out = _javascript.generateOutput();
+				for (Object bson: out) {
+					BSONWritable bsonObj = (BSONWritable) bson;
+					BSONWritable outkey = (BSONWritable) bsonObj.get("key");
+					BSONWritable outval = (BSONWritable) bsonObj.get("val");
+					if (null == outkey) {
+						throw new IOException("Reduce: Can't output a null key from " + key);					
+					}
+					if (null == outval) {					
+						throw new IOException("Reduce: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
+					}
+					context.write(outkey, outval);
 				}
-				if (null == outval) {					
-					throw new IOException("Reduce: Can't output a null value, key: " + MongoDbUtil.convert(outkey) + " from " + key);
-				}
-				context.write(outkey, outval);
 			}
 		}
 	}

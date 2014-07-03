@@ -25,9 +25,11 @@ import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 
 import org.apache.commons.io.IOUtils;
 //import org.apache.commons.lang.ArrayUtils;
+
 
 
 
@@ -147,6 +149,13 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				args.addAll(Arrays.asList(LOGSTASH_BINARY, "-e", conf));
 				if (0 == testInfo.maxDocs) {
 					args.add("-t"); // test mode, must faster
+				}//TOTEST
+				
+				if ((null != testInfo.logstash.testDebugOutput) && testInfo.logstash.testDebugOutput) {
+					args.add("--debug");
+				}
+				else {
+					args.add("--verbose");					
 				}
 				ProcessBuilder logstashProcessBuilder = new ProcessBuilder(args);
 				logstashProcessBuilder = logstashProcessBuilder.directory(new File(LOGSTASH_WD)).redirectErrorStream(true);
@@ -168,10 +177,18 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				// 3] Check the output collection for records
 				
 				int errorVal = 0;
-				long priorCount = -1L;
-				long priorPriorCount = -1L;
-				int timeWhenFirstLinesAppeared = 0;
-				final int maxWaitAfterLoggingStart_s = 30;
+				long priorCount = 0L;
+				int priorLogCount = 0;
+				
+				int timeOfLastLoggingChange = 0;
+				int timeOfLastDocCountChange = 0;
+				
+				String reasonForExit = "";
+				
+				int inactivityTimeout_s = 10; // (default)
+				if (null != testInfo.logstash.testInactivityTimeout_secs) {
+					inactivityTimeout_s = testInfo.logstash.testInactivityTimeout_secs;
+				}
 				for (int i = 0; i < toWait_s; i += 5) {
 					try {
 						Thread.sleep(5000); 
@@ -185,35 +202,52 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 					//DEBUG
 					//System.out.println("FOUND: " + count + " VS " + priorCount + " , " + priorPriorCount);
 					
-					if (((count >= testInfo.maxDocs) && (count > 0)) || // ie max records (must be > 0)
-							((priorPriorCount == count) && (count > 0))) // ie have started harvesting and it's stayed the same for 10 seconds
+					// 3.1a] All done?
+					
+					if ((count >= testInfo.maxDocs) && (count > 0))
 					{
 						allWorked = true;
 						break;
 					}//TESTED					
 					
-					// 3.2] Has the process exited unexpectedly?
+					// 3.1b] If not, has anything changes?
 					
-					if ((outAndErrorStream.getLines() > 0) && (0 == timeWhenFirstLinesAppeared)) {
-						timeWhenFirstLinesAppeared = i;
-
-						//DEBUG
-						//System.out.println("LOG LINES! " + i);
-					}//TESTED
-					if ((0 == count) && ((outAndErrorStream.getLines() - 3) > 2*testInfo.maxDocs) && 
-							((i - timeWhenFirstLinesAppeared) > maxWaitAfterLoggingStart_s))
+					if (priorCount != count) {
+						timeOfLastDocCountChange = i;
+					}
+					if (priorLogCount != outAndErrorStream.getLines()) {
+						timeOfLastLoggingChange = i;
+					}
+					
+					// 3.1c] Check for inactivity 
+					
+					if ((timeOfLastDocCountChange > 0) &&
+							(i - timeOfLastDocCountChange) >= inactivityTimeout_s)
 					{
-						// no records, lots of lines (subtract 3 in case maxDocs is really low - and assume 1 warning for input/filter/output,
-						// 30 seconds since lines started appearing
-						// likely to be an error, stop and start printing out:
-
-						//DEBUG
-						//System.out.println("LOG LINES! " + i + " NUM = " + outAndErrorStream.getLines());
+						// Delay between events: treat as success
+						allWorked = true;						
 						break;
 					}//TESTED
 					
+					if ((0 == count) && outAndErrorStream.getPipelineStarted() && 
+							((timeOfLastLoggingChange > 0) &&
+							(i - timeOfLastLoggingChange) >= inactivityTimeout_s))
+					{
+						// Delay between log messages after pipeline started, no documents, treat as failure
+						
+						//DEBUG
+						//System.out.println("LOG LINES! " + i + " NUM = " + outAndErrorStream.getLines());
+						
+						errorVal = 1;
+						reasonForExit = "No records received and logging inactive.\n";
+						break;
+					}//TESTED					
+					
+					// 3.2] Has the process exited unexpectedly?
+					
 					try {
 						errorVal = logstashProcess.exitValue();
+						reasonForExit = "Logstash process exited with error: " + errorVal + ".\n";
 						exited = true;
 
 						//DEBUG
@@ -223,8 +257,8 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 					}//TESTED
 					catch (Exception e) {} // that's OK we're just still going is all...
 					
-					priorPriorCount = priorCount;
-					priorCount = count;					
+					priorCount = count;		
+					priorLogCount = outAndErrorStream.getLines();
 					
 				} //(end loop while waiting for job to complete)				
 				
@@ -245,7 +279,8 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				TestLogstashExtractorPojo testErr = new TestLogstashExtractorPojo();
 				testErr._id = testInfo._id;
 				if ((testInfo.maxDocs > 0) || (0 != errorVal)) {
-					testErr.error = outputAndError.toString();
+					testErr.error = reasonForExit + outputAndError.toString();
+						// (note this is capped at well below the BSON limit in the thread below)
 				}
 				else { // maxDocs==0 (ie pre-publish test) AND no error returned
 					testErr.error = null;
@@ -292,15 +327,23 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 	}
 
 	public static class OutputCollector extends Thread {
+		private long _MAX_CHARS = 1500000L; // (~3MB max length)
+		private long _OVERFLOW_CHARS = 1000000L; // (~2MB max length)
 		private InputStream _in;
 		private PrintWriter _out;
+		private StringBuffer _overflowBuffer = null;
 		private int _lines = 0;
+		private long _chars = 0;
+		private boolean _pipelineStarted = false;
 		OutputCollector(InputStream in, PrintWriter out) {
 			_in = in;
 			_out = out;
 		}		
 		public int getLines() {
 			return _lines;
+		}
+		public boolean getPipelineStarted() {
+			return _pipelineStarted;
 		}
 		
 		@Override
@@ -310,9 +353,27 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				br = new BufferedReader(new InputStreamReader(_in));
 				String line = null;
 				while (null != (line = br.readLine())) {
-					_out.println(line);
+					if (!_pipelineStarted) {
+						if (line.contains(":message=>\"Pipeline started\"")) {
+							_pipelineStarted = true;
+						}
+					}
+					if (_chars < _MAX_CHARS) { // 8Mchars==16MB==max size of BSON object
+						_out.println(line);
+						_chars += line.length();
+						if (_chars > _MAX_CHARS) {
+							_out.println("[" + new Date() + "] WARNING: Logging truncated, > " + _MAX_CHARS + " characters");
+							_overflowBuffer = new StringBuffer();
+						}
+					}//TESTED
+					else if (null != _overflowBuffer){
+						if (_overflowBuffer.length() >= _OVERFLOW_CHARS) {
+							_overflowBuffer.replace(0, 1 + line.length(), ""); // (include the '\n')
+						}
+						_overflowBuffer.append(line).append('\n');
+					}//TESTED
 					_lines++;
-
+					
 					//DEBUG
 					//System.out.println(line);
 				}
@@ -323,6 +384,10 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 			} 
 			finally {
 				try {
+					if ((null != _out) && (null != _overflowBuffer)) {
+						_out.println("...");
+						_out.write(_overflowBuffer.toString());
+					}
 					br.close();
 				}
 				catch (IOException e) {

@@ -10,19 +10,26 @@ importPackage(java.text);
 // INPUT/INTERMEDIATE UTILITIES
 
 var _emit_list = [];
+var _outContext = null;
 
 function emit(_key, _val)
 {
-	if (null != _val) {
-		_val._id = null;
+	if (null != _outContext) { // memory optimized
+		_outContext.write( s3(_key, 0), s3(_val, 0)) ;
 	}
-	_emit_list.push({key:_key, val:_val});
+	else {
+		if (null != _val) {
+			_val._id = null;
+		}
+		_emit_list.push({key:_key, val:_val});
+	}
 }
 
 //////////////////////////////////////////////////////
 
 // OUTPUT UTILITIES
 
+// (s1 is called on [{key,value},...]
 function s1(el) {
 	if (el == null) {}
 	else if (el instanceof Array) {

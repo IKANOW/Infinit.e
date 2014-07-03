@@ -74,6 +74,9 @@
     
     <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
                connectionTimeout="600000" secure="true" 
+				compression="on"
+				compressionMinSize="2048"
+				compressableMimeType="text/html,text/xml,application/json"
                redirectPort="8443" URIEncoding="UTF-8"/>
 
     <!-- __INF_SSL_ENABLED 
@@ -92,6 +95,9 @@
     
     <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
                maxThreads="150" scheme="https" secure="true"
+				compression="on"
+				compressionMinSize="2048"
+				compressableMimeType="text/html,text/xml,application/json"
                clientAuth="false" sslProtocol="TLS" URIEncoding="UTF-8"
                keystorePass="SSL_PASSPHRASE" keystoreFile="/usr/share/tomcat6/tomcat.keystore"
               />

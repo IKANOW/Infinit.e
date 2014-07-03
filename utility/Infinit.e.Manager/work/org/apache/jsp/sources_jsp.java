@@ -1029,7 +1029,7 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 			JSONObject person = personResponse.getJSONObject("data");		
 			String firstName = person.getString("firstName");
 			String lastName = person.getString("lastName");
-			name = "Welcome, " + firstName + " " + lastName;
+			name = firstName + " " + lastName;
 		}
 	} 
 	catch (Exception e) 
@@ -1652,36 +1652,30 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 		JSONObject source = new JSONObject(sourceJson);
 		pipelineMode = source.has("processingPipeline");
 		String newCommunity = null;
+		
+		// Overwrite the community id if that is required:
+		// (the tabs/type/title etc are still out of date, but that doesn't typically result in problems so we'll live with that)
 		if (!source.has("communityIds")) { 
-			/**/
-			System.out.println("test1");
 			newCommunity = communityId;
-		}//TOTEST
+		}//TESTED
 		else { // check community vs dropdown
 			JSONArray com = source.getJSONArray("communityIds");
 			if (1 == com.length()) {
 				String tempCommunityId = com.getString(0);
 				if (!communityId.equals(tempCommunityId)) {
-					/**/
-					System.out.println("test2: " + tempCommunityId + " VS " + communityId);
 					newCommunity = communityId;
 				}
-			}//TOTEST
+			}//TESTED
 			else {
-				/**/
-				System.out.println("test3");
 				newCommunity = communityId;
-			}//TOTEST
+			}//TESTED
 		}
 		if (null != newCommunity) {
-			/**/
-			System.out.println("NEED TO SET COMMUNITY");
-			
 			JSONArray communityIds = new JSONArray();
 			communityIds.put(newCommunity);
 			source.put("communityIds", communityIds);
 			sourceJson = source.toString(4);			
-		}//TOTEST
+		}//TESTED
 		
 		JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
 		JSONObject JSONresponse = jsonObject.getJSONObject("response");

@@ -88,6 +88,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public static class LogstashExtractorPojo {
 		public String config; // The logstash-formatted configuration object
 		public Boolean streaming; // if false (defaults to true), then source is "stashed" forever instead of being aged out
+		public Boolean testDebugOutput; // if true (default: false) then will collect "debug" output during test (else "verbose")
+		public Integer testInactivityTimeout_secs; // if specified (default 10s) then overrides the inactivity timeout during testing - the test will return if nothing happens for this period
 	}
 	
 	// 2.2] Global operations
@@ -102,7 +104,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Integer searchCycle_secs; // How often to run the harvester (copied to SourcePojo when published)
 		public Boolean duplicateExistingUrls; // If false (defaults to true) then documents matching the URL of any existing document in the community is ignored (copied to SourcePojo when published)
 		
-		public Integer maxDocs_global; // If specified, limits the number of documents that can be harvested for a given source (state remains in SUCCESS_ITERATION until harvest complete - this is just to limit time/resource consumption)
+		public Integer maxDocs_global; // If specified, limits the total number of documents that can be harvested for a given source - when new documents are harvested exceeding this limit, older documents are deleted to maintain the size
 		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS_ITERATION ie the next harvest cycle, the harvester will pick up again, as above)
 		public Integer throttleDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate, the harvester will wait for searchCycle_secs before starting again)
 		

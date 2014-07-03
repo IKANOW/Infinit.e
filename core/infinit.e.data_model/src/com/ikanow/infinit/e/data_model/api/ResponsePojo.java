@@ -114,6 +114,18 @@ public class ResponsePojo extends BaseApiPojo
 		return new ResponsePojoApiMap(type).extendBuilder(ResponsePojo.getDefaultBuilder()).create().fromJson(s, ResponsePojo.class);
 	}
 	
+	// Special cases: leaves the "data" array as a JsonElement to be de-serialized by the user
+	// A quick explanation of why this is, because it's quite important:
+	// 1) ResponsePojo has data as type Object (ie because it resuses it for all sorts of different objects
+	// (query: List<BasicDBObject>, some share stuff: String or List<String>, other cases: XxxPojo)
+	// 2) so if I just used the default fromApi GSON would break while trying to deserialize anything into an object
+	// 3) as a result I "override" fromApi() so that it just copies the raw JsonElement into data
+	// 4) the client code can (/must!) then use the type specific deserializer on the data (or can just access it directly as a JsonElement)
+
+	public static<S extends BaseApiPojo> S fromApi(String s, Class<S> type) {
+		return new ResponsePojoApiMap(type).extendBuilder(ResponsePojo.getDefaultBuilder()).create().fromJson(s, type);
+	}
+	
 	// For lists of objects derived from BaseApiPojo
 	
 	public static <S extends BaseApiPojo, L extends Collection<S>> ResponsePojo listFromApi(String s, Class<ResponsePojo> dummy, TypeToken<L> listType)
@@ -137,13 +149,6 @@ public class ResponsePojo extends BaseApiPojo
 		ResponsePojo rp = new ResponsePojoApiMap(listType, mapper).extendBuilder(ResponsePojo.getDefaultBuilder()).create().fromJson(s, ResponsePojo.class);
 		rp._mapper = new ResponsePojoApiMap(mapper); // (ensures toApi(fromApi(x))==x)
 		return rp; 
-	}
-	
-	// Special cases: leaves the "data" array as a JsonElement to be de-serialized by the user 
-
-	public static ResponsePojo fromApi(String s, Class<ResponsePojo> dummy)
-	{
-		return new ResponsePojoApiMap().extendBuilder(ResponsePojo.getDefaultBuilder()).create().fromJson(s, ResponsePojo.class);
 	}
 	
 	//////////////////////////////////////////

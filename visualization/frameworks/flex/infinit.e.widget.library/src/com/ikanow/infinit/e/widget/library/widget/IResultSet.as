@@ -37,6 +37,11 @@ package com.ikanow.infinit.e.widget.library.widget
 	 */
 	public interface IResultSet
 	{
+
+		/**
+		 * @return The date the result set was created
+		 */		
+		function getQueryDate():Date
 		
 		/**
 		 * An array collection of IResultSet objects representing *either* a query and its sub-queried children

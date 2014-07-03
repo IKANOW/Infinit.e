@@ -43,7 +43,15 @@ public class ResponsePojoApiMap implements BasePojoApiMap<ResponsePojo> {
 		// (for raw access to JSON)
 	
 	public ResponsePojoApiMap(Class<? extends BaseApiPojo> type) {
-		_type1 = type;
+		
+		if(type.equals(ResponsePojo.class)){
+			// (for raw access to JSON) 
+			// Special cases: leaves the "data" array as a JsonElement to be de-serialized by the user 
+			_type1 = null;
+		}else{
+			//catching all but ResponsePojo
+			_type1 = type;
+		}
 	}
 	public <L extends Collection<? extends BaseApiPojo>> ResponsePojoApiMap(TypeToken<L> type) {
 		_listType1 = type;

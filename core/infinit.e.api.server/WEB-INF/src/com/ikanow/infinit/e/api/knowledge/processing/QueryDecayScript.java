@@ -43,90 +43,95 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 	@Override
 	public double runAsDouble() 
 	{				
-		DocLookup doc = doc();
-		//to speed lookup, only a single param object is sent (an array of Objects)
-		//so we can cheat and just get the first value in the map and then cast our objects as
-		//necessary, they are also ordered via lookup (e.g. array[0],array[1], I was hoping to 
-		//squeeze a few ms more performance doing that				
-		@SuppressWarnings("unchecked")
-		ArrayList<Object> paramObjects = (ArrayList<Object>)params.entrySet().iterator().next().getValue();		
-		
 		double gfactor = 1.0;
 		double tfactor = 1.0;
 					
-		//Geodecay
-		double gdecay = (Double)paramObjects.get(0);
-		if ( gdecay > 0 )
-		{
-			double minlat = 0.0;
-			double minlon = 0.0;
-			double mind = 1000000.0;
-			double newlat = 0.0;
-			double newlon = 0.0;
-			double minModifier = 0;
-					
-			Object docfield = doc.get("locs");
-			List<String> locs = ScriptFieldUtils.getStrings(docfield);
-			if ( locs.size() != 0 )
+		try {
+			DocLookup doc = doc();
+			//to speed lookup, only a single param object is sent (an array of Objects)
+			//so we can cheat and just get the first value in the map and then cast our objects as
+			//necessary, they are also ordered via lookup (e.g. array[0],array[1], I was hoping to 
+			//squeeze a few ms more performance doing that				
+			@SuppressWarnings("unchecked")
+			ArrayList<Object> paramObjects = (ArrayList<Object>)params.entrySet().iterator().next().getValue();		
+			
+			//Geodecay
+			double gdecay = (Double)paramObjects.get(0);
+			if ( gdecay > 0 )
 			{
-				double paramlat = (Double) paramObjects.get(1);
-				double paramlon = (Double) paramObjects.get(2);				
-				
-				for ( String loc : locs )
+				double minlat = 0.0;
+				double minlon = 0.0;
+				double mind = 1000000.0;
+				double newlat = 0.0;
+				double newlon = 0.0;
+				double minModifier = 0;
+						
+				Object docfield = doc.get("locs");
+				List<String> locs = ScriptFieldUtils.getStrings(docfield);
+				if ( locs.size() != 0 )
 				{
-					//these should be in the form x#geohash where x = character for ont type geohash = es geohash
-					double ontModifier = getOntologyDistanceModifier(loc.charAt(0)); //we move certain ontologies closer					
-
-					String geohash = loc.substring(2);
-					double[] locll = GeoHashUtils.decode(geohash);
-					newlat = locll[0];
-					newlon = locll[1];
-					// very approximate, just used for comparison!
-					double currdsq = ((newlat - paramlat)*(newlat - paramlat)) + ((newlon - paramlon)*(newlon - paramlon)) 
-										- ontModifier*ontModifier*APPROX_KM_TO_DEGREES_SQ;
-					if ( currdsq < mind )
+					double paramlat = (Double) paramObjects.get(1);
+					double paramlon = (Double) paramObjects.get(2);				
+					
+					for ( String loc : locs )
 					{
-						minlat = newlat;
-						minlon = newlon;
-						mind = currdsq;
-						minModifier = ontModifier;
+						//these should be in the form x#geohash where x = character for ont type geohash = es geohash
+						double ontModifier = getOntologyDistanceModifier(loc.charAt(0)); //we move certain ontologies closer					
+	
+						String geohash = loc.substring(2);
+						double[] locll = GeoHashUtils.decode(geohash);
+						newlat = locll[0];
+						newlon = locll[1];
+						// very approximate, just used for comparison!
+						double currdsq = ((newlat - paramlat)*(newlat - paramlat)) + ((newlon - paramlon)*(newlon - paramlon)) 
+											- ontModifier*ontModifier*APPROX_KM_TO_DEGREES_SQ;
+						if ( currdsq < mind )
+						{
+							minlat = newlat;
+							minlon = newlon;
+							mind = currdsq;
+							minModifier = ontModifier;
+						}
 					}
-				}
-				// THIS CODE IS CUT-AND-PASTED BELOW INTO getGeoDecay
-				// (LEAVE THIS HERE AS IT'S INNER LOOP AND THERE'S NOT MUCH CODE TO COPY)
-				if ( mind < 1000000.0 )
-				{
-					minlat = minlat*DEGREE_IN_RADIAN;
-					minlon = minlon*DEGREE_IN_RADIAN;
-					newlat = paramlat*DEGREE_IN_RADIAN;
-					newlon = paramlon*DEGREE_IN_RADIAN;					
-					mind = (Math.acos(Math.sin(minlat)*Math.sin(newlat) + Math.cos(minlat)*Math.cos(newlat)*Math.cos(minlon-newlon))*AVG_EARTH_RADIUS) - minModifier;
-					//the modifier may have made the distance < 0, set to 0 if it is
-					if ( mind < 0 )
-						mind = 0;
-				}					
-				gfactor = 1.0/(1.0 + gdecay*mind);
-			}			
+					// THIS CODE IS CUT-AND-PASTED BELOW INTO getGeoDecay
+					// (LEAVE THIS HERE AS IT'S INNER LOOP AND THERE'S NOT MUCH CODE TO COPY)
+					if ( mind < 1000000.0 )
+					{
+						minlat = minlat*DEGREE_IN_RADIAN;
+						minlon = minlon*DEGREE_IN_RADIAN;
+						newlat = paramlat*DEGREE_IN_RADIAN;
+						newlon = paramlon*DEGREE_IN_RADIAN;					
+						mind = (Math.acos(Math.sin(minlat)*Math.sin(newlat) + Math.cos(minlat)*Math.cos(newlat)*Math.cos(minlon-newlon))*AVG_EARTH_RADIUS) - minModifier;
+						//the modifier may have made the distance < 0, set to 0 if it is
+						if ( mind < 0 )
+							mind = 0;
+					}					
+					gfactor = 1.0/(1.0 + gdecay*mind);
+				}			
+			}
+			
+			//Time decay
+			double tdecay = (Double)paramObjects.get(3);
+			if ( tdecay > 0 )
+			{
+				long now = (Long)paramObjects.get(4);					
+				long pubdate = ScriptFieldUtils.getLong(doc.get("publishedDate"));
+				tfactor = 1.0 / (1.0 + tdecay*Math.abs(now-pubdate));			
+			}
+			
+			//If only for decay field (param decayfield=true) return geo*time, otherwise return geo*time*score		
+			
+			
+			if ( (Boolean)paramObjects.get(5) )
+			{
+				return gfactor*tfactor;
+			}
+			else
+			{
+				return this.score()*gfactor*tfactor;
+			}
 		}
-		
-		//Time decay
-		double tdecay = (Double)paramObjects.get(3);
-		if ( tdecay > 0 )
-		{
-			long now = (Long)paramObjects.get(4);					
-			long pubdate = ScriptFieldUtils.getLong(doc.get("publishedDate"));
-			tfactor = 1.0 / (1.0 + tdecay*Math.abs(now-pubdate));			
-		}
-		
-		//If only for decay field (param decayfield=true) return geo*time, otherwise return geo*time*score		
-		
-		
-		if ( (Boolean)paramObjects.get(5) )
-		{
-			return gfactor*tfactor;
-		}
-		else
-		{
+		catch (Exception e) { // something's gone wrong, not sure what (eg I saw a publishedDate with type double??)
 			return this.score()*gfactor*tfactor;
 		}
 	}//TESTED

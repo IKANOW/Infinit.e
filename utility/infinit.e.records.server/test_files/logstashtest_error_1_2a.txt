@@ -4,7 +4,8 @@ input {
     start_position => beginning
     type => "proxy_logs"
   }
-#} removed bracket here
+}
+
 
 filter {
 	if [type] == "proxy_logs" {
@@ -26,5 +27,5 @@ filter {
   			source => "Destination_IP"
  			fields => ["timezone","location","latitude","longitude"]
   		}
-	}
+#} removed bracket here
 }

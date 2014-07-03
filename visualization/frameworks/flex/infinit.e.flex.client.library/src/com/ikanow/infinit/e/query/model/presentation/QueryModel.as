@@ -129,10 +129,11 @@ package com.ikanow.infinit.e.query.model.presentation
 			var queryString:QueryString = null;
 			var json:String = loadFileReference.data.toString();
 			queryString = ObjectTranslatorUtil.translateObject( JSONDecoder.decode( json ), new QueryString, null, false, true ) as QueryString;
+
 			var tempSetup:Setup = new Setup();
 			tempSetup.queryString = queryString;
 			tempSetup.communityIds = queryString.communityIds.toArray();
-			setupManager.setSetup( tempSetup );
+			setupManager.setSetup( tempSetup );			
 		}
 		
 		protected function selectFileHandler( event:Event ):void

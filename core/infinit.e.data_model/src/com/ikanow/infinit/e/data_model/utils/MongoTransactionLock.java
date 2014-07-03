@@ -23,6 +23,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -56,6 +57,16 @@ public class MongoTransactionLock {
 		}
 		return lock;
 	}//TESTED
+	
+	// If you are sure all the clocks are synchronized, you can use this as stateless mechanism for 
+	// grabbing tokens (eg if you are not going to hang around to wait if a lock times out)
+	
+	public void clearStaleLocksOnTime(long ageout_secs) {
+		Date ageout_date = new Date(new Date().getTime() - ageout_secs*1000L);
+		// (sync doesn't matter here because the subsequent
+		MongoDbManager.getCollection(_database, _lockname).remove(
+				new BasicDBObject(lastUpdated_, new BasicDBObject(DbManager.lt_, ageout_date)));
+	}
 	
 	///////////////////////////////////////////////////////////////////////////
 	
@@ -148,6 +159,7 @@ public class MongoTransactionLock {
 	private final String id_ = "_id";
 	private final String hostname_ = "hostname";
 	private final String oneUp_ = "1up";
+	private final String lastUpdated_ = "lastUpdated"; // (useable by a somewhat standalone utility)
 	
 	protected synchronized boolean getToken() {
 		DBCollection cachedCollection = _collections.get();
@@ -166,7 +178,8 @@ public class MongoTransactionLock {
 			
 			lockObj = new BasicDBObject(id_, _lockId);
 			lockObj.put(hostname_, hostname);
-			lockObj.put(oneUp_, oneUp); 
+			lockObj.put(oneUp_, oneUp);
+			lockObj.put(lastUpdated_, new Date());
 			
 			//logger.debug("Creating a new aggregation lock object: " + lockObj.toString());
 			
@@ -252,6 +265,7 @@ public class MongoTransactionLock {
 			lockObj.put(hostname_, getHostname());
 			String newOneUp = Long.toString(nOneUp + 1);
 			lockObj.put(oneUp_, newOneUp);
+			lockObj.put(lastUpdated_, new Date());
 			BasicDBObject queryObj = new BasicDBObject();
 			queryObj.put(hostname_, _savedHostname);
 			queryObj.put(oneUp_, _savedOneUp);

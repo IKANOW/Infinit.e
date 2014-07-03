@@ -101,7 +101,10 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						String contentType = urlConnect.getContentType();
 						
 						if ((null != contentType) && contentType.contains("html")) { // HTML
-							text = new Scanner(urlStream, "UTF-8").useDelimiter("\\A").next();
+							Scanner s = new Scanner(urlStream, "UTF-8");
+							s.useDelimiter("\\A");
+							text = s.next();
+							s.close();
 							partialDoc.setFullText(text);																			
 						}
 						else { // not HTML, send to tika instead

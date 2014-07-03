@@ -853,7 +853,7 @@ public class FileHarvester implements HarvesterInterface {
 				
 					// Check what the deal with memory usage is:
 					// (Allow 25% of current heap)
-					if ((_memUsage*4) > Runtime.getRuntime().totalMemory()) {						
+					if ((_memUsage*4) > Runtime.getRuntime().maxMemory()) {						
 						source.setReachedMaxDocs();						
 						break;
 					}//TESTED

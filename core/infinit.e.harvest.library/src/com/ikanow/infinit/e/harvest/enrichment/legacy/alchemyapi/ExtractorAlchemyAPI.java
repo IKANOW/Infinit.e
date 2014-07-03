@@ -35,7 +35,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
-import com.ikanow.infinit.e.harvest.utils.DimensionUtility;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 
 public class ExtractorAlchemyAPI implements IEntityExtractor, ITextExtractor 

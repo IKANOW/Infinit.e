@@ -136,6 +136,7 @@ public class CoreMain {
 			CustomProcessingController customPxController = new CustomProcessingController();
 			customPxController.checkScheduledJobs(jobOverride);
 			customPxController.checkRunningJobs();
+			customPxController.runThroughSavedQueues();
 		}
 		else {
 			//Test code for distribution:

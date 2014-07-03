@@ -614,6 +614,7 @@ package com.ikanow.infinit.e.shared.model.manager
 			
 			var queryString:QueryString = ObjectTranslatorUtil.translateObject( newQuery, new QueryString, null, false, true ) as QueryString;
 			queryEvent.queryString = queryString;
+			//(note in one clause below event gets recreated so need to copy this)
 			
 			if ( modifiedElements )
 			{
@@ -633,6 +634,14 @@ package com.ikanow.infinit.e.shared.model.manager
 					// Update-query-and-pop-up-advanced-query-terms
 					queryEvent.searchType = NavigationConstants.QUERY_BUILDER_ID;
 				}//TESTED
+				else if ( modifiedElements.indexOf( QueryConstants.QUERY_STRING ) >= 0 )
+				{
+					queryEvent = new QueryEvent( QueryEvent.OVERWRITE_QUERY_NAVIGATE );
+					queryEvent.queryString = queryString;
+					
+					// Overwrite-query-and-pop-up-advanced-query-terms
+					queryEvent.searchType = NavigationConstants.QUERY_BUILDER_ID;		
+				}
 			}
 			dispatcher.dispatchEvent( queryEvent );
 		

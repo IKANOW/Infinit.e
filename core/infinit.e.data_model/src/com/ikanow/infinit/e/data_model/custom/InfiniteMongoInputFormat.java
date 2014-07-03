@@ -23,7 +23,10 @@ import org.apache.hadoop.mapreduce.JobContext;
 import org.apache.hadoop.mapreduce.RecordReader;
 import org.apache.hadoop.mapreduce.TaskAttemptContext;
 import org.bson.BSONObject;
+import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.MongoInputFormat;
 import com.mongodb.hadoop.input.MongoInputSplit;
 
@@ -45,6 +48,22 @@ public class InfiniteMongoInputFormat extends MongoInputFormat
 	{
 		final Configuration hadoopConfiguration = context.getConfiguration();
 		final InfiniteMongoConfig conf = new InfiniteMongoConfig( hadoopConfiguration );
-		return InfiniteMongoSplitter.calculateSplits(conf);
+		List<InputSplit> splits = InfiniteMongoSplitter.calculateSplits(conf);
+		
+		if ( conf.getSelfMerge() != null )
+		{
+			//check if we need to grab existing records and add them to the splits
+			final Configuration existingConfiguration = context.getConfiguration();
+			existingConfiguration.set("mongo.input.uri", conf.getSelfMerge());
+			BasicDBObject query = new BasicDBObject();
+			//add on this query to only get items previous to now if no reducer is specified (otherwise
+			//we will leak any items we map on the first run back in before this split runs)
+			if ( context.getNumReduceTasks() == 0) 				
+				query.put("_id", new BasicDBObject(MongoDbManager.lt_, new ObjectId()));
+			existingConfiguration.set("mongo.input.query",query.toString());
+			final InfiniteMongoConfig existingConf = new InfiniteMongoConfig( existingConfiguration );
+			splits.addAll( InfiniteMongoSplitter.calculateSplits(existingConf) );
+		}
+		return splits;
 	}
 }

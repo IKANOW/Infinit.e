@@ -641,13 +641,18 @@ public class ShareHandler
 			// Update existing share
 			if (dbo != null)
 			{
+				// 1a) if I'm the owner then GOTO_UPDATE
+				// 1b) if I'm the admin/mod 
+				// (NEW) if I am a content publisher for all communities for which this share is read/write
+				
 				share = SharePojo.fromDb(dbo, SharePojo.class);
 				// Check ... am I the owner? 
 				ObjectId ownerId = new ObjectId(ownerIdStr);
 				boolean bAdminOrModOfAllCommunities = RESTTools.adminLookup(ownerIdStr);
+				
 				if (!share.getOwner().get_id().equals(ownerId)) { // Then I have to be admin (except for one special case)
 					if (!bAdminOrModOfAllCommunities) {
-						// Special case: I am also community admin/moderator of every community to which this share belongs
+						// Special case #1: I am also community admin/moderator of every community to which this share belongs
 						bAdminOrModOfAllCommunities = true;
 						for (ShareCommunityPojo comm: share.getCommunities()) {
 							if (!SocialUtils.isOwnerOrModerator(comm.get_id().toString(), ownerIdStr)) {
@@ -655,9 +660,23 @@ public class ShareHandler
 							}
 						}//TESTED
 						
-						if (!bAdminOrModOfAllCommunities) {						
-							rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
-							return rp;
+						if (!bAdminOrModOfAllCommunities) {
+							// Special case #2: I am a admin/mod/content publisher of *any* community that is read/write
+							boolean readWriteCase = false;
+							if (null != share.getReadWrite()) {
+								// I need to be content publisher across all shares
+								for (ObjectId readWriteCommId: share.getReadWrite()) {
+									if (SocialUtils.isOwnerOrModeratorOrContentPublisher(readWriteCommId.toString(), ownerIdStr)) {
+										readWriteCase = true;
+										break;
+									}									
+								}
+							}//TESTED
+							
+							if (!readWriteCase) {
+								rp.setResponse(new ResponseObject("Update Share",false,"Unable to update share: you are not owner or admin"));
+								return rp;
+							}
 						}
 					}					
 				}//end if not owner
@@ -1079,7 +1098,7 @@ public class ShareHandler
 	 * @param comment
 	 * @return
 	 */
-	public ResponsePojo addCommunity(String ownerIdStr, String shareIdStr, String communityIdStr, String comment)
+	public ResponsePojo addCommunity(String ownerIdStr, String shareIdStr, String communityIdStr, String comment, boolean readWrite)
 	{
 		// First get the share document from the database (only works for the share owner)
 		ResponsePojo rp = new ResponsePojo();
@@ -1096,39 +1115,52 @@ public class ShareHandler
 			if (dbo != null)
 			{
 				SharePojo share = SharePojo.fromDb(dbo, SharePojo.class);	
+				
+				// Read write:
+				if (null == share.getReadWrite()) {
+					share.setReadWrite(new HashSet<ObjectId>());
+				}
+				ObjectId communityId = new ObjectId(communityIdStr);
+				boolean changedReadWriteAccess = false;
+				if (readWrite) { // set read-write up
+					changedReadWriteAccess = share.getReadWrite().add(communityId);
+				}				
+				else {
+					changedReadWriteAccess = share.getReadWrite().remove(communityId);
+				}				
 
+				// Check to see if the community is already in share.communities
 				List<ShareCommunityPojo> communities = share.getCommunities();
 				if (null == communities) {
 					communities = new ArrayList<ShareCommunityPojo>();
 				}
-
-				// Check to see if the community is already in share.communities
 				Boolean addCommunity = true;
 				for (ShareCommunityPojo scp : communities)
 				{
 					if (scp.get_id().toString().equalsIgnoreCase(communityIdStr)) addCommunity = false;
 				}
 				
-				// Add new community to communities
-				if (addCommunity)
+				// Add new community to communities (or change its read/write permissions)
+				if (addCommunity || changedReadWriteAccess)
 				{					
-					ShareCommunityPojo cp = new ShareCommunityPojo();
-					cp.set_id(new ObjectId(communityIdStr));
-					cp.setName(getCommunity(new ObjectId(communityIdStr)).getName());
-					cp.setComment(comment);
-					communities.add(cp);
-
-					// Endorse if applicable...
-					if (null == share.getEndorsed()) { // legacy case
-						share.setEndorsed(new HashSet<ObjectId>());
-						share.getEndorsed().add(share.getOwner().get_id()); // user's personal community always endorsed
-					}//TESTED
-					boolean bAdmin = RESTTools.adminLookup(ownerIdStr, false); // (can be admin-on-request and not enabled, the bar for endorsing is pretty low)
-					if (bAdmin || SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
-						share.getEndorsed().add(cp.get_id());
-					}
-					//TESTED - adding as admin/community owner, not adding if not
-					
+					if (addCommunity) {
+						ShareCommunityPojo cp = new ShareCommunityPojo();
+						cp.set_id(new ObjectId(communityIdStr));
+						cp.setName(getCommunity(new ObjectId(communityIdStr)).getName());
+						cp.setComment(comment);
+						communities.add(cp);
+	
+						// Endorse if applicable...
+						if (null == share.getEndorsed()) { // legacy case
+							share.setEndorsed(new HashSet<ObjectId>());
+							share.getEndorsed().add(share.getOwner().get_id()); // user's personal community always endorsed
+						}//TESTED
+						boolean bAdmin = RESTTools.adminLookup(ownerIdStr, false); // (can be admin-on-request and not enabled, the bar for endorsing is pretty low)
+						if (bAdmin || SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr))  {
+							share.getEndorsed().add(cp.get_id());
+						}
+						//TESTED - adding as admin/community owner, not adding if not
+					}					
 					share.setModified(new Date());
 
 					DbManager.getSocial().getShare().update(query, share.toDb());
@@ -1192,6 +1224,11 @@ public class ShareHandler
 						if (null != share.getEndorsed()) {
 							share.getEndorsed().remove(scp.get_id());
 						}//TESTED						
+						
+						// Also remove readWrite...
+						if (null != share.getReadWrite()) {
+							share.getReadWrite().remove(scp.get_id());
+						}
 						
 						removeCommunity = true;
 						communities.remove(scp);

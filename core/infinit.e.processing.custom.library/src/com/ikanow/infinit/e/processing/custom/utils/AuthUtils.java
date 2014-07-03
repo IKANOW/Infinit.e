@@ -15,10 +15,15 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.custom.utils;
 
+import java.util.HashSet;
+import java.util.Set;
+
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.mongodb.BasicDBObject;
 
 public class AuthUtils {
@@ -43,4 +48,16 @@ public class AuthUtils {
 		catch (Exception e) {} // fail out and return false
 		return false;
 	}
+	public static Set<ObjectId> getCommunities(ObjectId userId) {
+		HashSet<ObjectId> userCommunities = new HashSet<ObjectId>();
+		PersonPojo personQuery = new PersonPojo();
+		personQuery.set_id(userId);
+		PersonPojo person = PersonPojo.fromDb(DbManager.getSocial().getPerson().findOne(personQuery.toDb()), PersonPojo.class);
+		if ((null != person) && (null != person.getCommunities())) {
+			for (PersonCommunityPojo comm:  person.getCommunities()) {
+				userCommunities.add(comm.get_id());
+			}
+		}
+		return userCommunities;
+	}//TESTED (CustomSavedQueryTestCode:*)
 }

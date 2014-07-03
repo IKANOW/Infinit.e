@@ -130,6 +130,7 @@ limitations under the License.
 		String errorMessage;
 		Long timesFailed;
 		String arguments;
+		Boolean selfMerge;
 	}
 	static class getJobs
 	{
@@ -263,7 +264,7 @@ limitations under the License.
     	return null;
 	}
 	
-	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, String incrementalMode, HttpServletRequest request, HttpServletResponse response)
+	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, String incrementalMode, String selfMerge, HttpServletRequest request, HttpServletResponse response)
 	{
 		String charset = "UTF-8";		
 		try
@@ -273,6 +274,7 @@ limitations under the License.
 			postObj.query = query;
 			postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
 			postObj.incrementalMode = Boolean.parseBoolean(incrementalMode);
+			postObj.selfMerge = Boolean.parseBoolean(selfMerge);
 			
 			//if ( userarguments.equals("") )
 			//	userarguments = "null";
@@ -686,7 +688,8 @@ limitations under the License.
 			String appendResults, String ageout, String exportToHdfs,
 			String incrementalMode,
 			Set<String> jobdepend, String userarguments,
-			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
+			Set<String> communities, String selfMerge, 
+			HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		//Create Entry for DB
 		if (currJarUrl == null || currJarUrl.length() == 0)
@@ -695,7 +698,7 @@ limitations under the License.
 		String s = null;
 		if((null == (s = installTask(pluginId, title, description, frequency, nextruntime, inputcollection, currJarUrl, 
 						mapper, combiner, reducer, query, outputKey, outputValue, appendResults, ageout, exportToHdfs, incrementalMode, jobdepend, userarguments,
-				communities, request, response))))
+				communities, selfMerge, request, response))))
 		{
 			return "Task Added/Updated Successfully!";
 		}
@@ -720,7 +723,7 @@ limitations under the License.
 			String currJarUrl, String mapper, String combiner, String reducer,
 			String query, String outputKey, String outputValue,
 			String appendResults, String ageout, String exportToHdfs, String incrementalMode, Set<String> jobdepend, String userarguments,
-			Set<String> communities, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
+			Set<String> communities, String selfMerge, HttpServletRequest request, HttpServletResponse response) throws UnsupportedEncodingException
 	{
 		String charset = "UTF-8";
 		
@@ -789,7 +792,7 @@ limitations under the License.
 		//if (true) return false;		
 		
 		//String json = stringOfUrl(url, request, response);
-		String json = postUrl(url,query,userarguments,exportToHdfs,incrementalMode,request,response);
+		String json = postUrl(url,query,userarguments,exportToHdfs,incrementalMode,selfMerge,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
              
         if ( resp == null )
@@ -832,8 +835,9 @@ if (API_ROOT == null)
 		}
 	}
 	if (null == API_ROOT) { 
-		// Default to localhost
+		// Default to localhost		
 		API_ROOT = "http://localhost:8080/api/";
+		//API_ROOT = "http://localhost:8184/";
 	}
 
 	if (API_ROOT.contains("localhost"))
@@ -1108,8 +1112,10 @@ else if (isLoggedIn == true)
 							request.getAttribute("exportToHdfs").toString(),							
 							request.getAttribute("updateResults").toString(),							
 							jobdeps,
-							request.getAttribute("userarguments").toString(),
-							communities, request, response));
+							request.getAttribute("userarguments").toString(),							
+							communities, 
+							request.getAttribute("selfMerge").toString(),
+							request, response));
 					
 					if (title.equals("null"))
 						title = oldTitle; // (reset this in case of edit where title hasn't changed)
@@ -1319,6 +1325,7 @@ $().ready(function() {
 			var select = document.getElementById( 'communities' );
 			appendResults = document.getElementById( 'appendResults' );
 			updateResults = document.getElementById( 'updateResults' );
+			selfMerge = document.getElementById('selfMerge');
 			ageout = document.getElementById( 'ageout' );
 			exportToHdfs = document.getElementById( 'exportToHdfs' );			
 			var jobdepend = document.getElementById( 'jobdepend' );
@@ -1369,6 +1376,7 @@ $().ready(function() {
 				outputValue.value = "com.mongodb.hadoop.io.BSONWritable";
 				appendResults.value = "false";
 				updateResults.value = "false";
+				selfMerge.value = "false";
 				exportToHdfs.value = "false";
 				ageout.value = "0";
 				queryEditor.setValue("{}");
@@ -1511,6 +1519,8 @@ $().ready(function() {
 			appendResults.value = jsonObj.appendResults;
 			if (null != jsonObj.incrementalMode)
 				updateResults.value = jsonObj.incrementalMode;
+			if ( null != jsonObj.selfMerge)
+				selfMerge.value = jsonObj.selfMerge;
 			ageout.value = jsonObj.appendAgeOutInDays;
 			if (null == jsonObj.exportToHdfs)
 				jsonObj.exportToHdfs = false;
@@ -1703,6 +1713,7 @@ $().ready(function() {
 			outputValue = document.getElementById('outputvalue').value;
 			appendResults = document.getElementById('appendResults').value;
 			updateResults = document.getElementById('updateResults').value;
+			selfMerge = document.getElementById('selfMerge').value;
 			exportToHdfs = document.getElementById('exportToHdfs').value;
 			ageout = document.getElementById('ageout').value;
 			query = queryEditor.getValue();	
@@ -2048,7 +2059,7 @@ $().ready(function() {
 	                  </tr>
 	                  <tr>
 	                    <td>Input collection:</td>
-						<td>
+						<td colspan="2">
 							<select name="inputcollection" id="inputcollection" onchange="auto_add_jobdep()">
 								<option value="DOC_METADATA">Document Metadata Collection</option>
 								<option value="DOC_CONTENT">Document Content Collection</option>
@@ -2058,7 +2069,13 @@ $().ready(function() {
 								<option value="FILESYSTEM">Distributed Filesystem</option>
 								<% out.print(inputCollectionList); %>
 							</select>
-						</td>
+							<span>&nbsp;&nbsp;&nbsp;&nbsp;Self Join:</span>
+                  		
+                  			<select name="selfMerge" id="selfMerge">
+                  				<option value="true">true</option>
+								<option value="false">false</option>
+                  			</select>
+                  		</td>
 	                  </tr>
 	                  <tr>
 	                    <td>Query:</td>
@@ -2117,7 +2134,7 @@ $().ready(function() {
 								<option value="false">false</option>
 							</select>
 						</td>
-	                  </tr>
+	                  </tr>	                  
 	                  <tr>
 	                    <td>Append Results:</td>
 						<td>

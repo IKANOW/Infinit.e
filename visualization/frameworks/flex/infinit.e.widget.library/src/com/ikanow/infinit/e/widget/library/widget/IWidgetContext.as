@@ -115,6 +115,16 @@ package com.ikanow.infinit.e.widget.library.widget
 		function filterByEntities(filterDataSet:FilterDataSetEnum, entDisNames:Set, matchType:EntityMatchTypeEnum, includeEntsType:IncludeEntitiesEnum, filterDescription:String=null):void;
 		/**
 		 * Sends a filter event that will be sent to all widgets (including this one)
+		 * This filter event takes a list of documents (that do not have to be part of the main dataset)
+		 * 
+		 * @param filteredDocs The list of docs to pass to the other widgets
+		 * @param filterDescription A string that will be displayed on the tooltip of the breadcrumb
+		 * 
+		 * This call will result in a widgets onReceiveNewFilter() function to be called.
+		 */
+		function filterByDocumentSet(filteredDocs:ArrayCollection, filterDescription:String):void
+		/**
+		 * Sends a filter event that will be sent to all widgets (including this one)
 		 * This filter event takes a field and a list of items to filter on.
 		 * 
 		 * This call will result in a widgets onReceiveNewFilter() function to be called.

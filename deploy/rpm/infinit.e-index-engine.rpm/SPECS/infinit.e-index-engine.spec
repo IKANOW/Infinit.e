@@ -55,12 +55,12 @@ Infinit.e index engine using ElasticSearch
 
 	# VERSION 1.x additional steps
 	if [ -d /usr/share/elasticsearch/ ]; then
+		mkdir -p /usr/share/elasticsearch/plugins
 	
 		# install plugins:
 		# (temporary, will be done in preinstall code once 1.0 becomes the default)
 		cd /usr/share/elasticsearch/plugins
 		
-		mkdir -p /usr/share/elasticsearch/plugins
 		rm -rf analysis-icu
 		unzip /mnt/opt/elasticsearch-infinite/plugins/analysis-icu.zip
 		rm -rf bigdesk
@@ -68,6 +68,7 @@ Infinit.e index engine using ElasticSearch
 		rm -rf head
 		unzip /mnt/opt/elasticsearch-infinite/plugins/head.zip
 		
+		# Do this for both versions of elasticsearch
 		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
 		rm -rf cloud-aws
 		if [ "$USE_AWS" = "1" ]; then

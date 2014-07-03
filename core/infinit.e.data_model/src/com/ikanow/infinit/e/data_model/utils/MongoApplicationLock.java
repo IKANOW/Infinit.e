@@ -127,6 +127,22 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	
 	@Override
 	public void run() { // This thread just keeps control once it's been obtained
+		
+		// Get main thread so we can spot when it shuts down
+		// (don't release the token since might want to hang onto it until it times out)
+		Thread main = null;
+		ThreadGroup root = Thread.currentThread().getThreadGroup();
+		while (null != root.getParent()) {
+			root = root.getParent();
+		}
+		Thread[] threads = new Thread[ root.activeCount() ];
+		root.enumerate(threads);
+		for (Thread t: threads) {
+			if (t.getName().equals("main")) {
+				main = t;
+			}
+		}//TESTED		
+		
 		while (!_bKillMe) {
 			updateToken(false);
 			if (_bKillMe) {
@@ -136,6 +152,11 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 				Thread.sleep(10000);
 			} catch (InterruptedException e) {}
 			
+			if (null != main) {
+				if (!main.isAlive()) {
+					break;
+				}
+			}//TESTED
 			continue;
 		}		
 	}//TESTED

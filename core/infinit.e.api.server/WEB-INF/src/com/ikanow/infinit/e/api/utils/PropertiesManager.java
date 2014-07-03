@@ -163,5 +163,15 @@ public class PropertiesManager {
 		}
 		return s;
 	}
-	
+
+	// Should be a list of fully-qualified classnames
+	public String[] getQueryExtensions() {
+		String s = this.getProperty("api.query.extensions");
+		if (null == s) {
+			return null;
+		}
+		else {
+			return s.split("\\s*,\\s*");
+		}
+	}
 }

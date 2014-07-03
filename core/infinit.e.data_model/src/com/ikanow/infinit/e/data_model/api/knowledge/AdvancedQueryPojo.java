@@ -216,5 +216,5 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 		
 	}
 	public QueryOutputPojo output; // (optional, just defaults to the above defaults if omitted)
-	public List<ObjectId> communityIds = null;
+	public List<ObjectId> communityIds = null; // (optional - can be used to store everything about a query in one object - eg for saved queries)
 }

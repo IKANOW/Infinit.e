@@ -109,6 +109,7 @@ limitations under the License.
 		String mediaType;
 		shareReference documentLocation;
 		shareCommunity[] communities;
+		String[] readWrite;
 		String binaryId;
 
 	}
@@ -330,7 +331,7 @@ limitations under the License.
 	//ID is provided, then it updates the widget containing that shareID
 	private String UpdateToShare(byte[] bytes, String mimeType, String title,
 			String description, String prevId, Set<String> communities, boolean isJson, 
-			String type, boolean newShare, boolean isRef, String docloc, String docid,
+			String type, boolean newShare, boolean isRef, String docloc, String docid, boolean readWrite,
 			HttpServletRequest request, HttpServletResponse response) {
 		String charset = "UTF-8";
 		String url = "";
@@ -437,7 +438,7 @@ limitations under the License.
 				{
 					if ( jr.data != null && jr.data._id != null )
 					{
-						addRemoveCommunities(jr.data._id, communities, request, response);
+						addRemoveCommunities(jr.data._id, communities, readWrite, request, response);
 						return jr.data._id; //When a new upload, mr.data contains the ShareID for the upload
 					}
 				} 
@@ -453,12 +454,12 @@ limitations under the License.
 				{
 					if (prevId != null && mr.data == null) 
 					{
-						addRemoveCommunities(prevId, communities, request, response);
+						addRemoveCommunities(prevId, communities, readWrite, request, response);
 						return prevId;
 					}
 					else
 					{
-						addRemoveCommunities(mr.data, communities, request, response);
+						addRemoveCommunities(mr.data, communities, readWrite, request, response);
 						return mr.data; //When a new upload, mr.data contains the ShareID for the upload
 					}
 				} 
@@ -473,7 +474,7 @@ limitations under the License.
 		}
 	}
 
-	private void addRemoveCommunities(String shareId, Set<String> commsToAdd,
+	private void addRemoveCommunities(String shareId, Set<String> commsToAdd, boolean readWrite,
 			HttpServletRequest request, HttpServletResponse response) 
 	{
 		personGet.community[] userCommunities = getUserCommunities(request,
@@ -481,7 +482,7 @@ limitations under the License.
 
 		for (personGet.community userComm : userCommunities) {
 			if (stringInSet(userComm._id, commsToAdd))
-				addShareToCommunity(shareId, userComm._id, request, response);
+				addShareToCommunity(shareId, userComm._id, readWrite, request, response);
 			else
 				removeShareFromCommunity(shareId, userComm._id, request,
 						response);
@@ -498,19 +499,19 @@ limitations under the License.
 		return false;
 	}
 
-	private String addShareToCommunity(String shareId, String communityId,
+	private String addShareToCommunity(String shareId, String communityId, boolean readWrite,
 			HttpServletRequest request, HttpServletResponse response) {
 		try {
 			String charset = "UTF-8";
 
 			String comment = "Added by fileUploader";
 
-			///share/add/community/{shareid}/{comment}/{communityid}
+			///share/add/community/{shareid}/{comment}/{communityid}?readWrite={readWrite}
 			String json = stringOfUrl(
 					API_ROOT + "social/share/add/community/"
 							+ URLEncoder.encode(shareId, charset) + "/"
 							+ URLEncoder.encode(comment, charset) + "/"
-							+ URLEncoder.encode(communityId, charset) + "/",
+							+ URLEncoder.encode(communityId, charset) + "/?readWrite=" + readWrite,
 					request, response);
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
@@ -638,15 +639,21 @@ limitations under the License.
 							docRefId = info.documentLocation.database + "." + info.documentLocation.collection + delim + info.documentLocation._id; // (type contains the other params anyway)
 						}
 					}
+					boolean readWrite = false;
+					if (null != info.readWrite) {
+						if (info.readWrite.length == info.communities.length) {
+							readWrite = true;
+						}
+					}
 					
 					if (ext == null) {
 						String value = info._id + delim + info.created + delim
 								+ info.title + delim + info.description + delim
-								+ SHARE_ROOT + info._id + delim ;
+								+ SHARE_ROOT + info._id + delim;
 						for (shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
-						value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
+						value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
 						toReturn += "<option value=\"" + value
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
@@ -671,7 +678,7 @@ limitations under the License.
 								for (shareCommunity scomm : info.communities) {
 									value += scomm._id + ",";
 								}
-								value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
+								value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
 								toReturn += "<option value=\"" + value
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
@@ -689,7 +696,7 @@ limitations under the License.
 							for (shareCommunity scomm : info.communities) {
 								value += scomm._id + ",";
 							}
-							value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId;
+							value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
 							toReturn += "<option value=\"" + value
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
@@ -705,7 +712,6 @@ limitations under the License.
 	private String populateMediaTypes(HttpServletRequest request,
 			HttpServletResponse response) {
 		String toReturn = "<option> See All </option>";
-		String delim = "$$$";
 		String json = stringOfUrl(API_ROOT + "social/share/search/", request,
 				response);
 		String ext = null;
@@ -856,6 +862,7 @@ visibility: hidden;
 
 			out.println("<div style=\" text-align: center;\">");
 			String contentType = request.getContentType();
+			
 			if ((contentType != null)
 					&& (contentType.indexOf("multipart/form-data") >= 0)) 
 			{
@@ -914,6 +921,12 @@ visibility: hidden;
 						}
 					}
 				}
+				// "global" param: is read write?
+				boolean readWrite = false;
+				Object readWriteObj = request.getAttribute("readWrite");			
+				if ((null != readWriteObj) && (readWriteObj.toString().equalsIgnoreCase("true")) ){
+					readWrite = true;
+				}
 				
 				////////////////////////////////////Delete Share ////////////////////////////////
 				if (request.getAttribute("deleteId") != null) {
@@ -929,7 +942,7 @@ visibility: hidden;
 				{
 					String shareId = request.getAttribute("DBId").toString();
 					if (shareId != null && shareId != "")
-						addRemoveCommunities(shareId, communities, request, response);					
+						addRemoveCommunities(shareId, communities, readWrite, request, response);					
 				} 
 				else 
 				{
@@ -954,7 +967,7 @@ visibility: hidden;
 						{												
 							fileId = shareId;
 							if (shareId != null && shareId != "")
-								addRemoveCommunities(shareId, communities, request, response);							
+								addRemoveCommunities(shareId, communities, readWrite, request, response);							
 							out.println("File was not set, just updated communities (can't edit type/title/etc without also re-uploading the file).");
 						}
 						else if ( !ref.equals("null")  )
@@ -967,7 +980,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, true, docLoc, docId, request, response);							
+									.toString(), newUpload, true, docLoc, docId, readWrite, request, response);							
 						}
 						else if ( bin.equals("null")) //is a json file, make sure its okay and upload it
 						{
@@ -976,7 +989,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, true, request.getAttribute("type")
-									.toString(), newUpload, false, null, null, request, response);
+									.toString(), newUpload, false, null, null, readWrite, request, response);
 						}
 						else //is a binary, do normal
 						{
@@ -985,7 +998,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, false, null, null, request, response);
+									.toString(), newUpload, false, null, null, readWrite, request, response);
 						}
 
 						if (fileId.contains("Failed")) 
@@ -1150,6 +1163,7 @@ visibility: hidden;
 		res_type = split[8];		
 		res_docloc = split[9];
 		res_docid = split[10];
+		res_readWrite = split[11];
 		
 		if ( res_docloc != "null" ) // reference
 		{
@@ -1198,6 +1212,7 @@ visibility: hidden;
 		highlightComms(communities);		
 		binary.value = res_binary;
 		type.value = res_type;
+		readWrite.value = res_readWrite;
 	}
 		function validate_fields()
 		{
@@ -1307,6 +1322,15 @@ visibility: hidden;
 	                  	<td><%
 	                  		out.print(communityList);
 	                  	%></td>
+	                  </tr>
+	                  <tr>
+	                  	<td>Write Access:</td>
+	                  	<td>
+	                  		<select id="readWrite" name="readWrite">
+		                  		<option value="false">Owner Only</option>
+		                  		<option value="true">Content Publishers</option>
+	                  		</select>
+	                  	</td>
 	                  </tr>
 	                  <tr>
 	                  	<td id="owner_text">Owner:</td>

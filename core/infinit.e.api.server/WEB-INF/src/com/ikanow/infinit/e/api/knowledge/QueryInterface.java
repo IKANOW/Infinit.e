@@ -44,6 +44,7 @@ import com.ikanow.infinit.e.api.knowledge.output.RssOutput;
 import com.ikanow.infinit.e.api.knowledge.output.XmlOutput;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
@@ -314,10 +315,10 @@ public class QueryInterface extends ServerResource
 			
 			errorString.append(" userid=").append(cookieLookup).append(" groups=").append(_communityIdStrList);
 			errorString.append( " error='").append(e.getMessage()).append("' stack=");
-			populateStackTrace(errorString, e);
+			Globals.populateStackTrace(errorString, e);
 			if (null != e.getCause()) {
 				errorString.append("[CAUSE=").append(e.getCause().getMessage()).append("]");
-				populateStackTrace(errorString, e.getCause());				
+				Globals.populateStackTrace(errorString, e.getCause());				
 			}
 			String error = errorString.toString(); 
 			_logger.error(error);
@@ -336,56 +337,6 @@ public class QueryInterface extends ServerResource
 		}
 		return new StringRepresentation(data, mediaType);
 	}		
-	//___________________________________________________________________________________
-	
-	// Utility function - parse stack exception (should move this into a Util if it proves to be useful)
-	
-	private void populateStackTrace(StringBuffer sb, Throwable t) {
-		int n = 0;
-		String lastMethodName = null;
-		String lastClassName = null;
-		String lastFileName = null;
-		StackTraceElement firstEl = null;
-		StackTraceElement lastEl = null;
-		for (StackTraceElement el: t.getStackTrace()) {
-			if (el.getClassName().contains("com.ikanow.") && (n < 20)) {
-				if ((lastEl != null) && (lastEl != firstEl)) { // last non-ikanow element before the ikanow bit
-					sb.append("[").append(lastEl.getFileName()).append(":").append(lastEl.getLineNumber()).append(":").append(lastEl.getClassName()).append(":").append(lastEl.getMethodName()).append("]");
-					n += 2;				
-					firstEl = null;
-					lastEl = null;
-				}//TESTED
-				
-				if (el.getClassName().equals(lastClassName) && el.getMethodName().equalsIgnoreCase(lastMethodName)) { // (overrides)
-					sb.append("[").append(el.getLineNumber()).append("]");
-					// (don't increment n in this case)
-				}//(c/p of other clauses)
-				else if (el.getClassName().equals(lastClassName)) { // different methods in the same class
-					sb.append("[").append(el.getLineNumber()).append(":").append(el.getMethodName()).append("]");
-					n++; // (allow more of these)
-				}//TESTED
-				else if (el.getFileName().equals(lastFileName)) { // different methods in the same class					
-					sb.append("[").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
-					n += 2;
-				}//(c/p of other clauses)
-				else {
-					sb.append("[").append(el.getFileName()).append(":").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
-					n += 3;
-				}//TESTED
-				lastMethodName = el.getMethodName();
-				lastClassName = el.getClassName();
-				lastFileName = el.getFileName();
-			}
-			else if (0 == n) {
-				firstEl = el;
-				sb.append("[").append(el.getFileName()).append(":").append(el.getLineNumber()).append(":").append(el.getClassName()).append(":").append(el.getMethodName()).append("]");
-				n += 3;
-			}//TESTED
-			else if (null != firstEl) {
-				lastEl = el;
-			}
-		}		
-	}//TESTED
 	
 	//___________________________________________________________________________________
 	

@@ -187,7 +187,9 @@ class ScoringUtils_MultiCommunity {
 			if (null == this._community_globalInfo) { // Setup metadata if not already done so
 				community_setupMetadata();
 				global = _community_globalInfo.get(_community_cachedValue);				
-				
+				if (null == global) {
+					return Integer.MIN_VALUE; // (this doc cannot be viewed with this community context)
+				}				
 				global.bInDataset = true;
 				global.nEntityCount = entitiesInDataset.size();
 					// (Update observed entities for original community) 
@@ -197,6 +199,9 @@ class ScoringUtils_MultiCommunity {
 			}//TESTED
 			global = _community_globalInfo.get(communityId);
 				// this should always return an object, see setupCommunityMetadata()
+			if (null == global) {
+				return Integer.MIN_VALUE; // (this doc cannot be viewed with this community context)
+			}				
 
 			if (!global.bInDataset) {
 				global.bInDataset = true;
