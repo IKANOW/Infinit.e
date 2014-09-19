@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" width="100%" horizontalAlign="center">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<fx:Script>		
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			
+			[Bindable]
+			private var title:String = "";;
+			[Bindable]
+			private var entities:ArrayCollection = new ArrayCollection();;
+			
+			public function setEntities(title:String, entities:ArrayCollection):void			
+			{
+				this.title = title;
+				for each ( var s:String in entities)
+				{
+					this.entities.addItem(s);
+				}
+				this.entities.refresh();
+			}
+		]]>
+	</fx:Script>
+	
+	
+	<s:Label id="labelTitle" text="{title.substr(0,50)}" toolTip="{title}" />
+	<s:List width="100%" id="listEntities" dataProvider="{entities}" minHeight="60" maxHeight="300" horizontalScrollPolicy="off" />
+</s:VGroup>

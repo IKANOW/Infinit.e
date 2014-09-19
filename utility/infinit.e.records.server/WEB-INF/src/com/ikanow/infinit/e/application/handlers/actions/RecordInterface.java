@@ -70,7 +70,7 @@ public class RecordInterface extends ServerResource {
 	boolean _deleteMode = false;
 	
 	final static String CONTROL_REF = "infinit.e.records/proxy/"; // (in debug mode, wont' start with infinit.e.records)
-	final static String DUMMY_INDEX = "doc_dummy"; // (guaranteed to exist)
+	final static String RECS_DUMMY_INDEX = "recs_dummy"; // (guaranteed to exist, have a sensible mapping)
 	
 	String _proxyUrl;
 	String _indexOrAdminCommand;
@@ -223,6 +223,7 @@ public class RecordInterface extends ServerResource {
 		// Authentication:
 		HashSet<String> communityIds = null;
 		
+
 		_driver = new InfiniteDriver("http://localhost:8080/api/");
 		//DEBUG
 		//_driver = new InfiniteDriver("http://localhost:8184/");
@@ -255,6 +256,7 @@ public class RecordInterface extends ServerResource {
 			// Do we have a community override set?
 			String commIdStrList = this._queryOptions.get("cids");
 			HashSet<String> commIdOverrideSet = null;
+			HashSet<String> dashboardOnly_fullCommunitySet = null;
 			if (null != commIdStrList) {
 				String[] commIdStrArray = commIdStrList.split("\\s*,\\s*");
 				if ((commIdStrArray.length > 1) || !commIdStrArray[0].isEmpty()) {
@@ -264,6 +266,46 @@ public class RecordInterface extends ServerResource {
 					}
 				}
 			}
+			// Complication: for viewing dashboards, not allowed to ignore while adding new dashboard
+			// (for any other type, the CIDs aren't present)
+			
+			boolean isDashboard = _indexOrAdminCommand.equals("kibana-int") && (null != mode);
+			if (!isDashboard) { // dashboard specific processing
+				if (null != commIdOverrideSet) {
+					String applyCommFilter = this._queryOptions.get("commFilter");
+					if ((null != applyCommFilter) && (applyCommFilter.equals("0") || applyCommFilter.equalsIgnoreCase("false"))) {
+						commIdOverrideSet = null;
+					}
+				}
+				
+			}//TESTED (by hand)
+			else if (null != commIdOverrideSet) { // dashboard-specific processing
+				String applyCommFilter = this._queryOptions.get("commFilter");
+				if ((null != applyCommFilter) && (applyCommFilter.equals("0") || applyCommFilter.equalsIgnoreCase("false"))) {
+					dashboardOnly_fullCommunitySet = new HashSet<String>();
+				}				
+			}//TESTED (by hand)
+
+			// Which stores are we examining
+			boolean showRecords = true;
+			boolean showCustom = false;
+			boolean showDocs = false; // (this one is a bit more complex)			
+			String showRecordsVal = this._queryOptions.get("records");
+			if ((null != showRecordsVal) && (showRecordsVal.equals("0") || showRecordsVal.equalsIgnoreCase("false"))) {
+				showRecords = false;
+			}
+			String showCustomVal = this._queryOptions.get("custom");
+			if ((null != showCustomVal) && (showCustomVal.equals("1") || showCustomVal.equalsIgnoreCase("true"))) {
+				showCustom = true;
+			}
+			String showDocsVal = this._queryOptions.get("docs");
+			if ((null != showDocsVal) && (showDocsVal.equals("1") || showDocsVal.equalsIgnoreCase("true"))) {
+				showDocs = true;
+			}
+			if (!showRecords && !showCustom && !showDocs) {
+				return returnError("Record", "Command error - must show at least one of records, custom, docs");											
+			}
+			//(TESTED: records, custom)
 			
 			communityIds = new HashSet<String>();
 			for (PersonCommunityPojo myComm: me.getCommunities()) {
@@ -275,6 +317,9 @@ public class RecordInterface extends ServerResource {
 				}
 				else { // no override, all communities
 					communityIds.add(commIdStr);
+				}
+				if (null != dashboardOnly_fullCommunitySet) {
+					dashboardOnly_fullCommunitySet.add(commIdStr);
 				}
 			}//TESTED (see handleDashboardSharing, test 5)
 			
@@ -302,9 +347,11 @@ public class RecordInterface extends ServerResource {
 				_indexOrAdminCommand = "_all";
 			}
 			
-			if (_indexOrAdminCommand.equals("kibana-int") && (null != mode)) { // 3] and 4]
+			boolean customJobSpecified = false;
+			boolean docsSpecified = false;
+			if (isDashboard) { // 3] and 4]
 				// Special case, we're going to use Infinit.e shares
-				return handleDashboardSharing(_indexCommand, mode, communityIds);
+				return handleDashboardSharing(_indexCommand, mode, communityIds, dashboardOnly_fullCommunitySet);
 			}			
 			else if (!_indexOrAdminCommand.equals("_all")) { // manually specified indexes, check vs allowed list 
 				boolean inclusive = false; // if all the indexes are of type "-" then need to add _all...
@@ -319,21 +366,21 @@ public class RecordInterface extends ServerResource {
 							// (replace with "recs_t_*_" to avoid exploding the command line, will then tidy up community permissions on the other side)
 							if (index.startsWith("ls-")) {
 								inclusive = true;
-								indexBuffer.append(index.replace("ls-", "recs_t_*_"));
+								if (showRecords) {
+									indexBuffer.append(index.replace("ls-", "recs_t_*_"));
+								}
 							}//TESTED (11)
 							else {
 								inclusive = true;
-								indexBuffer.append(index.replace("logstash-", "recs_t_*_"));
+								if (showRecords) {
+									indexBuffer.append(index.replace("logstash-", "recs_t_*_"));
+								}
 							}//TESTED (11)
 						}
 						else { // don't think this will happen, in theory need to explode into communities
 							return returnError("Record", "Command error - Logstash alias used in conjunction with search? - " + _proxyUrl);							
 						}//TOTEST
 						
-					}
-					else if (index.startsWith("doc")) {
-						//TODO (INF-2533): Can't currently allow access to the doc views because of child communities security model ugh
-						return returnError("Record", "Command error - doc views not currently supported: " + index);							
 					}
 					else if (index.equals("kibana-int")) { // (legacy kibana-int, leave this here...)
 						inclusive = true;
@@ -347,6 +394,15 @@ public class RecordInterface extends ServerResource {
 						return returnError("Record", "Command error - malformed index: " + index);							
 					}//TOTEST
 					else { // These are probably indexes returned from the alias, so just double check the security // 5]
+						if (index.startsWith("custom")) { // custom job - means don't add all of them
+							customJobSpecified = true;
+						}
+						if (index.startsWith("docs_")) { // custom job - means don't add all of them
+							docsSpecified = true;
+						}
+						if (index.startsWith("doc_")) { // (doc_ not allowed - you have to use docs_)
+							index = RECS_DUMMY_INDEX;
+						}
 						if (commRegex.matcher(index).find()) {
 							inclusive = true;
 							if (0 != indexBuffer.length()) {
@@ -357,41 +413,111 @@ public class RecordInterface extends ServerResource {
 					}//TESTED (5)
 				}
 				if (!inclusive) {
-					indexBuffer.append("recs_dummy"); // (will return nothing)
+					indexBuffer.append(RECS_DUMMY_INDEX); // (will return nothing)
 				}//TESTED
 			}
+			String[] indexes = null;
 			if (_indexOrAdminCommand.equals("_all")) { // Basically must be in stashed mode
 				if (communityIds.size() > 0) {
-					String[] indexes = new String[communityIds.size()];
+					int numIndexMulti = 0;
+					if (showRecords) numIndexMulti++;
+					if (showCustom) numIndexMulti++;
+					if (showDocs) numIndexMulti++;
+
+					indexes = new String[numIndexMulti*communityIds.size()];
 	
 					int i = 0;
 					for (String communityId: communityIds) {
-						indexes[i] = "recs_" + communityId;
-						i++;
-					}
-					
-					// Convert this generic list into a list of indexes that actually exists 
-					// (ie duplicate the _alias call that is made in non-timestamp cases)
-					// (https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/rest/action/admin/indices/alias/get/RestGetIndicesAliasesAction.java)
-					
-					ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(DUMMY_INDEX);
-					ClusterStateResponse retVal = indexMgr.getRawClient().admin().cluster().prepareState()
-							.setIndices(indexes)
-							.setRoutingTable(false).setNodes(false).setListenerThreaded(false).get();
-	
-					indexBuffer.setLength(0);
-					for (IndexMetaData indexMetadata: retVal.getState().getMetaData()) {
-						if (0 != indexBuffer.length()) {
-							indexBuffer.append(',');
+						if (showRecords) {
+							indexes[i] = "recs_" + communityId;
+							i++;
 						}
-						indexBuffer.append(indexMetadata.index());
-					}
+						if (showCustom) {
+							indexes[i] = "customs_*" + communityId +"*";
+							i++;
+						}//TESTED
+						if (showDocs) {
+							indexes[i] = "docs_" + communityId;
+							i++;
+						}//TESTED
+					}						
+					indexBuffer.setLength(0);					
 				}
-				if (0 == indexBuffer.length()) {
-					indexBuffer.append("recs_dummy"); // (will return nothing)				
-				}//TOTEST
 				
 			}//TESTED (3, 4)
+			else {
+				int indexSize = 0;
+				if (showCustom && !customJobSpecified) { // Append all possible custom jobs onto the end
+					indexSize += communityIds.size();
+				}//TESTED (by hand)
+				if (showDocs && !docsSpecified) { // Append all possible doc communities onto the end
+					indexSize += communityIds.size();
+				}//TESTED (by hand)
+				
+				if (indexSize > 0) {
+					indexes = new String[indexSize];				
+					int i = 0;
+					for (String communityId: communityIds) {
+						if (showCustom && !customJobSpecified) { // Append all possible custom jobs onto the end
+							indexes[i] = "customs_*" + communityId +"*";
+							i++;
+						}//TESTED (by hand)
+						if (showDocs && !docsSpecified) { // Append all possible doc communities onto the end
+							indexes[i] = "docs_" + communityId;
+							i++;
+						}//TESTED (by hand)
+					}
+				}				
+			}
+
+			//DEBUG
+			//System.out.println("?? " + indexBuffer.toString() + " VS " + Arrays.toString(indexes));
+			
+			if (null != indexes) {
+				// Convert this generic list into a list of indexes that actually exists 
+				// (ie duplicate the _alias call that is made in non-timestamp cases)
+				// (https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/rest/action/admin/indices/alias/get/RestGetIndicesAliasesAction.java)
+				
+				ElasticSearchManager indexMgr = ElasticSearchManager.getIndex(RECS_DUMMY_INDEX);
+				ClusterStateResponse retVal = indexMgr.getRawClient().admin().cluster().prepareState()
+						.setIndices(indexes)
+						.setRoutingTable(false).setNodes(false).setListenerThreaded(false).get();
+
+				for (IndexMetaData indexMetadata: retVal.getState().getMetaData()) {
+					String index = indexMetadata.index();
+
+					// For docs, only allowed to look at indexes that have been "fixed"
+					if (index.startsWith("docs_") || index.startsWith("doc_")) {
+						try {
+							Map<String, Object> mapping = indexMetadata.getMappings().get("document_index").sourceAsMap();
+							Object sourceObj = mapping.get("_source");
+							if ((null == sourceObj) || !(sourceObj instanceof Map)) {
+								continue;
+							}
+							@SuppressWarnings("rawtypes")
+							Object enabled = ((Map)sourceObj).get("enabled");
+							if ((null != enabled) && !(enabled instanceof Boolean)) {
+								continue;								
+							}
+							if ((null != enabled) && !((Boolean)enabled)) {
+								continue;								
+							}
+						} catch (Exception e) {
+							//DEBUG
+							//e.printStackTrace();
+						}
+					}//TESTED
+					
+					if (0 != indexBuffer.length()) {
+						indexBuffer.append(',');
+					}
+					indexBuffer.append(index);
+				}				
+				
+			}//TESTED (by hand - custom only and combined)
+			if (0 == indexBuffer.length()) {
+				indexBuffer.append(RECS_DUMMY_INDEX); // (will return nothing)				
+			}//TESTED (by hand)
 			
 			_indexOrAdminCommand = indexBuffer.toString();
 			
@@ -564,11 +690,14 @@ public class RecordInterface extends ServerResource {
 	
 	private static Pattern extractFilter = Pattern.compile("title:([^*}]*)");
 	
-	private Representation handleDashboardSharing(String command, String mode, HashSet<String> communityIds) {		
+	private Representation handleDashboardSharing(String command, String mode, HashSet<String> communityIds, HashSet<String> fullCommunityIds) {		
 		ResponseObject responseObj = new ResponseObject();
 
 		StringBuffer communityIdStrList = new StringBuffer();
-		for (String s: communityIds) {
+		if (null == fullCommunityIds) {
+			fullCommunityIds = communityIds; // (comm filter applied)
+		}
+		for (String s: fullCommunityIds) {
 			if (communityIdStrList.length() > 0) {
 				communityIdStrList.append(',');
 			}

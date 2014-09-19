@@ -1,0 +1,85 @@
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "fullText": "test1",
+                        "title": "test1",
+                        "description": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "fullText": "test2",
+                        "title": "test2",
+                        "description": "test2",
+                        "url": "test2"
+                    }
+                ]
+            }
+        },
+        {
+            "contentMetadata": [
+                {
+                    "scriptlang": "regex",
+                    "script": "test",
+                    "fieldName": "KeepTest1",
+                    "store": true,
+                    "index": false
+                },
+                {
+                    "scriptlang": "regex",
+                    "script": "test",
+                    "fieldName": "KeepTest2",
+                    "store": false,
+                    "index": true
+                },
+                {
+                    "scriptlang": "regex",
+                    "script": "test",
+                    "fieldName": "DiscardTest1",
+                    "store": false,
+                    "index": false
+                }
+            ],
+            "display": ""
+        },
+        {
+            "contentMetadata": [
+                {
+                    "flags": "m",
+                    "scriptlang": "javascript",
+                    "script": "var x = _metadata.DiscardTest1; x;",
+                    "fieldName": "KeepDiscardTest1",
+                    "store": true,
+                    "index": false
+                },
+                {
+                    "flags": "m",
+                    "scriptlang": "javascript",
+                    "script": "var x = _metadata.KeepTest2; x;",
+                    "fieldName": "KeepTest2",
+                    "store": true,
+                    "index": true
+                }
+            ],
+            "display": "KeepDiscardTest1 copies DiscardTest1 to prove it created, KeepTest2 reverses my earlier decision"
+        },
+        {
+            "criteria": "return _doc.url == 'test2'",
+            "contentMetadata": [
+                {
+                    "scriptlang": "regex",
+                    "script": "test",
+                    "fieldName": "KeepTest1",
+                    "store": false,
+                    "index": false
+                },
+                {
+                    "scriptlang": "regex",
+                    "script": "test",
+                    "fieldName": "InConditional_NoKeepTest1"
+                }
+            ],
+            "display": "Here I discard KeepTest1 conditionally on doc2"
+        }
+    ],

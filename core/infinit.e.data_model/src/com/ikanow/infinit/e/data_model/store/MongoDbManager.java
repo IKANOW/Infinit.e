@@ -352,6 +352,8 @@ public class MongoDbManager {
 
 		private DBCollection _ingest_source;
 		private DBCollection _ingest_log_harvester_q;
+		private DBCollection _ingest_log_harvester_slaves;
+		private DBCollection _ingest_federated_cache;
 		
 		public CommandResult getLastError(String sLogicalCollectionName) {
 			// (In this case, logical collection name doesn't matter)
@@ -369,6 +371,18 @@ public class MongoDbManager {
 				_ingest_log_harvester_q = _savedMongo.getDB("ingest").getCollection("log_harvester_q");										
 			}
 			return _ingest_log_harvester_q;
+		}
+		public DBCollection getLogHarvesterSlaves() {
+			if (null == _ingest_log_harvester_slaves) {
+				_ingest_log_harvester_slaves = _savedMongo.getDB("ingest").getCollection("log_harvester_slaves");										
+			}
+			return _ingest_log_harvester_slaves;
+		}
+		public DBCollection getFederatedCache() {
+			if (null == _ingest_federated_cache) {
+				_ingest_federated_cache = _savedMongo.getDB("ingest").getCollection("federated_cache");										
+			}
+			return _ingest_federated_cache;
 		}
 	}
 

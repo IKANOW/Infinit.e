@@ -33,11 +33,13 @@ import com.ikanow.infinit.e.api.config.source.SourceInterface;
 import com.ikanow.infinit.e.api.custom.mapreduce.CustomInterface;
 import com.ikanow.infinit.e.api.gui.UIInterface;
 import com.ikanow.infinit.e.api.knowledge.DocumentInterface;
+import com.ikanow.infinit.e.api.knowledge.QueryHandlerBackgroundThread;
 import com.ikanow.infinit.e.api.knowledge.QueryInterface;
 import com.ikanow.infinit.e.api.knowledge.SearchInterface;
 import com.ikanow.infinit.e.api.social.community.CommunityInterface;
 import com.ikanow.infinit.e.api.social.community.PersonInterface;
 import com.ikanow.infinit.e.api.social.sharing.ShareInterface;
+import com.ikanow.infinit.e.api.social.sharing.ShareV2Interface;
 import com.ikanow.infinit.e.data_model.Globals;
 
 public class EmbeddedRestletApp extends Application 
@@ -365,6 +367,10 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/social/share/get/{id}", ShareInterface.class);
         attach(router, "/social/share/search", ShareInterface.class);
         
+        //UPDATED SHARE FUNCTION FOR EASY CREATION
+        attach(router, "/social/share", ShareV2Interface.class);
+        attach(router, "/social/share/{id}", ShareV2Interface.class);
+        
         return router;  
     }
     static private void attach(Router router, String url,  Class<? extends ServerResource> clazz) {
@@ -381,4 +387,14 @@ public class EmbeddedRestletApp extends Application
     	}
     	router.attach(url, clazz).setMatchingMode(Template.MODE_STARTS_WITH);
     }
+
+    /////////////////////////////////////////////////////////////////////////////
+    
+    // BACKGROUND THREADS
+    
+	public static void setupPollingHandlers() {
+		// Query handler background thread (for caching)
+		QueryHandlerBackgroundThread queryHandlerPoll = new QueryHandlerBackgroundThread(); 
+		queryHandlerPoll.startThread();
+	}
 }  

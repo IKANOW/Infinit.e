@@ -191,6 +191,10 @@
 			[Bindable]
 			private var kmlLayerNames:ArrayCollection = new ArrayCollection();
 			
+			//toggleable variable for turning on/off map recentering when a new query comes in
+			[Bindable]
+			public var recenterMapOnQuery:Boolean = false;
+			
 			public function isHeatMapEnabled_fromPresentation():Boolean
 			{
 				if ( _nSavedHeatMapState >= 0 )
@@ -284,6 +288,10 @@
 					if ( widgetOptions.userSave != null )
 					{
 						this.widgetOptions = widgetOptions.userSave;
+						if ( this.widgetOptions.hasOwnProperty("recenterOnQuery") )
+						{
+							this.recenterMapOnQuery = Boolean( this.widgetOptions.recenterOnQuery );
+						}
 					}
 					
 					//this holds kml supplied by a community
@@ -350,6 +358,7 @@
 				tempWidgetOptions[ "centerLng" ] = _map.center.lng;
 				tempWidgetOptions[ "zoomLevel" ] = _map.zoom;
 				tempWidgetOptions[ "openKMLLayers" ] = new Array();
+				tempWidgetOptions[ "recenterOnQuery" ] = recenterMapOnQuery;
 				
 				for each ( var layer:Object in kmlLayerNames )
 				{
@@ -367,17 +376,20 @@
 			
 			public function recenterAndZoomMap_fromPresentation( minLat:Number, minLng:Number, maxLat:Number, maxLng:Number, override:Boolean = false ):void
 			{
-				if ( null == _mapResizeTimer )
-				{ // Always auto-zoom if just opened, unless loading last setup
-					_mapMarkerBounds = new RectLL( new LatLng( maxLat, minLng ), new LatLng( minLat, maxLng ) );
-					_needRecenter = true;
-				}
-				else
+				if ( recenterMapOnQuery )
 				{
-					if ( override || !zoomToggleButton.selected )
-					{
+					if ( null == _mapResizeTimer )
+					{ // Always auto-zoom if just opened, unless loading last setup
 						_mapMarkerBounds = new RectLL( new LatLng( maxLat, minLng ), new LatLng( minLat, maxLng ) );
 						_needRecenter = true;
+					}
+					else
+					{
+						if ( override || !zoomToggleButton.selected )
+						{
+							_mapMarkerBounds = new RectLL( new LatLng( maxLat, minLng ), new LatLng( minLat, maxLng ) );
+							_needRecenter = true;
+						}
 					}
 				}
 			}
@@ -1889,6 +1901,12 @@
 					Alert.show("Failed to update kml save: " + data.response.message);
 				}
 			}
+			
+			protected function checkboxRecenter_changeHandler(event:Event):void
+			{
+				this.recenterMapOnQuery = checkboxRecenter.selected;				
+			}
+			
 		]]>
 	</fx:Script>
 	<fx:Declarations>
@@ -1974,6 +1992,11 @@
 													 change="setTimeout( kmlLayers_changeHandler, 100, event )" 														 
 													 listWidth="170"
 													 prompt="KML Layers" itemRenderer="com.ikanow.infinit.e.renderers.KMLLayersDropDownItemRenderer" />
+		<s:VGroup verticalAlign="middle" horizontalAlign="center" height="36" width="150">
+			<components:WidgetCheckBox id="checkboxRecenter"  change="checkboxRecenter_changeHandler(event)"
+									   selected="{recenterMapOnQuery}" label="Zoom On Query" />
+		</s:VGroup>
+		
 	</components:secondHeaderContent>	
 	
 	<s:HGroup 

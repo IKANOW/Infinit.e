@@ -30,6 +30,7 @@ import com.ikanow.infinit.e.core.execute_synchronization.SynchronizationControll
 import com.ikanow.infinit.e.core.utils.SourceUtils;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
+import com.ikanow.infinit.e.data_model.utils.MongoApplicationLock;
 import com.ikanow.infinit.e.processing.custom.CustomProcessingController;
 
 public class CoreMain {
@@ -153,6 +154,7 @@ public class CoreMain {
 			System.out.println("com.ikanow.infinit.e.core.server [--config <config-dir>] [--harvest [<other options>]|--sync [<other options>]|--custom [<other options>]]");
 			System.exit(-1);
 		}		
+		MongoApplicationLock.registerAppShutdown(); // (in case the saved queries are running, for some reason built in startup hook not running)
 	}
 	
 }

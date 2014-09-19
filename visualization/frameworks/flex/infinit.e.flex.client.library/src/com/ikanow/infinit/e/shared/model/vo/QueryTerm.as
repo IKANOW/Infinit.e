@@ -19,7 +19,9 @@ package com.ikanow.infinit.e.shared.model.vo
 	import com.ikanow.infinit.e.shared.model.constant.types.EditModeTypes;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryTermTypes;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
+	
 	import flash.events.EventDispatcher;
+	
 	import mx.resources.ResourceManager;
 	
 	[Bindable]
@@ -242,7 +244,29 @@ package com.ikanow.infinit.e.shared.model.vo
 			clone.ftext = ftext;
 			
 			if ( time )
+			{
+				// Special case: handle date lock
+				if (entityOpt && entityOpt.lockDate)
+				{
+					var nowDate:Date = new Date();
+					var now:Number = nowDate.getTime();
+					if (null == time.max && null != time.min) {
+						time.min = nowDate;
+					}
+					else if (null == time.min && null != time.max) {
+						time.max = nowDate;
+					}
+					else if (null != time.min && null != time.max) {
+						// Always lock max to now, adjust min
+						var minNum:Number = time.min.getTime();
+						var maxNum:Number = time.max.getTime();
+						time.max = nowDate;
+						time.min.setTime(now - (maxNum - minNum)); 
+					}
+				}
+				
 				clone.time = time.clone();
+			}
 			
 			if ( geo )
 				clone.geo = geo.clone();

@@ -18,9 +18,14 @@
  */
 package com.ikanow.infinit.e.harvest;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
@@ -56,7 +61,8 @@ import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
-import com.ikanow.infinit.e.data_model.utils.JarAsByteArrayClassLoader;
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
+import com.ikanow.infinit.e.data_model.utils.TrustManagerManipulator;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.TextRankExtractor;
@@ -91,7 +97,9 @@ import com.mongodb.gridfs.GridFSDBFile;
 public class HarvestController implements HarvestContext
 {
 	private HarvestControllerPipeline procPipeline = null;
-
+	private IkanowSecurityManager _securityManager = null;
+	public IkanowSecurityManager getSecurityManager() { return _securityManager; }
+	
 	private PropertiesManager pm = new PropertiesManager();
 	private IEntityExtractor default_entity_extractor = null;
 	private ITextExtractor default_text_extractor = null;
@@ -174,9 +182,20 @@ public class HarvestController implements HarvestContext
 	 */
 	public HarvestController() throws IOException { this(false); }
 	
+	private static boolean _initializedSSL = false;
+	
 	@SuppressWarnings("rawtypes")
 	public HarvestController(boolean overrideTypeSettings) throws IOException 
 	{
+		if (!_initializedSSL) {
+			_initializedSSL = true;
+			try {
+				// Ensure we don't have any self-signed cert debacles:
+				TrustManagerManipulator.allowAllSSL();		
+			}
+			finally {}
+		}
+		
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
 		if (overrideTypeSettings) { // (override API settings in test mode)
@@ -376,6 +395,10 @@ public class HarvestController implements HarvestContext
 			}
 		}
 		nBetweenFeedDocs_ms = props.getWebCrawlWaitTime();
+		
+		// Set up security manager - basically always needed so might as well create here
+		
+		_securityManager = new IkanowSecurityManager();								
 	}
 
 	/**
@@ -1232,8 +1255,6 @@ public class HarvestController implements HarvestContext
 					throw new RuntimeException("Extractor not shared across source communities");					
 				}//TESTED
 				
-				byte[] jarBytes = getGridFile(extractorInfo.getBinaryId());
-				
 				savedClassLoader = Thread.currentThread().getContextClassLoader();
 				
 				//HashMap<String, Class<?> > dynamicExtractorClassCache = null;
@@ -1241,9 +1262,11 @@ public class HarvestController implements HarvestContext
 					dynamicExtractorClassCache = new HashMap<String, Class<?> >();
 				}
 
+				URL[] cachedJarFile = { new File(maintainJarFileCache(extractorInfo)).toURI().toURL() };				
+				
 				Class<?> classToLoad = dynamicExtractorClassCache.get(extractorInfo.getTitle());				
 				if (null == classToLoad) {				
-					JarAsByteArrayClassLoader child = new JarAsByteArrayClassLoader (jarBytes, savedClassLoader);
+					URLClassLoader child = new URLClassLoader(cachedJarFile, savedClassLoader);
 					
 					Thread.currentThread().setContextClassLoader(child);
 					classToLoad = Class.forName(extractorInfo.getTitle(), true, child);
@@ -1293,19 +1316,50 @@ public class HarvestController implements HarvestContext
 	 * @param id the object id of the gridfile to lookup (stored in sharepojo)
 	 * @return bytes of file stored in gridfile
 	 */	
-	private static byte[] getGridFile(ObjectId id)
-	{
-		ByteArrayOutputStream out = new ByteArrayOutputStream();
-		try
-		{
-			GridFSDBFile file = DbManager.getSocial().getShareBinary().find(id);						
-			file.writeTo(out);
-			byte[] toReturn = out.toByteArray();
-			out.close();
-			return toReturn;
-		}
-		catch (Exception ex){}		
-		return null;
-	}
+//	private static byte[] getGridFile(ObjectId id)
+//	{
+//		ByteArrayOutputStream out = new ByteArrayOutputStream();
+//		try
+//		{
+//			GridFSDBFile file = DbManager.getSocial().getShareBinary().find(id);						
+//			file.writeTo(out);
+//			byte[] toReturn = out.toByteArray();
+//			out.close();
+//			return toReturn;
+//		}
+//		catch (Exception ex){}		
+//		return null;
+//	}
 
+	/**
+	 * Downloads jar file from web using URL call.  Typically
+	 * the jar files we be kept in our /share store so we will
+	 * be calling our own api.
+	 * 
+	 * @param jarURL
+	 * @return
+	 * @throws Exception 
+	 */
+	public static String maintainJarFileCache(SharePojo share) throws Exception
+	{		
+		String tempFileName = System.getProperty("java.io.tmpdir") + "/" + share.get_id() + ".cache.jar";
+		File tempFile = new File(tempFileName);
+
+		// Compare dates (if it exists) to see if we need to update the cache) 
+		
+		if (!tempFile.exists() || (tempFile.lastModified() < share.getModified().getTime())) {
+			OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
+			if ( share.getBinaryId() != null )
+			{			
+				GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
+				file.writeTo(out);				
+			}
+			else
+			{
+				out.write(share.getBinaryData());
+			}
+		}//TESTED
+		
+		return tempFileName;
+	}
 }

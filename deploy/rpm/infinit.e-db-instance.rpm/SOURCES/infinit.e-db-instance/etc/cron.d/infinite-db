@@ -31,3 +31,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # For the (MT) midnight one, do more - used to rotate the mongodb logs
 00 01    * * *   root    /opt/db-home/rotate-logs-script.sh
+
+#Every 5 minutes: check if we need to replace a temporary instance-arbiter with a permanent config arbiter
+*/5 * * * * root sh /opt/db-home/arbiter-manager.sh > /dev/null
+
+#(EOL defender!)

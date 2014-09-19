@@ -14,7 +14,6 @@ Prefix: /mnt/opt
 %description
 Infinit.e harvesting and cleansing services
 
-###########################################################################
 #
 # SCRIPTLETS, IN ORDER OF EXECUTION
 #
@@ -108,6 +107,9 @@ Infinit.e harvesting and cleansing services
 #
 # FINAL STEP FOR INSTALLS AND UPGRADES
 #
+	# Ensure latest mapping installed
+	sh /opt/infinite-home/scripts/load_custom_template_into_es.sh
+
 	# Start service
 	service infinite-px-engine start
 
@@ -135,7 +137,6 @@ Infinit.e harvesting and cleansing services
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/weekly_sources_report.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reset_bad_harvest.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/harvest_redistribute.sh
-%config /mnt/opt/infinite-home/bin/security.policy
 %dir /mnt/opt/infinite-home/db-scripts
 /mnt/opt/infinite-home/db-scripts/calc_freq_counts.js
 /mnt/opt/infinite-home/db-scripts/reset_bad_harvest.js
@@ -145,6 +146,10 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/db-scripts/hadoop_prototype_engine.js
 /mnt/opt/infinite-home/db-scripts/temporal_entity_aggregation.js
 /mnt/opt/infinite-home/db-scripts/harvest_redistribution_script.js
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/load_custom_template_into_es.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/partially_update_doc_mapping.sh
+/mnt/opt/infinite-home/templates/elasticsearch-inf-template.json
+/mnt/opt/infinite-home/templates/doc_mapping_changes.json
 
 %dir /mnt/opt/infinite-home/lib
 %dir /mnt/opt/infinite-home/lib/extractors
@@ -165,7 +170,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/lib/infinit.e.core.server-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-INFINITE_VERSION-INFINITE_RELEASE.jar
 /mnt/opt/infinite-home/lib/unbundled/jcifs-1.3.17.jar
-/mnt/opt/infinite-home/lib/unbundled/tika-app-1.0_with_gson_2.2.2.jar
+/mnt/opt/infinite-home/lib/unbundled/tika-app-1.0_gson-2.2.2_sl4f-1.7.7.jar
 /mnt/opt/infinite-home/lib/unbundled/GridFSZipFile.jar
 /mnt/opt/infinite-home/lib/unbundled/j-calais-0.2.1-jar-with-dependencies.jar
 /mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar

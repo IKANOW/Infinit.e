@@ -69,3 +69,15 @@ body
 	font-weight: bold;
 	text-decoration: none;
 }
+a.flowbuilderIframeClose{
+    float:right;
+    cursor:pointer;
+    color: #fff;
+    border: 1px solid #AEAEAE;
+    display:none;
+    background: #605F61;
+    font-size: 14px;
+    font-weight: bold;
+    line-height: 0px;
+    padding: 11px 3px;       
+}

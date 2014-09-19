@@ -152,12 +152,23 @@ public class JsonToMetadataParser {
 				doc.setUrl(sourceName + primaryKey);
 			}
 		}
-		
 		if (textOnly) {
 			doc.setFullText(meta.toString());
 		}
-		else if (meta.isJsonObject()) {
-			doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject(), _memUsage));
+		else {
+			doc.setFullText("");
+			if (meta.isJsonArray()) {
+				ArrayList<Object> metaArray = new ArrayList<Object>(meta.getAsJsonArray().size());
+				for (JsonElement je: meta.getAsJsonArray()) {
+					if (je.isJsonObject()) {
+						metaArray.add(convertJsonObjectToLinkedHashMap(je.getAsJsonObject(), _memUsage));
+					}
+				}
+				doc.addToMetadata("json", metaArray.toArray());
+			}
+			else if (meta.isJsonObject()) {
+				doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta.getAsJsonObject(), _memUsage));
+			}			
 		}
 		return doc;
 		

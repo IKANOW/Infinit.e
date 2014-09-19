@@ -44,9 +44,10 @@ db = db.getMongo().getDB( "doc_metadata" );
 f1 = function(x) {
 
 	var doc_count = db.metadata.count({sourceKey:x._id});
-	for (i = 0; i < x.value.communityIds.length; ++i) {
-		doc_count += db.metadata.count({sourceKey: (x._id + '#' + x.value.communityIds[i])});
-	}
+	// (this is no longer supported, so I'm going to remove, to improve the performance)
+	//for (i = 0; i < x.value.communityIds.length; ++i) {
+	//	doc_count += db.metadata.count({sourceKey: (x._id + '#' + x.value.communityIds[i])});
+	//}
 	x.value.doccount = doc_count;
 	db.tmpDocCounts.save(x);
 }

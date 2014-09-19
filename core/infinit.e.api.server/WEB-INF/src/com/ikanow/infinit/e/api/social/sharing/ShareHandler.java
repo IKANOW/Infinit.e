@@ -1578,5 +1578,130 @@ public class ShareHandler
 		}
 		return retVal;
 	}//TESTED (normal + custom)
+
+
+	public ResponsePojo createOrUpdateShare(String cookieLookup, SharePojo share, boolean readWrite, boolean returnContent) 
+	{
+		ResponsePojo rp = null;			
+		String share_id = null;		
+		//need to get previous share so we can add in any previous fields
+		if ( share.get_id() != null )
+		{
+			share_id = share.get_id().toString();
+			
+			ResponsePojo rp1 = getShare(cookieLookup, share_id, true);
+			if ( rp1.getResponse().isSuccess() )
+			{
+				SharePojo previous_share = (SharePojo)rp1.getData();
+				if ( share.getType() == null )
+					share.setType(previous_share.getType());
+				if ( share.getTitle() == null )
+					share.setTitle(previous_share.getTitle());
+				if ( share.getDescription() == null )
+					share.setDescription(previous_share.getDescription());
+				if ( share.getCommunities() == null )
+					share.setCommunities(previous_share.getCommunities());
+
+				if ( share.getShare() == null)
+					share.setShare(previous_share.getShare());
+				if ( share.getDocumentLocation() == null )
+					share.setDocumentLocation(previous_share.getDocumentLocation());
+				if ( share.getBinaryData() == null )
+					share.setBinaryData(previous_share.getBinaryData());
+				if ( share.getBinaryId() == null )
+					share.setBinaryId(previous_share.getBinaryId());
+			}
+			else
+			{
+				//couldn't get previous share, return error
+				return rp1;
+			}
+		}
+		
+		//STEP 1, call appropriate update/add function		
+		if ( share.getBinaryData() != null )
+		{
+			//binary
+			if ( share_id == null )
+				rp = addBinary(cookieLookup, share.getType(), share.getTitle(), share.getDescription(), share.getMediaType(), share.getBinaryData());
+			else
+				rp = updateBinary(cookieLookup, share_id, share.getType(), share.getTitle(), share.getDescription(), share.getMediaType(), share.getBinaryData());
+			if ( !rp.getResponse().isSuccess() )
+				return rp;
+			else
+			{
+				String saved_share_id = share_id;
+				if ( rp.getData() != null )
+					saved_share_id = (String)rp.getData();
+				rp = getShare(cookieLookup, saved_share_id, false);
+				if ( !rp.getResponse().isSuccess())
+					return rp;
+			}
+		}
+		else if ( share.getDocumentLocation() != null )
+		{
+			//ref
+			if ( share_id == null )
+				rp = addRef(cookieLookup, share.getType(), share.getDocumentLocation().getDatabase() + "." + share.getDocumentLocation().getCollection(), share.getDocumentLocation().get_id().toString(), share.getTitle(), share.getDescription());
+			else
+				rp = updateRef(cookieLookup, share_id, share.getType(), share.getDocumentLocation().getDatabase() + "." + share.getDocumentLocation().getCollection(), share.getDocumentLocation().get_id().toString(), share.getTitle(), share.getDescription());
+			if ( !rp.getResponse().isSuccess() )
+				return rp;
+			else
+			{
+				String saved_share_id = share_id;
+				if ( rp.getData() != null )
+					saved_share_id = (String)rp.getData();
+				rp = getShare(cookieLookup, saved_share_id, false);
+				if ( !rp.getResponse().isSuccess())
+					return rp;
+			}
+		}
+		else
+		{
+			//json			
+			rp = saveJson(cookieLookup, share_id, share.getType(), share.getTitle(), share.getDescription(), share.getShare());
+			if ( !rp.getResponse().isSuccess() )
+				return rp;
+		}
+		SharePojo saved_share = (SharePojo)rp.getData();
+						
+		
+		//STEP 2, handle comms (loop over passed in comms, adding any that dont exist, remove any leftovers
+		StringBuilder sb = new StringBuilder();
+		List<ShareCommunityPojo> existingComms = saved_share.getCommunities();
+		for ( ShareCommunityPojo scp : share.getCommunities() )
+		{
+			boolean found = false;
+			for ( ShareCommunityPojo scp_existing : existingComms )
+			{
+				if ( scp_existing.get_id().equals(scp.get_id()) )
+				{
+					existingComms.remove(scp_existing);
+					found = true;
+					break;
+				}
+			}
+			if ( !found )
+			{
+				rp = addCommunity(cookieLookup, saved_share.get_id().toString(), scp.get_id().toString(), scp.getComment(), readWrite);
+				if ( !rp.getResponse().isSuccess() )
+					sb.append(scp.get_id().toString() + " ");
+			}
+		}
+		for ( ShareCommunityPojo scp : existingComms )
+		{
+			rp = removeCommunity(cookieLookup, saved_share.get_id().toString(), scp.get_id().toString());
+			if ( !rp.getResponse().isSuccess() )
+				sb.append(scp.get_id().toString() + " ");
+		}
+		
+		//have to get share now to see it with updated comms
+		rp = getShare(cookieLookup, saved_share.get_id().toString(), returnContent);		
+		if ( sb.length() > 0 )
+			rp.getResponse().setMessage("Error adding/removing some of the communities: " + sb.toString());
+		
+		return rp;
+	}
 	
 }

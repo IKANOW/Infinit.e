@@ -33,6 +33,10 @@ if [ $DISCOVERY_MODE = "zen" ]; then
 	sed -i "s|.*AWS_KEY.*|#\0|g" $TMP_YML_FILE
 	sed -i "s|.*SECRET_KEY.*|#\0|g" $TMP_YML_FILE
 else
+	# Get region:
+	REGION=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/ | sed -e 's/[^0-9]*$//')
+	sed -i "s|AWS_REGION|$REGION|g" $TMP_YML_FILE
+		
 	sed -i "s|.*ELASTIC_NODES.*|#\0|g" $TMP_YML_FILE
 	sed -i "s|AWS_KEY|$AWS_KEY|g" $TMP_YML_FILE
 	sed -i "s|SECRET_KEY|$SECRET_KEY|g" $TMP_YML_FILE

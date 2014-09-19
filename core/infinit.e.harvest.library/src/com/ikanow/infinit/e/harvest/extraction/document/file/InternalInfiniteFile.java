@@ -25,6 +25,7 @@ import java.net.URISyntaxException;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.Enumeration;
+import java.util.List;
 
 import net.sf.jazzlib.GridFSZipFile;
 import net.sf.jazzlib.ZipEntry;
@@ -117,7 +118,29 @@ public class InternalInfiniteFile extends InfiniteFile {
 					sb.append(_resultObj.getObjectId(CustomMapReduceJobPojo._id_).toString()).append('/').append(locationStr).append('/');					
 				}//TESTED (4.1)			
 				_originalUrl = sb.toString();
-				_overwriteTime = _resultObj.getDate(CustomMapReduceJobPojo.lastRunTime_, new Date()).getTime();
+				_isCustomAppend = _resultObj.getBoolean(CustomMapReduceJobPojo.appendResults_, false);
+				
+				String outputDatabase = _resultObj.getString(CustomMapReduceJobPojo.outputDatabase_);
+				String outputCollection = _resultObj.getString(CustomMapReduceJobPojo.outputCollection_);
+				if (null == outputDatabase) {
+					outputDatabase = "custommr";
+				}
+				DBCollection outColl = MongoDbManager.getCollection(outputDatabase, outputCollection);
+				BasicDBObject sort = null;
+				if (_isCustomAppend) { // Use time of _last_ record as file time
+					sort = new BasicDBObject("_id", -1);
+				}
+				else { // Use time of _first_ record as file time
+					sort = new BasicDBObject("_id", 1);
+				}//TESTED
+				DBCursor dbc = outColl.find().sort(sort).limit(1);
+				List<DBObject> firstOrLastRecordList = dbc.toArray();
+				if (!firstOrLastRecordList.isEmpty()) {
+					_overwriteTime = ((ObjectId)firstOrLastRecordList.iterator().next().get("_id")).getTime();
+				}
+				else { // No records, use lastRunTime_ as backup
+					_overwriteTime = _resultObj.getDate(CustomMapReduceJobPojo.lastRunTime_, new Date()).getTime();
+				}//TOTEST
 				
 			}//TESTED
 			else {
@@ -233,17 +256,8 @@ public class InternalInfiniteFile extends InfiniteFile {
 	
 	// For custom jobs - if this is an incremental job then process slightly differently
 	
-	public boolean isIncremental() {
-		if (_isCustom) {
-			if (null != _resultObj) {
-				boolean b1 = _resultObj.getBoolean(CustomMapReduceJobPojo.appendResults_, false);
-				if (b1) {
-					b1 &= _resultObj.getBoolean(CustomMapReduceJobPojo.incrementalMode_, false);
-				}
-				return b1;
-			}
-		}
-		return false;
+	public boolean isAppendingNotReplacing() {
+		return _isCustomAppend;
 	}
 	
 	// OVERRIDING
@@ -467,7 +481,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 	
 	@Override
 	public long getDate() {
-		if (null != _overwriteTime) { // (for custom needs to be the date the harvest completed? TODO: is that true, because _id would be awesome...)
+		if (null != _overwriteTime) {
 			return _overwriteTime;
 		}
 		if (_isShare) {
@@ -487,7 +501,10 @@ public class InternalInfiniteFile extends InfiniteFile {
 
 	protected String _originalUrl = null;
 	protected boolean _isShare = false;
+	
 	protected boolean _isCustom = false;
+	protected boolean _isCustomAppend = false;
+	
 	
 	// Custom state:
 	protected ObjectId _virtualDirStartLimit = null;

@@ -16,7 +16,12 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
 
 # m h dom mon dow user  command
 
 * * * * * root	if [ -f /opt/logstash-infinite/RESTART_LOGSTASH ]; then service logstash restart && rm -f /opt/logstash-infinite/RESTART_LOGSTASH; fi
+
+*/10 * * * * root	sh /opt/logstash-infinite/scripts/remove_logstash_tmpfiles.sh
+
+#(EOL defender!)

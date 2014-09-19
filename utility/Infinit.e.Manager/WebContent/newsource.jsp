@@ -550,6 +550,7 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	StringBuffer sources = new StringBuffer();
 	sources.append("<select name=\"sourceTemplateSelect\" id=\"sourceTemplateSelect\">");
 	sources.append("<option value=\"\">------------------Select an example source or template:</option>");
+	sources.append("<option value=\"empty\">Empty Source Template</option>");
 	sources.append("<option value=\"rss\">RSS Source Example</option>");
 	sources.append("<option value=\"web\">Web Page Source Example</option>");
 	sources.append("<option value=\"json_api_simple\">Simple JSON API Example</option>");

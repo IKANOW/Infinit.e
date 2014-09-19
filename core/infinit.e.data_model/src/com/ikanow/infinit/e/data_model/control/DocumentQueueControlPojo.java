@@ -44,6 +44,19 @@ public class DocumentQueueControlPojo extends BaseApiPojo {
 	
 	// For saved query queues, need the query
 	
+	public static class SavedQueryAlertInfo {
+		private List<String> emailAddresses; // List of email addresses to which to send alerts 
+		private Integer maxDocsToInclude; // (defaults to 10, -1 means no limit) The max number of new docs to include in the alert email
+		// (later include more controls - eg descriptions, entity information etc)
+		
+		// ACCESSORS:
+		final static public String emailAddresses_ = "emailAddresses";
+		final static public String savedQuery_emailAddresses_ = "queryInfo.alert.lastRun";
+		public List<String> getEmailAddresses() { return emailAddresses; }
+		public void setEmailAddresses(List<String> emailAddresses) { this.emailAddresses = emailAddresses; }
+		public Integer getMaxDocsToInclude() { return maxDocsToInclude; }
+		public void setMaxDocsToInclude(Integer maxDocsToInclude) { this.maxDocsToInclude = maxDocsToInclude; }
+	}
 	public static class SavedQueryInfo {
 		//Either:
 		private ObjectId queryId = null;  // (tied to infinite-saved-query share)
@@ -57,6 +70,8 @@ public class DocumentQueueControlPojo extends BaseApiPojo {
 		
 		private Date lastRun = null; // (data query was last run)
 
+		private SavedQueryAlertInfo alert = null; // (alerting metadata)
+		
 		// ACCESSORS:
 		
 		final static public String queryId_ = "queryId";
@@ -71,6 +86,8 @@ public class DocumentQueueControlPojo extends BaseApiPojo {
 		final static public String savedQuery_frequencyOffset_ = "queryInfo.frequencyOffset";
 		final static public String lastRun_ = "lastRun";
 		final static public String savedQuery_lastRun_ = "queryInfo.lastRun";
+		final static public String alert_ = "alert";
+		final static public String savedQuery_alert_ = "queryInfo.alert";
 		
 		public AdvancedQueryPojo getQuery() { return query; }
 		public void setQuery(AdvancedQueryPojo query) { this.query = query; }
@@ -82,6 +99,8 @@ public class DocumentQueueControlPojo extends BaseApiPojo {
 		public void setQueryId(ObjectId queryId) { this.queryId = queryId; }
 		public DocQueueFrequency getFrequency() { return frequency; }
 		public void setFrequency(DocQueueFrequency frequency) { this.frequency = frequency; }
+		public SavedQueryAlertInfo getAlert() { return alert; }
+		public void setAlert(SavedQueryAlertInfo alert) { this.alert = alert; }
 	}
 	SavedQueryInfo queryInfo = null;
 	

@@ -14,19 +14,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
-<%@page import="javax.xml.ws.Response"%>
 <%@page import="org.apache.jasper.JasperException"%>
-<%@page import="javax.script.ScriptException"%>
-<%@page import="javax.script.ScriptEngineManager"%>
-<%@page import="javax.script.ScriptEngine"%>
 <%@page import="org.apache.commons.fileupload.util.Streams"%>
 <%@page import="org.apache.commons.fileupload.FileItemStream"%>
 <%@page import="org.apache.commons.fileupload.FileItemIterator"%>
 <%@page import="org.apache.commons.fileupload.disk.DiskFileItemFactory"%>
 <%@page import="org.apache.commons.fileupload.servlet.ServletFileUpload"%>
-<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*,java.util.zip.*;" errorPage="" %>
+<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*,java.util.zip.*" errorPage="" %>
+<%@ include file="inc/sharedFunctions.jsp" %>
 <%!
-	static String API_ROOT = null;
 	static String SHARE_ROOT = "$infinite/share/get/";
 	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = true;
@@ -37,26 +33,12 @@ limitations under the License.
 	static String jarList = null; // (generated from populatePreviousJarUploads)
 	static String inputCollectionList = null; // (generated from populateExistingTasks)
 	static String jobDependList = null; // (generated from populateExistingTasks)
-	static CookieManager cm = new CookieManager();
 	static String selectedJson = null; // If want to preserve pages across submit/refresh calls
 	static int nStatusHeight = 140; // (or 300 if something is selected)
 	static Boolean quickRun = false;
 	static Integer debugLimit = null;
 	static int nDefaultDebugLimit = 10;
 
-	static class keepAlive
-	{
-		static class ka
-		{
-			String action;
-			Boolean success;
-			String message;
-			int time;
-		
-		}
-		public ka response;
-		
-	}
 	static class personGet
 	{
 		static class resp
@@ -145,17 +127,6 @@ limitations under the License.
 		public jobRes response;
 		public jobPojo[] data;		
 	}
-	static class logIn
-	{
-		static class loginData
-		{
-			public String action;
-			public Boolean success;
-			public int time;
-			
-		}
-		public loginData response;
-	}
 	
 	static class jobActionResponse
 	{
@@ -207,152 +178,22 @@ limitations under the License.
 		
 		}
 		public shareResponse response;
-		public shareData[] data;
+		public shareData[] data;		
+	}
+	
+	public String postUrl(String addr, String query, String userarguments, String exportToHdfs, String incrementalMode, String selfMerge, HttpServletRequest request, HttpServletResponse response)
+	{
+		jobPojo postObj = new jobPojo();
+		postObj.arguments = userarguments;
+		postObj.query = query;
+		postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
+		postObj.incrementalMode = Boolean.parseBoolean(incrementalMode);
+		postObj.selfMerge = Boolean.parseBoolean(selfMerge);
 		
+		String json = postToRestfulApi(addr, new Gson().toJson(postObj), request, response);
+		
+        return json;           
 	}
-	public static void setBrowserInfiniteCookie(HttpServletResponse response,
-			String value, int nServerPort) {
-        String params = null;
-        if ((443 == nServerPort) || (8443 == nServerPort)) {
-                params="; path=/; HttpOnly; Secure";
-        }
-        else {
-                params="; path=/; HttpOnly";
-        }
-        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
-        	// (all this is needed in order to support HTTP only cookies)
-	} // TESTED
-	
-	public static String getBrowserInfiniteCookie(HttpServletRequest request)
-	{
-		Cookie[] cookieJar = request.getCookies();
-		if ( cookieJar != null)
-		{
-			for( Cookie cookie : cookieJar)
-			{
-				if (cookie.getName().equals("infinitecookie"))
-				{
-					return cookie.getValue() + ";";
-				}
-			}
-		}
-		return null;
-	}
-	
-	public static String getConnectionInfiniteCookie(URLConnection urlConnection)
-	{
-		Map<String, List<String>> headers = urlConnection.getHeaderFields();
-    	Set<Map.Entry<String, List<String>>> entrySet = headers.entrySet();
-    	
-    	for (Map.Entry<String, List<String>> entry : entrySet) 
-    	{
-            String headerName = entry.getKey();
-			if ( headerName != null && headerName.equals("Set-Cookie"))
-			{
-				List<String> headerValues = entry.getValue();
-	            for (String value : headerValues) 
-	            {
-	            	if (value.contains("infinitecookie"))
-	            	{
-	            		int equalsLoc = value.indexOf("=");
-	            		int semicolonLoc = value.indexOf(";");
-	            		return value.substring(equalsLoc+1,semicolonLoc);
-	            	}
-	            }
-			}  
-		}
-    	return null;
-	}
-	
-	public static String postUrl(String addr, String query, String userarguments, String exportToHdfs, String incrementalMode, String selfMerge, HttpServletRequest request, HttpServletResponse response)
-	{
-		String charset = "UTF-8";		
-		try
-		{
-			jobPojo postObj = new jobPojo();
-			postObj.arguments = userarguments;
-			postObj.query = query;
-			postObj.exportToHdfs = Boolean.parseBoolean(exportToHdfs);
-			postObj.incrementalMode = Boolean.parseBoolean(incrementalMode);
-			postObj.selfMerge = Boolean.parseBoolean(selfMerge);
-			
-			//if ( userarguments.equals("") )
-			//	userarguments = "null";
-			String cookieVal = getBrowserInfiniteCookie(request);
-			//CookieHandler.setDefault(cm);
-			URLConnection connection = new URL(addr).openConnection();
-			connection.setDoOutput(true);
-			connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
-			connection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
-	        connection.setRequestProperty("Accept-Charset",charset);
-	        connection.setRequestProperty("Content-Type", "application/json" + ";charset=" + charset);
-	        DataOutputStream output = new DataOutputStream(connection.getOutputStream());
-            output.write(new Gson().toJson(postObj).getBytes());
-            DataInputStream dataresponse = new DataInputStream(connection.getInputStream());
-            
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            int nRead;
-            byte[] data = new byte[16384];
-            while ((nRead = dataresponse.read(data,0,data.length)) != -1)
-            {
-                buffer.write(data,0,nRead);
-            }
-            
-            String json = buffer.toString();
-            
-            buffer.flush();
-            buffer.close();
-            output.close();
-            dataresponse.close();
-            return json;           
-		}
-		catch(IOException e)
-		{
-			return null;
-		}
-	}
-	
-	public static String stringOfUrl(String addr, HttpServletRequest request, HttpServletResponse response)
-	{
-		if(localCookie)
-			CookieHandler.setDefault(cm);
-        try
-        {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-        	URL url = new URL(addr);
-        	URLConnection urlConnection = url.openConnection();
-
-        	String cookieVal = getBrowserInfiniteCookie(request);
-        	
-        	if (cookieVal != null)
-        	{
-        		urlConnection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
-        		urlConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
-        		urlConnection.setDoInput(true);
-        		urlConnection.setDoOutput(true);
-        		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
-        	}
-        	else if (DEBUG_MODE)
-        		System.out.println("Don't Current Have a Cookie Value");
-        	IOUtils.copy(urlConnection.getInputStream(), output);
-        	String newCookie = getConnectionInfiniteCookie(urlConnection);
-        	if (newCookie != null && response != null)
-        	{
-        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-        	}
-        	
-        	if (DEBUG_MODE)
-        		System.out.println(output.toString());
-        	
-        	String toReturn = output.toString();
-        	output.close();
-        	return toReturn;
-        }
-        catch(IOException e)
-        {
-        	return null;
-        }
-    }
 	
 	private static String encrypt(String password) throws NoSuchAlgorithmException, UnsupportedEncodingException 
 	{	
@@ -362,7 +203,7 @@ limitations under the License.
 	}
 	private Boolean logMeIn(String username, String pword, HttpServletRequest request, HttpServletResponse response ) throws IOException, NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException 
     {
-		String json = stringOfUrl(API_ROOT + "auth/login/"+username+"/"+encrypt(pword), request, response);
+		String json = callRestfulApi( "auth/login/"+username+"/"+encrypt(pword), request, response);
 		logIn login = new Gson().fromJson(json, logIn.class);
 		if (login == null)
 			return false;
@@ -370,33 +211,11 @@ limitations under the License.
 		return login.response.success;
     }
 	
-	private void logOut(HttpServletRequest request, HttpServletResponse response ) throws IOException, NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException 
-    {
-		String json = stringOfUrl(API_ROOT + "auth/logout", request, response);
-		
-    }
-	
-	
-	public Boolean isLoggedIn(HttpServletRequest request, HttpServletResponse response)
-	{
-		String json = stringOfUrl(API_ROOT + "auth/keepalive", request, response);
-
-		if (json != null)
-		{
-			keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
-			return keepA.response.success;
-		}
-		else
-		{
-			return null;
-		}
-	}
-	
 	public String removeFromShare(String shareId, HttpServletRequest request, HttpServletResponse response)
 	{
 		if (shareId != null)
 		{
-			String json = stringOfUrl(API_ROOT + "social/share/remove/" + shareId + "/", request, response);
+			String json = callRestfulApi( "social/share/remove/" + shareId + "/", request, response);
 			if (json != null)
 			{
 				keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
@@ -410,7 +229,7 @@ limitations under the License.
 	{
 		if (taskId != null)
 		{
-			String json = stringOfUrl(API_ROOT + "custom/mapreduce/removejob/" + taskId +"?removeJar=" + new Boolean(removeJar).toString(), request, response);
+			String json = callRestfulApi( "custom/mapreduce/removejob/" + taskId +"?removeJar=" + new Boolean(removeJar).toString(), request, response);
 			if (json != null)
 			{
 				jobActionResponse mr = new Gson().fromJson(json, jobActionResponse.class);
@@ -437,48 +256,11 @@ limitations under the License.
 		
 		try{
 			if (prevId == null)
-				url = API_ROOT + "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			else
-				url = API_ROOT + "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			
-			if(localCookie)
-				CookieHandler.setDefault(cm);
-			URLConnection connection = new URL(url).openConnection();
-			connection.setDoOutput(true);
-	        connection.setRequestProperty("Accept-Charset",charset);
-	        String cookieVal = getBrowserInfiniteCookie(request);
-        	if (cookieVal != null)
-        	{
-        		connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
-        		connection.setDoInput(true);
-        		connection.setDoOutput(true);
-        		connection.setRequestProperty("Accept-Charset","UTF-8");
-        	}
-        	
-	        if (mimeType != null && mimeType.length() > 0)
-	        	connection.setRequestProperty("Content-Type", mimeType + ";charset=" + charset);
-	        DataOutputStream output = new DataOutputStream(connection.getOutputStream());
-            output.write(bytes);
-            DataInputStream responseStream = new DataInputStream(connection.getInputStream());
-            
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            int nRead;
-            byte[] data = new byte[16384];
-            while ((nRead = responseStream.read(data,0,data.length)) != -1)
-            {
-                buffer.write(data,0,nRead);
-            }
-            
-            String json = buffer.toString();
-            String newCookie = getConnectionInfiniteCookie(connection);
-        	if (newCookie != null && response != null)
-        	{
-        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-        	}
-            buffer.flush();
-            buffer.close();
-            output.close();
-            responseStream.close();
+			String json = postToRestfulApi(url, bytes, mimeType, request, response);
             
             jobActionResponse mr = new Gson().fromJson(json, jobActionResponse.class);
             	//(lazily use jobActionResponse, just need something with a string data)
@@ -512,7 +294,7 @@ limitations under the License.
 		try{
 			String charset = "UTF-8";
 
-			String json = stringOfUrl(API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" , request, response);
+			String json = callRestfulApi( "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" , request, response);
 			keepAlive ka = new Gson().fromJson(json, keepAlive.class);
 			if (ka != null)
 			{
@@ -580,7 +362,7 @@ limitations under the License.
 			
 			String comment = "Added by pluginManager";
 			
-			String json = stringOfUrl(API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
+			String json = callRestfulApi( "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
 			getJobs gm = new Gson().fromJson(json, getJobs.class); // (any getXXX will do, ignore the data)
 			if (gm == null)
 			{
@@ -604,7 +386,7 @@ limitations under the License.
 		try{
 			String charset = "UTF-8";
 
-			String json = stringOfUrl(API_ROOT + "person/get/", request, response);
+			String json = callRestfulApi( "person/get/", request, response);
 			personGet pg = new Gson().fromJson(json, personGet.class);
 			if (pg != null)
 			{
@@ -624,7 +406,7 @@ limitations under the License.
 		String toReturn = "";
 		String ext = null;
 		String searchCriteria = "?type=binary";
-		String json = stringOfUrl(API_ROOT + "social/share/search/" + searchCriteria, request, response);
+		String json = callRestfulApi( "social/share/search/" + searchCriteria, request, response);
 		
 		toReturn += "<option value=\"null\">Query only</option>";
 		toReturn += "<option value=\"file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar\">Javascript Prototype Engine</option>";
@@ -653,7 +435,7 @@ limitations under the License.
 		String toReturn1 = ""; // (return val, task list)
 		String toReturn2 = ""; // (bonus val, input collections)
 		String toReturn3 = ""; // (bonus bonus val, tasks with _ids)
-		String json = stringOfUrl(API_ROOT + "custom/mapreduce/getjobs", request, response);
+		String json = callRestfulApi( "custom/mapreduce/getjobs", request, response);
 		selectedJson = null;
 				
 		if (json != null)
@@ -727,9 +509,7 @@ limitations under the License.
 	{
 		String charset = "UTF-8";
 		
-		if(localCookie)
-			CookieHandler.setDefault(cm);
-		String url = API_ROOT; 
+		String url = ""; 
 		
 		if ((null != pluginId) && (pluginId.length() > 0))
 		{
@@ -791,7 +571,7 @@ limitations under the License.
 		//System.out.println("url: " + url);
 		//if (true) return false;		
 		
-		//String json = stringOfUrl(url, request, response);
+		//String json = callRestfulApi(url, request, response);
 		String json = postUrl(url,query,userarguments,exportToHdfs,incrementalMode,selfMerge,request,response);
         jobActionResponse resp = new Gson().fromJson(json, jobActionResponse.class);
              
@@ -808,54 +588,7 @@ limitations under the License.
 <%
 nStatusHeight = 140; // (default)
 
-if (API_ROOT == null)
-{
-	ServletContext context = session.getServletContext();
-	String realContextPath = context.getRealPath("/");
-	ScriptEngineManager manager = new ScriptEngineManager();
-	ScriptEngine engine = manager.getEngineByName("javascript");
-	try{ // EC2 Machines
-		FileReader reader = new FileReader(realContextPath + "/AppConstants.js");
-		engine.eval(reader);
-		reader.close();
-		engine.eval("output = getEndPointUrl();");
-		API_ROOT = (String) engine.get("output");
-	}
-	catch (Exception je)
-	{
-		try { ////////////Windows + Tomcat
-			FileReader reader = new FileReader(realContextPath + "\\..\\AppConstants.js");
-			engine.eval(reader);
-			reader.close();
-			engine.eval("output = getEndPointUrl();");
-			API_ROOT = (String) engine.get("output");
-		}catch (Exception e)
-		{
-			System.err.println(e.toString() + " , " + realContextPath + "/AppConstants.js");
-		}
-	}
-	if (null == API_ROOT) { 
-		// Default to localhost		
-		API_ROOT = "http://localhost:8080/api/";
-		//API_ROOT = "http://localhost:8184/";
-	}
-
-	if (API_ROOT.contains("localhost"))
-		localCookie=true;
-	else
-		localCookie=false;
-}
-
-
-
-Boolean isLoggedIn = isLoggedIn(request, response);
-if (isLoggedIn == null)
-{
-	out.println("The Infinit.e API cannot be reached.");
-	out.println(API_ROOT);
-}
-
-else if (isLoggedIn == true)
+if (isLoggedIn == true)
 {
 	showAll = (request.getParameter("personal") == null);
 	

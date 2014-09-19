@@ -182,4 +182,13 @@ public class PropertiesManager {
 			return s; // current values: "soft", "resident"
 		}
 	}
+	public boolean getSecureMode() {		
+		String s = this.getProperty("harvest.security");
+		if (null == s) {
+			return false;			
+		}
+		else {
+			return Boolean.parseBoolean(s);
+		}
+	}
 }

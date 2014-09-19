@@ -270,14 +270,11 @@ public class SocialUtils
 			}
 			
 			String[] communities =  communityIdStrList.split(",");
-			
-			// User's personal community included in list of communities
-			if (communityIdStrList.contains(userIdStr)) return true;
-			
-			ObjectId[] communityObjects = new ObjectId[communities.length];
+
+			HashSet<ObjectId> communityObjects = new HashSet<ObjectId>();
 			for (int i = 0; i < communities.length; i++)
 			{
-				communityObjects[i] = new ObjectId(communities[i]);
+				communityObjects.add(new ObjectId(communities[i]));
 			}
 			
 			// Get object Id for owner test
@@ -293,7 +290,7 @@ public class SocialUtils
 				//check in mongo a user is part of these groups		
 				BasicDBObject query = new BasicDBObject("_id",new BasicDBObject("$in",communityObjects) ); 
 				List<CommunityPojo> retCommunities = CommunityPojo.listFromDb(DbManager.getSocial().getCommunity().find(query), CommunityPojo.listType());
-				if ( retCommunities.size() == communities.length ) //make sure it found a group for all the id's
+				if ( retCommunities.size() == communityObjects.size() ) //make sure it found a group for all the id's
 				{
 					for (CommunityPojo cp: retCommunities)
 					{
@@ -301,8 +298,9 @@ public class SocialUtils
 						if ( !cp.getId().equals(new ObjectId(userIdStr))) //this is NOT a personal group so check we are a member
 						{
 							if (!userId.equals(cp.getOwnerId())) { // (if you're owner you can always have it)
-								if ( !cp.isMember(new ObjectId(userIdStr)) ) //if user is not a member of this group, return false
+								if ( !cp.isMember(new ObjectId(userIdStr)) ) { //if user is not a member of this group, return false
 									return false;
+								}
 							}
 						}
 					}

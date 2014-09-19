@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" 
+		  xmlns:components="components.*"
+		  width="100%" height="100%" 
+		  horizontalAlign="center" gap="5" 
+		  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<s:RichEditableText editable="false" multiline="true" maxWidth="300" >
+		<s:textFlow>
+			<s:TextFlow>
+				<s:p>
+					The Doc Viewer is a tool for viewing the document results of a query and inspecting their entities, geotags, and assocations.  More details on using the Doc Viewer can be found <s:a href="https://ikanow.jira.com/wiki/display/INFAPI/Doc+Viewer">here.</s:a>
+				</s:p>
+			</s:TextFlow>
+		</s:textFlow>
+	</s:RichEditableText>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+</s:VGroup>

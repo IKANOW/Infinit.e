@@ -267,9 +267,8 @@ public class CustomScheduleManager {
 							
 							long nowTime = now.getTime();
 
-							/**/
 							//DEBUG
-							System.out.println("Comparing: " + savedQuery.getQueryInfo().getLastRun() + " VS " + now + " @ " + freqOffset/1000L);
+							//System.out.println("Comparing: " + savedQuery.getQueryInfo().getLastRun() + " VS " + now + " @ " + freqOffset/1000L);
 							
 							if ((null == savedQuery.getQueryInfo().getLastRun()) ||
 									((nowTime - savedQuery.getQueryInfo().getLastRun().getTime()) > freqOffset))

@@ -20,7 +20,7 @@ if [ -f $BINDIR/STOP_BATCH_SYNC_FILE ] && [ -z "$1" ]; then
 fi
 
 MASTER=`curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$" | grep -o "[^-].*"`
-IS_MASTER=$(curl -s http://localhost:9200/_cluster/nodes/_local | grep -q "$MASTER" && echo "true")
+IS_MASTER=$(curl -s http://localhost:9200/_nodes/_local | grep -q "$MASTER" && echo "true")
 
 if echo $IS_MASTER  | grep -qi "true"; then
 	if [ ! -z "$MONGODB" ]; then
@@ -28,15 +28,12 @@ if echo $IS_MASTER  | grep -qi "true"; then
 		
 			# HANDLE LOCK:
 			#(first just handle the case where there is no lock set yet - set to a dummy date so will succeed)
-			mongo $MONGODB/feature --eval 'db.sync_lock.insert({_id:ObjectId("4f985f98d4eefff2ed6963dc"), "last_sync":new Date(new Date().getTime()-2*3600*1000*24)})'
-			if mongo $MONGODB/feature --eval 'db.sync_lock.findAndModify({query: {last_sync:{$lt:new Date(new Date().getTime()-3600*1000*24)}}, update: {$set:{last_sync:new Date()}}})' | grep "null"; then
+			mongo $MONGODB/feature --eval 'db.recalc_sync_lock.insert({_id:ObjectId("4f985f98d4eefff2ed6963dc"), "last_sync":new Date(new Date().getTime()-2*3600*1000*24)})'
+			if mongo $MONGODB/feature --eval 'db.recalc_sync_lock.findAndModify({query: {last_sync:{$lt:new Date(new Date().getTime()-3600*1000*24)}}, update: {$set:{last_sync:new Date()}}})' | grep "null"; then
 				echo "Database is locked, skipping"
 				exit
 			fi
 		
-			# (Harvester must be stopped)
-			# (Note all the other harvesters need to be stopped also, accomplished via cron jobs)
-			service infinite-px-engine status && exit
 			echo "Starting sync_features.sh" > $LOGDIR/sync_time.txt 
             date >> $LOGDIR/sync_time.txt
             
@@ -62,7 +59,7 @@ if echo $IS_MASTER  | grep -qi "true"; then
 			echo "Completed doc counts recalculation" >> $LOGDIR/sync_time.txt
 
             # REMOVE LOCK
-			mongo $MONGODB/feature --eval 'db.sync_lock.drop()'            
+			mongo $MONGODB/feature --eval 'db.recalc_sync_lock.drop()'            
 		fi
 	fi
 fi

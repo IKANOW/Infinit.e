@@ -109,6 +109,7 @@
 			private var _filterModifyTimer:Timer = new Timer( 300, 1 ); // (runs once after 250ms)
 			
 			private var _regexFilter:RegExp = null;
+			private var _regexFilterNegative:Boolean = false;
 			
 			[Bindable]
 			private var _regexActivateString:String = "";
@@ -201,7 +202,13 @@
 				
 				for each (var ent:Object in this.currData_entities)
 				{
-					if ( (null == _regexFilter) || _regexFilter.test( ent.disambiguated_name + " ( " + ent.type + " ) " + ent.dimension ) )
+					var regexFilterMatched:Boolean = false;
+					if (null != _regexFilter) {
+						regexFilterMatched = _regexFilter.test( ent.disambiguated_name + " ( " + ent.type + " ) " + ent.dimension );
+					}
+					if ( (null == _regexFilter) || 
+						(regexFilterMatched && !_regexFilterNegative) ||
+						(!regexFilterMatched && _regexFilterNegative))			
 					{
 						csv += csvSanitize(ent.disambiguated_name); 						
 						csv += ',' + csvSanitize(ent.type);
@@ -803,7 +810,14 @@
 				}
 				else
 				{
-					_regexFilter = new RegExp( regexFilter.text, "i" );
+					if (regexFilter.text.charAt(0) == '-') {
+						_regexFilter = new RegExp( regexFilter.text.substring(1), "i" );
+						_regexFilterNegative = true;
+					}
+					else {
+						_regexFilterNegative = false;
+						_regexFilter = new RegExp( regexFilter.text, "i" );
+					}
 					_regexActivateString = "<=";
 				}
 				if ( null != sigSlider ) // (else graph doesn't exist yet)
@@ -1056,8 +1070,11 @@
 							
 							if ( _regexFilter.test( ent2.entity.disambiguated_name + " ( " + ent2.entity.type + " ) " + ent2.entity.dimension ) )
 							{
-								j++;
+								if (!_regexFilterNegative) 
+									j++;
 							}
+							else if (_regexFilterNegative)
+								j++;
 						}
 						j = 0;
 					}
@@ -1069,6 +1086,14 @@
 						if ( null != _regexFilter )
 						{
 							if ( !_regexFilter.test( ent.entity.disambiguated_name + " ( " + ent.entity.type + " ) " + ent.entity.dimension ) )
+							{
+								if (!_regexFilterNegative) 
+								{
+									j--;
+									continue;
+								}
+							}
+							else if (_regexFilterNegative)
 							{
 								j--;
 								continue;

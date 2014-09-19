@@ -35,7 +35,8 @@
 				{
 					queryTerm = value as QueryTerm;
 					
-					expandAlias = ( queryTerm.entityOpt && queryTerm.entityOpt.expandAlias );
+					rawText = ( queryTerm.entityOpt && queryTerm.entityOpt.rawText );
+					lockDate = ( queryTerm.entityOpt && queryTerm.entityOpt.lockDate );
 					
 					invalidateDisplayList();
 				}
@@ -45,12 +46,17 @@
 			protected var queryTerm:QueryTerm;
 			
 			[Bindable]
-			protected var expandAlias:Boolean;
+			protected var rawText:Boolean;
 			
-			protected function expandAliasCheckBox_changeHandler( event:Event ):void
+			[Bindable]
+			protected var lockDate:Boolean;
+			
+			protected function rawTextCheckBox_changeHandler( event:Event ):void
 			{
-				expandAlias = !expandAlias;
-				queryTerm.entityOpt.expandAlias = !queryTerm.entityOpt.expandAlias;
+				rawText = !rawText;
+				lockDate = !lockDate;
+				queryTerm.entityOpt.rawText = !queryTerm.entityOpt.rawText;
+				queryTerm.entityOpt.lockDate = !queryTerm.entityOpt.lockDate;
 			}
 		]]>
 	</fx:Script>
@@ -76,11 +82,11 @@
 			text="{ queryTerm.displayLabel }"
 			paddingTop="2" />
 
-		<common:InfCheckBox id="expandAliasCheckBox"
+		<common:InfCheckBox id="rawTextCheckBox"
 			styleName="checkMarkDark"
-			selected="{ expandAlias }"
-			label="{ resourceManager.getString( 'infinite', 'querySettingsQueryTermItemRenderer.expandAlias' ) }"
-			change="expandAliasCheckBox_changeHandler(event)" />
+			selected="{ rawText || lockDate }"
+			label="{ resourceManager.getString( 'infinite', 'querySettingsQueryTermItemRenderer.rawText' ) }"
+			change="rawTextCheckBox_changeHandler(event)" />
 
 	</s:HGroup>
 

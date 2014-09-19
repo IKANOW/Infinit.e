@@ -258,7 +258,15 @@ function stop() {
             fi
             rm -f /var/lock/subsys/${NAME} /var/run/${NAME}.pid
         else
-            log_failure_msg
+            if [ -f "/var/run/${NAME}.pid" ]; then
+	            read kpid < /var/run/${NAME}.pid
+	            kill -9 $kpid
+	            rm -f /var/lock/subsys/${NAME} /var/run/${NAME}.pid      
+	            echo -n " (Needed to stop with extreme prejudice) "  
+	            log_success_msg
+	        else
+	        	log_failure_msg
+	        fi
         fi
     else
         log_success_msg

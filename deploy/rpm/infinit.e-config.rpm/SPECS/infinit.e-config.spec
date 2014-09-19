@@ -204,12 +204,14 @@ Infinit.e system configuration
 %dir /mnt/opt/infinite-home/config/en/opennlp
 %dir /mnt/opt/infinite-home/licenses
 %dir /mnt/opt/infinite-home/scripts
+%dir /mnt/opt/infinite-home/virtual_hosts
 %config /mnt/opt/infinite-home/config/infinite.service.properties.TEMPLATE
 %config /mnt/opt/infinite-home/config/infinite.api.properties.TEMPLATE
 %config /mnt/opt/infinite-home/config/python.cfg.TEMPLATE
 %config /mnt/opt/infinite-home/config/log4j.api.properties
 %config /mnt/opt/infinite-home/config/log4j.service.properties
 %config /mnt/opt/infinite-home/config/event_schema.xml
+%config /mnt/opt/infinite-home/config/security.policy
 %config /mnt/opt/infinite-home/licenses/ThirdPartyNotices_Appliance.pdf
 /mnt/opt/infinite-home/config/en/opennlp/tagdict
 /mnt/opt/infinite-home/config/en/opennlp/tag.bin.gz

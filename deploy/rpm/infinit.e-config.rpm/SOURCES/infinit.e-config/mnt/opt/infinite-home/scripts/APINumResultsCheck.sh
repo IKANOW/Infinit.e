@@ -7,7 +7,7 @@
 INFINITE_URL=$1
 USERNAME=$2
 USERPASS=$3
-SERVERADDR=`/sbin/ifconfig | grep -o "addr:[0-9.]*" | grep -v "127.0.0.1"`
+SERVERADDR=$(/sbin/ifconfig | grep -v  "127.0.0.1" | grep -P -m 1 -o "addr:[0-9.]+")
 
 ################################################################################
 # 
@@ -99,8 +99,9 @@ then
         echo $COUNT$' Results Received, no Email Sent'
 
 else 
+		CLUSTER=$(grep "^elastic.cluster=" /opt/infinite-install/config/infinite.configuration.properties | sed s/[^=]*=//)
         echo "from: $FROMUSER " >> /tmp/tmpEmail.txt
-        echo "subject: $SUBJECT"$"($COUNT) [$SERVERADDR]"  >> /tmp/tmpEmail.txt
+        echo "subject: $SUBJECT"$"($COUNT) [IP:${SERVERADDR} HOST:$(hostname) CLUSTER:${CLUSTER}]"  >> /tmp/tmpEmail.txt
         echo "Search Term: $WORD" >> /tmp/tmpEmail.txt
         echo "Number of Results Returned: $COUNT" >> /tmp/tmpEmail.txt
         echo "Number of Results Expected:$EXPECTEDRESULTNUM" >> /tmp/tmpEmail.txt

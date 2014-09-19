@@ -134,7 +134,16 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				_logHarvesterQ.push(testErr.toDb());
 
 				return;				
-			}//TOTEST
+			}//TESTED
+			
+			// Replacement for #LOGSTASH{host} - currently only replacement supported (+ #IKANOW{} in main code)
+			try {
+				logstashConfig = logstashConfig.replace("#LOGSTASH{host}", java.net.InetAddress.getLocalHost().getHostName());
+			}
+			catch (Exception e) {
+				logstashConfig = logstashConfig.replace("#LOGSTASH{host}", "localhost.localdomain");				
+			}
+			//TESTED
 			
 			String outputConf = _testOutputTemplate.replace("_XXX_COLLECTION_XXX_", testInfo._id.toString()); //TESTED
 			String sinceDbPath = LOGSTASH_WD + ".sincedb_" + testInfo._id.toString();
@@ -149,7 +158,7 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 				args.addAll(Arrays.asList(LOGSTASH_BINARY, "-e", conf));
 				if (0 == testInfo.maxDocs) {
 					args.add("-t"); // test mode, must faster
-				}//TOTEST
+				}//TESTED
 				
 				if ((null != testInfo.logstash.testDebugOutput) && testInfo.logstash.testDebugOutput) {
 					args.add("--debug");

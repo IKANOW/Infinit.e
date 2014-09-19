@@ -92,7 +92,7 @@ package com.ikanow.infinit.e.shared.model.vo
 		[Transient]
 		public var sourceWeights_cs:String; // the pre-formatted string
 		
-		public var scoreEntities:Boolean;
+		public var scoreEnts:Boolean;
 		
 		//======================================
 		// constructor 
@@ -114,7 +114,7 @@ package com.ikanow.infinit.e.shared.model.vo
 			enableScoring = options.enableScoring;
 			numAnalyze = options.numAnalyze;
 			adjustAggregateSig = options.adjustAggregateSig;
-			scoreEntities = options.scoreEntities;
+			scoreEnts = options.scoreEnts;
 			_relWeight = options.relWeight;
 			_sigWeight = options.sigWeight; // (use "_" to allow them both to be 0 in the case where the options are disable)
 			
@@ -233,7 +233,7 @@ package com.ikanow.infinit.e.shared.model.vo
 			enableScoring = QueryAdvancedSettingsConstants.SCORING_ENABLE;
 			numAnalyze = QueryAdvancedSettingsConstants.SCORING_NUM_ANALYZE;
 			adjustAggregateSig = QueryAdvancedSettingsConstants.SCORING_ADJUST_AGGSIG;
-			scoreEntities = QueryAdvancedSettingsConstants.SCORING_SCORE_ENTS;
+			scoreEnts = QueryAdvancedSettingsConstants.SCORING_SCORE_ENTS;
 			relWeight = QueryAdvancedSettingsConstants.SCORING_REL_WEIGHT;
 			sigWeight = QueryAdvancedSettingsConstants.SCORING_SIG_WEIGHT;
 			timeProx = new TimeProximity();

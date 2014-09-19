@@ -123,6 +123,8 @@ package com.ikanow.infinit.e.shared.model.constant
 		// default date time format
 		public static const DEFAULT_DATE_TIME_FORMAT:String = "MM/DD/YYYY";
 		
+		public static const DEFAULT_SPECIFIC_DATE_TIME_FORMAT:String = "MM/dd/yyyy HH:mm:ss";
+		
 		// default time format
 		public static const DEFAULT_TIME_FORMAT:String = "hh:mm a";
 		

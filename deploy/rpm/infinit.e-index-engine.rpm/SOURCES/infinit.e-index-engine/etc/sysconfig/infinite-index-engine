@@ -2,6 +2,8 @@
 # Environment variables for the index engine instance
 #
 
+JAVA_HOME=/usr/java/default
+
 # (These are hardwired in the init file)
 #ES_PATH_LOG=/var/log/elasticsearch
 #ES_PATH_DATA=/var/lib/elasticsearch

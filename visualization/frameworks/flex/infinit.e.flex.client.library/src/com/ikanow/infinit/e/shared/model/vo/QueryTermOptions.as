@@ -25,7 +25,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		// public properties 
 		//======================================
 		
-		public var expandAlias:Boolean;
+		public var rawText:Boolean;
+		public var lockDate:Boolean;
 		
 		
 		//======================================
@@ -38,7 +39,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			var clone:QueryTermOptions = new QueryTermOptions();
 			
-			clone.expandAlias = expandAlias;
+			clone.rawText = rawText;
+			clone.lockDate = lockDate;
 			
 			return clone;
 		}

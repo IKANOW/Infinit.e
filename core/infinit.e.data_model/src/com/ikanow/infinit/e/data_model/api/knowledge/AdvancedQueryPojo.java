@@ -47,10 +47,11 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 		public String entityValue; // (must be specified)
 		public String entityType; // (can be left unspecified)
 		
-		static public class EntityOptionPojo { // Options for "entity" types
+		static public class EntityOptionPojo { // Options for various types
 			public boolean rawText = false; // If true (!default) adds the disambiguated name and all aliases as an exact text search
 			public boolean expandAlias = false; // If true (!default), adds other actual names to the search
 			public boolean expandOntology = false; // If true (!default), adds "useful" generalizations of the entity to the search (CURRENTLY UNSUPPORTED)
+			public boolean lockDate = false; // If true (!default) locks max to now (unless not specified, then locks min to now, max to the future)
 		}
 		public EntityOptionPojo entityOpt;
 		

@@ -16,8 +16,10 @@
 package com.ikanow.infinit.e.shared.model.vo
 {
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
+	
 	import flash.events.EventDispatcher;
-	import mx.formatters.DateFormatter;
+	
+	import spark.formatters.DateTimeFormatter;
 	
 	[Bindable]
 	public class QueryTermTemporal extends EventDispatcher
@@ -37,8 +39,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			if ( min )
 			{
-				var formatter:DateFormatter = new DateFormatter();
-				formatter.formatString = Constants.DEFAULT_DATE_TIME_FORMAT;
+				var formatter:DateTimeFormatter = new DateTimeFormatter();
+				formatter.dateTimePattern = Constants.DEFAULT_SPECIFIC_DATE_TIME_FORMAT;
 				return formatter.format( min );
 			}
 			
@@ -56,8 +58,8 @@ package com.ikanow.infinit.e.shared.model.vo
 		{
 			if ( max )
 			{
-				var formatter:DateFormatter = new DateFormatter();
-				formatter.formatString = Constants.DEFAULT_DATE_TIME_FORMAT;
+				var formatter:DateTimeFormatter = new DateTimeFormatter();
+				formatter.dateTimePattern = Constants.DEFAULT_SPECIFIC_DATE_TIME_FORMAT;
 				return formatter.format( max );
 			}
 			

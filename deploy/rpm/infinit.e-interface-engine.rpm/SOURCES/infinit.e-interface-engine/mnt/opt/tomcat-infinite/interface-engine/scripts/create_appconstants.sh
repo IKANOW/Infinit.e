@@ -16,6 +16,7 @@ CONSTANTS_TEMPLATE='/opt/tomcat-infinite/interface-engine/templates/AppConstants
 CONSTANTS_CONF_LOCATION='/opt/tomcat-infinite/interface-engine/conf/AppConstants.js'
 SERVERCONF_TEMPLATE='/opt/tomcat-infinite/interface-engine/templates/server.xml.TEMPLATE'
 SERVERCONF_CONF_LOCATION='/opt/tomcat-infinite/interface-engine/conf/server.xml'
+VIRTUAL_HOSTS_LOCATION='/opt/infinite-home/virtual_hosts'
 
 ###########################################################################
 # Get properties from infinite.configuration.properties and create
@@ -97,10 +98,8 @@ else
 fi
 
 chown tomcat.tomcat $CONSTANTS_CONF_LOCATION
-
 ###########################################################################
-# Get properties from infinite.configuration.properties and create
-# AppConstants.js from AppConstants.js.TEMPLATE
+# Create tomcat server.xml file
 ###########################################################################
 cp $SERVERCONF_TEMPLATE $SERVERCONF_CONF_LOCATION
 
@@ -117,3 +116,18 @@ if [ "$LOGGING_ENABLED" = "true" ]; then
 fi 
 
 chown tomcat.tomcat $SERVERCONF_CONF_LOCATION
+
+###########################################################################
+# Update server.xml file with any virtual hosts found in /mnt/opt/infinite-home/virtual_hosts
+###########################################################################
+if [ -d "$VIRTUAL_HOSTS_LOCATION" ]; then
+	for filename in $(ls $VIRTUAL_HOSTS_LOCATION)
+	do
+	        #read in xml file, replace escape backslash
+	        HOST=$(cat $VIRTUAL_HOSTS_LOCATION/$filename | sed 's/\//\\\//g')
+	        #replace new lines with spaces, because sed can only be 1 line
+	        HOST=`echo $HOST | tr '\n' ' '`
+	        #use sed to insert xml immediately before the </Engine> tag in server.xml        
+	        sed -i "/<\/Engine>/i\\$HOST" $SERVERCONF_CONF_LOCATION
+done
+fi

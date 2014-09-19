@@ -1,0 +1,147 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN" "http://www.w3.org/TR/html4/loose.dtd">
+<html>
+<head>
+	<meta http-equiv="Content-Type" content="text/html; charset=ISO-8859-1">
+	<title>Share Editor</title>
+	<script type="text/javascript" src="AppConstants.js"></script>
+	<script type="text/javascript" src="lib/jquery.js"></script>
+	<script type="text/javascript" src="inc/utilities.js"></script>
+	<script type="text/javascript" src="inc/jsonfn.js"></script>
+	<script type="text/javascript" src="lib/codemirror.js"></script>
+   	<script type="text/javascript" src="lib/languages/javascript.js"></script>
+	<link rel="stylesheet" type="text/css" href="lib/codemirror.css" />
+    <script src="lib/codemirror_extra/dialog/dialog.js"></script>
+    <link rel="stylesheet" href="lib/codemirror_extra/dialog/dialog.css"/>
+    <script src="lib/codemirror_extra/search/searchcursor.js"></script>
+    <script src="lib/codemirror_extra/search/search.js"></script>
+<script src="lib/codemirror_extra/fold/foldcode.js"></script>
+<script src="lib/codemirror_extra/fold/brace-fold.js"></script>
+<script>
+function getSearchParameters() {
+    var param_str = window.location.search.substr(1);
+    return param_str != null && param_str != "" ? convert(param_str) : {};
+}
+
+function convert( param_str ) {
+  var params = {};
+  var prmarr = param_str.split("&");
+  for ( var i = 0; i < prmarr.length; i++) {
+      var tmparr = prmarr[i].split("=");
+      params[tmparr[0]] = tmparr[1];
+  }
+  return params;
+}
+</script>
+<style>
+.CodeMirror { border-width:1px; border-style: solid; border-color:#DBDFE6; }
+.CodeMirror-foldmarker { color: blue;
+    text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
+    font-family: arial; line-height: .3; cursor: pointer;
+  }
+</style>
+</head>
+<body>
+<!-- Begin header.jsp  -->
+	<table bgcolor="black" cellpadding="4" cellspacing="1" width="100%" >
+		<tr>
+			<td id="title" style='font-family: sans-serif; font-weight: bold; background-color : #6E7476; color : #ffffff'><span id="title_str">LOADING SHARE...</span></td>
+		</tr>
+		<tr bgcolor="white">
+			<td>
+				<table width="100%" cellpadding="0">
+					<tr>
+						<td>
+<!-- End header.jsp  -->
+<form id="shareEditForm" name="shareEditForm">
+<table cellpadding="2">
+	<tr>
+		<td>
+			<textarea cols="120" id="shareEditor" name="shareEditor" readonly="readonly"></textarea>
+		</td>
+	</tr>
+</table>
+</form>
+<!-- Begin footer.jsp  -->
+						</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+		<tr>
+			<td style='font-family: sans-serif; font-weight: bold; background-color : #E8E8E8; color : #ffffff'>&nbsp;</td>
+		</tr>
+	</table>
+<script>
+var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
+var initialJson = null;
+var sourceJsonEditor = CodeMirror.fromTextArea(document.getElementById("shareEditor"), {
+	mode: "application/json",
+	lineNumbers: true,
+	matchBrackets: true
+});
+sourceJsonEditor.setSize("1000px", "600px");
+sourceJsonEditor.on("gutterClick", foldFunc);
+
+function closeEditorWarning() {
+	if ((initialJson == null) || (initialJson == sourceJsonEditor.getValue())) {
+		return;
+	}
+	return "The share JSON has changed, closing the window will lose changes. Continue?";
+}
+
+var params = getSearchParameters();
+if (params._id) {
+	$.getJSON( "/api/share/get/" + params._id, function( data ) {
+		$("#title_str").text(data.data.title + " (NOT SAVED UNTIL YOU SUBMIT FROM THE MAIN WINDOW)");
+		try {
+			var json = JSON.parse(data.data.share);
+			var jsonArray = null;
+			var isArray = false;
+			if (!Array.isArray(json)) {
+				jsonArray = [ json ];
+			}
+			else {
+				isArray = true;
+				jsonArray = json;				
+			}
+			var converted = false;
+			var convertMap = {};
+			// look for top level $fn functions
+			for (var y in jsonArray) {
+				json = jsonArray[y];
+				for (var x in json) {
+					if (json[x]['$fn']) {
+						var f = eval('(' + json[x]['$fn'] + ')');
+						converted = true;
+						var rand = "__" + Math.random() + "__";
+						convertMap[rand] = f.toString();
+						json[x] = rand;
+					}
+				}
+			}
+			if (converted) {
+				if (isArray) {
+					json = jsonArray;
+				}
+				data.data.share = JSON.stringify(json, null, "   ");
+				for (x in convertMap) {
+					data.data.share = data.data.share.replace('"' + x + '"', convertMap[x]);					
+				}
+			}
+		}//TESTED
+		catch (e) {
+			alert("Error parsing JSON object: " + e.message)
+		}
+		sourceJsonEditor.setValue(data.data.share);
+	})
+}
+else {
+	$("#title_str").html("NEW SHARE (NOT SAVED UNTIL YOU SUBMIT FROM THE MAIN WINDOW)");
+	sourceJsonEditor.setValue("{\n}");
+}
+initialJson = sourceJsonEditor.getValue();
+
+window.onbeforeunload = closeEditorWarning;
+</script>
+</body>
+</html>

@@ -12,6 +12,7 @@ discovery:
   ec2.tag.index-node: 1 
 #ec2 only:
 cloud:	
+  aws.region: AWS_REGION
   aws.access_key: AWS_KEY
   aws.secret_key: SECRET_KEY
 bootstrap:

@@ -41,6 +41,9 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.CompressedFullTextPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.HarvestControllerPipeline;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
 import com.ikanow.infinit.e.processing.generic.aggregation.AssociationBackgroundAggregationManager;
@@ -286,10 +289,23 @@ public class MongoDocumentTxfer {
 				if (null != srcDbo) {
 					src = SourcePojo.fromDb(srcDbo, SourcePojo.class);
 					
+					if (null != src.getProcessingPipeline()) {
+						try {
+							// Set the index settings
+							HarvestController hc = new HarvestController();
+							HarvestControllerPipeline hcPipe = new HarvestControllerPipeline();
+							hcPipe.extractSource_preProcessingPipeline(src, hc);
+						}
+						catch (Exception e) {
+							//DEBUG
+							e.printStackTrace();
+						}
+					}//TESTED (by hand)
+					
 					_sourceCache.put(doc.getSourceKey(), src);
-					doc.setTempSource(src); // (needed for source index filtering)
 				}
 			}
+			doc.setTempSource(src); // (needed for source index filtering)
 			if (null != src) {
 				if (null != src.getTags()) {
 					Set<String> tagsTidied = new TreeSet<String>();
@@ -436,6 +452,31 @@ public class MongoDocumentTxfer {
 		if (indexName.startsWith("doc_")) { // Else not eligible...
 			try {
 				ObjectId communityId = new ObjectId(indexName.substring(4));
+				
+				//OK ... issue here with child communities .. you can't just rebuild the index because it will delete the parent index also
+				BasicDBObject query = new BasicDBObject("_id", communityId);
+				BasicDBObject fields = new BasicDBObject("parentId", 1);
+				fields.put("name", 1);
+				CommunityPojo community = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(query, fields), CommunityPojo.class);
+				if (null == community) {
+					System.out.println("WARNING_COMM_EXIST: community " + communityId + " does not exist, this will likely cause problems");
+					return;
+				}
+				if (null != community.getParentId()) {
+					if (null == community.getParentName()) {
+						CommunityPojo parentComm = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", community.getParentId())), CommunityPojo.class);						
+						if (null == parentComm) {
+							System.out.println("WARNING_COMM_EXIST: community " + community.getParentId() + " does not exist, this will likely cause problems");							
+						}
+						else {
+							community.setParentName(parentComm.getName());
+						}
+					}					
+					System.out.println("WARNING_CHILD_COMM: " + "commid=" + communityId + ", community" + community.getName() +  " has a parent, parent_id=" + community.getParentId() + " (name " + community.getParentName() + "). " +
+										"This community will not be rebuilt, and you should ensure that it is re-indexed if the parent community is subsequently rebuilt.");
+					return;
+				}//TESTED (by hand - works normally on non-child communities, refuses to delete child communities) 
+				
 				GenericProcessingController.recreateCommunityDocIndex_unknownFields(communityId, true);
 			}
 			catch (Exception e) { // I guess this wasn't a valid community?!

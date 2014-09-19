@@ -33,7 +33,7 @@ import com.ikanow.infinit.e.api.custom.mapreduce.CustomHandler;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
-import com.ikanow.infinit.e.api.utils.SendMail;
+import com.ikanow.infinit.e.data_model.utils.SendMail;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;

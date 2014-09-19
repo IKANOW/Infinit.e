@@ -73,9 +73,23 @@ limitations under the License.
 			
 			private var API_SERVER:String = flash.external.ExternalInterface.call("getEndPointUrl");
 			
-			private var URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json"
-			//private var URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html"  //flex.client URL
+			[Bindable]
+			private var INITIAL_URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json";
+			//private var INITIAL_URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html"  //flex.client URL
 			
+			[Bindable]
+			private var viewLive:Boolean = false;
+			[Bindable]
+			private var viewStashed:Boolean = false;
+			[Bindable]
+			private var viewRecords:Boolean = true;
+			[Bindable]
+			private var viewCustom:Boolean = false;
+			[Bindable]
+			private var viewDocs:Boolean = false;
+			[Bindable]
+			private var viewCommunityFilter:Boolean = false;
+				
 			/**
 			 * Allow users to export the widget contents in the specified format
 			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
@@ -118,7 +132,54 @@ limitations under the License.
 			 */
 			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
 			{
-				//Nothing to do
+				if ( widgetOptions != null && widgetOptions.userSave != null )
+				{
+					//TODO: can't get the page reload working, so just disable saving this for the moment
+//					if ( widgetOptions.userSave.viewStashed != null )
+//					{
+//						this.viewStashed = widgetOptions.userSave.viewStashed;
+//						//(default)
+//					}
+//					if ( widgetOptions.userSave.viewLive != null )
+//					{
+//						this.viewLive = widgetOptions.userSave.viewLive;
+//						if (this.viewLive) {
+//							this.liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+//							this.stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+//							setTimeout(reloadHomePage, 500);
+//						}
+//					}
+					if ( widgetOptions.userSave.viewCommunityFilter != null )
+					{
+						this.viewCommunityFilter = widgetOptions.userSave.viewCommunityFilter;
+						if (this.viewCommunityFilter) {
+							this.filterToggle.label = "ON";
+							this.filterToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewCustom != null )
+					{
+						this.viewCustom = widgetOptions.userSave.viewCustom;
+						if (this.viewCustom) {
+							this.customToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewDocs != null )
+					{
+						this.viewDocs = widgetOptions.userSave.viewDocs;
+						if (this.viewDocs) {
+							this.docsToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewRecords != null )
+					{
+						this.viewRecords = widgetOptions.userSave.viewRecords;
+						//(default)
+						if (!this.viewRecords) {
+							this.recordsToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));							
+						}
+					}
+				}
 			}
 			
 			/**
@@ -162,6 +223,15 @@ limitations under the License.
 			public function onSaveWidgetOptions():Object
 			{
 				var savedOptions:Object = new Object();
+				
+				//TODO: can't get the page reload working, so just disable saving this for the moment
+				//savedOptions.viewStashed = this.viewStashed;
+				//savedOptions.viewLive = this.viewLive;
+				savedOptions.viewCommunityFilter = this.viewCommunityFilter;				
+				savedOptions.viewCustom = this.viewCustom;
+				savedOptions.viewDocs = this.viewDocs;
+				savedOptions.viewRecords = this.viewRecords;
+				
 				//(nothing to do)
 				return savedOptions;
 			}
@@ -178,10 +248,14 @@ limitations under the License.
 				return null;
 			}
 			// CALLBACK
-			public function getCommunityIds():String
+			public function getCommunityIds(requestName:String):String
 			{
+				var lockCommunityFilter:Boolean = false;
+				if ((null != requestName) && (requestName.indexOf("kibana-int") > 0)) {
+					lockCommunityFilter = true;
+				}
 				try {
-					if (cidsFilter.selected)
+					if (lockCommunityFilter || this.viewCommunityFilter)
 					{
 						var query:Object = _context.getCurrentQuery();						
 						return query.communityIds;						
@@ -198,6 +272,23 @@ limitations under the License.
 				return "";
 			}
 			
+			public function getDatasetFlags():String {
+				var retVal:String = "";
+				if (!this.viewRecords) {
+					retVal += "&records=false";
+				}
+				if (this.viewCustom) {
+					retVal += "&custom=true";
+				}
+				if (this.viewDocs) {
+					retVal += "&docs=true";
+				}
+				if (!this.viewCommunityFilter) {
+					retVal += "&commFilter=false";
+				}
+				return retVal;
+			}
+			
 			/**
 			 * Method fired when module is done loading.  Sends
 			 * message to parent letting it know that module is
@@ -207,10 +298,14 @@ limitations under the License.
 			{
 				try {
 					ExternalInterface.addCallback( "getCommunityIds", getCommunityIds );
-					stashedToggleBtn.selected = true;
-					stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-					
-					filterToggle.selected = true;
+					ExternalInterface.addCallback( "getDatasetFlags", getDatasetFlags );
+					this.viewStashed = true;
+					this.viewCommunityFilter = false;
+					this.viewCustom = false;
+					this.viewRecords = true;
+					this.viewDocs = false;
+					this.recordsToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					this.stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
 				}
 				catch (e:Error) {
 					Alert.show("getCommunityIds: " + e.message);
@@ -249,39 +344,52 @@ limitations under the License.
 				//Alert.show("DONE: " + jsCall);
 			}
 			//1 for live toggle button, 0 for stashed toggle button
-			private var stashedToggle:Object = {selected:false};
-			private function switchToLiveToggle(buttonId:int){
-				stashedToggle.selected = !stashedToggle.selected; 
+			private function switchToLiveToggle(buttonId:int):void {
+			
 				if(buttonId == 1){
 					if(liveToggle.selected==true){
-						stashedToggleBtn.selected = false;
-						stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						stashedToggle.selected = false;
+						stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
 					}else if(liveToggle.selected==false){
-						stashedToggleBtn.selected = true;
-						stashedToggleBtn.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						stashedToggle.selected = true;
+						stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
 					}
 				} else if(buttonId == 0){
-					if(stashedToggleBtn.selected ==true){
+					if(stashedToggle.selected ==true){
 						liveToggle.selected= false;
 						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
-					}else if(stashedToggleBtn.selected == false){
+					}else if(stashedToggle.selected == false){
 						liveToggle.selected=true;
 						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
 					}
 				}
+				this.viewStashed = stashedToggle.selected;
+				this.viewLive = liveToggle.selected;
+
+				reloadHomePage();
+			}
+
+			private function reloadHomePage():void {
 				var divid:String = "document.getElementById(\""+jsIFrameKibana.getDivId()+"\").contentWindow";
 				var fn:String = divid+".infiniteJsConnector.setLive";
-				ExternalInterface.call(fn,stashedToggle.selected);
+				ExternalInterface.call(fn, this.viewLive);				
 			}
 			
-			private var cidsFilter:Object = {selected:false};
+			private function showDatasetToggle():void
+			{
+				this.viewDocs = this.docsToggle.selected;
+				this.viewRecords = this.recordsToggle.selected;
+				this.viewCustom = this.customToggle.selected;
+			}
+			
 			private function cidFilterToggle():void
 			{
-				cidsFilter.selected = !cidsFilter.selected;
-				if(cidsFilter.selected==true){
+				this.viewCommunityFilter = !this.viewCommunityFilter;
+				if(viewCommunityFilter){
 					filterToggle.label = "ON";
 					filterToggle.selected = true;
-				}else if(cidsFilter.selected==false){
+				}
+				else {
 					filterToggle.label = "OFF";
 					filterToggle.selected = false;
 				}
@@ -317,14 +425,27 @@ limitations under the License.
 	<!-- Header -->
 	<components:leftHeaderContent>
 		
+		<!-- Try to live without this, save some space
+		<components:WidgetHeaderLabel text="View:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+		-->
+		
 		<components:WidgetToggleButton id="liveToggle"
-									   label="View Live"
+									   label="Live"
 										toolTip="View streaming records"
+										selected="{viewLive}"
 										click="switchToLiveToggle(1);" />
 		
-		<components:WidgetToggleButton id="stashedToggleBtn"
-										label="View Saved"
+		<components:WidgetToggleButton id="stashedToggle"
+										label="Saved"
 										toolTip="View saved/demonstration record sets"
+										selected="{viewStashed}"
 										click="switchToLiveToggle(0);" />
 		
 		<components:WidgetHeaderLabel text="Community Filter:"
@@ -339,7 +460,34 @@ limitations under the License.
 		<components:WidgetToggleButton id="filterToggle"
 									   label="OFF"
 									   toolTip="Toggle community filtering"
+									   selected="{viewCommunityFilter}"
 									   click="cidFilterToggle();" />
+		
+		<components:WidgetHeaderLabel text="Show:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+
+		<components:WidgetToggleButton id="recordsToggle"
+									   label="Logs"
+									   toolTip="View (log) records"
+									   selected="{viewRecords}"
+									   click="showDatasetToggle();" />
+		<components:WidgetToggleButton id="customToggle"
+									   label="Custom"
+									   toolTip="View custom plugin results"
+									   selected="{viewCustom}"
+									   click="showDatasetToggle();" />
+		<components:WidgetToggleButton id="docsToggle"
+									   label="Docs"
+									   toolTip="View indexed documents"
+									   selected="{viewDocs}"
+									   click="showDatasetToggle();" />
+		
 	</components:leftHeaderContent>
 	
 	<components:InfiniteFlexIFrame id="jsIFrameKibana"
@@ -348,7 +496,7 @@ limitations under the License.
 								   width="100%"
 								   height="100%"
 								   overlayDetection="true"
-								   source="{URL}" />
+								   source="{INITIAL_URL}" />
 	
 	<fw:Spinner id="spinner" visible="false" horizontalCenter="0" verticalCenter="0"/>
 	

@@ -35,10 +35,13 @@ public class ElasticSearchPojos {
 	
 	public static class SourcePojo { // "_source"
 		public Boolean enabled = null;
-		public Boolean compress = null;
-		public String compression_threshold = null;
-		public SourcePojo(Boolean enabled_, Boolean compress_, String compression_threshold_) 
-			{ enabled = enabled_; compress = compress_; compression_threshold = compression_threshold_; } 
+		public String[] includes = null;
+		public String[] excludes = null;
+		public SourcePojo(Boolean enabled_) { enabled = enabled_; } 
+		public SourcePojo(Boolean enabled_, String[] includes_, String[] excludes_) 
+			{ enabled = enabled_; includes = includes_; excludes = excludes_; } 
+		public SourcePojo(Boolean enabled_, String... includes_) 
+			{ enabled = enabled_; includes = includes_; } 
 	}
 	
 	public static class AllPojo { // "_all"
@@ -234,9 +237,9 @@ public class ElasticSearchPojos {
 		}
 		
 		public static DynamicTemplateList[] generateDefaultTemplates() {
-			return generateDefaultTemplates(null);
+			return generateDefaultTemplates((DynamicTemplateList[])null);
 		}
-		public static DynamicTemplateList[] generateDefaultTemplates(DynamicTemplateList[] extra) {
+		public static DynamicTemplateList[] generateDefaultTemplates(DynamicTemplateList... extra) {
 			int nExtra = (null != extra)?extra.length:0;
 			int nBaseFields = 12;
 			DynamicTemplateList fields[] = new DynamicTemplateList[nBaseFields + nExtra];
@@ -286,8 +289,8 @@ public class ElasticSearchPojos {
 			
 			// Add user fields to mapping
 			if (0 != nExtra) {
-				for (int i = 0; i < nExtra; ++i) {
-					fields[nBaseFields + i] = extra[i];
+				for (int i = 1; i <= nExtra; ++i) {
+					fields[nBaseFields + i] = extra[i-1];
 				}
 			}
 			
@@ -296,6 +299,8 @@ public class ElasticSearchPojos {
 
 		public static class FieldGenericTemplate {
 			public String match = null;
+			public String path_match = null;
+			public String match_mapping_type = null;
 			
 			public static class Mapping {
 				public String type = null;
@@ -305,17 +310,27 @@ public class ElasticSearchPojos {
 				public Boolean include_in_all = null;
 				public Object null_value = null;
 				public String format = null; //(date only)
+				public Integer ignore_above = null;
+				public TreeMap<String, Mapping> fields;
 				
-				Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_) {
+				public Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_) {
 					type = type_; store = store_; index = index_; boost = boost_; include_in_all = include_in_all_; null_value = null_value_;
 				}
-				Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_, String format_) {
+				public Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_, String format_) {
 					type = type_; store = store_; index = index_; boost = boost_; include_in_all = include_in_all_; null_value = null_value_; format = format_;
+				}
+				public Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_, String format_, Integer ignore_above_) {
+					type = type_; store = store_; index = index_; boost = boost_; include_in_all = include_in_all_; null_value = null_value_; format = format_; ignore_above = ignore_above_;
+				}
+				public Mapping(String type_, String store_, String index_, Double boost_, Boolean include_in_all_, Object null_value_, String format_, Integer ignore_above_, TreeMap<String, Mapping> fields_) {
+					type = type_; store = store_; index = index_; boost = boost_; include_in_all = include_in_all_; null_value = null_value_; format = format_; ignore_above = ignore_above_; fields =fields_;
 				}
 			}
 			public Mapping mapping = null;
 			
 			public FieldGenericTemplate(String match_, Mapping mapping_) { match = match_; mapping = mapping_; }			
+			public FieldGenericTemplate(String match_, String pathMatch_, Mapping mapping_) { match = match_; path_match = pathMatch_; mapping = mapping_; }			
+			public FieldGenericTemplate(String match_, String pathMatch_, String matchMappingType_, Mapping mapping_) { match = match_; path_match = pathMatch_; match_mapping_type = matchMappingType_; mapping = mapping_; }			
 		}
 	}
 }

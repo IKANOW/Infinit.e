@@ -409,7 +409,7 @@ public class CommunityPojo extends BaseDbPojo
 			cmp.set_id(pp.get_id());
 			cmp.setEmail(pp.getEmail());
 			cmp.setDisplayName(pp.getDisplayName());
-			cmp.setUserType("member");
+			cmp.setUserType("content_publisher");
 			
 			if (isInvite)
 			{
@@ -541,6 +541,9 @@ public class CommunityPojo extends BaseDbPojo
 		{							
 			if ( cmp.get_id().equals(userID) )
 			{
+				//if user is now active, add a member
+				if (!cmp.getUserStatus().equals(userStatus) && userStatus.equals("active"))
+					this.setNumberOfMembers(this.getNumberOfMembers()+1);
 				cmp.setUserStatus(userStatus);
 				return true;
 			}

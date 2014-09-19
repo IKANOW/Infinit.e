@@ -27,7 +27,7 @@
 	
 	<!-- Link elasticsearch to the current highest production version -->
 	<copy todir="${basedir}/../infinit.e.elasticsearch.driver">
-	    <fileset dir="${basedir}/../infinit.e.elasticsearch.driver_0.19"/>
+	    <fileset dir="${basedir}/../infinit.e.elasticsearch.driver_1.0"/>
 	</copy>
 	    	
 	<!-- All the dir paths -->

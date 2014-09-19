@@ -16,6 +16,7 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
 
 # m h dom mon dow user  command
 
@@ -34,10 +35,8 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 # Every very-early-morning: temporal aggregation time 
 00 04	 * * *	 root	/opt/infinite-home/bin/generate_temporal_aggregations.sh
 
-# Saturday night: big resync! (takes about 30 minutes, only 1 harvester runs it but all stop - mainly managed by db.feature.sync_lock)
-30 01	 * * 7	 root	if [ ! -f /opt/infinite-home/bin/STOP_BATCH_SYNC_FILE ]; then service infinite-px-engine stop; fi
+# Saturday night: big resync! (takes about 30 minutes, only 1 node runs it - managed by db.feature.sync_lock)
 00 02    * * 7   root   if [ ! -f /opt/infinite-home/bin/STOP_BATCH_SYNC_FILE ]; then /opt/infinite-home/bin/sync_features.sh; fi
-30 02	 * * 7	 root	if [ ! -f /opt/infinite-home/bin/STOP_BATCH_SYNC_FILE ]; then service infinite-px-engine start; fi
 
 # Sunday afternoon: weekly sources report
 00 14	 * * 0	 root	 /opt/infinite-home/bin/weekly_sources_report.sh
@@ -49,3 +48,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 1 0 * * * root  /opt/infinite-home/bin/harvest_redistribute.sh false
 1 12 * * * root /opt/infinite-home/bin/harvest_redistribute.sh true
 
+#(EOL defender!)

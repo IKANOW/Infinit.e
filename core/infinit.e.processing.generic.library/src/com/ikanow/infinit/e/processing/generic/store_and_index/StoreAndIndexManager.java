@@ -149,7 +149,11 @@ public class StoreAndIndexManager {
 	 */
 	private void addToDatastore(DBCollection col, List<DocumentPojo> docs) {
 		// Store the knowledge in the feeds collection in the harvester db			
-		for ( DocumentPojo f : docs) {
+		int errors = 0;
+		Exception savedException = null;
+		Iterator<DocumentPojo> it = docs.iterator();
+		while (it.hasNext()) {
+			DocumentPojo f = it.next();
 			
 			// Set an _id before writing it to the datastore,
 			// so the same _id gets written to the index
@@ -167,9 +171,22 @@ public class StoreAndIndexManager {
 			Set<String> locs = f.getLocs();
 			f.setLocs(null);
 			
-			addToDatastore(col, f);
+			try {
+				addToDatastore(col, f);
+			}
+			catch (Exception e) {
+				errors++;
+				if ((errors > 0) || (null == e.getMessage())) {
+					savedException = e;
+				}
+				it.remove();
+				continue;
+			}
 			
 			f.setLocs(locs);
+		}
+		if (errors > 0) {
+			logger.error("addToDatastore: errors=" + errors + " 1sterror=" + savedException.getMessage());
 		}
 	}//TESTED
 
@@ -364,7 +381,11 @@ public class StoreAndIndexManager {
 			// (don't do getLastError just yet since it can block waiting for completion)
 			
 			// Quick delete for index though:
-			StringBuffer sb = new StringBuffer(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_).append(",docs_").append(communityId).append('/').append(DocumentPojoIndexMap.documentType_);
+			StringBuffer sb = new StringBuffer();
+			if (null == lessThanId) {// slower version, be slightly more thorough... 
+				sb.append(DocumentPojoIndexMap.globalDocumentIndexCollection_).append(",");
+			}
+			sb.append(DocumentPojoIndexMap.manyGeoDocumentIndexCollection_).append(",docs_").append(communityId).append('/').append(DocumentPojoIndexMap.documentType_);
 			ElasticSearchManager indexManager = IndexManager.getIndex(sb.toString());
 			BaseQueryBuilder soloOrCombinedQuery = QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey);
 			if (null != lessThanId) {

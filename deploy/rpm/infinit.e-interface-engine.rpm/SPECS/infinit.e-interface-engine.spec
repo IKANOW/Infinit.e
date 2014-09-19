@@ -168,4 +168,6 @@ Infinit.e search engine REST API
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_entity_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/random_query_generator.sh
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase1.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase2.sh
 /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.TEMPLATE

@@ -28,6 +28,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.CharArrayWriter;
 import java.io.IOException;
 import java.io.PrintWriter;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.Date;
 import java.util.Enumeration;
 import java.util.StringTokenizer;
@@ -167,13 +169,13 @@ public class CacheControlFilter implements Filter {
     	
     	int nInfiniteApiKey = -1;
     	String queryString = req.getQueryString();
+		String apiKey = null;
     	if ((null != queryString) && ((nInfiniteApiKey = queryString.indexOf("infinite_api_key=")) >= 0))
     	{
     		if ((0 == nInfiniteApiKey) || ('&' == queryString.charAt(nInfiniteApiKey - 1)) || ('?' == queryString.charAt(nInfiniteApiKey - 1)))
     		{
     			nInfiniteApiKey += 17; // (jumps over attribute size)
     			int nEndApiKey = queryString.indexOf('&', nInfiniteApiKey + 1);
-    			String apiKey = null;
     			if (nEndApiKey < 0) {
     				apiKey = queryString.substring(nInfiniteApiKey);    				
     			}
@@ -181,7 +183,12 @@ public class CacheControlFilter implements Filter {
     				apiKey = queryString.substring(nInfiniteApiKey, nEndApiKey);
     			}    			
             	ExtendedServletRequest tmpReq = new ExtendedServletRequest(req);
-            	tmpReq.setCookie("api:" + apiKey);
+            	if (apiKey.startsWith("tmp:")) { // can be a temp cookie served up from the login
+            		tmpReq.setCookie(apiKey.substring(4));            		
+            	}
+            	else { // has to be an API key
+            		tmpReq.setCookie("api:" + apiKey);
+            	}
             	request = tmpReq;
     		}
     	}//TESTED
@@ -193,6 +200,12 @@ public class CacheControlFilter implements Filter {
     	HttpServletResponse actualResponse = resp;
     	if ((null != queryString) && ((nJsonpCallback = queryString.indexOf("jsonp=")) >= 0))
     	{
+    		if (null == apiKey) { // Except for trusted hosts, can only use jsonp together with API keys
+    			if (!isHostTrusted(req)) {
+        			resp.sendError(403, "Rejected cookie-based JSONP request from untrusted host: " + req.getRemoteAddr() + " / " + req.getRequestURI());
+        			return;    				
+    			}
+    		}
     		if ((0 == nJsonpCallback) || ('&' == queryString.charAt(nJsonpCallback - 1))) {
     			nJsonpCallback += 6; // (jumps over attribute size)
     			int nEndJsonp = queryString.indexOf('&', nJsonpCallback + 1);
@@ -288,12 +301,20 @@ public class CacheControlFilter implements Filter {
 	private static boolean _loggingEnabled = false;
 	private static boolean _loggingErrorsOnly = true;
 	private static Pattern _loggingRegex = null;
+	private static String[] _trustedDnsNames = {};
 	
 	private void createSecurityPermissions() {    	
     	
 		EmbeddedRestletApp.intializeInfiniteConfig(null, _config.getServletContext());
 		
     	PropertiesManager pm = new PropertiesManager();
+    	
+    	// Trusted hosts:
+    	
+    	String trustedHosts = pm.getSaasTrustedDns();
+    	if (null != trustedHosts) {
+    		_trustedDnsNames = trustedHosts.split("\\s*,\\s*");    		
+    	}
     	
     	// Logging:
     	
@@ -335,6 +356,29 @@ public class CacheControlFilter implements Filter {
     	_bCreatedSecurityLayer = true;
     }
     
+	private boolean isHostTrusted(HttpServletRequest request) {
+		String ipAddr = request.getRemoteAddr();
+		
+		 for (String dns: _trustedDnsNames) 
+		 {
+			 InetAddress authIpAddress;
+			 try 
+			 {
+				authIpAddress = InetAddress.getByName(dns);
+			 }
+			 catch (UnknownHostException e) 
+			 {
+				continue;
+			 }
+			 if (ipAddr.equals(authIpAddress.getHostAddress())) 
+			 {
+				 return true;
+			 }
+		 } // (end loop over allowed DNS)
+		 
+		 return false;
+	}
+	
     private boolean isAccessAllowed(HttpServletRequest request) {
 
     	// Is this a local request?

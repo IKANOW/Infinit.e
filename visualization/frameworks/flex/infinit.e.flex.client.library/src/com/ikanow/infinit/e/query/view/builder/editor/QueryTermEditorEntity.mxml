@@ -67,7 +67,7 @@
 				
 				dispatchEvent( new Event( "updateQueryTerm", true ) );
 				
-				model.updateEntityQueryType();
+				model.updateEntityQueryType( simpleSearch.text );
 			}
 			
 			protected function addedToStageHandler( event:Event ):void

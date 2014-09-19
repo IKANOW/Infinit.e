@@ -1,7 +1,7 @@
 #
 # Environment variables for the search engine tomcat instance
 #
-JAVA_HOME=/usr/java/latest
+JAVA_HOME=/usr/java/default
 # For large memory systems, increase the memory available to the system
 JAVA_OPTS="$JAVA_OPTS -Xms1024m -Xmx1024m -Xmn256m" && [[ `cat /proc/meminfo | grep MemTotal | gawk '{ print $2 }' | grep -P "[0-9]{8,}"` ]] && JAVA_OPTS="$JAVA_OPTS -Xms2048m -Xmx2048m -Xmn512m"
 #(^^^ >10GB system)
@@ -15,6 +15,6 @@ CATALINA_TMPDIR=/tmp
 # Shouldn't be necessary, but appears to be:
 TOMCAT_CFG=/etc/sysconfig/tomcat6-interface-engine
 CATALINA_PID=/var/run/tomcat6-interface-engine.pid
-CATALINA_OPTS="$JAVA_OPTS -Djava.security.policy=$CATALINA_BASE/conf/catalina.policy"
+CATALINA_OPTS="$JAVA_OPTS -Djava.security.policy=$CATALINA_BASE/conf/catalina.policy -XX:OnOutOfMemoryError=/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase1.sh"
 #(Later tomcat6 scripts don't seem to work, so I've saved one which does...)
 TOMCAT_SCRIPT=/opt/tomcat-infinite/tomcat6

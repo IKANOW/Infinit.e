@@ -1,11 +1,11 @@
 #!/bin/bash
 #
-# "Usage reindex_from_db.sh --doc|--events|--entity [--rebuild] <stepsize> <saved_state>"
+# "Usage reindex_from_db.sh --doc|--assoc|--entity [--rebuild] <stepsize> <saved_state>"
 # reindexes the DB in chunks
 
 if [ $# -lt 3 ]
 then
-  echo "Usage reindex_from_db.sh --doc|--event|--entity [--rebuild] <stepsize> <saved_state>"
+  echo "Usage reindex_from_db.sh --doc|--assoc|--entity [--rebuild] <stepsize> <saved_state>"
   exit -1
 fi
 

@@ -15,7 +15,7 @@
 						if (config.url.slice(0, 4) != 'http') {
 							return config || $q.when(config);
 						}
-						var extraParams = infiniteJsConnector.getExtraUrlParams();
+						var extraParams = infiniteJsConnector.getExtraUrlParams(config.url);
 						if(extraParams != null){
 							if (null == config.params) {
 								config.params = extraParams;

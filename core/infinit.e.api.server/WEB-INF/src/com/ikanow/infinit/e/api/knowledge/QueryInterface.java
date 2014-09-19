@@ -49,7 +49,9 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryTermPojo.SentimentModifierPojo;
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+import com.mongodb.BasicDBObject;
 
 // The resource handlers for Advanced Queries in beta
 
@@ -189,6 +191,8 @@ public class QueryInterface extends ServerResource
 			cookieLookup = RESTTools.cookieLookup(_cookie);
 			
 			if (!bNotRss) { // RSS case
+				ObjectId userId = null;
+				
 				//Set the commids to whatever is given in the query to
 				_communityIdStrList = "";
 				for ( ObjectId comm : _requestDetails.communityIds )
@@ -222,13 +226,25 @@ public class QueryInterface extends ServerResource
 							mediaType = MediaType.APPLICATION_JSON;
 							return new StringRepresentation(data, mediaType);
 						}
-						cookieLookup = authuser.getProfileId().toString();
+						userId = authuser.getProfileId();
+						cookieLookup = userId.toString();
 						
 					}
 					//no other auth was used, try using the commid
 					if ( null == cookieLookup )
 					{
-						cookieLookup = _requestDetails.communityIds.get(0).toString();
+						userId = _requestDetails.communityIds.get(0);
+						cookieLookup = userId.toString();
+					}
+					// Check user still exists, leave quietly if not
+					try {
+						BasicDBObject personQuery = new BasicDBObject("_id", userId);
+						if (null == DbManager.getSocial().getPerson().findOne(personQuery)) {
+							cookieLookup = null;
+						}
+					}
+					catch (Exception e) { // unknown error, bail
+						cookieLookup = null;						
 					}
 				}
 				// end authentication for RSS
@@ -248,7 +264,7 @@ public class QueryInterface extends ServerResource
 			
 			// Fail out otherwise perform query
 			
-			if (bNotRss && (cookieLookup == null)) // (rss authentication failures handled above)
+			if (cookieLookup == null) // wrong password, or rss-user doesn't exist
 			{
 				rp = new ResponsePojo();
 				rp.setResponse(new ResponseObject("Cookie Lookup", false, "Cookie session expired or never existed, please login first"));
@@ -261,7 +277,7 @@ public class QueryInterface extends ServerResource
 					rp = _queryController.doQuery(cookieLookup, _requestDetails, _communityIdStrList, errorString);
 				else {
 					errorString.append(": Community Ids are not valid for this user");
-					 RESTTools.logRequest(this);
+					RESTTools.logRequest(this);
 				}
 				
 				if (null == rp) { // Error handling including RSS
@@ -416,6 +432,12 @@ public class QueryInterface extends ServerResource
 							qtIndex.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
 						}
 						qtIndex.entityOpt.expandAlias = Boolean.parseBoolean(value);
+					}
+					else if (attrName.equals("entityopt.lockdate")) {
+						if (null == qtIndex.entityOpt) {
+							qtIndex.entityOpt = new AdvancedQueryPojo.QueryTermPojo.EntityOptionPojo();
+						}
+						qtIndex.entityOpt.lockDate = Boolean.parseBoolean(value);
 					}
 					else if (attrName.equals("entityopt.rawtext")) {
 						if (null == qtIndex.entityOpt) {

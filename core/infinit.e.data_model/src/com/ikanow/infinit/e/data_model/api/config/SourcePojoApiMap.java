@@ -32,6 +32,7 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceFederatedQueryConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
@@ -207,7 +208,7 @@ public class SourcePojoApiMap implements BasePojoApiMap<SourcePojo> {
 		@Override
 		public SourcePojo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
 		{
-			SourcePojo source = BaseApiPojo.getDefaultBuilder().create().fromJson(json, SourcePojo.class);
+			SourcePojo source = new SourceFederatedQueryConfigPojo().extendBuilder(BaseApiPojo.getDefaultBuilder()).create().fromJson(json, SourcePojo.class);
 			if (null != _allowedCommunityIds) {
 				source.setCommunityIds(null);
 				for (ObjectId communityId: _allowedCommunityIds) {

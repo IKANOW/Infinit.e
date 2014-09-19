@@ -632,7 +632,7 @@ package com.ikanow.infinit.e.shared.util
 				}
 				
 				// set the entity options
-				if ( queryTerm.entityOpt.expandAlias )
+				if ( queryTerm.entityOpt.rawText || queryTerm.entityOpt.lockDate )
 					qo[ QueryConstants.QUERY_TERM_ENTITY_OPTIONS ] = queryTerm.entityOpt;
 				
 				queryTermObjects.push( qo );

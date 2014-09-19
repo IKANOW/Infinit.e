@@ -26,6 +26,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.Set;
 import java.util.Map.Entry;
+import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.regex.Pattern;
 
@@ -475,6 +476,12 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 				//TESTED: positive and negative filter, can't filter "obligatory fields"
 			} // (end if filter specified)
 			
+			// Convert to record format:
+			JsonObject jo = je.getAsJsonObject();
+			jo.add("message", jo.get("title"));
+			jo.add("type", jo.get("mediaType"));
+			jo.add("@timestamp", jo.get("publishedDate"));
+			
 			return je;
 		}		
 	}
@@ -490,14 +497,15 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			
 		public static class RootObject 
 		{
-			ElasticSearchPojos.SourcePojo _source = new ElasticSearchPojos.SourcePojo(false, null, null);
+			ElasticSearchPojos.SourcePojo _source = new ElasticSearchPojos.SourcePojo(true, 
+					"_id", "message", "@timestamp", "url", "sourceKey", "displayUrl", "docGeo", "type", "tags", "record.*");
 	
 			ElasticSearchPojos.AllPojo _all = new ElasticSearchPojos.AllPojo(true);
 	
 			public static class RootProperties 
 			{
 				ElasticSearchPojos.FieldStringPojo _id = new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null).excludeFromAll();
-	
+
 				// Basic metadata
 				ElasticSearchPojos.FieldStringPojo title = new ElasticSearchPojos.FieldStringPojo("yes", "analyzed", null);
 				ElasticSearchPojos.FieldStringPojo url = new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null).excludeFromAll();
@@ -531,11 +539,42 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 	
 				// User content enrichment
 				// No default mapping required, see below for dynamic template mapping
+				
+				// "Record" metadata
+				// _id
+				// title<->message
+				ElasticSearchPojos.FieldStringPojo message = new ElasticSearchPojos.FieldStringPojo("no", "no", null).excludeFromAll();
+				// type<->mediaType
+				ElasticSearchPojos.FieldStringPojo type = new ElasticSearchPojos.FieldStringPojo("no", "no", null).excludeFromAll();
+				// publishedDate<->@timestamp
+				ElasticSearchPojos.FieldDatePojo __AMP__timestamp = new ElasticSearchPojos.FieldDatePojo("yes", null, null, null).excludeFromAll();
+				// record: copied fields from metadata, will use dynamic template mapping like metadata
 			}
 			public RootProperties properties = new RootProperties();
 	
 			// Default templates for metadata:
-			public ElasticSearchPojos.DynamicTemplateList dynamic_templates[] = ElasticSearchPojos.DynamicTemplateList.generateDefaultTemplates();
+			public ElasticSearchPojos.DynamicTemplateList dynamic_templates[] = ElasticSearchPojos.DynamicTemplateList.generateDefaultTemplates(generateRecordDynamicMapping(), generateMetadataDynamicMapping());
+			
+			private static ElasticSearchPojos.DynamicTemplateList generateRecordDynamicMapping() {
+				ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping rawMapping = 
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping("string", "yes", "not_analyzed", null, null, null, null, (Integer)256);
+				TreeMap<String, ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping> fields = new TreeMap<String, ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping> ();
+				fields.put("raw", rawMapping);
+				
+				return 	new ElasticSearchPojos.DynamicTemplateList("template_record_mapping" ,
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate(null, "record.*", "string",
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping("string", "yes", "analyzed", null, null, null, null, null, fields))); 
+			}
+			private static ElasticSearchPojos.DynamicTemplateList generateMetadataDynamicMapping() {
+				ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping rawMapping = 
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping("string", "yes", "not_analyzed", null, null, null, null, (Integer)256);
+				TreeMap<String, ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping> fields = new TreeMap<String, ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping> ();
+				fields.put("raw", rawMapping);
+				
+				return 	new ElasticSearchPojos.DynamicTemplateList("template_metadata_mapping" ,
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate(null, "metadata.*", "string",
+						new ElasticSearchPojos.DynamicTemplateList.FieldGenericTemplate.Mapping("string", "yes", "analyzed", null, null, null, null, null, fields))); 
+			}
 			
 			// Turn number/date detection off for metadata:
 			public Boolean date_detection = false;

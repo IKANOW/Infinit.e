@@ -1,0 +1,7 @@
+grant {
+	// INFINIT.E CONFIGURATION
+	// Just Allow everything, use custom security manager to control
+	// custom scripts' comms with outside world. 
+	// (Note changing this to handle only specific permissions will work except for script manager) 		 
+	permission java.security.AllPermission;
+};

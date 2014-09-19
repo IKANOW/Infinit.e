@@ -1,0 +1,146 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "title": "test1",
+                        "description": "test1",
+                        "fullText": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "title": "test2",
+                        "description": "test2",
+                        "fullText": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "title": "test3",
+                        "description": "test3",
+                        "fullText": "test3",
+                        "url": "test3"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scripts": [
+                    "//write code here"
+                ],
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "display": "all of them",
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "alltest",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ]
+        },
+        {
+            "criteria": "$SETPATH(a_y,a_n)$SCRIPT( return _doc.title == \"test1\"; )",
+            "display": "test1"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test1_true",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$PATH(a_y)",
+            "display": "test1"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test1_false",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$PATH(a_n)",
+            "display": "test1"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test2_true",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$SETPATH(b_y,b_n)$SCRIPT( return _doc.title == \"test2\"; )",
+            "display": "test2"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test2_false",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$PATH(b_n)",
+            "display": "test2"
+        },
+        {
+            "criteria": "$PATH(b_y)$SETPATH(c_y,c_n)$SCRIPT( return _doc.title == \"test1\"; )",
+            "display": "test3"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test3_true",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$PATH(c_y)",
+            "display": "test2"
+        },
+        {
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "test3_false",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ],
+            "criteria": "$PATH(c_n)",
+            "display": "test2"
+        },
+        {
+            "display": "all of them (again)",
+            "contentMetadata": [
+                {
+                    "store": true,
+                    "index": false,
+                    "fieldName": "alltest2",
+                    "script": "test",
+                    "scriptlang": "regex"
+                }
+            ]
+        }        
+    ],

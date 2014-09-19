@@ -24,12 +24,15 @@ import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.Set;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import javax.script.ScriptException;
 
 import org.json.JSONException;
 
+import com.google.common.collect.HashMultimap;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelException;
@@ -37,6 +40,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorEx
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo.SourceSearchIndexFilter;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
@@ -98,11 +102,17 @@ public class HarvestControllerPipeline {
 
 	private PropertiesManager _props = null;
 	
+	// branch mapping state
+	private Pattern BRANCH_MAP_GET = Pattern.compile("\\$PATH\\(\\s*([^)\\s]+)\\s*\\)", Pattern.CASE_INSENSITIVE);
+	private Pattern BRANCH_MAP_SET = Pattern.compile("\\$SETPATH\\(\\s*([^,\\s]+)\\s*,\\s*([^)\\s]+)\\s*\\)", Pattern.CASE_INSENSITIVE);
+	private HashMultimap<String, String> _branchMappings = null;
+	
 	public void extractSource_preProcessingPipeline(SourcePojo source, HarvestController hc)
 	{
 		// Initialize some variables (since this pipeline can persist):
 		
 		intializeState();
+		StringBuffer unindexedFieldList = null;
 		
 		// Now run:
 		
@@ -113,15 +123,26 @@ public class HarvestControllerPipeline {
 			// 1] Input source, copy into src pojo
 			//(note "extractType" should be filled in anyway from SourceHandler.savedSource->SourcePojo.fillInSourcePipelineFields)
 			
+			if (null != pxPipe.criteria) {
+				Matcher m = BRANCH_MAP_SET.matcher(pxPipe.criteria);
+				if (m.find()) {
+					if (null == _branchMappings) {
+						_branchMappings = HashMultimap.create();
+					}
+					Matcher m2 = BRANCH_MAP_GET.matcher(pxPipe.criteria);
+					while (m2.find()) {
+						_branchMappings.put(m.group(1), m2.group(1));
+					}
+				}
+			}
+			//TESTED (complex_criteria_test)
+			
 			if (null != pxPipe.database) {
 				source.setUrl(pxPipe.database.getUrl());
 				source.setAuthentication(pxPipe.database.getAuthentication());
 				source.setDatabaseConfig(pxPipe.database);
 				source.setExtractType("Database"); 
 			}//TESTED (NEED to build a working test file - basic_db_test needs a DB to test against)
-			if (null != pxPipe.nosql) {
-				//TODO (INF-1963): Not yet supported
-			}
 			else if (null != pxPipe.file) {
 				source.setUrl(pxPipe.file.getUrl());
 				source.setFileConfig(pxPipe.file);
@@ -143,6 +164,9 @@ public class HarvestControllerPipeline {
 			}//TESTED (basic_web_test*.json)
 			else if (null != pxPipe.logstash) {
 				source.setExtractType("Logstash");				
+			}
+			else if (null != pxPipe.federatedQuery) {
+				source.setExtractType("Federated");
 			}
 			
 			// 2] Globals - copy across harvest control parameters, if any
@@ -214,6 +238,24 @@ public class HarvestControllerPipeline {
 			
 			if ((null != pxPipe.contentMetadata) || (null != pxPipe.text)) {
 				requiresUnstructuredAnalysis();
+				
+				// Storage settings:
+				if (null != pxPipe.contentMetadata) {
+					for (SourcePipelinePojo.MetadataSpecPojo meta: pxPipe.contentMetadata) {
+						// If don't want to index but _do_ want to store
+						if (((null != meta.index) && !meta.index) 
+								&& ((null == meta.store) || meta.store))
+						{
+							if (null == unindexedFieldList) {
+								unindexedFieldList = new StringBuffer();
+							}
+							if (unindexedFieldList.length() > 0) {
+								unindexedFieldList.append(',');
+							}
+							unindexedFieldList.append(meta.fieldName);
+						}
+					}//TESTED (storageSettings_advanced.json - note DiscardTest1 not included because !meta.store)
+				}				
 			}//TESTED (see requires* function)
 			
 			// SAH
@@ -225,13 +267,11 @@ public class HarvestControllerPipeline {
 
 			if (null != pxPipe.searchIndex) { // Handles which fields need to be index
 				source.setSearchIndexFilter(pxPipe.searchIndex);
+				//TODO (INF-2223): going to need to copy info from ents/assocs into here, some fiddly logic to worry about (see below for metad)			
 			}//TESTED (storageSettings_test)				
 			
 			if (null != pxPipe.storageSettings) {
 				requiresStructuredAnalysis();
-				//TODO (INF-2223): handle the metadata-specific settings 
-				// (maybe just create a final storage settings at the end if we haven't managed to correlate
-				//  with a pre-existing one) 
 			}//TESTED (storageSettings_test)				
 			
 			// 4] If any of the pipeline elements have criteria then need to turn sah on
@@ -241,9 +281,27 @@ public class HarvestControllerPipeline {
 			
 		}//TESTED
 
-		if (null != source.getSearchIndexFilter()) {
-			//TODO (INF-2223): going to need to copy info from md/ents/assocs into here, some fiddly logic to worry about			
-		}//
+		if (null != unindexedFieldList) {
+			if (null == source.getSearchIndexFilter()) {
+				source.setSearchIndexFilter(new SourceSearchIndexFilter());
+			}
+			if (null == source.getSearchIndexFilter().metadataFieldList) {
+				source.getSearchIndexFilter().metadataFieldList = "-" +  unindexedFieldList;
+			}//TESTED (storageSettings_advanced.json)
+			else if (source.getSearchIndexFilter().metadataFieldList.startsWith("-")) { // add our list to the -ve selections
+				if (source.getSearchIndexFilter().metadataFieldList.trim().length() > 1) { // ie not just "-"
+					source.getSearchIndexFilter().metadataFieldList = source.getSearchIndexFilter().metadataFieldList + "," +  unindexedFieldList;					
+				}//TESTED (storageSettings_advanced_2.json)
+				else {
+					source.getSearchIndexFilter().metadataFieldList = "-" +  unindexedFieldList;					
+				}//TESTED (storageSettings_advanced_2.json, adjusted by hand)
+			}
+			// (else ignore specific settings since positive selection is being used)
+			
+			//DEBUG print used for testing
+			//System.out.println("INDEX SETTINGS = " + source.getSearchIndexFilter().metadataFieldList);
+			
+		}//TESTED (storageSettings_advanced.json storageSettings_advanced_2.json)				
 		
 		// Initialize the script engines here:
 		if (null != _sah) {
@@ -339,12 +397,16 @@ public class HarvestControllerPipeline {
 		_firstTextExtractionInPipeline = false;
 	
 		long pipelineStartTime = new Date().getTime();
+
+		HashSet<String> unstoredFields = new HashSet<String>();
 		
 		int error_on_feed_count = 0, feed_count = 0;
 		LinkedList<DocumentPojo> splitterList = null;
-		for (docIt.hasNext();;) {
-
+		for (docIt.hasNext();;) {			
 			DocumentPojo doc = null;
+			HashSet<String> currentBranches = null;
+			unstoredFields.clear();
+			
 			if (!docIt.hasNext()) {
 				if ((null == splitterList) || (splitterList.isEmpty())) {
 					break;
@@ -420,13 +482,76 @@ public class HarvestControllerPipeline {
 					
 					// Run criteria for this pipeline element:
 					if ((null != pxPipe.criteria) && !pxPipe.criteria.isEmpty()) {
-						if (!pxPipe.criteria.startsWith("$SCRIPT")) {
-							pxPipe.criteria= "$SCRIPT(" + pxPipe.criteria + ")";
-						}//TESTED (basic_criteria_test)
+						// Check branches (read)
+						boolean moddedCriteria = false;
+						String newCriteria = pxPipe.criteria;
 						
-						if (!_sah.rejectDoc(pxPipe.criteria, doc, false)) {
+						Matcher m1 = this.BRANCH_MAP_GET.matcher(newCriteria);
+						boolean modCriteria = false;
+						
+						boolean branchMismatch = false;
+						while (m1.find()) {
+							modCriteria = true;
+							if ((null == currentBranches) || !currentBranches.contains(m1.group(1))) {
+								branchMismatch = true;
+								break;
+							}
+						}
+						if (branchMismatch) {
 							continue;
-						}			
+						}
+						if (modCriteria) {
+							newCriteria = m1.replaceAll("");
+							moddedCriteria = true;
+						}
+						//TESTED (complex_criteria_test)
+												
+						// Check branches (write)
+						String branchYes = null;
+						String branchNo = null;
+						Matcher m2 = BRANCH_MAP_SET.matcher(newCriteria);
+						modCriteria = false;
+						if (m2.find()) {
+							modCriteria = true;
+							branchYes = m2.group(1);
+							branchNo = m2.group(2);
+						}						
+						if (modCriteria) {
+							newCriteria = m2.replaceAll("");
+							moddedCriteria = true;
+						}
+						//TESTED (complex_criteria_test)
+						
+						if (!moddedCriteria || !newCriteria.isEmpty()) {
+							if (!newCriteria.startsWith("$SCRIPT")) {
+								newCriteria= "$SCRIPT(" + newCriteria + ")";
+							}//TESTED (basic_criteria_test)
+							
+							if ((null != branchYes) && (null == currentBranches)) {
+								currentBranches = new HashSet<String>();
+							}
+							
+							if (!_sah.rejectDoc(newCriteria, doc, false)) {
+								if (null != branchNo) {
+									currentBranches.add(branchNo);								
+									Set<String> parentBranches = this._branchMappings.get(branchNo);
+									if (null != parentBranches) {
+										currentBranches.addAll(parentBranches);
+									}
+								}
+								continue;
+							}
+							else {
+								if (null != branchYes) {
+									currentBranches.add(branchYes);								
+									Set<String> parentBranches = this._branchMappings.get(branchYes);
+									if (null != parentBranches) {
+										currentBranches.addAll(parentBranches);
+									}
+								}
+							}
+							//TESTED (complex_criteria_test)
+						}
 					}//TESTED (basic_criteria_test)
 					
 					//TODO (INF-2218): improve performance of doc serialization by only updating spec'd fields (note: need to change the js engine)
@@ -520,7 +645,7 @@ public class HarvestControllerPipeline {
 							
 							updateInterDocDelayState(doc, false);
 							
-							_uah.processMetadataChain(doc, pxPipe.contentMetadata, source.getRssConfig());
+							_uah.processMetadataChain(doc, pxPipe.contentMetadata, source.getRssConfig(), unstoredFields);
 							if (null != _sah) {
 								_sah.resetDocumentCache();				
 							}
@@ -584,7 +709,7 @@ public class HarvestControllerPipeline {
 								docIt.remove();
 								break; // (no more processing for this document)
 							}							
-							if ((null != pxPipe.storageSettings.exitPipeline) && pxPipe.storageSettings.exitPipeline) {
+							if ((null != pxPipe.storageSettings.exitPipeline) && pxPipe.storageSettings.exitPipeline) {								
 								break; // (no more processing for this document)
 							}//TESTED (basic_criteria_test)
 							
@@ -641,6 +766,14 @@ public class HarvestControllerPipeline {
 			} //TESTED (web_errors_test)
 			finally {}
 
+			if (!unstoredFields.isEmpty()) {
+				if (null != doc.getMetadata()) {
+					for (String fieldToDelete: unstoredFields) {
+						doc.getMetadata().remove(fieldToDelete);
+					}
+				}
+			} //TESTED (storageSettings_advanced.json)
+			
 		}//end loop over documents		
 		
 		// Old legacy logic to check for a source that is full of errors:
@@ -681,7 +814,6 @@ public class HarvestControllerPipeline {
 		else if (null != _uah) { 
 			// handle case where the SAH is not created but the UAH is...
 			
-			//TODO (INF-2118): Note imports bypass security if prefaced with file:// ...
 			if ((null == pxPipe.globals.scriptlang) || (pxPipe.globals.scriptlang.equalsIgnoreCase("javascript"))) {
 				
 				if (null != pxPipe.globals.scripts) {
@@ -737,6 +869,9 @@ public class HarvestControllerPipeline {
 						_uah.getRawTextFromUrlIfNeeded(doc, source.getRssConfig());
 					}
 					catch (Exception e) {
+						if (e instanceof SecurityException) { // (worthy of further logging)
+							_hc.getHarvestStatus().logMessage(e.getMessage(), true);
+						}//TESTED
 						return false;
 					}						
 					_cachedRawFullText = doc.getFullText();
@@ -927,14 +1062,13 @@ public class HarvestControllerPipeline {
 		
 		// Handle batch completion (needs to happen before docWrapper.isEmpty()==error check)
 		if (_lastDocInPipeline) {
+			//TODO (INF-2223): Entity/Assoc filter not applied in batch case (of course lots of batch things don't really work in pipelines...)
 			_hc.extractTextAndEntities(null, source, true, true); 
 		}//TESTED (featureEngine_batch_test)
 		
 		if (docWrapper.isEmpty()) { // Then this document has errored and needs to be removed
 			return false;
 		}//TESTED (featureEngine_batch_test, remove textEngine stage)
-		
-		//TODO (INF-2223) entity and assoc filter
 		
 		// Reset SAH cache for any future manual ent/assoc extraction
 		if (null != _sah) {
@@ -1132,9 +1266,14 @@ public class HarvestControllerPipeline {
 			
 			if (null != source.getRssConfig().getExtraUrls()) {
 				for (ExtraUrlPojo newDocInfo: source.getRssConfig().getExtraUrls()) {
+					if (null == doc.getSourceUrl()) { // (if sourceUrl != null, bypass it's because it's been generated by a file so is being deleted anyway)
+						if (_hc.getDuplicateManager().isDuplicate_Url(newDocInfo.url, source, null)) {
+							continue;
+						}
+					}					
 					DocumentPojo newDoc = new DocumentPojo();
-					newDoc.setCreated(new Date());
-					newDoc.setModified(newDoc.getCreated());
+					newDoc.setCreated(doc.getCreated());
+					newDoc.setModified(doc.getModified());
 					newDoc.setUrl(newDocInfo.url);
 					newDoc.setTitle(newDocInfo.title);
 					newDoc.setDescription(newDocInfo.description);
@@ -1158,6 +1297,7 @@ public class HarvestControllerPipeline {
 					newDoc.setSourceUrl(doc.getSourceUrl()); // (otherwise won't be able to delete child docs that come from a file)
 					newDoc.setCommunityId(doc.getCommunityId());
 					newDoc.setDocGeo(doc.getDocGeo());
+					newDoc.setIndex(doc.getIndex());
 					
 					newDoc.setSpawnedFrom(splitter);
 					docs.add(newDoc);

@@ -135,6 +135,7 @@
 			private var _filterModifyTimer:Timer = new Timer( 300, 1 ); // (runs once after 250ms)
 			
 			private var _regexFilter:RegExp = null;
+			private var _regexFilterNegative:Boolean = false;
 			
 			private var hasFilter:Boolean = false;
 			
@@ -900,7 +901,14 @@
 				}
 				else
 				{
-					_regexFilter = new RegExp( regexFilter.text, "i" );
+					if (regexFilter.text.charAt(0) == '-') {
+						_regexFilter = new RegExp( regexFilter.text.substring(1), "i" );
+						_regexFilterNegative = true;
+					}
+					else {
+						_regexFilterNegative = false;
+						_regexFilter = new RegExp( regexFilter.text, "i" );
+					}
 				}
 				this.changeGraphSelection(); //cause graph to redraw
 			}
@@ -987,7 +995,8 @@
 						var s4:Array = event.geo_index.split( "/" );
 						eventTest += s4[ 0 ] + " " + s4[ 1 ] + " ";
 					}
-					return _regexFilter.test( eventTest );
+					var matched:Boolean = _regexFilter.test( eventTest );
+					return (matched && !_regexFilterNegative) || (!matched && _regexFilterNegative);
 				}
 				return true;
 			}

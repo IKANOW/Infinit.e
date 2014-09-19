@@ -44,6 +44,17 @@ s|DataGrid
 	fontFamily : infiniteDefaultFont;
 }
 
+mx|DateChooser
+{
+	color: #4c4c4c;
+	fontFamily: infiniteNonCFFFont;
+}
+
+.calendarButton
+{
+	skinClass: ClassReference("assets.skins.CalendarButtonSkin");
+}
+
 mx|DateField
 {
 	color: #4c4c4c;

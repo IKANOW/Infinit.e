@@ -15,6 +15,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -22,14 +23,6 @@ import com.mongodb.DBObject;
 
 public class CacheUtils 
 {
-	
-	public static class JavascriptSecurityManager {
-
-		public void setJavascriptFlag(boolean b) {
-			//(just so it compiles)
-		}
-		//(port this across later)
-	}
 	
 	/**
 	 * Creates a default map of caches and then tries to grab a share for each id given and create a 
@@ -42,7 +35,7 @@ public class CacheUtils
 	 * @throws ScriptException
 	 * @throws JSONException 
 	 */	
-	public static void addJSONCachesToEngine(BasicDBList caches, ScriptEngine engine, JavascriptSecurityManager secManager, boolean debugMode) throws ScriptException, JSONException 
+	public static void addJSONCachesToEngine(BasicDBList caches, ScriptEngine engine, IkanowSecurityManager secManager, boolean debugMode) throws ScriptException, JSONException 
 	{
 		if ( null != engine )
 		{
@@ -101,7 +94,7 @@ public class CacheUtils
 	 * Code for managing larger caches (represented as custom objects)
 	 */
 
-	public static synchronized boolean createCustomCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String jobNameOrShareId) {
+	public static synchronized boolean createCustomCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String jobNameOrShareId) {
 		try {
 			if (null == _customCache) {
 				_customCache = new HashMap<String, CustomCacheInJavascript>();
@@ -199,7 +192,7 @@ public class CacheUtils
 	/**
 	 * Code for managing larger caches (represented as communities)
 	 */
-	public static synchronized void createSourceCache(ScriptEngine engine, JavascriptSecurityManager secManager, String jobAlias, String sourceKeyOrId, boolean testMode)
+	public static synchronized void createSourceCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String sourceKeyOrId, boolean testMode)
 	{
 		try {
 			if (null == _customCache) {
@@ -298,7 +291,7 @@ public class CacheUtils
 			_cacheCollection = cacheCollection;
 			_keyField = keyField;
 		}
-		public synchronized Object get(String key, ScriptEngine engine, JavascriptSecurityManager secManager) {
+		public synchronized Object get(String key, ScriptEngine engine, IkanowSecurityManager secManager) {
 			Object returnVal = _cacheElement.get(key);
 			
 			if (returnVal instanceof Integer) {
@@ -316,7 +309,7 @@ public class CacheUtils
 			else { // not present lookup
 				BasicDBObject dbo = null;
 				if (null != secManager) {
-					secManager.setJavascriptFlag(false); // (ie _unset_ so I can perform a lookup)
+					secManager.setSecureFlag(false); // (ie _unset_ so I can perform a lookup)
 				}//TESTED
 				try {
 					BasicDBObject query  = null;
@@ -370,7 +363,7 @@ public class CacheUtils
 				//catch (Exception e) { e.printStackTrace(); return null; }
 				finally {
 					if (null != secManager) {
-						secManager.setJavascriptFlag(true); // (reset)
+						secManager.setSecureFlag(true); // (reset)
 					}
 				}//TESTED
 			}
@@ -382,8 +375,8 @@ public class CacheUtils
 	public static class CustomCacheInJavascriptWrapper {
 		CustomCacheInJavascript _cache;
 		ScriptEngine _engine;
-		JavascriptSecurityManager _secManager;
-		CustomCacheInJavascriptWrapper(CustomCacheInJavascript cache, ScriptEngine engine, JavascriptSecurityManager secManager) {
+		IkanowSecurityManager _secManager;
+		CustomCacheInJavascriptWrapper(CustomCacheInJavascript cache, ScriptEngine engine, IkanowSecurityManager secManager) {
 			_cache = cache;
 			_engine = engine;
 			_secManager = secManager;

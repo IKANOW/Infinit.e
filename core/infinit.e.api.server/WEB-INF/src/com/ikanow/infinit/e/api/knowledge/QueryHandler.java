@@ -23,6 +23,7 @@ import java.util.Calendar;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -56,6 +57,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasManager;
+import com.ikanow.infinit.e.api.knowledge.federated.FederatedQueryInMemoryCache;
+import com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine;
 import com.ikanow.infinit.e.api.knowledge.processing.AggregationUtils;
 import com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
@@ -74,6 +77,7 @@ import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.index.document.DocumentPojoIndexMap;
 import com.ikanow.infinit.e.data_model.interfaces.query.IQueryExtension;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceFederatedQueryConfigPojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -123,6 +127,13 @@ public class QueryHandler {
 	private static com.ikanow.infinit.e.data_model.utils.PropertiesManager _dataModelProps = null;
 	private static String _aggregationAccuracy = "full";
 	private static ArrayList<Class<IQueryExtension>> _queryExtensions = null;
+	
+	// Built in query extension: federated query engine
+	private SimpleFederatedQueryEngine _builtInFederatedQueryEngine = null; // (note: _not_ static)
+	private static HashMap<String, FederatedQueryInMemoryCache> _federatedQueryCache = new HashMap<String, FederatedQueryInMemoryCache>();
+	static void setFederatedQueryCache(HashMap<String, FederatedQueryInMemoryCache> newCache) {
+		_federatedQueryCache = newCache;
+	}
 	
 	private AdvancedQueryPojo.QueryScorePojo _scoringParams;
 		// (need this here so we can set the adjust param for complex queries)
@@ -391,12 +402,64 @@ public class QueryHandler {
 			}
 		}//TESTED (see test.QueryExtensionsTestCode)
 		
+		// Built-in federated query engine ...
+		if (null != _federatedQueryCache) {
+			// 2 modes:
+			// 1) If srcInclude is true(default) then check each source vs the table
+			// 2) If srcInclude is false, or no sources specified, then check each community vs the table
+			
+			// 1: 
+			if ((null != query.input) && (null != query.input.sources) && ((null == query.input.srcInclude) || query.input.srcInclude))
+			{
+				for (String srcKey: query.input.sources) {
+					FederatedQueryInMemoryCache fedQueryCacheEl = _federatedQueryCache.get(srcKey);
+					if (null != fedQueryCacheEl) {
+						if (null == this._builtInFederatedQueryEngine) {
+							_builtInFederatedQueryEngine = new SimpleFederatedQueryEngine();
+						}
+						_builtInFederatedQueryEngine.addEndpoint(fedQueryCacheEl.source);
+					}
+				}
+			}//TESTED (//TESTED (http://localhost:8184/knowledge/document/query/53ab42a2e4b04bcfe2de4387?qt[0].entity=%22garyhart.com/externaldomain%22&output.docs.numReturn=10&input.sources=inf...federated.externaldomain.&input.srcInclude=true))
+			
+			// 2:
+			else { //Get federated queries from communities
+				HashSet<String> excludeSrcs = null;
+				for (String commIdStr: communityIdStrs) {
+					FederatedQueryInMemoryCache fedQueryCacheEl = _federatedQueryCache.get(commIdStr);
+					if (null != fedQueryCacheEl) {
+						
+						if ((null != query.input) && (null != query.input.sources)) { // (there are exclude sources)
+							if (null == excludeSrcs) {
+								excludeSrcs = new HashSet<String>(query.input.sources);
+							}
+						}//TESTED (http://localhost:8184/knowledge/document/query/53ab42a2e4b04bcfe2de4387?qt[0].entity=%22garyhart.com/externaldomain%22&output.docs.numReturn=10&input.sources=inf...federated.externaldomain.&input.srcInclude=false)
+						
+						for (Map.Entry<String, SourceFederatedQueryConfigPojo> fedQueryKV: fedQueryCacheEl.sources.entrySet()) {
+							if ((null == excludeSrcs) || !excludeSrcs.contains(fedQueryKV.getKey())) {
+								if (null == this._builtInFederatedQueryEngine) {
+									_builtInFederatedQueryEngine = new SimpleFederatedQueryEngine();
+								}
+								_builtInFederatedQueryEngine.addEndpoint(fedQueryKV.getValue());
+							}
+						}
+					}
+				}//TESTED (by hand)
+			}
+			if (null != _builtInFederatedQueryEngine) {
+				_builtInFederatedQueryEngine.preQueryActivities(queryId, query, communityIdStrs);
+			}
+		}		
+		
 		// 0.6.2: the main query
 		if ((null != query.explain) && query.explain) { // (for diagnostic - will return lucene explanation)
 			searchSettings.setExplain(true);
 		}
 		
 		SearchResponse queryResults = null;
+
+		// (_source can now be enabled, so this is necessary to avoid returning it)
+		searchSettings.addFields();
 		if ((null != query.raw) && (null != query.raw.query)) 
 		{
 			// (Can bypass all other settings)				
@@ -581,6 +644,11 @@ public class QueryHandler {
 				queryExtension.postQueryActivities(queryId, docs, rp);
 			}
 		}//TESTED (see test.QueryExtensionsTestCode)
+		
+		// (Built-in version)
+		if (null != _builtInFederatedQueryEngine) {
+			_builtInFederatedQueryEngine.postQueryActivities(queryId, docs, rp);
+		}
 		
 		// 0.9.5] Timing/logging
 		
@@ -784,6 +852,7 @@ public class QueryHandler {
 				StringBuffer sQueryElements[] = new StringBuffer[nQueryElements];
 				for (int i = 0; i < nQueryElements; ++i) {
 					_extraFullTextTerms = null;	
+					
 					queryElements[i] = this.parseQueryTerm(query.qt.get(i), (sQueryElements[i] = new StringBuffer()));
 					
 					// Extra full text terms generated by aliasing:
@@ -1201,7 +1270,7 @@ public class QueryHandler {
 			}
 			sQueryTerm.append('(');			
 			
-			BaseQueryBuilder termQ = this.parseDateTerm(qt.time, sQueryTerm);
+			BaseQueryBuilder termQ = this.parseDateTerm(qt.time, sQueryTerm, (null != qt.entityOpt) && qt.entityOpt.lockDate);
 			
 			if (null == term) {
 				term = termQ;
@@ -1551,16 +1620,16 @@ public class QueryHandler {
 	
 	private long _nNow = 0;
 	
-	BaseQueryBuilder parseDateTerm(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, StringBuffer sQueryTerm)
+	BaseQueryBuilder parseDateTerm(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, StringBuffer sQueryTerm, boolean lockMaxToNow)
 	{
-		return parseDateTerm(time, sQueryTerm, DocumentPojo.publishedDate_);
+		return parseDateTerm(time, sQueryTerm, DocumentPojo.publishedDate_, lockMaxToNow);
 	}
-	private BaseQueryBuilder parseDateTerm(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, StringBuffer sQueryTerm, String sFieldName)
+	private BaseQueryBuilder parseDateTerm(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, StringBuffer sQueryTerm, String sFieldName, boolean lockMaxToNow)
 	{
 		BaseQueryBuilder termQ = null;
 		long nMinTime = 0L; 
 		long nMaxTime = _nNow;
-		Interval interval = parseMinMaxDates(time, nMinTime, nMaxTime);
+		Interval interval = parseMinMaxDates(time, nMinTime, nMaxTime, lockMaxToNow);
 		nMinTime = interval.getStartMillis();
 		nMaxTime = interval.getEndMillis();
 		
@@ -1601,7 +1670,7 @@ public class QueryHandler {
 	
 	// 1.2.2.1] Even lower level date parsing
 	
-	public static Interval parseMinMaxDates(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, long nMinTime, long nMaxTime) {
+	public static Interval parseMinMaxDates(AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time, long nMinTime, long nMaxTime, boolean lockMaxToNow) {
 		
 		if ((null != time.min) && (time.min.length() > 0)) {
 			if (time.min.equals("now")) { 
@@ -1691,6 +1760,26 @@ public class QueryHandler {
 				}
 			}				
 		} //TESTED (logic5)
+
+		
+		if (lockMaxToNow) {
+			if ((null == time.max) || time.max.isEmpty()) {
+				nMinTime = new Date().getTime();
+				nMaxTime = Long.MAX_VALUE;
+			}
+			else { // set max to now
+				long now = new Date().getTime();
+				if ((null != time.min) && !time.min.isEmpty()) { // set min also
+					nMinTime = nMinTime + (now - nMaxTime);
+				}
+				nMaxTime = now;
+			}
+		}//TESTED (by hand)
+		if (nMinTime > nMaxTime) { //swap these round if not ordered correctly
+			long tmp = nMinTime;
+			nMinTime = nMaxTime;
+			nMaxTime = tmp;
+		}//TESTED (by hand)
 		
 		return new Interval(nMinTime, nMaxTime);		
 	}
@@ -1937,9 +2026,9 @@ public class QueryHandler {
 			// (Note time_start and time_end don't exist inside the document object)
 			StringBuffer sbDummy = new StringBuffer();
 			BoolQueryBuilder combo2 = QueryBuilders.boolQuery();
-			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_start_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_start_, false));
 			sQueryTerm.append(") OR/CONTAINS (");
-			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_end_));
+			combo2.should(this.parseDateTerm(assoc.time, sQueryTerm, AssociationPojo.docQuery_time_end_, false));
 			// (complex bit, start must be < and end must be >)
 			BoolQueryBuilder combo3 = QueryBuilders.boolQuery();
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo event1 = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
@@ -1949,8 +2038,8 @@ public class QueryHandler {
 			event1.max = assoc.time.min; 
 			event2.min = assoc.time.max; 
 			event2.max = "99990101"; // (ie the end of time, sort of!)
-			combo3.must(this.parseDateTerm(event1, sbDummy, AssociationPojo.docQuery_time_start_)); // ie start time earlier than query
-			combo3.must(this.parseDateTerm(event2, sbDummy, AssociationPojo.docQuery_time_end_)); // AND end time later than query
+			combo3.must(this.parseDateTerm(event1, sbDummy, AssociationPojo.docQuery_time_start_, false)); // ie start time earlier than query
+			combo3.must(this.parseDateTerm(event2, sbDummy, AssociationPojo.docQuery_time_end_, false)); // AND end time later than query
 			
 			query.must(combo2.should(combo3));
 			

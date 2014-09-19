@@ -34,6 +34,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojoSubstitutionDbMap;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
@@ -306,9 +307,10 @@ public class SourceUtils {
 			BasicDBObject modify = new BasicDBObject(MongoDbManager.set_, modifyClause);
 			
 			try {
-				BasicDBObject dbo = (BasicDBObject) DbManager.getIngest().getSource().findAndModify(query, modify);
+				BasicDBObject fields = new BasicDBObject(SourcePojo.templateProcessingFlow_, 0);
+				BasicDBObject dbo = (BasicDBObject) DbManager.getIngest().getSource().findAndModify(query, fields, null, false, modify, false, false);
 				if (null != dbo) {
-					SourcePojo fullSource = SourcePojo.fromDb(dbo, SourcePojo.class);
+					SourcePojo fullSource = SourcePojo.fromDb(dbo, SourcePojo.class, new SourcePojoSubstitutionDbMap());
 					nextSetToProcess.add(fullSource);
 					nNumSourcesGot++;
 					

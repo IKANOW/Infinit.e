@@ -99,6 +99,7 @@ start()
 				return 0;
 			fi
 		done
+		#(end loop over finding configdb servers)
 		
 		sleep_count=0
 		while [ "$(infdb all_configs_running)" != true ]; do
@@ -110,6 +111,7 @@ start()
 				return 0;
 			fi
 		done
+		#(end while waiting for config db servers to start)
 		
 		## Every DB Data location will have it's own MongoS found on port 27017
 		runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
@@ -127,7 +129,7 @@ start()
 	echo "This server is a member of $num_repls Replica Sets"
 
 	for x in $repl_sets
-		do
+	do
 			port=$((27017+$x))
 			echo "Starting DB on Port $port"
 			already_running=$(ps -ef | grep mongo | awk "/port $port/" | wc -l)
@@ -157,157 +159,168 @@ start()
 						
 						sleep_count=$(($sleep_count+1))
 						if [ $sleep_count -gt 30 ]; then
-							echo "Ten minutes has passed and we could not connect to mongoS...exiting"
+							echo "Ten minutes have passed and we could not connect to mongoS...exiting"
 							return 0;
 						fi
 					done
 				fi
 					
-					
-					
-					if [ $num_members -ge 1 ]; then	
-							#create configuration
-							config="{_id: \"replica_set$x\", members: ["
+				if [ $num_members -ge 1 ]; then	
+						#create configuration
+						config="{_id: \"replica_set$x\", members: ["
 
-							id=0
-							for member in $members
-								do
-									config=$(echo "$config{_id: $id, host: \"$member:$port\"}")
-									if [ "$(infdb mongo_running $port $member 2>&1)" != "true" ]; then
-										wait="true"
-									fi
-									id=$(($id+1))
-									if [ $id -lt $num_members ]; then
-										config=$(echo "$config,")
-									fi
-								done
-
-							#If even number of members, add an arbiter
-							if [ $(($num_members % 2)) -eq 0 ]; then
-								#See if an arbiter has already been started
-								arbExists="false"
-								arbport=$((27217+$x))
-								for member in $members
-								do
-									if [ "$(infdb mongo_running $arbport $member 2>&1)" == "true" ]; then
-										arbExists=$member
-									fi
-								done
-								
-								#if an arbiter does not yet exist, start it.
-								if [ "$(echo $arbExists)" == "false" ]; then
-									config=$(echo "$config ,{_id: $id, host: \"$(infdb my_ip):$arbport\", arbiterOnly: true}")
-									mkdir -p /data/arbiter$x
-									chown -R mongod.mongod /data/
-									
-									echo "Starting Arbiter on Port $arbport"
-									runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.arbiter.rs$x.log --port $arbport --logappend --nojournal --dbpath /data/arbiter$x --fork --oplogSize 1" >/dev/null
-									
-									#wait for arbiter to come up before continuing
-									echo "Waiting for arbiter to come online"
-									while [ "$(infdb mongo_running $arbport $(infdb my_ip) 2>&1)" != "true" ]; do
-									 sleep 1
-									done
-								fi
+						id=0
+						for member in $members
+						do
+							config=$(echo "$config{_id: $id, host: \"$member:$port\"}")
+							if [ "$(infdb mongo_running $port $member 2>&1)" != "true" ]; then
+								wait="true"
 							fi
-							sleep_count=0
-							while [ "$(echo $wait)" == "true" ]; do
-								echo "Must wait for all members to come up...waiting"
-								sleep 15
-								wait="false"
-								for member in $members
+							id=$(($id+1))
+							if [ $id -lt $num_members ]; then
+								config=$(echo "$config,")
+							fi
+						done
+
+						#If even number of members, add an arbiter
+						#(NOTE THIS IS A TEMP SITUATION - ONCE THE SHARD IS UP THEN THE CONFIG DB SERVERS WILL
+						# SPOT THE NEW SHARD AND CREATE AN ODD SET TO REPLACE THIS TEMP ONE)
+						if [ $(($num_members % 2)) -eq 0 ]; then
+							#See if an arbiter has already been started
+							#(there's a slight race condition here but it's probably workable, worst case there's a spurious arbiter running)
+							arbExists="false"
+							arbport=$((27217+$x))
+							for member in $members
+							do
+								if [ "$(infdb mongo_running $arbport $member 2>&1)" == "true" ]; then
+									arbExists=$member
+									echo "Found arbiter at $member"
+									break;
+								fi
+							done
+							if [ "$(echo $arbExists)" == "false" ]; then
+								cfgarbport=$((26217+$x))
+								for member in $config_ips
 								do
-									if [ "$(infdb mongo_running $port $member 2>&1 )" != "true" ]; then
-										echo "waiting on $member:$port"
-										wait="true"
+									if [ "$(infdb mongo_running $cfgarbport $member 2>&1)" == "true" ]; then
+										arbExists=$member
+										echo "Found config arbiter at $member"
+									fi																
+								done
+							fi
+							
+							#if an arbiter does not yet exist, start it.
+							if [ "$(echo $arbExists)" == "false" ]; then
+								config=$(echo "$config ,{_id: $id, host: \"$(infdb my_ip):$arbport\", arbiterOnly: true}")
+								mkdir -p /data/arbiter$x
+								chown -R mongod.mongod /data/
+								
+								echo "Starting Arbiter on Port $arbport"
+								runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongod --replSet replica_set$x --logpath /var/log/mongo/mongod.arbiter.rs$x.log --port $arbport --logappend --nojournal --dbpath /data/arbiter$x --fork --oplogSize 1" >/dev/null
+								
+								#wait for arbiter to come up before continuing
+								echo "Waiting for arbiter to come online"
+								sleep_count=0
+								while [ "$(infdb mongo_running $arbport $(infdb my_ip) 2>&1)" != "true" ]; do
+									sleep 1
+									sleep_count=$(($sleep_count+1))
+									if [ $sleep_count -gt 120 ]; then
+										echo "2 minutes have passed and we could not connect to the arbiter we just created...exiting"
+										return 0;
 									fi
 								done
-								
-								sleep_count=$(($sleep_count+1))
-								if [ $sleep_count -gt 80 ]; then
-									echo "20 minutes has passed and we could not connect to the member...exiting"
-									return 0;
+							fi
+						fi
+						#(end if even number of members)
+						
+						sleep_count=0
+						while [ "$(echo $wait)" == "true" ]; do
+							echo "Must wait for all members to come up...waiting"
+							sleep 15
+							wait="false"
+							for member in $members
+							do
+								if [ "$(infdb mongo_running $port $member 2>&1 )" != "true" ]; then
+									echo "waiting on $member:$port"
+									wait="true"
 								fi
-								
-								
 							done
+							
+							sleep_count=$(($sleep_count+1))
+							if [ $sleep_count -gt 80 ]; then
+								echo "20 minutes have passed and we could not connect to the member...exiting"
+								return 0;
+							fi
+						done
+						#(end waiting for all members -not arbiters- to come up)
 
-							echo "Initiating the Replica Set (This may take quite some time)"
-							if [[ "$(echo $arbExists)" == "" || "$(echo $arbExists)" == "false" ]]; then
-								config=$(echo "$config ]}")
-								#echo $config
-								reply=$(mongo <<EOF --port $port
+						echo "Initiating the Replica Set (This may take quite some time)"
+						config=$(echo "$config ]}")
+						reply=$(mongo <<EOF --port $port
 use admin
 rs.initiate($config);
 exit
 EOF
 )
-							## A value greater than 0 here could be this has been initialized before
-							err_count=$(echo $reply | grep errmsg | wc -l)
-							while [ $err_count -gt 0 ]; do
-							
-								if [ $(echo $reply | grep initialized | wc -l) ]; then
-									echo "This DB has been Initialized before"
-								else
-									echo "Initialization did not complete successfully: $reply"
-								fi
-								
-								rs_master=$(infdb master_of_set $x)
-								if [ $(echo $rs_master | grep '[0-9]\+\.[0-9]\+\.[0-9]\+\.[0-9]\+\:[0-9]\+' | wc -l) -gt 0 ]; then
-									echo "Replica Set is Currently running. Master: $rs_master"
-									echo "Attempting to reconfigure..."
-									recon=$(mongo $rs_master << EOF
+						## A value greater than 0 here could be this has been initialized before
+						err_count=$(echo $reply | grep errmsg | wc -l)
+
+						if [ $err_count -gt 0 ]; then
+							echo "Replica set has been previously initialized (master=$rs_master), just ensure I'm a member ($this_ip:$port)"
+							rs_master=$(infdb master_of_set $x)
+							recon=$(mongo $rs_master << EOF
 use admin
-rs.reconfig($config)
+rs.add("$this_ip:$port")
 exit
 EOF
 )
-									echo $recon
-									
-									err_count=$(echo $recon | grep errmsg | wc -l)
-									if [ $err_count -gt 0 ]; then
-										echo $recon
-									fi
-									
-								else
-									echo "Master was not found...Will Try again in 5s"
-									sleep 5
-								fi
-							done
-													
-								#wait one minute for configuration to come online
-								echo "Waiting 1 minute for configuration to come online"
-								sleep 60
-								
-								if [ "$(infdb is_mongos)" == "true" ]; then 
-									echo "Adding Shard (will error if shard as already been added successfully)"							
-									#connect to a mongoS instance and inform it of the shard
-									mongo <<EOF
+																																												
+							if [[ "$(echo $arbExists)" == "false" ]]; then
+								echo "Also add the arbiter I just created ($this_ip:$arbport)"
+								recon=$(mongo $rs_master << EOF
+use admin
+rs.addArb("$this_ip:$arbport")
+exit
+EOF
+)
+							fi
+						else																																				
+							#wait one minute for configuration to come online
+							echo "Waiting 1 minute for configuration to come online"
+							sleep 60
+							
+							if [ "$(infdb is_mongos)" == "true" ]; then 
+								echo "Adding Shard (will error if shard as already been added successfully)"							
+								#connect to a mongoS instance and inform it of the shard
+								mongo <<EOF
 use admin
 db.runCommand({"addShard":"replica_set$x/$this_ip:$port"});
 exit
 EOF
 >/dev/null
-								fi
-								
-							fi
-					fi
+							fi							
+						fi
+						#(clause 1, old DB; clause 2, new DB)
+				fi
+				#(end if more than one member)
 					
-					#########################################################
-					#
-					# Restart the MongoS now that the replica server is up	
+				#########################################################
+				#
+				# Restart the MongoS now that the replica server is up	
+				
+				if [ "$(infdb is_mongos)" == "true" ]; then
+					echo "Restarting MongoS now we have at least one good replica server"
 					
-					if [ "$(infdb is_mongos)" == "true" ]; then
-						echo "Restarting MongoS now we have at least one good replica server"
-						
-						infdb kill_db 27017 > /dev/null
-						sleep 5
-						runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
-					fi					
+					infdb kill_db 27017 > /dev/null
+					sleep 5
+					runuser -s /bin/bash - mongod -c "ulimit -S -c 0 >/dev/null 2>&1 ; mongos --configdb $config_string --fork --logpath /var/log/mongo/mongos.log"
+				fi					
 			else
 				echo "Mongo Already Running On Port $port.... Skipping"
-			fi			
+			fi		
+			#(end if not already running)	
 	done
+	#(end loop over replica sets)
 	
 	##################################################
 	#
@@ -377,7 +390,7 @@ stop()
 			rm -f /data/rs$x/mongod.lock
 			
 			if [ $(ps -ef | grep mongo | grep arbiter | grep $arbport | wc -l) -gt 0 ]; then
-				echo "Stopping Aribiter"
+				echo "Stopping Arbiter"
 				infdb kill_db $arbport >/dev/null 2>&1
 			fi
 		done
@@ -457,6 +470,9 @@ case "$1" in
   restart_instance)
     stop "SOFT" "INSTANCE"
     start
+    ;;
+  stop_mongos)
+    stop "SOFT" "MONGOS"
     ;;
   restart_mongos)
     stop "SOFT" "MONGOS"

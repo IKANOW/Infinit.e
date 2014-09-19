@@ -14,41 +14,23 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 -->
-<%@page import="javax.xml.ws.Response"%>
 <%@page import="org.apache.jasper.JasperException"%>
-<%@page import="javax.script.ScriptException"%>
-<%@page import="javax.script.ScriptEngineManager"%>
-<%@page import="javax.script.ScriptEngine"%>
 <%@page import="org.apache.commons.fileupload.util.Streams"%>
 <%@page import="org.apache.commons.fileupload.FileItemStream"%>
 <%@page import="org.apache.commons.fileupload.FileItemIterator"%>
 <%@page import="org.apache.commons.fileupload.disk.DiskFileItemFactory"%>
 <%@page import="org.apache.commons.fileupload.servlet.ServletFileUpload"%>
-<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*;" errorPage="" %>
+<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*" errorPage="" %>
+<%@ include file="inc/sharedFunctions.jsp" %>
 <%!
-	static String API_ROOT = null;
 	static String SHARE_ROOT = "$infinite/share/get/";
 	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = false;
 	static Boolean localCookie = false;
 	static String user = null;
 	static String communityList = null; // (ensures that generateCommunityList is called)
-	static CookieManager cm = new CookieManager();
 	
 
-	static class keepAlive
-	{
-		static class ka
-		{
-			String action;
-			Boolean success;
-			String message;
-			int time;
-		
-		}
-		public ka response;
-		
-	}
 	static class personGet
 	{
 		static class resp
@@ -112,31 +94,6 @@ limitations under the License.
 		Boolean debug = null; // (optional - debug objects won't appear in release versions of the UM GUI)
 		Set<String> communityIds = null; // (optional - if specified, restricts access to users belonging to one of the spec'd communities)
 	}
-	static class logIn
-	{
-		static class loginData
-		{
-			public String action;
-			public Boolean success;
-			public int time;
-			
-		}
-		public loginData response;
-	}
-	static class modResponse
-	{
-		static class moduleResponse
-		{
-			public String action;
-			public Boolean success;
-			public String message;
-			public int time;
-			
-		}
-		public moduleResponse response;
-		public String data;
-	}
-	
 	static class widgetToDBResponse
 	{
 		static class wtdbResponse
@@ -195,101 +152,6 @@ limitations under the License.
 		public shareData data;
 		
 	}
-	public static void setBrowserInfiniteCookie(HttpServletResponse response,
-			String value, int nServerPort) {
-        String params = null;
-        if ((443 == nServerPort) || (8443 == nServerPort)) {
-                params="; path=/; HttpOnly; Secure";
-        }
-        else {
-                params="; path=/; HttpOnly";
-        }
-        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
-        	// (all this is needed in order to support HTTP only cookies)
-	} // TESTED
-	
-	public static String getBrowserInfiniteCookie(HttpServletRequest request)
-	{
-		Cookie[] cookieJar = request.getCookies();
-		if ( cookieJar != null)
-		{
-			for( Cookie cookie : cookieJar)
-			{
-				if (cookie.getName().equals("infinitecookie"))
-				{
-					return cookie.getValue() + ";";
-				}
-			}
-		}
-		return null;
-	}
-	
-	public static String getConnectionInfiniteCookie(URLConnection urlConnection)
-	{
-		Map<String, List<String>> headers = urlConnection.getHeaderFields();
-    	Set<Map.Entry<String, List<String>>> entrySet = headers.entrySet();
-    	
-    	for (Map.Entry<String, List<String>> entry : entrySet) 
-    	{
-            String headerName = entry.getKey();
-			if ( headerName != null && headerName.equals("Set-Cookie"))
-			{
-				List<String> headerValues = entry.getValue();
-	            for (String value : headerValues) 
-	            {
-	            	if (value.contains("infinitecookie"))
-	            	{
-	            		int equalsLoc = value.indexOf("=");
-	            		int semicolonLoc = value.indexOf(";");
-	            		return value.substring(equalsLoc+1,semicolonLoc);
-	            	}
-	            }
-			}  
-		}
-    	return null;
-	}
-	
-	public static String stringOfUrl(String addr, HttpServletRequest request, HttpServletResponse response)
-	{
-		if(localCookie)
-			CookieHandler.setDefault(cm);
-        try
-        {
-            ByteArrayOutputStream output = new ByteArrayOutputStream();
-        	URL url = new URL(addr);
-        	URLConnection urlConnection = url.openConnection();
-
-        	String cookieVal = getBrowserInfiniteCookie(request);
-        	
-        	if (cookieVal != null)
-        	{
-        		urlConnection.addRequestProperty("Cookie","infinitecookie=" + cookieVal.replace(";", ""));
-        		urlConnection.setRequestProperty("User-Agent", "Mozilla/5.0 (Windows; U; Windows NT 5.1; en-US; rv:1.9.2.3) Gecko/20100401");
-        		urlConnection.setDoInput(true);
-        		urlConnection.setDoOutput(true);
-        		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
-        	}
-        	else if (DEBUG_MODE)
-        		System.out.println("Don't Current Have a Cookie Value");
-        	IOUtils.copy(urlConnection.getInputStream(), output);
-        	String newCookie = getConnectionInfiniteCookie(urlConnection);
-        	if (newCookie != null && response != null)
-        	{
-        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-        	}
-        	
-        	if (DEBUG_MODE)
-        		System.out.println(output.toString());
-        	
-        	String toReturn = output.toString();
-        	output.close();
-        	return toReturn;
-        }
-        catch(IOException e)
-        {
-        	return null;
-        }
-    }
 	
 	private static String encrypt(String password) throws NoSuchAlgorithmException, UnsupportedEncodingException 
 	{	
@@ -299,7 +161,7 @@ limitations under the License.
 	}
 	private Boolean logMeIn(String username, String pword, HttpServletRequest request, HttpServletResponse response ) throws IOException, NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException 
     {
-		String json = stringOfUrl(API_ROOT + "auth/login/"+username+"/"+encrypt(pword), request, response);
+		String json = callRestfulApi( "auth/login/"+username+"/"+encrypt(pword), request, response);
 		logIn login = new Gson().fromJson(json, logIn.class);
 		if (login == null)
 			return false;
@@ -307,33 +169,11 @@ limitations under the License.
 		return login.response.success;
     }
 	
-	private void logOut(HttpServletRequest request, HttpServletResponse response ) throws IOException, NoSuchAlgorithmException, UnsupportedEncodingException, URISyntaxException 
-    {
-		String json = stringOfUrl(API_ROOT + "auth/logout", request, response);
-		
-    }
-	
-	
-	public Boolean isLoggedIn(HttpServletRequest request, HttpServletResponse response)
-	{
-		String json = stringOfUrl(API_ROOT + "auth/keepalive", request, response);
-
-		if (json != null)
-		{
-			keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
-			return keepA.response.success;
-		}
-		else
-		{
-			return null;
-		}
-	}
-	
 	public String removeFromShare(String shareId, HttpServletRequest request, HttpServletResponse response)
 	{
 		if (shareId != null)
 		{
-			String json = stringOfUrl(API_ROOT + "share/remove/" + shareId + "/", request, response);
+			String json = callRestfulApi( "share/remove/" + shareId + "/", request, response);
 			if (json != null)
 			{
 				keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
@@ -347,7 +187,7 @@ limitations under the License.
 	{
 		if (widgetId != null)
 		{
-			String json = stringOfUrl(API_ROOT + "knowledge/uisetup/modules/delete/" + widgetId, request, response);
+			String json = callRestfulApi( "knowledge/uisetup/modules/delete/" + widgetId, request, response);
 			if (json != null)
 			{
 				modResponse mr = new Gson().fromJson(json, modResponse.class);
@@ -376,48 +216,12 @@ limitations under the License.
 		
 		try{
 			if (prevId == null)
-				url = API_ROOT + "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
 			else
-				url = API_ROOT + "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
-			
-			if(localCookie)
-				CookieHandler.setDefault(cm);
-			URLConnection connection = new URL(url).openConnection();
-			connection.setDoOutput(true);
-	        connection.setRequestProperty("Accept-Charset",charset);
-	        String cookieVal = getBrowserInfiniteCookie(request);
-        	if (cookieVal != null)
-        	{
-        		connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
-        		connection.setDoInput(true);
-        		connection.setDoOutput(true);
-        		connection.setRequestProperty("Accept-Charset","UTF-8");
-        	}
-	        if (mimeType != null && mimeType.length() > 0)
-	        	connection.setRequestProperty("Content-Type", mimeType + ";charset=" + charset);
-	        DataOutputStream output = new DataOutputStream(connection.getOutputStream());
-            output.write(bytes);
-            DataInputStream responseStream = new DataInputStream(connection.getInputStream());
-            
-            ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-            int nRead;
-            byte[] data = new byte[16384];
-            while ((nRead = responseStream.read(data,0,data.length)) != -1)
-            {
-                buffer.write(data,0,nRead);
-            }
-            
-            String json = buffer.toString();
-            String newCookie = getConnectionInfiniteCookie(connection);
-        	if (newCookie != null && response != null)
-        	{
-        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-        	}
-            buffer.flush();
-            buffer.close();
-            output.close();
-            responseStream.close();
-            
+				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+
+			String json = postToRestfulApi(url, bytes, mimeType, request, response);
+			            
             modResponse mr = new Gson().fromJson(json, modResponse.class);
     		if (mr == null)
     		{
@@ -449,7 +253,7 @@ limitations under the License.
 		try{
 			String charset = "UTF-8";
 
-			String json = stringOfUrl(API_ROOT + "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" , request, response);
+			String json = callRestfulApi( "social/share/remove/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(communityId,charset) + "/" , request, response);
 			keepAlive ka = new Gson().fromJson(json, keepAlive.class);
 			if (ka != null)
 			{
@@ -518,7 +322,7 @@ limitations under the License.
 			String comment = "Added by widgetUploader";
 			
 			//social/share/add/community/{shareid}/{comment}/{communityid}
-			String json = stringOfUrl(API_ROOT + "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
+			String json = callRestfulApi( "social/share/add/community/" + URLEncoder.encode(shareId,charset) + "/" + URLEncoder.encode(comment,charset) + "/" + URLEncoder.encode(communityId,charset) + "/", request, response);
 			getModules gm = new Gson().fromJson(json, getModules.class);
 			if (gm == null)
 			{
@@ -544,7 +348,7 @@ limitations under the License.
 		try{
 			String charset = "UTF-8";
 
-			String json = stringOfUrl(API_ROOT + "person/get/", request, response);
+			String json = callRestfulApi( "person/get/", request, response);
 			personGet pg = new Gson().fromJson(json, personGet.class);
 			if (pg != null)
 			{
@@ -563,7 +367,7 @@ limitations under the License.
 	{
 		String toReturn = "";
 		String delim = "$$$";
-		String json = stringOfUrl(API_ROOT + "knowledge/uisetup/modules/get/", request, response);
+		String json = callRestfulApi( "knowledge/uisetup/modules/get/", request, response);
 		if (json != null)
 		{
 			getModules gm = new Gson().fromJson(json, getModules.class);
@@ -633,49 +437,9 @@ limitations under the License.
 	//Places the widget information into the Database
 	private Boolean installWidget(String wigJson, HttpServletRequest request, HttpServletResponse response)
 	{
-		if(localCookie)
-			CookieHandler.setDefault(cm);
-		String url = API_ROOT + "knowledge/uisetup/modules/install/";
-        String charset = "UTF-8";
-        OutputStream output = null;
-        URLConnection connection = null;
-        try{
-	        connection = new URL(url).openConnection();
-	        connection.setDoOutput(true);
-	        connection.setRequestProperty("Content-Type", "text/plain;charset=" + charset);
-	        String cookieVal = getBrowserInfiniteCookie(request);
-        	if (cookieVal != null)
-        	{
-        		connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
-        		connection.setDoInput(true);
-        		connection.setDoOutput(true);
-        		connection.setRequestProperty("Accept-Charset","UTF-8");
-        	}
-	        output = connection.getOutputStream();
-	        output.write(wigJson.getBytes());
-	        
-	        InputStream responseStream = connection.getInputStream();
-	        ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-	        int nRead;
-	        byte[] data = new byte[16384];
-	        while ((nRead = responseStream.read(data,0,data.length)) != -1)
-	        {
-	            buffer.write(data,0,nRead);
-	        }
-	        
-	        String newCookie = getConnectionInfiniteCookie(connection);
-        	if (newCookie != null && response != null)
-        	{
-        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-        	}
-	        
-	        widgetToDBResponse resp = new Gson().fromJson(buffer.toString(), widgetToDBResponse.class);
-	        return resp.response.success;
-        }catch(IOException e){
-        	return false;
-        }
-        
-        
+		String json = postToRestfulApi("knowledge/uisetup/modules/install/", wigJson, request, response);
+	    widgetToDBResponse resp = new Gson().fromJson(json, widgetToDBResponse.class);
+        return resp.response.success;
 	}
 %>
 <!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
@@ -717,53 +481,8 @@ visibility: hidden;
 
 <body>
 <%
-if (API_ROOT == null)
-{
-	ServletContext context = session.getServletContext();
-	String realContextPath = context.getRealPath("/");
-	ScriptEngineManager manager = new ScriptEngineManager();
-	ScriptEngine engine = manager.getEngineByName("javascript");
-	try{ // EC2 Machines
-		FileReader reader = new FileReader(realContextPath + "/AppConstants.js");
-		engine.eval(reader);
-		reader.close();
-		engine.eval("output = getEndPointUrl();");
-		API_ROOT = (String) engine.get("output");
-	}
-	catch (Exception je)
-	{
-		try { ////////////Windows + Tomcat
-			FileReader reader = new FileReader(realContextPath + "\\..\\AppConstants.js");
-			engine.eval(reader);
-			reader.close();
-			engine.eval("output = getEndPointUrl();");
-			API_ROOT = (String) engine.get("output");
-		}catch (Exception e)
-		{
-			System.err.println(e.toString());
-		}
-	}
-	if (null == API_ROOT) { 
-		// Default to localhost
-		API_ROOT = "http://localhost:8080/api/";
-	}
 
-	if (API_ROOT.contains("localhost"))
-		localCookie=true;
-	else
-		localCookie=false;
-}
-
-
-
-Boolean isLoggedIn = isLoggedIn(request, response);
-if (isLoggedIn == null)
-{
-	out.println("The Infinit.e API cannot be reached.");
-	out.println(API_ROOT);
-}
-
-else if (isLoggedIn == true)
+if (isLoggedIn == true)
 { 
 	showAll = (request.getParameter("sudo") != null);
 	communityList = generateCommunityList(request, response);
@@ -948,6 +667,7 @@ else if (isLoggedIn == true)
 						else
 						{
 							fileId = parseIdFromUrl(request.getAttribute("swfUrl").toString());
+							
 							if (fileId == null)
 								fileId = AddToShare(fileBytes, fileDS, request.getAttribute("title").toString(),request.getAttribute("description").toString(), request, response);
 							else

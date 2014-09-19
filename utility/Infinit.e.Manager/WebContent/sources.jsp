@@ -98,6 +98,7 @@ limitations under the License.
 	
 	boolean pipelineMode = false; // new source pipeline logic
 	boolean enterpriseMode = true; // access to source builder GUI
+	boolean flowBuilderMode = true; // access to flow builder GUI
 %>
 
 <%
@@ -105,8 +106,10 @@ limitations under the License.
 	enableOrDisable = (String)request.getAttribute("localized_DisableSource");
 	
 	// Check if source builder is installed:
-	String baseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e.source.builder";
-	enterpriseMode = new File(baseDir).exists(); 	
+	String enterpriseBaseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e.source.builder";
+	enterpriseMode = new File(enterpriseBaseDir).exists(); 	
+	String flowBaseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e.flow.builder";
+	flowBuilderMode = new File(flowBaseDir).exists(); 	
 	
 	// 
 	if (isLoggedIn) 
@@ -863,6 +866,37 @@ function clock()
 	
 </script>
 	<script language=javascript>
+	function hideFlowBuilder()
+	{
+		if (!checkFormat(false)) {
+			return;
+		}
+		try {
+			//Grab iframe for flowbuilder
+			fbWindow = document. getElementById('flowbuilderInfinitIframe').contentWindow; 
+			//flowbuilderJson is the code we have to plug into the srcObj
+			var flowbuilderJson = fbWindow.fbDataFlowObj.plugins.source.getCode();
+			var srcObj  = eval('(' + sourceJsonEditor.getValue() + ')');
+			var flowObj = eval('(' + flowbuilderJson + ')');
+			srcObj.templateProcessingFlow = flowObj;
+			var modifiedSrc = fbWindow.fbDataFlowObj.modifiedSource;
+			srcObj.processingPipeline = modifiedSrc.processingPipeline; 			
+			sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+		}
+		catch (err) {
+			if (!confirm('Error reading GUI config - click OK to continue back to the source editor (WILL LOSE YOUR CHANGES)'))
+			{
+				return;
+			}
+		}		
+		
+		
+		$('#flowbuilderIframeClose').hide();
+		$(flowBuilder).css("width", "0%");
+		$(flowBuilder).css("height", "0%");
+		$(flowBuilder).hide();
+		$(flowBuilder_overlay).hide();
+	}
 		function hideSourceBuilder()
 		{
 			if (!checkFormat(false)) {
@@ -895,25 +929,16 @@ function clock()
 			for (var x in srcObj.processingPipeline) {
 				var pipe = srcObj.processingPipeline[x];
 				if (pipe.feed) {
-					if (pipe.feed.httpFields) {
-						return "feed.httpFields not currently supported in the GUI";
-					}
 					if (pipe.feed.extraUrls) {
 						nForms += pipe.feed.extraUrls.length;
 					}
 				}//TESTED
 				if (pipe.web) {
-					if (pipe.web.httpFields) {
-						return "web.httpFields not currently supported in the GUI";
-					}
 					if (pipe.web.extraUrls) {
 						nForms += pipe.web.extraUrls.length;
 					}
 				}//TESTED
 				if (pipe.links) {
-					if (pipe.links.httpFields) {
-						return "links.httpFields not currently supported in the GUI";
-					}
 					if (pipe.links.extraMeta) {
 						nForms += pipe.links.extraMeta.length;
 					}
@@ -944,6 +969,16 @@ function clock()
 			}
 			// Convert source JSON text into JSON
 			var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+			
+			// CHECK FOR A COMMON USE CASE - ACCIDENTALLY CLICK ON A NON FLOW SOURCE
+			if ((null != srcObj.templateProcessingFlow))
+			{
+				if (!confirm("Warning: this source is flow-based - changes made in this UI will not be reflected in the flow view - the next time the flow UI is accessed it will overwrite these changes. Select 'OK' to continue or 'CANCEL' to abort.")) 
+				{
+					return;
+				}
+			}											
+			
 			var errMsg = checkSourceCompatibleWithSourceBuilder(srcObj);
 			if (null != errMsg) {
 				alert(errMsg);
@@ -958,6 +993,66 @@ function clock()
 			$(sourceBuilder).css("z-index", "1000");
 			$(sourceBuilder).css("width", "90%");
 			$(sourceBuilder).css("height", "90%");
+		}
+		// flowbuilder
+		function showFlowBuilder()		
+		{
+			try {
+				// Check overall JSON format is OK first
+				if (!checkFormat(false)) {
+					return;
+				}
+				
+				// Convert source JSON text into JSON
+				var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+				
+				// CHECK FOR A COMMON USE CASE - ACCIDENTALLY CLICK ON A NON FLOW SOURCE
+				if ((null == srcObj.templateProcessingFlow) && (null != srcObj.processingPipeline) && (srcObj.processingPipeline.length > 0))
+				{
+					if (!confirm("This source doesn't not appear to be flow-based - continuing will delete your existing source logic. To continue, select 'OK'. Select 'CANCEL' to edit the source from the editor or source builder UI.")) {
+						return;
+					}
+				}								
+				
+				//only checks if source works as it was before. Does not check the correctness of the 
+				//flowbuilder source object.
+				var errMsg = checkSourceCompatibleWithSourceBuilder(srcObj);
+				if (null != errMsg) {
+					alert(errMsg);
+					return;
+				}
+				var flPipelineStr = JSON.stringify(srcObj.templateProcessingFlow, null, "    ");
+				if (null == flPipelineStr) {
+					flPipelineStr = "";
+				}
+				fbWindow = document. getElementById('flowbuilderInfinitIframe').contentWindow;
+				// Spin up app
+			    var dataflow = fbWindow.fbDataFlowObj;
+				if (null == dataflow) {
+					alert("Error accessing flow builder - if the browser is still loading, wait a few moments and then try again.\n\nOtherwise - check you are logged on (this may also fail if the API is in a non-standard place - contact your system administrator if you suspect this to be the case)");
+					return;
+				}
+				dataflow.doConvert=false;
+				dataflow.originalSrc = srcObj;
+			    var g = dataflow.loadGraph(
+			    		(typeof(srcObj.templateProcessingFlow)==="undefined")?{}:srcObj.templateProcessingFlow
+			    		);
+			   	dataflow.doConvert=true;
+			    g.trigger("change");
+				
+				$(flowBuilder_overlay).show();
+				$('#flowbuilderIframeClose').show();
+				$(flowBuilder).show();
+				$(flowBuilder).css("z-index", "1000");
+				$(flowBuilder).css("width", "98%");
+				$(flowBuilder).css("height", "95%");
+			}
+			catch (e) {
+				alert(e.message);
+			}
+		}
+		function checkSourceCompatibleWithFlowBuilder(srcObj){
+			return null;
 		}
 	</script>
 <title><fmt:message key='source.title'/></title>
@@ -1094,7 +1189,7 @@ function clock()
 							</td>
 							
 							<td bgcolor="white" width="42%" align="left">
-								&nbsp;&nbsp;&nbsp;<fmt:message key='source.editor.mediaType.title'/>&nbsp;&nbsp;&nbsp;
+								<fmt:message key='source.editor.mediaType.title'/>
 								<select id="shareMediaType" name="shareMediaType">
 									<%= mediaTypeSelect %>
 								</select>
@@ -1133,13 +1228,20 @@ function clock()
 						if (enterpriseMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="UI"  <%=sourceOnyShowLogstash %>/>
+						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="SRC UI"  <%=sourceOnyShowLogstash %>/>
 <% } // (end enterpriseMode) %>
 <% } else { %>
 						<input type="button" title="<fmt:message key='source.code.show_uah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
 						<input type="button" title="<fmt:message key='source.code.show_sah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_sah)" id="toJsS" value="JS-S" />
 						<input type="button" title="<fmt:message key='source.code.show_rss.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_rss)" id="toJsRss" value="JS-RSS" <%=sourceShowRss%> />
 <% } // (end pipelineMode) %>
+<%
+						// If in flowBuilderMode 
+						if (flowBuilderMode)
+						{
+%>
+						<input type="button" title="<fmt:message key='source.code.show_flowbuilder.tooltip'/>" onclick="showFlowBuilder()" id="flowbuilderUI" value="FLOW UI" />
+<% } // (end flowBuilderMode) %>
 						
 						<input type="submit" class="rightButton" name="revertSource" value="<fmt:message key='source.code.action.revert'/>" onclick="return confirm('<fmt:message key='source.code.action.revert.confirm'/>');" value="revertSource"/>				
 						<input type="button" onclick="checkFormat(true)" value="<fmt:message key='source.code.action.check_format'/>" class="rightButton" />
@@ -1239,13 +1341,30 @@ function clock()
 %>
 	<div id="sourceBuilder_overlay" 
 			style="width: 100%; height: 100%; position:absolute; top: 0px; left: 0px; z-index: 999; opacity: .5; background-color: Black; display: none;"
-			onclick="hideSourceBuilder()";
+			onclick="hideSourceBuilder()"
 			>
 	</div>
 	<!--  Don't hide and don't make (0,0) in size - because then the flash contents won't load -->
 	<div id="sourceBuilder" style="width: 10px; height: 10px; position:absolute; top: 50px; left: 5%; z-index: -1; ">
 		<iframe id="InfinitIframe" src="../infinit.e.source.builder/Infinit.html" style="width: 100%; height: 100%;"></iframe>
 	</div> 
+<% } %>
+<%
+	// If in flowBuilderMode
+	if (flowBuilderMode)
+	{
+%>
+	<!-- Location of this Div to be moved in order to facilitate user access restrictions -->
+	<div id="flowBuilder_overlay" 
+			style="width: 100%; height: 100%; position:absolute; top: 0px; left: 0px; z-index: 999; opacity: .5; background-color: Black; display: none;"
+			onclick="hideFlowBuilder()"
+			>
+	</div>
+	<div id="flowBuilder" style="width: 10px; height: 10px; position:absolute; top: 10px; left: 10px; right: 10px; right: 10px; z-index: -1; ">
+		<!-- Flowbuilder webapp location to be moved from localhost -->
+		<a class="flowbuilderIframeClose" id="flowbuilderIframeClose" onclick="hideFlowBuilder()">Return to Editor</a>
+		<iframe id="flowbuilderInfinitIframe" src="/infinit.e.flow.builder/" style="width: 100%; height: 100%;"></iframe> <!-- dev -->
+	</div>
 <% } %>
 
 </body>
@@ -1411,15 +1530,36 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 		String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
 		String apiAddress = "social/share/add/json/source_template/" + urlShareTitle + "/" + urlShareDescription;
 		
-		JSONObject JSONresponse = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
-		if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
+		JSONObject JSONresponseTop = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
+		JSONObject JSONresponseStatus = JSONresponseTop.getJSONObject("response");
+		if (JSONresponseStatus.getString("success").equalsIgnoreCase("true")) 
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
+			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponseStatus.getString("message");
 		}
 		else
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
+			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponseStatus.getString("message");
 		}
+		Object responseData = JSONresponseTop.get("data");
+		String shareId = null;
+		if (null != responseData) {
+			if (responseData instanceof String) {
+				shareId = (String) responseData;
+			}
+			else if (responseData instanceof JSONObject) {
+				Object shareIdObj = ((JSONObject)responseData).get("_id");
+				if (null != shareIdObj) {
+					shareId = shareIdObj.toString();
+				}
+			}
+		}
+		
+		// Now share the source vs the selected community
+		if (null != shareId) {
+			apiAddress = "social/share/add/community/" + shareId + "/Created+As+Template/" + communityId;
+			callRestfulApi(apiAddress, request, response);
+		}
+		
 	} 
 	catch (Exception e) 
 	{

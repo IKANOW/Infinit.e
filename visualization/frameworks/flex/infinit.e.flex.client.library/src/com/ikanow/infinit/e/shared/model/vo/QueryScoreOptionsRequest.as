@@ -53,7 +53,7 @@ package com.ikanow.infinit.e.shared.model.vo
 		
 		public var adjustAggregateSig:*;
 		
-		public var scoreEntities:Boolean;
+		public var scoreEnts:Boolean;
 		
 		//======================================
 		// constructor 
@@ -95,7 +95,7 @@ package com.ikanow.infinit.e.shared.model.vo
 					this.adjustAggregateSig = false;
 					break;
 			}
-			this.scoreEntities = value.scoreEntities;
+			this.scoreEnts = value.scoreEnts;
 		}
 		
 		
@@ -127,7 +127,7 @@ package com.ikanow.infinit.e.shared.model.vo
 			queryScoreOptions.tagWeights = this.tagWeights;
 			queryScoreOptions.typeWeights = this.typeWeights;
 			queryScoreOptions.sourceWeights = this.sourceWeights;
-			queryScoreOptions.scoreEntities = this.scoreEntities;
+			queryScoreOptions.scoreEnts = this.scoreEnts;
 			
 			if ( null == this.adjustAggregateSig )
 			{

@@ -30,6 +30,8 @@ import com.ikanow.infinit.e.application.utils.LogstashConfigUtils;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojoSubstitutionDbMap;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.LogstashExtractorPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
@@ -40,6 +42,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	public static String LOGSTASH_DIRECTORY = "/opt/logstash-infinite/";
 	public static String LOGSTASH_WD = "/opt/logstash-infinite/logstash/";
 	public static String LOGSTASH_CONFIG = "/opt/logstash-infinite/logstash.conf.d/";
+	public static String LOGSTASH_CONFIG_DISTRIBUTED = "/opt/logstash-infinite/dist.logstash.conf.d/";
 	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE = "/opt/logstash-infinite/templates/transient-record-output-template.conf";
 	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED = "/opt/logstash-infinite/templates/stashed-record-output-template.conf";
 	public static String LOGSTASH_RESTART_FILE = "/opt/logstash-infinite/RESTART_LOGSTASH";
@@ -54,6 +57,8 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	@Override
 	public void performPoll() {
 
+		boolean isSlave = false;
+		
 		if (null == LOGSTASH_CONFIG) { // (static memory not yet initialized)
 			try {
 				Thread.sleep(1000); // (extend the sleep time a bit)
@@ -63,13 +68,20 @@ public class LogstashHarvestPollHandler implements PollHandler {
 		}
 		
 		File logstashDirectory = new File(LOGSTASH_CONFIG);
+		String logstashDirName = LOGSTASH_CONFIG;
 		if (!logstashDirectory.isDirectory() || !logstashDirectory.canRead() || !logstashDirectory.canWrite())
 		{
-			try {
-				Thread.sleep(10000); // (extend the sleep time a bit)
+			logstashDirectory = new File(LOGSTASH_CONFIG_DISTRIBUTED);
+			logstashDirName = LOGSTASH_CONFIG_DISTRIBUTED;
+			isSlave = true;
+			if (!logstashDirectory.isDirectory() || !logstashDirectory.canRead() || !logstashDirectory.canWrite())
+			{				
+				try {
+					Thread.sleep(10000); // (extend the sleep time a bit)
+				}
+				catch (Exception e) {}
+				return;
 			}
-			catch (Exception e) {}
-			return;
 		}
 		
 		if (null == _props) {
@@ -159,9 +171,13 @@ public class LogstashHarvestPollHandler implements PollHandler {
 			srcQuery.put(SourcePojo.harvestBadSource_, false);
 			
 			DBCursor dbc = DbManager.getIngest().getSource().find(srcQuery);			
-			List<SourcePojo> srcList = SourcePojo.listFromDb(dbc, SourcePojo.listType());
+			List<SourcePojo> srcList = SourcePojo.listFromDb(dbc, SourcePojo.listType(), new SourcePojoSubstitutionDbMap());
 			long mostRecentlyChangedSource = 0L;
 			for (SourcePojo src: srcList) {
+				// Some input checking:
+				if (ignoreSource(src, isSlave)) {
+					continue;
+				}				
 				if ((null != src.getModified()) && (src.getModified().getTime() > directoryTime)) {
 
 					//DEBUG
@@ -171,7 +187,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 						
 						boolean modified = !isSuspended(src);
 						if (!modified) { // check if corresponding file exists
-							if (new File(LOGSTASH_CONFIG + src.getId() + LOGSTASH_CONFIG_EXTENSION).exists()) {
+							if (new File(logstashDirName + src.getId() + LOGSTASH_CONFIG_EXTENSION).exists()) {
 								modified = true;
 								//DEBUG
 								//System.out.println("ACTIVE->SUSPENDED SRC=" + src.getModified() + ": " + src.getTitle());
@@ -197,8 +213,12 @@ public class LogstashHarvestPollHandler implements PollHandler {
 				cleanseDirectory(logstashDirectory);
 
 				for (SourcePojo src: srcList) {
+					// Some input checking:
+					if (ignoreSource(src, isSlave)) {
+						continue;
+					}				
 					if (!isSuspended(src)) {
-						createConfigFileFromSource(src, mostRecentlyChangedSource);
+						createConfigFileFromSource(src, mostRecentlyChangedSource, logstashDirName);
 					}
 				}//TESTED
 				
@@ -225,6 +245,22 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	
 	// UTILITY
 	
+	private boolean ignoreSource(SourcePojo src, boolean isSlave) {
+		// Some input checking:
+		if (null == src.getProcessingPipeline() || src.getProcessingPipeline().isEmpty()) {
+			return true;
+		}
+		LogstashExtractorPojo logstashExtractor = src.getProcessingPipeline().iterator().next().logstash;
+		if (null == logstashExtractor) {
+			return true;
+		}
+		// If a slave, only carry on if this is a distributed logstash extractor 
+		if (isSlave && ((null == logstashExtractor.distributed) || !logstashExtractor.distributed))  {
+			return true;
+		}		
+		return false;
+	}
+	
 	private void cleanseDirectory(File logstashDirectory) {
 		File[] files = logstashDirectory.listFiles();
 		for (File toCheck: files) {
@@ -235,7 +271,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	}//TESTED
 	
 	
-	private void createConfigFileFromSource(SourcePojo src, long fileTime) {
+	private void createConfigFileFromSource(SourcePojo src, long fileTime, String logstashDirName) {
 		// Ignore anything malformed:
 		if (null == src.getProcessingPipeline() || src.getProcessingPipeline().isEmpty()) {
 			setSourceError(src.getId(), "Internal logic error: no processing pipeline");
@@ -256,6 +292,14 @@ public class LogstashHarvestPollHandler implements PollHandler {
 		}//TESTED
 		
 		logstashConfig = logstashConfig.replace("_XXX_DOTSINCEDB_XXX_", LOGSTASH_WD + ".sincedb_" + src.getId().toString());
+		// Replacement for #LOGSTASH{host} - currently only replacement supported (+ #IKANOW{} in main code)
+		try {
+			logstashConfig = logstashConfig.replace("#LOGSTASH{host}", java.net.InetAddress.getLocalHost().getHostName());
+		}
+		catch (Exception e) {
+			logstashConfig = logstashConfig.replace("#LOGSTASH{host}", "localhost.localdomain");
+			
+		}
 
 		String output = null;
 		if ((null != px.logstash.streaming) && !px.logstash.streaming) {
@@ -269,7 +313,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 													replace("_XXX_SOURCEKEY_XXX_", src.getKey()).
 														replace("_XXX_COMMUNITY_XXX_", src.getCommunityIds().iterator().next().toString());
 			
-		File outFile = new File(LOGSTASH_CONFIG + src.getId() + LOGSTASH_CONFIG_EXTENSION);
+		File outFile = new File(logstashDirName + src.getId() + LOGSTASH_CONFIG_EXTENSION);
 
 		try {
 			FileOutputStream outStream = new FileOutputStream(outFile);

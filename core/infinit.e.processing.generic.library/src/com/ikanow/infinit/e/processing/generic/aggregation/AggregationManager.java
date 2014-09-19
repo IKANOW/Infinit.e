@@ -589,8 +589,15 @@ public class AggregationManager {
 				}
 				
 				BasicDBObject entityId = (BasicDBObject) entityEl.get("_id");
-				ObjectId commId = (ObjectId) entityId.get("comm");
+				ObjectId commId = null;
+				Object commObj = entityId.get("comm");
+				if (commObj instanceof ObjectId) {
+					commId = entityId.getObjectId("comm");
+				}
 				String index = (String) entityId.get("index");
+				if ((null == index) || (null == commId)) {
+					continue; // random error
+				}
 				
 				BasicDBObject updateQuery = new BasicDBObject(EntityFeaturePojo.index_, index);
 				updateQuery.put(EntityFeaturePojo.communityId_, commId);

@@ -36,6 +36,19 @@ limitations under the License.
 <%@ page import="java.io.InputStreamReader" %>
 <%@ page import="org.apache.commons.lang.StringEscapeUtils.*" %>
 
+<%@ page import ="java.security.KeyManagementException" %>
+<%@ page import ="java.security.NoSuchAlgorithmException" %>
+<%@ page import ="java.security.SecureRandom" %>
+<%@ page import ="java.security.cert.CertificateException" %>
+<%@ page import ="java.security.cert.X509Certificate" %>
+<%@ page import ="javax.net.ssl.HostnameVerifier" %>
+<%@ page import ="javax.net.ssl.HttpsURLConnection" %>
+<%@ page import ="javax.net.ssl.SSLContext" %>
+<%@ page import ="javax.net.ssl.SSLSession" %>
+<%@ page import ="javax.net.ssl.TrustManager" %>
+<%@ page import ="javax.net.ssl.X509TrustManager" %>
+
+
 <%@ taglib prefix="c" uri="http://java.sun.com/jsp/jstl/core" %>
 <%@ taglib prefix="fmt" uri="http://java.sun.com/jsp/jstl/fmt" %>
 <c:set var="language" value="${not empty param.language ? param.language : not empty language ? language : pageContext.request.locale}" />
@@ -45,7 +58,6 @@ limitations under the License.
 <%!
 	// !----------  ----------!
 	String API_ROOT = null;
-	Boolean localCookie = false;
 		
 	// !----------  ----------!
 	String messageToDisplay = "";
@@ -90,11 +102,9 @@ limitations under the License.
 		if (null == API_ROOT) { 
 			// Default to localhost
 			API_ROOT = "http://localhost:8080/api/";
+			//API_ROOT = "http://localhost:8888/api/";
 			//API_ROOT = "http://localhost:8184/";
-		}
-		
-		if (API_ROOT.contains("localhost")) { localCookie=true; }
-		else { localCookie=false; }
+		}		
 	}
 
 	boolean isLoggedIn = false;
@@ -120,8 +130,60 @@ limitations under the License.
 
 	
 <%!	
+//!---------- SSL handling -------------!
+
+	/**/
+	static class TrustManagerManipulator implements X509TrustManager {
+	
+		private static TrustManager[] trustManagers;
+		private static final X509Certificate[] acceptedIssuers = new X509Certificate[] {};
+	
+	
+		public boolean isClientTrusted(X509Certificate[] chain) {
+			return true;
+		}
+	
+		public boolean isServerTrusted(X509Certificate[] chain) {
+			return true;
+		}
+	
+	
+		public static void allowAllSSL() {
+			HttpsURLConnection.setDefaultHostnameVerifier(new HostnameVerifier() {
+				public boolean verify(String hostname, SSLSession session) {
+					return true;
+				}
+			});
+			SSLContext context = null;
+			if (trustManagers == null) {
+				trustManagers = new TrustManager[] { new TrustManagerManipulator() };
+			}
+			try {
+				context = SSLContext.getInstance("TLS");
+				context.init(null, trustManagers, new SecureRandom());
+			} catch (NoSuchAlgorithmException e) {
+				e.printStackTrace();
+			} catch (KeyManagementException e) {
+				e.printStackTrace();
+			}
+			HttpsURLConnection.setDefaultSSLSocketFactory(context
+					.getSocketFactory());
+		}
+	
+		public void checkClientTrusted(X509Certificate[] chain, String authType)
+				throws CertificateException {
+		}
+	
+		public void checkServerTrusted(X509Certificate[] chain, String authType)
+				throws CertificateException {
+		}
+	
+		public X509Certificate[] getAcceptedIssuers() {
+			return acceptedIssuers;
+		}
+	}
+
 	// !---------- Start login/session handling code ----------!
-	static CookieManager cm = new CookieManager();
 	String shares = null;
 	
 	// Classes used to handle login and session
@@ -223,20 +285,25 @@ limitations under the License.
 	
 	// !---------- End login/session handling code ----------!
 	
-	
-	
 	// !---------- Start Get/Post API Handlers ----------!
 	
 	// callRestfulApi - Calls restful API and returns results as a string
 	public String callRestfulApi(String addr, HttpServletRequest request, HttpServletResponse response) 
 	{
-		if (localCookie) CookieHandler.setDefault(cm);
-		
+		return callRestfulApi(addr, request, response, null);
+	}
+	public String callRestfulApi(String addr, HttpServletRequest request, HttpServletResponse response, String newUrl) 
+	{
 		try 
 		{
+			TrustManagerManipulator.allowAllSSL();
+			
 			ByteArrayOutputStream output = new ByteArrayOutputStream();
-			URL url = new URL(API_ROOT + addr);
-			URLConnection urlConnection = url.openConnection();
+			if (newUrl == null) {
+				newUrl = API_ROOT + addr;
+			}
+			URL url = new URL(newUrl);
+			HttpURLConnection urlConnection = (HttpURLConnection )url.openConnection();
     		urlConnection.addRequestProperty("X-Forwarded-For", request.getRemoteAddr());
 			String cookieVal = getBrowserInfiniteCookie(request);
         	if (cookieVal != null)
@@ -246,6 +313,15 @@ limitations under the License.
         		urlConnection.setDoOutput(true);
         		urlConnection.setRequestProperty("Accept-Charset","UTF-8");
         	}
+        	int status = urlConnection.getResponseCode();
+        	if (status != HttpURLConnection.HTTP_OK) {
+        		if (status == HttpURLConnection.HTTP_MOVED_TEMP
+        			|| status == HttpURLConnection.HTTP_MOVED_PERM
+        				|| status == HttpURLConnection.HTTP_SEE_OTHER)
+	        	{
+	        		return callRestfulApi(addr, request, response, urlConnection.getHeaderField("Location"));
+	        	}
+        	}        	
 			IOUtils.copy(urlConnection.getInputStream(), output);
 			String newCookie = getConnectionInfiniteCookie(urlConnection);
         	if (newCookie != null && response != null)
@@ -266,12 +342,21 @@ limitations under the License.
 	// Note: params in the addr field need to be URLEncoded
 	public String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response) 
 	{
-		if(localCookie)
-			CookieHandler.setDefault(cm);
+		return postToRestfulApi(addr, data, request, response, null);
+	}
+	public String postToRestfulApi(String addr, String data, HttpServletRequest request, HttpServletResponse response, String newUrl) 
+	{
 		String result = "";
 	    try
 		{
-	    	URLConnection connection = new URL(API_ROOT + addr).openConnection();
+			TrustManagerManipulator.allowAllSSL();
+			
+			if (newUrl == null) {
+				newUrl = API_ROOT + addr;
+			}
+			URL url = new URL(newUrl);
+			HttpURLConnection connection = (HttpURLConnection )url.openConnection();
+			
 	    	String cookieVal = getBrowserInfiniteCookie(request);
         	if (cookieVal != null)
         	{
@@ -285,7 +370,18 @@ limitations under the License.
 			OutputStream os = connection.getOutputStream();
 			byte[] b = data.getBytes("UTF-8");
 			os.write(b);
-	
+
+			// Check for HTTP->HTTPS redirect
+        	int status = connection.getResponseCode();
+        	if (status != HttpURLConnection.HTTP_OK) {
+        		if (status == HttpURLConnection.HTTP_MOVED_TEMP
+        			|| status == HttpURLConnection.HTTP_MOVED_PERM
+        				|| status == HttpURLConnection.HTTP_SEE_OTHER)
+	        	{
+	        		return postToRestfulApi(addr, data, request, response, connection.getHeaderField("Location"));
+	        	}
+        	}        				
+			
 			// Receive results back from API
 			InputStream is = connection.getInputStream();
 			result = IOUtils.toString(is, "UTF-8");
@@ -303,6 +399,65 @@ limitations under the License.
 		return result;
 	} // TESTED
 	
+	public String postToRestfulApi(String addr, byte[] data, String mimeType, HttpServletRequest request, HttpServletResponse response) 
+	{
+		return postToRestfulApi(addr, data, mimeType, request, response, null);
+	}
+	public String postToRestfulApi(String addr, byte[] data, String mimeType, HttpServletRequest request, HttpServletResponse response, String newUrl) 
+	{
+		String result = "";
+	    try
+		{
+			TrustManagerManipulator.allowAllSSL();
+			
+			if (newUrl == null) {
+				newUrl = API_ROOT + addr;
+			}
+			URL url = new URL(newUrl);
+			HttpURLConnection connection = (HttpURLConnection )url.openConnection();
+			
+	    	String cookieVal = getBrowserInfiniteCookie(request);
+        	if (cookieVal != null)
+        	{
+        		connection.addRequestProperty("Cookie","infinitecookie=" + cookieVal);
+        		connection.setDoInput(true);
+        	}
+	    	connection.setDoOutput(true);
+			connection.setRequestProperty("Accept-Charset", "UTF-8");
+			if (mimeType != null && mimeType.length() > 0)
+				connection.setRequestProperty("Content-Type", mimeType);
+			
+			// Post JSON string to URL
+			OutputStream os = connection.getOutputStream();
+			os.write(data);
+
+			// Check for HTTP->HTTPS redirect
+        	int status = connection.getResponseCode();
+        	if (status != HttpURLConnection.HTTP_OK) {
+        		if (status == HttpURLConnection.HTTP_MOVED_TEMP
+        			|| status == HttpURLConnection.HTTP_MOVED_PERM
+        				|| status == HttpURLConnection.HTTP_SEE_OTHER)
+	        	{
+	        		return postToRestfulApi(addr, data, mimeType, request, response, connection.getHeaderField("Location"));
+	        	}
+        	}        				
+			
+			// Receive results back from API
+			InputStream is = connection.getInputStream();
+			result = IOUtils.toString(is, "UTF-8");
+			
+			String newCookie = getConnectionInfiniteCookie(connection);
+        	if (newCookie != null && response != null)
+        	{
+        		setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
+        	}
+		}
+		catch (Exception e)
+		{
+			//System.out.println("Exception: " + e.getMessage());
+		}
+		return result;
+	} // TESTED
 	
 	public static void setBrowserInfiniteCookie(HttpServletResponse response,
 			String value, int nServerPort) {
@@ -603,6 +758,7 @@ limitations under the License.
 		
 		// publishedSources - array of source._ids of published sources
 		ArrayList<String> publishedSources = new ArrayList<String>();
+		Map<String,JSONObject> srcEnabled = new HashMap<String, JSONObject>();
 		try
 		{
 			JSONObject personObj = new JSONObject ( getPerson(request, response) );
@@ -611,13 +767,52 @@ limitations under the License.
 				JSONObject person = new JSONObject ( personObj.getString("data") );
 				userIdStr = person.getString("_id");
 			}
+			JSONObject json;
+			JSONObject json_response;
 			
+			//STEP 1: Get sources first so we can get enable/disable status
+			//fills out a map srcEnabled with <_id, {title, enabled}>
+			String tempJson = getUserSources(request, response);
+			if (tempJson != null)
+ 			{
+				json = new JSONObject(tempJson);
+				json_response = json.getJSONObject("response");
+				if (json_response.getString("success").equalsIgnoreCase("true")) 
+				{
+					if (json.has("data")) 
+					{
+						// Iterate over source objects and write to our collection
+						JSONArray data = json.getJSONArray("data");
+						for (int i = 0; i < data.length(); i++) 
+						{
+							JSONObject sourceObj = data.getJSONObject(i);
+							JSONObject srcEnabledObject = new JSONObject();														
+							
+							if (isSourceFiltered(filterType, sourceObj, filter)) {
+								continue;
+							}//TESTED
+							
+							String tempTitle = sourceObj.getString("title");
+							if ( isSuspended(sourceObj) )
+								tempTitle = "[SUSPENDED] " + tempTitle;
+							
+							if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";							
+							
+							srcEnabledObject.put("title", tempTitle);
+							srcEnabledObject.put("suspended", isSuspended(sourceObj));
+							srcEnabled.put(sourceObj.getString("_id"), srcEnabledObject);
+						}
+					}
+				}
+ 			}
+			
+			//STEP 2: get shares, if source exists, use its enable/disable status, otherwise use share
 			// Get the user's shares from social.share where type = source or source_published
-			String tempJson = getSourceShares(request, response);
+			tempJson = getSourceShares(request, response);
 			
 			// Covert to JSONObject
-			JSONObject json = new JSONObject(tempJson);
-			JSONObject json_response = json.getJSONObject("response");
+			json = new JSONObject(tempJson);
+			json_response = json.getJSONObject("response");
 			if (json_response.getString("success").equalsIgnoreCase("true")) 
 			{
 				if (json.has("data")) 
@@ -637,12 +832,20 @@ limitations under the License.
 							continue;
 						}//TESTED
 						
+						//remove item from source array so we dont write its name again below						
 						String tempTitle = shareObj.getString("title");						
 						JSONObject sourceObj = new JSONObject( shareObj.getString("share") );
-						if ( isSuspended(sourceObj) )
-							tempTitle = "[SUSPENDED] " + tempTitle;
+						boolean suspended = false;
 						if (sourceObj.has("_id")) 
+						{
 							publishedSources.add( sourceObj.getString("_id") );
+							JSONObject actual_source = srcEnabled.remove(sourceObj.getString("_id"));
+							if ( actual_source != null )
+								suspended = actual_source.getBoolean("suspended");
+						}						
+						if ( isSuspended(sourceObj) || suspended )
+							tempTitle = "[SUSPENDED] " + tempTitle;
+						
 						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) 
 							tempTitle += " (+)";
 						tempTitle += " (*)";
@@ -652,39 +855,11 @@ limitations under the License.
 				}
 			}
 			
-			// Get sources that the user owns from ingest.source
- 			tempJson = getUserSources(request, response);
- 			if (tempJson != null)
- 			{
-				json = new JSONObject(tempJson);
-				json_response = json.getJSONObject("response");
-				if (json_response.getString("success").equalsIgnoreCase("true")) 
-				{
-					if (json.has("data")) 
-					{
-						// Iterate over source objects and write to our collection
-						JSONArray data = json.getJSONArray("data");
-						for (int i = 0; i < data.length(); i++) 
-						{
-							JSONObject sourceObj = data.getJSONObject(i);
-							// Only add the source to our list if it isn't already in our
-							if (!publishedSources.contains( sourceObj.getString("_id") ))
-							{
-								if (isSourceFiltered(filterType, sourceObj, filter)) {
-									continue;
-								}//TESTED
-								
-								String tempTitle = sourceObj.getString("title");
-								if ( isSuspended(sourceObj) )
-									tempTitle = "[SUSPENDED] " + tempTitle;
-								
-								if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";
-								userSources.put(tempTitle, sourceObj.getString("_id"));
-							}
-						}
-					}
-				}
- 			}
+			//STEP 3: loop over remaining sources, add them to the list
+			for (String key : srcEnabled.keySet() )			
+			{				
+				userSources.put(srcEnabled.get(key).getString("title"), key );
+			}			
 		}
 		catch (Exception e)
 		{

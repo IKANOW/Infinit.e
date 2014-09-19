@@ -34,7 +34,11 @@
 			import com.ikanow.infinit.e.shared.model.vo.ui.QueryTermGroup;
 			import com.ikanow.infinit.e.shared.util.CollectionUtil;
 			import com.ikanow.infinit.e.shared.util.QueryUtil;
+			
 			import flash.utils.setTimeout;
+			
+			import mx.core.FlexGlobals;
+			import mx.core.UIComponent;
 			import mx.events.FlexEvent;
 			import mx.events.FlexMouseEvent;
 			
@@ -72,6 +76,13 @@
 			
 			protected function queryTermEditor_mouseDownOutsideHandler( event:FlexMouseEvent ):void
 			{
+				//annoyingly have to check if calendar popup is open (in temporal query item, otherwise this will close)
+				for ( var i:int = 0; i < systemManager.numChildren; i++ )
+				{
+					var child:Object = systemManager.getChildAt(i);
+					if ( "id" in child && child.id == "infdatechooserpopup" )					
+						return; //a calendar is open, dont close this window then
+				}
 				model.cancelEditQueryTerm();
 			}
 			
@@ -81,6 +92,7 @@
 				
 				callLater( advancedQueryBuilder.invalidateDisplayList );
 			}
+			
 		]]>
 	</fx:Script>
 

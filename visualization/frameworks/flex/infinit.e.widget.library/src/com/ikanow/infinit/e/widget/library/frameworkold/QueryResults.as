@@ -284,7 +284,8 @@ package com.ikanow.infinit.e.widget.library.frameworkold
 				url = feed.url;
 				
 				// URL match => immedia-delete; otherwise (URL doesn't match) if title and description match
-				if ( ( 0 == urlMatch ) && ( ( titleMatch + descMatch ) < 2 ) )
+				// (but not for files, never dedup them)
+				if ( feed.hasOwnProperty('sourceUrl') || ( ( 0 == urlMatch ) && ( ( titleMatch + descMatch ) < 2 ) ) )
 				{
 					_feeds.addItem( feed );
 				}

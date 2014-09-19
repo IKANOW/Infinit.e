@@ -36,8 +36,6 @@
 	<fx:Script>
 		<![CDATA[
 			import com.ikanow.infinit.e.query.model.presentation.builder.editor.QueryTermEditorModel;
-			import com.ikanow.infinit.e.shared.model.constant.Constants;
-			import com.ikanow.infinit.e.shared.util.FormatterUtil;
 			
 			[Bindable]
 			[Inject]
@@ -51,8 +49,8 @@
 				model.hideSuggestionsList();
 				
 				dispatchEvent( new Event( "updateQueryTerm", true ) );
-				
-				model.updateTemporalQueryType( temporalStartDate.text, temporalEndDate.text );
+							
+				model.updateTemporalQueryType( temporalStartDate.getDate(), temporalEndDate.getDate() );
 			}
 		]]>
 	</fx:Script>
@@ -63,30 +61,26 @@
 	<!-- Spacer -->
 	<s:Spacer width="100%" />
 
-	<!-- Start Date -->
-	<common:InfDateField id="temporalStartDate"
-		selectedDate="{ FormatterUtil.getDateFromString( model.editorQueryTerm.time.startDateString ) }"
-		width="132"
-		height="40"
-		textAlign="center"
-		editable="false"
-		formatString="{ Constants.DEFAULT_DATE_TIME_FORMAT }" />
-
-	<!-- To -->
-	<common:InfLabel 
-		styleName="white"
-		text="{ resourceManager.getString( 'infinite', 'common.to' ).toLowerCase() }"
-		paddingTop="1" />
-
-	<!-- End Date -->
-	<common:InfDateField id="temporalEndDate"
-		selectedDate="{ FormatterUtil.getDateFromString( model.editorQueryTerm.time.endDateString ) }"
-		width="132"
-		height="40"
-		textAlign="center"
-		editable="false"
-		formatString="{ Constants.DEFAULT_DATE_TIME_FORMAT }" />
-
+	<s:HGroup width="100%" height="100%" verticalAlign="middle">
+		
+		<!-- Start Date -->
+		<common:InfDateChooser id="temporalStartDate" currDate="{model.editorQueryTerm.time.startDateString}"
+							   width="180"
+							   height="40" />
+		
+		<!-- To -->
+		<common:InfLabel 
+			styleName="white"
+			text="{ resourceManager.getString( 'infinite', 'common.to' ).toLowerCase() }"
+			paddingTop="1" width="40" />
+		
+		<!-- End Date -->
+		<common:InfDateChooser id="temporalEndDate" currDate="{model.editorQueryTerm.time.endDateString}"
+							   width="180"
+							   height="40" defaultEndOfDay="true" />			   
+		
+	</s:HGroup>
+	
 	<!-- Spacer -->
 	<s:Spacer width="100%" />
 

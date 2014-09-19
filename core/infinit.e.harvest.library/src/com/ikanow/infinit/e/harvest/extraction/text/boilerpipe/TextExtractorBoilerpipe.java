@@ -29,6 +29,7 @@ import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelExcep
 import com.ikanow.infinit.e.data_model.interfaces.harvest.EntityExtractorEnum;
 import com.ikanow.infinit.e.data_model.interfaces.harvest.ITextExtractor;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.ikanow.infinit.e.harvest.utils.ProxyManager;
@@ -42,12 +43,17 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 	
 	protected Tika _tika = null;
 	
+	protected IkanowSecurityManager _secManager = null;
+	
 	@Override
 	public String getName() { return "boilerplate"; }
 		
 	@Override
 	public void extractText(DocumentPojo partialDoc) throws ExtractorDocumentLevelException 
 	{
+		if (null == _secManager) {
+			_secManager = new IkanowSecurityManager();
+		}
 		if ( partialDoc.getUrl() != null )
 		{
 			try
@@ -91,12 +97,22 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 						}//TOTEST
 						
 						InputStream urlStream = null;
+						if (null != _secManager) { // ie turn on...
+							_secManager.setSecureFlag(true);
+						}//TESTED
+						
 						try {
 							urlStream = urlConnect.getInputStream();
 						}
 						catch (Exception e) { // Try one more time, this time exception out all the way
 							urlStream = urlConnect.getInputStream();					 
 						}
+						finally {
+							
+							if (null != _secManager) { // ie turn back off again...
+								_secManager.setSecureFlag(false);
+							}								
+						}//TESTED
 						
 						String contentType = urlConnect.getContentType();
 						
@@ -142,7 +158,7 @@ public class TextExtractorBoilerpipe implements ITextExtractor
 			catch (Exception ex)
 			{
 				throw new InfiniteEnums.ExtractorDocumentLevelException(ex.getMessage());
-			}			
+			}
 		}
 	}
 

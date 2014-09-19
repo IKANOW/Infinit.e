@@ -1,0 +1,219 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" height="100%" verticalAlign="middle" horizontalAlign="center">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setInterval;
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.events.DataGridEvent;
+			import mx.events.FlexEvent;
+			
+			import system.data.Map;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+
+			[Bindable]
+			private var matchingEntities:ArrayCollection = new ArrayCollection();
+			private var documentMap:Map = new HashMap();
+			private var matchingEntitiesMap:Map = new HashMap();
+			
+			public function addSelectedDocument(document:Object):void
+			{
+				documentMap.put(document._id, document);
+				calculateMatchingEntities();
+				calculateDifferentEntities();
+			}
+			
+			public function removeSelectedDocument(document_id:String):void
+			{
+				documentMap.remove(document_id);
+				calculateMatchingEntities();
+				calculateDifferentEntities();
+			}
+			
+			public function removeAll():void
+			{
+				documentMap.clear();
+				calculateMatchingEntities();
+				calculateDifferentEntities();
+			}
+			
+			/*private function calculateMatchingEntities():void
+			{
+				matchingEntities.removeAll();
+				matchingEntitiesSet.clear();
+				var docs:Array = documentMap.getValues();
+				if ( docs != null && docs.length > 0 )
+				{
+					var tempMatches:Set = new HashSet();
+					var actualMatches:Set = new HashSet();
+					var ents:Array = docs[0].entities;
+					//put every entity from doc1 in set
+					if ( ents != null )
+					{
+						for each ( var ent:Object in ents )
+						{
+							tempMatches.add(ent.index);
+							actualMatches.add(ent.index);
+						}
+					}
+					
+					//loop over remaining documents, creating new sets with matches
+					for ( var i:int = 1; i < docs.length; i++ )
+					{
+						//copy all matches into temp list
+						tempMatches = new HashSet();
+						for each ( var s:String in actualMatches.toArray() )
+						{
+							tempMatches.add(s);
+						}
+						//put any tested ent into match list
+						//TODO can dump non matches into other lists now??
+						actualMatches = new HashSet();
+						ents = docs[i].entities;
+						for each ( var ent:Object in ents )
+						{
+							if ( tempMatches.contains(ent.index) )
+							{
+								actualMatches.add(ent.index);
+							}
+						}
+					}
+					//after looping all docs, whatever is left in actualMatches is our winners
+					for each ( var s:String in actualMatches.toArray() )
+					{
+						matchingEntitiesSet.add(s);
+						matchingEntities.addItem(s);
+					}
+					
+				}
+			}*/
+			
+			private function calculateMatchingEntities():void
+			{
+				matchingEntities.removeAll();
+				matchingEntitiesMap.clear();
+				
+				
+				
+				var docs:Array = documentMap.getValues();
+				if ( docs != null && docs.length > 0 )
+				{
+					//have to loop a docs ents over every other docs ents to tally up the count
+					//first check if ent already in set, otherwise count it up
+					
+					//put every entity from doc1 in set
+					var ents:Array = docs[0].entities;
+					if ( ents != null )
+					{
+						for each ( var ent:Object in ents )
+						{
+							matchingEntitiesMap.put(ent.index,1);
+						}
+					}
+					
+					//loop over remaining documents, adding new ents to set and updating counts
+					for ( var i:int = 1; i < docs.length; i++ )
+					{						
+						ents = docs[i].entities;
+						for each ( var ent:Object in ents )
+						{
+							if ( matchingEntitiesMap.containsKey(ent.index) )
+							{
+								matchingEntitiesMap.put(ent.index, matchingEntitiesMap.get(ent.index)+1);								
+							}
+							else
+							{
+								matchingEntitiesMap.put(ent.index,1);	
+							}
+						}
+					}
+															
+					//after looping all docs, whatever is left in actualMatches is our winners
+					for each ( var s:String in matchingEntitiesMap.getKeys() )
+					{
+						if ( matchingEntitiesMap.get(s) > 1 )
+						{
+							var match:Object = new Object();
+							match.index = s;
+							match.count = matchingEntitiesMap.get(s);
+							matchingEntities.addItem(match);
+						}
+					}
+					
+				}
+			}
+			
+			private function calculateDifferentEntities():void
+			{
+				diffGroup.removeAllElements();			
+				
+				var docs:Array = documentMap.getValues();
+				if ( docs != null && docs.length > 0 )
+				{
+					for each ( var doc:Object in docs )
+					{
+						var newDiffListComp:DiffDatagridComponent = new DiffDatagridComponent();
+						var ents:ArrayCollection = new ArrayCollection();
+						for each ( var ent:Object in doc.entities)
+						{
+							if ( matchingEntitiesMap.get(ent.index) == 1 )
+								ents.addItem(ent.index);
+						}
+						newDiffListComp.setEntities(doc.title,ents);
+						diffGroup.addElement(newDiffListComp);
+					}
+				} 				
+			}
+
+			protected function datagridMatchingEntities_creationCompleteHandler(event:FlexEvent):void
+			{												
+				var sort:Sort = new Sort();
+				sort.fields = [new SortField("count",false,true)];
+				matchingEntities.sort = sort;				
+				matchingEntities.refresh();
+			
+			}
+
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="default" />
+		<s:State name="data" />
+	</s:states>
+	
+	<s:Label includeIn="default" text="Select documents on left to see similarity analysis." />
+	
+	<s:HGroup width="100%" height="100%">
+		<s:VGroup width="50%" height="100%" horizontalAlign="center">
+			<s:Label text="Unique Entities" />
+			<s:Scroller width="100%" height="100%">
+				<s:VGroup id="diffGroup" width="100%" height="100%" verticalAlign="top">
+					
+				</s:VGroup>
+			</s:Scroller>			
+		</s:VGroup>
+		<s:VGroup width="50%" height="100%" horizontalAlign="center">
+			<s:Label text="Matching Entities" />
+			<s:DataGrid id="datagridMatchingEntities" creationComplete="datagridMatchingEntities_creationCompleteHandler(event)" width="100%" height="100%" dataProvider="{matchingEntities}"  rowHeight="25" >
+				<s:columns>
+					<s:ArrayList>
+						<s:GridColumn dataField="index" headerText="Entity" minWidth="90" headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+						<s:GridColumn dataField="count" headerText="Doc Matches" width="120" headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />						
+					</s:ArrayList>
+				</s:columns>
+			</s:DataGrid>
+		</s:VGroup>		
+	</s:HGroup>
+	
+</s:VGroup>

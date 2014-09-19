@@ -103,7 +103,7 @@ public class CustomStatusManager {
 					nNew = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).count();					
 					
 					//TODO (INF-1159): this shouldn't really be here but it makes life much easier for now (really should be part of the m/r OutputFormat...) 
-					CustomOutputManager.moveTempOutput(cmr, prop_custom);
+					CustomOutputManager.completeOutput(cmr, prop_custom);
 					
 					//if job was successfully, mark off dependencies
 					removeJobFromChildren(cmr._id);

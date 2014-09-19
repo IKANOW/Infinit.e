@@ -22,7 +22,7 @@ import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
-import com.ikanow.infinit.e.api.utils.SendMail;
+import com.ikanow.infinit.e.data_model.utils.SendMail;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.DbManager;

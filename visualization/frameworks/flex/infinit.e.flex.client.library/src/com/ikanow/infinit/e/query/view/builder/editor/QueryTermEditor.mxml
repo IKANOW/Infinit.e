@@ -55,9 +55,9 @@
 				dispatchEvent( new Event( "close", true ) );
 			}
 			
-			protected function expandAliasCheckBox_changeHandler( event:Event ):void
+			protected function rawTextOrLockDateCheckBox_changeHandler( event:Event ):void
 			{
-				model.toggleSelectedQueryTermExpandAlias();
+				model.toggleSelectedQueryTermRawTextOrLockDate();
 			}
 			
 			protected function updateButton_clickHandler( event:MouseEvent ):void
@@ -130,11 +130,11 @@
 		<s:Spacer width="100%" />
 
 		<!-- Expand Alias -->
-		<common:InfCheckBox id="expandAliasCheckBox"
+		<common:InfCheckBox id="rawTextCheckBox"
 			styleName="checkMarkDark"
-			selected="{ model.selectedQueryTerm.entityOpt.expandAlias }"
-			label="{ resourceManager.getString( 'infinite', 'querySettingsQueryTermItemRenderer.expandAlias' ) }"
-			change="expandAliasCheckBox_changeHandler(event)" />
+			selected="{ model.selectedQueryTerm.entityOpt.rawText || model.selectedQueryTerm.entityOpt.lockDate }"
+			label="{ resourceManager.getString( 'infinite', 'querySettingsQueryTermItemRenderer.rawText' ) }"
+			change="rawTextOrLockDateCheckBox_changeHandler(event)" />
 
 		<!-- Spacer -->
 		<s:Spacer width="10" />

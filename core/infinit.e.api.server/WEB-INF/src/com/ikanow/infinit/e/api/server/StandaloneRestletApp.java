@@ -35,10 +35,17 @@ public class StandaloneRestletApp
 	  
 	        // Add a new HTTP server listening on port 8184.  
 	        int port = 8184;
-	        component.getServers().add(Protocol.HTTP, port);  
+	        component.getServers().add(Protocol.HTTP, port);
+	        
+	        // Increase the # threads
+	        component.getServers().get(0).getContext().getParameters().add("maxThreads", "100");
+	        
 	        // Attach the sample application.  
 	        component.getDefaultHost().attach(new EmbeddedRestletApp());  
 	  
+	        // Start background threads:
+	        EmbeddedRestletApp.setupPollingHandlers();	        
+	        
 	        // Start the component.  
 	        component.start();
 	    } 

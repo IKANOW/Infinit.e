@@ -446,6 +446,7 @@ public class DocumentPojo extends BaseDbPojo {
 	/**
 	 * @return the headerStartIndex
 	 */
+	@Deprecated
 	public int getHeaderEndIndex() {
 		return headerEndIndex;
 	}
@@ -453,6 +454,7 @@ public class DocumentPojo extends BaseDbPojo {
 	/**
 	 * @param headerStartIndex the headerStartIndex to set
 	 */
+	@Deprecated
 	public void setHeaderEndIndex(int headerEndIndex) {
 		this.headerEndIndex = headerEndIndex;
 	}
@@ -460,6 +462,7 @@ public class DocumentPojo extends BaseDbPojo {
 	/**
 	 * @return the footerStartIndex
 	 */
+	@Deprecated
 	public int getFooterStartIndex() {
 		return footerStartIndex;
 	}
@@ -467,38 +470,46 @@ public class DocumentPojo extends BaseDbPojo {
 	/**
 	 * @param footerEndIndex the footerEndIndex to set
 	 */
+	@Deprecated
 	public void setFooterStartIndex(int footerStartIndex) {
 		this.footerStartIndex = footerStartIndex;
 	}
 
+	@Deprecated
 	public void addToHeader(String sHeaderField) {
 		if (headerFields == null)
 			headerFields = new HashSet<String>();
 		headerFields.add(sHeaderField.toLowerCase());
 	}
+	@Deprecated
 	public void addToFooter(String sFooterField) {
 		if (footerFields == null)
 			footerFields = new HashSet<String>();
 		footerFields.add(sFooterField.toLowerCase());
 	}
+	@Deprecated
 	public Set<String> getHeaderFields() {
 		return headerFields;
 	}
+	@Deprecated
 	public Set<String> getFooterFields() {
 		return footerFields;
 	}
+	@Deprecated
 	public String getHeader() {
 		if (null == headerFields) {
 			return "";
 		}
 		return headerText;
 	}
+	@Deprecated
 	public String getFooter() {
 		if (null == footerFields) {
 			return "";
 		}
 		return footerText;
 	}
+	@Deprecated
 	public String getBody() {
 		if (null == getFullText())
 		{

@@ -42,8 +42,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 				<td align="right">
 					<a class="headerLink"><%=getUserName(request, response) %></a> &nbsp; &nbsp;
 				</td>
-				<td align="right" width="120" background="image/ikanow_logo_smaller_bg.png">
-					
+				<td align="right" width="120">
+					<a href="/"><img src="image/ikanow_logo_smaller_bg.png" border="0"></a>
 				</td>
 				
 			</tr>

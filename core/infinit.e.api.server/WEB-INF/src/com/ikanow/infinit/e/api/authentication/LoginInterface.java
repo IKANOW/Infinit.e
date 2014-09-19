@@ -60,6 +60,7 @@ public class LoginInterface extends ServerResource
 	private String admpass = null;
 	private boolean multi = false;
 	private boolean override = true;
+	private boolean returnCookieInJson = false;
 
 	//public LoginInterface(Context context, Request request, Response response) throws IOException 
 	@Override
@@ -75,6 +76,11 @@ public class LoginInterface extends ServerResource
 		Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		admuser = queryOptions.get("admuser");
 		admpass = queryOptions.get("admpass");
+		String returnCookieInJsonStr =  queryOptions.get("return_tmp_key");
+		if ((null != returnCookieInJsonStr) && (returnCookieInJsonStr.equalsIgnoreCase("true") || returnCookieInJsonStr.equalsIgnoreCase("1")))
+		{
+			returnCookieInJson = true;
+		}
 
 		if ( urlStr.contains("auth/login") )
 		{	
@@ -129,6 +135,7 @@ public class LoginInterface extends ServerResource
 						cooks.add(cookieId);
 						response.setCookieSettings(cooks);
 						isLogin = true;
+						cookieLookup = cookieId.getValue();
 						boolean bAdmin = false;
 
 						//If this request is checking admin status, check that
@@ -276,6 +283,8 @@ public class LoginInterface extends ServerResource
 		if ( action.equals("login"))
 		{
 			rp = new ResponsePojo(new ResponseObject("Login",isLogin,null));
+			if (returnCookieInJson)
+				rp.setData((String)cookieLookup, null);
 		}
 		else if ( action.equals("admin-keepalive"))
 		{

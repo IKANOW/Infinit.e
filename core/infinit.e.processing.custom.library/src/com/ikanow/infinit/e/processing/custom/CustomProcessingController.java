@@ -41,7 +41,6 @@ import com.ikanow.infinit.e.processing.custom.launcher.CustomSavedQueryTaskLaunc
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
 import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
 import com.ikanow.infinit.e.processing.custom.status.CustomStatusManager;
-import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
@@ -135,16 +134,8 @@ public class CustomProcessingController {
 			}
 			else {
 
-				//TODO (INF-2118)... should only allow _JARS_ owned by admin to be run - (also have some mechanism for allowing admins to upload JARs
-				// but not provide them to other users?!)
-				if (prop_custom.getHarvestSecurity()) {
-					if (!AuthUtils.isAdmin(job.submitterID)) {
-						throw new RuntimeException("Permissions error: in secure mode, only admins can launch Hadoop");
-					}
-				}//TODO (INF-2118): TOTEST
-				
 				List<ObjectId> communityIds = InfiniteHadoopUtils.getUserCommunities(job.submitterID);
-				job.tempJarLocation = InfiniteHadoopUtils.downloadJarFile(job.jarURL, communityIds, prop_custom);		
+				job.tempJarLocation = InfiniteHadoopUtils.downloadJarFile(job.jarURL, communityIds, prop_custom, job.submitterID);		
 								
 				// Programmatic code:
 				String jobid = new CustomHadoopTaskLauncher(_bLocalMode, _nDebugLimit, prop_custom).runHadoopJob(job, job.tempJarLocation);
@@ -261,7 +252,7 @@ public class CustomProcessingController {
 			_logger.error("Failed to kill job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  " / " + e.getMessage(), e);
 			return false;
 		} 
-	}////TODO (INF-2395): TOTEST
+	}//TESTED (by hand)
 	
 	//
 	// Look at active jobs, decide which ones to finish

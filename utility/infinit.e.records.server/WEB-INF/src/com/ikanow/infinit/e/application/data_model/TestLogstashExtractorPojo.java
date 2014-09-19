@@ -36,6 +36,8 @@ public class TestLogstashExtractorPojo extends BaseDbPojo { // copy of SourcePip
 	public Boolean isAdmin; // (input only - not delete)
 	public String sourceKey; // (input only - test/delete)
 	public Long maxDocs; // (input only - not delete)
+	public String forSlave; // (input only - delete)
+	public Boolean distributed; // (input only - delete)
 		
 	public String error; // (output only - test only)	
 }

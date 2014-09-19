@@ -14,40 +14,22 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 <%@page import="com.google.gson.JsonParser"%>
-<%@page import="java.net.FileNameMap"%>
-<%@page import="java.net.URLConnection"%>
-
 <%@page import="org.apache.jasper.JasperException"%>
-<%@page import="javax.script.ScriptException"%>
-<%@page import="javax.script.ScriptEngineManager"%>
-<%@page import="javax.script.ScriptEngine"%>
 <%@page import="org.apache.commons.fileupload.util.Streams"%>
 <%@page import="org.apache.commons.fileupload.FileItemStream"%>
 <%@page import="org.apache.commons.fileupload.FileItemIterator"%>
 <%@page import="org.apache.commons.fileupload.disk.DiskFileItemFactory"%>
 <%@page import="org.apache.commons.fileupload.servlet.ServletFileUpload"%>
-<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*,java.util.*,java.net.*,com.google.gson.Gson,org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*,java.util.zip.*;" errorPage="" %>
-<%!static String API_ROOT = null;
-	static String SHARE_ROOT = null;
+<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*,java.util.*,java.net.*,com.google.gson.Gson,org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*,java.util.zip.*" errorPage="" %>
+<%@ include file="inc/sharedFunctions.jsp" %>
+
+<%!
+	static String SHARE_ROOT = "$infinite/share/get/";
 	static Boolean DEBUG_MODE = false;
 	static Boolean showAll = false;
 	static Boolean localCookie = false;
 	static String user = null;
 	static String communityList = null; // (ensures that generateCommunityList is called)
-	static CookieManager cm = new CookieManager();
-
-	static class keepAlive {
-		static class ka {
-			String action;
-			Boolean success;
-			String message;
-			int time;
-
-		}
-
-		public ka response;
-
-	}
 
 	static class personGet {
 		static class resp {
@@ -140,17 +122,6 @@ limitations under the License.
 
 	}
 
-	static class logIn {
-		static class loginData {
-			public String action;
-			public Boolean success;
-			public int time;
-
-		}
-
-		public loginData response;
-	}
-	
 	static class jsonResponse {
 		static class moduleResponse {
 			public String action;
@@ -162,19 +133,6 @@ limitations under the License.
 		
 		public moduleResponse response;
 		public shareData data;
-	}
-
-	static class modResponse {
-		static class moduleResponse {
-			public String action;
-			public Boolean success;
-			public String message;
-			public int time;
-
-		}
-
-		public moduleResponse response;
-		public String data;
 	}
 
 	static class widgetToDBResponse {
@@ -195,85 +153,6 @@ limitations under the License.
 		public wtdbData data;
 	}
 
-	public static void setBrowserInfiniteCookie(HttpServletResponse response,
-			String value, int nServerPort) {
-        String params = null;
-        if ((443 == nServerPort) || (8443 == nServerPort)) {
-                params="; path=/; HttpOnly; Secure";
-        }
-        else {
-                params="; path=/; HttpOnly";
-        }
-        response.setHeader("SET-COOKIE", "infinitecookie="+value+params);
-        	// (all this is needed in order to support HTTP only cookies)
-	} // TESTED
-
-	public static String getBrowserInfiniteCookie(HttpServletRequest request) {
-		Cookie[] cookieJar = request.getCookies();
-		if (cookieJar != null) {
-			for (Cookie cookie : cookieJar) {
-				if (cookie.getName().equals("infinitecookie")) {
-					//System.out.println("Got Browser Cookie Line 109: " + cookie.getValue());
-					return cookie.getValue() + ";";
-				}
-			}
-		}
-		return null;
-	}
-
-	public static String getConnectionInfiniteCookie(URLConnection urlConnection) {
-		Map<String, List<String>> headers = urlConnection.getHeaderFields();
-		Set<Map.Entry<String, List<String>>> entrySet = headers.entrySet();
-
-		for (Map.Entry<String, List<String>> entry : entrySet) {
-			String headerName = entry.getKey();
-			if (headerName != null && headerName.equals("Set-Cookie")) {
-				List<String> headerValues = entry.getValue();
-				for (String value : headerValues) {
-					if (value.contains("infinitecookie")) {
-						int equalsLoc = value.indexOf("=");
-						int semicolonLoc = value.indexOf(";");
-						//System.out.println("Got Connection Cookie Line 133: " + value.substring(equalsLoc+1,semicolonLoc));
-						return value.substring(equalsLoc + 1, semicolonLoc);
-					}
-				}
-			}
-		}
-		return null;
-	}
-
-	public static String stringOfUrl(String addr, HttpServletRequest request,
-			HttpServletResponse response) {
-		if (localCookie)
-			CookieHandler.setDefault(cm);
-		try {
-			ByteArrayOutputStream output = new ByteArrayOutputStream();
-			URL url = new URL(addr);
-			URLConnection urlConnection = url.openConnection();
-
-			String cookieVal = getBrowserInfiniteCookie(request);
-			if (cookieVal != null) {
-				urlConnection.addRequestProperty("Cookie", "infinitecookie="
-						+ cookieVal);
-				urlConnection.setDoInput(true);
-				urlConnection.setDoOutput(true);
-				urlConnection.setRequestProperty("Accept-Charset", "UTF-8");
-			} else if (DEBUG_MODE)
-				System.out.println("Infinit.e Cookie Value is Null");
-			IOUtils.copy(urlConnection.getInputStream(), output);
-			String newCookie = getConnectionInfiniteCookie(urlConnection);
-			if (newCookie != null && response != null) {
-				setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-			}
-
-			String toReturn = output.toString();
-			output.close();
-			return toReturn;
-		} catch (IOException e) {
-			return null;
-		}
-	}
-
 	private static String encrypt(String password)
 			throws NoSuchAlgorithmException, UnsupportedEncodingException {
 		MessageDigest md = MessageDigest.getInstance("SHA-256");
@@ -286,7 +165,7 @@ limitations under the License.
 			HttpServletRequest request, HttpServletResponse response)
 			throws IOException, NoSuchAlgorithmException,
 			UnsupportedEncodingException, URISyntaxException {
-		String json = stringOfUrl(API_ROOT + "auth/login/" + username + "/"
+		String json = callRestfulApi("auth/login/" + username + "/"
 				+ encrypt(pword), request, response);
 		logIn login = new Gson().fromJson(json, logIn.class);
 		if (login == null)
@@ -295,29 +174,10 @@ limitations under the License.
 		return login.response.success;
 	}
 
-	private void logOut(HttpServletRequest request, HttpServletResponse response)
-			throws IOException, NoSuchAlgorithmException,
-			UnsupportedEncodingException, URISyntaxException {
-		String json = stringOfUrl(API_ROOT + "auth/logout", request, response);
-
-	}
-
-	public Boolean isLoggedIn(HttpServletRequest request,
-			HttpServletResponse response) {
-		String json = stringOfUrl(API_ROOT + "auth/keepalive", request,
-				response);
-		if (json != null) {
-			keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
-			return keepA.response.success;
-		} else {
-			return null;
-		}
-	}
-
 	public String removeFromShare(String shareId, HttpServletRequest request,
 			HttpServletResponse response) {
 		if (shareId != null) {
-			String json = stringOfUrl(API_ROOT + "social/share/remove/" + shareId
+			String json = callRestfulApi("social/share/remove/" + shareId
 					+ "/", request, response);
 			if (json != null) {
 				keepAlive keepA = new Gson().fromJson(json, keepAlive.class);
@@ -340,14 +200,14 @@ limitations under the License.
 			if ( isRef )
 			{
 				if (newShare)
-					url = API_ROOT + "social/share/add/ref/"
+					url = "social/share/add/ref/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(docloc, charset) + "/"
 							+ URLEncoder.encode(docid, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
 							+ URLEncoder.encode(description, charset) + "/";
 				else
-					url = API_ROOT + "social/share/update/ref/" + prevId + "/"
+					url = "social/share/update/ref/" + prevId + "/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(docloc, charset) + "/"
 							+ URLEncoder.encode(docid, charset) + "/"
@@ -366,12 +226,12 @@ limitations under the License.
 					return "Failed, file was not valid JSON";
 				}
 				if (newShare)
-					url = API_ROOT + "social/share/add/json/"
+					url = "social/share/add/json/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
 							+ URLEncoder.encode(description, charset) + "/";
 				else
-					url = API_ROOT + "social/share/update/json/" + prevId + "/"
+					url = "social/share/update/json/" + prevId + "/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
 							+ URLEncoder.encode(description, charset) + "/";
@@ -379,53 +239,16 @@ limitations under the License.
 			else
 			{
 				if (newShare)
-					url = API_ROOT + "social/share/add/binary/"
+					url = "social/share/add/binary/"
 							+ URLEncoder.encode(title, charset) + "/"
 							+ URLEncoder.encode(description, charset) + "/";
 				else
-					url = API_ROOT + "social/share/update/binary/" + prevId + "/"
+					url = "social/share/update/binary/" + prevId + "/"
 							+ URLEncoder.encode(title, charset) + "/"
 							+ URLEncoder.encode(description, charset) + "/";
 			}
 
-			if (localCookie)
-				CookieHandler.setDefault(cm);
-			URLConnection connection = new URL(url).openConnection();
-			connection.setDoOutput(true);
-			connection.setRequestProperty("Accept-Charset", charset);
-			String cookieVal = getBrowserInfiniteCookie(request);
-			if (cookieVal != null) 
-			{
-				connection.addRequestProperty("Cookie", "infinitecookie="
-						+ cookieVal);
-				connection.setDoInput(true);
-				connection.setDoOutput(true);
-				connection.setRequestProperty("Accept-Charset", "UTF-8");
-			}
-			if (mimeType != null && mimeType.length() > 0)
-				connection.setRequestProperty("Content-Type", mimeType);
-			DataOutputStream output = new DataOutputStream(
-					connection.getOutputStream());
-			output.write(bytes);
-			DataInputStream responseStream = new DataInputStream(
-					connection.getInputStream());
-
-			ByteArrayOutputStream buffer = new ByteArrayOutputStream();
-			int nRead;
-			byte[] data = new byte[16384];
-			while ((nRead = responseStream.read(data, 0, data.length)) != -1) {
-				buffer.write(data, 0, nRead);
-			}
-
-			String json = buffer.toString();
-			String newCookie = getConnectionInfiniteCookie(connection);
-			if (newCookie != null && response != null) {
-				setBrowserInfiniteCookie(response, newCookie, request.getServerPort());
-			}
-			buffer.flush();
-			buffer.close();
-			output.close();
-			responseStream.close();
+			String json = postToRestfulApi(url, bytes, mimeType, request, response);
 			
 			if ( isJson )
 			{
@@ -507,8 +330,8 @@ limitations under the License.
 			String comment = "Added by fileUploader";
 
 			///share/add/community/{shareid}/{comment}/{communityid}?readWrite={readWrite}
-			String json = stringOfUrl(
-					API_ROOT + "social/share/add/community/"
+			String json = callRestfulApi(
+					"social/share/add/community/"
 							+ URLEncoder.encode(shareId, charset) + "/"
 							+ URLEncoder.encode(comment, charset) + "/"
 							+ URLEncoder.encode(communityId, charset) + "/?readWrite=" + readWrite,
@@ -539,8 +362,8 @@ limitations under the License.
 			String comment = "Added by fileUploader";
 
 			///social/share/remove/community/{shareid}/{communityid}
-			String json = stringOfUrl(
-					API_ROOT + "social/share/remove/community/"
+			String json = callRestfulApi(
+					"social/share/remove/community/"
 							+ URLEncoder.encode(shareId, charset) + "/"
 							+ URLEncoder.encode(communityId, charset) + "/",
 					request, response);
@@ -568,8 +391,9 @@ limitations under the License.
 		try {
 			String charset = "UTF-8";
 
-			String json = stringOfUrl(API_ROOT + "person/get/", request,
+			String json = callRestfulApi("person/get/", request,
 					response);
+			
 			personGet pg = new Gson().fromJson(json, personGet.class);
 			if (pg != null) {
 				user = pg.data.email;
@@ -604,14 +428,14 @@ limitations under the License.
 		if (null != o) {
 			ext = o.toString();
 		}
-		String searchCriteria = "";
+		String searchCriteria = "?nocontent=true";
 		if ((null != ext) && ext.startsWith("type:")) {
-			searchCriteria = "?type=" + ext.substring(5);
+			searchCriteria += "&type=" + ext.substring(5);
 			ext = null;
 		} else if ((null != ext) && ext.equalsIgnoreCase("see all")) {
 			ext = null;
 		}
-		String json = stringOfUrl(API_ROOT + "social/share/search/"
+		String json = callRestfulApi("social/share/search/"
 				+ searchCriteria, request, response);
 
 		if (json != null) 
@@ -712,7 +536,7 @@ limitations under the License.
 	private String populateMediaTypes(HttpServletRequest request,
 			HttpServletResponse response) {
 		String toReturn = "<option> See All </option>";
-		String json = stringOfUrl(API_ROOT + "social/share/search/", request,
+		String json = callRestfulApi("social/share/search/?nocontent=true", request,
 				response);
 		String ext = null;
 		Object o = request.getParameter("ext");
@@ -787,64 +611,14 @@ display: none;
 visibility: hidden;
 }
 </style>
+<script type="text/javascript" src="lib/jquery.js"></script>
+    <script src="lib/jshint.js"></script>
 <script language="javascript" src="AppConstants.js"> </script>
 </head>
 
 <body onload="populate()">
 <%
-	if (API_ROOT == null) 
-	{
-		ServletContext context = session.getServletContext();
-		String realContextPath = context.getRealPath("/");
-		ScriptEngineManager manager = new ScriptEngineManager();
-		ScriptEngine engine = manager.getEngineByName("javascript");
-		try 
-		{ // EC2 Machines
-			FileReader reader = new FileReader(realContextPath
-					+ "/AppConstants.js");
-			engine.eval(reader);
-			reader.close();
-			engine.eval("output = getEndPointUrl();");
-			API_ROOT = (String) engine.get("output");
-			SHARE_ROOT = API_ROOT + "share/get/";
-		} 
-		catch (Exception je) 
-		{
-			try 
-			{ ////////////Windows + Tomcat
-				FileReader reader = new FileReader(realContextPath
-						+ "\\..\\AppConstants.js");
-				engine.eval(reader);
-				reader.close();
-				engine.eval("output = getEndPointUrl();");
-				API_ROOT = (String) engine.get("output");
-				SHARE_ROOT = API_ROOT + "share/get/";
-			} 
-			catch (Exception e) 
-			{
-				System.err.println(e.toString());
-			}
-		}
-		if (null == API_ROOT) { 
-			// Default to localhost
-			API_ROOT = "http://localhost:8080/api/";
-			//API_ROOT = "http://localhost:8184/";
-			SHARE_ROOT = "$infinite/share/get/";
-		}
-
-		if (API_ROOT.contains("localhost"))
-			localCookie = true;
-		else
-			localCookie = false;
-	}
-	Boolean isLoggedIn = isLoggedIn(request, response);
-	if (isLoggedIn == null) 
-	{
-		out.println("The Infinit.e API cannot be reached.");
-		out.println(API_ROOT);
-	}
-
-	else if (isLoggedIn == true) 
+	if (isLoggedIn == true) 
 	{
 		showAll = (request.getParameter("sudo") != null);
 		DEBUG_MODE = (request.getParameter("debug") != null);
@@ -921,6 +695,15 @@ visibility: hidden;
 						}
 					}
 				}
+				// Handle case - userJson set, then treat like a file to upload:
+				Object userJsonObj = request.getAttribute("userJson");
+				if ((null != userJsonObj) && !userJsonObj.toString().isEmpty() ){
+					String userJson = (String) userJsonObj;
+					isFileSet = true;
+					fileDS = "application/json";
+					fileBytes = userJson.getBytes();
+				}				
+				
 				// "global" param: is read write?
 				boolean readWrite = false;
 				Object readWriteObj = request.getAttribute("readWrite");			
@@ -1054,8 +837,41 @@ visibility: hidden;
 			  	o.selected = true;
 			}
 		}
+		
+	var filterChangeValue = null;
+	function allow_filter_change()
+	{
+		if (null != filterChangeValue) {
+			if (null != editShareWindow) {
+				var answer = confirm("You may have unsaved changes in the Share Editor - are you sure you want to close it (OK=yes)?")
+				if (!answer) {
+					ext.value = filterChangeValue;
+					return false;					
+				}
+			}
+		}		
+		if (null != editShareWindow) {
+			editShareWindow.onbeforeunload = null;
+			editShareWindow.close();
+		}
+		return true;
+	}
+		
+	var savedUploadInfoValue = null;
 	function populate()
 	{
+		if (null != savedUploadInfoValue) {
+			if (null != editShareWindow) {
+				var answer = confirm("You may have unsaved changes in the Share Editor - are you sure you want to close it (OK=yes)?")
+				if (!answer) {
+					upload_info.value = savedUploadInfoValue;
+					return;					
+				}
+			}
+		}
+		savedUploadInfoValue = upload_info.value;
+		filterChangeValue = ext.value;
+		
 		var typerow = document.getElementById('typerow');
 		var type = document.getElementById('type');
 		var title = document.getElementById('title');
@@ -1076,8 +892,15 @@ visibility: hidden;
 		var ref_id = document.getElementById("ref_id");
 		var ref_loc = document.getElementById("ref_loc");
 		
+		if (null != editShareWindow) {
+			editShareWindow.onbeforeunload = null;
+			editShareWindow.close();
+		}
+				
 		if (list == "new")
 		{
+			$("#editJsonButton").attr("disabled", "disabled");
+			
 			title.value = "";
 			description.value = "";
 			type.value = "binary";
@@ -1102,6 +925,8 @@ visibility: hidden;
 		
 		if ( list == "newJSON")
 		{
+			$("#editJsonButton").removeAttr("disabled");			
+			
 			title.value = "";
 			description.value = "";
 			type.value = "";
@@ -1126,6 +951,8 @@ visibility: hidden;
 		
 		if (list == "newRef")
 		{
+			$("#editJsonButton").attr("disabled", "disabled");
+			
 			title.value = "";
 			description.value = "";
 			type.value = "";
@@ -1167,6 +994,8 @@ visibility: hidden;
 		
 		if ( res_docloc != "null" ) // reference
 		{
+			$("#editJsonButton").attr("disabled", "disabled");
+			
 			typerow.className = "show";
 			
 			file_row.className = "hide";
@@ -1180,6 +1009,8 @@ visibility: hidden;
 		}
 		else if ( res_binary == "null" ) //json
 		{			
+			$("#editJsonButton").removeAttr("disabled");			
+			
 			typerow.className = "show";
 			
 			file_row.className = "show";
@@ -1190,6 +1021,8 @@ visibility: hidden;
 		}
 		else //binary
 		{
+			$("#editJsonButton").attr("disabled", "disabled");
+			
 			typerow.className = "hide";
 			
 			file_row.className = "show";
@@ -1214,7 +1047,71 @@ visibility: hidden;
 		type.value = res_type;
 		readWrite.value = res_readWrite;
 	}
-		function validate_fields()
+	
+	function isFunction(functionToCheck) {
+		 var getType = {};
+		 return functionToCheck && getType.toString.call(functionToCheck) === '[object Function]';
+	}
+	
+	function checkJsonFormat(alertOnSuccess, alertOnFailure)
+	{
+		var editor = editShareWindow.sourceJsonEditor;
+
+		// Encode top level functions into { "$fn": string } objects
+		var editorAsJsObject = eval('(' + editor.getValue() + ')');
+		var jsonArray = null;
+		var isArray = false;
+		if (!Array.isArray(editorAsJsObject)) {
+			jsonArray = [ editorAsJsObject ];
+		}
+		else {
+			isArray = true;
+			jsonArray = editorAsJsObject;				
+		}
+		var converted = false;
+		for (var y in jsonArray) {
+			editorAsJsObject = jsonArray[y];
+			for (var x in editorAsJsObject) {
+				var val = editorAsJsObject[x];
+				if (isFunction(val)) {
+					editorAsJsObject[x] = { "$fn": String(val) };
+					converted = true;
+				}
+			}
+		}
+		if (converted) {
+			if (isArray) {
+				editorAsJsObject = jsonArray;
+			}
+			editor.setValue(JSON.stringify(editorAsJsObject, null, "   "));
+		}
+		
+		var success = JSHINT(editor.getValue());
+		var output = '';
+		if (!success) {
+			output = "JSON Errors:\n\n";
+			for (var i in JSHINT.errors) {
+				var err = JSHINT.errors[i];
+				if (null != err) {
+					output += err.line + '[' + err.character + ']: ' + err.reason + '\n';
+				}
+				else {
+					output += "Unknown error\n";
+				}
+			}
+		}
+		if (alertOnSuccess || !success) {
+			if (output == "") {
+				output = "Success!\n";
+			}
+			if (success || alertOnFailure) {
+				alert(output);
+			}
+		}
+		return success;
+	}//TESTED
+	
+	function validate_fields()
 		{
 			title = document.getElementById('title').value;
 			description = document.getElementById('description').value;
@@ -1246,8 +1143,40 @@ visibility: hidden;
 				alert('Please provide a referenced doc id.');
 				return false;				
 			}
+			var selected = 0;
+			for ( var i = 0, l = mult_comms.options.length, o; i < l; i++ )
+			{
+			  o = mult_comms.options[i];
+			  if(o.selected)
+				 selected++;
+			}
+			if (0 == selected) {
+				alert('Please select 1+ communities');
+				return false;
+			}			
 			
-			
+			if ((null != editShareWindow) && !editShareWindow.closed) {
+				try {
+					if (checkJsonFormat(false, true)) {
+						document.getElementById("userJson").value = editShareWindow.sourceJsonEditor.getValue();					
+					}
+					else {
+						return false;
+					}
+				} 
+				catch (e) { 
+					alert("Error checking JSON format: " + e.message); 
+					return false;
+				}
+			}
+			else {
+				document.getElementById("userJson").value = "";
+			}
+			// Now we're going to submit so close window
+			if (null != editShareWindow) {
+				editShareWindow.onbeforeunload = null;
+				editShareWindow.close();
+			}
 		}
 		function confirmDelete()
 		{
@@ -1264,6 +1193,30 @@ visibility: hidden;
 			window.open(url, '_blank');
 			window.focus();			
 		}
+		var editShareWindow = null;
+		function editJson() 
+		{
+			if (null != editShareWindow) {
+				if (!editShareWindow.closed) {
+					alert("Only one share window can be open at a time");
+					return;
+				}
+				editShareWindow = null;
+			}
+			
+			var DBId = document.getElementById('DBId');
+			var prefix = "";
+			if (DBId.value != "") {
+				prefix = "?_id=" + DBId.value;
+			}				
+			editShareWindow = window.open("./json_share_editor.html" + prefix,'','width=1024,height=800');
+			
+			if (null == editShareWindow) {
+				alert("Pop ups disabled by policy: there is probably an error icon to the right of the File Uploader URL: click on that and follow instructions, then resubmit the test.");
+				return;
+			}
+			
+		}
 		// -->
 		</script>
 	</script>
@@ -1273,7 +1226,7 @@ visibility: hidden;
 	        	<form id="search_form" name="search_form" method="get">
 	        		<div align="center"">
 	        		<label for="ext">Filter On</label>
-					  <select name="ext" id="ext" onchange="this.form.submit();">
+					  <select name="ext" id="ext" onchange="if (allow_filter_change()) this.form.submit();">
 					    <%
 					    	out.print(populateMediaTypes(request, response));
 					    %>
@@ -1340,7 +1293,9 @@ visibility: hidden;
 	                  </tr>
 	                  <tr id="file_row">
 	                    <td>File:</td>
-	                    <td><input type="file" name="file" id="file" /></td>
+	                    <td><input type="file" name="file" id="file" />
+	                  	<input id="editJsonButton" type="button" onclick="editJson()" value="Edit"/>
+	                    </td>
 	                  </tr>
 	                  <tr id="ref_row">
 	                    <td>Reference location:</td>
@@ -1371,6 +1326,7 @@ visibility: hidden;
 	                </table>
 					<input type="hidden" name="created" id="created" />
 					<input type="hidden" name="DBId" id="DBId" />
+					<input type="hidden" name="userJson" id="userJson" />
 					<input type="hidden" name="fileUrl" id="fileUrl" />
 					<input type="hidden" name="binary" id="binary" />
 					<input type="hidden" name="reference" id="reference" />

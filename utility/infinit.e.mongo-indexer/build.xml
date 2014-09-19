@@ -46,6 +46,9 @@
 	<path id="infinit.e.processing.generic.library.classpath">
 	     <pathelement location="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar"/>
 	</path>
+	<path id="infinit.e.harvest.library.classpath">
+	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>
+	</path>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">
     	<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
@@ -60,6 +63,7 @@
         </fileset>
         <path refid="infinit.e.data_model.classpath"/>
         <path refid="infinit.e.processing.generic.library.classpath"/>
+        <path refid="infinit.e.harvest.library.classpath"/>
     	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
         <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
 	</path>

@@ -32,9 +32,13 @@ package com.ikanow.infinit.e.query.model.presentation.builder.editor
 	import com.ikanow.infinit.e.shared.model.vo.QueryTermTemporal;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
+	
 	import flash.events.Event;
+	
 	import flashx.textLayout.edit.EditingMode;
+	
 	import mx.collections.ArrayCollection;
+	import mx.controls.Alert;
 	import mx.resources.ResourceManager;
 	
 	/**
@@ -168,6 +172,9 @@ package com.ikanow.infinit.e.query.model.presentation.builder.editor
 			queryEvent.keywordString = keywordString;
 			queryEvent.searchType = QueryEvent.GET_EDITOR_QUERY_SUGGESTIONS;
 			dispatcher.dispatchEvent( queryEvent );
+			
+			// Reset the term I was editing - this is invalid now
+			this.setSelectedSuggestion( null );
 			
 			currentKeywordString = keywordString;
 		}
@@ -341,19 +348,29 @@ package com.ikanow.infinit.e.query.model.presentation.builder.editor
 		/**
 		 * Toggle the selected query term expand alias setting
 		 */
-		public function toggleSelectedQueryTermExpandAlias():void
+		public function toggleSelectedQueryTermRawTextOrLockDate():void
 		{
-			selectedQueryTerm.entityOpt.expandAlias = !selectedQueryTerm.entityOpt.expandAlias;
-			editorQueryTerm.entityOpt.expandAlias = !editorQueryTerm.entityOpt.expandAlias;
+			selectedQueryTerm.entityOpt.rawText = !selectedQueryTerm.entityOpt.rawText;
+			editorQueryTerm.entityOpt.rawText = !editorQueryTerm.entityOpt.rawText;
+			selectedQueryTerm.entityOpt.lockDate = !selectedQueryTerm.entityOpt.lockDate;
+			editorQueryTerm.entityOpt.lockDate = !editorQueryTerm.entityOpt.lockDate;
 			queryTerms.refresh();
 		}
 		
 		/**
 		 * Update the entity type query term
 		 */
-		public function updateEntityQueryType():void
+		public function updateEntityQueryType(whatUserTyped:String):void
 		{
-			if ( selectedSuggestion == null && suggestions )
+			if ( selectedSuggestion == null && whatUserTyped )
+			{
+				var selectedSuggestionNew:QuerySuggestion = new QuerySuggestion();
+				selectedSuggestionNew.value = whatUserTyped;
+				selectedSuggestionNew.type = QuerySuggestionTypes.EXACT_TEXT;
+				selectedSuggestionNew.dimension = QueryDimensionTypes.EXACT_TEXT;
+				selectedSuggestion = selectedSuggestionNew;
+			}
+			else if ( selectedSuggestion == null && suggestions )
 				setSelectedSuggestion( suggestions.getItemAt( 0 ) as QuerySuggestion );
 			
 			var queryEvent:QueryEvent;
@@ -419,17 +436,17 @@ package com.ikanow.infinit.e.query.model.presentation.builder.editor
 		/**
 		 * Update the temporal type query term
 		 */
-		public function updateTemporalQueryType( startDate:String, endDate:String ):void
+		public function updateTemporalQueryType( startDate:Date, endDate:Date ):void
 		{
 			var queryEvent:QueryEvent;
 			
 			editorQueryTerm.setTemporal( new QueryTermTemporal() );
 			
-			if ( startDate && startDate != Constants.BLANK )
-				editorQueryTerm.time.min = new Date( startDate );
+			if ( startDate != null )
+				editorQueryTerm.time.min = startDate;
 			
-			if ( endDate && endDate != Constants.BLANK )
-				editorQueryTerm.time.max = new Date( endDate );
+			if ( endDate != null )
+				editorQueryTerm.time.max = endDate;
 			
 			if ( editorQueryTerm.editMode == EditModeTypes.ADD )
 				queryEvent = new QueryEvent( QueryEvent.ADD_QUERY_TERM_TO_QUERY );

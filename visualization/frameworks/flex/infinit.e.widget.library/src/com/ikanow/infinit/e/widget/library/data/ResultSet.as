@@ -39,6 +39,7 @@ package com.ikanow.infinit.e.widget.library.data
 	
 	import system.data.Map;
 	import system.data.maps.HashMap;
+	import system.data.sets.HashSet;
 	
 	/**
 	 * @private
@@ -308,11 +309,15 @@ package com.ikanow.infinit.e.widget.library.data
 					for each ( var evt:Object in _queryBase.getEvents() )
 					{
 						var evtindex:String = getAssocHash( evt );
+						var currEvt:Object = fromDocs.get( evtindex );
 						
-						if ( null == fromDocs.get( evtindex ) )
+						if ( null == currEvt )
 						{
 							evt[ "notPromoted" ] = true;
 						}
+						else {
+							evt[ "docids" ] = currEvt.docids;
+						}						
 						// Always overwrite doc values with ent values (??)
 						fromDocs.put( evtindex, evt );
 					}
@@ -373,10 +378,13 @@ package com.ikanow.infinit.e.widget.library.data
 					for each ( var evt:Object in _queryBase.getFacts() )
 					{
 						var evtindex:String = getAssocHash( evt );
-						
-						if ( null == fromDocs.get( evtindex ) )
+						var currEvt:Object = fromDocs.get( evtindex );
+						if ( null == currEvt )
 						{
 							evt[ "notPromoted" ] = true;
+						}
+						else {
+							evt[ "docids" ] = currEvt.docids;
 						}
 						// Always overwrite doc values with ent values (??)
 						fromDocs.put( evtindex, evt );
@@ -885,6 +893,13 @@ package com.ikanow.infinit.e.widget.library.data
 							
 							currEvent[ "doccount" ] = 0;
 							queryDeDupeMap.put( event_index, currEvent );
+							
+							var x:HashSet = new HashSet();
+							x.add(doc._id);
+							currEvent[ "docids" ] = x;
+						}
+						else if (currEvent[ "docids" ].size() < 10) { // (get the first 10 doc ids)
+							currEvent[ "docids" ].add(doc._id);
 						}
 						currEvent.doccount++;
 					}

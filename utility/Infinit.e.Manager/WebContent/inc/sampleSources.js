@@ -2,6 +2,15 @@
 
 var SAMPLE_SOURCES = {
 
+		"empty":
+		{
+			"description": "Empty source",
+			"isPublic": true,
+			"mediaType": "Report",
+			"title": "Empty source template, eg for use with the Flow Builder UI",
+			"processingPipeline": [
+			                       ]		
+		},
 		"rss": 
 		{
 			"description": "Get one of more RSS feeds, all the listed documents are extracted",
@@ -14,7 +23,7 @@ var SAMPLE_SOURCES = {
 			                    	   "feed": {
 			                    		   "extraUrls": [
 			                    		                 {
-			                    		                	 "url": "http://youraddress.com/news.rss"
+			                    		                	 "url": "http://youraddress.com/then/e.g./news.rss"
 			                    		                 }
 			                    		                 ]
 			                    	   }
@@ -38,7 +47,6 @@ var SAMPLE_SOURCES = {
 		{
 			"description": "Extract each URL (re-extracting every 'updateCycle_secs') with the specified title and summary text",
 			"isPublic": true,
-			"mediaType": "News",
 			"title": "Basic Web Page Source Template",
 			"processingPipeline": [
 			                       {
@@ -48,7 +56,7 @@ var SAMPLE_SOURCES = {
 			                    		                 {
 			                    		                	 "description": "Optional",
 			                    		                	 "title": "Page Title",
-			                    		                	 "url": "http://youraddress.com/title.html"
+			                    		                	 "url": "http://youraddress.com/then/e.g./title.html"
 			                    		                 }
 			                    		                 ],
 			                    		                 "updateCycle_secs": 86400
@@ -77,10 +85,11 @@ var SAMPLE_SOURCES = {
 			"processingPipeline": [
 			                       {
 			                    	   "display": "Specify one or more JSON (or XML or ...) endpoints from which to extract objects, each endpoint/URL generates a single document",
-			                    	   "feed": {
+			                    	   "web": {
 			                    		   "extraUrls": [
 			                    		                 {
-			                    		                	 "url": "http://youraddress.com/query?out=json"
+			                    		                	 "url": "http://youraddress.com/then/e.g./query?out=json",
+			                    		                	 "title": "dummy: replaced below"
 			                    		                 }
 			                    		                 ]
 			                    	   }
@@ -195,10 +204,11 @@ var SAMPLE_SOURCES = {
 			"processingPipeline": [
 			                       {
 			                    	   "display": "Specify one or more JSON (or XML or ...) endpoints from which to extract objects, each endpoint/URL generates one or more links that can be harvested from the web",
-			                    	   "feed": {
+			                    	   "web": {
 			                    		   "extraUrls": [
 			                    		                 {
-			                    		                	 "url": "http://youraddress.com/query?out=json"
+			                    		                	 "url": "http://youraddress.com/then/e.g./query?out=json",
+			                    		                	 "title": "doesn't matter, this document is deleted by the splitter element"
 			                    		                 }
 			                    		                 ]
 			                    	   }
@@ -744,6 +754,10 @@ var SAMPLE_SOURCES = {
 			                       {
 			                    	   "display": "The parameters necessary to access a SQL database - the first time through 'query' is called, subsequently 'deltaQuery' is called.",
 			                    	   "database": {
+			                    		   "authentication": {
+			                                   "password": "PASSWORD",
+			                                   "username": "USERNAME"
+			                               },			                    		   
 			                    		   "databaseName": "DATABASE",
 			                    		   "databaseType": "mysql",
 			                    		   "deleteQuery": "",
@@ -851,7 +865,10 @@ var SAMPLE_SOURCES = {
 			                    	   "display": "Just contains a string in which to put the logstash configuration (minus the output, which is appended by Infinit.e)",
 			                    	   "logstash": {
 			                    		   "config": "input {\n}\n\nfilter {\n}\n\n",
-			                    		   "streaming": true
+			                    		   "streaming": true,
+			                    		   "distributed": false,
+			                    		   "testDebugOutput": false,
+			                    		   "testInactivityTimeout_secs": 10
 			                    	   }
 			                       }
 			                       ]

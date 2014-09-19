@@ -53,6 +53,7 @@ import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.geo.GeoFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
@@ -74,6 +75,7 @@ public class StructuredAnalysisHarvester
 	
 	public void setContext(HarvestContext context) {
 		_context = context;
+		_securityManager = _context.getSecurityManager();
 		// Setup some globals if necessary
 		if (null == _gson) {
 			GsonBuilder gb = new GsonBuilder();
@@ -114,7 +116,14 @@ public class StructuredAnalysisHarvester
         	if (imports != null) {
         		for (String file : imports) {
         			if (null != file) {
-        				_securityManager.eval(_scriptEngine, JavaScriptUtils.getJavaScriptFile(file));
+        				try {
+        					_securityManager.eval(_scriptEngine, JavaScriptUtils.getJavaScriptFile(file, _securityManager));
+        				}
+        		        catch (Exception e) {
+        					this._context.getHarvestStatus().logMessage("ScriptException (imports): " + e.getMessage(), true);
+        					//DEBUG
+        					//logger.error("ScriptException (imports): " + e.getMessage(), e);
+        				}        
         			}
         		}
         	}//(end load imports)
@@ -129,8 +138,9 @@ public class StructuredAnalysisHarvester
         	}//(end load scripts)        	
 		} 
         catch (ScriptException e) {
-			this._context.getHarvestStatus().logMessage("ScriptException: " + e.getMessage(), true);
-			logger.error("ScriptException: " + e.getMessage(), e);
+			this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
+			//DEBUG
+			//logger.error("ScriptException (globals): " + e.getMessage(), e);
 		}        
 	}//TESTED (uah:import_and_lookup_test_uahSah.json)
 	
@@ -490,13 +500,12 @@ public class StructuredAnalysisHarvester
 	{
 		if (null == _scriptEngine) {
 			//set up the security manager
-			_securityManager = new JavascriptSecurityManager();						
+			_securityManager = new IkanowSecurityManager();						
 			_scriptFactory = new ScriptEngineManager();
 			_scriptEngine = _scriptFactory.getEngineByName("JavaScript");
 			
 			if (null != _unstructuredHandler) { // Also initialize the scripting engine for the UAH
 				_unstructuredHandler.set_sahEngine(_scriptEngine);
-				_unstructuredHandler.set_sahSecurity(_securityManager);				
 			}
 	        // Make the engine invocable so that we can call functions in the script
 	        // using the inv.invokeFunction(function) method
@@ -511,6 +520,7 @@ public class StructuredAnalysisHarvester
 	// LEGACY CODE - USE TO SUPPORT OLD CODE FOR NOW + AS UTILITY CODE FOR THE PIPELINE LOGIC
 	
 	// Private class variables
+	@SuppressWarnings("unused")
 	private static Logger logger;
 	private JSONObject _document = null; //TODO (INF-2488): change all the JSONObject logic to LinkedHashMap and (generic) Array so can just replace this with a string...
 	private DocumentPojo _docPojo = null;
@@ -540,7 +550,7 @@ public class StructuredAnalysisHarvester
 	// 
 	private ScriptEngineManager _scriptFactory = null;
 	private ScriptEngine _scriptEngine = null;
-	private JavascriptSecurityManager _securityManager = null;
+	private IkanowSecurityManager _securityManager = null;
 	private Invocable _scriptInvoker = null;
 	private static String PARSING_SCRIPT = null;
 	private boolean _isParsingScriptInitialized = false; // (needs to be done once per source)
@@ -557,6 +567,7 @@ public class StructuredAnalysisHarvester
 	public List<DocumentPojo> executeHarvest(HarvestController contextController, SourcePojo source, List<DocumentPojo> docs)
 	{
 		_context = contextController;
+		_securityManager = _context.getSecurityManager();
 		if (null == _gson) {
 			GsonBuilder gb = new GsonBuilder();
 			_gson = gb.create();
@@ -732,7 +743,6 @@ public class StructuredAnalysisHarvester
 							try 
 							{
 								this._unstructuredHandler.set_sahEngine(_scriptEngine);
-								this._unstructuredHandler.set_sahSecurity(_securityManager);
 								bMetadataChanged = this._unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
 							}
 							catch (Exception e) {
@@ -1908,7 +1918,7 @@ public class StructuredAnalysisHarvester
 					{
 						assocToCreate[2] = entityLists.get("geo_index").get(geoIndexNumber - 1);
 						if (((Integer) assocCounts.get("geoIndexCount") > 1) && (i % (Integer) assocCounts.get("geoIndexCount") == 0)) geoIndexNumber++;
-						if (geoIndexNumber > entityLists.get("geoIndexCount").size()) geoIndexNumber = 1;
+						if (geoIndexNumber > entityLists.get("geo_index").size()) geoIndexNumber = 1;
 					}
 					
 					// Time_Start
@@ -1916,7 +1926,7 @@ public class StructuredAnalysisHarvester
 					{
 						assocToCreate[3] = entityLists.get("time_start").get(timeStartNumber - 1);
 						if (((Integer) assocCounts.get("timeStartCount") > 1) && (i % (Integer) assocCounts.get("timeStartCount") == 0)) timeStartNumber++;
-						if (geoIndexNumber > entityLists.get("timeStartCount").size()) geoIndexNumber = 1;
+						if (timeStartNumber > entityLists.get("time_start").size()) timeStartNumber = 1;
 					}
 					
 					// Time_End
@@ -1924,6 +1934,7 @@ public class StructuredAnalysisHarvester
 					{
 						assocToCreate[4] = entityLists.get("time_end").get(timeEndNumber - 1);
 						if (((Integer) assocCounts.get("timeEndCount") > 1) && (i % (Integer) assocCounts.get("timeEndCount") == 0)) timeEndNumber++;
+						if (timeEndNumber > entityLists.get("time_end").size()) timeEndNumber = 1;
 					}
 
 					assocsToCreate.add(assocToCreate);
@@ -2700,12 +2711,12 @@ public class StructuredAnalysisHarvester
 				}				
 				_securityManager.eval(_scriptEngine, JavaScriptUtils.getScript(script));
 				//must turn the security back on when invoking calls
-				_securityManager.setJavascriptFlag(true);
+				_securityManager.setSecureFlag(true);
 				try {
 					retVal = _scriptInvoker.invokeFunction(JavaScriptUtils.genericFunctionCall);
 				}
 				finally {
-					_securityManager.setJavascriptFlag(false);
+					_securityManager.setSecureFlag(false);
 				}
 			}
 			// $FUNC - string contains the name of a function to call (i.e. getSometing(); )

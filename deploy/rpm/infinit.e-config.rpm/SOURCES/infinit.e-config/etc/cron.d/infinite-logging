@@ -16,6 +16,7 @@
 
 SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+MAILTO=""
 
 # m h dom mon dow user  command
 # At midnight delete old logs
@@ -26,6 +27,7 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 04 00    * * *   root   if [ -d /var/log/hadoop/ ]; then find /var/log/hadoop/ -mtime +10 -a -name "*log*" | xargs rm -f; fi
 04 00    * * *   root   if [ -d /var/log/hadoop/userlogs ]; then find /var/log/hadoop/userlogs -mtime +10 -a -name "job*" | xargs rm -f; fi
 04 00    * * *   root   if [ -d /var/log/hadoop/history ]; then find /var/log/hadoop/history -mtime +2 -a -name "*.xml" | xargs rm -f; fi
+04 00    * * *   root   find /var/log/ -size +250M -a -name "maillog.*" | xargs rm -f
 
 # Report if the Alchemy Limit has been reached by checking hourly
 00 *     * * *   root	if [ -f /opt/splunk/bin/splunk ]; then /opt/splunk/bin/splunk cmd python /opt/infinite-home/scripts/AlchemyLimitExceededAlert.python; fi
@@ -41,3 +43,5 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Report if the API does not receive 100 Results on a common search (Hourly between 6am and 9pm)
 00 6-21    * * *   root service tomcat6-interface-engine status | grep -q 'is running' && sh /opt/infinite-home/scripts/APINumResultsCheck.sh localhost:8080/api
+
+#(EOL defender!)

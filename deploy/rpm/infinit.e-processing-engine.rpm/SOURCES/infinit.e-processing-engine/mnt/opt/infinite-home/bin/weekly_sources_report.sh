@@ -8,9 +8,8 @@ SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
 FROMUSER=`grep "^log.files.mail.from=" $SERVICE_PROPERTY_FILE | sed s/'log.files.mail.from='// | sed s/' '//g`
 TOUSER=`grep "^log.files.mail.to=" $SERVICE_PROPERTY_FILE | sed s/'log.files.mail.to='// | sed s/' '//g`
 
-IS_MASTER=$(curl -s http://localhost:9200/_cluster/nodes/_local |\
- 				grep -q `curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$"` \
-				&& echo "true")
+MASTER=`curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$" | grep -o "[^-].*"`
+IS_MASTER=$(curl -s http://localhost:9200/_nodes/_local | grep -q "$MASTER" && echo "true")
 
 if [ -d $CONFDIR ]; then
 	if [ -f $CONFDIR/infinite.service.properties ]; then

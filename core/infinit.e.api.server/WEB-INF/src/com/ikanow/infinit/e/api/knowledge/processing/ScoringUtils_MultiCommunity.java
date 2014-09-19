@@ -93,6 +93,8 @@ class ScoringUtils_MultiCommunity {
 	// State:
 
 	private ObjectId[] _community_ids = null; // (taken from calling function)
+	private HashSet<ObjectId> _community_ids_lookupSet = null; // (annoyingly required to handle multi-community (query) "queues" and "buckets" (user queues))
+	
 	private Map<ObjectId, Community_GlobalInfo> _community_globalInfo = null; //new TreeMap<String, GlobalCommunityInfo>();
 		// (created on demand)
 	private Map<Integer, Community_GlobalInfo> _community_globalInfo_observed = null; //new TreeMap<String, GlobalCommunityInfo>();
@@ -114,9 +116,11 @@ class ScoringUtils_MultiCommunity {
 	// External Utility
 	
 	ScoringUtils_MultiCommunity(String[] communityIds) {
+		_community_ids_lookupSet = new HashSet<ObjectId>();
 		_community_ids = new ObjectId[communityIds.length];
 		for (int i = 0; i < communityIds.length; ++i) {
 			_community_ids[i] = new ObjectId(communityIds[i]); 
+			_community_ids_lookupSet.add(_community_ids[i]);
 		}
 	}		
 
@@ -175,6 +179,10 @@ class ScoringUtils_MultiCommunity {
 
 	int community_getIdAndInitialize(ObjectId communityId, Map<String, EntSigHolder> entitiesInDataset) {
 		if (0 == _community_nObserved) { // First time through, still don't know if we need any of this horrible logic
+			if (!_community_ids_lookupSet.contains(communityId)) { // (first doc seen is not in an accessible community)
+				return Integer.MIN_VALUE; // (this doc cannot be viewed with this community context)
+			}//TESTED
+			
 			_community_nObserved = 1;
 			_community_cachedValue = communityId;
 				// (leave _community_nCachedId as -1 until we know we're going to need it... then we'll use
@@ -186,16 +194,18 @@ class ScoringUtils_MultiCommunity {
 			Community_GlobalInfo global = null;
 			if (null == this._community_globalInfo) { // Setup metadata if not already done so
 				community_setupMetadata();
-				global = _community_globalInfo.get(_community_cachedValue);				
-				if (null == global) {
-					return Integer.MIN_VALUE; // (this doc cannot be viewed with this community context)
-				}				
+				global = _community_globalInfo.get(_community_cachedValue);
+				
+				if (null == global) { // (this should not be possible)
+					throw new RuntimeException("Internal Logic Error: first document seen was in inaccessible community");
+				}//TESTED				
+				
 				global.bInDataset = true;
 				global.nEntityCount = entitiesInDataset.size();
 					// (Update observed entities for original community) 
 				
 				_community_nPreMultiId = global.nIndex;
-				_community_globalInfo_observed.put(global.nIndex, global); 
+				_community_globalInfo_observed.put(global.nIndex, global);
 			}//TESTED
 			global = _community_globalInfo.get(communityId);
 				// this should always return an object, see setupCommunityMetadata()

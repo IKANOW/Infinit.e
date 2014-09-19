@@ -5,12 +5,23 @@ if [ ! -f "/usr/bin/aws" ]
 then
 	echo -e "\aaws file prerequisite not met"
 else
-	vpc_instance=`curl -s "http://169.254.169.254/latest/meta-data/network/interfaces/macs/$(curl -s http://169.254.169.254/latest/meta-data/mac | tr '[:upper:]' '[:lower:]')/" | grep -o 'vpc-id'`
+	region=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/ | sed -e 's/[^0-9]*$//')
+	AWS="aws --region $region "
+	#(replacing this with an actual count to get private IP)
+	#vpc_instance=`curl -s "http://169.254.169.254/latest/meta-data/network/interfaces/macs/$(curl -s http://169.254.169.254/latest/meta-data/mac | tr '[:upper:]' '[:lower:]')/" | grep -o 'vpc-id'`
 	this_instance=$(curl -s http://169.254.169.254/1.0/meta-data/instance-id)
-	cluster_name=$(aws dtags --filter "resource-id=$this_instance" --filter "key=cluster-name" --simple | gawk '{ print $4 }' | tr "," "\n")
+	IP_COL=$(expr 1 + $($AWS din --filter "instance-id=$this_instance" | head -n 2 | grep -o ".*privateIpAddress" | grep -o -P '[^ ]+' | wc -l))
+	cluster_name=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=cluster-name" --simple | gawk '{ print $4 }' | tr "," "\n")
 	case "$1" in 
 		config_ips)
-			# Special case: if the order needs to be different because the mongods were intialized that way
+			# Special case #1: if the "db.config.servers" param is specifed then use that
+			SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
+			CONFIG_SERVERS=`grep "^db.config.servers=" $SERVICE_PROPERTY_FILE | sed s/'db.config.servers='// | sed s/' '//g`					
+			if [ ! -z "$CONFIG_SERVERS" ]; then
+				echo "$CONFIG_SERVERS" | sed 's/,/ /g'
+				exit 0
+			fi 
+			# Special case #2 (legacy): if the order needs to be different because the mongods were intialized that way
 			#(file should be space separated hostnames, no port)
 			if [ -s "/opt/db-home/config_ips_override" ]; then
 				echo $(cat /opt/db-home/config_ips_override)
@@ -19,20 +30,19 @@ else
 			if [ $cluster_name ]; then
 			
 				#First try to use DNS names, fallback to legacy private IPs (which work badly if you need to restart a config server)
-				INSTANCES=$(aws din --filter "tag:cluster-name=$cluster_name" --filter "tag:config=1" --filter "tag:DnsName=*" --simple| grep "running" | awk '{print $1}')
+				INSTANCES=$($AWS din --filter "tag:cluster-name=$cluster_name" --filter "tag:config=1" --filter "tag:DnsName=*" --simple| grep "running" | awk '{print $1}')
 				DNS_NAMES=""
 				for i in $INSTANCES; do
-				        NEW_NAME=$(aws dtags --filter "resource-id=$i" --filter "key=DnsName" --simple | awk '{print $4}')
+				        NEW_NAME=$($AWS dtags --filter "resource-id=$i" --filter "key=DnsName" --simple | awk '{print $4}')
 				        DNS_NAMES="$DNS_NAMES $NEW_NAME"
 				done
 				if [ "$DNS_NAMES" != "" ]; then
-					echo $DNS_NAMES
-					exit 0;
-				elsif [ "$vpc_instance" == "vpc-id" ]
-					echo $(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $29}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+					OUTPUT="$DNS_NAMES"
 				else
-					echo $(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+					OUTPUT=$($AWS din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
 				fi
+				OUTPUT=$(echo $OUTPUT | tr " " "\n" | sort -g | tr "\n" " ")
+				echo $OUTPUT
 			else
 				echo -e "\acluster-name not set"
 			fi
@@ -45,21 +55,17 @@ else
 		;;
 		mongos_ip)
 			if [ $cluster_name ]; then
-				if [ "$vpc_instance" == "vpc-id" ]; then
-					echo $(aws din --filter 'private-ip-address=*' --filter "tag:db_interface=1" --filter "tag:cluster-name=$cluster_name" | awk '{print $29}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'| tail -1)
-				else
-					echo $(aws din --filter 'private-ip-address=*' --filter "tag:db_interface=1" --filter "tag:cluster-name=$cluster_name" | awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'| tail -1)
-				fi
+				echo $($AWS din --filter 'private-ip-address=*' --filter "tag:db_interface=1" --filter "tag:cluster-name=$cluster_name" | awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'| tail -1)
 			else
 				echo -e "\acluster-name not set"
 			fi
 		;;
 		num_repl_sets)
-			repl_sets=$(aws dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | sort -u | tr "," "\n")
+			repl_sets=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | sort -u | tr "," "\n")
 			echo $(echo $repl_sets | wc -w)
 		;;
 		repl_sets)
-			echo $(aws dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
+			echo $($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
 		;;
 		cluster-name)
 			if [ $cluster_name ]; then
@@ -81,7 +87,7 @@ exit
 EOF
 		;;
 		is_config)
-			is_mongos=$(aws dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
+			is_mongos=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
 			if [ "$is_mongos" != "" ]; then
 				if echo "$is_mongos" | grep -q "$this_instance"; then
 					echo true
@@ -101,7 +107,7 @@ EOF
 			fi
 		;;
 		is_mongos)
-			is_config=$(aws dtags --filter "resource-id=$this_instance" --filter "key=db_interface" --filter "value=1" --simple)
+			is_config=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_interface" --filter "value=1" --simple)
 			if [ "$is_config" != "" ]; then
 				echo true
 			else
@@ -110,11 +116,7 @@ EOF
 		;;
 		all_configs_running)
 			if [ $cluster_name ]; then
-				if [ "$vpc_instance" == "vpc-id" ]; then
-					config_ips=$(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $29}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-				else
-					config_ips=$(aws din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}' | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-				fi
+				config_ips=$($AWS din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
 				total=0
 				started=0
 				for ip in $config_ips
@@ -153,20 +155,16 @@ EOF
 		all_members_of_set)
 			if [ $cluster_name ]; then
 				if [ $2 ]; then
-					if [ "$vpc_instance" == "vpc-id" ]; then
-						ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $29}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-					else
-						ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-					fi
-						#(these might be false positives due eg 11 vs 1; need this *$2* to handle ,-separated lists though)
+					ipCandidates=$($AWS din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}"|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+
 					for pip in $ipCandidates
 					do
-						idCandidates=$(aws din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+						idCandidates=$($AWS din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
 							# (Get the instance ID so I can use the more robust dtags for checking)
 						for pid in $idCandidates
 						do
 							# (There should only be one of these)		
-							reg_ex_chk=$(aws dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							reg_ex_chk=$($AWS dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
 							if [ $reg_ex_chk ]; then
 								echo -e "$pip"
 							fi
@@ -183,20 +181,17 @@ EOF
 			if [ $cluster_name ]; then
 				if [ $2 ]; then
 					port=$((27017+$2))
-					if [ "$vpc_instance" == "vpc-id" ]; then
-						ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $29}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-					else
-						ipCandidates=$(aws din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk '{print $25}'|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
-					fi
+					ipCandidates=$($AWS din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}"|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+
 						#(these might be false positives due eg 11 vs 1; need this *$2* to handle ,-separated lists though)
 					for pip in $ipCandidates
 					do
-						idCandidates=$(aws din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+						idCandidates=$($AWS din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
 							# (Get the instance ID so I can use the more robust dtags for checking)
 						for pid in $idCandidates
 						do
 							# (There should only be one of these)		
-							reg_ex_chk=$(aws dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							reg_ex_chk=$($AWS dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
 							if [ $reg_ex_chk ]; then
 								if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
 									echo $pip:$port

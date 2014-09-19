@@ -140,7 +140,7 @@ public class InfiniteHadoopUtils {
 	 * @return
 	 * @throws Exception 
 	 */
-	public static String downloadJarFile(String jarURL, List<ObjectId> communityIds, PropertiesManager prop_custom) throws Exception
+	public static String downloadJarFile(String jarURL, List<ObjectId> communityIds, PropertiesManager prop_custom, ObjectId submitterId) throws Exception
 	{		
 		String shareStringOLD = "$infinite/share/get/";
 		String shareStringNEW = "$infinite/social/share/get/";
@@ -151,7 +151,7 @@ public class InfiniteHadoopUtils {
 			shareid = jarURL;
 		}
 		catch (Exception e) {} // that's fine it's just not a raw ObjectId
-		
+
 		if ( jarURL.startsWith(shareStringOLD) || jarURL.startsWith(shareStringNEW) || (null != shareid) )
 		{
 			if (null == shareid) {
@@ -168,9 +168,21 @@ public class InfiniteHadoopUtils {
 			query.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(MongoDbManager.in_, communityIds));
 
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
+			
 			if (null == share) {
 				throw new RuntimeException("Can't find JAR file or share or custom table or source, or insufficient permissions");
 			}
+			
+			// The JAR owner needs to be an admin:
+			//TODO (INF-2118): At some point would like there to be a choice ... if not admin then must inherit the Infinit.e sandbox version
+			// ... there seemed to be some issues with that however so for now will just allow all admin jars and no non-admin jars
+			// (see other INF-2118 branch)
+			if (prop_custom.getHarvestSecurity()) {
+				if (!AuthUtils.isAdmin(share.getOwner().get_id())) {
+					throw new RuntimeException("Permissions error: only administrators can upload custom JARs");
+				}
+			}//TESTED (by hand)
+						
 			String extension = ".cache";
 			if ((null != share.getMediaType()) && (share.getMediaType().contains("java-archive"))) {
 				extension = ".cache.jar";
@@ -201,11 +213,16 @@ public class InfiniteHadoopUtils {
 			
 			return tempFileName;
 		}
-		else
+		else // Not an infinit.e share - either a local file or served externally
 		{
-			if (jarURL.startsWith("$infinite")) {
+			if (jarURL.startsWith("$infinite")) { // Local web server
+				if (prop_custom.getHarvestSecurity()) {
+					if (!AuthUtils.isAdmin(submitterId)) {
+						throw new RuntimeException("Permissions error: only administrators can run custom JARs served from a web server (users can run custom JARs when uploaded by an admin to the share store)");
+					}
+				}//TOTEST				
 				jarURL = jarURL.replace("$infinite", "http://localhost:8080");
-			}
+			}//TESTED (by hand) 
 			else if (!jarURL.startsWith("http")) {
 				// Can't access the file system, except for this one nominated file:
 				if (!jarURL.equals(BUILT_IN_JOB_PATH)) {
@@ -218,6 +235,14 @@ public class InfiniteHadoopUtils {
 				}
 				return jarURL;
 			}//TESTED
+			else { // Access a JAR from an external web server, can only do this if admin
+				if (prop_custom.getHarvestSecurity()) {
+					if (!AuthUtils.isAdmin(submitterId)) {
+						throw new RuntimeException("Permissions error: only administrators can run custom JARs served from a web server (users can run custom JARs when uploaded by an admin to the share store)");
+					}
+				}//TOTEST				
+			}//TESTED (by hand)
+			
 			String tempFileName = assignNewJarLocation(prop_custom, null);
 			OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
 			
@@ -235,7 +260,7 @@ public class InfiniteHadoopUtils {
 			in.close();
 			out.close();
 			return tempFileName;
-		}
+		}//(end share - first clause - or served externally - second clause)
 	}
 
 	/**
@@ -528,7 +553,7 @@ public class InfiniteHadoopUtils {
 				}				
 				
 				// Use existing code to cache to local fs (and then onwards to HDFS!)
-				URL localPathURL = new File(downloadJarFile(cacheStr, job.communityIds, prop_custom)).toURI().toURL(); 
+				URL localPathURL = new File(downloadJarFile(cacheStr, job.communityIds, prop_custom, job.submitterID)).toURI().toURL(); 
 				String localPath = localPathURL.getPath();
 				String pathMinusName = localPath.substring(0, localPath.lastIndexOf('/') + 1);
 				String name = localPath.substring(localPath.lastIndexOf('/') + 1);

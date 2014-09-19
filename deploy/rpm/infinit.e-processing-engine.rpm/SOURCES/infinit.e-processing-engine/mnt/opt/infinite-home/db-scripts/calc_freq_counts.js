@@ -14,6 +14,7 @@ var my_query = {};
 	// ^^^(change for debug)
 
 m = function() {
+	try {
         if ((this.entities != null) && (this.communityId != null)) {
     		var commid = this.communityId;
             for (var i = 0; i < this.entities.length; ++i) {
@@ -24,6 +25,8 @@ m = function() {
                 }
             }
         }
+	}
+	catch (e) {}
 }
 r = function(k, vals) {
         var sum = { dc:0, tf:0 };

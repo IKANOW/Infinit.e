@@ -91,6 +91,7 @@
                 {
                     "store": true,
                     "index": false,
+                    "flags":"H",
                     "fieldName": "test3",
                     "script": "test",
                     "scriptlang": "regex"

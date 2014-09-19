@@ -194,14 +194,19 @@ package com.ikanow.infinit.e.workspace.model.presentation.settings
 			checkForChanges();
 		}
 		
-		public function save():void
+		public function saveNotExit():void
 		{
-			navigator.showContentView();
-			
 			documentOptions.apply( documentOptionsFormValues );
 			aggregationOptions.apply( aggregationOptionsFormValues );
 			scoreOptions.apply( scoreOptionsFormValues );
 			filterOptions.apply( filterOptionsFormValues );
+		}
+		
+		public function save():void
+		{
+			navigator.showContentView();
+			
+			saveNotExit();
 			
 			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.SAVE_QUERY_ADVANCED_SETTINGS );
 			queryEvent.documentOptions = documentOptions;

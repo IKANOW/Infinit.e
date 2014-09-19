@@ -127,7 +127,12 @@ package com.ikanow.infinit.e.widget.model.presentation.list
 		{
 			var widget:Widget = Widget( item );
 			
-			return FilterUtil.checkAllSearchTerms( searchTerm, [ widget.title ].concat( widget.searchterms.toArray() ) );
+			if (null == widget.searchterms) {
+				return FilterUtil.checkAllSearchTerms( searchTerm, [ widget.title ] );								
+			}
+			else {
+				return FilterUtil.checkAllSearchTerms( searchTerm, [ widget.title ].concat( widget.searchterms.toArray() ) );				
+			}
 		}
 	}
 }

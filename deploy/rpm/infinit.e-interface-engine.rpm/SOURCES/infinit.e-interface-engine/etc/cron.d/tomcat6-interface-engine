@@ -20,3 +20,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 #Every minute, check the interface engine is still running, restart it if not
 * * * * * root	if ! pgrep -u tomcat -f org.apache.catalina.startup.Bootstrap > /dev/null && [ -f /var/lock/subsys/tomcat6-interface-engine ]; then service tomcat6-interface-engine start; fi 
 
+#(EOL defender!)

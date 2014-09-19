@@ -1,0 +1,58 @@
+{
+    "description": "test",
+    "extractType": "Feed",
+    "isPublic": true,
+    "mediaType": "Report",
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "description": "test1",
+                        "fullText": "test1",
+                        "title": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "description": "test2",
+                        "fullText": "test2",
+                        "title": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "description": "test3",
+                        "fullText": "test3",
+                        "title": "test3",
+                        "url": "test3"
+                    }
+                ]
+            }
+        },
+        {
+            "criteria": "return _doc.url == \"test2\";",
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "description": "$SCRIPT( var x = \"1234567890\";\nvar iterations = 14;\nfor (var i = 0; i < iterations; i++) {\n  x += x.concat(x);\n}\nreturn x; )",
+                "title": "BIG TEXT"
+            }
+        },
+        {
+            "contentMetadata": [
+                {
+                    "fieldName": "docSize",
+                    "flags": "d",
+                    "script": "var x = _doc.description.length; x;",
+                    "scriptlang": "javascript"
+                }
+            ],
+            "display": ""
+        }
+    ],
+    "searchCycle_secs": -1,
+    "tags": [
+        "test"
+    ],
+    "title": "big doc test"
+}

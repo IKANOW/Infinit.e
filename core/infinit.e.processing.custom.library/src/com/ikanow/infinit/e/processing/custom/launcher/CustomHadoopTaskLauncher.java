@@ -68,6 +68,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
+import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
@@ -130,6 +131,10 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		// Now load the XML into a configuration object: 
 		Configuration config = new Configuration();
+		
+		// Set the default security policy:		
+		//TODO (INF-2118): This doesn't get applied, work out why:
+		//config.set("mapred.child.java.opts", "-Djava.security.policy=/opt/infinite-home/config/security.policy");
 		
 		try {
 			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -445,6 +450,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		String dbserver = prop_general.getDatabaseServer();		
 		output = outputDatabase + "." + tempOutputCollection;
 
+		boolean isAdmin = AuthUtils.isAdmin(userId);
 		
 		int nSplits = 8;
 		int nDocsPerSplit = 12500;
@@ -587,7 +593,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				"\n\t<property><!-- User Arguments [optional] --><name>arguments</name><value>"+ StringEscapeUtils.escapeXml(arguments)+"</value></property>"+
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
 				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+
-				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>update.incremental</name><value>"+tmpIncMode+"</value></property>"
+				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>update.incremental</name><value>"+tmpIncMode+"</value></property>"+
+				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>infinit.e.is.admin</name><value>"+isAdmin+"</value></property>"
 			);		
 		if (null != cacheList) {
 			out.write(
@@ -650,12 +657,12 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
 			if (minNotMax) {
 				time.min = (String) o;
-				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime());
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
 				return i.getStart().toDate();
 			}
 			else {
 				time.max = (String) o;
-				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime());
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
 				return i.getEnd().toDate();				
 			}
 		}

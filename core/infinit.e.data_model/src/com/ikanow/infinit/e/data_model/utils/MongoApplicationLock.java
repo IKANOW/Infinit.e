@@ -40,7 +40,16 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	public static synchronized MongoApplicationLock getLock(String database, boolean bReleasable)
 	{
 		if (null == _lockMap) {
-			_lockMap = new HashMap<String, MongoApplicationLock>();			
+			_lockMap = new HashMap<String, MongoApplicationLock>();	
+			
+			// Very first time through .. create a shutdown hook
+			Runtime.getRuntime().addShutdownHook(new Thread() {
+			    @Override
+			    public void run() {
+			    	_bAppClosingDown = true;
+			    }
+
+			});			
 		}
 		MongoApplicationLock lock = _lockMap.get(database);
 		if (null == lock) {
@@ -119,6 +128,10 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	}
 	private boolean _bKillMe = false;
 	private boolean _bReleasable = false;
+	private static boolean _bAppClosingDown = false;
+	public static void registerAppShutdown() {
+		_bAppClosingDown = true;	
+	}
 	
 	///////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////
@@ -128,35 +141,15 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	@Override
 	public void run() { // This thread just keeps control once it's been obtained
 		
-		// Get main thread so we can spot when it shuts down
-		// (don't release the token since might want to hang onto it until it times out)
-		Thread main = null;
-		ThreadGroup root = Thread.currentThread().getThreadGroup();
-		while (null != root.getParent()) {
-			root = root.getParent();
-		}
-		Thread[] threads = new Thread[ root.activeCount() ];
-		root.enumerate(threads);
-		for (Thread t: threads) {
-			if (t.getName().equals("main")) {
-				main = t;
-			}
-		}//TESTED		
-		
-		while (!_bKillMe) {
+		while (!_bKillMe && !_bAppClosingDown) {
 			updateToken(false);
-			if (_bKillMe) {
+			if (_bKillMe || _bAppClosingDown) {
 				break;
 			}
 			try {
 				Thread.sleep(10000);
 			} catch (InterruptedException e) {}
 			
-			if (null != main) {
-				if (!main.isAlive()) {
-					break;
-				}
-			}//TESTED
 			continue;
 		}		
 	}//TESTED

@@ -67,7 +67,11 @@ public class MongoEntitySyncFreq {
 				continue; // random error
 			}
 			String index = key.getString("index");
-			ObjectId commId = key.getObjectId("comm");
+			ObjectId commId = null;
+			Object commObj = key.get("comm");
+			if (commObj instanceof ObjectId) {
+				commId = key.getObjectId("comm");
+			}
 			if ((null == index) || (null == commId)) {
 				continue; // random error
 			}

@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.index;
 
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -65,6 +66,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
+import com.mongodb.DBObject;
 
 ///////////////////////////////////////////////////////////////////////////////////////
 ///////////////////////////////////////////////////////////////////////////////////////
@@ -475,6 +477,39 @@ public class ElasticSearchManager {
 			if (null != idFieldName) {
 				
 				String id = docJson.getAsJsonObject().get(idFieldName).getAsString();
+				ir.id(id);
+				ir.source(docJson.toString());
+			}//TESTED
+			
+			brb.add(ir);
+		}
+		brb.setConsistencyLevel(WriteConsistencyLevel.ONE);
+		return brb.execute().actionGet();
+	}//TESTED (including children and id hashmap)
+	
+	///////////////////////////////////////////////////////////////////////////////////////
+	
+	public BulkResponse bulkAddDocuments(Collection<DBObject> docsJson, String idFieldName, String sParentId, boolean bAllowOverwrite)
+	{
+		if (null != _multiIndex) {
+			throw new RuntimeException("bulkAddDocuments not supported on multi-index manager");
+		}
+		BulkRequestBuilder brb = _elasticClient.prepareBulk();
+		
+		for (DBObject docJson: docsJson) {
+			IndexRequest ir = new IndexRequest(_sIndexName);
+			ir.type(_sIndexType);
+			if (null != sParentId) {
+				ir.parent(sParentId);
+			}
+			if (!bAllowOverwrite) {
+				ir.opType(OpType.CREATE);
+			}//TESTED
+			
+			// Some _id unpleasantness
+			if (null != idFieldName) {
+				
+				String id = (String) docJson.get(idFieldName);
 				ir.id(id);
 				ir.source(docJson.toString());
 			}//TESTED

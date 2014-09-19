@@ -108,8 +108,8 @@
 					{
 						var lastRun:Date = model.selectedSource.harvest.harvested;
 						var milli:Number = lastRun.getTime();
-						milli += searchCycle;
-						var newDate:Date = new Date( 0, 0, 0, 0, 0, 0, milli );
+						milli += searchCycle*1000;
+						var newDate:Date = new Date(milli);
 						return newDate.toString();
 					}
 				}

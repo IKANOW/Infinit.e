@@ -64,6 +64,35 @@
 				addEventListener( Event.CHANGE, onChange, true );
 			}
 			
+			protected function performanceButton_clickHandler( event:MouseEvent ):void
+			{
+				if (aggregationOptions.aggregateEntities)
+				{
+					// Mode 1: These settings are optimized for performance (date search)
+					aggregationOptions.aggregateEntities = false;
+					aggregationOptions.aggregateEvents = false;
+					aggregationOptions.aggregateFacts = false;
+					aggregationOptions.aggregateGeotags = false;
+					aggregationOptions.aggregateSourceMetadata = false;
+					aggregationOptions.aggregateSources = false;
+					scoreOptions.enableScoring = false;
+					scoreOptions.scoreEnts = false;
+				}
+				else {
+					// Mode 2: Better quality
+					aggregationOptions.aggregateEntities = true;
+					aggregationOptions.aggregateEvents = true;
+					aggregationOptions.aggregateFacts = true;
+					aggregationOptions.aggregateGeotags = true;
+					aggregationOptions.aggregateSourceMetadata = true;
+					aggregationOptions.aggregateSources = true;
+					scoreOptions.enableScoring = true;
+					scoreOptions.scoreEnts = true;					
+				}
+				// apply
+				model.saveNotExit();
+			}
+			
 			protected function restoreButton_clickHandler( event:MouseEvent ):void
 			{
 				model.restoreDefaults()
@@ -153,7 +182,7 @@
 			enableScoring="{ enableScoring.selected }"
 			numAnalyze="{ parseInt( numDocsToAnalyze.text ) }"
 			relWeight=" { weightSlider.value } "
-			scoreEntities="{ scoreEntities.selected }"
+			scoreEnts="{ scoreEnts.selected }"
 			sourceWeights_cs="{ manualWeightsSources.text }"
 			tagWeights_cs="{ manualWeightsTags.text }"
 			typeWeights_cs="{ manualWeightsTypes.text }">
@@ -199,11 +228,19 @@
 			
 			<s:Spacer width="40" />
 			
+			<common:InfButton id="performanceButton"
+							  label="{ resourceManager.getString( 'infinite', 'workspaceSettings.performanceButton' ) }"
+							  toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.performanceButtonToolTip' ) }"
+								styleName="workspaceSettingsRestoreButton"
+								click="performanceButton_clickHandler(event)" />
+			
+			<s:Spacer width="40" />
+			
 			<common:InfButton id="restoreButton"
-				label="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButton' ) }"
-				toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButtonToolTip' ) }"
-				styleName="workspaceSettingsRestoreButton"
-				click="restoreButton_clickHandler(event)" />
+							  label="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButton' ) }"
+							  toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.resetButtonToolTip' ) }"
+							  styleName="workspaceSettingsRestoreButton"
+							  click="restoreButton_clickHandler(event)" />
 			
 			<s:Spacer width="40" />
 			
@@ -520,10 +557,10 @@
 
 					<!-- Include events, Score metadata -->
 					<s:HGroup verticalAlign="middle">
-						<common:InfCheckBox id="scoreEntities"
+						<common:InfCheckBox id="scoreEnts"
 							width="150"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.scoreEntitiesToolTip' ) }"
-							selected="{ model.scoreOptions.scoreEntities }"
+							selected="{ model.scoreOptions.scoreEnts }"
 							label="{ resourceManager.getString( 'infinite', 'workspaceSettings.scoreEntities' ) }" />
 						<common:InfCheckBox id="includeEvents"
 							selected="{ model.documentOptions.events }"

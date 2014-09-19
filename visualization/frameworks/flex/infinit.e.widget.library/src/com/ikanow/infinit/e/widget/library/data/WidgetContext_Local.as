@@ -439,9 +439,11 @@ package com.ikanow.infinit.e.widget.library.data
 					_httpService.contentType = "application/json";
 
 					// (.communityIds is not used for anything, and this way I can put wildcards in the URL)
+					var savedObject:Object = doQueryObject.queryObject.communityIds; // (don't care what it is just copy/remove/paste)
 					doQueryObject.queryObject.communityIds = null;
 										
-					_httpService.send(JSONEncoder.encode(doQueryObject.queryObject));						
+					_httpService.send(JSONEncoder.encode(doQueryObject.queryObject));
+					doQueryObject.queryObject.communityIds = savedObject;
 				}
 				else
 				{

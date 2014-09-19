@@ -22,6 +22,7 @@ import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -31,19 +32,25 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
-import com.ikanow.infinit.e.api.utils.SendMail;
+import com.ikanow.infinit.e.data_model.utils.SendMail;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
+import com.ikanow.infinit.e.data_model.api.config.SourcePojoSubstitutionApiMap;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
+import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceFederatedQueryConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -283,13 +290,14 @@ public class SourceHandler
 				communityIdSet.add(new ObjectId(communityIdStr));
 				
 				source = ApiManager.mapFromApi(sourceString, SourcePojo.class, new SourcePojoApiMap(communityIdSet));
-				source.fillInSourcePipelineFields();
 				if (null == source.getCommunityIds()) {
 					source.setCommunityIds(new HashSet<ObjectId>());
 				}
 				for (ObjectId sid: communityIdSet) {
 					source.getCommunityIds().add(sid);
 				}
+				source.setFederatedQueryCommunityIds(null); // (can be filled in by fillInSourcePipelineFields() below)
+				source.fillInSourcePipelineFields(); // (needs to be after the community ids)
 				
 				// RSS search harvest types tend to be computationally expensive and therefore
 				// should be done less frequently (by default once/4-hours seems good):
@@ -619,6 +627,7 @@ public class SourceHandler
 			queryFields.put(SourcePojo.extractType_, 1);
 			queryFields.put(SourcePojo.harvest_, 1);
 			queryFields.put(SourcePojo.distributionFactor_, 1);
+			queryFields.put(SourcePojo.processingPipeline_ + ".logstash.distributed", 1); // (this is needed to determine distribution status)
 			try {
 				queryDbo.put(SourcePojo._id_, new ObjectId(sourceIdStr));
 			}
@@ -681,6 +690,13 @@ public class SourceHandler
 					logStashMessage.put("_id", source.getId());
 					logStashMessage.put("deleteOnlyCommunityId", communityId);
 					logStashMessage.put("sourceKey", source.getKey());
+					
+					if ((null != source.getProcessingPipeline()) && !source.getProcessingPipeline().isEmpty()) {
+						SourcePipelinePojo px = source.getProcessingPipeline().iterator().next();
+						if ((null != px.logstash) && (null != px.logstash.distributed) && px.logstash.distributed) {
+							logStashMessage.put("distributed", true);
+						}
+					}//TESTED (by hand)
 					DbManager.getIngest().getLogHarvesterQ().save(logStashMessage);
 					// (the rest of this is async, so we're done here)
 				}//TESTED
@@ -1130,8 +1146,9 @@ public class SourceHandler
 		try 
 		{
 			SourcePojo source = null;
+			SourcePojoSubstitutionApiMap apiMap = new SourcePojoSubstitutionApiMap(new ObjectId(userIdStr));
 			try {
-				source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, new SourcePojoApiMap(null));
+				source = ApiManager.mapFromApi(sourceJson, SourcePojo.class, apiMap);
 				source.fillInSourcePipelineFields();
 			}
 			catch (Exception e) {
@@ -1141,12 +1158,14 @@ public class SourceHandler
 			if (null == source.getKey()) {
 				source.setKey(source.generateSourceKey()); // (a dummy value, not guaranteed to be unique)
 			}
-			String testUrl = source.getRepresentativeUrl();
-			if (null == testUrl) {
-				rp.setResponse(new ResponseObject("Test Source",false,"Error, source contains no URL to harvest"));						
-				return rp;								
+			if ((null == source.getExtractType()) || !source.getExtractType().equals("Federated")) {
+				String testUrl = source.getRepresentativeUrl();
+				if (null == testUrl) {
+					rp.setResponse(new ResponseObject("Test Source",false,"Error, source contains no URL to harvest"));						
+					return rp;								
+				}
 			}
-
+			
 			// This is the only field that you don't normally need to specify in save but will cause 
 			// problems if it's not populated in test.
 			ObjectId userId = new ObjectId(userIdStr);
@@ -1175,6 +1194,9 @@ public class SourceHandler
 			// Always add the userId to the source community Id (so harvesters can tell if they're running in test mode or not...) 
 			source.addToCommunityIds(userId); // (ie user's personal community, always has same _id - not that it matters)
 			
+			// Check the source's admin status
+			source.setOwnedByAdmin(RESTTools.adminLookup(userId.toString(), false));			
+			
 			if (bRealDedup) { // Want to test update code, so ignore update cycle
 				if (null != source.getRssConfig()) {
 					source.getRssConfig().setUpdateCycle_secs(1); // always update
@@ -1192,7 +1214,77 @@ public class SourceHandler
 				source.setHarvestStatus(new SourceHarvestStatusPojo());
 			}
 			String oldMessage = source.getHarvestStatus().getHarvest_message();
-			harvester.harvestSource(source, toAdd, toUpdate, toRemove);
+			// SPECIAL CASE: FOR FEDERATED QUERIES
+			if ((null != source.getExtractType()) && source.getExtractType().equals("Federated")) {
+				int federatedQueryEnts = 0;
+				SourceFederatedQueryConfigPojo endpoint = null;
+				try {
+					endpoint = source.getProcessingPipeline().get(0).federatedQuery;
+				}
+				catch (Exception e) {}
+				if (null == endpoint) {
+					rp.setResponse(new ResponseObject("Test Source",false,"source error: no federated query specified"));			
+					return rp;
+				}
+				AdvancedQueryPojo testQuery = null;
+				String errMessage = "no query specified";
+				try {
+					testQuery = AdvancedQueryPojo.fromApi(endpoint.testQueryJson, AdvancedQueryPojo.class);
+				}
+				catch (Exception e) {
+					errMessage = e.getMessage();
+				}
+				if (null == testQuery) {
+					rp.setResponse(new ResponseObject("Test Source",false,"source error: need to specifiy a valid IKANOW query to test federated queries, error: " + errMessage));			
+					return rp;					
+				}
+				// OK if we're here then we can test the query
+				SimpleFederatedQueryEngine testFederatedQuery = new SimpleFederatedQueryEngine();
+				endpoint.parentSource = source;
+				testFederatedQuery.addEndpoint(endpoint);
+				ObjectId queryId = new ObjectId();
+				String[] communityIdStrs = new String[source.getCommunityIds().size()];
+				int i = 0;
+				for (ObjectId commId: source.getCommunityIds()) {
+					communityIdStrs[i] = commId.toString();
+					i++;
+				}
+				testFederatedQuery.setTestMode(true);
+				testFederatedQuery.preQueryActivities(queryId, testQuery, communityIdStrs);
+				StatisticsPojo stats = new StatisticsPojo();
+				stats.setSavedScores(0, 0);
+				rp.setStats(stats);
+				ArrayList<BasicDBObject> toAddTemp = new ArrayList<BasicDBObject>(1);
+				testFederatedQuery.postQueryActivities(queryId, toAddTemp, rp);
+				for (BasicDBObject docObj: toAddTemp) {
+					DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
+					if (null != doc.getEntities()) {
+						federatedQueryEnts += doc.getEntities().size();
+					}
+					
+					//Metadata workaround:
+					@SuppressWarnings("unchecked")
+					LinkedHashMap<String, Object[]> meta = (LinkedHashMap<String, Object[]>) docObj.get(DocumentPojo.metadata_);
+					if (null != meta) {
+						Object metaJson = meta.get("json");
+						if (metaJson instanceof Object[]) { // (in this case ... non-cached, need to recopy in, I forget why)
+							doc.addToMetadata("json", (Object[])metaJson);
+						}
+					}					
+					toAdd.add(doc);
+				}
+				// (currently can't run harvest source federated query)
+				if (0 == federatedQueryEnts) { // (more fed query exceptions)
+					source.getHarvestStatus().setHarvest_message("Warning: no entities extracted, probably docConversionMap is wrong?");
+				}
+				else {
+					source.getHarvestStatus().setHarvest_message(federatedQueryEnts + " entities extracted");
+				}
+				
+			}//TESTED (END FEDERATED QUERY TEST MODE, WHICH IS A BIT DIFFERENT)
+			else {
+				harvester.harvestSource(source, toAdd, toUpdate, toRemove);
+			}			
 			
 			// (don't parrot the old message back - v confusing)
 			if (oldMessage == source.getHarvestStatus().getHarvest_message()) { // (ptr ==)
@@ -1206,6 +1298,15 @@ public class SourceHandler
 			else {
 				message = "";
 			}
+			List<String> errMessagesFromSourceDeser = apiMap.getErrorMessages();
+			if (null != errMessagesFromSourceDeser) {
+				StringBuffer sbApiMapErr = new StringBuffer("Substitution errors:\n"); 
+				for (String err: errMessagesFromSourceDeser) {
+					sbApiMapErr.append(err).append("\n");
+				}
+				message = message + "\n" + sbApiMapErr.toString();
+			}//TESTED (by hand)
+			
 			if ((null != source.getHarvestStatus()) && (HarvestEnum.error == source.getHarvestStatus().getHarvest_status())) {
 				rp.setResponse(new ResponseObject("Test Source",false,"source error: " + message));			
 				rp.setData(toAdd, new DocumentPojoApiMap());				
@@ -1249,8 +1350,10 @@ public class SourceHandler
 					rp.toApi();
 				}
 				catch (Exception e) {
-					e.printStackTrace();
-					rp.setData(new BasicDBObject("error_message", "Error deserializing documents. This is likely because the Unstructured Analysis Handler is not returning a valid object, eg doesn't end 'var obj = <something>; obj;'"), null);
+					//e.printStackTrace();
+					StringBuffer sb = new StringBuffer();
+					Globals.populateStackTrace(sb, e);
+					rp.setData(new BasicDBObject("error_message", "Error deserializing documents: " + sb.toString()), null);
 				}
 			}
 		}		

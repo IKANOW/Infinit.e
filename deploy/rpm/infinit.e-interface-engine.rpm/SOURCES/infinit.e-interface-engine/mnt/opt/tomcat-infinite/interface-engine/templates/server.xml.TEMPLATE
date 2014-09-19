@@ -179,6 +179,9 @@
 				<!-- (internal IP addresses only) -->
     </Context>
       </Host>
+      
+      <!-- OTHER VIRTUAL HOSTS HERE DO NOT ADD CODE BETWEEN THIS AND ENGINE CLOSE TAG -->
+      
     </Engine>
   </Service>
 </Server>

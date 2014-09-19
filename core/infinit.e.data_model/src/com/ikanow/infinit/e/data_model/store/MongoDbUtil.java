@@ -18,9 +18,11 @@ package com.ikanow.infinit.e.data_model.store;
 import java.text.ParseException;
 import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
 
 import org.bson.BSONObject;
 import org.bson.BasicBSONObject;
@@ -317,4 +319,53 @@ public class MongoDbUtil {
 			
 	}//TESTED
 	
+	public static boolean enforceTypeNamingPolicy(Object je, int nDepth) {
+		
+		if (je instanceof BasicDBList) {
+			BasicDBList ja = (BasicDBList)je;
+			if (0 == ja.size()) {
+				return false; // No idea, carry on
+			}
+			Object jaje = ja.iterator().next();
+			return enforceTypeNamingPolicy(jaje, nDepth + 1); // keep going until you find primitive/object
+		}
+		else if (je instanceof BasicDBObject) {
+			BasicDBObject jo = (BasicDBObject) je;
+			// Nested variables:
+			Iterator<Entry<String, Object>> it = jo.entrySet().iterator();
+			Map<String, Object> toFixList = null;
+			while (it.hasNext()) {
+				boolean bFix = false;
+				Entry<String, Object> el = it.next();
+				String currKey = el.getKey();
+				
+				if ((currKey.indexOf('.') >= 0) || (currKey.indexOf('%') >= 0)) {
+					it.remove();
+					currKey = currKey.replace("%", "%25").replace(".", "%2e");
+					bFix = true;
+				}				
+				if (null == el.getValue()) {
+					if (!bFix) it.remove(); // nice easy case, just get rid of it (if bFix, it's already removed)
+					bFix = false;
+				}
+				else {
+					enforceTypeNamingPolicy(el.getValue(), nDepth + 1);
+				}
+				if (bFix) {
+					if (null == toFixList) {
+						toFixList = new HashMap<String, Object>();
+					}
+					toFixList.put(currKey, el.getValue());					
+				}
+			} // (end loop over params)	
+			if (null != toFixList) {
+				for (Entry<String, Object> el: toFixList.entrySet()) {
+					jo.put(el.getKey(), el.getValue());
+				}
+			}
+			return true; // (in any case, I get renamed by calling parent)
+		}
+		return false;
+	}
+	//TESTED (see DOC_META in test/TestCode)	
 }

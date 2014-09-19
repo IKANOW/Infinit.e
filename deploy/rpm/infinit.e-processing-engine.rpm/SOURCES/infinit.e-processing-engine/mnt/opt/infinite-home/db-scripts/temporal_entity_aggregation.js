@@ -14,33 +14,36 @@ my_query = { _id: { $gte: new ObjectId(yesterday.toString(16)+"0000000000000000"
 
 map = function() {
 
-      	oneday = 24*3600*1000;
-      	var thisYear = this.publishedDate.getFullYear();
-      	var today = Math.floor(this.publishedDate.getTime()/oneday)*oneday;
-      	if (null != this.entities) {
-      		for (ent in this.entities) {
-      			var entity = this.entities[ent];
-      			var key = { i: entity.index, s: this.sourceKey, c: this.communityId, y: thisYear };
-      			var value = {};
-      			var valueEl = { c: 1 };
-      			value[today] = valueEl;
-      			if ((null != entity.sentiment) && (0 != entity.sentiment)) {
-      				value["cs"] = 1; // (just for debug)
-      				if (entity.sentiment > 0) {
-      					valueEl["p"] = entity.sentiment;
-      					valueEl["cp"] = 1;
-      				}
-      				else { // negative
-      					valueEl["n"] = entity.sentiment;
-      					valueEl["cn"] = 1;
-      				}
-      			}
-                value.maxDay = today;
-                value.minDay = today;
-                value.lastUpdated=new Date();
-      			emit(key, value);
-      		}
-      	}
+		try {
+	      	oneday = 24*3600*1000;
+	      	var thisYear = this.publishedDate.getFullYear();
+	      	var today = Math.floor(this.publishedDate.getTime()/oneday)*oneday;
+	      	if (null != this.entities) {
+	      		for (ent in this.entities) {
+	      			var entity = this.entities[ent];
+	      			var key = { i: entity.index, s: this.sourceKey, c: this.communityId, y: thisYear };
+	      			var value = {};
+	      			var valueEl = { c: 1 };
+	      			value[today] = valueEl;
+	      			if ((null != entity.sentiment) && (0 != entity.sentiment)) {
+	      				value["cs"] = 1; // (just for debug)
+	      				if (entity.sentiment > 0) {
+	      					valueEl["p"] = entity.sentiment;
+	      					valueEl["cp"] = 1;
+	      				}
+	      				else { // negative
+	      					valueEl["n"] = entity.sentiment;
+	      					valueEl["cn"] = 1;
+	      				}
+	      			}
+	                value.maxDay = today;
+	                value.minDay = today;
+	                value.lastUpdated=new Date();
+	      			emit(key, value);
+	      		}
+	      	}
+		}
+		catch (e) {}
 }
 
 reduce = function(key, values) {
@@ -116,8 +119,8 @@ reduce = function(key, values) {
 }
 
 db = db.getMongo().getDB("feature");
-n = db.temporal.find({'value.maxDay' : {$ne: null}}).count();
-if (n==0){
+a = db.temporal.findOne();
+if ((null != a) && ( (null == a.value) || (null == a.value.maxDay) )) {
     print("Temporal One time Structure change Starting: " + new Date());
 
 	db.temporal.mapReduce(function() {
@@ -150,7 +153,7 @@ if (n==0){
 function(key, values) {
     return values[0];
 },
-{ out: { merge:"temporal",  db: "feature", nonAtomic: true }});
+{ out: { merge:"temporal",  db: "feature", nonAtomic: true, sharded: true }});
 
 }
 else

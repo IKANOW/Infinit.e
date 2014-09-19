@@ -1,0 +1,1075 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:Scroller xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		 xmlns:s="library://ns.adobe.com/flex/spark" 
+		 xmlns:mx="library://ns.adobe.com/flex/mx"
+		 xmlns:widgetComponents="com.ikanow.infinit.e.widget.library.components.*"
+		 currentState="nodata" creationComplete="scroller1_creationCompleteHandler(event)"
+		 width="100%" height="100%" xmlns:components="components.*" xmlns:DocViewer="com.ikanow.infinit.e.widget.library.components.DocViewer.*">
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:HTTPService id="metadataService" result="metadataService_resultHandler(event)" fault="metadataService_faultHandler(event)" />
+		<mx:NumberFormatter id="threeDigitFormatter" precision="3" />
+	</fx:Declarations>
+	
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace widgetComponents "com.ikanow.infinit.e.widget.library.components.*";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace DocViewer "com.ikanow.infinit.e.widget.library.components.DocViewer.*";
+		
+		.textarealightGreyHighlightColor
+		{
+			unfocusedTextSelectionColor: #eeeeee;
+			focusedTextSelectionColor: #eeeeee;
+		}
+	</fx:Style>
+	
+	<fx:Metadata>
+		[Event(name="filterDoc", type="events.FilterEvent")]
+		[Event(name="filterEnts", type="events.FilterEntsEvent")]
+		[Event(name="filterSomeEnts", type="events.FilterEntsEvent")]
+		[Event(name="filterAllEnts", type="events.FilterEntsEvent")]
+		[Event(name="googleSearch", type="events.GoogleSearchEvent")]
+	</fx:Metadata>
+	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.AnonymousSelectable;
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.FilterEntsEvent;
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.FilterEvent;
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.GoogleSearchEvent;
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.ISelectable;
+			import com.ikanow.infinit.e.widget.library.components.DocViewer.InfSelectableDataGrid;
+			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+			import com.ikanow.infinit.e.widget.library.enums.EntityMatchTypeEnum;
+			import com.ikanow.infinit.e.widget.library.enums.FilterDataSetEnum;
+			import com.ikanow.infinit.e.widget.library.enums.IncludeEntitiesEnum;
+			import com.ikanow.infinit.e.widget.library.utility.DateConverter;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
+			
+			import flash.utils.setTimeout;
+			
+			import flashx.textLayout.edit.ISelectionManager;
+			import flashx.textLayout.edit.SelectionFormat;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.core.DragSource;
+			import mx.events.FlexEvent;
+			import mx.formatters.DateFormatter;
+			import mx.managers.DragManager;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectUtil;
+			import mx.utils.URLUtil;
+			
+			import spark.components.DataGrid;
+			import spark.events.GridEvent;
+			import spark.events.GridSelectionEvent;
+			import spark.events.TextOperationEvent;
+			
+			import system.data.Map;
+			import system.data.Set;
+			import system.data.maps.HashMap;
+			import system.data.sets.HashSet;
+
+			[Bindable] private var currentDocument:Object = null;	
+			private var metadataCache:Map = new HashMap();
+			
+			private var topFormatter:DateFormatter = new DateFormatter();
+			private var bottomFormatter:DateFormatter = new DateFormatter();
+			
+			/**
+			 * Sets the current displayed document, updating all the renderers
+			 */
+			[Bindable]
+			public function set displayDocument(doc:Object):void
+			{		
+				if (null == doc.entitiesList) {
+					updateDocumentFields(doc);
+				}
+				setTimeout(renderDoc,100,doc);
+			}
+			
+			public function get displayDocument():Object
+			{
+				return this.currentDocument;
+			}
+			
+			private function renderDoc(doc:Object):void
+			{
+				this.currentDocument = doc;
+				if ( doc != null )
+				{
+					this.currentState = "data";
+					resetView();
+				}
+				else
+				{
+					this.currentState = "nodata";
+				}
+			}
+
+			/**/
+			// NEED THIS FUNCTION FROM ORIGINAL THE DOC VIEWER TO RENDER THE DOCS?
+			// SHOULD MAKE THESE 2 FUNCTIONS PUBLISH AND THEN HAVE TWO SETTERS
+			// 1) FORMAT PLUS SET (CALLED BY NON-DOC) 
+			// 2) JUST SET (CALLED BY DOC VIEWER)
+			
+			public static function getDomain(url:String):String
+			{				
+				return URLUtil.getServerName(url).replace(/^www\./i,"");
+			}
+			
+			public static function getNavUrl(url:String, displayUrl:String, metadata:Object, sourceKey:String, _id:String):String
+			{
+				var urlStr:String;
+				
+				if ( null != displayUrl && displayUrl.length > 0 )
+				{
+					if ( displayUrl.indexOf( "http://" ) > -1 || displayUrl.indexOf( "https://" ) > -1 )
+					{
+						urlStr = displayUrl;
+					}
+					else // must be a relative path ... ie for files
+					{
+						urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + sourceKey + "/" +displayUrl;
+					}
+				}
+				else if ( url.indexOf( "http://" ) > -1 || url.indexOf( "https://" ) > -1 )
+				{
+					urlStr = url;
+				}
+				else if ( ( null != metadata ) && ( null != sourceKey ) && ( null != metadata[ "_FILE_METADATA_" ] ) && ( null != metadata[ "_FILE_METADATA_" ][ 0 ][ "InfinitePath" ] ) )
+				{
+					// (since displayUrl, this is a legacy case...)					
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + sourceKey + "/" + metadata[ "_FILE_METADATA_" ][ 0 ][ "InfinitePath" ];
+				}
+				else
+				{
+					urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + _id + "?returnRawData=true";
+				}				
+				return urlStr;
+			}
+			private function updateDocumentFields(doc:Object):void
+			{				
+				var parsedDate:Date = DateConverter.parseDate( doc.publishedDate as String );			
+				doc.publishedDateTop = topFormatter.format(parsedDate.toUTCString()); //format date for MMM dd, yyyy
+				doc.publishedDateBottom = bottomFormatter.format(parsedDate.toUTCString()) + " UTC"; //format date for HH:MM:SS ZZZ
+				doc.nagivatable_url = getNavUrl(doc.url, doc.displayUrl, doc.metadata, doc.sourceKey, doc._id);
+				doc.domain = getDomain(doc.nagivatable_url);
+				
+				//HANDLE ASSOCS
+				var tempAssoc:ArrayCollection = new ArrayCollection();				
+				for each ( var assoc:Object in doc.associations )
+				{
+					//ent.selected = false;
+					var anonAssoc:AnonymousSelectable = new AnonymousSelectable(assoc);
+					tempAssoc.addItem(anonAssoc);
+				}
+				doc.associationsList = tempAssoc;
+				//HANDLE ENTS AND GEOTAGS
+				var tempEnt:ArrayCollection = new ArrayCollection();
+				var tempGeo:ArrayCollection = new ArrayCollection();
+				for each ( var ent:Object in doc.entities )
+				{
+					var anonEnt:AnonymousSelectable = new AnonymousSelectable(ent);
+					tempEnt.addItem(anonEnt);
+					if ( ent.geotag != null )
+					{								
+						var geo:Object = ObjectUtil.copy(ent);
+						geo.geotag.lat_rounded = Number(geo.geotag.lat).toFixed(4);
+						geo.geotag.lon_rounded = Number(geo.geotag.lon).toFixed(4);
+						var anonGeo:AnonymousSelectable = new AnonymousSelectable(geo);
+						tempGeo.addItem(anonGeo);
+					}
+					
+					var type:String = ent.type.toLowerCase();
+					var dimension:String = ent.dimension.toLowerCase();
+					ent.sentiment_rounded = "";
+					ent.significance_rounded = "";
+					if ( ent.sentiment != null && ent.sentiment != "" )
+					{
+						ent.sentiment_rounded = Number(ent.sentiment).toFixed(3);
+					}
+					if ( ent.significance != null && ent.significance != "" )
+					{
+						ent.significance_rounded = Number(ent.significance).toFixed(3);
+					}					
+					ent.relevance_freq = Number(ent.relevance).toFixed(3) + " (" + ent.frequency + ")";
+				}
+				doc.entitiesList = tempEnt;
+				doc.geotagsList = tempGeo;						
+			}
+			
+			
+			/**
+			 * Close any of the open windows so they can reload their data
+			 */
+			private function resetView():void
+			{				
+				textAreaDesc.height = 100;
+				groupMeta.height = 0;
+				groupMeta.visible = false;
+				textAreaTags.height = 0;
+				textAreaTags.visible = false;
+				
+				regexFilterEnt.text = "";
+				regexFilterGeo.text = "";
+				regexFilterAssoc.text = "";
+				
+				if ( currentDocument.entitiesList.length > 0 )
+				{
+					entityGroup.visible = true;
+					entityGroup.includeInLayout = true;
+				}
+				else
+				{
+					entityGroup.visible = false;
+					entityGroup.includeInLayout = false;
+				}
+				if ( currentDocument.geotagsList.length > 0 )
+				{
+					geotagGroup.visible = true;
+					geotagGroup.includeInLayout = true;
+				}
+				else
+				{
+					geotagGroup.visible = false;
+					geotagGroup.includeInLayout = false;
+				}
+				if ( currentDocument.associationsList.length > 0 )
+				{
+					associationGroup.visible = true;
+					associationGroup.includeInLayout = true;
+				}
+				else
+				{
+					associationGroup.visible = false;
+					associationGroup.includeInLayout = false;
+				}				
+			}
+			
+			
+			private function url_click_handler(event:MouseEvent):void
+			{				
+				var url:String = this.currentDocument.nagivatable_url;
+				if ( url != null )
+				{
+					if ( url.indexOf( "http" ) > -1 )
+					{
+						var urlRequest:URLRequest = new URLRequest( url );
+						navigateToURL( urlRequest, '_blank' );
+					}
+					else
+					{
+						var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + currentDocument._id + "?returnRawData=true";
+						var urlRequest1:URLRequest = new URLRequest( urlStr );
+						navigateToURL( urlRequest1, '_blank' );
+					}
+				}
+			}
+			
+			private function tags_click_handler(event:MouseEvent):void
+			{
+				if ( textAreaTags != null )
+				{
+					if ( !textAreaTags.visible )
+					{
+						textAreaTags.visible = true; 					
+						textAreaTags.height = 50; 
+					} 
+					else 
+					{
+						textAreaTags.visible = false;
+						textAreaTags.height = 0;
+					}
+				}	
+				else
+				{
+					trace("was null");
+				}
+			}
+			
+			private function metadata_click_handler(event:MouseEvent):void
+			{
+				if ( groupMeta != null )
+				{
+					if ( !groupMeta.visible )
+					{
+						groupMeta.visible = true; 					
+						groupMeta.height = 400; 
+					} 
+					else 
+					{
+						groupMeta.visible = false;
+						groupMeta.height = 0;
+					}
+				}	
+				else
+				{
+					trace("was null");
+				}
+				
+				textAreaMeta.text = "Loading Metadata";
+				var metaText:String = metadataCache.get(currentDocument._id);
+				if ( metaText == null )
+				{
+					//get the metatext
+					metadataService.url = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + currentDocument._id + "?returnRawData=false";
+					metadataService.send();					
+				}
+				else
+				{
+					textAreaMeta.text = metaText;
+				}
+			}
+			
+			protected function metadataService_resultHandler(event:ResultEvent):void
+			{
+				/**/
+//				var json:Object = JSONDecoder.decode(event.result as String);
+//				var metaText:String = JSON.encode(json.data,true);// JSONEncoder.encode( json.data );
+//				metadataCache.put(currentDocument._id,metaText);
+//				textAreaMeta.text = metaText;
+			}
+			
+			
+			protected function metadataService_faultHandler(event:FaultEvent):void
+			{
+				var metaText:String = "Error retrieving metadata";
+				textAreaMeta.text = metaText;
+			}
+			
+			/**
+			 * Text handler to change selection text color to white on black
+			 */
+			protected function textAreaDesc_focusInHandler(event:FocusEvent):void
+			{
+				var selMan:ISelectionManager = event.currentTarget.textFlow.interactionManager;
+				selMan.focusedSelectionFormat = new SelectionFormat(0x000000, 1.0, BlendMode.INVERT);
+				event.currentTarget.textFlow.interactionManager = selMan;
+			}
+			
+			
+			private function selectAll(collection:ArrayCollection, datagrid:DataGrid):void
+			{
+				collection.disableAutoUpdate();
+				for each ( var item:ISelectable in collection )
+				{
+					item.selected = true;
+				}
+				collection.enableAutoUpdate();
+				collection.refresh();
+				datagrid.selectedIndex = -1;
+			}
+			
+			private function selectNone(collection:ArrayCollection, datagrid:DataGrid):void
+			{
+				collection.disableAutoUpdate();
+				for each ( var item:ISelectable in collection )
+				{
+					item.selected = false;
+				}
+				collection.enableAutoUpdate();
+				collection.refresh();
+				datagrid.selectedIndex = -1;
+			}
+			
+			private function selectInverse(collection:ArrayCollection, datagrid:DataGrid):void
+			{				
+				collection.disableAutoUpdate();
+				for each ( var item:ISelectable in collection )
+				{
+					item.selected = !item.selected;
+				}
+				collection.enableAutoUpdate();
+				collection.refresh();
+				datagrid.selectedIndex = -1;
+			}
+			
+			protected function datagrid_selectionChangeHandler(event:GridSelectionEvent, collection:ArrayCollection, datagrid:DataGrid ):void
+			{
+				var item:ISelectable = collection.getItemAt(event.selectionChange.rowIndex) as ISelectable;
+				item.selected = !item.selected; 
+				collection.refresh();
+				datagrid.selectedIndex = -1;	
+			}
+			
+			protected function filterThis(doc:Object):void
+			{
+				var docSet:Set = new HashSet();
+				docSet.add( doc._id );
+				var docEntMap:Map = new HashMap();				
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in doc.entitiesList )
+				{
+					if (ent.selected == true )
+					{						
+						ents.add( ent.item.index );
+					}
+				}
+				docEntMap.put( doc._id, ents );
+				this.dispatchEvent(new FilterEvent("filterDoc",FilterDataSetEnum.FILTER_GLOBAL_DATA, docSet, docEntMap, "_id", "_id", "Doc Filter: " + doc.title ) );				
+			}
+			
+			public function filterSelected(doc:Object):void
+			{
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in doc.entitiesList )
+				{
+					if ( ent.selected == true )
+					{
+						if ( null != ent.item.index )
+						{
+							if ( !ents.isEmpty() )
+							{
+								desc += " OR ";
+							}
+							ents.add( ent.item.index );
+							desc += ent.item.index;
+						}
+					}
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				this.dispatchEvent(new FilterEntsEvent("filterEnts",FilterDataSetEnum.FILTER_GLOBAL_DATA,ents,EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_SELECTED_ENTITIES, desc));
+			}
+			
+			public function filterSome(doc:Object):void
+			{
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in doc.entitiesList )
+				{
+					if ( ent.selected == true )
+					{
+						if ( !ents.isEmpty() )
+						{
+							desc += " OR ";
+						}
+						ents.add( ent.item.index );
+						desc += ent.item.index;
+					}
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				this.dispatchEvent(new FilterEntsEvent("filterSomeEnts",FilterDataSetEnum.FILTER_GLOBAL_DATA,ents,EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc));
+			}
+			
+			public function filterAll(doc:Object):void
+			{
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				for each ( var ent:Object in doc.entitiesList )
+				{					
+					if ( !ents.isEmpty() )
+					{
+						desc += " OR ";
+					}
+					ents.add( ent.item.index );
+					desc += ent.item.index;					
+				}
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				this.dispatchEvent(new FilterEntsEvent("filterAllEnts",FilterDataSetEnum.FILTER_GLOBAL_DATA,ents,EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc));
+			}
+			
+			public function googleSelected(collection:ArrayCollection):void
+			{								
+				this.dispatchEvent(new GoogleSearchEvent(GoogleSearchEvent.GOOGLE_SEARCH, getCollectionGoogleTerms(collection)));
+			}		
+			
+			public function getSelectedItemGoogleTerms():Array
+			{
+				var all_colls:ArrayCollection = new ArrayCollection();
+				all_colls.addAll(new ArrayList(getCollectionGoogleTerms(currentDocument.entitiesList)));
+				all_colls.addAll(new ArrayList(getCollectionGoogleTerms(currentDocument.geotagsList)));
+				all_colls.addAll(new ArrayList(getCollectionGoogleTerms(currentDocument.associationsList)));
+				return all_colls.toArray();
+			}
+			
+			private function getCollectionGoogleTerms(collection:ArrayCollection):Array
+			{
+				var search_terms:Array = new Array();
+				
+				for each ( var item:ISelectable in collection )
+				{
+					if ( item.selected )
+					{
+						//lets assume its just ents for now
+						var data:Object = (item as Object).item;
+						if ( data != null )
+						{
+							if (data.disambiguated_name != null )
+							{
+								//means it is an ent or geo
+								search_terms.push( "\"" + (item as Object).item.disambiguated_name + "\"" );
+							}
+							else if ( data.verb != null )
+							{
+								//means it is a verb
+								var need_and:Boolean = false;
+								var search_term:String = "";
+								if ( data.entity1 != null )
+								{
+									search_term += "\"" + data.entity1 + "\" ";
+									need_and = true;
+								}
+								if ( data.entity2 != null )
+								{
+									if ( need_and )
+										search_term += "AND ";
+									search_term += "\"" + data.entity2 + "\" ";
+								}
+								search_terms.push(search_term);
+							}
+						}						
+					}
+				}
+				return search_terms;
+			}
+			
+			private var drag_timer:Number = -1;
+			private var drag_row:Number = -1;
+			private function startDragDrop(event:GridEvent):void
+			{
+				trace("start drag");
+				//if we are currently dragging, just kick out
+				if (DragManager.isDragging || drag_timer < 0 || event.rowIndex != drag_row)
+				{
+					return;
+				}
+				
+				//if we are dragging an actual row
+				if (event.rowIndex > -1 && new Date().getTime() - drag_timer > 50  )
+				{								
+					//added some logic to try and prevent accidental dragging
+					//allow the user 50ms before drag starts
+					startRowDragDrop(event);	
+				}
+			}
+			
+			private function startRowDragDrop(event:GridEvent):void
+			{
+				drag_timer = -1;		
+				drag_row = -1;
+				//blegh in an attempt to leave dragged items selected, force select the item clicked						
+				(event.item as AnonymousSelectable).selected = true;
+				
+				var items:Array = new Array();
+				for each ( var item:AnonymousSelectable in event.grid.dataProvider )
+				{
+					if ( item.selected )
+					{
+						items.push((item as Object).item);
+					}
+				}
+				
+				var dragObject:WidgetDragObject = new WidgetDragObject();
+				if ( event.grid == datagridEnts.grid || event.grid == datagridGeos.grid)
+					dragObject.entities = new ArrayCollection(items);
+				else
+					dragObject.associations = new ArrayCollection(items);
+				dragObject.documents = getDragDocument(); //push current document on stack, since it can only be one
+				dragObject.dragSource = "BetterDocBrowser";
+				
+				var ds:DragSource = new DragSource();
+				ds.addData(dragObject, WidgetDragUtil.WIDGET_DRAG_FORMAT );
+				
+				/*var proxy:Image = new Image();
+				proxy.source = WidgetDragUtil.dragImage;
+				proxy.width = 43
+				proxy.height = 36;	
+				
+				var local:Point = new Point(this.mouseX,this.mouseY);
+				var global:Point = this.localToGlobal(local);
+				var content:Point = this.contentToGlobal(local);
+				trace("Local: " + local.x + "/" + local.y  + " Global: " + global.x + "/" + global.y + " Content: " + content.x + "/" + content.y);*/
+				//TODO figure out why the image is so far off
+				//DragManager.doDrag(event.grid, ds, event, proxy, -content.x+43,-content.y+local.y+36);
+				DragManager.doDrag(this, ds, event);
+				
+			}
+			
+			private function getDragDocument():ArrayCollection
+			{
+				var docs:Array = new Array();
+				var newDoc:Object = ObjectUtil.copy(currentDocument);
+				var ents:Array = new Array();
+				var associations:Array = new Array();					
+				//only input selected ents
+				var tempEntHashMap:Map = new HashMap();
+				for each ( var ent:Object in newDoc.entitiesList )
+				{
+					if ( ent.selected )
+					{
+						tempEntHashMap.put(ent.item.index,ent.item);
+					}
+				}
+				for each ( var geotag:Object in newDoc.geotagsList )
+				{
+					if ( geotag.selected )
+					{
+						tempEntHashMap.put(geotag.item.index,geotag.item);
+					}
+				}
+				newDoc.entities = tempEntHashMap.getValues();
+				for each ( var assoc:Object in newDoc.associationsList )
+				{
+					if ( assoc.selected )
+					{
+						associations.push(assoc.item);
+					}
+				}
+				newDoc.associations = associations;
+				docs.push(newDoc);				
+				return new ArrayCollection(docs);
+			}
+
+			private var datagridPreviousHeightMap:Map = new HashMap();
+			protected function clickHeader(datagrid:DataGrid):void
+			{
+				if ( datagrid != null )
+				{
+					if ( datagrid.height == 40 )
+					{
+						if ( datagridPreviousHeightMap.containsKey(datagrid.id) )
+							datagrid.height = datagridPreviousHeightMap.get(datagrid.id);
+						else
+							datagrid.percentHeight = 100;		
+					} 
+					else 
+					{
+						datagridPreviousHeightMap.put(datagrid.id, datagrid.height);
+						datagrid.height = 40;
+					}
+				}	
+			}
+
+
+			protected function labelTitle_clickHandler(event:MouseEvent):void
+			{
+				var url:String = this.currentDocument.nagivatable_url;
+				if ( url != null )
+				{
+					if ( url.indexOf( "http" ) > -1 )
+					{
+						var urlRequest:URLRequest = new URLRequest( url );
+						navigateToURL( urlRequest, '_blank' );
+					}
+					else
+					{
+						var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + currentDocument._id + "?returnRawData=true";
+						var urlRequest1:URLRequest = new URLRequest( urlStr );
+						navigateToURL( urlRequest1, '_blank' );
+					}
+				}
+			}
+
+
+			protected function linkbutton1_clickHandler(event:MouseEvent):void
+			{
+				var urlStr:String = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/get/" + currentDocument._id + "?returnRawData=false";
+				var urlRequest1:URLRequest = new URLRequest( urlStr );
+				navigateToURL( urlRequest1, '_blank' );
+			}
+			
+			private var _filterEntModifyTimer:Timer = new Timer( 300, 1 );
+			private var _filterGeoModifyTimer:Timer = new Timer( 300, 1 );
+			private var _filterAssocModifyTimer:Timer = new Timer( 300, 1 );
+			protected function onChangeEntityFilter(event:Event):void
+			{
+				// Start a timer for 300ms time
+				this._filterEntModifyTimer.stop();
+				this._filterEntModifyTimer.start();
+			}
+			protected function onChangeGeotagFilter(event:Event):void
+			{
+				// Start a timer for 300ms time
+				this._filterGeoModifyTimer.stop();
+				this._filterGeoModifyTimer.start();
+			}
+			protected function onChangeAssociationFilter(event:Event):void
+			{
+				// Start a timer for 300ms time
+				this._filterAssocModifyTimer.stop();
+				this._filterAssocModifyTimer.start();
+			}
+			
+			private function doneChangingEntFilter( event:TimerEvent ):void
+			{
+				var regex:RegExp;
+				if ( 0 == regexFilterEnt.text.length )
+				{
+					regex = null;
+				}
+				else
+				{
+					regex = new RegExp( regexFilterEnt.text, "i" );
+				}
+				autoSelectItems(regex, currentDocument.entitiesList, datagridEnts, ["disambiguated_name","type","relevance","frequency","sentiment"]);
+			}
+			
+			private function doneChangingGeoFilter( event:TimerEvent ):void
+			{
+				var regex:RegExp;
+				if ( 0 == regexFilterGeo.text.length )
+				{
+					regex = null;
+				}
+				else
+				{
+					regex = new RegExp( regexFilterGeo.text, "i" );
+				}
+				autoSelectItems(regex, currentDocument.geotagsList, datagridGeos, ["disambiguated_name","geotag.lat","geotag.lon"]);
+			}
+			
+			private function doneChangingAssocFilter( event:TimerEvent ):void
+			{
+				var regex:RegExp;
+				if ( 0 == regexFilterAssoc.text.length )
+				{
+					regex = null;
+				}
+				else
+				{
+					regex = new RegExp( regexFilterAssoc.text, "i" );
+				}
+				autoSelectItems(regex, currentDocument.associationsList, datagridAssocs, ["entity1","verb","verb_category","entity2"]);
+			}
+			
+			private function autoSelectItems(regexFilter:RegExp, collection:ArrayCollection, datagrid:DataGrid, fieldNames:Array):void
+			{
+				collection.disableAutoUpdate();
+				var firstMatchedRowIndex:Number = -1;
+				for ( var i:int = 0; i < collection.length; i++ )				
+				{
+					var item:Object = collection.getItemAt(i);
+					var selected:Boolean = false;
+					if ( regexFilter != null )					
+					{						
+						for each ( var field:String in fieldNames )
+						{
+							var fields:Array = field.split(".");							
+							var subitem:Object = item.item;
+							for each ( var fieldpiece:String in fields )
+							{
+								subitem = subitem[fieldpiece];
+							}
+							if ( subitem != null && regexFilter.test(subitem.toString()) )
+							{
+								if ( firstMatchedRowIndex == -1 )
+									firstMatchedRowIndex = i;
+								selected = true;
+								break;
+							}
+						}					
+					}
+					(item as ISelectable).selected = selected;
+				}
+				
+				collection.enableAutoUpdate();
+				collection.refresh();
+				datagrid.selectedIndex = -1;
+				if ( firstMatchedRowIndex != -1 )
+					datagrid.ensureCellIsVisible(firstMatchedRowIndex);
+			}				
+
+
+			protected function scroller1_creationCompleteHandler(event:FlexEvent):void
+			{
+				_filterEntModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingEntFilter );
+				_filterGeoModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingGeoFilter );
+				_filterAssocModifyTimer.addEventListener( TimerEvent.TIMER_COMPLETE, doneChangingAssocFilter );
+			}
+
+			/**
+			 * These selection handlers must be called first or else a stack overflow bug occurs
+			 * It occurs only on release builds of this widget.
+			 **/
+			protected function datagridEnts_selectionChangeHandler(event:GridSelectionEvent):void
+			{		
+				drag_timer = new Date().getTime();
+				drag_row = event.selectionChange.rowIndex;
+				var item:ISelectable = currentDocument.entitiesList.getItemAt(event.selectionChange.rowIndex) as ISelectable;
+				datagrid_selectionChangeHandler1(item, currentDocument.entitiesList, datagridEnts);
+			}			
+			protected function datagridGeos_selectionChangeHandler(event:GridSelectionEvent):void
+			{
+				drag_timer = new Date().getTime();
+				drag_row = event.selectionChange.rowIndex;
+				var item:ISelectable = currentDocument.geotagsList.getItemAt(event.selectionChange.rowIndex) as ISelectable;
+				datagrid_selectionChangeHandler1(item, currentDocument.geotagsList, datagridGeos);
+			}
+			protected function datagridAssocs_selectionChangeHandler(event:GridSelectionEvent):void
+			{
+				drag_timer = new Date().getTime();
+				drag_row = event.selectionChange.rowIndex;
+				var item:ISelectable = currentDocument.associationsList.getItemAt(event.selectionChange.rowIndex) as ISelectable;
+				datagrid_selectionChangeHandler1(item, currentDocument.associationsList, datagridAssocs);
+			}
+			protected function datagrid_selectionChangeHandler1(item:ISelectable, collection:ArrayCollection, datagrid:DataGrid ):void
+			{				
+				item.selected = !item.selected;
+				datagrid.selectedItem = null;
+				datagrid.validateNow();
+			}
+			
+			private function expandDescription():void
+			{
+				if ( textAreaDesc.height > 100 )
+				{
+					textAreaDesc.height = 100;
+				}
+				else
+				{
+					//textAreaDesc.height = 100 + textAreaDesc.scroller.verticalScrollBar.maximum;
+					textAreaDesc.height = textAreaDesc.scroller.viewport.contentHeight + 10; //add some padding
+				}
+				
+				if ( textAreaDesc.height < 100 )
+					textAreaDesc.height = 100;
+			}
+			
+			protected function textAreaDesc_updateCompleteHandler(event:FlexEvent):void
+			{
+				var expandVisible:Boolean = textAreaDesc.scroller.verticalScrollBar.visible;
+				if ( textAreaDesc.height > 100 )
+					expandVisible = true;
+				buttonExpandDesc.visible = expandVisible;
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<s:states>
+		<s:State name="nodata" />
+		<s:State name="data" />		
+	</s:states>
+	<s:VGroup width="100%" height="100%">
+		<s:VGroup includeIn="nodata" width="100%" height="100%" verticalAlign="middle" horizontalAlign="center">
+			<s:Label text="Click a document to view details, click again to select" />
+		</s:VGroup>
+		<s:VGroup includeIn="data" width="100%" height="100%" horizontalAlign="center" verticalAlign="top" >	
+			<s:Label id="labelTitle"  width="100%" textAlign="center" lineBreak="toFit" maxDisplayedLines="2" fontSize="16" fontWeight="bold" color="0x808080" text="{currentDocument.title}" toolTip="{currentDocument.title}" buttonMode="true" mouseOver="{labelTitle.setStyle('textDecoration','underline')}" mouseOut="{labelTitle.setStyle('textDecoration','none')}" click="labelTitle_clickHandler(event)"/>
+			<s:HGroup width="100%" height="100%" horizontalAlign="center">
+				<s:Label width="50%" text="{currentDocument.publishedDateTop + ' ' + currentDocument.publishedDateBottom }" toolTip="" fontWeight="bold" fontSize="14"  color="0x808080" paddingRight="4" textAlign="right" />
+				<DocViewer:ColoredSeparator lineColor="0x000000" />
+				<s:Label width="50%"  fontWeight="bold" fontSize="14"  color="0x808080" paddingLeft="4" textAlign="left" 
+						 text="{'Scores: ' + currentDocument.score.toFixed(1) + ' | ' + currentDocument.queryRelevance.toFixed(1) + ' | ' + currentDocument.aggregateSignif.toFixed(1)}"
+						 toolTip="{'Infinit.e Score: ' + currentDocument.score.toFixed(1) + ' | Query Relevance: ' + currentDocument.queryRelevance.toFixed(1) + ' | Aggregate Significance ' + currentDocument.aggregateSignif.toFixed(1)}"/>
+			</s:HGroup>			
+			<s:HGroup width="100%" horizontalAlign="center" verticalAlign="middle">
+				<s:HGroup horizontalAlign="right" width="250">
+					<mx:LinkButton textAlign="right" fontSize="14" label="(metadata)" color="0x0000FF" textDecoration="underline" click="metadata_click_handler(event)" toolTip="Display the raw JSON from the Infinit.e database" maxWidth="250" />					
+				</s:HGroup>							
+				<DocViewer:ColoredSeparator lineColor="0x000000" />
+				<s:HGroup horizontalAlign="center">
+					<mx:LinkButton textAlign="center" fontSize="14" label="{'(' + currentDocument.domain + ')'}" toolTip="{currentDocument.nagivatable_url}" click="url_click_handler(event)" color="blue" textDecoration="underline" maxWidth="250" />
+				</s:HGroup>
+				<DocViewer:ColoredSeparator lineColor="0x000000" />
+				<s:HGroup width="250" horizontalAlign="left">
+					<mx:LinkButton textAlign="left" fontSize="14" label="(tags)" color="0x0000FF" textDecoration="underline" click="tags_click_handler(event)" toolTip="Display the tags on this document" maxWidth="250" />
+				</s:HGroup>
+			</s:HGroup>
+			
+			<s:Group width="100%" height="100%">
+				
+				<s:TextArea id="textAreaDesc" width="100%" maxHeight="100" styleName="textarealightGreyHighlightColor" 
+							borderColor="0xC0C0C0" paddingLeft="6" editable="false" 
+							text="{currentDocument.description}" 
+							focusIn="textAreaDesc_focusInHandler(event)"
+							doubleClick="expandDescription()" updateComplete="textAreaDesc_updateCompleteHandler(event)" />
+				<widgetComponents:WidgetBodyAddButton id="buttonExpandDesc" toolTip="Expand/Contract Summary" 
+													  right="25" bottom="5" 
+													  visible="false"
+													  click="expandDescription()" />				
+			</s:Group>
+			
+			<s:VGroup id="groupMeta" width="100%" height="0" visible="false">
+				<mx:LinkButton label="Open metadata in browser" click="linkbutton1_clickHandler(event)" color="blue" textDecoration="underline" />
+				<s:TextArea id="textAreaMeta" width="100%" height="400" borderColor="0xC0C0C0" paddingLeft="6" editable="false" text="Loading Metadata" focusIn="textAreaDesc_focusInHandler(event)" />
+			</s:VGroup>
+			
+			<s:TextArea id="textAreaTags" text="{currentDocument.tags}" width="100%" maxHeight="50" height="0" visible="false" borderColor="0xC0C0C0" paddingLeft="6" editable="false" focusIn="textAreaDesc_focusInHandler(event)" />
+			
+			<s:VGroup id="entityGroup" includeInLayout="false" visible="false" width="100%" height="100%">
+				<s:HGroup width="100%" height="100%" verticalAlign="middle">
+					<s:Label text="Entities:" />			
+					<s:VGroup width="100%" horizontalAlign="left" >
+						<s:TextInput id="regexFilterEnt" prompt="Select only: " width="300" toolTip="Enter a regex string to filter entities" change="onChangeEntityFilter(event)" />
+					</s:VGroup>			
+				</s:HGroup>
+					
+				<DocViewer:InfSelectableDataGrid id="datagridEnts" dataProvider="{currentDocument.entitiesList}" maxHeight="300" 
+												  width="100%" 
+												  rowHeight="25"
+												  gridMouseDrag="startDragDrop(event)"
+												  selectAll="selectAll(currentDocument.entitiesList, datagridEnts)"
+												  selectNone="selectNone(currentDocument.entitiesList, datagridEnts)"
+												  selectInverse="selectInverse(currentDocument.entitiesList, datagridEnts)"
+												  filterThis="filterThis(currentDocument)"
+												  filterSelected="filterSelected(currentDocument)"
+												  filterSome="filterSome(currentDocument)"
+												  filterAll="filterAll(currentDocument)"  
+												  googleSelected="googleSelected(currentDocument.entitiesList)" 
+												  clickHeader="clickHeader(datagridEnts)" 
+												  selectionChange="datagridEnts_selectionChangeHandler(event)"											  
+												  styleName="dataGridCheckbox">
+					<DocViewer:columns>
+						<s:ArrayList>
+							<s:GridColumn width="36"
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridSelectAllHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridCheckBoxItemRenderer"
+										  resizable="false"
+										  sortable="false" />
+							<s:GridColumn dataField="item.disambiguated_name" 
+										  headerText="Entity Name" minWidth="110" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.type" 
+										  headerText="Type" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.relevance_freq" 
+										  headerText="Relevance (Frequency)" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.significance_rounded"
+										  headerText="Significance" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.sentiment_rounded"  
+										  headerText="Sentiment" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+						</s:ArrayList>
+					</DocViewer:columns>
+				</DocViewer:InfSelectableDataGrid>
+			</s:VGroup>
+					
+			<s:Spacer height="5" />
+			
+			<s:VGroup id="geotagGroup" includeInLayout="false" visible="false" width="100%" height="100%">
+				<s:HGroup width="100%" height="100%" verticalAlign="middle">
+					<s:Label text="Geotags:" />
+					<s:VGroup width="100%" horizontalAlign="left" >
+						<s:TextInput id="regexFilterGeo" prompt="Select only: " width="300" toolTip="Enter a regex string to filter geotags" change="onChangeGeotagFilter(event)" />
+					</s:VGroup>		
+				</s:HGroup>
+				<DocViewer:InfSelectableDataGrid id="datagridGeos" dataProvider="{currentDocument.geotagsList}" maxHeight="300"
+												  width="100%" 
+												  rowHeight="25"
+												  gridMouseDrag="startDragDrop(event)"
+												  selectAll="selectAll(currentDocument.geotagsList, datagridGeos)"
+												  selectNone="selectNone(currentDocument.geotagsList, datagridGeos)"
+												  selectInverse="selectInverse(currentDocument.geotagsList, datagridGeos)"
+												  filterThis="filterThis(currentDocument)"
+												  filterSelected="filterSelected(currentDocument)"
+												  filterSome="filterSome(currentDocument)"
+												  filterAll="filterAll(currentDocument)"  
+												  googleSelected="googleSelected(currentDocument.geotagsList)"
+												  selectionChange="datagridGeos_selectionChangeHandler(event)"
+												  clickHeader="clickHeader(datagridGeos)"
+												  styleName="dataGridCheckbox">
+					<DocViewer:columns>
+						<s:ArrayList>
+							<s:GridColumn width="36"
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridSelectAllHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridCheckBoxItemRenderer"
+										  resizable="false"
+										  sortable="false" />
+							<s:GridColumn dataField="item.disambiguated_name" 
+										  headerText="Geotag Name" minWidth="110" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.geotag.lat_rounded" 
+										  headerText="Latitude" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.geotag.lon_rounded"
+										  headerText="Longitude" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+						</s:ArrayList>
+					</DocViewer:columns>
+				</DocViewer:InfSelectableDataGrid>
+			</s:VGroup>
+			
+			<s:Spacer height="5" />
+			
+			<s:VGroup id="associationGroup" includeInLayout="false" visible="false" width="100%" height="100%">
+				<s:HGroup width="100%" height="100%" verticalAlign="middle">
+					<s:Label text="Assocations:" />
+					<s:VGroup width="100%" horizontalAlign="left" >
+						<s:TextInput id="regexFilterAssoc" prompt="Select only: " width="300" toolTip="Enter a regex string to filter associations" change="onChangeAssociationFilter(event)" />
+					</s:VGroup>
+				</s:HGroup>
+				<DocViewer:InfSelectableDataGrid id="datagridAssocs" dataProvider="{currentDocument.associationsList}" maxHeight="300" 
+												  width="100%" 
+												  rowHeight="25"
+												  gridMouseDrag="startDragDrop(event)"
+												  selectAll="selectAll(currentDocument.associationsList, datagridAssocs)"
+												  selectNone="selectNone(currentDocument.associationsList, datagridAssocs)"
+												  selectInverse="selectInverse(currentDocument.associationsList, datagridAssocs)"
+												  filterThis="filterThis(currentDocument)"
+												  filterSelected="filterSelected(currentDocument)"
+												  filterSome="filterSome(currentDocument)"
+												  filterAll="filterAll(currentDocument)"  
+												  googleSelected="googleSelected(currentDocument.associationsList)"
+												  selectionChange="datagridAssocs_selectionChangeHandler(event)"
+												  clickHeader="clickHeader(datagridAssocs)"
+												  styleName="dataGridCheckbox">
+					<DocViewer:columns>
+						<s:ArrayList>
+							<s:GridColumn width="36"
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridSelectAllHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridCheckBoxItemRenderer"
+										  resizable="false"
+										  sortable="false" />
+							<s:GridColumn dataField="item.entity1" 
+										  headerText="Subject" minWidth="110" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer"
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.verb" 
+										  headerText="Verb" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.verb_category" 
+										  headerText="Verb Category" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+							<s:GridColumn dataField="item.entity2" 
+										  headerText="Object" minWidth="90" 
+										  headerRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextHeaderRenderer" 
+										  itemRenderer="com.ikanow.infinit.e.widget.library.components.DocViewer.GridTextItemRenderer" />
+						</s:ArrayList>
+					</DocViewer:columns>
+				</DocViewer:InfSelectableDataGrid>
+			</s:VGroup>
+		</s:VGroup>
+		<s:VGroup width="100%" height="100%">
+			<!-- This is just a spacer so when minimizing the datagrid they go up instead of down -->
+		</s:VGroup>
+	</s:VGroup>
+	
+</s:Scroller>

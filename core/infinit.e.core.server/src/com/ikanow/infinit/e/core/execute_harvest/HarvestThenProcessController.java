@@ -68,13 +68,19 @@ public class HarvestThenProcessController {
 		AssociationBackgroundAggregationManager.startThread();
 		
 		_mainThread = Thread.currentThread();
+	
+		String hostname = "unknown.host";
+		try {
+			hostname = java.net.InetAddress.getLocalHost().getHostName();
+		}
+		catch (Exception e) {}
 		
         // Add the shutdown hook
         ShutdownHook shutdownHook = new ShutdownHook();
         Runtime.getRuntime().addShutdownHook(shutdownHook);
 
         Date startDate = new Date();
-		_logger.info("Starting harvest process at: " + startDate);
+		_logger.info("Starting harvest process at: " + startDate + ", host=" + hostname);
 		
         // Perform processing
         

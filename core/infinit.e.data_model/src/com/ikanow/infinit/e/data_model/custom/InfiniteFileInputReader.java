@@ -222,6 +222,7 @@ public class InfiniteFileInputReader extends RecordReader<Object, BSONObject> {
 		}
 		_record.put(DocumentPojo.modified_, _splitDate);
 		_record.put(DocumentPojo.created_, new Date());
+		_record.put(DocumentPojo._id_, new ObjectId()); // (makes file "records" look more like other things in the DB)
 		
 		if (null != _fieldsToDelete) {
 			for (String field: _fieldsToDelete.keySet()) {

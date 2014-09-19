@@ -161,6 +161,9 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
+			// Federated query engine
+			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.federatedQueryCommunityIds_, 1), new BasicDBObject(MongoDbManager.sparse_, true));
+			
 			// Searching shares
 			// Compound index lets me access {type, communities._id}, {type} efficiently
 			compIndex = new BasicDBObject("type", 1);
@@ -411,7 +414,7 @@ public class GenericProcessingController {
 		boolean languageNormalization = pm.getNormalizeEncoding();
 		int nPreferredReplicas = pm.getMaxIndexReplicas();
 		
-		String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class);
+		String docMapping = new Gson().toJson(new DocumentPojoIndexMap.Mapping(), DocumentPojoIndexMap.Mapping.class).replace("__AMP__", "@");
 		
 		String sGroupIndex = null; // for indexing, ie always a single index
 		String sAliasIndex = null; // for querying, ie will point to doc_commid, doc_commid_1, etc

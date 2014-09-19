@@ -15,6 +15,7 @@ import java.util.List;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
+
 import org.junit.Before;
 import org.junit.Test;
 
@@ -24,12 +25,12 @@ import com.ikanow.infinit.e.data_model.api.config.SourcePojoApiMap;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.HarvestController;
-import com.ikanow.infinit.e.harvest.enrichment.custom.JavascriptSecurityManager;
 
 public class TestSecurityManager 
 {
-	private static JavascriptSecurityManager jsm;
+	private static IkanowSecurityManager jsm;
 	private static ScriptEngine engine;
 	private static HarvestController harvester;	
 	
@@ -42,7 +43,7 @@ public class TestSecurityManager
 		ScriptEngineManager factory = new ScriptEngineManager();
 		engine = factory.getEngineByName("JavaScript");		
 		
-		jsm = new JavascriptSecurityManager();
+		jsm = new IkanowSecurityManager();
 		//jsm.setPermissions();
 	}
 	
@@ -457,7 +458,7 @@ public class TestSecurityManager
 				sb.append(str);
 			in.close();
 			SourcePojo source = ApiManager.mapFromApi(sb.toString(), SourcePojo.class, new SourcePojoApiMap(null));
-						
+			
 			List<DocumentPojo> toAdd = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toUpdate = new LinkedList<DocumentPojo>();
 			List<DocumentPojo> toRemove = new LinkedList<DocumentPojo>();

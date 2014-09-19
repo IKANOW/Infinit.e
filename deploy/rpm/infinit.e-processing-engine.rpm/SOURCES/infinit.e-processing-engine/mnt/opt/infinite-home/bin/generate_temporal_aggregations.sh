@@ -20,9 +20,8 @@ if [ -f $BINDIR/STOP_TEMPORAL_AGGREGATIONS ] && [ -z "$1" ]; then
 	exit 0
 fi
 
-IS_MASTER=$(curl -s http://localhost:9200/_cluster/nodes/_local |\
- 				grep -q `curl -s http://localhost:9200/_cluster/state | grep  -o "master_node.:.[^\"]*"| grep -o "[^\"]*$"` \
-				&& echo "true")
+MASTER=`curl -s http://localhost:9200/_cluster/state | grep -o "master_node.:.[^\"]*"| grep -o "[^\"]*$" | grep -o "[^-].*"`
+IS_MASTER=$(curl -s http://localhost:9200/_nodes/_local | grep -q "$MASTER" && echo "true")
 
 if echo $IS_MASTER  | grep -qi "true"; then
 	if [ ! -z "$MONGODB" ]; then

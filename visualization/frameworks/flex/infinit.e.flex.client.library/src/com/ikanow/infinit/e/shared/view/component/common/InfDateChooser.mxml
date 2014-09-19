@@ -1,0 +1,102 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:HGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" 
+		  width="100%" height="100%" verticalAlign="middle" >
+	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import com.ikanow.infinit.e.widget.library.utility.DateConverter;
+			
+			import mx.controls.DateChooser;
+			import mx.events.CalendarLayoutChangeEvent;
+			import mx.events.FlexMouseEvent;
+			import mx.managers.PopUpManager;
+			
+			import spark.components.BorderContainer;
+			
+			private var popup:BorderContainer = null;
+			[Bindable]
+			private var dateChooser:DateChooser = null;
+			[Bindable]
+			public var _currDate:String = "";
+			
+			public var defaultEndOfDay:Boolean = false;
+			
+			protected function button1_clickHandler(event:MouseEvent):void
+			{
+				if ( popup == null )
+				{
+					initPopup();
+					PopUpManager.addPopUp(popup, btn, false);
+					PopUpManager.centerPopUp(popup);
+				}
+			}
+			
+			protected function dateChooser_changeHandler(event:CalendarLayoutChangeEvent):void
+			{
+				if ( dateChooser.selectedDate != null )
+				{
+					var date:Date = dateChooser.selectedDate;
+					if ( defaultEndOfDay )
+					{
+						date.setHours(23);
+						date.setMinutes(59);
+						date.setSeconds(59);
+					}
+					inputDate.text = dateFormatter.format( date );
+				}
+				else
+					inputDate.text = "";
+			}
+			
+			public function set currDate(date:String):void
+			{				
+				_currDate = date;
+			}
+			
+			public function getDate():Date
+			{
+				if ( inputDate.text != null && inputDate.text != '' )
+				{
+					//try to format date
+					var date:Date = DateConverter.parseDate(inputDate.text);
+					if ( date != null && isNaN(date.getTime()) )
+						return null;
+					return date;
+				}
+				return null;
+			}
+			
+			protected function closePopup(event:Event):void
+			{
+				PopUpManager.removePopUp(popup);
+				popup = null;
+			}
+			
+			private function initPopup():void
+			{
+				dateChooser = new DateChooser();
+				dateChooser.addEventListener(CalendarLayoutChangeEvent.CHANGE, dateChooser_changeHandler);
+				var date:Date = getDate();
+				if ( date == null )
+					date = new Date();
+				dateChooser.selectedDate = date;
+				popup = new BorderContainer();
+				popup.id = "infdatechooserpopup";
+				popup.addElement(dateChooser);
+				popup.addEventListener(FlexMouseEvent.MOUSE_DOWN_OUTSIDE, closePopup);
+			}
+			
+		]]>
+	</fx:Script>
+	
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:DateTimeFormatter id="dateFormatter" dateTimePattern="{Constants.DEFAULT_SPECIFIC_DATE_TIME_FORMAT}" />
+	</fx:Declarations>
+		
+	<s:TextInput id="inputDate" text="{_currDate}" />
+	<s:Button id="btn" width="20" height="20" click="button1_clickHandler(event)" styleName="calendarButton" />
+</s:HGroup>

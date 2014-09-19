@@ -144,6 +144,11 @@
 		<mkdir dir="${dir.dist}"/>
 		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
 		
+		<!-- Copy XML resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.py" />
+		</copy>		
+		
 		<!-- Bundled Jar for custom processing -->
 		<jar destFile="${dir.dist}/infinit.e.query.library.jar"   filesetmanifest="mergewithoutmain">
 			<manifest>
@@ -159,6 +164,7 @@
 			<fileset dir="${dir.build.classes}">
 				<!-- Just include classes required for querying -->
 				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler*.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/federated/*" />
 				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/aliases/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />
@@ -177,6 +183,11 @@
 		<mkdir dir="${dir.dist}"/>
 		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->		
 
+		<!-- Copy XML resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.py" />
+		</copy>		
+		
 		<!-- Bundled Jar for harvest with required libraries -->
 		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
 			<manifest>
@@ -211,6 +222,7 @@
 			<fileset dir="${dir.build.classes}">
 				<!-- Just include classes required for querying -->
 				<include name="com/ikanow/infinit/e/api/knowledge/QueryHandler*.class" />
+				<include name="com/ikanow/infinit/e/api/knowledge/federated/*" />
 				<include name="com/ikanow/infinit/e/api/knowledge/processing/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/aliases/*.class" />
 				<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/ShareHandler.class" />
@@ -230,6 +242,11 @@
 		<mkdir dir="${dir.dist}"/>
 		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->		
 
+		<!-- Copy XML resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.py" />
+		</copy>		
+		
 		<!-- Bundled Jar for harvest with required libraries -->
 		<jar destFile="${dir.build.jar}/querydecayscript.jar"   filesetmanifest="mergewithoutmain">
 			<manifest>

@@ -16,12 +16,14 @@
 package com.ikanow.infinit.e.harvest.enrichment.custom;
 
 import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStreamReader;
 import java.net.URL;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 
+import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.mongodb.BasicDBList;
 //import com.mongodb.BasicDBObject; // (used directly in the javascript now)
 
@@ -101,13 +103,16 @@ public class JavaScriptUtils
 	 * Retrieve a JavaScript file located at the fileUrl
 	 * @param fileUrl - http://somewhere.com/javascript.js
 	 * @return
+	 * @throws IOException 
 	 */
-	//TODO (INF-1922): Note this bypasses security if prefaced with file:// ... 
-	public static String getJavaScriptFile(String fileUrl)
+	public static String getJavaScriptFile(String fileUrl, IkanowSecurityManager secManager) throws IOException
 	{
 		StringBuffer javaScript = new StringBuffer();
 		try
-		{
+		{			
+			if (null != secManager) {
+				secManager.setSecureFlag(true);
+			}//TESTED
 			// Create java.net.URL from fileUrl if possible
 			URL url = new URL(fileUrl);
 
@@ -123,9 +128,9 @@ public class JavaScriptUtils
 			// Close our reader
 			r.close();
 		}
-		catch (Exception e)
-		{			
-		}
+		finally {
+			secManager.setSecureFlag(false);			
+		}//TESTED
 		return javaScript.toString();
 	}//TESTED
 

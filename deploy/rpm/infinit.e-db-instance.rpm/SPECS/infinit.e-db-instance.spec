@@ -98,6 +98,9 @@ Infinit.e Mongo DB installation and update
 			chown -R mongod:mongod /opt/db-home/backups
 		fi
 	fi
+	#2.6 onwards has changed log dir - ensure old one exists:
+	mkdir -p /var/log/mongo
+	chown mongod.mongod /var/log/mongo
 	
 ###########################################################################
 # INSTALL ONLY
@@ -196,6 +199,7 @@ Infinit.e Mongo DB installation and update
 %defattr(-,mongod,mongod)
 # (DB config)
 %dir /mnt/opt/db-home/
+%attr(755,mongod,mongod) /mnt/opt/db-home/arbiter-manager.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/master_backup-script.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/backup-script.sh
 %attr(755,mongod,mongod) /mnt/opt/db-home/master_compact-script.sh

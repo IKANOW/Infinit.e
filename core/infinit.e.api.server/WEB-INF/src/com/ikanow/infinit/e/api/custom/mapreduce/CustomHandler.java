@@ -32,6 +32,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceJobPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResultPojo;
+import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
@@ -41,6 +42,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.processing.custom.CustomProcessingController;
+import com.ikanow.infinit.e.processing.custom.output.CustomOutputIndexingEngine;
 import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
 import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
@@ -502,6 +504,11 @@ public class CustomHandler
 					//make sure user is allowed to submit on behalf of the commids given
 					if ( bAdmin || isInAllCommunities(commids, userid) )
 					{
+						ElasticSearchManager customIndex = CustomOutputIndexingEngine.getExistingIndex(cmr);
+						if (null != customIndex) {
+							CustomOutputIndexingEngine.swapAliases(customIndex, commids, true);  
+						}//TESTED (by hand - removal and deletion)						
+						
 						cmr.communityIds = commids;
 					}
 					else
@@ -537,12 +544,18 @@ public class CustomHandler
 				{
 					if ( (null != title) && !title.equals("null"))
 					{
+						// If this is indexed then can't change the title
+						if (null != CustomOutputIndexingEngine.getExistingIndex(cmr)) {
+							rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You cannot change the title of a non-empty indexed job - you can turn indexing off and then change the title"));
+							return rp;							
+						}//TESTED (by hand)
+						
 						cmr.jobtitle = title;
 						//make sure the new title hasn't been used before
 						DBObject dbo1 = DbManager.getCustom().getLookup().findOne(new BasicDBObject("jobtitle",title));
 						if ( dbo1 != null )
 						{
-							rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"A job already matches that title, please choose another title"));
+							rp.setResponse(new ResponseObject("Update MapReduce Job",false,"A job already matches that title, please choose another title"));
 							return rp;
 						}
 					}
@@ -583,10 +596,17 @@ public class CustomHandler
 					}
 					if ( (null != query) && !query.equals("null"))
 					{
+						boolean wasIndexed = CustomOutputIndexingEngine.isIndexed(cmr);
+						
 						if ( !query.isEmpty() )
 							cmr.query = query;
 						else
 							cmr.query = "{}";
+						
+						// If we're in indexing mode, check if the index has been turned off, in which case delete the index 
+						if (wasIndexed && !CustomOutputIndexingEngine.isIndexed(cmr)) {
+							CustomOutputIndexingEngine.deleteOutput(cmr);  
+						}//TESTED (by hand)
 					}
 					if (null == cmr.jarURL) { // (if in savedQuery mode, force types to be Text/BSONWritable)
 						// Force the types:
@@ -992,6 +1012,11 @@ public class CustomHandler
 					//make sure job is not running
 					if ( ( cmr.jobidS == null ) || cmr.jobidS.equals( "CHECKING_COMPLETION" ) || cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
 					{
+						// Remove index
+						if (CustomOutputIndexingEngine.isIndexed(cmr)) {
+							CustomOutputIndexingEngine.deleteOutput(cmr);  
+						}//TESTED (by hand)
+						
 						//remove results and job
 						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));
 						DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).drop();

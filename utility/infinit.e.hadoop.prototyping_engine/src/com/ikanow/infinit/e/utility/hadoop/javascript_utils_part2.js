@@ -25,11 +25,14 @@ var _streaming_context = {
 			return _inContext.hasNext();
 		}
 }
+var _internalError = true;
 
 function internal_mapper()
 {
 	_emit_list = [];
+	_internalError = true;
 	var map_input_value = eval('(' + _map_input_value + ')');
+	_internalError = false;
 	map(_map_input_key, map_input_value);
 }
 

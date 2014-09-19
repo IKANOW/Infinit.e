@@ -129,7 +129,7 @@ public class SearchHandler
 					else {
 						sb.append('+');						
 					}
-					sb.append(termAtt.toString());
+					sb.append(luceneEncodeTerm(termAtt.toString()));
 				}
 			}
 			finally {
@@ -597,7 +597,7 @@ public class SearchHandler
 						else {
 							sb.append('+');						
 						}
-						sb.append(termAtt.toString());
+						sb.append(luceneEncodeTerm(termAtt.toString()));
 					}
 				}
 				finally {
@@ -974,15 +974,16 @@ public class SearchHandler
 
 	public static String luceneEncode(String rawQuery)
 	{
-		// + - && || ! ( ) { } [ ] ^ " ~ * ? : \
+		// + - && || ! ( ) { } [ ] ^ " ~ * ? : \ /
 		/// add quotes to make it exact
-		return '"' + rawQuery.replaceAll("([\"+~*?:|&(){}\\[\\]\\^\\!\\-\\\\])", "\\\\$1") + '"';
+		return '"' + rawQuery.replaceAll("([\"+~*?:/|&(){}\\[\\]\\^\\!\\-\\\\])", "\\\\$1") + '"';
 	}
 	public static String luceneEncodeTerm(String rawQueryTerm)
 	{
 		// + - && || ! ( ) { } [ ] ^ " ~ * ? : \
 		/// (no quotes)
-		return rawQueryTerm.replaceAll("([\"+~*?:|&(){}\\[\\]\\^\\!\\-\\\\])", "\\\\$1");
+		return rawQueryTerm.replaceAll("([\"+~*?:/|&(){}\\[\\]\\^\\!\\-\\\\])", "\\\\$1");
 	}
+
 }
 

@@ -117,9 +117,10 @@
 				if ( data.response.success.toString() == "true" )
 				{
 					var shareid:String = data.data as String;
-					kml_share_url = "$infinite/social/share/get/" + shareid;
+					kml_share_url = "$infinite/social/share/get/" + shareid;					
 					
-					searchWidgetSave();								
+					searchWidgetSave();	
+					updateBinaryShareComm(shareid);
 				}
 				else
 				{
@@ -131,6 +132,79 @@
 			private function createKMLShare_faultHandler(event:FaultEvent):void
 			{
 				Alert.show("Failed to upload kml: " + event.message);
+				close();
+			}
+			
+			private var binary_self_community_id:String = null;
+			private var binary_id:String = null;
+			private var binaryShareCommsHttpService:HTTPService;
+			/**
+			 * Add the correct comm to the share, then remove the original
+			 */
+			private function updateBinaryShareComm(share_id:String):void
+			{
+				binary_id = share_id; 				
+				//now we have to deal with the comms on the share, annoyingly get share to grab self comm, add new one, delete old one
+				binaryShareCommsHttpService = new HTTPService();
+				binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/get/" + binary_id + "?nocontent=true";
+				binaryShareCommsHttpService.addEventListener(ResultEvent.RESULT, binaryShareCommsGet_resultHandler);
+				binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsGet_faultHandler);
+				binaryShareCommsHttpService.send();	
+			}
+			
+			private function binaryShareCommsGet_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					binary_self_community_id = data.data.communities[0]._id;
+					//now add the self community
+					binaryShareCommsHttpService = new HTTPService();
+					binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/add/community/" + binary_id + "/added%20by%20map/" + dropDownCommunity.selectedItem._id;
+					binaryShareCommsHttpService.addEventListener(ResultEvent.RESULT, binaryShareCommsAdd_resultHandler);
+					binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsAdd_faultHandler);
+					binaryShareCommsHttpService.send();	
+				}
+				else
+				{
+					Alert.show("Failed to get binary share: " + data.response.message);
+					close();
+				}
+			}
+			
+			private function binaryShareCommsGet_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to get binary share: " + event.message);
+				close();
+			}
+			
+			private function binaryShareCommsAdd_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);	
+				if ( data.response.success.toString() == "true" )
+				{
+					//now remove the self community
+					binaryShareCommsHttpService = new HTTPService();
+					binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/remove/community/" + binary_id + "/" + binary_self_community_id; 
+					binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsRemove_faultHandler);
+					binaryShareCommsHttpService.send();	
+				}
+				else
+				{
+					Alert.show("Failed to add community to binary share: " + data.response.message);
+					close();
+				}
+			}
+			
+			private function binaryShareCommsAdd_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to add community to binary share: " + event.message);
+				close();
+			}
+			
+			private function binaryShareCommsRemove_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to remove community from binary share: " + event.message);
 				close();
 			}
 			

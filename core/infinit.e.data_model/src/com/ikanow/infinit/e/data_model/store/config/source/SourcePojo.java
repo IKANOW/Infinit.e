@@ -19,6 +19,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -114,6 +115,9 @@ public class SourcePojo extends BaseDbPojo {
 	private Integer distributionFactor;
 	final public static String distributionFactor_ = "distributionFactor";
 	
+	private Set<ObjectId> federatedQueryCommunityIds = null; // (populated with communityIds if the source is a federated query - just used for efficient lookups from queries)
+	final public static String federatedQueryCommunityIds_ = "federatedQueryCommunityIds";
+	
 	public static class SourceSearchIndexFilter {
 		public Boolean indexOnIngest = null; // (if specified and false, default:true, then don't index the docs at all)
 		public String entityFilter = null; // (regex applied to entity indexes, starts with "+" or "-" to indicate inclusion/exclusion, defaults to include-only)
@@ -134,6 +138,10 @@ public class SourcePojo extends BaseDbPojo {
 	
 	private List<SourcePipelinePojo> processingPipeline;
 	final public static String processingPipeline_ = "processingPipeline";
+	
+	// The new template-based capability:
+	private BasicDBObject templateProcessingFlow;
+	final public static String templateProcessingFlow_ = "templateProcessingFlow";
 	
 	// LEGACY CODE, IGNORED IN PROCESSING-PIPELINE MODE
 
@@ -569,6 +577,8 @@ public class SourcePojo extends BaseDbPojo {
 	
 	private transient Set<Integer> distributionTokens; // (temporary internal state for managing intra-source distribution)
 	
+	private transient Boolean ownedByAdmin = null;
+	
 	// Build some regexes:
 	
 	public static void initSearchIndexFilter(SourceSearchIndexFilter searchIndexFilter) {
@@ -664,7 +674,8 @@ public class SourcePojo extends BaseDbPojo {
 	
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
 		return gp.registerTypeAdapter(SourcePojo.class, new SourcePojoDeserializer()).
-				registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer());
+				registerTypeAdapter(SourcePojo.class, new SourcePojoSerializer())				
+				;
 	}
 	
 	protected static class SourcePojoDeserializer implements JsonDeserializer<SourcePojo> 
@@ -672,7 +683,7 @@ public class SourcePojo extends BaseDbPojo {
 		@Override
 		public SourcePojo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
 		{
-			SourcePojo src = BaseDbPojo.getDefaultBuilder().create().fromJson(json, SourcePojo.class);  
+			SourcePojo src = new SourceFederatedQueryConfigPojo().extendBuilder(BaseDbPojo.getDefaultBuilder()).create().fromJson(json, SourcePojo.class);  
 			if (null != src.extractorOptions) {
 				src.extractorOptions = decodeKeysForDatabaseStorage(src.extractorOptions);
 			}
@@ -768,6 +779,22 @@ public class SourcePojo extends BaseDbPojo {
 			else if (null != px.database) {
 				return px.database.getUrl();
 			}
+			else if (null != px.federatedQuery) {
+				if ((null != px.federatedQuery.requests) && !px.federatedQuery.requests.isEmpty()) {
+					return px.federatedQuery.requests.iterator().next().endPointUrl;
+				}
+				else {
+					if ((null != px.federatedQuery.entityTypes) && !px.federatedQuery.entityTypes.isEmpty()) {
+						return "inf://federated/" + Arrays.toString(px.federatedQuery.entityTypes.toArray()).replaceAll("[\\[\\]]", "");
+					}
+					else if (null != px.federatedQuery.importScript) {
+						return "inf://federated/" +  px.federatedQuery.scriptlang + "/" + px.federatedQuery.importScript.hashCode();
+					}
+					else {
+						return "inf://federated/unknown/";
+					}						
+				}
+			}
 			else if (null != px.logstash) {
 				String url = null;
 				try {
@@ -809,6 +836,10 @@ public class SourcePojo extends BaseDbPojo {
 				else if ((null != px.web) || (null != px.feed)) {
 					this.extractType = "Feed";					
 				}
+				else if (null != px.federatedQuery) {
+					this.extractType = "Federated";
+					this.federatedQueryCommunityIds = this.communityIds;
+				}
 				if (null != px.harvest) {
 					if (null != px.harvest.searchCycle_secs) {
 						if ((null == searchCycle_secs) || (searchCycle_secs > 0)) {
@@ -836,5 +867,24 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public void setPartiallyPublished(Boolean partiallyPublished) {
 		this.partiallyPublished = partiallyPublished;
+	}
+	public Set<ObjectId> getFederatedQueryCommunityIds() {
+		return federatedQueryCommunityIds;
+	}
+	public void setFederatedQueryCommunityIds(
+			Set<ObjectId> federatedQueryCommunityIds) {
+		this.federatedQueryCommunityIds = federatedQueryCommunityIds;
+	}
+	public BasicDBObject getTemplateProcessingFlow() {
+		return templateProcessingFlow;
+	}
+	public void setTemplateProcessingFlow(BasicDBObject templateProcessingFlow) {
+		this.templateProcessingFlow = templateProcessingFlow;
+	}
+	public Boolean getOwnedByAdmin() {
+		return ownedByAdmin;
+	}
+	public void setOwnedByAdmin(Boolean ownedByAdmin) {
+		this.ownedByAdmin = ownedByAdmin;
 	}
 }

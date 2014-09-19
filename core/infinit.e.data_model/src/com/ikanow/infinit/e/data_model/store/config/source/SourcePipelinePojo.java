@@ -41,8 +41,9 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public SourceFileConfigPojo file;
 	public SourceRssConfigPojo feed;
 	public SourceRssConfigPojo web;
-	public SourceNoSqlConfigPojo nosql = null;
+	public SourceNoSqlConfigPojo nosql;
 	public LogstashExtractorPojo logstash;
+	public SourceFederatedQueryConfigPojo federatedQuery; // NOTE: this is currently alpha
 
 	// 1.2] Global operations
 	
@@ -88,6 +89,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	public static class LogstashExtractorPojo {
 		public String config; // The logstash-formatted configuration object
 		public Boolean streaming; // if false (defaults to true), then source is "stashed" forever instead of being aged out
+		public Boolean distributed; // if true (defaults to false), then source will be run on all available logstash nodes, not just master (normally used in conjunction with #LOGSTASH{hostname})
 		public Boolean testDebugOutput; // if true (default: false) then will collect "debug" output during test (else "verbose")
 		public Integer testInactivityTimeout_secs; // if specified (default 10s) then overrides the inactivity timeout during testing - the test will return if nothing happens for this period
 	}

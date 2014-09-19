@@ -356,25 +356,27 @@
 			protected function sources_mouseOutHandler( event:MouseEvent ):void
 			{
 				//(actually this is a roll out handler)
-				
-				// OK need to go to the top of the list and see if we're a source monior
-				var it:DisplayObjectContainer = event.relatedObject.parent;
-				
-				while ( null != it )
+				if ( event.relatedObject != null )
 				{
-					if ( it is SourceMonitor )
-						return;
-					else
-						it = it.parent;
-				}
-				
-				// If we're here then we didn't roll onto the source monitor...				
-				
-				mouseOverElement = null;
-				
-				if ( 0 == mouseOverInterval )
-				{
-					mouseOverInterval = setInterval( sources_mouseHandler, 250 );
+					// OK need to go to the top of the list and see if we're a source monior				
+					var it:DisplayObjectContainer = event.relatedObject.parent;
+					
+					while ( null != it )
+					{
+						if ( it is SourceMonitor )
+							return;
+						else
+							it = it.parent;
+					}
+					
+					// If we're here then we didn't roll onto the source monitor...				
+					
+					mouseOverElement = null;
+					
+					if ( 0 == mouseOverInterval )
+					{
+						mouseOverInterval = setInterval( sources_mouseHandler, 250 );
+					}
 				}
 			}
 			

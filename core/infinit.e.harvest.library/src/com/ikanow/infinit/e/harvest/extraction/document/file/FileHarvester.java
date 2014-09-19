@@ -58,6 +58,7 @@ import org.apache.tika.parser.AutoDetectParser;
 import org.apache.tika.parser.CompositeParser;
 import org.apache.tika.parser.ParseContext;
 import org.apache.tika.parser.Parser;
+import org.apache.tika.parser.txt.TXTParser;
 import org.bson.types.ObjectId;
 import org.xml.sax.ContentHandler;
 import org.apache.commons.codec.digest.DigestUtils;
@@ -275,8 +276,15 @@ public class FileHarvester implements HarvesterInterface {
 					// 1] If first time, or source has completed:
 					// Quick check of share/custom date vs last imported doc in this case:
 					ObjectId customLastRecordId = null;
+					// Here are the two cases (whether in success/error/success_iteration
+					// 1) non-append mode ... any time the first_record.time > last_doc.time then re-run (delete all docs)
+					// 2) append-mode ... any time the last_record.time > last_doc.time then re-run/keep going					
+					// (the status clause below just determines if you keep going or not)
+					// the file.getTime() call will automatically give you the correct version of 1 vs 2 depending on its status)
+					
 					if ((null == source.getHarvestStatus()) || (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
 					{					
+						
 						if (!_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
 							return files;
 						}//TESTED			
@@ -295,11 +303,6 @@ public class FileHarvester implements HarvesterInterface {
 						HarvestEnum saved = source.getHarvestStatus().getHarvest_status();
 						source.getHarvestStatus().setHarvest_status(HarvestEnum.success);
 						try {
-							// Just doing this so I know if I need to delete everything and restart
-							// (the trick here is that all files from a given custom run have the same date
-							// (CustomMapReduceJobPojo.lastRunTime_)
-							//  even in non-append mode ... so if the file time is different than the most recent doc then
-							//  the job must have been re-run)
 							if (_context.getDuplicateManager().needsUpdated_Url(new Date(file.getDate()), null, source)) {
 								_deleteExistingFilesBySourceKey = true;								
 							}
@@ -321,11 +324,11 @@ public class FileHarvester implements HarvesterInterface {
 						_deleteExistingFilesBySourceKey = false;						
 					}//TESTED
 
-					// Incremental updates: never delete anything, only process new objects
+					// Custom append mode: never delete anything, only process new objects
 					InternalInfiniteFile customHandle = (InternalInfiniteFile)file;
-					if (customHandle.isIncremental()) {
+					if (customHandle.isAppendingNotReplacing()) {
 						_deleteExistingFilesBySourceKey = false;
-					}//TOTEST
+					}//TESTED
 					
 					// Finally, if we wanted to delete the files then go ahead now:
 					if (_deleteExistingFilesBySourceKey) {						
@@ -1032,6 +1035,7 @@ public class FileHarvester implements HarvesterInterface {
 	
 	// Get tika options:
 	// Bonus option output:xhtml|text
+	// Bonus option bypass:<media type>
 	// Example option: "application/pdf:{setEnableAutoSpace:false}", ie format is mediaType:JSON
 	// where JSON is key/value pairs for the function name and the arg (only String, bool, int/long/double types are possible)
 	
@@ -1059,7 +1063,12 @@ public class FileHarvester implements HarvesterInterface {
 						}
 						continue;
 					}//TESTED
-					
+					else if (mediaType.equalsIgnoreCase("bypass")) {
+						Map<MediaType, Parser> parsers = autoDetectParser.getParsers();
+						parsers.put(MediaType.parse(jsonStr), new TXTParser());
+						autoDetectParser.setParsers(parsers);
+						continue;
+					}
 					// Try to get media type parser:
 					
 					Parser p = autoDetectParser.getParsers().get(MediaType.parse(mediaType));

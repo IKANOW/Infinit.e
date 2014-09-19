@@ -581,6 +581,9 @@ public class ScoringUtils
 			int ndocs = 0;
 			long lastBatch = 0L;
 			
+			long initialUnusedMemory = Runtime.getRuntime().maxMemory() - Runtime.getRuntime().totalMemory();
+			long initialFreeMemory = Runtime.getRuntime().freeMemory();
+			
 			for ( DBObject f0 : docs)
 			{
 				BasicDBObject f = (BasicDBObject)f0;
@@ -589,7 +592,7 @@ public class ScoringUtils
 					long now = new Date().getTime();
 					
 					//DEBUG
-					//logger.warn(ndocs + " : " + (now - lastBatch) + " : " + newMemUsage + " VS " + Runtime.getRuntime().maxMemory());
+					//logger.warn(ndocs + " : " + (now - lastBatch) + " : " + newMemUsage + " VS " + Runtime.getRuntime().maxMemory() + " UNUSED " + (Runtime.getRuntime().maxMemory() - Runtime.getRuntime().totalMemory()) + " FREE " + Runtime.getRuntime().freeMemory());
 					
 					// Check vs total memory:
 					long runtimeMem = Runtime.getRuntime().maxMemory();
@@ -599,7 +602,10 @@ public class ScoringUtils
 							||
 						(((now - lastBatch) > 20000L) && (ndocs >= toReturn)))							
 					{
-						logger.error("Query truncated memUsage=" + newMemUsage + ", memory=" + runtimeMem + ", docs=" + ndocs + ", totaldocs=" + scores.found);
+						long finalUnusedMemory = Runtime.getRuntime().maxMemory() - Runtime.getRuntime().totalMemory();
+						long finalFreeMemory = Runtime.getRuntime().freeMemory();
+						
+						logger.error("Query truncated memUsage=" + newMemUsage + ", memory=" + runtimeMem + ", docs=" + ndocs + ", totaldocs=" + scores.found + ", init_free_mem=" + initialFreeMemory + ", end_free_mem=" + finalFreeMemory + ", init_unused_mem=" + initialUnusedMemory + ", end_unused_mem=" + finalUnusedMemory);
 						break;
 					}//TESTED
 					currMemUsage = newMemUsage;

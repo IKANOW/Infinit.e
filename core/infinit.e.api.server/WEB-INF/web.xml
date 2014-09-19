@@ -24,6 +24,13 @@
       </servlet-class>  
    </servlet>   
   
+  <!--  Allows background threads -->
+  <listener>
+  	<listener-class>
+  		com.ikanow.infinit.e.api.server.PollServer
+  	</listener-class>
+  </listener>
+  
    <!-- Catch rest api requests -->  
    <servlet-mapping>  
       <servlet-name>InfiniteServlet</servlet-name>  
