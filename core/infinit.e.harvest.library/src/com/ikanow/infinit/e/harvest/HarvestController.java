@@ -688,7 +688,13 @@ public class HarvestController implements HarvestContext
 
 			if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvest_message() && !source.getHarvestStatus().getHarvest_message().isEmpty()))
 			{
-				sLog.append("extracterr='").append(source.getHarvestStatus().getHarvest_message().replace("\n",  " ")).append("' ");
+				String message = source.getHarvestStatus().getHarvest_message().replace("\n",  " ");
+				if (message.length() > 512) {
+					sLog.append("extracterr='").append(message.substring(0, 512)).append("...' ");					
+				}
+				else {
+					sLog.append("extracterr='").append(message).append("' ");
+				}
 			}//TESTED
 			
 			StringBuffer sLog2 = new StringBuffer();

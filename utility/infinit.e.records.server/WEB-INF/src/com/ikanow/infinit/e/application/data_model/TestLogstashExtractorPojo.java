@@ -31,6 +31,7 @@ public class TestLogstashExtractorPojo extends BaseDbPojo { // copy of SourcePip
 	public ObjectId _id; // (input/output - test/delete)
 	
 	public ObjectId deleteOnlyCommunityId; // (input - delete only)
+	public Boolean deleteDocsOnly; // (input - delete only)
 	
 	public SourcePipelinePojo.LogstashExtractorPojo logstash; // (input only - not delete)
 	public Boolean isAdmin; // (input only - not delete)

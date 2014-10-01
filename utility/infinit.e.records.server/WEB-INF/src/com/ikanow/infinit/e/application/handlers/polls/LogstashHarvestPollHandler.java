@@ -24,6 +24,7 @@ import java.util.Date;
 import java.util.List;
 
 import org.apache.commons.io.IOUtils;
+import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.application.utils.LogstashConfigUtils;
@@ -39,6 +40,8 @@ import com.mongodb.DBCursor;
 
 public class LogstashHarvestPollHandler implements PollHandler {
 
+	private static final Logger _logger = Logger.getLogger(LogstashHarvestPollHandler.class);
+	
 	public static String LOGSTASH_DIRECTORY = "/opt/logstash-infinite/";
 	public static String LOGSTASH_WD = "/opt/logstash-infinite/logstash/";
 	public static String LOGSTASH_CONFIG = "/opt/logstash-infinite/logstash.conf.d/";
@@ -182,6 +185,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 
 					//DEBUG
 					//System.out.println("MODIFIED SRC=" + src.getModified() + ": " + src.getTitle());
+					_logger.info("modified src mod=" + src.getModified() + " key=" + src.getKey() + " title=" + src.getTitle());
 					
 					if (src.getModified().getTime() > mostRecentlyChangedSource) {
 						
@@ -191,9 +195,12 @@ public class LogstashHarvestPollHandler implements PollHandler {
 								modified = true;
 								//DEBUG
 								//System.out.println("ACTIVE->SUSPENDED SRC=" + src.getModified() + ": " + src.getTitle());
+								_logger.info("active->suspended src mod=" + src.getModified() + " key=" + src.getKey() + " title=" + src.getTitle());
 							}
 							//DEBUG
 							//else System.out.println("(...MODIFIED SUSPENDED SRC=" + src.getModified() + ": " + src.getTitle());
+							_logger.info("(...modified suspended src mod=" + src.getModified() + " key=" + src.getKey() + " title=" + src.getTitle());
+
 						}//TESTED
 						if (modified) {
 							mostRecentlyChangedSource = src.getModified().getTime();
@@ -212,15 +219,24 @@ public class LogstashHarvestPollHandler implements PollHandler {
 				// Delete the directory
 				cleanseDirectory(logstashDirectory);
 
+				int numSources = 0;
+				int numSourcesSuspended = 0;
+				int numSourcesIgnored = 0;
 				for (SourcePojo src: srcList) {
+					numSources++;
 					// Some input checking:
 					if (ignoreSource(src, isSlave)) {
+						numSourcesIgnored++;
 						continue;
 					}				
 					if (!isSuspended(src)) {
 						createConfigFileFromSource(src, mostRecentlyChangedSource, logstashDirName);
 					}
+					else {
+						numSourcesSuspended++;						
+					}
 				}//TESTED
+				_logger.info("Rebuilding logstash configurations for: source=" +numSources + " ignored=" +numSourcesIgnored + " suspended=" +numSourcesSuspended);				
 				
 				modifiedConfiguration = true;
 				
@@ -231,6 +247,8 @@ public class LogstashHarvestPollHandler implements PollHandler {
 		
 		if (modifiedConfiguration) {
 			try {
+				_logger.info("Restarting logstash");
+				
 				new File(LOGSTASH_RESTART_FILE).createNewFile();
 			}//TESTED
 			catch (Exception e) {

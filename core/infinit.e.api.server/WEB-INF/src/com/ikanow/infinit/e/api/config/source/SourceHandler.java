@@ -690,6 +690,7 @@ public class SourceHandler
 					logStashMessage.put("_id", source.getId());
 					logStashMessage.put("deleteOnlyCommunityId", communityId);
 					logStashMessage.put("sourceKey", source.getKey());
+					logStashMessage.put("deleteDocsOnly", bDocsOnly);
 					
 					if ((null != source.getProcessingPipeline()) && !source.getProcessingPipeline().isEmpty()) {
 						SourcePipelinePojo px = source.getProcessingPipeline().iterator().next();

@@ -1652,11 +1652,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
       out.write("</a></b> - ");
       if (_jspx_meth_fmt_005fmessage_005f31(_jspx_page_context))
         return;
-      out.write("</li>\t\t\t\t\t\t\r\n");
-      out.write("\t\t\t\t\t\t</ul>\r\n");
-      out.write("\t\t\t\t\t\t<!--  TODO fix this for new published chrome extension -->\r\n");
-      out.write("\t\t\t\t\t\t<ul>\r\n");
-      out.write("\t\t\t\t\t\t\t<li><b><a href=\"https://chrome.google.com/webstore/detail/ikanow-1-click-source-imp/belmglhinclmkghjmdfgljnkojanfdje\" title=\"");
+      out.write("\r\n");
+      out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\"custommonitor.jsp\" title=\"");
       if (_jspx_meth_fmt_005fmessage_005f32(_jspx_page_context))
         return;
       out.write("\" target=\"_blank\">");
@@ -1665,8 +1662,22 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
       out.write("</a></b> - ");
       if (_jspx_meth_fmt_005fmessage_005f34(_jspx_page_context))
         return;
-      out.write(" (<a href=\"chrome.html\"  target=\"_blank\">");
+      out.write("</li></ul>\r\n");
+      out.write("\t\t\t\t\t\t\t</li>\t\t\t\t\t\t\r\n");
+      out.write("\t\t\t\t\t\t</ul>\r\n");
+      out.write("\t\t\t\t\t\t<!--  TODO fix this for new published chrome extension -->\r\n");
+      out.write("\t\t\t\t\t\t<ul>\r\n");
+      out.write("\t\t\t\t\t\t\t<li><b><a href=\"https://chrome.google.com/webstore/detail/ikanow-1-click-source-imp/belmglhinclmkghjmdfgljnkojanfdje\" title=\"");
       if (_jspx_meth_fmt_005fmessage_005f35(_jspx_page_context))
+        return;
+      out.write("\" target=\"_blank\">");
+      if (_jspx_meth_fmt_005fmessage_005f36(_jspx_page_context))
+        return;
+      out.write("</a></b> - ");
+      if (_jspx_meth_fmt_005fmessage_005f37(_jspx_page_context))
+        return;
+      out.write(" (<a href=\"chrome.html\"  target=\"_blank\">");
+      if (_jspx_meth_fmt_005fmessage_005f38(_jspx_page_context))
         return;
       out.write("</a>)</li>\r\n");
       out.write("\t\t\t\t\t\t</ul>\r\n");
@@ -1678,20 +1689,10 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
       out.write("\r\n");
       out.write("\t\t\t\t\t\t<ul>\r\n");
       out.write("\t\t\t\t\t\t\t<li><b>");
-      if (_jspx_meth_fmt_005fmessage_005f36(_jspx_page_context))
+      if (_jspx_meth_fmt_005fmessage_005f39(_jspx_page_context))
         return;
       out.write("</b>\r\n");
       out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\":8090../casemanager/\" title=\"");
-      if (_jspx_meth_fmt_005fmessage_005f37(_jspx_page_context))
-        return;
-      out.write("\" target=\"_blank\">");
-      if (_jspx_meth_fmt_005fmessage_005f38(_jspx_page_context))
-        return;
-      out.write("</a></b> - ");
-      if (_jspx_meth_fmt_005fmessage_005f39(_jspx_page_context))
-        return;
-      out.write("</li></ul>\r\n");
-      out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\":8090../splunk/\" title=\"");
       if (_jspx_meth_fmt_005fmessage_005f40(_jspx_page_context))
         return;
       out.write("\" target=\"_blank\">");
@@ -1699,6 +1700,16 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
         return;
       out.write("</a></b> - ");
       if (_jspx_meth_fmt_005fmessage_005f42(_jspx_page_context))
+        return;
+      out.write("</li></ul>\r\n");
+      out.write("\t\t\t\t\t\t\t\t<ul><li><b><a href=\":8090../splunk/\" title=\"");
+      if (_jspx_meth_fmt_005fmessage_005f43(_jspx_page_context))
+        return;
+      out.write("\" target=\"_blank\">");
+      if (_jspx_meth_fmt_005fmessage_005f44(_jspx_page_context))
+        return;
+      out.write("</a></b> - ");
+      if (_jspx_meth_fmt_005fmessage_005f45(_jspx_page_context))
         return;
       out.write("</li></ul>\r\n");
       out.write("\t\t\t\t\t\t\t</li>\r\n");
@@ -2425,8 +2436,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f32 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f32.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f32.setParent(null);
-    // /index.jsp(120,132) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f32.setKey("index.chrome_extension.description");
+    // /index.jsp(117,54) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f32.setKey("index.custom_monitor.description");
     int _jspx_eval_fmt_005fmessage_005f32 = _jspx_th_fmt_005fmessage_005f32.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f32.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f32);
@@ -2444,8 +2455,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f33 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f33.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f33.setParent(null);
-    // /index.jsp(120,205) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f33.setKey("index.chrome_extension.title");
+    // /index.jsp(117,125) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f33.setKey("index.custom_monitor.title");
     int _jspx_eval_fmt_005fmessage_005f33 = _jspx_th_fmt_005fmessage_005f33.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f33.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f33);
@@ -2463,8 +2474,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f34 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f34.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f34.setParent(null);
-    // /index.jsp(120,265) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f34.setKey("index.chrome_extension.description");
+    // /index.jsp(117,184) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f34.setKey("index.custom_monitor.description");
     int _jspx_eval_fmt_005fmessage_005f34 = _jspx_th_fmt_005fmessage_005f34.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f34.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f34);
@@ -2482,8 +2493,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f35 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f35.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f35.setParent(null);
-    // /index.jsp(120,361) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f35.setKey("index.chrome_extension.mirror.description");
+    // /index.jsp(122,132) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f35.setKey("index.chrome_extension.description");
     int _jspx_eval_fmt_005fmessage_005f35 = _jspx_th_fmt_005fmessage_005f35.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f35.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f35);
@@ -2501,8 +2512,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f36 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f36.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f36.setParent(null);
-    // /index.jsp(128,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f36.setKey("index.enterprise_features.title");
+    // /index.jsp(122,205) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f36.setKey("index.chrome_extension.title");
     int _jspx_eval_fmt_005fmessage_005f36 = _jspx_th_fmt_005fmessage_005f36.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f36.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f36);
@@ -2520,8 +2531,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f37 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f37.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f37.setParent(null);
-    // /index.jsp(129,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f37.setKey("index.enterprise_features.casemanager.description");
+    // /index.jsp(122,265) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f37.setKey("index.chrome_extension.description");
     int _jspx_eval_fmt_005fmessage_005f37 = _jspx_th_fmt_005fmessage_005f37.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f37.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f37);
@@ -2539,8 +2550,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f38 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f38.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f38.setParent(null);
-    // /index.jsp(129,145) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f38.setKey("index.enterprise_features.casemanager.title");
+    // /index.jsp(122,361) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f38.setKey("index.chrome_extension.mirror.description");
     int _jspx_eval_fmt_005fmessage_005f38 = _jspx_th_fmt_005fmessage_005f38.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f38.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f38);
@@ -2558,8 +2569,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f39 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f39.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f39.setParent(null);
-    // /index.jsp(129,221) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f39.setKey("index.enterprise_features.casemanager.description");
+    // /index.jsp(130,14) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f39.setKey("index.enterprise_features.title");
     int _jspx_eval_fmt_005fmessage_005f39 = _jspx_th_fmt_005fmessage_005f39.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f39.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f39);
@@ -2577,8 +2588,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f40 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f40.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f40.setParent(null);
-    // /index.jsp(130,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f40.setKey("index.enterprise_features.monitoring.description");
+    // /index.jsp(131,57) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f40.setKey("index.enterprise_features.casemanager.description");
     int _jspx_eval_fmt_005fmessage_005f40 = _jspx_th_fmt_005fmessage_005f40.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f40.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f40);
@@ -2596,8 +2607,8 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f41 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f41.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f41.setParent(null);
-    // /index.jsp(130,139) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f41.setKey("index.enterprise_features.monitoring.title");
+    // /index.jsp(131,145) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f41.setKey("index.enterprise_features.casemanager.title");
     int _jspx_eval_fmt_005fmessage_005f41 = _jspx_th_fmt_005fmessage_005f41.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f41.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f41);
@@ -2615,14 +2626,71 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
     org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f42 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
     _jspx_th_fmt_005fmessage_005f42.setPageContext(_jspx_page_context);
     _jspx_th_fmt_005fmessage_005f42.setParent(null);
-    // /index.jsp(130,214) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
-    _jspx_th_fmt_005fmessage_005f42.setKey("index.enterprise_features.monitoring.description");
+    // /index.jsp(131,221) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f42.setKey("index.enterprise_features.casemanager.description");
     int _jspx_eval_fmt_005fmessage_005f42 = _jspx_th_fmt_005fmessage_005f42.doStartTag();
     if (_jspx_th_fmt_005fmessage_005f42.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
       _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f42);
       return true;
     }
     _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f42);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f43(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f43 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f43.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f43.setParent(null);
+    // /index.jsp(132,52) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f43.setKey("index.enterprise_features.monitoring.description");
+    int _jspx_eval_fmt_005fmessage_005f43 = _jspx_th_fmt_005fmessage_005f43.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f43.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f43);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f43);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f44(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f44 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f44.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f44.setParent(null);
+    // /index.jsp(132,139) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f44.setKey("index.enterprise_features.monitoring.title");
+    int _jspx_eval_fmt_005fmessage_005f44 = _jspx_th_fmt_005fmessage_005f44.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f44.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f44);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f44);
+    return false;
+  }
+
+  private boolean _jspx_meth_fmt_005fmessage_005f45(PageContext _jspx_page_context)
+          throws Throwable {
+    PageContext pageContext = _jspx_page_context;
+    JspWriter out = _jspx_page_context.getOut();
+    //  fmt:message
+    org.apache.taglibs.standard.tag.rt.fmt.MessageTag _jspx_th_fmt_005fmessage_005f45 = (org.apache.taglibs.standard.tag.rt.fmt.MessageTag) _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.get(org.apache.taglibs.standard.tag.rt.fmt.MessageTag.class);
+    _jspx_th_fmt_005fmessage_005f45.setPageContext(_jspx_page_context);
+    _jspx_th_fmt_005fmessage_005f45.setParent(null);
+    // /index.jsp(132,214) name = key type = null reqTime = true required = false fragment = false deferredValue = false expectedTypeName = null deferredMethod = false methodSignature = null
+    _jspx_th_fmt_005fmessage_005f45.setKey("index.enterprise_features.monitoring.description");
+    int _jspx_eval_fmt_005fmessage_005f45 = _jspx_th_fmt_005fmessage_005f45.doStartTag();
+    if (_jspx_th_fmt_005fmessage_005f45.doEndTag() == javax.servlet.jsp.tagext.Tag.SKIP_PAGE) {
+      _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f45);
+      return true;
+    }
+    _005fjspx_005ftagPool_005ffmt_005fmessage_0026_005fkey_005fnobody.reuse(_jspx_th_fmt_005fmessage_005f45);
     return false;
   }
 }
