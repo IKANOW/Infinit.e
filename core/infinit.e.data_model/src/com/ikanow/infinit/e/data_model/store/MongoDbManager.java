@@ -351,6 +351,7 @@ public class MongoDbManager {
 		private Mongo _savedMongo;
 
 		private DBCollection _ingest_source;
+		private DBCollection _ingest_source_deletion_q;
 		private DBCollection _ingest_log_harvester_q;
 		private DBCollection _ingest_log_harvester_slaves;
 		private DBCollection _ingest_federated_cache;
@@ -371,6 +372,12 @@ public class MongoDbManager {
 				_ingest_log_harvester_q = _savedMongo.getDB("ingest").getCollection("log_harvester_q");										
 			}
 			return _ingest_log_harvester_q;
+		}
+		public DBCollection getSourceDeletionQ() {
+			if (null == _ingest_source_deletion_q) {
+				_ingest_source_deletion_q = _savedMongo.getDB("ingest").getCollection("source_deletion_q");										
+			}
+			return _ingest_source_deletion_q;
 		}
 		public DBCollection getLogHarvesterSlaves() {
 			if (null == _ingest_log_harvester_slaves) {

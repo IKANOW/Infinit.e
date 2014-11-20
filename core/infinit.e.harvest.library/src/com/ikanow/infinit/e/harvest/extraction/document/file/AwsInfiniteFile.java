@@ -96,10 +96,10 @@ public class AwsInfiniteFile extends InfiniteFile {
 	
 	@Override
 	public InfiniteFile[] listFiles()  {
-		return listFiles(null);
+		return listFiles(null, Integer.MAX_VALUE);
 	}
 	@Override
-	public InfiniteFile[] listFiles(Date optionalFilterDate)  {
+	public InfiniteFile[] listFiles(Date optionalFilterDate, int maxDocs)  {
 		InfiniteFile[] fileList = null;
 		ObjectListing list = null;
 		_overwriteTime = 0L;

@@ -51,6 +51,7 @@ public class UIInterface extends ServerResource
 		 Request request = this.getRequest();
 		 String urlStr = request.getResourceRef().toString();
 		 Map<String,Object> attributes = request.getAttributes();
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
 		 if ( urlStr.contains("/uisetup/get"))
@@ -60,10 +61,10 @@ public class UIInterface extends ServerResource
 		 else if ( urlStr.contains("/uisetup/update"))
 		 {
 			 // (these first 2 will be null for the POST version) 
-			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
-			 query = RESTTools.decodeRESTParam("query", attributes);
+			 updateItem = RESTTools.getUrlAttribute("modules", attributes, queryOptions);
+			 query = RESTTools.getUrlAttribute("query", attributes, queryOptions);
 			 
-			 communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
+			 communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
 			 if (communityIdStrList.equalsIgnoreCase("null")) {
 				 communityIdStrList = null;
 			 }
@@ -80,7 +81,7 @@ public class UIInterface extends ServerResource
 		 else if ( urlStr.contains("/modules/delete"))
 		 {
 			 action = "deletemodule";
-			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
+			 updateItem = RESTTools.getUrlAttribute("modules", attributes, queryOptions);
 		 }
 		 else if ( urlStr.contains("/modules/user/get"))
 		 {
@@ -88,12 +89,12 @@ public class UIInterface extends ServerResource
 		 }
 		 else if ( urlStr.contains("/modules/search"))
 		 {
-			 updateItem = RESTTools.decodeRESTParam("term", attributes);
+			 updateItem = RESTTools.getUrlAttribute("term", attributes, queryOptions);
 			 action = "searchmodules";
 		 }
 		 else if ( urlStr.contains("/modules/user/set"))
 		 {
-			 updateItem = RESTTools.decodeRESTParam("modules", attributes);
+			 updateItem = RESTTools.getUrlAttribute("modules", attributes, queryOptions);
 			 action = "savemodules";
 		 }		 
 	}

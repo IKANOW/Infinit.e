@@ -1,0 +1,204 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:SparkSkin xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:fb="http://ns.adobe.com/flashbuilder/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	alpha.disabled=".5">
+
+	<!-- host component -->
+	<fx:Metadata>
+		<![CDATA[ 
+        [HostComponent("spark.components.DropDownList")]
+    ]]>
+	</fx:Metadata>
+
+	<fx:Script fb:purpose="styling">
+		<![CDATA[
+			import mx.events.FlexEvent;
+			
+			/* Define the content fill items that should be colored by the "contentBackgroundColor" style. */
+			private static const contentFill:Array = [ "bgFill" ];
+			
+			/**
+			 * @private
+			 */
+			override public function get contentItems():Array
+			{
+				return contentFill
+			}
+			
+			override protected function updateDisplayList( unscaledWidth:Number, unscaledHeight:Number ):void
+			{
+				if ( getStyle( "borderVisible" ) == false )
+				{
+					if ( border )
+						border.visible = false;
+					
+					if ( background )
+					{
+						background.left = background.top = background.right = background.bottom = 0;
+					}
+					
+					if ( scroller )
+						scroller.minViewportInset = 0;
+				}
+				else
+				{
+					if ( border )
+						border.visible = true;
+					
+					if ( background )
+					{
+						background.left = background.top = background.right = background.bottom = 1;
+					}
+					
+					if ( scroller )
+						scroller.minViewportInset = 1;
+				}
+				
+				if ( dropShadow )
+					dropShadow.visible = getStyle( "dropShadowVisible" );
+				
+				openButton.setStyle( "cornerRadius", getStyle( "cornerRadius" ) );
+				
+				if ( borderStroke )
+				{
+					borderStroke.color = getStyle( "borderColor" );
+					borderStroke.alpha = getStyle( "borderAlpha" );
+				}
+				super.updateDisplayList( unscaledWidth, unscaledHeight );
+			};
+		]]>
+	</fx:Script>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="open" />
+		<s:State name="disabled" />
+	</s:states>
+
+	<!---
+		The PopUpAnchor control that opens the drop-down list.
+
+		<p>In a custom skin class that uses transitions, set the
+		<code>itemDestructionPolicy</code> property to <code>none</code>.</p>
+	-->
+	<s:PopUpAnchor id="popUp"
+		width="88"
+		bottom="0"
+		top="0"
+		displayPopUp.normal="false"
+		displayPopUp.open="true"
+		includeIn="open"
+		itemDestructionPolicy="auto"
+		popUpPosition="below"
+		popUpWidthMatchesAnchorWidth="true">
+
+		<!---
+			  This includes borders, background colors, scrollers, and filters.
+			  @copy spark.components.supportClasses.DropDownListBase#dropDown
+		-->
+		<s:Group id="dropDown">
+
+			<!--- @private -->
+			<s:RectangularDropShadow id="dropShadow"
+				bottom="0"
+				color="#000000"
+				left="0"
+				right="0"
+				top="0"
+				alpha="0.45"
+				angle="90"
+				blurX="20"
+				blurY="20"
+				distance="7" />
+
+			<!--- @private -->
+			<s:Rect id="border"
+				bottom="0"
+				left="0"
+				right="0"
+				top="0">
+				<s:stroke>
+					<!--- border stroke @private -->
+					<s:SolidColorStroke id="borderStroke"
+						weight="1" />
+				</s:stroke>
+			</s:Rect>
+
+			<!-- fill -->
+			<!--- Defines the appearance of drop-down list's background fill. -->
+			<s:Rect id="background"
+				bottom="1"
+				left="1"
+				right="1"
+				top="1">
+				<s:fill>
+					<!---
+						The color of the drop down's background fill.
+						The default color is 0xFFFFFF.
+					-->
+					<s:SolidColor id="bgFill"
+						color="0x575C60" />
+				</s:fill>
+			</s:Rect>
+
+			<!--- @private -->
+			<s:Scroller id="scroller"
+				bottom="0"
+				left="0"
+				right="0"
+				top="0"
+				hasFocusableChildren="false"
+				minViewportInset="1">
+				<!--- @copy spark.components.SkinnableDataContainer#dataGroup-->
+				<s:DataGroup id="dataGroup"
+					alpha=".9"
+					itemRenderer="spark.skins.spark.DefaultItemRenderer">
+					<s:layout>
+						<s:VerticalLayout 
+							horizontalAlign="contentJustify"
+							gap="0"
+							requestedMaxRowCount="6"
+							requestedMinRowCount="1" />
+					</s:layout>
+				</s:DataGroup>
+			</s:Scroller>
+		</s:Group>
+	</s:PopUpAnchor>
+
+	<!-- open button -->
+	<views:InfButton id="openButton"
+		styleName="selectAllButton"
+		width="80"
+		height="100%" />
+
+	<!-- text -->
+	<s:Label id="labelDisplay"
+		width="80"
+		height="100%"
+		bottom="-4"
+		left="-1"
+		verticalAlign="middle"
+		verticalCenter="1"
+		maxDisplayedLines="1"
+		mouseChildren="false"
+		mouseEnabled="false"
+		visible="false" />
+
+</s:SparkSkin>

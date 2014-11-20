@@ -59,20 +59,21 @@ public class FeatureInterface extends ServerResource
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
 		 Map<String,Object> attributes = getRequest().getAttributes();
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 if ( urlStr.contains("/add/") )
 		 {		
-			 entity = RESTTools.decodeRESTParam("entity", attributes);
-			 updateItem = RESTTools.decodeRESTParam("alias", attributes);
+			 entity = RESTTools.getUrlAttribute("entity", attributes, queryOptions);
+			 updateItem = RESTTools.getUrlAttribute("alias", attributes, queryOptions);
 			 action = "add";
 		 }
 		 else if (urlStr.contains("/approve/"))
 		 {
-			 updateItem = RESTTools.decodeRESTParam("aliasid",attributes);
+			 updateItem = RESTTools.getUrlAttribute("aliasid", attributes, queryOptions);
 			 action = "approve";
 		 }
 		 else if (urlStr.contains("/decline/"))
 		 {
-			 updateItem = RESTTools.decodeRESTParam("aliasid",attributes);
+			 updateItem = RESTTools.getUrlAttribute("aliasid", attributes, queryOptions);
 			 action = "decline"; 
 		 }
 		 else if (urlStr.contains("/all"))
@@ -81,7 +82,7 @@ public class FeatureInterface extends ServerResource
 		 }
 		 else if (urlStr.contains("/feature/entity/"))
 		 {
-			 updateItem = RESTTools.decodeRESTParam("gazid",attributes);
+			 updateItem = RESTTools.getUrlAttribute("gazid", attributes, queryOptions);
 			 action = "feature";			 
 		 }
 	}

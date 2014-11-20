@@ -1,0 +1,160 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	height="26"
+	click="itemRenderer_clickHandler(event)"
+	rollOut="itemRenderer_rollOutHandler(event)"
+	rollOver="itemRenderer_rollOverHandler(event)">
+
+	<fx:Metadata>
+		[Event( name = "joinCommunity", type = "mx.events.ItemClickEvent" )]
+	</fx:Metadata>
+
+	<fx:Script>
+		<![CDATA[
+			import mx.events.ItemClickEvent;
+			import objects.Community;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					community = value as Community;
+					setLabelStyle();
+				}
+				
+				invalidateDisplayList();
+			}
+			
+			protected var rendererHovered:Boolean;
+			
+			[Bindable]
+			protected var showLabelDropShadow:Boolean = true;
+			
+			[Bindable]
+			protected var showJoinButton:Boolean;
+			
+			[Bindable]
+			protected var community:Community;
+			
+			protected function itemRenderer_clickHandler( evt:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function itemRenderer_rollOutHandler( event:MouseEvent ):void
+			{
+				rendererHovered = false;
+				setLabelStyle();
+			}
+			
+			protected function itemRenderer_rollOverHandler( event:MouseEvent ):void
+			{
+				rendererHovered = true;
+				setLabelStyle();
+				
+				this.toolTip = "";
+				
+				if ( nameLabel.isTruncated )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function joinButton_clickHandler( event:MouseEvent ):void
+			{
+				var e:ItemClickEvent = new ItemClickEvent( "joinCommunity", true );
+				e.item = data;
+				e.index = itemIndex;
+				dispatchEvent( e );
+			}
+			
+			protected function setLabelStyle():void
+			{
+				if ( community != null )
+				{
+					if ( rendererHovered )
+					{
+						community.isUserMember ? nameLabel.setStyle( "styleName", "black" ) : nameLabel.setStyle( "styleName", "blackItalic" );
+						showLabelDropShadow = false;
+						showJoinButton = community.isUserMember ? false : true;
+					}
+					else
+					{
+						community.isUserMember ? nameLabel.setStyle( "styleName", "white" ) : nameLabel.setStyle( "styleName", "lightGreyItalic" );
+						showLabelDropShadow = true;
+						showJoinButton = false;
+					}
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				if ( community != null )
+					this.toolTip = community.name;
+			}
+		]]>
+	</fx:Script>
+
+	<s:HGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="2"
+		paddingLeft="6"
+		paddingRight="14"
+		paddingTop="1"
+		verticalAlign="middle">
+
+		<!-- Member Comuunity Select Check Box-->
+		<views:InfCheckBox 
+			styleName="checkMarkDark"
+			selected="{ community.selected }"
+			mouseEnabled="{ community.isUserMember }"
+			visible="{ community.isUserMember }" />
+
+		<!-- Community Name-->
+		<views:InfLabel id="nameLabel"
+			width="100%"
+			text="{ community.name }"
+			paddingRight="7"
+			paddingTop="2"
+			maxDisplayedLines="1"
+			showDropShadow="{ showLabelDropShadow }" />
+
+	</s:HGroup>
+
+	<!-- Join Community Button -->
+	<s:Group right="14">
+		<views:InfButton id="joinButton"
+			styleName="joinCommunityButton"
+			includeInLayout="{ showJoinButton }"
+			top="5"
+			click="joinButton_clickHandler(event)"
+			visible="{ showJoinButton }" />
+	</s:Group>
+
+</s:ItemRenderer>

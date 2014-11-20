@@ -27,6 +27,7 @@ import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.application.utils.ApplicationProperties;
 import com.ikanow.infinit.e.application.utils.LogstashConfigUtils;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
@@ -46,8 +47,10 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	public static String LOGSTASH_WD = "/opt/logstash-infinite/logstash/";
 	public static String LOGSTASH_CONFIG = "/opt/logstash-infinite/logstash.conf.d/";
 	public static String LOGSTASH_CONFIG_DISTRIBUTED = "/opt/logstash-infinite/dist.logstash.conf.d/";
-	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE = "/opt/logstash-infinite/templates/transient-record-output-template.conf";
-	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED = "/opt/logstash-infinite/templates/stashed-record-output-template.conf";
+	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE_BINARY = "/opt/logstash-infinite/templates/transient-record-output-template.conf";
+	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED_BINARY = "/opt/logstash-infinite/templates/stashed-record-output-template.conf";
+	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE_HTTP = "/opt/logstash-infinite/templates/transient-record-output-template_http.conf";
+	public static String LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED_HTTP = "/opt/logstash-infinite/templates/stashed-record-output-template_http.conf";
 	public static String LOGSTASH_RESTART_FILE = "/opt/logstash-infinite/RESTART_LOGSTASH";
 	public static String LOGSTASH_CONFIG_EXTENSION = ".auto.conf";
 	
@@ -56,6 +59,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 	private String _clusterName = null;
 	
 	private PropertiesManager _props = null;
+	private ApplicationProperties _appProps = null;
 	
 	@Override
 	public void performPoll() {
@@ -89,11 +93,13 @@ public class LogstashHarvestPollHandler implements PollHandler {
 		
 		if (null == _props) {
 			_props = new PropertiesManager();
+			_appProps = new ApplicationProperties();
 			_clusterName = _props.getElasticCluster();
 		}
+		boolean useHttpOutput = _appProps.useHttpOutput(); 
 		if (null == _testOutputTemplate_stashed) {
-			try {
-				File testOutputTemplate = new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED);
+			try {				
+				File testOutputTemplate = useHttpOutput ? new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED_HTTP) : new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_STASHED_BINARY);
 				InputStream inStream = null;
 				try {
 					inStream = new FileInputStream(testOutputTemplate);
@@ -114,7 +120,7 @@ public class LogstashHarvestPollHandler implements PollHandler {
 		}//TESTED
 		if (null == _testOutputTemplate_live) {
 			try {
-				File testOutputTemplate = new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE);
+				File testOutputTemplate = useHttpOutput ? new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE_HTTP) : new File(LOGSTASH_TEST_OUTPUT_TEMPLATE_LIVE_BINARY);
 				InputStream inStream = null;
 				try {
 					inStream = new FileInputStream(testOutputTemplate);

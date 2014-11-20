@@ -50,20 +50,28 @@ public class ResponsePojo extends BaseApiPojo
 	
 	@Override
 	public GsonBuilder extendBuilder(GsonBuilder gb) {
-		if (null == _esVersion) {
-			// (some grovelling to avoid class def errors in earlier versions)
-			_esVersion = ElasticSearchManager.getVersion();
-		}
-		if (_esVersion >= 100) {
-			if (null == _esTextClass) {
-				try {
-					_esTextClass = Class.forName("org.elasticsearch.common.text.Text");
-				} 
-				catch (ClassNotFoundException e) {
-					return gb;
-				}
+		try {
+			if (null == _esVersion) {
+				// (some grovelling to avoid class def errors in earlier versions)
+				_esVersion = ElasticSearchManager.getVersion();
 			}
-			gb = gb.registerTypeAdapter(_esTextClass, new TextSerializer());
+			if (_esVersion >= 100) {
+				if (null == _esTextClass) {
+					try {
+						_esTextClass = Class.forName("org.elasticsearch.common.text.Text");
+					} 
+					catch (ClassNotFoundException e) {
+						return gb;
+					}
+				}
+				gb = gb.registerTypeAdapter(_esTextClass, new TextSerializer());
+			}
+		}
+		catch (Exception e) { // can't find ES, which is fine unless you try to use it, in which case it will error else where
+			_esVersion = 0;
+		}
+		catch (Error ee) { // (ditto)
+			_esVersion = 0;
 		}
 		return gb;
 	}

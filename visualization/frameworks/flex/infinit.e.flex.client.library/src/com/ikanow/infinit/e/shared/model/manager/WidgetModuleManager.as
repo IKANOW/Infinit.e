@@ -54,6 +54,7 @@ package com.ikanow.infinit.e.shared.model.manager
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	
 	import flash.display.DisplayObject;
+	import flash.utils.ByteArray;
 	import flash.utils.setTimeout;
 	
 	import mx.collections.ArrayCollection;
@@ -209,11 +210,11 @@ package com.ikanow.infinit.e.shared.model.manager
 		 * ExportPDF
 		 * Used to export to pdf
 		 */
-		public function exportPDF():void
+		public function exportPDF():ByteArray
 		{
 			// If no query results, exit
 			if ( context.getQuery_AllResults() == null )
-				return;
+				return null;
 			
 			// Get the currently enabled communities
 			var groups:String = CollectionUtil.getStringFromArrayCollectionField( selectedCommunities, QueryConstants.NAME );
@@ -255,7 +256,7 @@ package com.ikanow.infinit.e.shared.model.manager
 			printPDF.generateAppendix( communityids, context );
 			
 			// Save
-			printPDF.saveToPdf();
+			return printPDF.getPdfBytes();
 		}
 		
 		/**

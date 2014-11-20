@@ -110,10 +110,10 @@ public class SynchronizationController {
         	
         }//end loop over all sources
         StoreAndIndexManager dataStore = new StoreAndIndexManager();
-        AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
-        dataStore.removeSoftDeletedDocuments();
-        AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
-
+        if (AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID())) {
+	        dataStore.removeSoftDeletedDocuments();
+	        AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+        }
 		logger.info("DB fixes: " + fixes_db);
 		logger.info("Search fixes: " + fixes_search);
         

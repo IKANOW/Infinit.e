@@ -51,11 +51,14 @@
 		<mkdir dir="${dir.rpms}"/>
 		<symlink link="../${modified_name}.rpm" resource="${ant.project.name}.rpm" />		
 		
+		<copy file="../infinit.e.elasticsearch.driver_1.3/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar"/>
+		
 		<copy file="../infinit.e.elasticsearch.driver_1.0/lib/elasticsearch_compatibility.jar" 
-					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar"/>
+					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/1.0/elasticsearch_compatibility.jar"/>
 		
 		<copy file="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar" 
-					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar"/>
+					tofile="./SOURCES/infinit.e-index-engine/mnt/opt/elasticsearch-infinite/plugins/0.19/elasticsearch_compatibility.jar"/>
 			
 		<copy file="../infinit.e.api.server/dist/querydecayscript.jar" 
 					tofile="./SOURCES/infinit.e-index-engine/usr/share/java/elasticsearch/plugins/scoringscripts/querydecayscript.jar"/>
@@ -93,11 +96,14 @@
 	create the RPM file
 	================================= -->
 	<target name="rpm" depends="compile" description="Generates ${ant.project.name}-{ant.version}.rpm file in to the '${dir.build.rpm}' directory.">
+		<!-- ====================================================================== 
+		  infinit.e-index-engine
+		  ====================================================================== -->
 		<tar tarfile="${dir.src}/${ant.project.name}.tgz" 
 		       basedir="${dir.src}/${ant.project.name}" 
 			   compression="gzip"
 		       includes="**"
-		       excludes=".svn" 
+		       excludes=".svn, **/INTERFACE_ONLY" 
 			/>
 		<copy file="${dir.specs}/${ant.project.name}.spec" tofile="${dir.specs}/${ant.project.name}_tmp.spec"/>
 		<replace file="${dir.specs}/${ant.project.name}_tmp.spec">
@@ -113,6 +119,29 @@
 			/>
 		<delete file="${dir.src}/${ant.project.name}.tgz"/>
 		<delete file="${dir.specs}/${ant.project.name}_tmp.spec"/>
+		
+		<!-- ====================================================================== 
+		  infinit.e-index-interface
+		  ====================================================================== -->
+		<tar tarfile="${dir.src}/${ant.project.name}.tgz" 
+		       basedir="${dir.src}/${ant.project.name}" 
+			   compression="gzip"
+		       includes="**"
+		       excludes=".svn" 
+			/>
+		<copy file="${dir.specs}/infinit.e-index-interface.spec" tofile="${dir.specs}/infinit.e-index-interface_tmp.spec"/>
+		<replace file="${dir.specs}/infinit.e-index-interface_tmp.spec">
+			<replacefilter token="INFINITE_VERSION" value="${infinite_version}"/>
+			<replacefilter token="INFINITE_RELEASE" value="${infinite_release}"/>
+		</replace>
+		<rpm
+			topDir="."
+			command="-bb --buildroot ${basedir}/BUILD"
+			specFile="infinit.e-index-interface_tmp.spec"
+			failOnError="true"
+			/>
+		<delete file="${dir.src}/infinit.e-index-interface.tgz"/>
+		<delete file="${dir.specs}/infinit.e-index-interface_tmp.spec"/>
 	</target>
 	
 </project>

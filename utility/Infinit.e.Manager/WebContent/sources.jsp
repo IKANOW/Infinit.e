@@ -99,6 +99,7 @@ limitations under the License.
 	boolean pipelineMode = false; // new source pipeline logic
 	boolean enterpriseMode = true; // access to source builder GUI
 	boolean flowBuilderMode = true; // access to flow builder GUI
+	
 %>
 
 <%
@@ -241,6 +242,8 @@ limitations under the License.
 			}
 			else if (action.equals("deleteselected")) 
 			{
+				saveShare(request, response);
+				
 				String[] ids= request.getParameterValues("sourcesToProcess");
 				
 				int nDeletedShares = 0;
@@ -272,6 +275,8 @@ limitations under the License.
 			}
 			else if (action.equals("deletedocsfromselected")) 
 			{
+				saveShare(request, response);
+				
 				String[] ids= request.getParameterValues("sourcesToProcess");
 				
 				int nDeletedShares = 0;
@@ -303,6 +308,8 @@ limitations under the License.
 			}
 			else if ( action.equals("suspendselected"))
 			{
+				saveShare(request, response);
+				
 				int num_suspended = 0;
 				int num_failed = 0;
 				String[] ids= request.getParameterValues("sourcesToProcess");				
@@ -333,6 +340,8 @@ limitations under the License.
 			}
 			else if ( action.equals("resumeselected"))
 			{
+				saveShare(request, response);
+				
 				int num_suspended = 0;
 				int num_failed = 0;
 				String[] ids= request.getParameterValues("sourcesToProcess");				
@@ -363,11 +372,13 @@ limitations under the License.
 			}
 			else if (action.equals("filterlist")) 
 			{
+				saveShare(request, response);
 				currentPage = 1;
 				populateEditForm(shareid, request, response);
 			}
 			else if (action.equals("clearfilter")) 
 			{
+				saveShare(request, response);
 				currentPage = 1;
 				listFilter = "";
 				populateEditForm(shareid, request, response);
@@ -379,18 +390,26 @@ limitations under the License.
 			}
 			else if (action.equals("saveSourceAsTemplate")) 
 			{
+				saveShare(request, response);
 				saveShareAsTemplate(request, response);
 				populateEditForm(shareid, request, response);
 			}
 			else if (action.equals("publishSource")) 
 			{
-				publishSource(request, response);
+				saveShare(request, response); // (save even though about to delete it...because if the pub fails i can restore)
+				boolean published = publishSource(request, response);
 				String listFilterString = "";
 				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+				if (published) {
+					out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+				}
+				else {
+					populateEditForm(shareid, request, response);
+				}
 			}
 			else if (action.equals("deleteDocs")) 
 			{
+				saveShare(request, response);
 				deleteSourceObject(sourceid, true, request, response);
 				String listFilterString = "";
 				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
@@ -875,6 +894,14 @@ function clock()
 			//Grab iframe for flowbuilder
 			fbWindow = document. getElementById('flowbuilderInfinitIframe').contentWindow; 
 			//flowbuilderJson is the code we have to plug into the srcObj
+			var errors = fbWindow.fbDataFlowObj.graphErrors;
+			if(errors !== ""){
+				if (!window.confirm("The following errors have been found:\n\n"+errors+"\n\n Do you wish to return to editor anyways? Flow source will not be saved.")) { 
+					  return
+				}
+			}else{
+				//alert("No flow errors found");
+			
 			var flowbuilderJson = fbWindow.fbDataFlowObj.plugins.source.getCode();
 			var srcObj  = eval('(' + sourceJsonEditor.getValue() + ')');
 			var flowObj = eval('(' + flowbuilderJson + ')');
@@ -882,6 +909,7 @@ function clock()
 			var modifiedSrc = fbWindow.fbDataFlowObj.modifiedSource;
 			srcObj.processingPipeline = modifiedSrc.processingPipeline; 			
 			sourceJsonEditor.setValue(JSON.stringify(srcObj, null, "    "));
+			}
 		}
 		catch (err) {
 			if (!confirm('Error reading GUI config - click OK to continue back to the source editor (WILL LOSE YOUR CHANGES)'))
@@ -1037,6 +1065,7 @@ function clock()
 			    var g = dataflow.loadGraph(
 			    		(typeof(srcObj.templateProcessingFlow)==="undefined")?{}:srcObj.templateProcessingFlow
 			    		);
+			    		
 			   	dataflow.doConvert=true;
 			    g.trigger("change");
 				
@@ -1153,7 +1182,7 @@ function clock()
 								
 								<button name="publishSource" value="publishSource" id="publishSource"  
 									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false) && confirm('<fmt:message key='source.editor.action.publish_source.confirm'/>'))  return true; return false;"
-									><fmt:message key='source.editor.action.publish_source'/></button>
+-									><fmt:message key='source.editor.action.publish_source'/></button>
 									
 <% if ((null != sourceid) && !sourceid.equalsIgnoreCase("")) { %>
 								<button name="deleteDocs" value="deleteDocs" 
@@ -1228,7 +1257,7 @@ function clock()
 						if (enterpriseMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="SRC UI"  <%=sourceOnyShowLogstash %>/>
+						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="SRC UI"/>
 <% } // (end enterpriseMode) %>
 <% } else { %>
 						<input type="button" title="<fmt:message key='source.code.show_uah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
@@ -1376,6 +1405,8 @@ function clock()
 // saveShare - 
 private void saveShare(HttpServletRequest request, HttpServletResponse response) 
 {
+	// (exceptions out nicely if called without a valid share, ie from filter when nothing is selected)
+	
 	try 
 	{
 		String oldId = formShareId;
@@ -1386,11 +1417,11 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 		
 		if (oldId != null)
 		{
-			apiAddress = "social/share/update/json/" + oldId + "/source/" + urlShareTitle + "/" + urlShareDescription;
+			apiAddress = "social/share/update/json/" + oldId + "/source/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 		}
 		else
 		{
-			apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
+			apiAddress = "social/share/add/json/source/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 		}
 		
 		//
@@ -1419,6 +1450,7 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 
 		// Post the update to our rest API and check the results of the post
 		JSONObject json_response = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
+		
 		if (json_response.getString("success").equalsIgnoreCase("true")) 
 		{
 			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + json_response.getString("message");
@@ -1438,7 +1470,7 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 // publishSource - 
 // 1. Add/update ingest.source object
 // 2. Delete the share object, shazam
-private void publishSource(HttpServletRequest request, HttpServletResponse response) 
+private boolean publishSource(HttpServletRequest request, HttpServletResponse response) 
 {
 	try 
 	{
@@ -1459,6 +1491,8 @@ private void publishSource(HttpServletRequest request, HttpServletResponse respo
 			communityIds.put(communityId);
 			source.put("communityIds", communityIds);
 		} //TESTED
+		// Always remove from quarantine:
+		source.put("harvestBadSource", false);
 		sourceJson = source.toString(4);
 		
 		String sourceApiString = "config/source/save/" + communityId;
@@ -1483,15 +1517,18 @@ private void publishSource(HttpServletRequest request, HttpServletResponse respo
 			{
 				messageToDisplay += " (" + shareResponse.getString("message") + ")";
 			}
+			return true;
 		}
 		else
 		{
 			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
+			return false;
 		}
 	} 
 	catch (Exception e) 
 	{
 		messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+		return false;
 	}
 } // 
 
@@ -1528,7 +1565,7 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 		
 		String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
 		String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
-		String apiAddress = "social/share/add/json/source_template/" + urlShareTitle + "/" + urlShareDescription;
+		String apiAddress = "social/share/add/json/source_template/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 		
 		JSONObject JSONresponseTop = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
 		JSONObject JSONresponseStatus = JSONresponseTop.getJSONObject("response");
@@ -1895,7 +1932,7 @@ private String createShareFromSource(String sourceId, HttpServletRequest request
 		if (0 == urlShareDescription.length()) {
 			urlShareDescription = "Share+description+goes+here";
 		}		
-		String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
+		String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 		JSONObject jsonObject = new JSONObject( postToRestfulApi(apiAddress, sourceJson.toString(4), request, response) );
 		JSONObject json_response = jsonObject.getJSONObject("response");
 		JSONObject json_data = new JSONObject ( jsonObject.getString("data") );

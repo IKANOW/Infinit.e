@@ -3,6 +3,7 @@ package com.ikanow.infinit.e.harvest.enrichment.custom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.WeakHashMap;
 
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
@@ -22,6 +23,8 @@ import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
+
+//TODO for custom, map should contain weak references?
 
 public class CacheUtils 
 {
@@ -108,6 +111,9 @@ public class CacheUtils
 				customJob = CustomMapReduceJobPojo.fromDb(
 						MongoDbManager.getCustom().getLookup().findOne(query), 
 							CustomMapReduceJobPojo.class);
+				
+				//DEBUG
+				//System.out.println("?? " + customJob + " ... " + query);
 			}
 			catch (Exception e) {
 				// it's a job name
@@ -115,7 +121,7 @@ public class CacheUtils
 				query.put(CustomMapReduceJobPojo.jobtitle_, jobName);
 				customJob = CustomMapReduceJobPojo.fromDb(
 						MongoDbManager.getCustom().getLookup().findOne(query), 
-							CustomMapReduceJobPojo.class);
+							CustomMapReduceJobPojo.class);				
 			} 
 			if (null == customJob) {
 				throw new RuntimeException("Authentication failure or no matching custom job");
@@ -192,7 +198,6 @@ public class CacheUtils
 			
 			// 1) Check authentication
 			
-			String sourceKey = null;
 			ObjectId sourceId = null;
 			SourcePojo source = null;
 			BasicDBObject query = new BasicDBObject(SourcePojo.communityIds_, 
@@ -206,7 +211,7 @@ public class CacheUtils
 			}
 			catch (Exception e) {
 				// it's a job name
-				sourceKey = sourceKeyOrId;
+				String sourceKey = sourceKeyOrId;
 				query.put(SourcePojo.key_, sourceKey);
 				source = SourcePojo.fromDb(
 						MongoDbManager.getIngest().getSource().findOne(query), 
@@ -215,7 +220,6 @@ public class CacheUtils
 			if (null == source) {
 				throw new RuntimeException("Authentication failure or no matching source");
 			}
-			sourceKey = source.getKey();
 			sourceId = source.getId();
 			
 			DBCollection cacheCollection = DbManager.getDocument().getMetadata();
@@ -231,8 +235,8 @@ public class CacheUtils
 			
 			if (null == cacheElement) {				
 				cacheElement = new CustomCacheInJavascript(cacheCollection, DocumentPojo.url_);
-				cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, sourceKey));
-			}		
+				cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm()));
+			}//TESTED (distributed and non-distributed cases)
 
 			// 3) Add object to js
 			
@@ -262,7 +266,7 @@ public class CacheUtils
 	private static final Integer _NOT_FOUND_PLACEHOLDER = 0;
 	
 	public static class CustomCacheInJavascript {
-		private HashMap<String, Object> _cacheElement; 
+		private WeakHashMap<String, Object> _cacheElement; 
 		private DBCollection _cacheCollection;
 		private String _keyField;
 		private BasicDBObject _baseQuery = null;
@@ -274,7 +278,7 @@ public class CacheUtils
 			_baseQuery = baseQuery;
 		}
 		CustomCacheInJavascript(DBCollection cacheCollection, String keyField) {
-			_cacheElement = new HashMap<String, Object>();
+			_cacheElement = new WeakHashMap<String, Object>();
 			_cacheCollection = cacheCollection;
 			_keyField = keyField;
 		}

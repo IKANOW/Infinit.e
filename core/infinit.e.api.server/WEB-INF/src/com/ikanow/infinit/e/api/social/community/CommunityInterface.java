@@ -74,6 +74,7 @@ public class CommunityInterface extends ServerResource
 		Request request = this.getRequest();
 		 
 		Map<String,Object> attributes = request.getAttributes();
+		Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		
 		cookie = request.getCookies().getFirstValue("infinitecookie", true);	
 		urlStr = request.getResourceRef().toString();
@@ -81,14 +82,13 @@ public class CommunityInterface extends ServerResource
 		// Method.POST
 		if (request.getMethod() == Method.POST) 
 		{
-			communityId = RESTTools.decodeRESTParam("communityid", attributes);
+			communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 		}
 		
 		// Method.GET
 		if (request.getMethod() == Method.GET) 
 		{
 			// Query String Values
-			Map<String, String> queryOptions = this.getQuery().getValuesMap();
 			if (queryOptions.get("skipinvitation") != null) skipInvitation = queryOptions.get("skipinvitation");
 			try {
 				if (queryOptions.get("docinfo") != null) showDocInfo = Boolean.parseBoolean(queryOptions.get("docinfo"));
@@ -97,8 +97,8 @@ public class CommunityInterface extends ServerResource
 			
 			if (urlStr.contains("/community/get/") )
 			{
-				if (RESTTools.decodeRESTParam("communityid", attributes) != null) 
-					communityId = RESTTools.decodeRESTParam("communityid", attributes);
+				if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null) 
+					communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				action = "getCommunity";
 			}
 			
@@ -124,53 +124,53 @@ public class CommunityInterface extends ServerResource
 			
 			else if (urlStr.contains("/community/add/") )
 			{
-				name = RESTTools.decodeRESTParam("name", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
-				if (RESTTools.decodeRESTParam("tags", attributes) != null) tags = RESTTools.decodeRESTParam("tags", attributes);
-				if (RESTTools.decodeRESTParam("parentid", attributes) != null) parentId = RESTTools.decodeRESTParam("parentid", attributes);
+				name = RESTTools.getUrlAttribute("name", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
+				if (RESTTools.getUrlAttribute("tags", attributes, queryOptions) != null) tags = RESTTools.getUrlAttribute("tags", attributes, queryOptions);
+				if (RESTTools.getUrlAttribute("parentid", attributes, queryOptions) != null) parentId = RESTTools.getUrlAttribute("parentid", attributes, queryOptions);
 				action = "addCommunity";
 			}
 			
 			else if (urlStr.contains("/community/addwithid/") )
 			{
-				communityId = RESTTools.decodeRESTParam("id", attributes);
-				name = RESTTools.decodeRESTParam("name", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
-				parentId = RESTTools.decodeRESTParam("parentid", attributes);
-				parentName = RESTTools.decodeRESTParam("parentname", attributes);
-				tags = RESTTools.decodeRESTParam("tags", attributes);
-				ownerId = RESTTools.decodeRESTParam("ownerid", attributes);
-				ownerDisplayName = RESTTools.decodeRESTParam("ownerdisplayname", attributes);
-				ownerEmail = RESTTools.decodeRESTParam("owneremail", attributes);
+				communityId = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				name = RESTTools.getUrlAttribute("name", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
+				parentId = RESTTools.getUrlAttribute("parentid", attributes, queryOptions);
+				parentName = RESTTools.getUrlAttribute("parentname", attributes, queryOptions);
+				tags = RESTTools.getUrlAttribute("tags", attributes, queryOptions);
+				ownerId = RESTTools.getUrlAttribute("ownerid", attributes, queryOptions);
+				ownerDisplayName = RESTTools.getUrlAttribute("ownerdisplayname", attributes, queryOptions);
+				ownerEmail = RESTTools.getUrlAttribute("owneremail", attributes, queryOptions);
 				action = "addCommunityWithId";
 			}
 			
 			else if ( urlStr.contains("/community/remove/"))
 			{
-				communityId = RESTTools.decodeRESTParam("id", attributes);
+				communityId = RESTTools.getUrlAttribute("id", attributes, queryOptions);
 				action = "removeCommunityById";
 			}
 			
 			else if (urlStr.contains("/community/member/update/status") )
 			{
 
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				personId = RESTTools.decodeRESTParam("personid", attributes);
-				userStatus = RESTTools.decodeRESTParam("userstatus", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
+				userStatus = RESTTools.getUrlAttribute("userstatus", attributes, queryOptions);
 				action = "updateMemberStatus";
 			}
 			
 			else if (urlStr.contains("/community/member/update/type") )
 			{
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				personId = RESTTools.decodeRESTParam("personid", attributes);
-				userType = RESTTools.decodeRESTParam("usertype", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
+				userType = RESTTools.getUrlAttribute("usertype", attributes, queryOptions);
 				action = "updateMemberType";
 			}
 			
 			else if ( urlStr.contains("/community/update/"))
 			{
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				// Use URLDecoder on the json string
 				try 
 				{
@@ -188,29 +188,29 @@ public class CommunityInterface extends ServerResource
 			
 			else if ( urlStr.contains("/community/member/join/"))
 			{
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				//personId = RESTTools.decodeRESTParam("personid", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				//personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "joinCommunity";
 			}
 			
 			else if (urlStr.contains("/community/member/leave/"))
 			{
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				//personId = RESTTools.decodeRESTParam("personid", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				//personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "leaveCommunity";
 			}
 			
 			else if (urlStr.contains("/community/member/invite/"))
 			{
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				personId = RESTTools.decodeRESTParam("personid", attributes);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "inviteCommunity";
 			}
 			
 			else if ( urlStr.contains("/community/requestresponse/"))
 			{
-				requestId = RESTTools.decodeRESTParam("requestid", attributes);
-				resp = RESTTools.decodeRESTParam("response", attributes);
+				requestId = RESTTools.getUrlAttribute("requestid", attributes, queryOptions);
+				resp = RESTTools.getUrlAttribute("response", attributes, queryOptions);
 				action = "requestresponse";
 			}
 			

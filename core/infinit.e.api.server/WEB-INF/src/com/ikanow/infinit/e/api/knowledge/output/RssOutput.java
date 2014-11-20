@@ -93,16 +93,16 @@ private static final Logger logger = Logger.getLogger(RssOutput.class);
 					String sourceKey = null;
 					try {
 						if (sourceKeyObj instanceof String) {
-							sourceKey = (String) sourceKey;
-						}//(should never happen)
+							sourceKey = DocumentPojo.getSourceKey((String) sourceKey);
+						}//(should never happen, but if so strip #)
 						else if (sourceKeyObj instanceof Collection) {
 							@SuppressWarnings("rawtypes")
 							Collection sourceKeyCollection = ((Collection)sourceKeyObj);
-							sourceKey = (String) sourceKeyCollection.iterator().next();
+							sourceKey = (String) sourceKeyCollection.iterator().next(); // (if array already had # stripped)
 						}//TESTED
 						else if (sourceKeyObj instanceof String[]) {
 							sourceKey = ((String[])sourceKeyObj)[0];							
-						}//(should never happen)
+						}//(should never happen, if so array already had # stripped)
 						
 						if (url.startsWith("/")) {
 							url = urlRoot + "knowledge/document/file/get/" + sourceKey + url;

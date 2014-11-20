@@ -721,7 +721,7 @@ class ScoringUtils_MultiCommunity {
 	
 	static void community_combineDuplicateDocs(TempDocBucket masterDoc) {
 		//(source key)
-		BasicDBList masterSourceKeyList = (BasicDBList) masterDoc.dbo.get(DocumentPojo.sourceKey_);
+		BasicDBList masterSourceKeyList = (BasicDBList) masterDoc.dbo.get(DocumentPojo.sourceKey_); // (already had # stripped)
 		String masterSourceKey = (masterSourceKeyList.size() > 0) ? (String)masterSourceKeyList.get(0) : null;
 		HashSet<String> sourceKeySet = null;
 		//(community Id)
@@ -742,7 +742,7 @@ class ScoringUtils_MultiCommunity {
 		HashSet<String> tagSet = null;
 		
 		for (TempDocBucket slave = masterDoc.dupList; null != slave; slave = slave.dupList) {
-			String sourceKey = slave.dbo.getString(DocumentPojo.sourceKey_);
+			String sourceKey = DocumentPojo.getSourceKey(slave.dbo.getString(DocumentPojo.sourceKey_));
 			int nCommunityPos = sourceKey.indexOf('#');
 			if ((nCommunityPos > 0) && (null != sourceKey)) {
 				sourceKey = sourceKey.substring(0, nCommunityPos);

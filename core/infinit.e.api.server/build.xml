@@ -10,6 +10,7 @@
 	<property name="dir.build.test.reports" value="${dir.build}/test-reports"/>
 	<property name="dir.build.war" value="${dir.build}/${dir.war}"/>
 	<property name="dir.build.jar" value="${dir.build}/${dir.jar}"/>
+	<property name="dir.static" value="WebContent/static"/>
 	<property name="dir.dist" value="dist"/>
 	<property name="infinit.e.harvest.library.location" value="../infinit.e.harvest.library"/>
 	<property name="infinit.e.processing.custom.library.location" value="../infinit.e.processing.custom.library"/>
@@ -283,6 +284,7 @@
 			</manifest>
 			
 			<classes dir="${dir.build.classes}"/>
+			<fileset dir="WebContent" />
 			<lib dir="${dir.lib}" includes="**/*.jar"/>
 			<lib dir="${infinit.e.processing.generic.library.location}/dist" includes="**/*.jar" />
 			<!-- (Take the other infinit.e classes from the px engine, they are shared in catalina.properties) -->

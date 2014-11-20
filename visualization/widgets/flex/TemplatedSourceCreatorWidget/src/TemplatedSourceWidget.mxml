@@ -1,0 +1,953 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2012, The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+		<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		/* If you need to override a style in our stylesheet, or add another
+		style that we did not support you can do so here, an example has been commented out
+		Please see documentation about over-riding MX component styles to display fonts*/
+		/*
+		mx|Text
+		{
+		font-family: infiniteNonCFFFont;
+		}
+		*/
+	</fx:Style>	
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
+			import flash.utils.setTimeout;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import mx.utils.ObjectUtil;
+			import mx.utils.StringUtil;
+			
+			import spark.collections.Sort;
+			import spark.collections.SortField;
+			
+			import org.alivepdf.pdf.PDF;			
+			
+			private var API_SERVER:String = flash.external.ExternalInterface.call("getEndPointUrl");
+			private var _context:IWidgetContext;
+			
+			[Bindable]
+			private var search_terms:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var communityList:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var templateList:ArrayCollection = new ArrayCollection();
+			
+			[Bindable]
+			private var links:ArrayCollection = new ArrayCollection();
+			
+			private var doNotPopup:Boolean = false;
+			
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				//save the community, selected templates
+				var saveObject:Object = new Object();
+				if ( communityTemplateDropDown.selectedIndex > -1 )
+					saveObject.templateCommunityId = communityTemplateDropDown.selectedItem._id; 
+				if ( communityLinkDropDown != null && communityLinkDropDown.selectedIndex > -1 )
+					saveObject.linksCommunityId = communityLinkDropDown.selectedItem._id; 
+				if ( communityFileDropDown != null && communityFileDropDown.selectedIndex > -1 )
+					saveObject.fileCommunityId = communityFileDropDown.selectedItem._id; 
+				var templateIds:Array = new Array();
+				for each ( var template:Object in template_list.selectedItems )
+				{
+					templateIds.push(template._id);
+				}
+				saveObject.templateIds = templateIds;
+				return saveObject;
+			}
+			
+			private var previously_selected_template_communityId:String = null;
+			private var previously_selected_links_communityId:String =  null;
+			private var previously_selected_file_communityId:String =  null;
+			private var previously_selected_templates:Array = null;
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
+			{
+				if ( widgetOptions != null && widgetOptions.userSave != null )
+				{					
+					previously_selected_template_communityId = widgetOptions.userSave.templateCommunityId;
+					previously_selected_links_communityId = widgetOptions.userSave.linksCommunityId;
+					previously_selected_file_communityId = widgetOptions.userSave.fileCommunityId;
+					previously_selected_templates = widgetOptions.userSave.templateIds;
+				}
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				//get filtered logic here
+				//_context.getQuery_FilteredResults().getTopDocuments();
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 */
+			public function onReceiveNewQuery():void
+			{
+				//DO nothing we don't care about the query				
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			
+			/**
+			 * The callback handler for clicking the sample button in the header of the app.
+			 *
+			 * @param event The mouse event when clicking the button.
+			 **/
+			protected function sampleButton_clickHandler( event:MouseEvent ):void
+			{
+				//perform some action when header button is clicked
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete():void
+			{
+				//get communities
+				communityService.url = API_SERVER + "social/person/get/";
+				communityService.send();
+				getTemplateService.url = API_SERVER + "social/share/search?type=templated_source";
+				getTemplateService.send();
+			}
+			
+			protected function textinput1_enterHandler(event:FlexEvent):void
+			{
+				var search_term:String = escapeQuotes(StringUtil.trim( searchTermTextInput.text ));
+				if ( search_term.length > 0 )
+				{
+					search_terms.addItem(search_term);
+					searchTermTextInput.text = "";
+				}
+			}
+			
+			private function escapeQuotes(term:String):String
+			{
+				return term.replace( /\"/g,"\\\"").replace(/\s/g,"+");
+			}
+			
+			protected function linkInput_enterHandler(event:Event):void
+			{
+				var link:String = StringUtil.trim( linkTextInput.text );
+				var desc:String = StringUtil.trim( descTextInput.text );
+				var title:String = StringUtil.trim( linkTitleInput.text );
+				if ( link.length > 0 )
+				{
+					if ( isRss(link) )
+					{
+						if ( desc.length > 0 || title.length > 0 )
+						{
+							Alert.show("This looks like an RSS/ATOM/FEED url, removing title/desc as they are not allowed");
+						}
+						desc = "";
+						title = "";
+					}
+					
+					var link_obj:Object = new Object();
+					link_obj.link = link;
+					link_obj.title = title;
+					link_obj.desc = desc;
+					link_obj.label = link + " | " + title + " | " +  desc;					
+					links.addItem(link_obj);
+					linkTextInput.text = "";
+					linkTitleInput.text = "";
+					descTextInput.text = "";
+				}
+				else
+				{
+					Alert.show("Link required, please fill in that input");
+				}
+			}
+			
+			
+			private var num_sources_submitted:int = 0;
+			private var num_sources_error:int = 0;
+			private var num_sources_success:int = 0;
+			protected function button1_clickHandler(event:MouseEvent):void
+			{
+				if ( communityTemplateDropDown.selectedIndices.length == 0 )
+				{
+					Alert.show("must select a community");
+					return;
+				}
+				if ( search_terms.length == 0 )
+				{
+					Alert.show("must submit at least 1 search term");
+					return;
+				}
+				if ( template_list.selectedIndices.length == 0 )
+				{
+					Alert.show("must select at least 1 template");
+					return;
+				}
+				doNotPopup = false;
+				statusButton.visible = false;
+				statusInfo.visible = false;
+				num_sources_submitted = 0;
+				num_sources_error = 0;
+				num_sources_success = 0;
+				var communityIds:String = "";
+				var count:int = 0;
+				for each ( var community:Object in communityTemplateDropDown.selectedItems )
+				{				
+					communityIds += community._id;
+					if ( count > 0 )
+						communityIds += ",";
+					count++;
+				}
+				
+				//loop over every keyword and every template sending them off to ikanow
+				for each ( var search_term:String in search_terms )
+				{
+					for each ( var templates:Object in template_list.selectedItems )
+					{
+						var templatesString:String = templates.share;
+						templatesString = templatesString.replace(new RegExp( "\\?\\?search_terms\\?\\?","g"), search_term);
+						templatesString = templatesString.replace(new RegExp( "\\?\\?search_params\\?\\?","g"), "");
+						var templatesObject:Object = JSONDecoder.decode(templatesString);
+						for each ( var template:Object in templatesObject.templates )
+						{
+							var templateString:String = JSONEncoder.encode(template);							
+							submitSourceService.url = API_SERVER + "config/source/save/" + communityIds;
+							submitSourceService.method = "POST";
+							submitSourceService.contentType = "application/json";
+							submitSourceService.send(templateString);
+							num_sources_submitted++;
+							displaySubmissionStatus();
+						}
+					}
+				}			
+				displaySubmissionStatus();
+				setTimeout(showStatusButton,60000);
+			}
+			
+			private function showStatusButton():void
+			{
+				statusButton.visible = true;
+			}
+			
+			protected function communityService_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);
+				
+				if ( data.response.success.toString() == "true" )
+				{
+					communityList = new ArrayCollection(data.data.communities);		
+					var sortField:SortField = new SortField();
+					var sort:Sort = new Sort();
+					sort.fields = [sortField];
+					sort.compareFunction = compareByName;
+					communityList.sort = sort;
+					communityList.refresh();
+					if ( previously_selected_template_communityId  != null )
+					{
+						for each ( var comm1:Object in communityList )
+						{
+							if ( comm1._id == previously_selected_template_communityId )
+							{
+								communityTemplateDropDown.selectedItem = comm1;
+								break;
+							}
+						}
+					}
+				}
+			}
+			
+			private function compareByName(a:Object, b:Object, array:Array=null):int
+			{
+				if ( a == null )
+					return 1;
+				if ( b == null )
+					return -1;
+				return ObjectUtil.compare((a.name as String).toLowerCase(), (b.name as String).toLowerCase());
+			}
+			
+			private function compareByTitle(a:Object, b:Object, array:Array=null):int
+			{
+				return ObjectUtil.compare((a.title as String).toLowerCase(), (b.title as String).toLowerCase());
+			}
+			
+			protected function search_term_list_keyDownHandler(event:KeyboardEvent):void
+			{
+				if ( event.keyCode == Keyboard.DELETE )
+				{
+					var count:int = 0;
+					for each ( var index:int in search_term_list.selectedIndices )
+					{
+						search_terms.removeItemAt(index-count);
+					}
+				}
+			}
+			
+			protected function links_list_keyDownHandler(event:KeyboardEvent):void
+			{
+				if ( event.keyCode == Keyboard.DELETE )
+				{
+					var count:int = 0;
+					for each ( var index:int in links_list.selectedIndices )
+					{
+						links.removeItemAt(index-count);
+					}
+				}
+			}
+			
+			protected function getTemplateService_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);
+				
+				if ( data.response.success.toString() == "true" )
+				{
+					templateList = new ArrayCollection(data.data);		
+					var sortField:SortField = new SortField();
+					var sort:Sort = new Sort();
+					sort.fields = [sortField];
+					sort.compareFunction = compareByTitle;
+					templateList.sort = sort;
+					templateList.refresh();
+					if ( previously_selected_templates != null )
+					{
+						var selected_items:Vector.<Object> = new Vector.<Object>();
+						for each ( var template:Object in templateList )
+						{
+							for each ( var template_id:String in previously_selected_templates )
+							{
+								if ( template_id == template._id )
+								{
+									selected_items.push(template);
+									break;
+								}
+							}
+						}
+						template_list.selectedItems = selected_items;
+					}
+				}
+			}
+			
+			protected function submitSourceService_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);
+				if ( data.response.success.toString() == "true" )
+				{	
+					num_sources_success++;
+				}
+				else
+				{
+					num_sources_error++;
+				}
+				displaySubmissionStatus();
+			}
+			
+			protected function submitSourceService_faultHandler(event:FaultEvent):void
+			{				
+				num_sources_error++;
+				displaySubmissionStatus();
+			}
+			
+			private function displaySubmissionStatus():void
+			{
+				if ( !doNotPopup )
+				{
+					if ( num_sources_submitted == (num_sources_error+num_sources_success))
+						statusButton.visible = true;
+					var status:String = "Submitted: " + num_sources_submitted + "\nSuccessful: " + num_sources_success + "\nErrored: " + num_sources_error;
+					statusLabel.text = status;
+					statusInfo.visible = true;
+				}
+			}
+			
+			protected function button2_clickHandler(event:MouseEvent):void
+			{
+				doNotPopup = true;
+				statusInfo.visible = false;
+			}
+			
+			protected function buttonTemplate_clickHandler(event:MouseEvent):void
+			{
+				this.currentState = "templateState";
+				buttonLinks.selected = false;
+				buttonLinks.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+				buttonFiles.selected = false;
+				buttonFiles.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+			}
+			
+			protected function buttonLinks_clickHandler(event:MouseEvent):void
+			{
+				this.currentState = "linkState";
+				buttonTemplate.selected = false;
+				buttonTemplate.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+				buttonFiles.selected = false;
+				buttonFiles.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+			}
+			
+			protected function buttonFiles_clickHandler(event:MouseEvent):void
+			{
+				this.currentState = "fileState";
+				buttonLinks.selected = false;
+				buttonLinks.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+				buttonTemplate.selected = false;
+				buttonTemplate.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+			}
+			
+			protected function linkButton_clickHandler(event:MouseEvent):void
+			{
+				if ( linkSrcTitleInput.text.length == 0 )
+				{
+					Alert.show("must enter a source title");
+					return;
+				}
+				if ( communityLinkDropDown.selectedIndices.length == 0 )
+				{
+					Alert.show("must select a community");
+					return;
+				}
+				if ( links.length == 0 )
+				{
+					Alert.show("must submit at least 1 link");
+					return;
+				}
+				doNotPopup = false;
+				statusButton.visible = false;
+				statusInfo.visible = false;
+				num_sources_submitted = 0;
+				num_sources_error = 0;
+				num_sources_success = 0;
+				var communityIds:String = "";
+				var count:int = 0;
+				for each ( var community:Object in communityLinkDropDown.selectedItems )
+				{				
+					communityIds += community._id;
+					if ( count > 0 )
+						communityIds += ",";
+					count++;
+				}
+				
+				//Add every link to the default source template and upload that
+				var template:Object = getDefaultLinkSource();
+				count = 1;
+				template.title = linkSrcTitleInput.text;
+				for each ( var link:Object in links )
+				{
+					var json:Object = {"url":link.link};
+					if ( !isRss(link.link) )
+					{
+						if ( link.title.length == 0 )
+							link.title = "title"+count;
+						if ( link.desc.length == 0 )
+							link.desc = "desc"+count;
+						json.title = link.title;
+						json.description = link.desc; 
+					}
+					template.processingPipeline[0].feed.extraUrls.push(json);
+					count++;
+				}
+				var templateString:String = JSONEncoder.encode(template);							
+				submitSourceService.url = API_SERVER + "config/source/save/" + communityIds;
+				submitSourceService.method = "POST";
+				submitSourceService.contentType = "application/json";
+				submitSourceService.send(templateString);
+				num_sources_submitted++;
+				displaySubmissionStatus();
+				setTimeout(showStatusButton,60000);
+			}
+			
+			private var rssPattern:RegExp = new RegExp("^(rss|xml|atom)$","i");
+			private function isRss(link:String):Boolean
+			{
+				var ext:String = link.substr( link.lastIndexOf(".")+1);
+				return rssPattern.test(ext);
+			}
+			
+			protected function fileButton_clickHandler(event:MouseEvent):void
+			{
+				var title:String = StringUtil.trim( fileSrcTitleInput.text );
+				if ( title.length > 0 )
+				{
+					doNotPopup = false;
+					statusButton.visible = false;
+					statusInfo.visible = false;
+					num_sources_submitted = 0;
+					num_sources_error = 0;
+					num_sources_success = 0;
+					var communityIds:String = "";
+					var count:int = 0;
+					for each ( var community:Object in communityFileDropDown.selectedItems )
+					{				
+						communityIds += community._id;
+						if ( count > 0 )
+							communityIds += ",";
+						count++;
+					}
+					
+					var template:Object = getDefaultFileSource();
+					template.processingPipeline[0].file.url = sourceLabel.text;
+					template.title = title; 
+						
+					var templateString:String = JSONEncoder.encode(template);							
+					submitSourceService.url = API_SERVER + "config/source/save/" + communityIds;
+					submitSourceService.method = "POST";
+					submitSourceService.contentType = "application/json";
+					submitSourceService.send(templateString);
+					num_sources_submitted++;
+					displaySubmissionStatus();
+					setTimeout(showStatusButton,60000);
+				}
+				else
+				{
+					Alert.show("Please enter a title");
+				}
+			}
+			
+			private function getDefaultLinkSource():Object
+			{
+				var source:Object = {
+					"description": "from templated source widget",
+					"isPublic": true,
+					"mediaType": "TemplatedSourceWidget",
+					"processingPipeline": [
+						{
+							"feed": {"extraUrls": []}
+						},
+						{
+							"textEngine": {"engineName": "default"}
+						},
+						{
+							"featureEngine": {"engineName": "default"}
+						}
+					]
+				};
+				return source;
+			}
+			
+			private function getDefaultFileSource():Object
+			{
+				var source:Object = {
+					"description": "Ingest a zip or JSON file uploaded to Infinit.e as a 'share'. Type can be set to 'csv', 'json', 'xml', or 'office' - by default it will attempt to auto-detect",
+					"extractType": "Ingest ZIP archives or JSON records from Infinit.e shares",
+					"isPublic": true,
+					"mediaType": "Report",
+					"processingPipeline": [
+						{
+							"display": "The location of a zip or JSON file uploaded to Infinit.e as a 'share'. Type can be set to 'csv', 'json', 'xml', or 'office' - by default it will attempt to auto-detect",
+							"file": {
+								"XmlRootLevelValues": [],
+								"url": "inf://share/SHAREID/miscDescription/"
+							}
+						},
+						{
+							"display": "If a JSON/XML object you should do further extraction first, see JSON samples. For 'office' types, the text has been extracted already.",
+							"featureEngine": {"engineName": "default"}
+						},
+						{
+							"display": "Improve ingest performance by not full-text-indexing the JSON/XML object itself if a JSON object (the full text, entities etc still get indexed)",
+							"searchIndex": {"metadataFieldList": "+"}
+						}
+					]
+				};
+				return source;
+			}
+				
+			protected function communityLinkDropDown_creationCompleteHandler(event:FlexEvent):void
+			{
+				if ( previously_selected_links_communityId  != null )
+				{
+					for each ( var comm2:Object in communityList )
+					{
+						if ( comm2._id == previously_selected_links_communityId )
+						{
+							communityLinkDropDown.selectedItem = comm2;
+							break;
+						}
+					}
+				}
+				
+			}
+			
+			protected function communityFileDropDown_creationCompleteHandler(event:FlexEvent):void
+			{
+				if ( previously_selected_file_communityId  != null )
+				{
+					for each ( var comm3:Object in communityList )
+					{
+						if ( comm3._id == previously_selected_file_communityId )
+						{
+							communityFileDropDown.selectedItem = comm3;
+							break;
+						}
+					}
+				}
+			}
+			
+			private var load_file:FileReference;
+			protected function button3_clickHandler(event:MouseEvent):void
+			{
+				if ( communityFileDropDown.selectedIndex > -1 )
+				{
+					load_file = new FileReference();
+					load_file.addEventListener(Event.SELECT, file_select_handler);				
+					load_file.browse();	
+				}
+				else
+				{
+					Alert.show("Select a community to upload data to first");
+				}				
+			}
+			
+			private function file_select_handler(event:Event):void
+			{
+				load_file.addEventListener(Event.COMPLETE, file_load_handler);
+				load_file.load();
+			}
+			
+			private const ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );			
+			private function file_load_handler(event:Event):void
+			{
+				//send bytes to INF
+				filenameLabel.text = load_file.name;
+				var file_name:String = load_file.name;
+				var bytes:ByteArray = load_file.data;
+				createShareService.url = ENDPOINT_URL + "social/share?title=" + file_name + "&type=binary&description=added%20from%20templated%20source%20widget&communityIds="+communityFileDropDown.selectedItem._id;
+				createShareService.method = "POST";
+				createShareService.contentType = "plain/text";
+				createShareService.send(bytes);
+				
+			}
+			
+			private function createShareService_resultHandler(event:ResultEvent):void
+			{
+				var data:Object = JSONDecoder.decode(event.result as String);
+				
+				if ( data.response.success.toString() == "true" )
+				{
+					Alert.show("data uploaded successfully");
+					var shareid:String = data.data._id as String;
+					var share_url:String = "inf://share/"+shareid+"/"+filenameLabel.text+"/";							
+					sourceLabel.text = share_url;
+					fileButton.enabled = true;
+				}
+				else
+				{
+					Alert.show("Failed to upload file: " + data.response.message);
+				}
+			}
+			
+			private function createShareService_faultHandler(event:FaultEvent):void
+			{
+				Alert.show("Failed to upload file: " + event.message);
+			}
+				
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+		<s:HTTPService id="communityService" result="communityService_resultHandler(event)" />
+		<s:HTTPService id="getTemplateService" result="getTemplateService_resultHandler(event)" />
+		<s:HTTPService id="submitSourceService" result="submitSourceService_resultHandler(event)" fault="submitSourceService_faultHandler(event)" />
+		<s:HTTPService id="createShareService" result="createShareService_resultHandler(event)" fault="createShareService_faultHandler(event)" />
+	</fx:Declarations>
+	
+	<!-- If you would like this widget to be styled similar to the other infinite widgets
+	you may place items in the headerContent section shown below and they will be drawn at
+	the top of the widget.  If you want to use similar looking buttons explore the
+	com.ikanow.infinit.e.widget.library.components.* items looking for components
+	prefixed with Widget*.  Other components may be added to the header as well.
+	-->
+	<components:headerContent>
+		<s:HGroup gap="-3">
+			<!-- Ignore Filter Toggle Button -->
+			<components:WidgetToggleButton id="buttonTemplate"
+										   label="Template Sources"
+										   toolTip="Create sources from templates"
+										   click="buttonTemplate_clickHandler(event)" 
+										   selected="true" />
+			<components:WidgetToggleButton id="buttonLinks"
+										   label="Links Sources"
+										   toolTip="Create sources from links"
+										   click="buttonLinks_clickHandler(event)" />
+			<components:WidgetToggleButton id="buttonFiles"
+										   label="File Sources"
+										   
+										   click="buttonFiles_clickHandler(event)" enabled="false" toolTip="Coming Soon"/>
+		</s:HGroup>
+	</components:headerContent>	
+	
+	<components:states>
+		<s:State name="templateState" />
+		<s:State name="linkState" />
+		<s:State name="fileState" />
+	</components:states>
+	
+	
+	
+	<!-- Form -->
+	<s:Scroller width="100%" height="100%" includeIn="templateState">		 	
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			horizontalAlign="center"
+			paddingBottom="5"
+			paddingLeft="5"
+			paddingRight="5"
+			paddingTop="5"
+			verticalAlign="middle"	 >
+			
+			<s:Form id="templateForm" >
+				<s:FormHeading label="Create sources from a list of keywords and templates" />
+				<s:FormItem label="Search Terms">			
+					<s:helpContent>
+						<s:Label text="(eg. barack obama)"/>      
+					</s:helpContent>
+					<s:TextInput id="searchTermTextInput" enter="textinput1_enterHandler(event)" prompt="Add search terms, and press enter" width="400" toolTip="Press Enter to add terms" />
+					<s:List id="search_term_list" dataProvider="{search_terms}" keyDown="search_term_list_keyDownHandler(event)" width="400" height="100" toolTip="Press Delete to remove terms" allowMultipleSelection="true" />
+				</s:FormItem>
+				<s:FormItem label="Community" >
+					<s:helpContent>
+						<s:Label text="Data will be added to this community"/>      
+					</s:helpContent>
+					<s:List id="communityTemplateDropDown" dataProvider="{communityList}" allowMultipleSelection="false" labelField="name" height="100" width="400" />
+				</s:FormItem>
+				<s:FormItem label="Templates" >
+					<s:helpContent>
+						<s:Label text="Select 1 or more templates to create sources"/>      
+					</s:helpContent>
+					<s:List id="template_list" dataProvider="{templateList}" allowMultipleSelection="true" labelField="title" width="400" height="150" toolTip="Control Click to select multiple templates" />
+				</s:FormItem>
+				<!-- TODO advanced options dropdown -->
+				<s:FormItem>
+					<s:Button click="button1_clickHandler(event)" label="Create Sources" />
+				</s:FormItem>
+			</s:Form>
+		</s:VGroup>
+	</s:Scroller>
+	
+	<s:Scroller width="100%" height="100%" includeIn="linkState">
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			horizontalAlign="center"
+			paddingBottom="5"
+			paddingLeft="5"
+			paddingRight="5"
+			paddingTop="5"
+			verticalAlign="middle">
+			<s:Form id="linkForm" >
+				<s:FormHeading label="Create a source from a list of links" />
+				<s:FormItem label="Source Title">
+					<s:helpContent>
+						<s:Label text="(eg. Sterling's ISIS Articles)" />
+					</s:helpContent>
+					<s:TextInput id="linkSrcTitleInput" prompt="Give the source a title" width="400" />
+				</s:FormItem>
+				<s:FormItem label="Links">			
+					<s:helpContent>
+						<s:Label text="(eg. http://www.cnn.com/2014/10/09/world/meast/isis-threat/index.html)\n(eg. ISIS Threat CNN Article)"/>      
+					</s:helpContent>
+					<s:TextInput id="linkTextInput" enter="linkInput_enterHandler(event)" prompt="Add a link or RSS feed" width="400" toolTip="Press Enter to add link" />
+					<s:TextInput id="linkTitleInput" enter="linkInput_enterHandler(event)" prompt="Add a title if not an RSS feed" width="400" toolTip="Press Enter to add link" />
+					<s:TextInput id="descTextInput" enter="linkInput_enterHandler(event)" prompt="Add a description if not an RSS feed and press enter" width="400" toolTip="Press Enter to add link" />
+					<s:Button label="Add Link" enabled="true" click="linkInput_enterHandler(event)" />
+					<s:List id="links_list" dataProvider="{links}" labelField="label" keyDown="links_list_keyDownHandler(event)" width="400" height="100" toolTip="Press Delete to remove a link" allowMultipleSelection="true" />
+				</s:FormItem>
+				<s:FormItem label="Community" >
+					<s:helpContent>
+						<s:Label text="Data will be added to this community"/>      
+					</s:helpContent>
+					<s:List id="communityLinkDropDown" creationComplete="communityLinkDropDown_creationCompleteHandler(event)" dataProvider="{communityList}"  allowMultipleSelection="false" labelField="name" height="100" width="400" />
+				</s:FormItem>
+				<s:FormItem>
+					<s:Button id="linkButton" click="linkButton_clickHandler(event)" label="Create Source" />
+				</s:FormItem>
+				
+			</s:Form>
+		</s:VGroup>
+	</s:Scroller>
+	
+	<s:Scroller width="100%" height="100%" includeIn="fileState">
+		<s:VGroup 
+			width="100%"
+			height="100%"
+			horizontalAlign="center"
+			paddingBottom="5"
+			paddingLeft="5"
+			paddingRight="5"
+			paddingTop="5"
+			verticalAlign="middle">
+			<s:Form id="fileForm" >
+				<s:FormHeading label="Create a source from an uploaded file" />
+				<s:FormItem label="Community" >
+					<s:helpContent>
+						<s:Label text="File will be added to this community"/>      
+					</s:helpContent>
+					<s:List id="communityFileDropDown" creationComplete="communityFileDropDown_creationCompleteHandler(event)" dataProvider="{communityList}" allowMultipleSelection="false" labelField="name" height="100" width="400" />
+				</s:FormItem>
+				<s:FormItem label="File">			
+					<s:helpContent>
+						<s:Label text="(eg. a PDF from your computer)"/>      
+					</s:helpContent>
+					<s:HGroup>
+						<s:Label id="filenameLabel" width="100" />
+						<s:Button id="uploadButton" label="Upload File" click="button3_clickHandler(event)" />
+					</s:HGroup>				
+				</s:FormItem>
+				<s:FormItem label="Source Title">
+					<s:helpContent>
+						<s:Label text="(eg. Sterling's ISIS Articles)" />
+					</s:helpContent>
+					<s:TextInput id="fileSrcTitleInput" prompt="Give the source a title" width="400" />
+				</s:FormItem>			
+				<s:FormItem>
+					<s:Label id="sourceLabel" />
+					<s:Button enabled="false" id="fileButton" click="fileButton_clickHandler(event)" label="Create Source" />
+				</s:FormItem>
+				
+			</s:Form>
+		</s:VGroup>
+	</s:Scroller>
+	
+	<!-- Status Information Display -->
+	<s:Group id="statusInfo"
+			 width="100%"
+			 height="100%"
+			 visible="false">
+		<s:Rect 
+			width="100%"
+			height="100%">
+			<s:fill>
+				<s:SolidColor 
+					color="#DDDDDD"
+					alpha=".5" />
+			</s:fill>
+		</s:Rect>
+		<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center">								
+			<s:Group 
+				width="300"
+				height="200">
+				<s:Rect 
+					width="100%"
+					height="100%">
+					<s:fill>
+						<s:SolidColor 
+							color="#66CCFF" />
+					</s:fill>
+				</s:Rect>
+				<s:VGroup width="100%" height="100%" verticalAlign="middle" horizontalAlign="center">
+					<s:Label id="statusLabel" width="50%" />
+					<s:Button id="statusButton" visible="false" label="Close" click="button2_clickHandler(event)" />
+				</s:VGroup>
+			</s:Group>
+		</s:VGroup>
+	</s:Group>
+</components:WidgetModule>

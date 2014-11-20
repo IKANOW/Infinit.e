@@ -161,7 +161,7 @@ public class PropertiesManager {
 		if (null == s) {
 			s = "full";
 		}
-		return s;
+		return s.toLowerCase().trim();
 	}
 
 	// Should be a list of fully-qualified classnames

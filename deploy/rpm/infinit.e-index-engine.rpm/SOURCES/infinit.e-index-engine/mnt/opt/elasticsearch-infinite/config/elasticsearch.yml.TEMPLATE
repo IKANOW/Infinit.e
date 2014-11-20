@@ -1,4 +1,6 @@
 # Cluster Settings
+node:
+  data: IS_DATA_NODE
 cluster:
   name: CLUSTER_NAME
 discovery:

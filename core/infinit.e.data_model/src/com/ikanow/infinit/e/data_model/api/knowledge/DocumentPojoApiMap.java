@@ -77,14 +77,8 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			jetmp = jo.get(DocumentPojo.sourceKey_);
 			// (also the <key>#<format> should be reduced back to <key>)
 			if (null != jetmp) {
-				String sourceKey = jetmp.getAsString();
-				if (null != sourceKey) {
-					int nCommunityIndex = 0;
-					if (-1 != (nCommunityIndex = sourceKey.indexOf('#')))  {
-						sourceKey = sourceKey.substring(0, nCommunityIndex);
-						jetmp = new JsonPrimitive(sourceKey);
-					}					
-				}
+				String sourceKey = DocumentPojo.getSourceKey(jetmp.getAsString());
+				jetmp = new JsonPrimitive(sourceKey);
 				JsonArray ja = new JsonArray();
 				ja.add(jetmp);
 				jo.add(DocumentPojo.sourceKey_, ja);
@@ -121,12 +115,8 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			doc.put(DocumentPojo.source_, array);
 		}
 		// 3. (source key)
-		tmp = doc.getString(DocumentPojo.sourceKey_);
+		tmp = DocumentPojo.getSourceKey(doc.getString(DocumentPojo.sourceKey_));
 		if (null != tmp) {
-			int nCommunityIndex = 0;
-			if (-1 != (nCommunityIndex = tmp.indexOf('#')))  {
-				tmp = tmp.substring(0, nCommunityIndex);
-			}
 			BasicDBList array = new BasicDBList();
 			array.add(tmp);
 			doc.put(DocumentPojo.sourceKey_, array);
@@ -158,7 +148,7 @@ public class DocumentPojoApiMap implements BasePojoApiMap<DocumentPojo> {
 			tmp = json.getAsJsonObject().get(DocumentPojo.sourceKey_);			
 			if ((null != tmp) && (tmp.isJsonArray())) {				
 				JsonArray tmpArray = tmp.getAsJsonArray();		
-				JsonElement singleVal = tmpArray.get(0);
+				JsonElement singleVal = tmpArray.get(0); // (in array format, so must have already had #N/#NN stripped)
 				json.getAsJsonObject().add(DocumentPojo.sourceKey_, singleVal);
 			}
 			tmp = json.getAsJsonObject().get(DocumentPojo.mediaType_);			

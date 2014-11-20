@@ -178,11 +178,7 @@ public class CustomOutputManager {
 				try {
 					CustomOutputIndexingEngine.completeOutput(cmr, null, null);
 				}
-				catch (Exception e) {
-					/**/
-					//DEBUG
-					e.printStackTrace();
-				} // (can live with indexing failing somehow)
+				catch (Throwable t) {} // (can live with indexing failing somehow - almost certainly 0.19 related)
 				
 				//swap the output collections
 				notappendupdates.append(CustomMapReduceJobPojo.outputCollectionTemp_, cmr.outputCollection);
@@ -244,11 +240,7 @@ public class CustomOutputManager {
 				try {
 					CustomOutputIndexingEngine.completeOutput(cmr, lastAgeOut, newIdThreshold);
 				}
-				catch (Exception e) {
-					/**/
-					//DEBUG
-					e.printStackTrace();
-				} // (can live with indexing failing somehow)
+				catch (Throwable t) {} // (can live with indexing failing somehow - almost certainly 0.19 related)
 			}
 			finally {
 				//TODO (INF-2508): re-shard the collection just in case the intial sharding failed - one issue here is that

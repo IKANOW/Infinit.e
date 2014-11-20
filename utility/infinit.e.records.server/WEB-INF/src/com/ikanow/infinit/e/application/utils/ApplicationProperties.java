@@ -50,5 +50,12 @@ public class ApplicationProperties {
 	public String getProperty(String key) {
 		return properties.getProperty(key);
 	}
+	public boolean useHttpOutput() {
+		String s = properties.getProperty("elastic.logstash");
+		if ((null != s) && s.equalsIgnoreCase("binary")) {
+			return false;
+		}
+		return true;
+	}
 	
 }

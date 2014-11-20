@@ -335,12 +335,8 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 			// Write content into non-transient field:
 			doc.makeFullTextNonTransient();
 
-			// Multi-community docs have source keys represented by <key>#<community>
-			// Store just the key in the index
-			int nMultiCommunityDoc = doc.getSourceKey().lastIndexOf('#');
-			if (nMultiCommunityDoc >= 0) {
-				doc.setSourceKey(doc.getSourceKey().substring(0, nMultiCommunityDoc));
-			}
+			// Remove #N/#NN distribution in source keys
+			doc.setSourceKey(doc.getSourceKey());
 			
 			// If filter specified for metadata then remove unwanted fields
 			if ((null != filter) && (null != filter.metadataFieldList) && (null != doc.getMetadata())) {
@@ -498,7 +494,7 @@ public class DocumentPojoIndexMap implements BasePojoIndexMap<DocumentPojo> {
 		public static class RootObject 
 		{
 			ElasticSearchPojos.SourcePojo _source = new ElasticSearchPojos.SourcePojo(true, 
-					"_id", "message", "@timestamp", "url", "sourceKey", "displayUrl", "docGeo", "type", "tags", "record.*");
+					"_id", "message", "@timestamp", "url", "sourceKey", "sourceUrl", "displayUrl", "docGeo", "type", "tags", "record.*");
 	
 			ElasticSearchPojos.AllPojo _all = new ElasticSearchPojos.AllPojo(true);
 	

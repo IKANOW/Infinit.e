@@ -35,6 +35,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.regex.Pattern;
 
 import javax.xml.stream.FactoryConfigurationError;
@@ -118,7 +119,9 @@ public class FileHarvester implements HarvesterInterface {
 	// Some internal state
 	private boolean _streaming = false; // (new mode, currently unused)
 	private boolean _customJob = false; // (some logic is different)
+	private boolean _unshardedCustomJob = false; // (mostly just a safety case for when the custom job incorrectly doesn't shard)
 	private Date _customLastRecordWritten = null;
+	private boolean _bNeedsExtraSyncLock = false; // (handles support for broken jcifs INF-1406, should see if that's been fixed yet..)
 	
 	// Formatting office docs: allows HTML/XML output and to push options from the parsers into the tika instance
 	private Tika _tika = null;
@@ -136,6 +139,8 @@ public class FileHarvester implements HarvesterInterface {
 	
 	// Try to avoid blowing up the memory:
 	private long _memUsage = 0;
+	private static AtomicLong _totalMemUsage = new AtomicLong(0L);
+	private static ThreadLocal<Long> _lastMemUsage = new ThreadLocal<Long>();
 	
 	/**
 	 * Get a specific doc to return the bytes for
@@ -363,13 +368,17 @@ public class FileHarvester implements HarvesterInterface {
 				}//TODO (INF-2119): come up with something better than this...(this is at least consistent with SAH/UAH security, apart from allowing admin more rights)
 				file = InfiniteFile.create(source.getUrl());
 			}
-			else
+			else // Samba - note (INF-1406) has sync lock bug so needs synchronization 
 			{
+				_bNeedsExtraSyncLock = true;
 				if (source.getFileConfig().domain == null) {
 					source.getFileConfig().domain = "";
 				}
 				NtlmPasswordAuthentication auth = new NtlmPasswordAuthentication(source.getFileConfig().domain, source.getFileConfig().username, source.getFileConfig().password);
 				file = InfiniteFile.create(source.getUrl(), auth);
+			}
+			if (_customJob) { // (no concept of depth in custom job, but use directories to avoid maxing out)
+				maxDepth = Integer.MAX_VALUE;
 			}
 			traverse(file, source, maxDepth);
 		} 
@@ -528,8 +537,7 @@ public class FileHarvester implements HarvesterInterface {
 			int debugMaxDocs =  Integer.MAX_VALUE; // by default don't set this, it's only for debug mode
 			if (_context.isStandalone()) { // debug mode
 				debugMaxDocs = maxDocsPerCycle; 
-			}			
-			
+			}						
 			//fast check to see if the file has changed before processing (or if it never existed)
 			if(needsUpdated_SourceUrl(modDate, f.getUrlString(), source))
 			{
@@ -575,7 +583,9 @@ public class FileHarvester implements HarvesterInterface {
 						try {							
 							xmlStreamReader = factory.createXMLStreamReader(f.getInputStream());
 							partials = xmlParser.parseDocument(xmlStreamReader);
-							_memUsage += xmlParser.getMemUsage();
+							long memUsage = xmlParser.getMemUsage();
+							_memUsage += memUsage;
+							_totalMemUsage.addAndGet(memUsage);
 						}
 						finally {
 							if (null != xmlStreamReader) xmlStreamReader.close();
@@ -587,7 +597,9 @@ public class FileHarvester implements HarvesterInterface {
 							jsonReader = new JsonReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
 							jsonReader.setLenient(true);
 							partials = jsonParser.parseDocument(jsonReader);
-							_memUsage += jsonParser.getMemUsage();
+							long memUsage = jsonParser.getMemUsage();
+							_memUsage += memUsage;
+							_totalMemUsage.addAndGet(memUsage);
 						}
 						finally {
 							if (null != jsonReader) jsonReader.close();
@@ -600,7 +612,9 @@ public class FileHarvester implements HarvesterInterface {
 							lineReader = new BufferedReader(new InputStreamReader(f.getInputStream(), "UTF-8"));
 							CsvToMetadataParser lineParser = new CsvToMetadataParser(debugMaxDocs);
 							partials = lineParser.parseDocument(lineReader, source);
-							_memUsage += lineParser.getMemUsage();							
+							long memUsage = lineParser.getMemUsage();
+							_memUsage += memUsage;
+							_totalMemUsage.addAndGet(memUsage);
 						}
 						finally {
 							if (null != lineReader) lineReader.close();
@@ -734,7 +748,9 @@ public class FileHarvester implements HarvesterInterface {
 					doc.setTitle(f.getName().toString());
 					doc.setPublishedDate(new Date(fileTimestamp));
 					
-					_memUsage += (250L*(doc.getFullText().length() + doc.getDescription().length()))/100L; // 25% overhead, 2x for string->byte
+					long memUsage = (250L*(doc.getFullText().length() + doc.getDescription().length()))/100L; // 25% overhead, 2x for string->byte
+					_memUsage += memUsage;
+					_totalMemUsage.addAndGet(memUsage);
 					
 					// If the metadata contains a more plausible date then use that
 					try {
@@ -833,106 +849,126 @@ public class FileHarvester implements HarvesterInterface {
 		//System.out.println("FILE=" + files.size() + " / MEM=" + _memUsage + " VS " + Runtime.getRuntime().totalMemory());
 	}
 
+	
 	private void traverse( InfiniteFile f, SourcePojo source, int depth ) throws Exception {
 		if( depth == 0 ) {
 			return;
 		}
 
-		InfiniteFile[] l;
 		try {
-			// Made this synchronized to work around what looks like deadlock issue in code
-			// This is undesirable and should be fixed once the underlying bug has been fixed
-			// (note in practice this is only an issue for multiple threads going to the same domain)
-			synchronized (FileHarvester.class) {
-				if (_customJob && (null != _customLastRecordWritten)) {
-					l = f.listFiles(_customLastRecordWritten);
+			InfiniteFile[] l;
+			if (_customJob) {
+				l = f.listFiles(_customLastRecordWritten, this.maxDocsPerCycle);
+			}
+			else {
+				if (_bNeedsExtraSyncLock) {
+					synchronized (FileHarvester.class) {
+						l = f.listFiles();
+					}
 				}
-				else {
+				else { // normal case, no synchronization needed
 					l = f.listFiles();
 				}
-				
-				for(int i = 0; l != null && i < l.length; i++ ) {
-					if (null == l[i]) break; // (reached the end of the list)
-				
-					// Check what the deal with memory usage is:
-					// (Allow 25% of current heap)
-					if ((_memUsage*4) > Runtime.getRuntime().maxMemory()) {						
-						source.setReachedMaxDocs();						
-						break;
-					}//TESTED
+			}
+			
+			for(int i = 0; l != null && i < l.length; i++ ) {
+				if (null == l[i]) break; // (reached the end of the list)
+			
+				// Check what the deal with memory usage is:
+				// (Allow 25% of current heap)
+				if ((_totalMemUsage.get()*4) > Runtime.getRuntime().maxMemory()) {						
+					source.setReachedMaxDocs();						
+					break;
+				}//TESTED
+
+				// Check to see if the item is a directory or a file that needs to parsed
+				// if it is a file then parse the sucker using tika 
+				// if it is a directory then use recursion to dive into the directory
+				if (files.size() >= this.maxDocsPerCycle) {
+					source.setReachedMaxDocs();						
+					break;
+				}
+				if( l[i].isDirectory() ) {
+					// Directories: included unless explicity exclude:
+					String path = l[i].getUrlPath();
+					boolean bProcess = true;
 					
-					// Check to see if the item is a directory or a file that needs to parsed
-					// if it is a file then parse the sucker using tika 
-					// if it is a directory then use recursion to dive into the directory
-					if (files.size() >= this.maxDocsPerCycle) {
-						source.setReachedMaxDocs();						
-						break;
-					}
-					if( l[i].isDirectory() ) {
-						// Directories: included unless explicity exclude:
-						String path = l[i].getUrlPath();
-						boolean bProcess = true;
-						if (null != excludeRegex) {
-							if (excludeRegex.matcher(path).matches()) {
-								bProcess = false;
-							}							
-						}//TESTED
-						if (bProcess) {
-							traverse( l[i], source, depth - 1 );
-							if (source.reachedMaxDocs()) { // (express elevator back to recursion root)
-								return;
-							}
-						}
-					}
-					else {
-						boolean bProcess = true;
-						// Files: check both include and exclude and distribution logic
-						String path = l[i].getUrlPath();
-						
-						// Intra-source distribution logic:
+					if (_customJob && !_unshardedCustomJob && (depth == Integer.MAX_VALUE)) { // custom jobs split by directory aka shard, and only at the top...					
 						if ((null != source.getDistributionTokens()) && (null != source.getDistributionFactor())) {
 							int split = Math.abs(path.hashCode()) % source.getDistributionFactor();
 							if (!source.getDistributionTokens().contains(split)) {
 								bProcess = false;
 							}
-						}//TESTED
-						
-						if (bProcess && (null != includeRegex)) {
-							if (!includeRegex.matcher(path).matches()) {
-								bProcess = false;
-							}
+						}//TESTED (custom)		
+					}				
+					
+					if (bProcess && (null != excludeRegex)) {
+						if (excludeRegex.matcher(path).matches()) {
+							bProcess = false;
+						}							
+					}//TESTED
+					if (bProcess) {
+						traverse( l[i], source, depth - 1 );
+						if (source.reachedMaxDocs()) { // (express elevator back to recursion root)
+							return;
 						}
-						if (bProcess && (null != excludeRegex)) {
-							if (excludeRegex.matcher(path).matches()) {
+					}
+				}
+				else {
+					if (_customJob && (depth == Integer.MAX_VALUE)) { // file at level 1 => custom job is unsharded
+						_unshardedCustomJob = true;
+					}
+					
+					boolean bProcess = true;
+					// Files: check both include and exclude and distribution logic
+					String path = l[i].getUrlPath();
+					
+					// Intra-source distribution logic:
+					if (!_customJob || _unshardedCustomJob) { // custom jobs split by directory aka shard
+						if ((null != source.getDistributionTokens()) && (null != source.getDistributionFactor())) {
+							int split = Math.abs(path.hashCode()) % source.getDistributionFactor();
+							if (!source.getDistributionTokens().contains(split)) {
 								bProcess = false;
-							}							
-						}//TESTED
-						if (bProcess) {
-							parse( l[i], source);
-								// (Adds to this.files)
-							
-							// If we've got here, check what we should do with the file
-							if (!_context.isStandalone()) {
-								if ((null != source.getFileConfig()) && (null != source.getFileConfig().renameAfterParse)) {
-									try {
-										if (source.getFileConfig().renameAfterParse.isEmpty() || source.getFileConfig().renameAfterParse.equals(".")) 
-										{ // delete it
-											l[i].delete();
-										}//TESTED
-										else {
-											l[i].rename(createNewName(l[i], source.getFileConfig().renameAfterParse));
-										}//TESTED
-									}
-									catch (IOException e) { // doesn't seem worth bombing out but should error
-										_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);									
-									}
-								}//TESTED
 							}
-						}//(not excluded)
-					}//(file not directory)
-				}//(end loop over directory files)
-			}
-			// (End INF-1406 sync bug, see above explanation)
+						}//TESTED (custom and non-custom)
+					}
+					
+					if (bProcess && (null != includeRegex)) {
+						if (!includeRegex.matcher(path).matches()) {
+							bProcess = false;
+						}
+					}
+					if (bProcess && (null != excludeRegex)) {
+						if (excludeRegex.matcher(path).matches()) {
+							bProcess = false;
+						}							
+					}//TESTED
+					if (bProcess) {
+						parse( l[i], source);
+							// (Adds to this.files)
+						
+						// If we've got here, check what we should do with the file
+						if (!_context.isStandalone()) {
+							if ((null != source.getFileConfig()) && (null != source.getFileConfig().renameAfterParse)) {
+								try {
+									if (source.getFileConfig().renameAfterParse.isEmpty() || source.getFileConfig().renameAfterParse.equals(".")) 
+									{ // delete it
+										l[i].delete();
+									}//TESTED
+									else {
+										l[i].rename(createNewName(l[i], source.getFileConfig().renameAfterParse));
+									}//TESTED
+								}
+								catch (IOException e) { // doesn't seem worth bombing out but should error
+									_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);									
+								}
+							}//TESTED
+						}
+					}//(not excluded)
+				}//(file not directory)
+				
+				l[i] = null; // (ie should now be able to free the memory
+			}//(end loop over directory files)
 
 		} catch (Exception e) {
 			if (maxDepth == depth) { // Top level error, abandon ship
@@ -945,7 +981,6 @@ public class FileHarvester implements HarvesterInterface {
 			}
 		}
 	}
-
 
 	private boolean needsUpdated_SourceUrl(Date mod, String sourceUrl, SourcePojo source)
 	{
@@ -985,6 +1020,11 @@ public class FileHarvester implements HarvesterInterface {
 		}
 		try 
 		{
+			Long lastMemUsage = _lastMemUsage.get();
+			if (null != lastMemUsage) { // re-using this thread => this memory is now definitely all gone
+				_totalMemUsage.addAndGet(-lastMemUsage);
+			}//TESTED (by hand)
+			
 			// Defaults to some "normal" mode that involves trying to spot existing files that have been modified and re-creating their harvested docs
 			// In streaming mode it will just skip over those files and carry on
 			// (It should be particularly useful for custom mode, can just re-run the same job on he last day's data and the source will keep adding them)
@@ -1018,6 +1058,9 @@ public class FileHarvester implements HarvesterInterface {
 			this.docsToAdd = null;
 			this.docsToUpdate = null;
 			this.docsToRemove = null;			
+			
+			// Can't remove the memory yet, because it persists until the doc is written:
+			_lastMemUsage.set(_memUsage);
 		}
 	}
 	

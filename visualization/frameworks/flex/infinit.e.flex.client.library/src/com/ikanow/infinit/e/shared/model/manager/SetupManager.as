@@ -260,7 +260,7 @@ package com.ikanow.infinit.e.shared.model.manager
 			//skip saving if no comms are selected
 			if ( communityIds != "" && communityIds != null )
 			{
-				url += communityIds;
+				url += "$commids?commids=" + communityIds;
 				
 				// update the ui setup
 				var setupEvent:SetupEvent = new SetupEvent( SetupEvent.UPDATE_SETUP );

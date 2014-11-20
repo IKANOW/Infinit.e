@@ -11,11 +11,14 @@ REPLICA_SETS=`grep "^db.replica.sets=" $SERVICE_PROPERTY_FILE | sed s/'db.replic
 
 if [ -z $CLUSTER_SUBNET ]; 
 then
-	echo "Invalid DB setup, check $SERVICE_PROPERTY_FILE for db.cluster.subnet, db.config.servers, db.replica.sets" > /dev/stderr
-	exit 
+	my_ip=$(hostname -s)
+else
+	if [ "$CLUSTER_SUBNET" == "FQDN" ]; then
+		my_ip=$(hostname -f)
+	else
+		my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep "^$CLUSTER_SUBNET")
+	fi
 fi
-
-my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep "^$CLUSTER_SUBNET")
 
 ################################################################################
 #
@@ -62,7 +65,7 @@ case "$1" in
 			fi
 			for sets in $REPLICA_SETS
 			do
-				if [ $(echo $sets | grep -o "$my_ip" | wc -l) -ge 1 ]; then
+				if [ $(echo $sets | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
 					echo -en "$rset\n"
 				fi
 				
@@ -90,7 +93,7 @@ EOF
 		;;
 		
 		is_config)
-			if [ $(echo $CONFIG_SERVERS | grep $my_ip | wc -l) -ge 1 ]; then
+			if [ $(echo $CONFIG_SERVERS | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
 				echo true
 			 else
 				echo false
@@ -98,7 +101,7 @@ EOF
 		;;
 		
 		is_dbinstance)
-			 if [ $(echo $REPLICA_SETS | grep $my_ip | wc -l) -ge 1 ]; then
+			 if [ $(echo $REPLICA_SETS | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
 				echo true
 			 else
 				echo false

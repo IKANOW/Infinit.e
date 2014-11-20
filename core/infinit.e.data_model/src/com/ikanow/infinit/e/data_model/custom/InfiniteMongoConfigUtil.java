@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.data_model.custom;
 
 import org.apache.hadoop.conf.Configuration;
+import org.bson.types.ObjectId;
 
 import com.mongodb.BasicDBList;
 import com.mongodb.DBObject;
@@ -33,6 +34,7 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     public static final String CACHE_LIST = "infinit.e.cache.list";
 	public static final String SELF_MERGE = "infinit.e.selfMerge";    
     public static final String IS_ADMIN = "infinit.e.is.admin";
+    public static final String USERID = "infinit.e.userid";
     
     public static int getMaxSplits( Configuration conf ){
     	return conf.getInt(MAX_SPLITS, 0);
@@ -49,6 +51,10 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     
     public static boolean getIsAdmin( Configuration conf ){
     	return conf.getBoolean(IS_ADMIN, false);
+    }//TODO (INF-2118) TOTEST
+    
+    public static ObjectId getUserId( Configuration conf ){
+    	return new ObjectId(conf.get(USERID, "000000000000000000000000"));
     }//TODO (INF-2118) TOTEST
     
     public static int getMaxDocsPerSplit( Configuration conf ){

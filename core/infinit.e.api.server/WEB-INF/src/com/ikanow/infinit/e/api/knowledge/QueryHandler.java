@@ -125,7 +125,7 @@ public class QueryHandler {
 	
 	private static PropertiesManager _properties = null;
 	private static com.ikanow.infinit.e.data_model.utils.PropertiesManager _dataModelProps = null;
-	private static String _aggregationAccuracy = "full";
+	private static String _aggregationAccuracy = "full";  
 	private static ArrayList<Class<IQueryExtension>> _queryExtensions = null;
 	
 	// Built in query extension: federated query engine
@@ -299,7 +299,9 @@ public class QueryHandler {
 			// (ie if we're getting docs or applying scores to entities)
 			
 			if (!_aggregationAccuracy.equals("full")) {
-				bLowAccuracyDecay = true;
+				if (_aggregationAccuracy.equals("low") || _aggregationAccuracy.contains("decay:low")) {
+					bLowAccuracyDecay = true;
+				}
 			}
 			queryObj = addProximityBasedScoring(queryObj, searchSettings, query.score, tempFilterInfo.parentFilterObj, bLowAccuracyDecay);
 			
@@ -349,16 +351,23 @@ public class QueryHandler {
 			
 			if (!_aggregationAccuracy.equals("full")) {
 				if (null != query.output.aggregation) {
-					if (_aggregationAccuracy.equals("low")) {
-						manualEntsNumReturn = query.output.aggregation.entsNumReturn;
+					// Geo - optional
+					if (_aggregationAccuracy.equals("low") || _aggregationAccuracy.contains("geo:low")) {
+						manualGeoNumReturn = query.output.aggregation.geoNumReturn;
+						query.output.aggregation.geoNumReturn = null;						
+					}
+					// Assoc - optional
+					if (_aggregationAccuracy.equals("low") || _aggregationAccuracy.contains("assoc:low")) {
 						manualEventsNumReturn = query.output.aggregation.eventsNumReturn;
 						manualFactsNumReturn = query.output.aggregation.factsNumReturn;
-						manualGeoNumReturn = query.output.aggregation.geoNumReturn;
+						query.output.aggregation.eventsNumReturn = null;
+						query.output.aggregation.factsNumReturn = null;
 					}										
-					query.output.aggregation.entsNumReturn = null;
-					query.output.aggregation.eventsNumReturn = null;
-					query.output.aggregation.factsNumReturn = null;
-					query.output.aggregation.geoNumReturn = null;
+					// Ents - optional
+					if (_aggregationAccuracy.equals("low") || _aggregationAccuracy.contains("ent:low")) {
+						manualEntsNumReturn = query.output.aggregation.entsNumReturn;
+						query.output.aggregation.entsNumReturn = null;
+					}					
 					// (allow time aggregation)
 					// (allow source aggregation)
 				}
@@ -1192,7 +1201,7 @@ public class QueryHandler {
 			else {
 				term = QueryBuilders.queryString(qt.ftext).field("_all").field(DocumentPojo.fullText_);				
 			}
-			if (null == _scoringParams.adjustAggregateSig) { // auto-decide .. if ftext is set and is non-trivial
+			if ((null == _scoringParams) || (null == _scoringParams.adjustAggregateSig)) { // auto-decide .. if ftext is set and is non-trivial
 				if (qt.ftext.contains(" ")) {
 					_scoringParams.adjustAggregateSig = true;
 				}
@@ -2361,7 +2370,7 @@ public class QueryHandler {
 			//if there is a decay, add the script to the query		
 			paramDoublesScript[5] = false;
 			params.put("param", paramDoublesScript);
-			return QueryBuilders.customScoreQuery(currQuery).script(QueryDecayFactory.getScriptName()).params(params).lang(QueryDecayFactory.getLanguage());
+			return CrossVersionQueryBuilders.customScoreQueryBuilderScript(currQuery,QueryDecayFactory.getScriptName(),QueryDecayFactory.getLanguage(),params);
 		} 	
 	}//TESTED
 	
@@ -2463,7 +2472,7 @@ public class QueryHandler {
 	private BaseQueryBuilder applyManualWeights(BaseQueryBuilder queryObj, AdvancedQueryPojo.QueryScorePojo score)
 	{
 		if ((null != score.tagWeights) || (null != score.typeWeights) || (null != score.sourceWeights)) {
-			CustomFiltersScoreQueryBuilder manualWeights = QueryBuilders.customFiltersScoreQuery(queryObj);
+			CustomFiltersScoreQueryBuilder manualWeights = CrossVersionQueryBuilders.customFiltersScoreQuery(queryObj);
 			manualWeights.scoreMode("avg"); // Only tags can match multiple filters, in which case we average them
 			
 			if (null != score.sourceWeights) {

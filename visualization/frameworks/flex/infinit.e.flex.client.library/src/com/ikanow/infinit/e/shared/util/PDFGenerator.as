@@ -23,16 +23,25 @@ package com.ikanow.infinit.e.shared.util
 	import com.ikanow.infinit.e.widget.library.utility.HtmlConvert;
 	import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
+	
 	import flash.display.DisplayObject;
 	import flash.display.DisplayObjectContainer;
+	import flash.net.URLRequest;
+	import flash.net.URLRequestMethod;
+	import flash.net.URLVariables;
+	import flash.net.navigateToURL;
+	import flash.utils.ByteArray;
 	import flash.utils.Endian;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.DataGrid;
 	import mx.resources.IResourceManager;
 	import mx.resources.ResourceManager;
 	import mx.utils.StringUtil;
+	
 	import spark.components.HGroup;
 	import spark.components.VGroup;
+	
 	import org.alivepdf.colors.RGBColor;
 	import org.alivepdf.data.Grid;
 	import org.alivepdf.data.GridColumn;
@@ -51,6 +60,7 @@ package com.ikanow.infinit.e.shared.util
 	import org.alivepdf.pdf.PDF;
 	import org.alivepdf.saving.Download;
 	import org.alivepdf.saving.Method;
+	
 	import system.Char;
 	
 	public class PDFGenerator
@@ -180,10 +190,35 @@ package com.ikanow.infinit.e.shared.util
 		
 		}
 		
+		public function getPdfBytes():ByteArray
+		{
+			var bytes:ByteArray = printPDF.save(Method.LOCAL);
+			return bytes;
+		}
+				
 		public function saveToPdf():void
 		{
+			//NOTE FOR WHOEVER TRIES TO USE THIS LATER:
+			//FLASH now blocks sending headers, so the content-type
+			//on this request is wrong and you can't get it to change and open
+			//successfully in a new window, we now get the bytes using "getPdfBytes"
+			//and just use a file dialog
+			
 			var url:String = ServiceConstants.SERVER_URL.replace( ServiceConstants.API_URL, Constants.BLANK );
-			printPDF.save( Method.REMOTE, url + ServiceConstants.PDF_URL, Download.INLINE, PDFConstants.FILE_NAME );
+			//printPDF.save( Method.REMOTE, url + ServiceConstants.PDF_URL, Download.INLINE, PDFConstants.FILE_NAME );
+			var bytes:ByteArray = printPDF.save(Method.LOCAL);
+			//var myRequest:URLRequest = new URLRequest(url + "testgui/" + ServiceConstants.PDF_URL);
+			var myRequest:URLRequest = new URLRequest(url + ServiceConstants.PDF_URL + "?name="+PDFConstants.FILE_NAME + "&method=inline&1");
+			myRequest.method = URLRequestMethod.POST;			
+			myRequest.data = bytes;
+			myRequest.contentType = "application/pdf";
+			/*var variables:URLVariables = new URLVariables();
+			variables.method = "inline";
+			variables.name = PDFConstants.FILE_NAME;
+			variables.dothis="user_data_pdf";
+			variables.thisIsTheData = 
+			myRequest.data = variables;*/
+			navigateToURL(myRequest,"_self"); //put _blank once it works
 		}
 		
 		

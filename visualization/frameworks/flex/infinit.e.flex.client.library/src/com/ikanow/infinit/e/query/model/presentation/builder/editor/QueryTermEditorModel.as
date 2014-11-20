@@ -165,17 +165,21 @@ package com.ikanow.infinit.e.query.model.presentation.builder.editor
 		 */
 		public function getQuerySuggestions( keywordString:String ):void
 		{
-			if ( StringUtil.trim( keywordString ) == Constants.BLANK )
-				keywordString = Constants.WILDCARD;
-			
 			var queryEvent:QueryEvent = new QueryEvent( QueryEvent.TRY_GET_QUERY_SUGGESTIONS );
-			queryEvent.keywordString = keywordString;
+			if ( StringUtil.trim( keywordString ) == Constants.BLANK )
+				queryEvent.keywordString = Constants.WILDCARD;
+			else
+				queryEvent.keywordString = keywordString;
 			queryEvent.searchType = QueryEvent.GET_EDITOR_QUERY_SUGGESTIONS;
 			dispatcher.dispatchEvent( queryEvent );
 			
 			// Reset the term I was editing - this is invalid now
-			this.setSelectedSuggestion( null );
-			
+			var selectedSuggestionNew:QuerySuggestion = new QuerySuggestion();
+			selectedSuggestionNew.value = keywordString;
+			selectedSuggestionNew.type = QuerySuggestionTypes.EXACT_TEXT;
+			selectedSuggestionNew.dimension = QueryDimensionTypes.EXACT_TEXT;			
+
+			setSelectedSuggestion( selectedSuggestionNew );			
 			currentKeywordString = keywordString;
 		}
 		

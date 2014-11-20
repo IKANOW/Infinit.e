@@ -256,9 +256,9 @@ limitations under the License.
 		
 		try{
 			if (prevId == null)
-				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/$desc/?desc=" + URLEncoder.encode(description,charset);
 			else
-				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/$desc/?desc=" + URLEncoder.encode(description,charset);
 			
 			String json = postToRestfulApi(url, bytes, mimeType, request, response);
             
@@ -523,14 +523,15 @@ limitations under the License.
 		url += title + "/";
 		url += java.net.URLEncoder.encode(description, charset) + "/";
 		int n = 0;
+		String commids = "";
 		for (String commId: communities) {
 			if (n > 0) {
-				url += ',';
+				commids += ',';
 			}
 			n++;
-			url += commId;
+			commids += commId;
 		}
-		url += "/";
+		url += "$commids/";
 		url += java.net.URLEncoder.encode(currJarUrl, charset) + "/";
 		if (nextruntime < 0) // don't set it
 		{
@@ -559,11 +560,12 @@ limitations under the License.
 			n++;
 			url += job;
 		}
+		url += "?commids=" + commids;
 		if (null != debugLimit) {
-			url += "?debugLimit=" + debugLimit.toString();			
+			url += "&debugLimit=" + debugLimit.toString();			
 		}
 		else if (quickRun) {
-			url += "?quickRun=true";
+			url += "&quickRun=true";
 		}
 		
 		//DEBUG
@@ -1221,6 +1223,10 @@ $().ready(function() {
 			{
 				inputcollection.value = "FEATURE_ASSOCS";
 			}
+			else if (jsonObj.inputCollection == "records")
+			{
+				inputcollection.value = "RECORDS";
+			}
 			else if (jsonObj.inputCollection == "filesystem")
 			{
 				inputcollection.value = "FILESYSTEM";
@@ -1485,7 +1491,7 @@ $().ready(function() {
 									urlqueryJson[x] = leftOverQuery[x];
 								}
 							}
-							}catch (err) { alert(err); }/**/
+							}catch (err) { alert(err); }
 							
 							for ( var i = 0, l = select.options.length, o; i < l; i++ )
 							{
@@ -1799,6 +1805,7 @@ $().ready(function() {
 								<option value="FEATURE_ENTITIES">Aggregated Entity Collection (all time)</option>
 								<option value="FEATURE_TEMPORAL">Aggregated Daily Entity Collection</option>
 								<option value="FEATURE_ASSOCS">Aggregated Association Collection</option>
+								<option value="RECORDS">Records/Logs Collections</option>
 								<option value="FILESYSTEM">Distributed Filesystem</option>
 								<% out.print(inputCollectionList); %>
 							</select>

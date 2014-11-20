@@ -27,6 +27,7 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
@@ -426,6 +427,7 @@ public class CustomHandler
 	
 	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun, Boolean selfMerge)
 	{
+		String esVersionWarning = "";
 		ResponsePojo rp = new ResponsePojo();
 		//first make sure job exists, and user is allowed to edit
 		List<Object> searchTerms = new ArrayList<Object>();
@@ -504,11 +506,19 @@ public class CustomHandler
 					//make sure user is allowed to submit on behalf of the commids given
 					if ( bAdmin || isInAllCommunities(commids, userid) )
 					{
-						ElasticSearchManager customIndex = CustomOutputIndexingEngine.getExistingIndex(cmr);
-						if (null != customIndex) {
-							CustomOutputIndexingEngine.swapAliases(customIndex, commids, true);  
-						}//TESTED (by hand - removal and deletion)						
-						
+						ElasticSearchManager customIndex = null;
+						try {
+							customIndex = CustomOutputIndexingEngine.getExistingIndex(cmr);
+							if (null != customIndex) {
+								CustomOutputIndexingEngine.swapAliases(customIndex, commids, true);  
+							}//TESTED (by hand - removal and deletion)						
+						}
+						catch (Throwable t) { // 0.19 - just delete the index if we're trying to change its security settings 
+							if (null != customIndex) {
+								customIndex.deleteMe();
+								esVersionWarning = " (Error changing index security settings (probably ES version related) - deleted the index of the results, to rebuild it please rerun the job)";
+							}							
+						}						
 						cmr.communityIds = commids;
 					}
 					else
@@ -545,10 +555,13 @@ public class CustomHandler
 					if ( (null != title) && !title.equals("null"))
 					{
 						// If this is indexed then can't change the title
-						if (null != CustomOutputIndexingEngine.getExistingIndex(cmr)) {
-							rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You cannot change the title of a non-empty indexed job - you can turn indexing off and then change the title"));
-							return rp;							
-						}//TESTED (by hand)
+						try {
+							if (null != CustomOutputIndexingEngine.getExistingIndex(cmr)) {
+								rp.setResponse(new ResponseObject("Update MapReduce Job",false,"You cannot change the title of a non-empty indexed job - you can turn indexing off and then change the title"));
+								return rp;							
+							}//TESTED (by hand)
+						}
+						catch (Throwable t) { } // (es 0.19 case, just carry on silently)
 						
 						cmr.jobtitle = title;
 						//make sure the new title hasn't been used before
@@ -596,17 +609,24 @@ public class CustomHandler
 					}
 					if ( (null != query) && !query.equals("null"))
 					{
-						boolean wasIndexed = CustomOutputIndexingEngine.isIndexed(cmr);
+						boolean wasIndexed = false;
+						try {
+							wasIndexed = CustomOutputIndexingEngine.isIndexed(cmr);
+						}
+						catch (Throwable t) { } // (es 0.19 case, just carry on silently)
 						
 						if ( !query.isEmpty() )
 							cmr.query = query;
 						else
 							cmr.query = "{}";
 						
-						// If we're in indexing mode, check if the index has been turned off, in which case delete the index 
-						if (wasIndexed && !CustomOutputIndexingEngine.isIndexed(cmr)) {
-							CustomOutputIndexingEngine.deleteOutput(cmr);  
-						}//TESTED (by hand)
+						// If we're in indexing mode, check if the index has been turned off, in which case delete the index
+						try {
+							if (wasIndexed && !CustomOutputIndexingEngine.isIndexed(cmr)) {
+								CustomOutputIndexingEngine.deleteOutput(cmr);  
+							}//TESTED (by hand)
+						}
+						catch (Throwable t) { } // (es 0.19 case, just carry on silently)							
 					}
 					if (null == cmr.jarURL) { // (if in savedQuery mode, force types to be Text/BSONWritable)
 						// Force the types:
@@ -717,7 +737,7 @@ public class CustomHandler
 					bRunNowIfPossible = true;
 				}
 				
-				rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Job updated successfully, will run on: " + nextRunString));
+				rp.setResponse(new ResponseObject("Update MapReduce Job",true,"Job updated successfully, will run on: " + nextRunString + esVersionWarning));
 				rp.setData(cmr._id.toString(), null);
 
 				if (bRunNowIfPossible) {
@@ -756,6 +776,8 @@ public class CustomHandler
 				return "feature.temporal";			
 			if ( input == INPUT_COLLECTIONS.FILESYSTEM )
 				return "filesystem";			
+			if ( input == INPUT_COLLECTIONS.RECORDS )
+				return "records";			
 		}
 		catch (Exception ex)
 		{
@@ -807,7 +829,7 @@ public class CustomHandler
 	 * @param userid
 	 * @return
 	 */
-	public ResponsePojo getJobOrJobs(String userid, String jobIdOrTitle) 
+	public ResponsePojo getJobOrJobs(String userid, String jobIdOrTitle, String commIds) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		try 
@@ -818,8 +840,20 @@ public class CustomHandler
 			{
 				PersonPojo pp = PersonPojo.fromDb(dbo, PersonPojo.class);
 				HashSet<ObjectId> communities = new HashSet<ObjectId>();
-				for ( PersonCommunityPojo pcp : pp.getCommunities())
+				HashSet<ObjectId> savedCommunities = communities; // (change it if we do additional filtering) 
+				for ( PersonCommunityPojo pcp : pp.getCommunities()) {
 					communities.add(pcp.get_id());
+				}
+				if (null != commIds) { // Filter out communities based on command line
+					String[] commIdStrs = SocialUtils.getCommunityIds(pp.get_id().toString(), commIds);
+					HashSet<ObjectId> filterCommunities = new HashSet<ObjectId>();
+					for (String commId: commIdStrs) {
+						filterCommunities.add(new ObjectId(commId));
+					}
+					savedCommunities = new HashSet<ObjectId>(communities);
+					communities.retainAll(filterCommunities);
+				}//TESTED (by hand)
+				
 				BasicDBObject commquery = new BasicDBObject(
 						CustomMapReduceJobPojo.communityIds_, new BasicDBObject(MongoDbManager.in_,communities));
 				if (null != jobIdOrTitle) {
@@ -859,11 +893,11 @@ public class CustomHandler
 					Iterator<CustomMapReduceJobPojo> jobsIt = jobs.iterator();
 					while (jobsIt.hasNext()) {
 						CustomMapReduceJobPojo job = jobsIt.next();
-						if (!communities.containsAll(job.communityIds)) {
+						if (!savedCommunities.containsAll(job.communityIds)) {
 							jobsIt.remove();
 						}
-					}//TOTEST
-					rp.setData(jobs, new CustomMapReduceJobPojoApiMap(communities));
+					}//TESTED
+					rp.setData(jobs, new CustomMapReduceJobPojoApiMap(savedCommunities));
 				}
 			}
 			else
@@ -1013,9 +1047,12 @@ public class CustomHandler
 					if ( ( cmr.jobidS == null ) || cmr.jobidS.equals( "CHECKING_COMPLETION" ) || cmr.jobidS.equals( "" ) ) // (< robustness, sometimes server gets stuck here...)
 					{
 						// Remove index
-						if (CustomOutputIndexingEngine.isIndexed(cmr)) {
-							CustomOutputIndexingEngine.deleteOutput(cmr);  
-						}//TESTED (by hand)
+						try {
+							if (CustomOutputIndexingEngine.isIndexed(cmr)) {
+								CustomOutputIndexingEngine.deleteOutput(cmr);  						
+							}//TESTED (by hand)
+						}
+						catch (Throwable t) { } // (es 0.19 case, just carry on silently)
 						
 						//remove results and job
 						DbManager.getCustom().getLookup().remove(new BasicDBObject(CustomMapReduceJobPojo._id_, cmr._id));

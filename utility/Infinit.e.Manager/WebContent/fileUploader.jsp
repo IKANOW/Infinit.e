@@ -205,14 +205,14 @@ limitations under the License.
 							+ URLEncoder.encode(docloc, charset) + "/"
 							+ URLEncoder.encode(docid, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);
 				else
 					url = "social/share/update/ref/" + prevId + "/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(docloc, charset) + "/"
 							+ URLEncoder.encode(docid, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";				
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);			
 			}
 			else if ( isJson )
 			{
@@ -229,23 +229,23 @@ limitations under the License.
 					url = "social/share/add/json/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);
 				else
 					url = "social/share/update/json/" + prevId + "/"
 							+ URLEncoder.encode(type, charset) + "/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);
 			}
 			else
 			{
 				if (newShare)
 					url = "social/share/add/binary/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);
 				else
 					url = "social/share/update/binary/" + prevId + "/"
 							+ URLEncoder.encode(title, charset) + "/"
-							+ URLEncoder.encode(description, charset) + "/";
+							+ "$desc/?desc=" + URLEncoder.encode(description, charset);
 			}
 
 			String json = postToRestfulApi(url, bytes, mimeType, request, response);

@@ -91,6 +91,8 @@ public class AssociationPojo extends BaseDbPojo
 	public String getIndex() { return index; }
 	public void setIndex(String eventIndex) { index = eventIndex; }
 	
+	private transient Boolean alreadyProcessedInternally;
+	
 	// Gets and Sets
 	
 	public String getEntity1() {
@@ -151,7 +153,7 @@ public class AssociationPojo extends BaseDbPojo
 		return geo_index;
 	}
 	public void setGeo_index(String geo_index) {
-		this.geo_index = ContentUtils.stripDiacritics(geo_index);
+		this.geo_index = (null == geo_index) ? geo_index : ContentUtils.stripDiacritics(geo_index);
 	}
 	public String getAssociation_type() {
 		return assoc_type;
@@ -203,6 +205,12 @@ public class AssociationPojo extends BaseDbPojo
 	}
 	public Double getSentiment() {
 		return sentiment;
+	}
+	public boolean getAlreadyProcessedInternally() { // (defaults to false)
+		return (alreadyProcessedInternally != null) && alreadyProcessedInternally;
+	}
+	public void setAlreadyProcessedInternally(Boolean alreadyProcessedInternally) {
+		this.alreadyProcessedInternally = alreadyProcessedInternally;
 	}
 
 }

@@ -110,7 +110,7 @@ package com.ikanow.infinit.e.shared.service.setup
 		 */
 		public function setModulesUser( event:SetupEvent ):AsyncToken
 		{
-			var url:String = ServiceConstants.SET_MODULES_USER_URL + ServiceUtil.getStringOrNullString( event.userModules );
+			var url:String = ServiceConstants.SET_MODULES_USER_URL + "$moduleids?moduleids=" + ServiceUtil.getStringOrNullString( event.userModules );
 			var params:Object = { action: ServiceConstants.SET_MODULES_USER_ACTION, dialogControl: event.dialogControl };
 			var token:AsyncToken = makeCall( service, url, params, default_resultHandler, default_faultHandler );
 			

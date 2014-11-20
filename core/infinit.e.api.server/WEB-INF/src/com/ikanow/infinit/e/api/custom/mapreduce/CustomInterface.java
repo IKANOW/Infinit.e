@@ -68,6 +68,7 @@ public class CustomInterface extends ServerResource
 	private Integer debugLimit = null;
 	private String findStr = null;
 	private String sortStr = null;
+	private String commIds = null;
 	
 	private CustomHandler customhandler = null;
 	
@@ -127,89 +128,90 @@ public class CustomInterface extends ServerResource
 		 {
 			 bQuickRun = true;			 
 		 }
+		 commIds = queryOptions.get("commids");
 		 
 		 //Method.POST
 		 if (request.getMethod() == Method.POST) 
 		 {
 			 // action determined in next function in chain (post)
 			 
-			 jobid = RESTTools.decodeRESTParam("jobid", attributes);
-			 communityIds = RESTTools.decodeRESTParam("communityIds", attributes);
-			 freqSched = RESTTools.decodeRESTParam("frequencyToRun", attributes);
-			 nextRunTime = RESTTools.decodeRESTParam("timeToRun", attributes);
-			 jarURL = RESTTools.decodeRESTParam("jarURL", attributes);
-			 mapperClass = RESTTools.decodeRESTParam("mapperClass", attributes);
-			 reducerClass = RESTTools.decodeRESTParam("reducerClass", attributes);
-			 combinerClass = RESTTools.decodeRESTParam("combinerClass", attributes);
-			 query = RESTTools.decodeRESTParam("query", attributes);
-			 title = RESTTools.decodeRESTParam("jobtitle", attributes);
-			 desc = RESTTools.decodeRESTParam("jobdesc", attributes);
-			 inputColl = RESTTools.decodeRESTParam("inputcollection", attributes);
-			 outputKey = RESTTools.decodeRESTParam("outputKey", attributes);
-			 outputValue = RESTTools.decodeRESTParam("outputValue", attributes);
-			 appendResults = RESTTools.decodeRESTParam("appendResults", attributes);
-			 ageOutInDays = RESTTools.decodeRESTParam("ageOutInDays", attributes);
-			 jobsToDependOn = RESTTools.decodeRESTParam("jobsToDependOn", attributes);
+			 jobid = RESTTools.getUrlAttribute("jobid", attributes, queryOptions);
+			 communityIds = RESTTools.getUrlAttribute("communityIds", attributes, queryOptions);
+			 freqSched = RESTTools.getUrlAttribute("frequencyToRun", attributes, queryOptions);
+			 nextRunTime = RESTTools.getUrlAttribute("timeToRun", attributes, queryOptions);
+			 jarURL = RESTTools.getUrlAttribute("jarURL", attributes, queryOptions);
+			 mapperClass = RESTTools.getUrlAttribute("mapperClass", attributes, queryOptions);
+			 reducerClass = RESTTools.getUrlAttribute("reducerClass", attributes, queryOptions);
+			 combinerClass = RESTTools.getUrlAttribute("combinerClass", attributes, queryOptions);
+			 query = RESTTools.getUrlAttribute("query", attributes, queryOptions);
+			 title = RESTTools.getUrlAttribute("jobtitle", attributes, queryOptions);
+			 desc = RESTTools.getUrlAttribute("jobdesc", attributes, queryOptions);
+			 inputColl = RESTTools.getUrlAttribute("inputcollection", attributes, queryOptions);
+			 outputKey = RESTTools.getUrlAttribute("outputKey", attributes, queryOptions);
+			 outputValue = RESTTools.getUrlAttribute("outputValue", attributes, queryOptions);
+			 appendResults = RESTTools.getUrlAttribute("appendResults", attributes, queryOptions);
+			 ageOutInDays = RESTTools.getUrlAttribute("ageOutInDays", attributes, queryOptions);
+			 jobsToDependOn = RESTTools.getUrlAttribute("jobsToDependOn", attributes, queryOptions);
 		 }
 		 // Method.GET
 		 if (request.getMethod() == Method.GET) 
 		 {
 			 if (urlStr.contains("/knowledge/mapreduce/getresults/") || urlStr.contains("/custom/mapreduce/getresults/") || urlStr.contains("/custom/savedquery/getresults/"))
 			 {
-				 jobid = RESTTools.decodeRESTParam("jobid", attributes);				 
+				 jobid = RESTTools.getUrlAttribute("jobid", attributes, queryOptions);			 
 				 action = "getresults"; 
 			 }
 			 else if (urlStr.contains("/knowledge/mapreduce/schedulejob") || urlStr.contains("/custom/mapreduce/schedulejob") || urlStr.contains("/custom/savedquery/schedulejob"))
 			 {
 				 action = "schedule";
 
-				 communityIds = RESTTools.decodeRESTParam("communityIds", attributes);
-				 freqSched = RESTTools.decodeRESTParam("frequencyToRun", attributes);
-				 nextRunTime = RESTTools.decodeRESTParam("timeToRun", attributes);
-				 jarURL = RESTTools.decodeRESTParam("jarURL", attributes);
-				 mapperClass = RESTTools.decodeRESTParam("mapperClass", attributes);
-				 reducerClass = RESTTools.decodeRESTParam("reducerClass", attributes);
-				 combinerClass = RESTTools.decodeRESTParam("combinerClass", attributes);
-				 query = RESTTools.decodeRESTParam("query", attributes);
-				 title = RESTTools.decodeRESTParam("jobtitle", attributes);
-				 desc = RESTTools.decodeRESTParam("jobdesc", attributes);
-				 inputColl = RESTTools.decodeRESTParam("inputcollection", attributes);
-				 outputKey = RESTTools.decodeRESTParam("outputKey", attributes);
-				 outputValue = RESTTools.decodeRESTParam("outputValue", attributes);
-				 appendResults = RESTTools.decodeRESTParam("appendResults", attributes);
-				 ageOutInDays = RESTTools.decodeRESTParam("ageOutInDays", attributes);
-				 jobsToDependOn = RESTTools.decodeRESTParam("jobsToDependOn", attributes);				 				 		
+				 communityIds = RESTTools.getUrlAttribute("communityIds", attributes, queryOptions);
+				 freqSched = RESTTools.getUrlAttribute("frequencyToRun", attributes, queryOptions);
+				 nextRunTime = RESTTools.getUrlAttribute("timeToRun", attributes, queryOptions);
+				 jarURL = RESTTools.getUrlAttribute("jarURL", attributes, queryOptions);
+				 mapperClass = RESTTools.getUrlAttribute("mapperClass", attributes, queryOptions);
+				 reducerClass = RESTTools.getUrlAttribute("reducerClass", attributes, queryOptions);
+				 combinerClass = RESTTools.getUrlAttribute("combinerClass", attributes, queryOptions);
+				 query = RESTTools.getUrlAttribute("query", attributes, queryOptions);
+				 title = RESTTools.getUrlAttribute("jobtitle", attributes, queryOptions);
+				 desc = RESTTools.getUrlAttribute("jobdesc", attributes, queryOptions);
+				 inputColl = RESTTools.getUrlAttribute("inputcollection", attributes, queryOptions);
+				 outputKey = RESTTools.getUrlAttribute("outputKey", attributes, queryOptions);
+				 outputValue = RESTTools.getUrlAttribute("outputValue", attributes, queryOptions);
+				 appendResults = RESTTools.getUrlAttribute("appendResults", attributes, queryOptions);
+				 ageOutInDays = RESTTools.getUrlAttribute("ageOutInDays", attributes, queryOptions);
+				 jobsToDependOn = RESTTools.getUrlAttribute("jobsToDependOn", attributes, queryOptions);				 				 		
 			 }
 			 else if ( urlStr.contains("/custom/mapreduce/updatejob") || urlStr.contains("/custom/savedquery/updatejob"))
 			 {
 				 action = "update";
 
-				 jobid = RESTTools.decodeRESTParam("jobid", attributes);
-				 communityIds = RESTTools.decodeRESTParam("communityIds", attributes);
-				 freqSched = RESTTools.decodeRESTParam("frequencyToRun", attributes);
-				 nextRunTime = RESTTools.decodeRESTParam("timeToRun", attributes);
-				 jarURL = RESTTools.decodeRESTParam("jarURL", attributes);
-				 mapperClass = RESTTools.decodeRESTParam("mapperClass", attributes);
-				 reducerClass = RESTTools.decodeRESTParam("reducerClass", attributes);
-				 combinerClass = RESTTools.decodeRESTParam("combinerClass", attributes);
-				 query = RESTTools.decodeRESTParam("query", attributes);
-				 title = RESTTools.decodeRESTParam("jobtitle", attributes);
-				 desc = RESTTools.decodeRESTParam("jobdesc", attributes);
-				 inputColl = RESTTools.decodeRESTParam("inputcollection", attributes);
-				 outputKey = RESTTools.decodeRESTParam("outputKey", attributes);
-				 outputValue = RESTTools.decodeRESTParam("outputValue", attributes);
-				 appendResults = RESTTools.decodeRESTParam("appendResults", attributes);
-				 ageOutInDays = RESTTools.decodeRESTParam("ageOutInDays", attributes);
-				 jobsToDependOn = RESTTools.decodeRESTParam("jobsToDependOn", attributes);				 
+				 jobid = RESTTools.getUrlAttribute("jobid", attributes, queryOptions);
+				 communityIds = RESTTools.getUrlAttribute("communityIds", attributes, queryOptions);
+				 freqSched = RESTTools.getUrlAttribute("frequencyToRun", attributes, queryOptions);
+				 nextRunTime = RESTTools.getUrlAttribute("timeToRun", attributes, queryOptions);
+				 jarURL = RESTTools.getUrlAttribute("jarURL", attributes, queryOptions);
+				 mapperClass = RESTTools.getUrlAttribute("mapperClass", attributes, queryOptions);
+				 reducerClass = RESTTools.getUrlAttribute("reducerClass", attributes, queryOptions);
+				 combinerClass = RESTTools.getUrlAttribute("combinerClass", attributes, queryOptions);
+				 query = RESTTools.getUrlAttribute("query", attributes, queryOptions);
+				 title = RESTTools.getUrlAttribute("jobtitle", attributes, queryOptions);
+				 desc = RESTTools.getUrlAttribute("jobdesc", attributes, queryOptions);
+				 inputColl = RESTTools.getUrlAttribute("inputcollection", attributes, queryOptions);
+				 outputKey = RESTTools.getUrlAttribute("outputKey", attributes, queryOptions);
+				 outputValue = RESTTools.getUrlAttribute("outputValue", attributes, queryOptions);
+				 appendResults = RESTTools.getUrlAttribute("appendResults", attributes, queryOptions);
+				 ageOutInDays = RESTTools.getUrlAttribute("ageOutInDays", attributes, queryOptions);
+				 jobsToDependOn = RESTTools.getUrlAttribute("jobsToDependOn", attributes, queryOptions);				 
 			 }
 			 else if ( urlStr.contains("/custom/mapreduce/removejob") || urlStr.contains("/custom/savedquery/removejob"))
 			 {
-				 jobid = RESTTools.decodeRESTParam("jobid", attributes);
+				 jobid = RESTTools.getUrlAttribute("jobid", attributes, queryOptions);
 				 action = "removejob";
 			 }
 			 else if (urlStr.contains("/knowledge/mapreduce/getjobs") || urlStr.contains("/custom/mapreduce/getjobs") || urlStr.contains("/custom/savedquery/getjobs"))
 			 {
-				 jobid = RESTTools.decodeRESTParam("jobid", attributes);				 
+				 jobid = RESTTools.getUrlAttribute("jobid", attributes, queryOptions);				 
 				 action = "getjobs";
 			 }
 		 }		 
@@ -333,7 +335,7 @@ public class CustomInterface extends ServerResource
 				 }
 				 else if ( action.equals("getjobs"))
 				 {
-					 rp = this.customhandler.getJobOrJobs(cookieLookup, jobid);
+					 rp = this.customhandler.getJobOrJobs(cookieLookup, jobid, commIds);
 				 }
 				 else if ( action.equals("removejob") )
 				 {

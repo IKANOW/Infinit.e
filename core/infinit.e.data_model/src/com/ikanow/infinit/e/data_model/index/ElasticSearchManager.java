@@ -25,6 +25,7 @@ import java.util.TreeMap;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasUtils;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -172,6 +173,7 @@ public class ElasticSearchManager {
 	public boolean pingIndex() {
 		try {
 			_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+			//(in this case don't care about cluster status, only about index status - generally should have pinged cluster by this point anyway)
 		}
 		catch (Exception e) { // Index not alive...
 			return false;
@@ -182,57 +184,66 @@ public class ElasticSearchManager {
 	
 	///////////////////////////////////////////////////////////////////////////////////////
 	
+	static public boolean pingCluster() {		
+		return pingIndex(null, null);
+	}
 	static public boolean pingIndex(String indexName) {		
 		return pingIndex(indexName, null);
-	}
+	}	
 	static public boolean pingIndex(String indexName, String hostAndPort) {
-		PropertiesManager properties = new PropertiesManager();
-		if (null == hostAndPort) { // Set from properties if needed
-			hostAndPort = properties.getElasticUrl();			
-		}
-		if (null == _clusterName) { // Set from properties if needed
-			try {
-				_clusterName = properties.getElasticCluster();
-				if (null == _clusterName) {
-					_clusterName = _defaultClusterName;
+		if (null == _elasticClient) {
+			PropertiesManager properties = new PropertiesManager();
+			if (null == hostAndPort) { // Set from properties if needed
+				hostAndPort = properties.getElasticUrl();			
+			}
+			if (null == _clusterName) { // Set from properties if needed
+				try {
+					_clusterName = properties.getElasticCluster();
+					if (null == _clusterName) {
+						_clusterName = _defaultClusterName;
+					}
+				}
+				catch (Exception e) {
+					_clusterName = _defaultClusterName;				
 				}
 			}
-			catch (Exception e) {
-				_clusterName = _defaultClusterName;				
+			
+			String sHostname = null;
+			String sPort = null;
+			
+			String[] hostPort = hostAndPort.split("[:/]");
+			sHostname = hostPort[0];
+			sPort = hostPort[1];
+	
+			Builder globalSettings = ImmutableSettings.settingsBuilder();
+			Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+			
+			try {
+				@SuppressWarnings("resource")
+				TransportClient tmp = new TransportClient(snode);
+				_elasticClient = new CrossVersionClient(tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort))));
 			}
-		}
-		
-		String sHostname = null;
-		String sPort = null;
-		
-		String[] hostPort = hostAndPort.split("[:/]");
-		sHostname = hostPort[0];
-		sPort = hostPort[1];
-
-		Builder globalSettings = ImmutableSettings.settingsBuilder();
-		Settings snode = globalSettings.put("cluster.name", _clusterName).build();
-		
-		Client client = null;
-		TransportClient tmp = null;
-		try {
-			tmp = new TransportClient(snode);
-			client = tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort)));
-		
-			if (!IndexExistsUtils.exists(client.admin().indices(), indexName)) {
+			catch (Exception e) { // Index not alive...
 				return false;
 			}
-			client.admin().cluster().health(new ClusterHealthRequest(indexName).waitForYellowStatus()).actionGet();
+		}		
+		try {
+			if (null != indexName) {
+				if (!IndexExistsUtils.exists(_elasticClient.admin().indices(), indexName)) {
+					return false;
+				}
+				_elasticClient.admin().cluster().health(new ClusterHealthRequest(indexName).waitForYellowStatus()).actionGet();
+				//(in this case don't care about cluster status, only about index status - generally should have pinged cluster by this point anyway)
+			}
+			else { // Cluster - so actually only care if status != red...
+				ClusterHealthResponse chr = _elasticClient.admin().cluster().health(new ClusterHealthRequest().waitForYellowStatus()).actionGet();
+				if (ClusterHealthStatus.RED == chr.getStatus()) {
+					return false;
+				}
+			}
 		}
 		catch (Exception e) { // Index not alive...
 			return false;
-		}
-		finally {
-			if (null != client) {
-				client.close(); // (will also close tmp)
-			}
-			else if (null != tmp) {
-				tmp.close();
-			}
 		}
 		return true;
 	}
@@ -798,6 +809,7 @@ public class ElasticSearchManager {
 
 				Builder globalSettings = ImmutableSettings.settingsBuilder();
 				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+				@SuppressWarnings("resource")
 				TransportClient tmp = new TransportClient(snode);
 				_elasticClient = new CrossVersionClient(tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort))));
 			}
@@ -837,6 +849,7 @@ public class ElasticSearchManager {
 					
 					//(Wait for above operation to be completed)
 					_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+					//(in this case ignore if we're status red, that _should_ sort itself out)
 					break;
 				}
 				catch (NoNodeAvailableException e) {
@@ -871,6 +884,7 @@ public class ElasticSearchManager {
 		for (int i = 0; i < 10; i++) { // retry up to 10 times if NoNodeAvailableException found
 			try {
 				_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+				//(in this case ignore if we're status red, that _should_ sort itself out)
 				break;
 			}
 			catch (NoNodeAvailableException e) {
@@ -909,6 +923,7 @@ public class ElasticSearchManager {
 			
 			//(Wait for above operation to be completed)
 			_elasticClient.admin().cluster().health(new ClusterHealthRequest(sIndexName).waitForYellowStatus()).actionGet();
+			//(in this case ignore if we're status red, that _should_ sort itself out)
 		}
 		else if ((null != indexStatus) && (indexStatus.getNumberOfReplicas() > 1)) { // Multi shard index, just need to check there aren't too many replicas for nodes
 			
@@ -930,6 +945,7 @@ public class ElasticSearchManager {
 					
 					//(Wait for above operation to be completed)
 					_elasticClient.admin().cluster().health(new ClusterHealthRequest(sIndexName).waitForYellowStatus()).actionGet();				
+					//(in this case ignore if we're status red, that _should_ sort itself out)
 				}//TESTED
 			}
 		}
@@ -980,6 +996,7 @@ public class ElasticSearchManager {
 	
 				Builder globalSettings = ImmutableSettings.settingsBuilder();
 				Settings snode = globalSettings.put("cluster.name", _clusterName).build();
+				@SuppressWarnings("resource")
 				TransportClient tmp = new TransportClient(snode);
 				_elasticClient = new CrossVersionClient(tmp.addTransportAddress(new InetSocketTransportAddress(sHostname, Integer.parseInt(sPort))));
 			}
@@ -1022,6 +1039,7 @@ public class ElasticSearchManager {
 			
 				//(Wait for above operation to be completed)
 				_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+				//(in this case ignore if we're status red, that _should_ sort itself out)
 			}
 		}
 		catch (Exception e) {

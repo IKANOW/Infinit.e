@@ -50,10 +50,12 @@ import org.bson.types.BasicBSONList;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoConfig;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoConfigUtil;
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
+import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.io.BSONWritable;
+import com.mongodb.hadoop.util.MongoConfigUtil;
 import com.mongodb.hadoop.util.MongoTool;
 import com.mongodb.util.JSON;
 
@@ -71,6 +73,7 @@ public class HadoopPrototypingTool extends MongoTool {
 		private boolean _memoryOptimized = false;
 		private TaskInputOutputContext<?, ?, BSONWritable, BSONWritable> _context = null;
 		private ReduceContext<BSONWritable, BSONWritable, BSONWritable, BSONWritable> _reduceContext = null;
+		private boolean _isDocCollection = false; // (if so then need to transform sourceKey)
 		
 		private IkanowSecurityManager _secManager;		
 		
@@ -136,6 +139,10 @@ public class HadoopPrototypingTool extends MongoTool {
 		{	
 			Policy.setPolicy(new MinimalPolicy());
 			_secManager = new IkanowSecurityManager(context.getConfiguration().getBoolean(InfiniteMongoConfigUtil.IS_ADMIN, false));
+			
+			if (context.getConfiguration().get(MongoConfigUtil.INPUT_URI, "").contains("doc_metadata.metadata")) {
+				_isDocCollection = true;
+			}//TESTED (by hand)
 			
 			_context = context;
 			_reduceContext = reduceContext;
@@ -207,6 +214,14 @@ public class HadoopPrototypingTool extends MongoTool {
 		protected void map(Object key, BSONObject value)
 		{
 			_engine.put("_map_input_key", key.toString());
+			if (_isDocCollection) {
+				String rawSourceKey = (String) value.get(DocumentPojo.sourceKey_);
+				String modSourceKey = DocumentPojo.getSourceKey(rawSourceKey);
+				if (modSourceKey != rawSourceKey) { // ptr arithmetic
+					value.put(DocumentPojo.sourceKey_, modSourceKey);					
+				}
+			}//TESTED (by hand)
+			
 			String valueStr = value.toString(); // (these BSON objects are actually DBObjects, hence have a sensible toString())
 			_engine.put("_map_input_value", valueStr);
 			try {

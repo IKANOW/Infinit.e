@@ -21,6 +21,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -38,6 +39,7 @@ import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisC
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
+import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
 import com.mongodb.BasicDBObject;
 
@@ -64,6 +66,13 @@ public class FeedHarvester_searchEngineSubsystem {
 		if ((null == feedConfig) || (null == searchConfig)) {
 			return;
 		}
+		String savedTextExtractor = src.useTextExtractor();
+		String savedFeatureExtractor = src.useExtractor();
+		LinkedHashMap<String, String> savedExtractorOptions = src.getExtractorOptions();
+		if ((null != searchConfig.getAuthExtractor()) && searchConfig.getAuthExtractor().equals("none")) {
+			searchConfig.setAuthExtractor(null);
+		}
+		LinkedHashMap<String, Object[]> authenticationMeta = new LinkedHashMap<String, Object[]>();
 
 		// Now allowed to stop paginating on duplicate in success_iteration/error cases
 		if ((null == src.getHarvestStatus()) || (HarvestEnum.success != src.getHarvestStatus().getHarvest_status())) {
@@ -266,6 +275,43 @@ public class FeedHarvester_searchEngineSubsystem {
 					boolean bMoreDocs = (nPage < nMaxPages - 1);
 					Object[] searchResults = null;
 					try {
+						if (null != searchConfig.getAuthExtractor()) {
+							src.setUseTextExtractor(searchConfig.getAuthExtractor());
+							src.setExtractorOptions(searchConfig.getAuthExtractorOptions());
+							
+							LinkedHashMap<String, Object[]> savedAuthMeta = searchDoc.getMetadata();
+							try {
+								searchDoc.setMetadata(authenticationMeta);
+								HarvestController hc = (HarvestController)context;
+								ArrayList<DocumentPojo> docWrapper = new ArrayList<DocumentPojo>(1);
+								searchDoc.setTempSource(src);
+								docWrapper.add(searchDoc);
+								hc.extractTextAndEntities(docWrapper, src, false, true);
+								authenticationMeta = searchDoc.getMetadata();
+								
+								if (null != authenticationMeta) {
+									if (null == feedConfig.getHttpFields()) {
+										feedConfig.setHttpFields(new LinkedHashMap<String, String>());
+									}
+									for (Map.Entry<String, Object[]> kv: authenticationMeta.entrySet()) {
+										if (1 == kv.getValue().length) {
+											if (kv.getValue()[0] instanceof String) {
+												feedConfig.getHttpFields().put(kv.getKey(), kv.getValue()[0].toString());
+											}
+										}
+									}
+								}
+							}
+							catch (Throwable t) {
+								//(do nothing)
+							}
+							finally {
+								searchDoc.setMetadata(savedAuthMeta);
+								
+								src.setUseTextExtractor(savedTextExtractor); // (will be null in pipeline cases - can cause odd results in non-pipeline cases, but is consistent with older behavior, which seems safest)
+								src.setExtractorOptions(savedExtractorOptions);
+							}
+						}//TESTED (if applying extractor options)
 						dummyUAH.executeHarvest(context, src, searchDoc, false, bMoreDocs);
 							// (the leading false means that we never sleep *before* the query, only after)
 						searchResults = searchDoc.getMetaData().get("searchEngineSubsystem");
@@ -423,6 +469,10 @@ public class FeedHarvester_searchEngineSubsystem {
 				feedConfig.setHttpFields(savedHttpFields);
 				feedConfig.setWaitTimeOverride_ms(savedWaitTimeOverride_ms);
 				feedConfig.setProxyOverride(savedProxyOverride);
+
+				src.setUseTextExtractor(savedTextExtractor);
+				src.setUseExtractor(savedFeatureExtractor);
+				src.setExtractorOptions(savedExtractorOptions);				
 			}			
 			if (null == itUrls) {
 				break;		

@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 -->
 
+<%@page import="java.util.regex.Matcher"%>
+<%@page import="java.util.regex.Pattern"%>
 <%@ page import="java.io.*" %>
 <%@ page import="java.util.*" %>
 <%@ page import="com.google.common.collect.TreeMultimap" %>
@@ -58,7 +60,9 @@ limitations under the License.
 <%!
 	// !----------  ----------!
 	String API_ROOT = null;
-		
+	String LOGO_URL = null;
+	boolean showIkanowLogo = true;
+	Pattern showLogoPattern = Pattern.compile("[?#&]nopowered(?:[#&]|$)");
 	// !----------  ----------!
 	String messageToDisplay = "";
 	
@@ -94,6 +98,8 @@ limitations under the License.
 			engine.eval(appConstantFile);
 			engine.eval("output = getEndPointUrl();");
 			API_ROOT = (String) engine.get("output");
+			engine.eval("output2 = getLogoUrl();");
+			LOGO_URL = (String) engine.get("output2");
 		}
 		catch (Exception e)
 		{
@@ -104,8 +110,20 @@ limitations under the License.
 			API_ROOT = "http://localhost:8080/api/";
 			//API_ROOT = "http://localhost:8888/api/";
 			//API_ROOT = "http://localhost:8184/";
-		}		
+		}	
+		if ( null == LOGO_URL || LOGO_URL.length() == 0)
+		{
+			LOGO_URL = "image/infinite_logo.png";
+		}
+		else
+		{
+			// New logic: if logo contains pattern "[?#&]nopowered([#&]|$)" then don't display logo			
+			Matcher matcher = showLogoPattern.matcher(LOGO_URL);
+			showIkanowLogo = !(matcher.find());
+		}
+		
 	}
+
 
 	boolean isLoggedIn = false;
 	messageToDisplay = "";
@@ -1195,7 +1213,18 @@ limitations under the License.
 	}
 
 	
+	public String getLogoUrl()
+	{
+		return LOGO_URL;
+	}
 	
+	public String showPoweredByIkanowLogo()
+	{
+		if ( !showIkanowLogo )
+			return "display:none";
+		else
+			return "";		
+	}
 	
 	
 	// !---------- Misc. Shared Strings ----------!

@@ -49,9 +49,22 @@ public class CustomStatusManager {
 	 * @param cmr
 	 */
 	public void setJobComplete(CustomMapReduceJobPojo cmr, boolean isComplete, boolean isError, float mapProgress, float reduceProgress, String errorMessage) 
-	{		
-		// (Note, inc_ and unset_ are added in one place each, so can't use them without ensuring you combine existing uses)  
+	{	
+		// First off, if complete then run custom internal engine finish routines:
+		if ((null != cmr.mapper) && !cmr.mapper.isEmpty() && !cmr.mapper.equalsIgnoreCase("none")) {
+			StringBuffer postTaskActivityErrors = new StringBuffer();
+			int errLen = 0;
+			if (null != errorMessage) {
+				postTaskActivityErrors = new StringBuffer(errorMessage);
+				errLen = postTaskActivityErrors.length();
+			}
+			InfiniteHadoopUtils.handlePostTaskActivities(cmr, isError, postTaskActivityErrors);
+			if (postTaskActivityErrors.length() > errLen) {
+				errorMessage = postTaskActivityErrors.toString();
+			}
+		}//TESTED
 		
+		// (Note, inc_ and unset_ are added in one place each, so can't use them without ensuring you combine existing uses)  
 		BasicDBObject updates = new BasicDBObject();
 		BasicDBObject update = new BasicDBObject();
 		try
@@ -67,16 +80,9 @@ public class CustomStatusManager {
 				updates.append(CustomMapReduceJobPojo.jobidN_,0);
 				try 
 				{
-					long nextRunTime = CustomScheduleManager.getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime, cmr.timesRan+1);
 					//if next run time reschedules to run before now, keep rescheduling until its later
 					//the server could have been turned off for days and would try to rerun all jobs once a day
-					while ( nextRunTime < new Date().getTime() )
-					{
-						Date firstSchedule = new Date(nextRunTime);
-						cmr.firstSchedule = firstSchedule;
-						updates.append(CustomMapReduceJobPojo.firstSchedule_, firstSchedule);
-						nextRunTime = CustomScheduleManager.getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime, cmr.timesRan+1);
-					}
+					long nextRunTime = CustomScheduleManager.getNextRunTime(cmr.scheduleFreq, cmr.firstSchedule, cmr.nextRunTime);
 					updates.append(CustomMapReduceJobPojo.nextRunTime_,nextRunTime);
 				}
 				catch (Exception e) {} // just carry on, we'll live...

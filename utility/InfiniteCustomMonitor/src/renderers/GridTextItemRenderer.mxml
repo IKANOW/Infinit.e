@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:GridItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	minHeight="41"
+	width="100%"
+	rollOver="rollOverHandler()"
+	toolTipShown="griditemrendererToolTipCreateHandler(event)"
+	mouseChildren="true">
+
+	<fx:Script>
+		<![CDATA[
+			import flash.utils.setTimeout;
+			import mx.controls.ToolTip;
+			import mx.core.FlexGlobals;
+			import mx.core.IToolTip;
+			import mx.core.IUIComponent;
+			import mx.core.UIComponent;
+			import mx.events.ToolTipEvent;
+			import mx.managers.ToolTipManager;
+			import util.ISelectable;
+			import util.SourceMonitorUtility;
+			import views.InfDataGrid;
+			
+			public var columnData:Object;
+			
+			[Bindable]
+			protected var displayData:String;
+			[Bindable]
+			protected var displayData_toolTip:String;
+			
+			private var errorMessageToolTip:IToolTip;
+			
+			override public function prepare( hasBeenRecycled:Boolean ):void
+			{
+				if ( !data )
+					return;
+				
+				displayData = data[ column.dataField ];
+				displayData_toolTip = null;
+				
+				if ( column.dataField == "errorMessage_trunc" )
+				{
+					displayData = data.errorMessage_trunc;
+					displayData_toolTip = data.errorMessage;
+				}
+				if (null == displayData_toolTip) 
+					displayData_toolTip = displayData;
+				
+				columnData = data;
+				
+				// change the background if the item is selected
+				if ( data && data is ISelectable && ISelectable( data ).selected )
+					backgroundContainer.alpha = 1;
+				else
+					backgroundContainer.alpha = 0;
+			}
+			
+			protected function griditemrendererToolTipCreateHandler( event:ToolTipEvent ):void
+			{
+				if ( column.dataField == "errorMessage_trunc" )
+				{
+					errorMessageToolTip = ToolTipManager.currentToolTip;
+					
+					errorMessageToolTip.text = displayData_toolTip;
+				}
+			}
+			
+			protected function rollOverHandler():void
+			{
+				this.toolTip = "";
+				
+				if ( labelDisplay.isTruncated || (displayData_toolTip != displayData) )
+				{
+					setTimeout( setTooltip, 500 );
+				}
+			}
+			
+			protected function setTooltip():void
+			{
+				this.toolTip = displayData_toolTip;
+			}
+		]]>
+	</fx:Script>
+
+	<views:GradientContainer id="backgroundContainer"
+		width="100%"
+		height="100%"
+		styleName="dataGridSelection"
+		alpha="0" />
+
+	<s:Label id="labelDisplay"
+		styleName="greyTextLarge"
+		width="100%"
+		text="{ displayData }"
+		paddingLeft="15"
+		paddingRight="8"
+		paddingTop="2"
+		verticalCenter="1"
+		maxDisplayedLines="1" />
+
+</s:GridItemRenderer>

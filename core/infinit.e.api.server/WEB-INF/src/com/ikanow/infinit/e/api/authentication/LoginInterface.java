@@ -87,13 +87,13 @@ public class LoginInterface extends ServerResource
 			action = "login";
 			//Allow users to use login/user/pass or login/?username=bob&password=12345
 			if ( parameters.getUsername() == null ) {
-				user = RESTTools.decodeRESTParam("user",attributes);
+				user = RESTTools.getUrlAttribute("user", attributes, queryOptions);
 			}
 			else {
 				user = parameters.getUsername();
 			}
 			if ( parameters.getPassword() == null ) {
-				pass = RESTTools.decodeRESTParam("pass",attributes);
+				pass = RESTTools.getUrlAttribute("pass", attributes, queryOptions);
 			}
 			else {
 				pass = parameters.getPassword();
@@ -168,20 +168,24 @@ public class LoginInterface extends ServerResource
 			}
 			else { // Check if the index instance is running
 				// (this will also update the node replication for local-only indexes - handy side effect!)
-				boolean bAllGood = true;
-				ElasticSearchManager esm = null;
-				esm = ElasticSearchManager.getIndex("association_index");
-				bAllGood &= esm.pingIndex();
-				esm = ElasticSearchManager.getIndex("entity_index");
-				bAllGood &= esm.pingIndex();
-
-				bAllGood &= (DbManager.getSocial().getCommunity().count() > 0);
-				// (also test connection to the DB)
-
+				boolean bAllGood = ElasticSearchManager.pingCluster();
+				if (bAllGood) {
+					ElasticSearchManager esm = null;
+					esm = ElasticSearchManager.getIndex("association_index");
+					bAllGood &= esm.pingIndex();
+					esm = ElasticSearchManager.getIndex("entity_index");
+					bAllGood &= esm.pingIndex();
+				}				
 				if (!bAllGood) 
 				{
 					throw new RuntimeException("Index not running");
 				}
+				bAllGood &= (DbManager.getSocial().getCommunity().count() > 0);
+				// (also test connection to the DB)
+				if (!bAllGood) 
+				{
+					throw new RuntimeException("Database not running");
+				}				
 			}//TESTED
 			//If a redirect is supplied, send them there after logging in if successful
 			if ( parameters.getReturnURL() != null )
@@ -232,7 +236,7 @@ public class LoginInterface extends ServerResource
 			Series<CookieSetting> cooks = response.getCookieSettings();				 
 			cooks.add(createSessionCookie(null, false, response.getServerInfo().getPort()));
 			response.setCookieSettings(cooks);
-		}		 
+		}	
 	}
 
 	private CookieSetting createSessionCookie(ObjectId user, boolean bSet, int nClientPort)
@@ -357,7 +361,7 @@ public class LoginInterface extends ServerResource
 			else {
 				rp.setResponse(new ResponseObject("Logout", false, "Not logged in."));
 			}
-		}
+		}		
 		else if (this.mustComeFromAuthority) 
 		{			 
 			boolean bCanProceed = RESTTools.mustComeFromAuthority(new PropertiesManager(), ipAddress, cookie, admuser, admpass);
@@ -400,5 +404,5 @@ public class LoginInterface extends ServerResource
 			}
 		}//TOTEST (TODO-2194)
 		return new StringRepresentation(rp.toApi(), MediaType.APPLICATION_JSON);
-	}		
+	}
 }

@@ -122,13 +122,13 @@ public class InfiniteFile {
 	
 	public InfiniteFile[] listFiles() throws IOException {
 		try {
-			return listFiles(null);
+			return listFiles(null, Integer.MAX_VALUE);
 		}
 		catch (SmbException e) {
 			throw new IOException(e.getMessage(), e);
 		}
 	}
-	public InfiniteFile[] listFiles(Date optionalFilterDate) throws IOException {
+	public InfiniteFile[] listFiles(Date optionalFilterDate, int maxFiles) throws IOException {
 		// (filterDate does nothing for file types)
 		
 		try {

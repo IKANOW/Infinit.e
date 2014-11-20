@@ -48,13 +48,13 @@ import com.ikanow.infinit.e.data_model.api.config.SourcePojoSubstitutionApiMap;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.DocumentPojoApiMap;
 import com.ikanow.infinit.e.data_model.api.knowledge.StatisticsPojo;
+import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFederatedQueryConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
-import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityApprovePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
@@ -62,8 +62,6 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
-import com.ikanow.infinit.e.processing.generic.aggregation.AggregationManager;
-import com.ikanow.infinit.e.processing.generic.store_and_index.StoreAndIndexManager;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
@@ -74,7 +72,7 @@ import com.mongodb.DBObject;
  * or update of sources within the system
  * @author cmorgan
  */
-public class SourceHandler 
+public class SourceHandler
 {
 	private static final Logger logger = Logger.getLogger(SourceHandler.class);
 	
@@ -328,6 +326,11 @@ public class SourceHandler
 				}
 				
 			}//TESTED
+
+			// (Just make sure tags are always set)
+			if (null == source.getTags()) {
+				source.setTags(new HashSet<String>());
+			}
 			
 			///////////////////////////////////////////////////////////////////////
 			// If source._id == null this should be a new source
@@ -461,6 +464,12 @@ public class SourceHandler
 						rp.setResponse(new ResponseObject("Source", false, "It is not currently possible to change the community of a published source. You must duplicate/scrub the source and re-publish it as a new source (and potentially suspend/delete this one)"));
 						return rp;
 					}//TOTEST
+					
+					// Another special case: don't allow sources to change extract type...
+					if (!oldSource.getExtractType().equals(source.getExtractType())) {
+						rp.setResponse(new ResponseObject("Source", false, "You cannot change extract types in sources, was: " + oldSource.getExtractType()));
+						return rp;						
+					}//TESTED: working and not working
 					
 					//isOwnerOrModerator
 					
@@ -618,6 +627,11 @@ public class SourceHandler
 	public ResponsePojo deleteSource(String sourceIdStr, String communityIdStr, String personIdStr, boolean bDocsOnly) {
 		ResponsePojo rp = new ResponsePojo();	
 		try {
+			if (!ElasticSearchManager.pingCluster()) {
+				rp.setResponse(new ResponseObject("Delete Source", false, "Index not running."));			
+				return rp;
+			}//TESTED (by hand)
+			
 			communityIdStr = allowCommunityRegex(personIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
 			ObjectId communityId = new ObjectId(communityIdStr);
@@ -651,6 +665,7 @@ public class SourceHandler
 			SourcePojo source = SourcePojo.fromDb(srcDbo, SourcePojo.class);
 			
 			//double check this source isn't running INF-2195
+			long nDocsDeleted = 0;
 			if ( null != source.getHarvestStatus() )
 			{
 				//a source is in progress if its status is in progress or
@@ -658,19 +673,17 @@ public class SourceHandler
 				if ( (source.getHarvestStatus().getHarvest_status() == HarvestEnum.in_progress ) || 
 					(null != source.getDistributionFactor() && source.getDistributionFactor() != source.getHarvestStatus().getDistributionTokensFree() ) )
 				{
-					rp.setResponse(new ResponseObject("Delete Source", false, "Source was still in progress, turned off"));	
-					return rp;
+					if (!bDocsOnly) { // (otherwise we'll allow it, shouldn't cause _too_ many probs)
+						rp.setResponse(new ResponseObject("Delete Source", false, "Source is still in progress, ignored - suspend the source and then try again once complete"));	
+						return rp;
+					}//TESTED - delete docs works, delete source fails
 				}
-			}
+				if (null != source.getHarvestStatus().getDoccount()) {
+					nDocsDeleted = source.getHarvestStatus().getDoccount();
+				}//TESTED
+			}			
 			
-			
-			long nDocsDeleted = 0;
 			if (null != source.getKey()) { // or may delete everything!
-				StoreAndIndexManager dataStore = new StoreAndIndexManager();
-				nDocsDeleted = dataStore.removeFromDatastoreAndIndex_bySourceKey(source.getKey(), null, false, communityId.toString());
-				
-				DbManager.getDocument().getCounts().update(new BasicDBObject(DocCountPojo._id_, new ObjectId(communityIdStr)), 
-						new BasicDBObject(DbManager.inc_, new BasicDBObject(DocCountPojo.doccount_, -nDocsDeleted)));
 				
 				if (bDocsOnly) { // Update the source harvest status (easy: no documents left!)
 					try {
@@ -700,14 +713,14 @@ public class SourceHandler
 					}//TESTED (by hand)
 					DbManager.getIngest().getLogHarvesterQ().save(logStashMessage);
 					// (the rest of this is async, so we're done here)
+				}//TESTED	
+				else { // Not logstash
+					// Insert delete message on distributed Q
+					SourcePojo sourceDeletionMessage = new SourcePojo();
+					sourceDeletionMessage.setKey(source.getKey());
+					sourceDeletionMessage.setCommunityIds(new HashSet<ObjectId>((Collection<ObjectId>) Arrays.asList(communityId)));
+					DbManager.getIngest().getSourceDeletionQ().save(sourceDeletionMessage.toDb());														
 				}//TESTED
-				
-				// Do all this last:
-				// (Not so critical if we time out here, the next harvest cycle should finish it; though would like to be able to offload this
-				//  also if we are doing it from the API, then need a different getUUID so we don't collide with our own harvester...) 
-				AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
-				dataStore.removeSoftDeletedDocuments();
-				AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());				
 			}	
 			else if (!bDocsOnly) { // (null source key, just remove the source)
 				DbManager.getIngest().getSource().remove(queryDbo);				
@@ -1165,6 +1178,9 @@ public class SourceHandler
 					rp.setResponse(new ResponseObject("Test Source",false,"Error, source contains no URL to harvest"));						
 					return rp;								
 				}
+			}
+			if (null == source.getTags()) {
+				source.setTags(new HashSet<String>());
 			}
 			
 			// This is the only field that you don't normally need to specify in save but will cause 
@@ -1760,6 +1776,8 @@ public class SourceHandler
 					{
 						update.put(SourcePojo.searchCycle_secs_, null);
 					}
+					// If has harvest bad source then remove that also
+					update.put(SourcePojo.harvestBadSource_, false);
 				}
 				
 				//save the source

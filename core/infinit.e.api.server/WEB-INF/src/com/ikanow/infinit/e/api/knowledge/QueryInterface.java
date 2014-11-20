@@ -91,24 +91,24 @@ public class QueryInterface extends ServerResource
 		// Some basic housekeeping
 		 _cookie = request.getCookies().getFirstValue("infinitecookie",true);		 
 		 _ipAddress =  request.getClientInfo().getAddress();
-
+		 Map<String,Object> attributes = request.getAttributes();
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
+		 
 		 //Optional query object (else is a POST)
 		 if (Method.POST == request.getMethod()) 
 		 {
 			 // (Parameters a bit different in POSTs)
 			 
-				 Map<String,Object> attributes = request.getAttributes();
-				 _communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
+				 
+				 _communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
 			 
 			 // This is handled elsewhere, in acceptRepresentation, have faith.....
 		 }
 		 else 
 		 {
 			 // If we're in here, then we're in a query call, we don't support any others...
-			 Map<String,Object> attributes = request.getAttributes();
-			 _communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
+			 _communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
 			 
-			 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 			 _queryJson = queryOptions.get("json");
 			 if (null == _queryJson) {
 				 // Either a POST (see below) or the parameters are scattered across many URL parameters

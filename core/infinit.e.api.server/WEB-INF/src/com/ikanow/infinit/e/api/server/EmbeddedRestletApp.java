@@ -29,6 +29,7 @@ import org.restlet.routing.Router;
 import org.restlet.routing.Template;
 
 import com.ikanow.infinit.e.api.authentication.LoginInterface;
+import com.ikanow.infinit.e.api.config.source.SourceDeletionHandlerBackgroundThread;
 import com.ikanow.infinit.e.api.config.source.SourceInterface;
 import com.ikanow.infinit.e.api.custom.mapreduce.CustomInterface;
 import com.ikanow.infinit.e.api.gui.UIInterface;
@@ -117,7 +118,6 @@ public class EmbeddedRestletApp extends Application
          ****************************************************/
         
 // AUTHENTICATION        
-        
         attach(router, "/auth/login",LoginInterface.class);
         attach(router, "/auth/login/{user}/{pass}", LoginInterface.class); 
         attach(router, "/auth/login/admin/{user}/{pass}",LoginInterface.class);
@@ -396,5 +396,9 @@ public class EmbeddedRestletApp extends Application
 		// Query handler background thread (for caching)
 		QueryHandlerBackgroundThread queryHandlerPoll = new QueryHandlerBackgroundThread(); 
 		queryHandlerPoll.startThread();
+		
+		// Source deletion handler
+		SourceDeletionHandlerBackgroundThread sourceDeletionPoll = new SourceDeletionHandlerBackgroundThread();
+		sourceDeletionPoll.startThread();
 	}
 }  

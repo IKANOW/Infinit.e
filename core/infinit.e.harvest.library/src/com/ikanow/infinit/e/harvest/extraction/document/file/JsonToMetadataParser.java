@@ -127,6 +127,9 @@ public class JsonToMetadataParser {
 				else if ((JsonToken.END_DOCUMENT == tok) || (JsonToken.END_ARRAY == tok) || (JsonToken.END_OBJECT == tok))  {
 					return docList;
 				}
+				else { // No object
+					throw new RuntimeException("");
+				}
 			} // (end loop forever - exception out)
 		}
 		catch (Exception e) {} // This is our EOF

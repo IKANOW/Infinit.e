@@ -1,0 +1,403 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+-->
+<s:Application xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:local="*"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	creationComplete="creationCompleteHandler(event)">
+	<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		@namespace local "*";
+		@namespace views "views.*";
+		
+		/* views|InfSelectableDataGrid
+		{
+			vertical-grid-lines: false;
+			alternating-item-colors: #FFFFFF, #FFFFFF;
+		} */
+		
+	</fx:Style>
+	<fx:Style source="assets/css/Common.css" />
+	<fx:Style source="assets/css/infiniteStyles.css" />
+	<fx:Script>
+		<![CDATA[
+			import com.adobe.serialization.json.JSONDecoder;
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.events.FlexEvent;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			import spark.collections.SortField;
+			import events.CommunityEvent;
+			import objects.Community;
+			import objects.User;
+			import util.CollectionUtil;
+			import util.Constants;
+			import util.ObjectTranslatorUtil;
+			
+			private static var ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
+			
+			private var userCommunities:ArrayCollection = new ArrayCollection();
+			
+			private var communities:ArrayCollection = new ArrayCollection();
+			
+			private var count:int = 0;
+			
+			private var currentUser:User;
+			
+			private var selectedCommunities:ArrayCollection;
+			
+			protected function communityService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to get community object" );
+			}
+			
+			protected function communityService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				communities.addAll( new ArrayCollection( ObjectTranslatorUtil.translateArrayObjects( data.data, Community ) ) );
+				// sort the communities
+				//CollectionUtil.applySort( communities, [ new SortField( Constants.NAME_PROPERTY, false ) ] );
+				//communities.refresh();
+				
+				//communities.addAllAt(userCommunities, 0);
+				
+				initSelectedCommunitiesFromCurrentUser();
+				processCommunities();
+				
+				if ( selectedCommunities )
+				{
+					sourceStatusView.loadSelectedCommunityData( selectedCommunities );
+					sourceStatusView.clearSources();
+					sourceStatusView.loadSourceData( selectedCommunities );
+				}
+				else
+					sourceStatusView.loadSourceData( currentUser.communities );
+				sourceStatusView.loadCommunityData( communities );
+			}
+			
+			protected function creationCompleteHandler( event:FlexEvent ):void
+			{
+				sourceStatusView.addEventListener( CommunityEvent.COMMUNITY_JOINED, handleCommunityJoinedEvent );
+				
+				loggedInService.url = ENDPOINT_URL + "auth/keepalive";
+				personService.url = ENDPOINT_URL + "social/person/get/";
+				communityService.url = ENDPOINT_URL + "social/community/getpublic/?action=Community Info";
+				
+				loggedInService.send();
+			}
+			
+			/**
+			 * function to handle when a user has joined a
+			 * community
+			 *
+			 * @param event The CommunityEvent received
+			 */
+			protected function handleCommunityJoinedEvent( event:CommunityEvent ):void
+			{
+				var selectedCommunity:Community = event.community;
+				
+				selectedCommunity.isUserMember = true;
+				selectedCommunity.sortOrder = 0;
+				currentUser.communities.addItem( selectedCommunity );
+				communities.refresh();
+				processCommunities();
+				
+				sourceStatusView.loadSourceData( currentUser.communities );
+			}
+			
+			/**
+			 * Creates the initial collection of selected communities from the current user
+			 */
+			protected function initSelectedCommunitiesFromCurrentUser():void
+			{
+				if ( currentUser && currentUser.communities )
+				{
+					var selectedCommunitiesNew:ArrayCollection = new ArrayCollection();
+					
+					for each ( var community:Community in currentUser.communities )
+					{
+						var newCommunity:Community = new Community();
+						newCommunity._id = community._id;
+						newCommunity.name = community.name;
+						selectedCommunitiesNew.addItem( newCommunity );
+					}
+					
+					selectedCommunities = selectedCommunitiesNew;
+				}
+			}
+			
+			/**
+			 * Determines if a community was used in the last query
+			 * @param community
+			 * @return Boolean
+			 */
+			protected function isCommunitySelected( community:Community ):Boolean
+			{
+				// if the community is found in the selectedCommunities, return true
+				if ( selectedCommunities )
+				{
+					var found:Boolean;
+					
+					for each ( var selectedCommunity:Community in selectedCommunities )
+					{
+						if ( selectedCommunity._id == community._id )
+						{
+							selectedCommunity.name = community.name;
+							return true;
+						}
+					}
+				}
+				
+				return false;
+			}
+			
+			/**
+			 * Determines if a user community is a public community
+			 * @param community
+			 * @return Boolean
+			 */
+			protected function isPublicCommunity( userCommunity:Community ):Boolean
+			{
+				// if the community is found in the public communities, return true
+				if ( currentUser && currentUser.communities )
+				{
+					for each ( var community:Community in communities )
+					{
+						if ( userCommunity._id == community._id )
+							return true;
+					}
+				}
+				
+				return false;
+			}
+			
+			/**
+			 * Determines if the current user is a member of a community
+			 * @param community
+			 * @return Boolean
+			 */
+			protected function isUserCommunity( community:Community ):Boolean
+			{
+				// if the community is found in the user's communities, return true
+				if ( currentUser && currentUser.communities )
+				{
+					for each ( var userCommunity:Community in currentUser.communities )
+					{
+						if ( userCommunity._id == community._id )
+						{
+							return true;
+						}
+					}
+				}
+				
+				return false;
+			}
+			
+			protected function loggedInService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to ensure login using api address " + ENDPOINT_URL );
+			}
+			
+			protected function loggedInService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				
+				if ( data.response.success == true )
+				{
+					personService.send();
+				}
+				else
+				{
+					Alert.show( "You must be logged in before accessing this monitoring page" );
+				}
+			}
+			
+			protected function peopleCommunityService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to get people community object" );
+			}
+			
+			protected function peopleCommunityService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				// describeType describes a class and all of its properties
+				var classInfo:XML = describeType( Community );
+				// get the class name, in order to instantiate more classes
+				var className:String = classInfo.@name;
+				// get a reference to the class to create new classes 
+				var classRef:Class = Class( getDefinitionByName( className ) );
+				var tempObj:Object = new classRef;
+				var comm:Community = new Community();
+				//var info:Community = new Community(ObjectTranslatorUtil.translateObject(data.data, tempObj, classInfo, false));
+				
+				/* if(info != null)
+				{
+					comm._id = info._id;
+					comm.created = info.created;
+					comm.modified = info.modified;
+					comm.name = info.name;
+					comm.description = info.description;
+					comm.isSystemCommunity = info.isSystemCommunity;
+					comm.communityAttributes = info.communityAttributes;
+					comm.userAttributes = info.userAttributes;
+					comm.communityStatus = info.communityStatus;
+					comm.numberOfMembers = info.numberOfMembers;
+				}
+				
+				userCommunities.addItem(comm); */
+				userCommunities.addItem( ObjectTranslatorUtil.translateObject( data.data, tempObj, classInfo, false ) );
+				
+				count--;
+				
+				if ( count == 0 )
+				{
+					// set and sort the user communities
+					CollectionUtil.applySort( userCommunities, [ new SortField( Constants.NAME_PROPERTY, true ) ] );
+					userCommunities.refresh();
+					communityService.send();
+				}
+			}
+			
+			protected function personService_faultHandler( event:FaultEvent ):void
+			{
+				Alert.show( "Error: Could not contact api server to get person object" );
+			}
+			
+			protected function personService_resultHandler( event:ResultEvent ):void
+			{
+				var json:JSONDecoder = new JSONDecoder( event.result as String, true );
+				var data:Object = json.getValue();
+				var user:Array = new Array();
+				user.push( ObjectTranslatorUtil.translateObject( data.data, User ) );
+				
+				currentUser = new User();
+				currentUser._id = user[ 0 ]._id;
+				currentUser.created = user[ 0 ].created;
+				currentUser.modified = user[ 0 ].modified;
+				currentUser.accountStatus = user[ 0 ].accountStatus;
+				currentUser.email = user[ 0 ].email;
+				currentUser.firstName = user[ 0 ].firstName;
+				currentUser.lastName = user[ 0 ].lastName;
+				currentUser.displayName = user[ 0 ].displayName;
+				currentUser.phone = user[ 0 ].phone;
+				currentUser.communities = user[ 0 ].communities;
+				currentUser.WPUsedID = user[ 0 ].WPUserID;
+				
+				//var comms:ArrayCollection = new ArrayCollection( currentUser.communities );
+				//sourceStatusView.loadSourceData( currentUser.communities );
+				count = currentUser.communities.length;
+				
+				//for each(var comm:Object in currentUser.communities)
+				//{
+				//peopleCommunityService.url = ENDPOINT_URL + "social/community/get/" + comm._id;
+				//peopleCommunityService.send();
+				//}
+				communityService.send();
+			}
+			
+			/**
+			 * Updates the sort order of the communities and sets the userCommunities collection
+			 */
+			protected function processCommunities():void
+			{
+				var userCommunitiesNew:ArrayCollection = new ArrayCollection();
+				
+				if ( communities && currentUser /*&& selectedCommunities*/ )
+				{
+					// create the userCommunities collection and set properties
+					for each ( var community:Community in communities )
+					{
+						if ( isUserCommunity( community ) )
+						{
+							community.isUserMember = true;
+							community.selected = isCommunitySelected( community );
+							community.sortOrder = 0;
+							userCommunitiesNew.addItem( community );
+						}
+						else
+						{
+							community.isUserMember = false;
+							community.sortOrder = 1;
+						}
+					}
+					
+					// if the community is found in the user's communities, return true
+					if ( currentUser && currentUser.communities )
+					{
+						for each ( var userCommunity:Community in currentUser.communities )
+						{
+							if ( !isPublicCommunity( userCommunity ) )
+							{
+								userCommunity.isUserMember = true;
+								userCommunity.selected = isCommunitySelected( userCommunity );
+								userCommunity.sortOrder = 0;
+								userCommunitiesNew.addItem( userCommunity );
+								communities.addItem( userCommunity );
+							}
+						}
+					}
+					
+					// sort the communities
+					CollectionUtil.applySort( communities, [ new SortField( Constants.SORT_ORDER_PROPERTY, false, true ), new SortField( Constants.NAME_PROPERTY, false ) ] );
+					communities.refresh();
+					
+					// set and sort the user communities
+					userCommunities = userCommunitiesNew;
+					CollectionUtil.applySort( userCommunities, [ new SortField( Constants.NAME_PROPERTY, false ) ] );
+					userCommunities.refresh();
+				}
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<s:HTTPService id="loggedInService"
+			fault="loggedInService_faultHandler(event)"
+			result="loggedInService_resultHandler(event)" />
+		<s:HTTPService id="personService"
+			fault="personService_faultHandler(event)"
+			result="personService_resultHandler(event)" />
+		<s:HTTPService id="communityService"
+			fault="communityService_faultHandler(event)"
+			result="communityService_resultHandler(event)" />
+		<s:HTTPService id="peopleCommunityService"
+			fault="peopleCommunityService_faultHandler(event)"
+			result="peopleCommunityService_resultHandler(event)" />
+	</fx:Declarations>
+
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		horizontalAlign="center"
+		verticalAlign="top">
+		<views:InfLabel 
+			text="Custom Processing Status"
+			styleName="lightGrey"
+			fontSize="26"
+			paddingBottom="2"
+			paddingTop="15" />
+		<local:SourceStatusView id="sourceStatusView"
+			width="100%"
+			height="100%" />
+	</s:VGroup>
+</s:Application>

@@ -81,12 +81,7 @@ public class SynchronizationManager {
 			// that prevents you from using the compound sourceKey/_id index
 			
 			List<String> sourceKeyList = new ArrayList<String>();
-			sourceKeyList.add(sp.getKey());
-			if (sp.getCommunityIds().size() > 1) { // Special case, need to add the communities
-				for (ObjectId communityId: sp.getCommunityIds()) {
-					sourceKeyList.add(new StringBuffer(sp.getKey()).append('#').append(communityId.toString()).toString());
-				}
-			}//(end handling rare multi-community case)
+			sourceKeyList.addAll(sp.getDistributedKeys());
 			
 			try 
 			{	
@@ -286,7 +281,7 @@ public class SynchronizationManager {
 							//OBSOLETED, USE DBCACHE INSTEAD (WHERE AVAILABLE):
 							ObjectId id = new ObjectId(idStr);
 							BasicDBObject query = new BasicDBObject(DocumentPojo._id_, id);
-							query.put(DocumentPojo.sourceKey_, sp.getKey()); // (ensures uses only the right shard)
+							query.put(DocumentPojo.sourceKey_, sp.getDistributedKeyQueryTerm()); // (ensures uses only the right shard)
 							DBObject dbo = documentDb.findOne(query, queryFields);
 							found = (dbo != null);
 						}//TESTED

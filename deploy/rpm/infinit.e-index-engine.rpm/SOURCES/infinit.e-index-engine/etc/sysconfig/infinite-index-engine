@@ -23,6 +23,11 @@ export JAVA_OPTS="-Xms2048m -Xmx2048m -Xmn512m" && [[ `cat /proc/meminfo | grep 
 	JAVA_OPTS="-Xms7656m -Xmx7656m -Xmn2048m"
 #(^^^ >10GB system)
 
+#Overwrite for interface-only case, don't need as much memory...
+if [ -f /mnt/opt/elasticsearch-infinite/config/INTERFACE_ONLY ]; then
+	export JAVA_OPTS="-Xms1024m -Xmx2048m -Xmn256m"
+fi
+
 if [ -f /etc/sysconfig/infinite-index-engine-custom ]; then
 	. /etc/sysconfig/infinite-index-engine-custom
 fi

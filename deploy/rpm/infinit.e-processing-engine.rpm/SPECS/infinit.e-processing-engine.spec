@@ -86,6 +86,18 @@ Infinit.e harvesting and cleansing services
 	chkconfig infinite-px-engine on
 	# (service started in posttrans)
 
+	# Ensure we have the most up-to-date version of es compat layer (since index-engine is not normally upgraded unless es version changes)
+	if [ -d /usr/share/elasticsearch/ ]; then
+		# Check between 1.0 and 1.3
+		if ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.0"; then
+			yes | cp /mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib	
+		elif ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.3"; then
+			yes | cp /mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib	
+		fi 		
+	else
+		yes | cp /mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar /usr/share/java/elasticsearch/lib	
+	fi		
+
 %preun
 	if [ $1 -eq 0 ]; then
 #
@@ -148,8 +160,14 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/db-scripts/harvest_redistribution_script.js
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/load_custom_template_into_es.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/partially_update_doc_mapping.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/check_for_stuck_jobs.sh
 /mnt/opt/infinite-home/templates/elasticsearch-inf-template.json
 /mnt/opt/infinite-home/templates/doc_mapping_changes.json
+
+#(es compatibility)
+%attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar
+%attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar
+%attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar
 
 %dir /mnt/opt/infinite-home/lib
 %dir /mnt/opt/infinite-home/lib/extractors

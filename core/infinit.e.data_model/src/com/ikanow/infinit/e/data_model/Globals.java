@@ -61,13 +61,14 @@ public class Globals
 	
 	// Utility function - parse stack exception
 	
-	public static void populateStackTrace(StringBuffer sb, Throwable t) {
+	public static StringBuffer populateStackTrace(StringBuffer sb, Throwable t) {
 		int n = 0;
 		String lastMethodName = null;
 		String lastClassName = null;
 		String lastFileName = null;
 		StackTraceElement firstEl = null;
 		StackTraceElement lastEl = null;
+		sb.append("[").append(t.getMessage()).append("]:");
 		for (StackTraceElement el: t.getStackTrace()) {
 			if (el.getClassName().contains("com.ikanow.") && (n < 20)) {
 				if ((lastEl != null) && (lastEl != firstEl)) { // last non-ikanow element before the ikanow bit
@@ -105,6 +106,7 @@ public class Globals
 			else if (null != firstEl) {
 				lastEl = el;
 			}
-		}		
+		}	
+		return sb;
 	}//TESTED
 }

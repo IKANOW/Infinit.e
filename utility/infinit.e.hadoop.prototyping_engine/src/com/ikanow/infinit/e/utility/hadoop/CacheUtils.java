@@ -201,7 +201,6 @@ public class CacheUtils
 			
 			// 1) Check authentication
 			
-			String sourceKey = null;
 			ObjectId sourceId = null;
 			SourcePojo source = null;
 			BasicDBObject query = new BasicDBObject();
@@ -216,7 +215,7 @@ public class CacheUtils
 			}
 			catch (Exception e) {
 				// it's a job name
-				sourceKey = sourceKeyOrId;
+				String sourceKey = sourceKeyOrId;
 				query.put(SourcePojo.key_, sourceKey);
 				source = SourcePojo.fromDb(
 						MongoDbManager.getIngest().getSource().findOne(query), 
@@ -225,7 +224,6 @@ public class CacheUtils
 			if (null == source) {
 				throw new RuntimeException("Authentication failure or no matching source");
 			}
-			sourceKey = source.getKey();
 			sourceId = source.getId();
 			
 			DBCollection cacheCollection = DbManager.getDocument().getMetadata();
@@ -241,8 +239,8 @@ public class CacheUtils
 			
 			if (null == cacheElement) {				
 				cacheElement = new CustomCacheInJavascript(cacheCollection, DocumentPojo.url_);
-				cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, sourceKey));
-			}		
+				cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm()));
+			}//TESTED (by c/p from harvest equivalent - distributed and non-distributed cases)
 
 			// 3) Add object to js
 			

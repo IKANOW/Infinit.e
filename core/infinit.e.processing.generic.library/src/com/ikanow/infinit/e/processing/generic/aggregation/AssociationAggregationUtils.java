@@ -18,8 +18,11 @@ package com.ikanow.infinit.e.processing.generic.aggregation;
 import java.nio.charset.Charset;
 import java.security.MessageDigest;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
+
+
 
 
 import org.apache.commons.codec.binary.Hex;
@@ -46,6 +49,11 @@ public class AssociationAggregationUtils {
 	
 	private static boolean _diagnosticMode = false;
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
+	
+	private static boolean _incrementalMode = false;
+	public static void setIncrementalMode(boolean mode) {
+		_incrementalMode = mode;
+	}
 	
 	///////////////////////////////////////////////////////////////////////////////////////	
 	///////////////////////////////////////////////////////////////////////////////////////	
@@ -108,7 +116,17 @@ public class AssociationAggregationUtils {
 	 */
 	public static void updateEventFeatures(Map<String, Map<ObjectId, AssociationFeaturePojo>> eventFeatures)
 	{
+		// Some diagnostic counters:
+		int numCacheMisses = 0;
+		int numCacheHits = 0;
+		int numNewAssocs = 0;		
+		long entityAggregationTime = new Date().getTime();
+		
 		DBCollection col = DbManager.getFeature().getAssociation();	
+		
+		// (This fn is normally run for a single community id)
+		CommunityFeatureCaches.CommunityFeatureCache currCache = null;
+		
 		String savedSyncTime = null;
 		for (Map<ObjectId, AssociationFeaturePojo> evtCommunity: eventFeatures.values()) {
 			
@@ -120,6 +138,32 @@ public class AssociationAggregationUtils {
 					long nSavedDocCount = evtFeature.getDoccount();
 
 					ObjectId communityID = evtFeature.getCommunityId();
+					
+					if ((null == currCache) || !currCache.getCommunityId().equals(evtFeatureKV.getKey())) {
+						currCache = CommunityFeatureCaches.getCommunityFeatureCache(evtFeatureKV.getKey());							
+						if (_diagnosticMode) {
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, Opened cache for community: " + evtFeatureKV.getKey());
+						}
+					}//TESTED (by hand)					
+					
+					// Is this in our cache? If so can short cut a bunch of the DB interaction:
+					AssociationFeaturePojo cachedAssoc = currCache.getCachedAssocFeature(evtFeature);
+					if (null != cachedAssoc) {							
+						if (_incrementalMode) {
+							if (_diagnosticMode) {
+								System.out.println("AssociationAggregationUtils.updateEventFeatures, skip cached: " + cachedAssoc.toDb());									
+								//TODO (INF-2825): should be continue-ing here so can use delta more efficiently...
+							}
+						}
+						else if (_diagnosticMode) {
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, grabbed cached: " + cachedAssoc.toDb());
+						}								
+						numCacheHits++;							
+					}//TESTED (by hand)			
+					else {
+						numCacheMisses++;							
+					}
+					
 					//try to update
 					BasicDBObject query = new BasicDBObject(AssociationFeaturePojo.index_, evtFeature.getIndex());
 					query.put(AssociationFeaturePojo.communityId_, communityID);
@@ -133,27 +177,43 @@ public class AssociationAggregationUtils {
 					}
 					if (null != evtFeature.getEntity1()) 
 					{
-						BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getEntity1());
-						multiopAliasArrays.put(AssociationFeaturePojo.entity1_, multiopE);
-					}
+						if ((null == cachedAssoc) || (null == cachedAssoc.getEntity1()) || !cachedAssoc.getEntity1().containsAll(evtFeature.getEntity1())) {
+							BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getEntity1());
+							multiopAliasArrays.put(AssociationFeaturePojo.entity1_, multiopE);
+						}
+					}//TESTED (by hand)
+					
 					// Entity2 Alias:
 					if (null != evtFeature.getEntity2_index()) {
 						evtFeature.addEntity2(evtFeature.getEntity2_index());
 					}
 					if (null != evtFeature.getEntity2()) {
-						BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getEntity2());
-						multiopAliasArrays.put(AssociationFeaturePojo.entity2_, multiopE);
-					}
+						if ((null == cachedAssoc) || (null == cachedAssoc.getEntity2()) || !cachedAssoc.getEntity2().containsAll(evtFeature.getEntity2())) {
+							BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getEntity2());
+							multiopAliasArrays.put(AssociationFeaturePojo.entity2_, multiopE);
+						}
+					}//TESTED (by hand)
+					
 					// verb/verb cat alias:
 					if (null != evtFeature.getVerb_category()) {
 						evtFeature.addVerb(evtFeature.getVerb_category());
 					}
 					if (null != evtFeature.getVerb()) {
-						BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getVerb());
-						multiopAliasArrays.put(AssociationFeaturePojo.verb_, multiopE);
-					}
+						if ((null == cachedAssoc) || (null == cachedAssoc.getVerb()) || !cachedAssoc.getVerb().containsAll(evtFeature.getVerb())) {
+							BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, evtFeature.getVerb());
+							multiopAliasArrays.put(AssociationFeaturePojo.verb_, multiopE);
+						}
+					}//TESTED (by hand)
+					
+					// OK - now we can copy across the fields into the cache:
+					if (null != cachedAssoc) {
+						currCache.updateCachedAssocFeatureStatistics(cachedAssoc, evtFeature); //(evtFeature is now fully up to date)
+					}//TESTED (by hand)
+					
 					BasicDBObject updateOp = new BasicDBObject();	
-					updateOp.put(MongoDbManager.addToSet_, multiopAliasArrays);
+					if (!multiopAliasArrays.isEmpty()) {
+						updateOp.put(MongoDbManager.addToSet_, multiopAliasArrays);
+					}
 					// Document count for this event
 					BasicDBObject updateFreqDocCount = new BasicDBObject(AssociationFeaturePojo.doccount_, nSavedDocCount);
 					updateOp.put(MongoDbManager.inc_,updateFreqDocCount);
@@ -170,37 +230,52 @@ public class AssociationAggregationUtils {
 
 					DBObject dboUpdate = null;
 					if (_diagnosticMode) {
-						dboUpdate = col.findOne(query,fields);
+						if (null == cachedAssoc) {
+							dboUpdate = col.findOne(query,fields);
+						}
 					}
 					else {
-						dboUpdate = col.findAndModify(query,fields,new BasicDBObject(),false,updateOp,false,true);	
-							// (can use findAndModify because specify index, ie the shard key)
-							// (returns event before the changes above, update the feature object below)
-							// (also atomically creates the object if it doesn't exist so is "distributed-safe")
+						if (null != cachedAssoc) {
+							col.update(query, updateOp, false, false);
+						}
+						else { // Not cached - so have to grab the feature we're either getting or creating
+							dboUpdate = col.findAndModify(query,fields,new BasicDBObject(),false,updateOp,false,true);	
+								// (can use findAndModify because specify index, ie the shard key)
+								// (returns event before the changes above, update the feature object below)
+								// (also atomically creates the object if it doesn't exist so is "distributed-safe")
+						}
 					}
-					if ( ( dboUpdate != null ) && !dboUpdate.keySet().isEmpty() )
+					if ((null != cachedAssoc) || ((dboUpdate != null ) && !dboUpdate.keySet().isEmpty())) // (feature already exists)
 					{
-						AssociationFeaturePojo egp = AssociationFeaturePojo.fromDb(dboUpdate, AssociationFeaturePojo.class);
-						evtFeature.setDoccount(egp.getDoccount() + nSavedDocCount);
-						evtFeature.setDb_sync_doccount(egp.getDb_sync_doccount());
-						evtFeature.setDb_sync_time(egp.getDb_sync_time());
-						if (null != egp.getEntity1()) {
-							for (String ent: egp.getEntity1()) evtFeature.addEntity1(ent);
-						}
-						if (null != egp.getEntity2()) {	
-							for (String ent: egp.getEntity2()) evtFeature.addEntity2(ent);
-						}
-						if (null != egp.getVerb()) {
-							for (String verb: egp.getVerb()) evtFeature.addVerb(verb);
-						}							
+						AssociationFeaturePojo egp = cachedAssoc;
+						
+						if (null == egp) {
+							egp = AssociationFeaturePojo.fromDb(dboUpdate, AssociationFeaturePojo.class);
+							evtFeature.setDoccount(egp.getDoccount() + nSavedDocCount);
+							evtFeature.setDb_sync_doccount(egp.getDb_sync_doccount());
+							evtFeature.setDb_sync_time(egp.getDb_sync_time());
+							if (null != egp.getEntity1()) {
+								for (String ent: egp.getEntity1()) evtFeature.addEntity1(ent);
+							}
+							if (null != egp.getEntity2()) {	
+								for (String ent: egp.getEntity2()) evtFeature.addEntity2(ent);
+							}
+							if (null != egp.getVerb()) {
+								for (String verb: egp.getVerb()) evtFeature.addVerb(verb);
+							}							
+						}//TESTED (cached and non-cached cases)
+						// (in the cached case, evtFeature has already been updated by updateCachedAssocFeatureStatistics)
+						
 						if (_diagnosticMode) {
-							System.out.println("EventAggregationUtils.updateEventFeatures, found: " + ((BasicDBObject)egp.toDb()).toString());
-							System.out.println("EventAggregationUtils.updateEventFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, found: " + ((BasicDBObject)egp.toDb()).toString());
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
 						}
 						// (In background aggregation mode we update db_sync_prio when checking the -otherwise unused, unlike entities- document update schedule) 
 					}
 					else // (the object in memory is now an accurate representation of the database, minus some fields we'll now add)
 					{
+						numNewAssocs++;
+						
 						// Synchronization settings for the newly created object
 						evtFeature.setDb_sync_doccount(nSavedDocCount);
 						if (null == savedSyncTime) {
@@ -225,19 +300,27 @@ public class AssociationAggregationUtils {
 						baseFields.put(AssociationFeaturePojo.assoc_type_, evtFeature.getAssociation_type());
 						baseFields.put(AssociationFeaturePojo.db_sync_doccount_, evtFeature.getDb_sync_doccount());
 						baseFields.put(AssociationFeaturePojo.db_sync_time_, evtFeature.getDb_sync_time());														
+						baseFields.put(AssociationFeaturePojo.db_sync_prio_, 1000.0); // (ensures new objects are quickly index-synchronized)
 
 						if (!_diagnosticMode) {
 							// Store the object
 							col.update(query, new BasicDBObject(MongoDbManager.set_, baseFields));
 						}
 						else {
-							System.out.println("EventAggregationUtils.updateEventFeatures, not found: " + query.toString() + " / " + baseFields.toString() + "/ orig_update= " + updateOp.toString());
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, not found: " + query.toString() + " / " + baseFields.toString() + "/ orig_update= " + updateOp.toString());
 						}
-						evtFeature.setDb_sync_time(null); // (ensures that index re-sync will occur)						
 						
 						// (Note even in background aggregation mode we still perform the feature synchronization
 						//  for new entities - and it has to be right at the end because it "corrupts" the objects)
-					}
+						
+					}//(end if first time seen)
+					
+					if (null == cachedAssoc) { // First time we've seen this locally, so add to cache
+						currCache.addCachedAssocFeature(evtFeature);
+						if (_diagnosticMode) {
+							System.out.println("AssociationAggregationUtils.updateEventFeatures, added to cache: " + evtFeature.toDb());
+						}							
+					}//TESTED (by hand)									
 				}
 				catch (Exception e) {
 					// Exception, remove from feature list
@@ -250,6 +333,19 @@ public class AssociationAggregationUtils {
 			}// (end loop over all communities for the set of features sharing and index)								
 		}// (end loop over indexes) 
 
+		if ((numCacheHits > 0) || (numCacheMisses > 0)) { // ie some assocs were grabbed
+			int cacheSize = 0;
+			if (null != currCache) {
+				cacheSize = currCache.getAssocCacheSize();
+			}
+			StringBuffer logMsg = new StringBuffer() // (should append key, but don't have that...)
+									.append(" assoc_agg_time_ms=").append(new Date().getTime() - entityAggregationTime)
+									.append(" total_assocs=").append(eventFeatures.size()).append(" new_assocs=").append(numNewAssocs)
+									.append(" cache_misses=").append(numCacheMisses).append(" cache_hits=").append(numCacheHits).append(" cache_size=").append(cacheSize);
+			
+			logger.info(logMsg.toString());
+		}
+		
 	}//TESTED (by eye, reasonably significant changes, but still based on proven Beta code)
 	
 	///////////////////////////////////////////////////////////////////////////////////////	
@@ -343,7 +439,7 @@ public class AssociationAggregationUtils {
 			
 			if (_diagnosticMode) {
 				if ((null != eventFeature.getDb_sync_time()) || (null != eventFeature.getDb_sync_prio())) {
-					System.out.println("EventAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());
+					System.out.println("AssociationAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());
 				}
 				else {
 					System.out.println("(WOULD NOT RUN) EventAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());				
@@ -355,7 +451,7 @@ public class AssociationAggregationUtils {
 		}
 
 		if (_diagnosticMode) {
-			System.out.println("EventAggregationUtils.synchronizeEventFeature, synchronize: " + new StringBuffer(eventFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
+			System.out.println("AssociationAggregationUtils.synchronizeEventFeature, synchronize: " + new StringBuffer(eventFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
 					IndexManager.mapToIndex(eventFeature, new AssociationFeaturePojoIndexMap()));
 		}
 		else {

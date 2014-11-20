@@ -62,8 +62,9 @@ public class DocumentInterface extends ServerResource
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 
 		 Map<String,Object> attributes = request.getAttributes();
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 if (urlStr.contains("/document/file/get/")) {
-			 sourcekey = RESTTools.decodeRESTParam("sourcekey", attributes);
+			 sourcekey = RESTTools.getUrlAttribute("sourcekey", attributes, queryOptions);
 			 int nIndexOfRelativePath = urlStr.indexOf("/document/file/get/"); //19B 
 			 nIndexOfRelativePath += 19 + sourcekey.length() + 1; // (the +1 for the trailing /)
 			 docid = urlStr.substring(nIndexOfRelativePath);
@@ -77,12 +78,11 @@ public class DocumentInterface extends ServerResource
 		 }
 		 else if ( urlStr.contains("/knowledge/feed/") || urlStr.contains("/knowledge/doc/") || urlStr.contains("/knowledge/document/"))
 		 {	
-			 docid = RESTTools.decodeRESTParam("docid", attributes);
+			 docid = RESTTools.getUrlAttribute("docid", attributes, queryOptions);
 			 if (null == docid) {
-				 docid = RESTTools.decodeRESTParam("url", attributes);
-				 sourcekey = RESTTools.decodeRESTParam("sourcekey", attributes);
+				 docid = RESTTools.getUrlAttribute("url", attributes, queryOptions);
+				 sourcekey = RESTTools.getUrlAttribute("sourcekey", attributes, queryOptions);
 			 }
-			 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 			 String returnFullText = queryOptions.get("returnFullText");			 
 			 if ((null != returnFullText) && ((returnFullText.equalsIgnoreCase("true")) || (returnFullText.equals("1")))) 
 			 {

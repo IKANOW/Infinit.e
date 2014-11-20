@@ -98,12 +98,12 @@ public class GeoReference
 					query = getQuery(hasGeoindex, i);
 					if (null != query) {
 						result = getGeoReference(geoDb, query, nMaxReturns);
-						if (result.count() > 0) { break; }
+						if (result.hasNext()) { break; }
 					}
 				}
 			}
 			
-			if (result.count() > 0)
+			if (result.hasNext())
 			{	
 				List<GeoFeaturePojo> gpl = GeoFeaturePojo.listFromDb(result, GeoFeaturePojo.listType()); 
 				_cache.put(geoInfo, gpl);

@@ -73,6 +73,7 @@ import org.w3c.dom.NodeList;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonReader;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleTextCleanserPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.ManualTextExtractionSpecPojo;
@@ -1696,9 +1697,11 @@ public class UnstructuredAnalysisHarvester {
 		}
 		catch (Exception ex)
 		{
-			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);						
+			StringBuffer sb = new StringBuffer("JSONcache: ").append(ex.getMessage());
+			Globals.populateStackTrace(sb, ex);
+			_context.getHarvestStatus().logMessage(sb.toString(), true);
 			//(no need to log this, appears in log under source -with URL- anyway):
-			//logger.error("JSONcache: " + ex.getMessage(), ex);
+			//logger.error(sb.toString());
 		}
 	}//TESTED (legacy + imports_and_lookup_test.json)
 	

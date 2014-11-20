@@ -37,8 +37,11 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import au.com.bytecode.opencsv.CSVParser;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.DocumentSpecPojo;
@@ -150,8 +153,6 @@ public class StructuredAnalysisHarvester
 		Gson g = _gson;
 		intializeDocIfNeeded(doc, g);
 		
-		//TODO (INF-1938): allow setting of tags (here and in legacy code)
-		
 		// We'll just basically duplicate the code from executeHarvest() since it's pretty simple
 		// and it isn't very easy to pull out the logic in there (which is unnecessarily complicated for
 		// the pipeline version since you don't need to work out whether to generate the fields before or
@@ -193,6 +194,61 @@ public class StructuredAnalysisHarvester
 		}
 		//TESTED (fulltext_docMetaTest)
 
+		// Extract mediaType if applicable
+		try {
+			if (docMetadataConfig.mediaType != null) {
+				if (JavaScriptUtils.containsScript(docMetadataConfig.mediaType)) {
+					doc.setMediaType((String)getValueFromScript(docMetadataConfig.mediaType, null, null));
+				}
+				else {
+					doc.setMediaType(getFormattedTextFromField(docMetadataConfig.mediaType, null));
+				}
+			}
+		}
+		catch (Exception e) {
+			this._context.getHarvestStatus().logMessage("mediaType: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("mediaType: " + e.getMessage(), e);
+		}
+		//TESTED (basic_docMeta_type_tags_test)
+
+		// Extract tags if applicable
+		try {
+			if ((docMetadataConfig.tags != null) && !docMetadataConfig.tags.isEmpty()) {
+				String tagVals = null;
+				if (JavaScriptUtils.containsScript(docMetadataConfig.tags)) {
+					tagVals = (String)getValueFromScript(docMetadataConfig.tags, null, null);
+				}
+				else {
+					tagVals = getFormattedTextFromField(docMetadataConfig.tags, null);
+				}
+				CSVParser csv = new CSVParser();
+				String tags[] = csv.parseLine(tagVals);
+				for (String tag: tags) {
+					if (tag.equalsIgnoreCase("null")) { 
+						continue;
+					}
+					if ((null != tag) && !tag.isEmpty()) {
+						if (null == doc.getTags()) {
+							doc.setTags(new HashSet<String>());
+						}
+						if ('-' == tag.charAt(0)) {
+							doc.getTags().remove(tag.substring(1));
+						}
+						else {
+							doc.getTags().add(tag);
+						}
+					}
+				}
+			}
+		}
+		catch (Exception e) {
+			this._context.getHarvestStatus().logMessage("tags: " + e.getMessage(), true);
+			//DEBUG (don't output log messages per doc)
+			//logger.error("displayUrl: " + e.getMessage(), e);
+		}
+		//TESTED (basic_docMeta_type_tags_test)
+		
 		// Extract Description if applicable
 		try {
 			if (docMetadataConfig.description != null) {
@@ -346,9 +402,11 @@ public class StructuredAnalysisHarvester
 		}
 		catch (Exception ex)
 		{
-			_context.getHarvestStatus().logMessage("JSONcache: " + ex.getMessage(), true);
+			StringBuffer sb = new StringBuffer("JSONcache: ").append(ex.getMessage());
+			Globals.populateStackTrace(sb, ex);
+			_context.getHarvestStatus().logMessage(sb.toString(), true);
 			//(no need to log this, appears in log under source -with URL- anyway):
-			//logger.error("JSONcache: " + ex.getMessage(), ex);
+			//logger.error(sb.toString());
 		}		
 	}//TESTED (import_and_lookup_test_uahSah.json)
 	
@@ -530,6 +588,8 @@ public class StructuredAnalysisHarvester
 	private static Pattern SUBSTITUTION_PATTERN = Pattern.compile("\\$([a-zA-Z._0-9]+)|\\$\\{([^}]+)\\}");
 	private HashMap<String, GeoPojo> _geoMap = null;
 	private HashSet<String> _entityMap = null;
+	private HashSet<String> _entitiesToDeleteMap = null; // has persistence of addEntities)
+	private HashSet<String> _assocsToDeleteMap = null; // has persistence of addAssociations)
 	
 	private HarvestContext _context;
 	
@@ -1020,6 +1080,7 @@ public class StructuredAnalysisHarvester
 			entities = new ArrayList<EntityPojo>();
 		}
 		repopulateEntityCacheIfNeeded(f);
+		_entitiesToDeleteMap = null; // (do this at start and end, in case of exceptions)
 
 		// Iterate over each EntitySpecPojo and try to create an entity, or entities, from the data
 		JSONObject metadata = null;
@@ -1037,7 +1098,47 @@ public class StructuredAnalysisHarvester
 			}
 			catch (Exception e) {} // (carry on, prob just a missing field in this doc)
 		}
-		
+		boolean actuallyDeletedEnts = false;
+		if (null != entities) {
+			if (null != _entitiesToDeleteMap) { // need to delete some of these entities...
+				Iterator<EntityPojo> it = entities.iterator();
+				while (it.hasNext()) {
+					EntityPojo ent = it.next();
+					if (_entitiesToDeleteMap.contains(ent.getIndex())) {
+						actuallyDeletedEnts = true;
+						_entityMap.remove(ent.getIndex());
+						_geoMap.remove(ent.getIndex());
+						it.remove();
+					}
+				}
+			}//TESTED (assoc_entity_delete_test)
+			if (actuallyDeletedEnts && (null != f.getAssociations())) { // ugh need to check for matching associations
+				Iterator<AssociationPojo> itAssoc = f.getAssociations().iterator();
+				while (itAssoc.hasNext()) {
+					AssociationPojo assoc = itAssoc.next();
+					if ((null != assoc.getEntity1_index()) && _entitiesToDeleteMap.contains(assoc.getEntity1_index())) {
+						itAssoc.remove();
+						continue;
+					}
+					if ((null != assoc.getEntity2_index()) && _entitiesToDeleteMap.contains(assoc.getEntity2_index())) {
+						itAssoc.remove();
+						continue;
+					}
+					if ((null != assoc.getGeo_index()) && _entitiesToDeleteMap.contains(assoc.getGeo_index())) {
+						if ((null == assoc.getEntity1_index()) || (null == assoc.getEntity2_index())) {
+							itAssoc.remove();
+						}
+						else {
+							assoc.setGeo_index(null);
+							assoc.setGeotag(null);
+							assoc.setGeo_sig(null);
+						}						
+						continue;
+					}//TESTED (assoc_entity_delete_test:geo_only vs assoc_entity_delete_test:geo_event)
+				}
+			}//TESTED (assoc_entity_delete_test)
+		}
+		_entitiesToDeleteMap = null;
 		return entities;
 	}
 	
@@ -1217,6 +1318,8 @@ public class StructuredAnalysisHarvester
 	 */
 	private EntityPojo getEntity(EntitySpecPojo esp, String field, String index, DocumentPojo f)
 	{
+		boolean deleteThisEntity = false;
+		
 		// If the EntitySpecPojo or DocumentPojo is null return null
 		if ((esp == null) || (f == null)) return null;
 		
@@ -1306,11 +1409,11 @@ public class StructuredAnalysisHarvester
 			{
 				e.setFrequency(frequency.longValue()); // Cast to long from double
 			}
-			else
+			else // delete the doc
 			{ 
-				return null; 	
+				deleteThisEntity = true;
 			}  
-			
+
 			// Entity.actual_name
 			String actualName = null;
 			if (esp.getActual_name() != null)
@@ -1372,11 +1475,6 @@ public class StructuredAnalysisHarvester
 			String entityIndex = disambiguatedName + "/" + type;
 			e.setIndex(entityIndex.toLowerCase());
 			
-			// Now check if we already exist, discard if so:
-			if (_entityMap.contains(e.getIndex())) {
-				return null;
-			}
-
 			// Entity.dimension
 			String dimension = null;
 			if (esp.getDimension() != null)
@@ -1406,22 +1504,32 @@ public class StructuredAnalysisHarvester
 				}
 			}
 			else {
-				try {
-					EntityPojo.Dimension enumDimension = EntityPojo.Dimension.valueOf(dimension);
-					if (null == enumDimension) {
-						_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
-						return null; // (invalid dimension)
-					}
-					else {
-						e.setDimension(enumDimension);
-					}
+				if (dimension.equalsIgnoreCase("delete")) {
+					deleteThisEntity = true;
 				}
-				catch (Exception e2) {
-					_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
-					return null; // (invalid dimension)					
+				else {
+					try {
+						EntityPojo.Dimension enumDimension = EntityPojo.Dimension.valueOf(dimension);
+						if (null == enumDimension) {
+							_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
+							return null; // (invalid dimension)
+						}
+						else {
+							e.setDimension(enumDimension);
+						}
+					}
+					catch (Exception e2) {
+						_context.getHarvestStatus().logMessage(new StringBuffer("Invalid dimension: ").append(dimension).toString(), true);
+						return null; // (invalid dimension)					
+					}
 				}
 			}
 			
+			// Now check if we already exist, discard if so:
+			if (!deleteThisEntity && _entityMap.contains(e.getIndex())) {
+				return null;
+			}
+
 			// Entity.relevance
 			String relevance = "0";
 			if (esp.getRelevance() != null)
@@ -1550,13 +1658,23 @@ public class StructuredAnalysisHarvester
 			e.setOntology_type(ontology_type);			
 						
 			// Add the index and geotag to geomap to get used by associations with matching indexes
-			if (e.getGeotag() != null)
-			{
-				_geoMap.put(e.getIndex(), e.getGeotag());
-			}
-			_entityMap.add(e.getIndex());
-			
-			return e; 
+			if (deleteThisEntity) {				
+				if (_entityMap.contains(e.getIndex())) {
+					if (null == _entitiesToDeleteMap) {
+						_entitiesToDeleteMap = new HashSet<String>();
+					}
+					_entitiesToDeleteMap.add(e.getIndex());
+				}
+				return null;
+			}//TESTED (assoc_entity_delete_test)
+			else {
+				if (e.getGeotag() != null)
+				{
+					_geoMap.put(e.getIndex(), e.getGeotag());
+				}
+				_entityMap.add(e.getIndex());			
+				return e;
+			}//TESTED (*ent*.json) 
 		}
 		catch (Exception ex)
 		{
@@ -1587,7 +1705,8 @@ public class StructuredAnalysisHarvester
 			associations = new ArrayList<AssociationPojo>();
 		}
 		repopulateEntityCacheIfNeeded(f);
-	
+		_assocsToDeleteMap = null; // (do this at start and end, in case of exceptions)
+
 		// Iterate over each AssociationSpecPojo and try to create an entity, or entities, from the data
 		JSONObject metadata = null;
 		if (_document.has("metadata")) {
@@ -1606,6 +1725,20 @@ public class StructuredAnalysisHarvester
 			}
 			catch (Exception e) {} // (prob just a missing field)
 		}		
+		if (null != associations) {
+			if (null != _assocsToDeleteMap) { // unfortunately need to delete som of these guys
+				Iterator<AssociationPojo> it = associations.iterator();
+				while (it.hasNext()) {
+					AssociationPojo assoc = it.next();
+					String assocSig = createAssocSignature(assoc);
+					if (_assocsToDeleteMap.contains(assocSig)) {
+						it.remove();
+					}
+				}
+			}
+		}//TESTED (assoc_entity_delete_test)
+		_assocsToDeleteMap = null;
+		
 		return associations;
 	}
 	
@@ -2615,6 +2748,15 @@ public class StructuredAnalysisHarvester
 				return null;
 			}
 			
+			// Set "delete" to remove any existing values
+			if (null != esp.getAssoc_type() && (esp.getAssoc_type().equalsIgnoreCase("delete"))) {
+				if (null == _assocsToDeleteMap) {
+					_assocsToDeleteMap = new HashSet<String>();
+				}
+				_assocsToDeleteMap.add(createAssocSignature(e));
+				return null;
+			}//TESTED (assoc_entity_delete_test)
+			
 			// Calculate association type
 			if (bDontResolveToIndices) {
 				e.setAssociation_type("Summary");				
@@ -2632,8 +2774,7 @@ public class StructuredAnalysisHarvester
 						}
 					}
 				}
-			}
-			
+			}			
 			return e;
 		}
 		catch (Exception e)
@@ -3015,6 +3156,10 @@ public class StructuredAnalysisHarvester
 					dLat = Double.parseDouble(latValue);
 					dLon = Double.parseDouble(lonValue);
 				}
+			}
+			else if (null != f.getDocGeo()) {
+				dLat = f.getDocGeo().lat;
+				dLon = f.getDocGeo().lon;
 			}
 
 			if (dLat != 0 && dLon !=0)
@@ -3509,6 +3654,21 @@ public class StructuredAnalysisHarvester
 		}			
 	}
 	
+	///////////////////////////////////////////////////////////////////////////////////////////
+
+	public static String createAssocSignature(AssociationPojo assoc) {
+		StringBuffer sb = new StringBuffer();
+		if (null != assoc.getEntity1_index()) sb.append(assoc.getEntity1_index());
+		sb.append("|");
+		if (null != assoc.getEntity2_index()) sb.append(assoc.getEntity2_index());
+		sb.append("|");
+		if (null != assoc.getGeo_index()) sb.append(assoc.getGeo_index());
+		sb.append("|");
+		if (null != assoc.getVerb_category()) sb.append(assoc.getVerb_category());
+		
+		return sb.toString();
+	}
+	
 	/////////////////////////////////////////////////////////////////////////////
 	
 	//TEST CODE:
@@ -3624,5 +3784,6 @@ public class StructuredAnalysisHarvester
 		System.out.println("TEST2: ASSOCIATION ITERATION EXPANSION: ");
 		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(s));
 	}
+
 }
 

@@ -60,26 +60,48 @@ Infinit.e index engine using ElasticSearch
 		# install plugins:
 		# (temporary, will be done in preinstall code once 1.0 becomes the default)
 		cd /usr/share/elasticsearch/plugins
+
+		# Check between 1.0 and 1.3
+		if ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.0"; then
 		
-		rm -rf analysis-icu
-		unzip /mnt/opt/elasticsearch-infinite/plugins/analysis-icu.zip
-		rm -rf bigdesk
-		unzip /mnt/opt/elasticsearch-infinite/plugins/bigdesk.zip
-		rm -rf head
-		unzip /mnt/opt/elasticsearch-infinite/plugins/head.zip
+			rm -rf analysis-icu
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.0/analysis-icu.zip
+			rm -rf bigdesk
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.0/bigdesk.zip
+			rm -rf head
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.0/head.zip
+			
+			USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+			rm -rf cloud-aws
+			if [ "$USE_AWS" = "1" ]; then
+				unzip /mnt/opt/elasticsearch-infinite/plugins/1.0/cloud-aws.zip
+			fi
+			
+			#(re-)install compatibility layer
+			yes | cp /mnt/opt/elasticsearch-infinite/plugins/1.0/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
+			
+		elif ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.3"; then
+			
+			rm -rf analysis-icu
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/analysis-icu.zip
+			rm -rf bigdesk
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/bigdesk.zip
+			rm -rf head
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/head.zip
+							
+			USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+			rm -rf cloud-aws
+			if [ "$USE_AWS" = "1" ]; then
+				unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/cloud-aws.zip
+			fi
+			
+			#(re-)install compatibility layer
+			yes | cp /mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
+		fi 		
 		
-		# Do this for both versions of elasticsearch
-		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
-		rm -rf cloud-aws
-		if [ "$USE_AWS" = "1" ]; then
-			unzip /mnt/opt/elasticsearch-infinite/plugins/cloud-aws.zip
-		fi
-		
-		#(re-)install compatibility layer
-		yes | cp /mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
 	else
 		#(re-)install compatibility layer
-		yes | cp /mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar /usr/share/java/elasticsearch/lib		
+		yes | cp /mnt/opt/elasticsearch-infinite/plugins/0.19/elasticsearch_compatibility.jar /usr/share/java/elasticsearch/lib		
 	fi
 
 ###########################################################################
@@ -123,15 +145,6 @@ Infinit.e index engine using ElasticSearch
 	# (Add ES instance to start-up-on-boot list)
 	chkconfig --add infinite-index-engine
 	chkconfig infinite-index-engine on
-	
-	# Load AWS plugin:
-	if [ ! -d /usr/share/elasticsearch/ ]; then
-		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
-		if [ "$USE_AWS" = "1" ]; then
-			# Try for both 0.18 and 0.19 but not 1.0.x (this is a bit of a disaster at the moment, versions aren't auto-detecting...)
-			res=$(/usr/share/java/elasticsearch/bin/plugin -install elasticsearch/elasticsearch-cloud-aws/1.10.0/)
-		fi
-	fi	
 	
 	# (service started in posttrans)
 
@@ -200,12 +213,17 @@ Infinit.e index engine using ElasticSearch
 %dir /mnt/opt/elasticsearch-infinite/scripts
 %dir /mnt/opt/elasticsearch-infinite/plugins
 #(mostly temporary):
-/mnt/opt/elasticsearch-infinite/plugins/analysis-icu.zip
-/mnt/opt/elasticsearch-infinite/plugins/bigdesk.zip
-/mnt/opt/elasticsearch-infinite/plugins/head.zip
-/mnt/opt/elasticsearch-infinite/plugins/cloud-aws.zip
-/mnt/opt/elasticsearch-infinite/plugins/elasticsearch_compatibility.jar
-/mnt/opt/elasticsearch-infinite/plugins/legacy/elasticsearch_compatibility.jar
+/mnt/opt/elasticsearch-infinite/plugins/1.3/analysis-icu.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.3/bigdesk.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.3/head.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.3/cloud-aws.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.0/analysis-icu.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.0/bigdesk.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.0/head.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.0/cloud-aws.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar
+/mnt/opt/elasticsearch-infinite/plugins/1.0/elasticsearch_compatibility.jar
+/mnt/opt/elasticsearch-infinite/plugins/0.19/elasticsearch_compatibility.jar
 
 %config %attr(755,root,root) /etc/init.d/infinite-index-engine
 %config /etc/sysconfig/infinite-index-engine

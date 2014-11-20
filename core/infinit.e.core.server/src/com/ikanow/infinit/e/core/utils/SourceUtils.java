@@ -16,6 +16,7 @@
 package com.ikanow.infinit.e.core.utils;
 
 import java.net.InetAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.HashMap;
@@ -55,7 +56,7 @@ public class SourceUtils {
     
     public static boolean checkDbSyncLock() {
     	DBCursor dbc = DbManager.getFeature().getSyncLock().find();
-    	if (0 == dbc.count()) {
+    	if (!dbc.hasNext()) {
     		return false; // working fine
     	}
     	Date now = new Date();
@@ -140,12 +141,17 @@ public class SourceUtils {
 			}
 			else if (null != sSourceId) {
 				try {
-					query.put(SourcePojo._id_, new ObjectId(sSourceId));				
-					adminUpdateQuery.put(SourcePojo._id_, new ObjectId(sSourceId));
+					String[] idList = sSourceId.split(",");
+					List<ObjectId> lid = new ArrayList<ObjectId>(idList.length);
+					for (String s: idList) {
+						lid.add(new ObjectId(s));
+					}
+					query.put(SourcePojo._id_, new BasicDBObject(DbManager.in_, lid));				
+					adminUpdateQuery.put(SourcePojo._id_, new BasicDBObject(DbManager.in_, lid));
 				}
 				catch (Exception e) { // Allow either _id or key to be used as the id...
-					query.put(SourcePojo.key_, sSourceId);				
-					adminUpdateQuery.put(SourcePojo.key_, sSourceId);
+					query.put(SourcePojo.key_, new BasicDBObject(DbManager.in_, Arrays.asList(sSourceId.split(","))));				
+					adminUpdateQuery.put(SourcePojo.key_, new BasicDBObject(DbManager.in_, Arrays.asList(sSourceId.split(","))));
 				}
 			}
 			BasicDBObject orderBy = new BasicDBObject(); 
@@ -193,7 +199,15 @@ public class SourceUtils {
 			else {
 				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_harvested_, new BasicDBObject(MongoDbManager.exists_, false));
 				DbManager.getIngest().getSource().update(adminUpdateQuery,
-						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesteryear)), false, true);				
+						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, yesteryear)), false, true);
+
+				// Also ... if I've left any sources in_progress (eg by exiting uncleanly) then sort that out now
+				adminUpdateQuery.remove(SourceHarvestStatusPojo.sourceQuery_harvested_);
+				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.in_progress.toString());
+				adminUpdateQuery.put(SourceHarvestStatusPojo.sourceQuery_lastHarvestedBy_, getHostname());
+				DbManager.getIngest().getSource().update(adminUpdateQuery,
+						new BasicDBObject(MongoDbManager.set_, new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString())), false, true);
+				//TESTED (by hand)
 			}
 			// (then perform query)
 			DBCursor cur = DbManager.getIngest().getSource().find(query, fields).sort(orderBy).limit(nMaxSources);
@@ -601,7 +615,7 @@ public class SourceUtils {
 		// Prune documents if necessary
 		if ((null != source.getMaxDocs()) && (nTotalDocsAfterInsert > source.getMaxDocs())) {
 			long nToPrune = (nTotalDocsAfterInsert - source.getMaxDocs());
-			SourceUtils.pruneSource(source, (int) nToPrune);
+			SourceUtils.pruneSource(source, (int) nToPrune, -1);
 			nDocsDeleted += nToPrune;
 			
 			// And update to reflect that it now has max docs...
@@ -609,8 +623,12 @@ public class SourceUtils {
 			BasicDBObject update2 = new BasicDBObject(DbManager.set_, update2_1);
 			DbManager.getIngest().getSource().update(query, update2);
 		}					
-		//TESTED
+		//TESTED		
 
+		if ((null != source.getTimeToLive_days())) {
+			nDocsDeleted += SourceUtils.pruneSource(source, Integer.MAX_VALUE, source.getTimeToLive_days());			
+		}//TODO: TOTEST
+		
 		// (OK now the only thing we really had to do is complete, add some handy metadata)
 
 		// Also update the document count table in doc_metadata:
@@ -690,13 +708,19 @@ public class SourceUtils {
 
 	// Prune sources with max doc settings
 
-	private static void pruneSource(SourcePojo source, int nToPrune)
+	private static int pruneSource(SourcePojo source, int nToPrune, int ttl_days)
 	{
+		int nTotalDocsDeleted = 0;
 		int nDocsDeleted = 0;
 	
 		// (code taken mostly from SourceHandler.deleteSource)
 		if (null != source.getKey()) { // or may delete everything!
-			BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+			BasicDBObject docQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm());
+			if (ttl_days > 0) {
+				Date ageOut = new Date(new Date().getTime() - ttl_days*24L*3600L*1000L);
+				ObjectId oldestAllowedId = new ObjectId(ageOut);
+				docQuery.put(DocumentPojo._id_, new BasicDBObject(DbManager.lt_, oldestAllowedId));
+			}//TODO: TOTEST
 			docQuery.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (robustness)
 			BasicDBObject sortField = new BasicDBObject(DocumentPojo._id_, 1);
 			BasicDBObject docFields = new BasicDBObject();
@@ -722,16 +746,18 @@ public class SourceUtils {
 				nToPrune -= nToDelete;
 				if (0 == nDocsDeleted) {
 					nDocsDeleted = dbc.count();
+					nTotalDocsDeleted += nDocsDeleted;
 				}
 				if (0 == dbc.size()) {
 					break;
 				}
 				List<DocumentPojo> docs = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
 				
-				nextId = dataStore.removeFromDatastore_byURL(docs);
+				nextId = dataStore.removeFromDatastore_byURL(docs, source);
 			}
 		}
 		// No need to do anything related to soft deletion, this is all handled when the harvest ends 
+		return nTotalDocsDeleted;
 	}//TESTED
 
 	//////////////////////////////////////////////////////
@@ -812,6 +838,12 @@ public class SourceUtils {
 				// COMPLETE: reset parameters, status -> error (if anything has errored), success (all done), success_iteration (more to do)
 				
 				if (nTokensComplete == source.getDistributionFactor()) {
+					if (!source.reachedMaxDocs()) { // (Can only do this if we've finished the source...
+						//...else the different threads can be at different points, so the most recent doc for one thread might be
+						// before the most recent doc of another)
+						setClause.put(SourceHarvestStatusPojo.sourceQuery_distributedLastCompletedCycle_, new Date());
+					}
+					
 					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensComplete_, 0);
 					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionTokensFree_, source.getDistributionFactor());
 					setClause.put(SourceHarvestStatusPojo.sourceQuery_distributionReachedLimit_, false); // (resetting this)

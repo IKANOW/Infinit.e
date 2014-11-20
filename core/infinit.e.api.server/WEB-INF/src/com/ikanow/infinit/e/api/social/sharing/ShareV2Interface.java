@@ -61,6 +61,7 @@ public class ShareV2Interface extends ServerResource
 	private String skip = null;
 	private String limit = null;
 	private String type = null; //overloaded for searching and adding/updating
+	private String data_type = null;
 	private String title = null;
 	private String description = null;
 	private String searchby = null;
@@ -82,15 +83,16 @@ public class ShareV2Interface extends ServerResource
 		Request request = this.getRequest();
 		
 		Map<String,Object> attributes = request.getAttributes();
-		if (RESTTools.decodeRESTParam("id", attributes) != null) id = RESTTools.decodeRESTParam("id", attributes);
-		
 		Map<String, String> queryOptions = this.getQuery().getValuesMap();
+		if (RESTTools.getUrlAttribute("id", attributes, queryOptions) != null) id = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				
 		
 		if (queryOptions.get("id") != null) searchids = queryOptions.get("id");
 		if (queryOptions.get("skip") != null) skip = queryOptions.get("skip");
 		if (queryOptions.get("limit") != null) limit = queryOptions.get("limit");
 		if (queryOptions.get("searchby") != null) searchby = queryOptions.get("searchby");
 		if (queryOptions.get("type") != null) type = queryOptions.get("type");
+		if (queryOptions.get("data_type") != null) data_type = queryOptions.get("data_type");
 		if (queryOptions.get("title") != null) title = queryOptions.get("title");
 		if (queryOptions.get("description") != null) description = queryOptions.get("description");
 		if (queryOptions.get("communityIds") != null) communityIds = queryOptions.get("communityIds");
@@ -305,10 +307,19 @@ public class ShareV2Interface extends ServerResource
 			//is empty, hopefully they passed args as url query params
 			share = new SharePojo();			
 		}
-		else if ( entity.getMediaType().equals(MediaType.TEXT_PLAIN))
+		else if ( entity.getMediaType().equals(MediaType.APPLICATION_JSON))
 		{
-			//is just a regular json share, parse it
-			share = ApiManager.mapFromApi(entity.getText(), SharePojo.class, new SharePojoApiMap(null));
+			if ( data_type != null && data_type.toLowerCase().equals("json"))
+			{
+				//assume its only the data
+				share = new SharePojo();
+				share.setShare(entity.getText());
+			}
+			else
+			{
+				//is just a regular json share, parse it
+				share = ApiManager.mapFromApi(entity.getText(), SharePojo.class, new SharePojoApiMap(null));
+			}			
 		}
 		else
 		{
@@ -324,6 +335,7 @@ public class ShareV2Interface extends ServerResource
 			}
 			buffer.flush();
 			share.setBinaryData( buffer.toByteArray() );
+			share.setMediaType(entity.getMediaType().toString());
 		}
 		
 		if ( share.getShare() != null )

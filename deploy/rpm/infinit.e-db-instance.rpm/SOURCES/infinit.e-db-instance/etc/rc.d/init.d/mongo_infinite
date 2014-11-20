@@ -266,8 +266,8 @@ EOF
 						err_count=$(echo $reply | grep errmsg | wc -l)
 
 						if [ $err_count -gt 0 ]; then
-							echo "Replica set has been previously initialized (master=$rs_master), just ensure I'm a member ($this_ip:$port)"
 							rs_master=$(infdb master_of_set $x)
+							echo "Replica set has been previously initialized (master=$rs_master), just ensure I'm a member ($this_ip:$port)"
 							recon=$(mongo $rs_master << EOF
 use admin
 rs.add("$this_ip:$port")
@@ -453,19 +453,22 @@ case "$1" in
     start
     ;;
   stop)
-    stop "HARD" "ALL"
+    stop "SOFT" "ALL"
     ;;
   soft_stop)
     stop "SOFT" "ALL"
     ;;
-  stop_instance)
-    stop "HARD" "INSTANCE"
+  hard_stop)
+    stop "HARD" "ALL"
     ;;
-  stop_mongos)
-    stop "HARD" "MONGOS"
+  stop_instance)
+    stop "SOFT" "INSTANCE"
     ;;
   soft_stop_instance)
     stop "SOFT" "INSTANCE"
+    ;;
+  hard_stop_instance)
+    stop "HARD" "INSTANCE"
     ;;
   restart_instance)
     stop "SOFT" "INSTANCE"
@@ -483,7 +486,7 @@ case "$1" in
     start
     ;;
   *)
-    echo "Usage: $0 {start|stop|status|restart|reload|force-reload|condrestart}"
+    echo "Usage: $0 {start|(soft_|hard_)stop(_instance|_mongos)|status|restart|reload|force-reload|condrestart}"
     RETVAL=1
 esac
 

@@ -28,10 +28,10 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.index.query.QueryBuilders;
 
 import com.ikanow.infinit.e.application.data_model.TestLogstashExtractorPojo;
-import com.ikanow.infinit.e.application.utils.MongoQueue;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
+import com.ikanow.infinit.e.data_model.utils.MongoQueue;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;

@@ -15,6 +15,7 @@
 	<classpathentry exported="true" kind="lib" path="lib/mail.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/jasypt-1.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/opencsv-2.3-ikanow.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-hadoop-2.0.2.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="output" path="bin"/>

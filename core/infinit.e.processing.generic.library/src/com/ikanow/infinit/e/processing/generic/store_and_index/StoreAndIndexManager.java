@@ -70,6 +70,9 @@ public class StoreAndIndexManager {
 	public String getUUID() { return harvesterUUID; }
 	
 	public StoreAndIndexManager() {
+		this("");
+	}
+	public StoreAndIndexManager(String postFix) {
 		com.ikanow.infinit.e.processing.generic.utils.PropertiesManager pm = 
 			new com.ikanow.infinit.e.processing.generic.utils.PropertiesManager();
 		
@@ -82,6 +85,7 @@ public class StoreAndIndexManager {
 		
 		try {
 			StringBuffer sb = new StringBuffer(DELETION_INDICATOR).append(java.net.InetAddress.getLocalHost().getHostName());
+			sb.append(postFix);
 			harvesterUUID = sb.toString();
 		} catch (UnknownHostException e) {
 			harvesterUUID = DELETION_INDICATOR + "UNKNOWN";
@@ -98,17 +102,28 @@ public class StoreAndIndexManager {
 	 * @param feeds
 	 */
 	public void addToDatastore(List<DocumentPojo> docs, boolean bSaveContent, SourcePojo source) {
+		addToDatastore(docs, bSaveContent, true, source);
+	}
+	public void addToDatastore(List<DocumentPojo> docs, boolean bSaveContent, boolean bOverwriteIds, SourcePojo source) {
+		
+		long now = new Date().getTime();
+		int num_docs = docs.size();
+		
 		try {
 			// Create collection manager
 			// Add to data store
-			addToDatastore(DbManager.getDocument().getMetadata(), docs);
+			addToDatastore(DbManager.getDocument().getMetadata(), docs, bOverwriteIds);
 		} catch (Exception e) {
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
+		long datastoreNow = new Date().getTime();
+		long contentNow = now;
+		
 		// (note: currently modifies docs, see DocumentIndexPojoMap, so beware if using after this point)
 		if (bSaveContent) {
 			saveContent(docs);
+			contentNow = new Date().getTime();
 		}
 		boolean index = true;
 		if ((null != source) && (null != source.getSearchIndexFilter())) {
@@ -119,7 +134,19 @@ public class StoreAndIndexManager {
 		if (index) {
 			this.addToSearch(docs);
 		}
-		
+		if (num_docs > 0) { 
+			StringBuffer sb = new StringBuffer("addToDatastore");
+			if ((null != source) && (null != source.getKey())) {
+				sb.append(" key=").append(source.getKey());
+			}
+			sb.append(" num_docs=").append(num_docs);
+			sb.append(" doc_meta_ms=").append(datastoreNow - now);
+			if (bSaveContent) {
+				sb.append(" doc_content_ms=").append(contentNow - datastoreNow);
+			}
+			sb.append(" doc_index_ms=").append(new Date().getTime() - datastoreNow);
+			logger.info(sb.toString());
+		}		
 	}//TESTED
 	
 	/////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +160,7 @@ public class StoreAndIndexManager {
 	 */
 	private void addToDatastore(DBCollection col, DocumentPojo doc) {
 		if (!_diagnosticMode) {
-			if (!docHasExternalContent(doc.getUrl(), doc.getSourceUrl())) {
+			if (!docHasExternalContent(doc.getUrl(), doc.getSourceUrl(), doc.getTempSource())) {
 				doc.makeFullTextNonTransient(); // (ie store full text in this case)
 			}
 			col.save(doc.toDb());
@@ -147,7 +174,7 @@ public class StoreAndIndexManager {
 	 * Add a list of doc documents to the data store
 	 * @param feeds
 	 */
-	private void addToDatastore(DBCollection col, List<DocumentPojo> docs) {
+	private void addToDatastore(DBCollection col, List<DocumentPojo> docs, boolean overwriteId) {
 		// Store the knowledge in the feeds collection in the harvester db			
 		int errors = 0;
 		Exception savedException = null;
@@ -158,7 +185,9 @@ public class StoreAndIndexManager {
 			// Set an _id before writing it to the datastore,
 			// so the same _id gets written to the index
 			// NOTE WE OVERWRITE ANY TRANSIENT IDS THAT MIGHT HAVE BEEN SET eg BY REMOVE CODE
-			f.setId(new ObjectId());
+			if (overwriteId) {
+				f.setId(new ObjectId());
+			}
 			
 			// Check geo-size: need to add to a different index if so, for memory usage reasons
 			if (null == f.getLocs()) { // (can be set by update/deletion code also)
@@ -321,6 +350,12 @@ public class StoreAndIndexManager {
 	 * 					updateHarvestStatus(...)
 	 */
 	public ObjectId removeFromDatastore_byURL(List<DocumentPojo> docs) {
+		return removeFromDatastore_byURL(docs, null);
+	}
+	public ObjectId removeFromDatastore_byURL(List<DocumentPojo> docs, SourcePojo source) {
+		
+		long now = new Date().getTime();
+		int num_docs = docs.size();
 		
 		// Remove from data store:
 		ObjectId nextId = null;
@@ -331,7 +366,8 @@ public class StoreAndIndexManager {
 		} catch (Exception e) {
 			// If an exception occurs log the error
 			logger.error("Exception Message: " + e.getMessage(), e);
-		}
+		}		
+		long datastoreNow = new Date().getTime();
 		
 		// Remove from index:
 		
@@ -343,6 +379,16 @@ public class StoreAndIndexManager {
 			logger.error("Exception Message: " + e.getMessage(), e);
 		}
 		
+		if (num_docs > 0) { 
+			StringBuffer sb = new StringBuffer("removeFromDatastore_byURL");
+			if ((null != source) && (null != source.getKey())) {
+				sb.append(" key=").append(source.getKey());
+			}
+			sb.append(" num_docs=").append(num_docs);
+			sb.append(" doc_store_ms=").append(datastoreNow - now);
+			sb.append(" doc_index_ms=").append(new Date().getTime() - datastoreNow);
+			logger.info(sb.toString());
+		}		
 		return nextId;
 	}//TESTED
 	
@@ -358,10 +404,10 @@ public class StoreAndIndexManager {
 				DbManager.getDocument().getContent().remove(new BasicDBObject(CompressedFullTextPojo.sourceKey_, sourceKey));
 					// (will just check index and pull out if the doc has no external content)
 			}
-			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(sourceKey));
 			if (null != lessThanId) { // Multiple threads running for this source
 				// First check whether one of the other threads has already deleted the source:
-				BasicDBObject oneFinalCheckQuery = new BasicDBObject(DocumentPojo.sourceKey_, sourceKey);
+				BasicDBObject oneFinalCheckQuery = new BasicDBObject(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(sourceKey));
 				BasicDBObject oneFinalCheckFields = new BasicDBObject(DocumentPojo.index_, 1);
 				BasicDBObject firstDocToBeUpdated = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(oneFinalCheckQuery, oneFinalCheckFields);
 				if ((null == firstDocToBeUpdated) || firstDocToBeUpdated.getString(DocumentPojo.index_, "").equals(DELETION_INDICATOR))
@@ -424,7 +470,7 @@ public class StoreAndIndexManager {
 		try {			
 			// (never any content)
 			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceUrl_, sourceUrl);
-			query.put(DocumentPojo.sourceKey_, sourceKey);
+			query.put(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(sourceKey));
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
 			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
 			CommandResult result = DbManager.getDocument().getLastError("metadata");
@@ -594,9 +640,8 @@ public class StoreAndIndexManager {
 		
 		// Update Mongodb with the data
 		BasicDBObject query = new BasicDBObject();
-		query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
+		query.put(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(doc.getSourceKey())); // (needed because on newer machines this is the shard key)
 		query.put(DocumentPojo._id_, doc.getId());
-		query.put(DocumentPojo.sourceKey_, doc.getSourceKey()); // (needed because on newer machines this is the shard key)
 		
 		if (!_diagnosticMode) {
 			BasicDBObject softDelete = getSoftDeleteUpdate();
@@ -633,7 +678,7 @@ public class StoreAndIndexManager {
 		
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, doc.getUrl());
-		query.put(DocumentPojo.sourceKey_, doc.getSourceKey());
+		query.put(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(doc.getSourceKey()));
 
 		// 2] Delete the content if needed
 		
@@ -1001,11 +1046,19 @@ public class StoreAndIndexManager {
 		// StoreAndIndexManager.saveContent
 	
 		static public boolean docHasExternalContent(String url, String srcUrl) {
+			return docHasExternalContent(url, srcUrl, null);
+		}
+		static public boolean docHasExternalContent(String url, String srcUrl, SourcePojo src) {
 			//TODO: INF-1367: there's an issue with this .. suppose it's some enormous JSON file
 			// and we excise a bunch of JSON files from the metadata (after using them for processing)
 			// seems like we should have an optional keepExternalContent that defaults to the return value 
 			// of this function, but you can override from the SAH or whatever
 			
+			if (null != src) { // have a src associated with the doc, makes it easy {
+				if (src.getExtractType().equalsIgnoreCase("database")) {
+					return false;
+				}
+			}
 			if (null != srcUrl) { // must be either JSON or XML or *sv
 				return false;
 			}

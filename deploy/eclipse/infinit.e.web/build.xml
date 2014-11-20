@@ -24,6 +24,7 @@
 	
 	<!-- Other flex utilities -->
 	<property name="InfiniteSourceMonitor.location" value="../InfiniteSourceMonitor/"/>
+	<property name="InfiniteCustomMonitor.location" value="../InfiniteCustomMonitor/"/>
 	<property name="infinit.e.EntityProfiler.location" value="../InfiniteEntityProfiler/"/>
 		
 	<target name="clean" description="Tidy up project">
@@ -91,6 +92,10 @@
 		<!-- Copy the InfiniteSourceMonitor -->
 		<copy todir="${dir.build}/">
 			<fileset dir="${InfiniteSourceMonitor.location}/dist"/>
+		</copy>
+		<!-- Copy the InfiniteCustomMonitor -->
+		<copy todir="${dir.build}/">
+			<fileset dir="${InfiniteCustomMonitor.location}/dist"/>
 		</copy>
 		<!-- copy over the infinit.e.EntityProfiler -->
 	  	<copy todir="${dir.build}/">

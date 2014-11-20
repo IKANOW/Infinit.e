@@ -29,10 +29,18 @@ DAY_OF_MONTH=$(date +%d)
 WEEK_OF_YEAR=$(date +%W)
 if [ "$MONGO_PORT" = "27016" ]; then
 	FILENAME=db_backup_`hostname`_${DAY_OF_MONTH}_${MONGO_PORT}.tgz
-	END_FILENAME=db_backup_`hostname`_latest_${MONGO_PORT}.tgz
+	if [ `date +%w` -eq 0 ]; then
+		END_FILENAME=db_backup_`hostname`_latestweekly_${MONGO_PORT}.tgz
+	else
+		END_FILENAME=db_backup_`hostname`_latest_${MONGO_PORT}.tgz
+	fi	
 else 
 	FILENAME=db_backup_${CLUSTER_NAME}_${DAY_OF_MONTH}_${MONGO_PORT}.tgz
-	END_FILENAME=db_backup_${CLUSTER_NAME}_latest_${MONGO_PORT}.tgz
+	if [ `date +%w` -eq 0 ]; then
+		END_FILENAME=db_backup_${CLUSTER_NAME}_latestweekly_${MONGO_PORT}.tgz
+	else
+		END_FILENAME=db_backup_${CLUSTER_NAME}_latest_${MONGO_PORT}.tgz
+	fi	
 fi
 
 ################################################################################
@@ -60,16 +68,30 @@ while( db.locks.findOne({ "_id": "balancer" }).state ) { print("waiting..."); sl
 exit
 EOF
 
-	echo "Backup Infinit.e DB Started `date`" >> $DB_HOME/bak.log
+	echo "Backup Infinit.e DB Started `date`" >> $DB_HOME/bak_${MONGO_PORT}.log
+	BACKUP_TMPDB=$DB_HOME/db_${MONGO_PORT}
 
-	echo "Remove the existing backup directory $DB_HOME/db to make room for todays if it exists"
-	rm -rf $DB_HOME/db
+	echo "Remove the existing backup directory $BACKUP_TMPDB to make room for todays if it exists"
+	rm -rf $BACKUP_TMPDB
 
-	echo "Make a new backup directory in $DB_HOME/db"
-	mkdir $DB_HOME/db
+	echo "Make a new backup directory in $BACKUP_TMPDB"
+	mkdir $BACKUP_TMPDB
 
-	mongodump --host localhost --port $MONGO_PORT --out $DB_HOME/db
-	echo "Dump the existing database to file" >> $DB_HOME/bak.log
+	if [ `date +%w` -eq 0 ]; then
+		# Weekly - Full backup: 
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB
+		echo "Dump the entire existing database to file `date`" >> $DB_HOME/bak_${MONGO_PORT}.log
+	else
+		# Daily - Incremental backup (except for admin): 
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db config 
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db social 
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db ingest
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db gui
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db security
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db custommr --collection customlookup
+		echo "Dump the entire admin database to file `date`" >> $DB_HOME/bak_${MONGO_PORT}.log
+		mongodump --host localhost --port $MONGO_PORT --out $BACKUP_TMPDB --db local --collection oplog.rs
+	fi	
 
 	# Restart balancer
 	################################################################################
@@ -80,13 +102,13 @@ exit
 EOF
 	
 	# tar up the backup
-	echo "Create a compressed version of the backup" >> $DB_HOME/bak.log
-	tar -cvzf $FILENAME $DB_HOME/db 
+	echo "Create a compressed version of the backup `date`" >> $DB_HOME/bak_${MONGO_PORT}.log
+	tar -cvzf $FILENAME $BACKUP_TMPDB 
 	
 	################################################################################
 	# Transfer: S3 vs non
 	################################################################################
-	if [ "$S3_URL" != "" ]; then
+	if [ "$S3_URL" != "mongo." ]; then
 		split -b1000m $FILENAME $FILENAME-
     	s3cmd -f put $FILENAME-* s3://$S3_URL
 	fi
@@ -103,9 +125,9 @@ EOF
 	
 	################################################################################
 	# Tidy up:
-	rm -rf $DB_HOME/db
+	rm -rf $BACKUP_TMPDB
 	rm -f $FILENAME-*
 	mv $FILENAME $END_FILENAME
 	
-	echo "Finished making the backup for `date`"  >> $DB_HOME/bak.log
+	echo "Finished making the backup for `date`"  >> $DB_HOME/bak_${MONGO_PORT}.log
 fi

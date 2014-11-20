@@ -67,7 +67,7 @@ package com.ikanow.infinit.e.query.service
 		public function getQueryEventSuggestions( event:QueryEvent ):AsyncToken
 		{
 			var keywordString:String = event.keywordString;
-			var url:String = ServiceConstants.GET_QUERY_ASSOC_SUGGESTIONS_URL + keywordString + Constants.FORWARD_SLASH + event.communityids;
+			var url:String = ServiceConstants.GET_QUERY_ASSOC_SUGGESTIONS_URL + keywordString + Constants.FORWARD_SLASH + "$commids?commids=" + event.communityids;
 			var params:Object = { action: ServiceConstants.GET_QUERY_ASSOC_SUGGESTIONS_ACTION, dialogControl: event.dialogControl, keywordString: event.keywordString, communityids: event.communityids };
 			var token:AsyncToken = makeCall( querySuggestService, url, params, default_resultHandler, default_faultHandler );
 			
@@ -82,7 +82,7 @@ package com.ikanow.infinit.e.query.service
 		public function getQuerySuggestions( event:QueryEvent ):AsyncToken
 		{
 			var keywordString:String = ServiceUtil.replaceMultipleWhitespace( event.keywordString ).toLowerCase();
-			var url:String = ServiceConstants.GET_QUERY_SUGGESTIONS_URL + ServiceUtil.urlEncode( keywordString ) + Constants.FORWARD_SLASH + event.communityids;
+			var url:String = ServiceConstants.GET_QUERY_SUGGESTIONS_URL + ServiceUtil.urlEncode( keywordString ) + Constants.FORWARD_SLASH + "$commids?commids=" + event.communityids;
 			var params:Object = { action: ServiceConstants.GET_QUERY_SUGGESTIONS_ACTION, dialogControl: event.dialogControl, keywordString: event.keywordString, communityids: event.communityids };
 			var token:AsyncToken = makeCall( querySuggestService, url, params, default_resultHandler, default_faultHandler );
 			
@@ -96,7 +96,7 @@ package com.ikanow.infinit.e.query.service
 		 */
 		public function query( event:QueryEvent ):AsyncToken
 		{
-			var url:String = ServiceConstants.QUERY_URL + event.communityids;
+			var url:String = ServiceConstants.QUERY_URL + "$commids?commids=" + event.communityids;
 			var params:Object = { action: ServiceConstants.QUERY_ACTION, dialogControl: event.dialogControl, communityids: event.communityids, queryString: event.queryString };
 			var token:AsyncToken = makePostCall( service, url, params, query_resultHandler, default_faultHandler, event.queryString );
 			

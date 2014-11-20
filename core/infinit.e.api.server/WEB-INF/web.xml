@@ -31,6 +31,12 @@
   	</listener-class>
   </listener>
   
+  <!-- Static resources -->  
+   <servlet-mapping>  
+      <servlet-name>default</servlet-name>  
+      <url-pattern>/static/*</url-pattern>  
+   </servlet-mapping>
+  
    <!-- Catch rest api requests -->  
    <servlet-mapping>  
       <servlet-name>InfiniteServlet</servlet-name>  

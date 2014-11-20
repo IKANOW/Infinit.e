@@ -82,6 +82,17 @@
 		<copy todir="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/lib/unbundled/">
 			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar j-calais*.jar GridFSZipFile.jar"/>
 		</copy>
+		
+		<!-- New! Now keep a copy of the current es-compat layer in the px engine and keep it up to date -->
+		<copy file="../infinit.e.elasticsearch.driver_1.3/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar"/>
+
+		<copy file="../infinit.e.elasticsearch.driver_1.0/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/infinit.e-processing-engine/mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar"/>
+			
 	</target>
 	
 	<!-- ================================= 

@@ -652,6 +652,7 @@ public class InfiniteMongoSplitter
 		BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
 		BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
 		keyFields.put(SourceHarvestStatusPojo.sourceQuery_doccount_, 1);
+		keyFields.put(SourcePojo.highestDistributionFactorStored_, 1);
 
 		// Get and remove the sourceKey information, incorporate into source query,
 		// so it's nice and simple by the time it gets to the actual query
@@ -712,7 +713,8 @@ public class InfiniteMongoSplitter
 			while (dbc.hasNext()) {
 				BasicDBObject dbo = (BasicDBObject)dbc.next();
 				String sourceKey = (String) dbo.get(SourcePojo.key_);
-				sources.add(sourceKey);
+				Integer distributionFactor = (Integer) dbo.get(SourcePojo.highestDistributionFactorStored_);
+				sources.addAll(SourcePojo.getDistributedKeys(sourceKey, distributionFactor));
 			}
 			if (sources.isEmpty()) {
 				throw new RuntimeException(); // will just return no splits at all, no problem

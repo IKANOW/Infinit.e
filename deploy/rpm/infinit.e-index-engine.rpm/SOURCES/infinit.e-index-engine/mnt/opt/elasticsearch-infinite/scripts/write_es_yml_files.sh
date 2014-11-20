@@ -20,6 +20,13 @@ MIN_NODES=`grep "^elastic.search.min_peers=" $SERVICE_PROPERTY_FILE | sed s/'ela
 # 
 
 cp $YML_TEMPLATE $TMP_YML_FILE
+
+if [ -f /opt/elasticsearch-infinite/config/INTERFACE_ONLY ]; then
+	sed -i "s|IS_DATA_NODE|false|g" $TMP_YML_FILE
+else
+	sed -i "s|IS_DATA_NODE|true|g" $TMP_YML_FILE
+fi
+
 sed -i "s|CLUSTER_NAME|$CLUSTER_NAME|g" $TMP_YML_FILE
 
 sed -i "s|DISCOVERY_MODE|$DISCOVERY_MODE|g" $TMP_YML_FILE

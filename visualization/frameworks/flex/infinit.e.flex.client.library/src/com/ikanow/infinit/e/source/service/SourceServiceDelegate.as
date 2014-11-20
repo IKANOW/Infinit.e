@@ -56,7 +56,8 @@ package com.ikanow.infinit.e.source.service
 		 */
 		public function getSourcesGood( event:SourceEvent ):AsyncToken
 		{
-			var url:String = ServiceConstants.GET_SOURCES_GOOD_URL + event.communityIDs + "?" + ServiceConstants.GET_SOURCE_URL_PARAM;
+			//var url:String = ServiceConstants.GET_SOURCES_GOOD_URL + event.communityIDs + "?" + ServiceConstants.GET_SOURCE_URL_PARAM;
+			var url:String = ServiceConstants.GET_SOURCES_GOOD_URL + "$commids?commids=" + event.communityIDs + "&" + ServiceConstants.GET_SOURCE_URL_PARAM;
 			var params:Object = { action: ServiceConstants.GET_SOURCES_GOOD_ACTION, dialogControl: event.dialogControl };
 			var token:AsyncToken = makeCall( service, url, params, default_resultHandler, default_faultHandler );
 			

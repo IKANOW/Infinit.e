@@ -88,7 +88,7 @@ public class DocumentPojo extends BaseDbPojo {
 	// Data source
 	private String source = null; // (API side is Set<String>)
 	final public static String source_ = "source";
-	private String sourceKey = null; // (API side is Set<String>)
+	private String sourceKey = null; // (API side is Set<String>) Internally may include #N or #NN to help with distribution
 	final public static String sourceKey_ = "sourceKey";
 	private String mediaType = null; // (API side is Set<String>)
 	final public static String mediaType_ = "mediaType";
@@ -249,8 +249,27 @@ public class DocumentPojo extends BaseDbPojo {
 	public void setSource(String source) {
 		this.source = source;
 	}
-	public String getSourceKey() {
+	public String getRawSourceKey() { // Including the #<N|NN,distributed> number at the end
 		return sourceKey;
+	}
+	public static String getSourceKey(String rawSourceKey) { // (Removes the # #<N|NN,distributed> number at the end)
+		if (null == rawSourceKey) {
+			return null;
+		}
+		else {
+			int len = rawSourceKey.length();
+			if ('#' == rawSourceKey.charAt(len - 2)) {
+				return rawSourceKey.substring(0, len - 2);
+			}
+			if ('#' == rawSourceKey.charAt(len - 3)) {
+				return rawSourceKey.substring(0, len - 3);				
+			}
+			return rawSourceKey;
+		}
+		
+	}
+	public String getSourceKey() { // (Removes the # #<N|NN,distributed> number at the end)
+		return getSourceKey(sourceKey);
 	}
 	public void setSourceKey(String sourceKey) {
 		this.sourceKey = sourceKey;
@@ -704,7 +723,7 @@ public class DocumentPojo extends BaseDbPojo {
 		this.explain = explain;
 	}
 
-	public Object getExplain() {
+	public Object getExplain() { // (In the harvest context this is used to tell us that the doc is actually being deleted, not just rejected, if != null)
 		return explain;
 	}
 

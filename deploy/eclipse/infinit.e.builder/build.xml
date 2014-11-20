@@ -50,6 +50,7 @@
 	<property name="InfiniteTimelineEventWidget.location" value="${basedir}/../InfiniteTimelineEventWidget"/>
 	<property name="InfiniteTimelineWidget.location" value="${basedir}/../InfiniteTimelineWidget"/>
 	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
+	<property name="InfiniteCustomMonitor.location" value="${basedir}/../InfiniteCustomMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
 	<property name="InfiniteKibanaConnector.location" value="${basedir}/../infinit.e.kibana_connector"/>
 	
@@ -132,6 +133,9 @@
 		</ant>
 		<ant antfile="${InfiniteSourceMonitor.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteSourceMonitor.location}"/>
+		</ant>
+		<ant antfile="${InfiniteCustomMonitor.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteCustomMonitor.location}"/>
 		</ant>
 		<ant antfile="${InfiniteEntityProfiler.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteEntityProfiler.location}"/>

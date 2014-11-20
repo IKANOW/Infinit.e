@@ -19,7 +19,9 @@ import java.io.UnsupportedEncodingException;
 import java.lang.reflect.Type;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -42,6 +44,7 @@ import com.google.gson.JsonSerializationContext;
 import com.google.gson.JsonSerializer;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.mongodb.BasicDBObject;
 
@@ -115,6 +118,12 @@ public class SourcePojo extends BaseDbPojo {
 	private Integer distributionFactor;
 	final public static String distributionFactor_ = "distributionFactor";
 	
+	private Integer highestDistributionFactorStored; // (for higher speed distributed storage, this persistent field keeps track of the biggest number used) 
+	final public static String highestDistributionFactorStored_ = "highestDistributionFactorStored";
+	
+	transient private Collection<String> _distributedKeys; // (cached copy of the distributed keys calculated from highestDistributionFactorStored)
+	transient private Object _distributedKeyQueryTerm; // (either a string or a BasicDBOjbect containing a list of keys) 
+	
 	private Set<ObjectId> federatedQueryCommunityIds = null; // (populated with communityIds if the source is a federated query - just used for efficient lookups from queries)
 	final public static String federatedQueryCommunityIds_ = "federatedQueryCommunityIds";
 	
@@ -172,6 +181,8 @@ public class SourcePojo extends BaseDbPojo {
 	
 	private Integer maxDocs = null; // Limits the number of docs that can be stored for this source at any one time
 	final public static String maxDocs_ = "maxDocs";
+	private Integer timeToLive_days = null; // Sets a time to live for the documents harvested, after which they are deleted
+	final public static String timeToLive_days_ = "timeToLive_days";
 	private Integer throttleDocs = null; // Limits the number of docs that can be harvested in one cycle (cannot be higher than system setting in harvest.maxdocs_persource)
 	final public static String throttleDocs_ = "throttleDocs";
 	private Boolean duplicateExistingUrls; // If false (defaults: true) will ignore docs harvested by other sources in the community
@@ -220,6 +231,61 @@ public class SourcePojo extends BaseDbPojo {
 	public void setId(ObjectId id) {
 		this._id = id;
 	}
+	public Collection<String> getDistributedKeys() {
+		if (null != _distributedKeys) {
+			return _distributedKeys;
+		}		
+		_distributedKeys = getDistributedKeys(key, highestDistributionFactorStored);
+		return _distributedKeys;
+	}//TESTED (see static version) 
+	public Object getDistributedKeyQueryTerm() {
+		if (null != this._distributedKeyQueryTerm) {
+			return _distributedKeyQueryTerm;
+		}
+		else if (null == highestDistributionFactorStored) {
+			_distributedKeyQueryTerm = key;
+		}
+		else {
+			BasicDBObject queryTerm = new BasicDBObject(DbManager.gte_, key);
+			queryTerm.put(DbManager.lt_, key + "#:");
+			_distributedKeyQueryTerm = queryTerm;
+		}
+		return _distributedKeyQueryTerm;
+	}//TESTED (by hand, both clauses)
+	public static Object getDistributedKeyQueryTerm(String key) {
+		return getDistributedKeyQueryTerm(key, 1);
+	}//TESTED
+	public static Object getDistributedKeyQueryTerm(String key, Integer highestDistributionFactorStored) {
+		if (null == highestDistributionFactorStored) {
+			return key;
+		}
+		else {
+			BasicDBObject queryTerm = new BasicDBObject(DbManager.gte_, key);
+			queryTerm.put(DbManager.lt_, key + "#:");
+			return queryTerm;
+		}		
+	}//TESTED
+	public static Collection<String> getDistributedKeys(String key, Integer highestDistributionFactorStored) {
+		int numShards = 1;
+		if (null != highestDistributionFactorStored) {
+			numShards = highestDistributionFactorStored;
+		}
+		ArrayList<String> distributedKeys = new ArrayList<String>(numShards);
+		StringBuffer keySb = new StringBuffer(key).append("#");
+		int originalLength = keySb.length();
+		for (int i = 0; i < numShards; i++) {
+			if (0 == i) {
+				distributedKeys.add(key);
+			}
+			else {
+				keySb.append(i);
+				distributedKeys.add(keySb.toString());
+				keySb.setLength(originalLength);
+			}
+		}
+		return distributedKeys;
+	}//TESTED (by hand, both cases)
+	
 	public String getKey() {
 		return key;
 	}
@@ -886,5 +952,20 @@ public class SourcePojo extends BaseDbPojo {
 	}
 	public void setOwnedByAdmin(Boolean ownedByAdmin) {
 		this.ownedByAdmin = ownedByAdmin;
+	}
+	public Integer getTimeToLive_days() {
+		return timeToLive_days;
+	}
+	public void setTimeToLive_days(Integer timeToLive_days) {
+		this.timeToLive_days = timeToLive_days;
+	}
+	public Integer getHighestDistributionFactorStored() {
+		return highestDistributionFactorStored;
+	}
+	public void setHighestDistributionFactorStored(
+			Integer highestDistributionFactorStored) {
+		_distributedKeys = null;
+		_distributedKeyQueryTerm = null;
+		this.highestDistributionFactorStored = highestDistributionFactorStored;
 	}
 }

@@ -80,9 +80,9 @@ public class SourceInterface extends ServerResource
 		 bStripped = (null != queryOptions.get("stripped")) && Boolean.parseBoolean((String) queryOptions.get("stripped"));
 		 
 		 // communityid - all get/post methods need this value
-		 if (RESTTools.decodeRESTParam("communityid", attributes) != null)
+		 if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null)
 		 {
-			 communityid = RESTTools.decodeRESTParam("communityid", attributes);
+			 communityid = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 		 }
 		 
 		 // Method.GET
@@ -90,11 +90,11 @@ public class SourceInterface extends ServerResource
 		 {
 			 if ( urlStr.contains("source/add/") || urlStr.contains("knowledge/sources/add/"))
 			 {
-				 sourceurl = RESTTools.decodeRESTParam("sourceurl", attributes);
-				 sourcetitle = RESTTools.decodeRESTParam("sourcetitle", attributes);
-				 sourcedesc = RESTTools.decodeRESTParam("sourcedesc", attributes);
-				 extracttype = RESTTools.decodeRESTParam("extracttype", attributes);
-				 sourcetags = RESTTools.decodeRESTParam("sourcetags", attributes);
+				 sourceurl = RESTTools.getUrlAttribute("sourceurl", attributes, queryOptions);
+				 sourcetitle = RESTTools.getUrlAttribute("sourcetitle", attributes, queryOptions);
+				 sourcedesc = RESTTools.getUrlAttribute("sourcedesc", attributes, queryOptions);
+				 extracttype = RESTTools.getUrlAttribute("extracttype", attributes, queryOptions);
+				 sourcetags = RESTTools.getUrlAttribute("sourcetags", attributes, queryOptions);
 				 action = "add"; 
 			 }			 
 			 
@@ -121,7 +121,7 @@ public class SourceInterface extends ServerResource
 			 else if ( urlStr.contains("source/save/") || urlStr.contains("knowledge/sources/save/"))
 			 {
 				 // Use URLDecoder on the json string
-				 json = RESTTools.decodeRESTParam("json", attributes);
+				 json = RESTTools.getUrlAttribute("json", attributes, queryOptions);
 				 try 
 				 {
 					 json = URLDecoder.decode(json, "UTF-8");
@@ -138,23 +138,23 @@ public class SourceInterface extends ServerResource
 			 }			 
 			 else if ( urlStr.contains("source/delete/docs") || urlStr.contains("sources/delete/docs") )
 			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
+				 sourceid = RESTTools.getUrlAttribute("sourceid", attributes, queryOptions);
 				 action = "deletedocs";
 			 }
 			 else if ( urlStr.contains("source/delete") || urlStr.contains("sources/delete") )
 			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
+				 sourceid = RESTTools.getUrlAttribute("sourceid", attributes, queryOptions);
 				 action = "delete";
 			 }
 			 else if ( urlStr.contains("source/get") || urlStr.contains("sources/get") )
 			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
+				 sourceid = RESTTools.getUrlAttribute("sourceid", attributes, queryOptions);
 				 action = "info";
 			 }
 			 else if ( urlStr.contains("source/suspend") )
 			 {
-				 sourceid = RESTTools.decodeRESTParam("sourceid",attributes);
-				 shouldSuspend = RESTTools.decodeRESTParam("shouldSuspend", attributes).equalsIgnoreCase("true");	
+				 sourceid = RESTTools.getUrlAttribute("sourceid", attributes, queryOptions);
+				 shouldSuspend = RESTTools.getUrlAttribute("shouldSuspend", attributes, queryOptions).equalsIgnoreCase("true");	
 				 action = "suspend";
 			 }
 		 }

@@ -1,0 +1,629 @@
+@namespace s "library://ns.adobe.com/flex/spark";
+@namespace mx "library://ns.adobe.com/flex/mx";
+@namespace local "*";
+@namespace spark "spark.skins.spark.*";
+@namespace views "views.*";
+/*@namespace component "com.ikanow.infinit.e.shared.view.component.*";
+@namespace busyIndicator "com.ikanow.infinit.e.shared.view.component.busyIndicator.*";*/
+
+/*===================================
+	Global
+===================================*/
+
+s|CheckBox
+{
+	fontFamily : infiniteDefaultFont;
+	skinClass : ClassReference("skins.InfCheckBoxSkin");
+}
+
+s|CheckBox.checkMarkDark
+{
+	fontFamily : infiniteDefaultFont;
+	rollOverColor: #FFFFFF;
+	color      : #bbbec1;
+	skinClass : ClassReference("skins.InfCheckBoxDarkSkin");
+}
+
+/*component|HSeparator
+{
+	lineColor: #262b2f;
+	shadowColor: #4a4f53;
+	strokeWeight: 2;
+}*/
+
+views|VSeparator
+{
+	lineColor: #262b2f;
+	shadowColor: #4a4f53;
+	strokeWeight: 2;
+}
+
+s|DataGrid
+{
+	skinClass : ClassReference("skins.InfDataGridSkin");
+	borderVisible: false;
+	fontFamily : infiniteDefaultFont;
+}
+
+mx|DateField
+{
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	fontFamily: infiniteNonCFFFont;
+	textInputStyleName: dateFieldTextInputStyle;
+}
+
+.dateFieldTextInputStyle
+{
+	corner-radius: 5;
+	paddingTop: 10;
+/*	borderSkin: ClassReference("assets.skins.DateFieldSkin");  */
+}
+
+s|DropDownList
+{
+	fontFamily: infiniteDefaultFont;
+	fontSize: 12;
+	fontWeight: bold;
+	color: #FFFFFF;
+	shadowColor: #373C3F;
+	cornerRadius: 6;
+	selectionColor: #878D8F;
+	rollOverColor: #575C60;
+	textSelectedColor: #FFFFFF;
+	textRollOverColor: #FFFFFF;
+	contentBackgroundColor: #383F45;
+/*	skinClass: ClassReference("assets.skins.InfDropDownListSkin"); */
+}
+
+s|VScrollBar
+{
+	skinClass : ClassReference("skins.InfVScrollBarSkin");	
+}
+
+s|HScrollBar
+{
+	skinClass : ClassReference("skins.InfHScrollBarSkin");	
+}
+
+mx|ScrollBar
+{
+	up-arrow-skin: ClassReference(null);
+	down-arrow-skin: ClassReference(null);
+/*	trackSkin: Embed(source="/assets/skins/ScrollBarTrack.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbUpSkin: Embed(source="/assets/skins/ScrollBarThumb_up.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbOverSkin: Embed(source="/assets/skins/ScrollBarThumb_over.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");
+	thumbDownSkin: Embed(source="/assets/skins/ScrollBarThumb_down.png", scaleGridLeft="1", scaleGridTop="4", scaleGridRight="5", scaleGridBottom="16");*/
+}
+
+.lightSeparator
+{
+	lineColor: #b4b4b6;
+	shadowColor: #f8f8fa;
+	strokeWeight: 1;
+}
+
+/*===================================
+	Backgrounds
+===================================*/
+
+
+.background
+{
+	start-ratio: .5;
+	start-color: #373d44;
+	end-color: #373d44;
+	rotation: 90;
+	skin-class: ClassReference("skins.GradientContainerSkin");
+}
+
+.lightBackground
+{
+	start-ratio: .5;
+	start-color: #DCDDDF;
+	end-color: #DCDDDF;
+	skin-class: ClassReference("skins.GradientContainerSkin");
+}
+
+.modalBackground
+{
+	backgroundColor: #262b2f;
+	disabledColor: #262b2f;
+	disabledAlpha: 0;
+}
+
+.noModalBackground
+{
+	disabledAlpha: 1.0;
+}
+
+.stripedBackground
+{
+	gap: 5;
+	stripe-color: #40484B;
+	backgroundColor: #373d44;
+}
+
+/*===================================
+	Common Buttons
+===================================*/
+.clearButton
+{
+	skinClass : ClassReference("skins.ClearButtonSkin");	
+}
+
+.closeButton
+{
+	skinClass : ClassReference("skins.CloseButtonSkin");	
+}
+
+.communityButton
+{
+	skinClass : ClassReference("skins.CommunityButtonSkin");
+}
+
+.filterButton
+{
+	skinClass : ClassReference("skins.FilterButtonSkin");	
+}
+
+.refreshButton
+{
+	skinClass : ClassReference("skins.RefreshButtonSkin");
+}
+
+.selectAllButton
+{
+	skinClass : ClassReference("skins.SelectAllButtonSkin");	
+}
+
+.selectAllIconButton
+{
+	skinClass : ClassReference("skins.SelectAllIconButtonSkin");	
+}
+
+.roundedBlueButton
+{
+	skinClass : ClassReference( "skins.RoundedBlueButtonSkin" );
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+}
+
+.transparentLightGreyButton
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	rollOverColor: #ffffff;
+	skinClass : ClassReference("skins.TransparentButtonSkin");
+}
+/*===================================
+	Components
+===================================*/
+views|BusyIndicator
+{
+	rotationInterval: 50;
+	symbolColor: #ffffff;
+}
+
+.dataGridHeader
+{
+	backgroundColor: #353D40;	
+}
+
+.dataGridHover
+{
+	start-ratio: 0;
+	start-color: #D2DBE0;
+	end-color: #A3B8BD;
+	rotation: 90;
+	skinClass : ClassReference("skins.GradientContainerSkin");
+}
+
+.dataGridSelection
+{
+	start-ratio: 0;
+	start-color: #D2DBE0;
+	end-color: #A3B8BD;
+	rotation: 90;
+	skinClass : ClassReference("skins.GradientContainerSkin");
+}
+
+.dialog
+{	
+	background-color: #000000;
+	fontSize   : 14pt;
+	color: #dfdfdf;
+	corner-radius: 8;
+	modalTransparency: .1;
+	modalTransparencyColor: #000000;
+}
+
+.filterTextInput
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "skins.FilterTextInputSkin" );
+}
+
+.filterTextInputSmall
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 12;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "skins.FilterTextInputSmallSkin" );
+}
+
+.infTextInput
+{
+	fontFamily : infiniteDefaultFont;
+	color: #4c4c4c;
+	fontSize: 16;
+	fontWeight: bold;
+	focusThickness: 3;
+	skinClass : ClassReference( "skins.InfTextInputSkin" );
+}
+
+.loadingDataBusyIndicatorLabel
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	symbolColor: #FFFFFF;
+}
+
+.selectAllDropDownList
+{
+	color: #ffffff;
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	borderColor: #464A4D;
+	chromeColor: #464A4D;
+	alternatingItemColors: #464A4D, #464A4D;
+	backgroundColor: #464A4D;
+	skinClass : ClassReference("skins.SelectAllDropDownListSkin");	
+}
+
+.selectAllIconDropDownList
+{
+	color: #ffffff;
+	rollOverColor: #575C60;
+	selectionColor: #575C60;
+	borderColor: #464A4D;
+	chromeColor: #464A4D;
+	alternatingItemColors: #464A4D, #464A4D;
+	backgroundColor: #464A4D;
+	skinClass : ClassReference("skins.SelectAllIconDropDownListSkin");	
+}
+
+.simpleSearchTextInput
+{
+/*	skinClass : ClassReference( "assets.skins.SimpleSearchTextInputSkin" );*/
+}
+
+.smallSearchTextInput
+{
+	borderVisible: false;
+/*	skinClass : ClassReference( "assets.skins.SearchTextInputSmallSkin" );*/
+}
+
+.titleWindowBasic
+{
+	backgroundColor: #5E6367;
+/*	skinClass : ClassReference("assets.skins.TitleWindowBasicSkin");	*/
+	cornerRadius: 4;
+}
+
+.titleWindowBasic
+{
+	backgroundColor: #5E6367;
+/*	skinClass : ClassReference("assets.skins.TitleWindowBasicSkin");	*/
+	cornerRadius: 4;
+}
+
+.titleWindowSearch
+{
+	backgroundColor: #5E6367;
+	skinClass : ClassReference("skins.TitleWindowSearchSkin");	
+	cornerRadius: 4;
+	fontSize: 12pt;
+}
+
+.titleWindowSearchArrow
+{
+	backgroundColor: #5E6367;
+/*	skinClass : ClassReference("assets.skins.TitleWindowSearchSkinArrow");	*/
+	cornerRadius: 4;
+	fontSize: 12pt;
+}
+
+.titleWindowList
+{
+	rollOverColor: #A3BBC4;
+	selectionColor: #A3BBC4;
+	contentBackgroundColor: #5E6367;
+	borderVisible: false;
+}
+
+/*===================================
+Login
+===================================*/
+
+.loginBusyIndicatorLabel
+{
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 4;
+	fontSize: 14;
+	shadowColor: #373C3F;
+	symbolColor: #000000;
+}
+
+/*===================================
+	Header
+===================================*/
+
+.headerDialogsButtonBar
+{
+/*	skinClass : ClassReference( "assets.skins.header.HeaderDialogsButtonBarSkin" );*/
+	iconPlacement: top;
+}
+
+.headerActionsButtonBar
+{
+/*	skinClass : ClassReference( "assets.skins.header.HeaderActionsButtonBarSkin" );*/
+}
+
+.headerActionsButtonSeparator
+{
+	lineColor: #454a4e;
+	shadowColor: #707579;
+	strokeWeight: 1;
+}
+
+/*===================================
+Community
+===================================*/
+
+.joinCommunityButton
+{
+	skinClass : ClassReference("skins.CommunityAddButtonSkin");	
+}
+
+/*===================================
+Text Styles
+===================================*/
+
+.black
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blackItalic
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontStyle  : italic;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blackBold
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.blackTextBold
+{
+	fontSize   : 16pt;
+	color      : #000000;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blueText
+{
+	color      : #A3BBC5;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.blueTextBold
+{
+	fontSize   : 16pt;
+	color      : #A3BBC5;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greenText
+{
+	color      : #82b43f;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greenTextBold
+{
+	fontSize   : 16pt;
+	color      : #82b43f;
+	fontWeight : bold;
+	fontThickness: 2;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greyTextLarge
+{
+	fontSize   : 16pt;
+	color      : #656565;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.greyTextSmall
+{
+	color      : #919395;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyHeader
+{
+	fontSize   : 24pt;
+	color      : #bbbec1;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGrey
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyLargeBold
+{
+	fontSize   : 16pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontWeight: bold;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyItalic
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontStyle  : italic;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyBold
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontWeight: bold;
+	fontFamily : infiniteDefaultFont;
+}
+
+.veryLightGrey
+{
+	fontSize   : 14pt;
+	color      : #dfdfdf;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.veryLightGreyLarge
+{
+	fontSize   : 16pt;
+	color      : #dfdfdf;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.white
+{
+	fontSize   : 14pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.whiteBold
+{
+	fontSize   : 12pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.whiteLarge
+{
+	fontSize   : 16pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.darkGrey
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.darkGreyBold
+{
+	fontSize  : 14pt;
+	color     : #565B5F;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+	fontWeight : bold;
+}
+
+.mediumGrey
+{
+	fontSize  : 14pt;
+	color     : #999999;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.redTextLarge
+{
+	fontSize   : 16pt;
+	color      : #FF0000;
+	shadowColor: #373C3F;
+	fontFamily : infiniteDefaultFont;
+}
+
+.lightGreyMX
+{
+	fontSize   : 14pt;
+	color      : #bbbec1;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}
+
+.whiteMX
+{
+	fontSize   : 14pt;
+	color      : #ffffff;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}
+
+.blackMX
+{
+	fontSize   : 14pt;
+	color      : #000000;	
+	shadowColor: #373C3F;
+	fontFamily: infiniteNonCFFFont;
+}

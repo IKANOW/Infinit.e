@@ -42,6 +42,7 @@ import java.util.zip.GZIPInputStream;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelException;
@@ -413,6 +414,10 @@ public class HarvestController implements HarvestContext
 	{
 		nUrlErrorsThisSource = 0;
 
+		if (HarvestController.isHarvestKilled()) { // Already spent too long - just bail out from here
+			source.setReachedMaxDocs();
+			return;
+		}		
 		// New Harvest Pipeline logic
 		if (null != source.getProcessingPipeline()) {
 			if (null == procPipeline) {
@@ -436,6 +441,9 @@ public class HarvestController implements HarvestContext
 		getDuplicateManager().resetForNewSource();
 		getHarvestStatus().resetForNewSource();
 
+		// (temp location to store timings)
+		source.setCreated(new Date());
+		
 		//First up, Source Extraction (could spawn off some threads to do source extraction)
 		// Updates will be treated as follows:
 		// - extract etc etc (since they have changed)
@@ -445,6 +453,9 @@ public class HarvestController implements HarvestContext
 		extractSource(source, toAdd, toUpdate, toRemove, toDuplicate);
 		// (^^^ this adds toUpdate to toAdd) 
 
+		// (temp location to store timings)
+		source.setModified(new Date());
+		
 		if (null != source.getProcessingPipeline()) {
 			procPipeline.setInterDocDelayTime(nBetweenFeedDocs_ms);
 			try {
@@ -456,7 +467,7 @@ public class HarvestController implements HarvestContext
 		}
 		else { // Old logic (more complex, less functional)
 			enrichSource(source, toAdd, toUpdate, toRemove);
-		}
+		}		
 		completeEnrichmentProcess(source, toAdd, toUpdate, toRemove);
 
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
@@ -520,6 +531,7 @@ public class HarvestController implements HarvestContext
 					List<DocumentPojo> tmpToAdd = new LinkedList<DocumentPojo>();
 					List<DocumentPojo> tmpToUpdate = new LinkedList<DocumentPojo>();
 					List<DocumentPojo> tmpToRemove = new LinkedList<DocumentPojo>();
+					harvester = harvester.getClass().newInstance(); // (create a new harvester for each source, avoids problems with state...)
 					harvester.executeHarvest(this, source, tmpToAdd, tmpToUpdate, tmpToRemove);
 
 					int nDocs = 0;
@@ -549,7 +561,9 @@ public class HarvestController implements HarvestContext
 							doc.setTempSource(source);
 							doc.setMediaType(source.getMediaType());
 							if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
-								doc.setTags(source.getTags());
+								if (null != source.getTags()) {
+									doc.setTags(new HashSet<String>(source.getTags()));									
+								}
 							}
 							ObjectId sCommunityId = source.getCommunityIds().iterator().next(); // (multiple communities handled below) 
 							String sIndex = new StringBuffer("doc_").append(sCommunityId.toString()).toString();
@@ -575,7 +589,7 @@ public class HarvestController implements HarvestContext
 										cloneDoc.setSource(source.getTitle());
 										cloneDoc.setUrl(doc.getUrl());
 										if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
-											cloneDoc.setTags(source.getTags());
+											cloneDoc.setTags(new HashSet<String>(source.getTags()));
 										}
 
 										cloneDoc.setCloneFrom(doc);
@@ -601,6 +615,7 @@ public class HarvestController implements HarvestContext
 
 					//DEBUG
 					//e.printStackTrace();
+					
 					logger.error("Error extracting source=" + source.getKey() + ", type=" + source.getExtractType() + ", reason=" + e.getMessage());					
 					_harvestStatus.update(source, new Date(), HarvestEnum.error, "Extraction error: " + e.getMessage(), false, false);					
 				}
@@ -699,9 +714,14 @@ public class HarvestController implements HarvestContext
 			
 			StringBuffer sLog2 = new StringBuffer();
 
+			long extractTime_ms = source.getModified().getTime() - source.getCreated().getTime();
+			long enrichTime_ms = new Date().getTime() - source.getModified().getTime();
+			
 			// Extraction stats:
 			sLog2.append("extracted=").append(toAdd.size()).append(" updated=").append(toUpdate.size()).
-					append(" deleted=").append(toRemove.size()).append(" urlerrors=").append(nUrlErrorsThisSource).append(" pxerrors=").append(pxErrors);
+					append(" deleted=").append(toRemove.size()).
+					append(" extract_time_ms=").append(extractTime_ms).append(" enrich_time_ms=").append(enrichTime_ms).
+					append(" urlerrors=").append(nUrlErrorsThisSource).append(" pxerrors=").append(pxErrors);
 			
 			getHarvestStatus().logMessage(sLog2.toString(), false); 
 			sLog.append(sLog2);
@@ -1197,14 +1217,17 @@ public class HarvestController implements HarvestContext
 				}
 			}
 		}
+		
 		// Remove any docs from update list that didn't get updated
 		if ( updateDocs != null )
 		{
 			Iterator<DocumentPojo> it = updateDocs.iterator();
 			while (it.hasNext()) {
 				DocumentPojo d = it.next();
-				if (null == d.getTempSource()) { //this doc got deleted
-					it.remove();
+				if (null == d.getTempSource()) { //this doc got rejected, normally it means we'll remove from update list so the db version is left alone
+					if (null == d.getExplain()) { // exception: if d.getExplain != null then _remove_ from update list, so db version is deleted
+						it.remove();
+					}//TODO (INF-2825): TOTEST
 				}
 			}
 		}
@@ -1292,7 +1315,9 @@ public class HarvestController implements HarvestContext
 			}
 		}
 		catch (Exception e) {
-			getHarvestStatus().logMessage("custom extractor error: " + e.getMessage(), false);
+			StringBuffer sb = Globals.populateStackTrace(new StringBuffer(), e);
+			sb.append(" (check the share's title is the fully qualified classname, and its community permissions are correct)");
+			getHarvestStatus().logMessage("custom extractor error: " + sb.toString(), false);
 			if (null == failedDynamicExtractors) {
 				failedDynamicExtractors = new HashSet<String>();
 				failedDynamicExtractors.add(extractorName);
@@ -1300,7 +1325,9 @@ public class HarvestController implements HarvestContext
 			//e.printStackTrace();
 		} // General fail just carry on 
 		catch (Error err) {
-			getHarvestStatus().logMessage("custom extractor error: " + err.getMessage(), false);
+			StringBuffer sb = Globals.populateStackTrace(new StringBuffer(), err);
+			sb.append(" (check the share's title is the fully qualified classname, and its community permissions are correct)");
+			getHarvestStatus().logMessage("custom extractor error: " + sb.toString(), false);
 			if (null == failedDynamicExtractors) {
 				failedDynamicExtractors = new HashSet<String>();
 				failedDynamicExtractors.add(extractorName);

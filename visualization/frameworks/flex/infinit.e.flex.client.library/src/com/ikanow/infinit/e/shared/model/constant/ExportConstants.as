@@ -65,5 +65,7 @@ package com.ikanow.infinit.e.shared.model.constant
 		public static const SOURCES_META_TYPES:String = "sourceMetaTypes";
 		
 		public static const JSON_FILENAME:String = "JSONfile.JSON";
+		
+		public static const PDF_FILENAME:String = "export.pdf";
 	}
 }

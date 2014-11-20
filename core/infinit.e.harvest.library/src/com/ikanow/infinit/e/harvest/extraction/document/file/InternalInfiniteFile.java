@@ -291,10 +291,10 @@ public class InternalInfiniteFile extends InfiniteFile {
 
 	@Override
 	public InfiniteFile[] listFiles()  {
-		return listFiles(null);
+		return listFiles(null, Integer.MAX_VALUE);
 	}
 	@Override
-	public InfiniteFile[] listFiles(Date optionalFilterDate)  {
+	public InfiniteFile[] listFiles(Date optionalFilterDate, int maxDocsPerCycle)  {
 		if (_isDirectory) {
 			if (_isShare) { // must be a zip file
 				ArrayList<InfiniteFile> zipFiles = new ArrayList<InfiniteFile>();
@@ -392,7 +392,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 					}		
 
 					outColl = MongoDbManager.getCollection(outputDatabase, outputCollection);
-					dbc = outColl.find(new BasicDBObject("_id", query));
+					dbc = outColl.find(new BasicDBObject("_id", query)).limit(1 + maxDocsPerCycle);
 				}//TESTED (6.2.2) (doc skipping by hand)
 				
 				if (null != outColl) { // has files, create the actual file objects
@@ -400,6 +400,9 @@ public class InternalInfiniteFile extends InfiniteFile {
 					//System.out.println("CHUNK: GOT " + dbc.count());
 					
 					int docCount = dbc.count();
+					if (docCount > 1 + maxDocsPerCycle) {
+						docCount = 1 + maxDocsPerCycle; // (we're limiting it here anyway)
+					}
 					InfiniteFile[] docs = new InfiniteFile[docCount];
 					int added= 0;
 					for (DBObject docObj: dbc) {
@@ -411,9 +414,15 @@ public class InternalInfiniteFile extends InfiniteFile {
 							}
 						}//TESTED
 						
-						InternalInfiniteFile doc = new InternalInfiniteFile(this, (BasicDBObject) docObj);
-						docs[added] = doc;
-						added++;					
+						if (added >= maxDocsPerCycle) { // (we've reached our limit so put the remaining docs in a new directory, will only be used if it has to)
+							docs[added] = new InternalInfiniteFile(this, (ObjectId) docObj.get("_id"), _virtualDirEndLimit);
+							break;
+						}
+						else {
+							InternalInfiniteFile doc = new InternalInfiniteFile(this, (BasicDBObject) docObj);						
+							docs[added] = doc;
+						}//TESTED (both cases)
+						added++;												
 					}
 					dbc.close();					
 					return docs;
@@ -445,7 +454,12 @@ public class InternalInfiniteFile extends InfiniteFile {
 	@Override
 	public String getUrlPath() throws MalformedURLException, URISyntaxException
 	{
-		return getUrlString().substring(5);
+		if (null != this._virtualDirStartLimit) {
+			return getUrlString().substring(5) + this._virtualDirStartLimit.toString();
+		}
+		else {
+			return getUrlString().substring(5);
+		}
 	}//TESTED (1.2, 1.3, 2.2, 2.3. 3.2.1, 3.3, 4.2.1, 4.3)
 	
 	@Override

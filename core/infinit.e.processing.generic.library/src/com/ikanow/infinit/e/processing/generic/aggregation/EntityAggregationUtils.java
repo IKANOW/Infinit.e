@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.generic.aggregation;
 
+import java.util.Date;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -44,6 +45,11 @@ public class EntityAggregationUtils {
 	private static boolean _diagnosticMode = false;
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
 	
+	private static boolean _incrementalMode = false;
+	public static void setIncrementalMode(boolean mode) {
+		_incrementalMode = mode;
+	}
+
 	///////////////////////////////////////////////////////////////////////////////////////	
 	///////////////////////////////////////////////////////////////////////////////////////	
 
@@ -66,14 +72,24 @@ public class EntityAggregationUtils {
 	 */
 	public static void updateEntityFeatures(Map<String, Map<ObjectId, EntityFeaturePojo>> entFeatures)
 	{
+		// Some diagnostic counters:
+		int numCacheMisses = 0;
+		int numCacheHits = 0;
+		int numNewEntities = 0;
+		long entityAggregationTime = new Date().getTime();
+				
 		DBCollection col = DbManager.getFeature().getEntity();
+		
+		// (This fn is normally run for a single community id)
+		CommunityFeatureCaches.CommunityFeatureCache currCache = null;
+		
 		String savedSyncTime = null;
 		for (Map<ObjectId, EntityFeaturePojo> entCommunity: entFeatures.values()) {
 			
 			Iterator<Map.Entry<ObjectId, EntityFeaturePojo>> it = entCommunity.entrySet().iterator();
 			while (it.hasNext()) {
 				Map.Entry<ObjectId, EntityFeaturePojo> entFeatureKV = it.next();
-				try {					
+				try {		
 					EntityFeaturePojo entFeature = entFeatureKV.getValue();
 	
 					long nSavedDocCount = entFeature.getDoccount();
@@ -81,24 +97,64 @@ public class EntityAggregationUtils {
 						// (these should be constant across all communities but keep it here
 						//  so can assign it using entFeature, it's v cheap so no need to get once like for sync vars)
 					
+					// For each community, see if the entity feature already exists *for that community*					
 					ObjectId communityID = entFeature.getCommunityId();
 					if (null != communityID)
 					{
-						// For each community, see if the entity feature already exists *for that community*
+						if ((null == currCache) || !currCache.getCommunityId().equals(entFeatureKV.getKey())) {
+							currCache = CommunityFeatureCaches.getCommunityFeatureCache(entFeatureKV.getKey());							
+							if (_diagnosticMode) {
+								System.out.println("EntityAggregationUtils.updateEntityFeatures, Opened cache for community: " + entFeatureKV.getKey());
+							}
+						}//TESTED (by hand)
+						
+						// Is this in our cache? If so can short cut a bunch of the DB interaction:
+						EntityFeaturePojo cachedEnt = currCache.getCachedEntityFeature(entFeature);
+						if (null != cachedEnt) {							
+							if (_incrementalMode) {
+								if (_diagnosticMode) {
+									System.out.println("EntityAggregationUtils.updateEntityFeatures, skip cached: " + cachedEnt.toDb());									
+									//TODO (INF-2825): should be continue-ing here (after implementing incremental caching fully) so can use delta more efficiently...
+								}
+							}
+							else if (_diagnosticMode) {
+								System.out.println("EntityAggregationUtils.updateEntityFeatures, grabbed cached: " + cachedEnt.toDb());
+							}								
+							numCacheHits++;							
+							
+						}//TESTED (by hand)						
+						else {
+							numCacheMisses++;							
+						}
 						
 						BasicDBObject query = new BasicDBObject(EntityFeaturePojo.index_, entFeature.getIndex());
 						query.put(EntityFeaturePojo.communityId_, communityID);
 						BasicDBObject updateOp = new BasicDBObject();
 						// Add aliases:
 						BasicDBObject updateOpA = new BasicDBObject();
-						BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, entFeature.getAlias());
-						updateOpA.put(EntityFeaturePojo.alias_, multiopE);
+						if (null != entFeature.getAlias()) {
+							if ((null == cachedEnt) || (null == cachedEnt.getAlias()) || !cachedEnt.getAlias().containsAll(entFeature.getAlias())) {
+								//(if the data we have is already cached, don't bother adding it again)
+								BasicDBObject multiopE = new BasicDBObject(MongoDbManager.each_, entFeature.getAlias());
+								updateOpA.put(EntityFeaturePojo.alias_, multiopE);
+							}//TESTED (by hand)
+						}
 						// Add link data, if there is any:
 						if ((null != entFeature.getSemanticLinks()) && !entFeature.getSemanticLinks().isEmpty()) {
-							BasicDBObject multiopF = new BasicDBObject(MongoDbManager.each_, entFeature.getSemanticLinks());							
-							updateOpA.put(EntityFeaturePojo.linkdata_, multiopF);
+							if ((null == cachedEnt) || (null == cachedEnt.getSemanticLinks()) || !cachedEnt.getSemanticLinks().containsAll(entFeature.getSemanticLinks())) {
+								//(if the data we have is already cached, don't bother adding it again)
+								BasicDBObject multiopF = new BasicDBObject(MongoDbManager.each_, entFeature.getSemanticLinks());							
+								updateOpA.put(EntityFeaturePojo.linkdata_, multiopF);
+							}//TESTED (by hand)
 						}
-						updateOp.put(MongoDbManager.addToSet_, updateOpA);
+						// OK - now we can copy across the fields into the cache:
+						if (null != cachedEnt) {
+							currCache.updateCachedEntityFeatureStatistics(cachedEnt, entFeature); //(entFeature is now fully up to date)
+						}//TESTED (by hand)
+						
+						if (!updateOpA.isEmpty()) {
+							updateOp.put(MongoDbManager.addToSet_, updateOpA);
+						}
 						// Update frequency:
 						BasicDBObject updateOpB = new BasicDBObject();
 						updateOpB.put(EntityFeaturePojo.totalfreq_, nSavedFreqCount);
@@ -117,28 +173,41 @@ public class EntityAggregationUtils {
 	
 						DBObject dboUpdate = null;
 						if (_diagnosticMode) {
-							dboUpdate = col.findOne(query,fields);
+							if (null == cachedEnt) {
+								dboUpdate = col.findOne(query,fields);
+							}
 						}
 						else {
-							dboUpdate = col.findAndModify(query, fields, new BasicDBObject(), false, updateOp, false, true);
-								// (can use findAndModify because specify index, ie the shard key)
-								// (returns entity before the changes above, update the feature object below)
-								// (also atomically creates the object if it doesn't exist so is "distributed-safe")
+							if (null != cachedEnt) {
+								col.update(query, updateOp, false, false);
+							}
+							else { // Not cached - so have to grab the feature we're either getting or creating
+								dboUpdate = col.findAndModify(query, fields, new BasicDBObject(), false, updateOp, false, true);
+									// (can use findAndModify because specify index, ie the shard key)
+									// (returns entity before the changes above, update the feature object below)
+									// (also atomically creates the object if it doesn't exist so is "distributed-safe")
+							}
 						}
-						if ( ( dboUpdate != null ) && !dboUpdate.keySet().isEmpty() ) // (feature already exists)
+						if ((null != cachedEnt) || ((dboUpdate != null) && !dboUpdate.keySet().isEmpty())) // (feature already exists)
 						{
-							// (Update the entity feature to be correct so that it can be accurately synchronized with the index)							
-							EntityFeaturePojo gp = EntityFeaturePojo.fromDb(dboUpdate, EntityFeaturePojo.class);
-							entFeature.setTotalfreq(gp.getTotalfreq() + nSavedFreqCount);
-							entFeature.setDoccount(gp.getDoccount() + nSavedDocCount);
-							entFeature.setDbSyncDoccount(gp.getDbSyncDoccount());
-							entFeature.setDbSyncTime(gp.getDbSyncTime());
-							if (null != gp.getAlias()) {
-								entFeature.addAllAlias(gp.getAlias());
-							}
-							if (null != gp.getSemanticLinks()) {
-								entFeature.addToSemanticLinks(gp.getSemanticLinks());
-							}
+							EntityFeaturePojo gp = cachedEnt;
+							
+							// (Update the entity feature to be correct so that it can be accurately synchronized with the index)
+							if (null == gp) {
+								gp = EntityFeaturePojo.fromDb(dboUpdate, EntityFeaturePojo.class);
+								entFeature.setTotalfreq(gp.getTotalfreq() + nSavedFreqCount);
+								entFeature.setDoccount(gp.getDoccount() + nSavedDocCount);
+								entFeature.setDbSyncDoccount(gp.getDbSyncDoccount());
+								entFeature.setDbSyncTime(gp.getDbSyncTime());
+								if (null != gp.getAlias()) {
+									entFeature.addAllAlias(gp.getAlias());
+								}
+								if (null != gp.getSemanticLinks()) {
+									entFeature.addToSemanticLinks(gp.getSemanticLinks());
+								}
+							}//TESTED (cached case and non-cached case)
+							// (in the cached case, entFeature has already been updated by updateCachedEntityFeatureStatistics)
+							
 							if (_diagnosticMode) {
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, found: " + ((BasicDBObject)gp.toDb()).toString());
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
@@ -147,6 +216,8 @@ public class EntityAggregationUtils {
 						}
 						else // (the object in memory is now an accurate representation of the database, minus some fields we'll now add)
 						{
+							numNewEntities++;
+							
 							// Synchronization settings for the newly created object
 							if (null == savedSyncTime) {
 								savedSyncTime = Long.toString(System.currentTimeMillis());
@@ -164,6 +235,7 @@ public class EntityAggregationUtils {
 							baseFields.put(EntityFeaturePojo.type_, entFeature.getType());
 							baseFields.put(EntityFeaturePojo.disambiguated_name_, entFeature.getDisambiguatedName());
 							baseFields.put(EntityFeaturePojo.db_sync_doccount_, entFeature.getDbSyncDoccount());
+							baseFields.put(EntityFeaturePojo.db_sync_prio_, 1000.0);
 							baseFields.put(EntityFeaturePojo.db_sync_time_, entFeature.getDbSyncTime());
 							if ((null != entFeature.getSemanticLinks()) && !entFeature.getSemanticLinks().isEmpty()) {
 								baseFields.put(EntityFeaturePojo.linkdata_, entFeature.getSemanticLinks());
@@ -189,12 +261,17 @@ public class EntityAggregationUtils {
 							else {
 								System.out.println("EntityAggregationUtils.updateEntityFeatures, not found: " + query.toString() + ": " + baseFields.toString());
 							}
-							entFeature.setDbSyncTime(null); // (ensures that index re-sync will occur)		
 							
-							// (Note even in background aggregation mode we still perform the feature synchronization
-							//  for new entities - and it has to be right at the end because it "corrupts" the objects)
-						}
-					}
+						}//(end first time this feature seen - globally)
+						
+						if (null == cachedEnt) { // First time we've seen this locally, so add to cache
+							currCache.addCachedEntityFeature(entFeature);
+							if (_diagnosticMode) {
+								System.out.println("EntityAggregationUtils.updateEntityFeatures, added to cache: " + entFeature.toDb());
+							}							
+						}//TESTED (by hand)							
+						
+					}//(end if community id assigned)
 				}
 				catch (Exception e) {
 					// Exception, remove from feature list
@@ -206,6 +283,21 @@ public class EntityAggregationUtils {
 				
 			}// (end loop over communities)
 		}// (end loop over indexes)
+		
+		
+		if ((numCacheHits > 0) || (numCacheMisses > 0)) { // ie some ents were grabbed
+			int cacheSize = 0;
+			if (null != currCache) {
+				cacheSize = currCache.getEntityCacheSize();
+			}
+			StringBuffer logMsg = new StringBuffer() // (should append key, but don't have that...)
+									.append(" ent_agg_time_ms=").append(new Date().getTime() - entityAggregationTime)
+									.append(" total_ents=").append(entFeatures.size()).append(" new_ents=").append(numNewEntities)
+									.append(" cache_misses=").append(numCacheMisses).append(" cache_hits=").append(numCacheHits).append(" cache_size=").append(cacheSize);
+			
+			logger.info(logMsg.toString());
+		}
+		
 	}//TESTED (just by eye - made few changes during re-factoring)
 	
 	///////////////////////////////////////////////////////////////////////////////////////	

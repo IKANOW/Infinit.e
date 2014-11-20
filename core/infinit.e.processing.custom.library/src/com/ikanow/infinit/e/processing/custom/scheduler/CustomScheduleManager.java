@@ -21,6 +21,7 @@ import java.util.Calendar;
 import java.util.Date;
 import java.util.GregorianCalendar;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.bson.types.ObjectId;
@@ -103,7 +104,7 @@ public class CustomScheduleManager {
 	/**
 	 * Look for running jobs, decide if they are complete
 	 */
-	public static CustomMapReduceJobPojo getJobsToMakeComplete(boolean bHadoopEnabled)
+	public static CustomMapReduceJobPojo getJobsToMakeComplete(boolean bHadoopEnabled, Map<ObjectId, String> incompleteJobsMap)
 	{
 		try
 		{						
@@ -114,6 +115,7 @@ public class CustomScheduleManager {
 			nors[2] = new BasicDBObject(CustomMapReduceJobPojo.jobidS_, "");
 			query.put(MongoDbManager.nor_, Arrays.asList(nors));					
 			BasicDBObject updates = new BasicDBObject(CustomMapReduceJobPojo.jobidS_, "CHECKING_COMPLETION");			
+			updates.put(CustomMapReduceJobPojo.lastChecked_, new Date());
 			BasicDBObject update = new BasicDBObject(MongoDbManager.set_, updates);
 			if (!bHadoopEnabled) {
 				// Can only get shared queries:
@@ -123,7 +125,9 @@ public class CustomScheduleManager {
 
 			if ( dbo != null )
 			{		
-				return CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
+				incompleteJobsMap.put(cmr._id, cmr.jobidS);
+				return cmr;
 			}
 		}
 		catch(Exception ex)
@@ -143,11 +147,10 @@ public class CustomScheduleManager {
 	 * @param iterations
 	 * @return
 	 */
-	public static long getNextRunTime(SCHEDULE_FREQUENCY scheduleFreq, Date firstSchedule, long nextRuntime, int iterations) 
+	public static long getNextRunTime(SCHEDULE_FREQUENCY scheduleFreq, Date firstSchedule, long nextRuntime) 
 	{
 		if ((null == firstSchedule) || (0 == firstSchedule.getTime())) {
 			firstSchedule = new Date(nextRuntime);
-			iterations = 1; // recover...
 		}//TESTED
 		
 		if ( scheduleFreq == null || SCHEDULE_FREQUENCY.NONE == scheduleFreq)
@@ -157,21 +160,24 @@ public class CustomScheduleManager {
 		Calendar cal = new GregorianCalendar();
 		cal.setTime(firstSchedule);
 		
-		if ( SCHEDULE_FREQUENCY.HOURLY == scheduleFreq)
-		{
-			cal.add(Calendar.HOUR, 1*iterations);
-		}
-		else if ( SCHEDULE_FREQUENCY.DAILY == scheduleFreq)
-		{
-			cal.add(Calendar.HOUR, 24*iterations);
-		}
-		else if ( SCHEDULE_FREQUENCY.WEEKLY == scheduleFreq)
-		{
-			cal.add(Calendar.DATE, 7*iterations);
-		}
-		else if ( SCHEDULE_FREQUENCY.MONTHLY == scheduleFreq)
-		{
-			cal.add(Calendar.MONTH, 1*iterations);
+		long now = new Date().getTime();
+		while (cal.getTimeInMillis() < now) {
+			if ( SCHEDULE_FREQUENCY.HOURLY == scheduleFreq)
+			{
+				cal.add(Calendar.HOUR, 1);
+			}
+			else if ( SCHEDULE_FREQUENCY.DAILY == scheduleFreq)
+			{
+				cal.add(Calendar.HOUR, 24);
+			}
+			else if ( SCHEDULE_FREQUENCY.WEEKLY == scheduleFreq)
+			{
+				cal.add(Calendar.DATE, 7);
+			}
+			else if ( SCHEDULE_FREQUENCY.MONTHLY == scheduleFreq)
+			{
+				cal.add(Calendar.MONTH, 1);
+			}
 		}
 		return cal.getTimeInMillis();
 	}

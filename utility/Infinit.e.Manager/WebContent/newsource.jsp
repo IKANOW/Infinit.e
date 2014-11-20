@@ -25,9 +25,10 @@ limitations under the License.
 	//
 	String templateShareId = "";
 	String sourceUpdateTemplateButton = "style=\"display: none\";";
+	String sourceCreateTemplateButton = "";
 
 	String shareid = "";
-	String sourceJson = "";
+	String sourceJson = "{}";
 	String communityId = "";
 	String shareTitle = "";
 	String shareTags = "";
@@ -35,10 +36,18 @@ limitations under the License.
 	String shareType = "";
 	
 	// !----------  ----------!
-	String sourceTemplateSelect = "";
+	String sourceTemplateSelectView = "";
+	String sourceTemplateSelectEdit = "";
 	String selectedSourceSample = "";
-	String selectedSourceTemplate = "";
+	//String selectedSourceTemplate = "";
 	String communityIdSelect = "";	
+	
+	boolean readOnlyTextArea = true;
+	String readOnlyMessageVisible = "style=\"display: none\";";
+	String notReadOnlyMessageVisible = "style=\"display: none\";";
+	String readOnlyBackgroundCSS = "rgba(200,200,200,.75)";
+	String showTitleView = "";
+	String showTitleEdit = "style=\"display: none\";";
 %>
 
 <%
@@ -53,6 +62,8 @@ limitations under the License.
 		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
 		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
 		if (request.getParameter("selectTemplate") != null) action = request.getParameter("selectTemplate");
+		if (request.getParameter("editTemplate") != null) action = request.getParameter("editTemplate");
+		if (request.getParameter("cancelButton") != null) action = request.getParameter("cancelButton");
 		if (request.getParameter("saveSource") != null) action = "saveSource";
 		if (request.getParameter("updateTemplate") != null) action = "updateTemplate";
 		
@@ -77,25 +88,51 @@ limitations under the License.
 			shareTags = (request.getParameter("shareTags") != null) ? request.getParameter("shareTags") : "";
 			shareTags = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTags);
 			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
-			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
-			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
+			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "{}";
+			sourceTemplateSelectView = (request.getParameter("sourceTemplateSelectView") != null) ? request.getParameter("sourceTemplateSelectView") : "";
+			sourceTemplateSelectEdit = (request.getParameter("sourceTemplateSelectEdit") != null) ? request.getParameter("sourceTemplateSelectEdit") : "";
 			selectedSourceSample = (request.getParameter("sourceTemplateSample") != null) ? request.getParameter("sourceTemplateSample") : "";
 			
 			if (action.equals("selectTemplate")) 
 			{
 				templateShareId = "";
 				sourceUpdateTemplateButton = "style=\"display: none\";";
-
-				if (!selectedSourceSample.isEmpty()) {
-					JSONObject sourceJsonObj = new JSONObject(selectedSourceSample);
+				sourceCreateTemplateButton = "";
+				
+				JSONObject sourceJsonObj;
+											
+				if (!selectedSourceSample.isEmpty()) 
+				{
+					sourceJsonObj = new JSONObject(selectedSourceSample);
 					sourceJson= sourceJsonObj.toString(4);
 					updateFieldsFromSample(sourceJsonObj);
+					
 				}
-				else {
-					sourceJson = getSourceJSONObjectFromShare(selectedSourceTemplate, request, response).toString(4);
-					sourceUpdateTemplateButton = "";
-					templateShareId = selectedSourceTemplate;
+				else 
+				{
+					sourceJson = getSourceJSONObjectFromShare(sourceTemplateSelectView, request, response).toString(4);					
+					templateShareId = sourceTemplateSelectView;					
 				}
+				
+				readOnlyTextArea = true;
+				readOnlyMessageVisible = ""; 
+				notReadOnlyMessageVisible = "style=\"display: none\";";
+				readOnlyBackgroundCSS = "rgba(200,200,200,.75)";
+				showTitleView = "";
+				showTitleEdit = "style=\"display: none\";";
+			}
+			else if ( action.equals("editTemplate") )
+			{
+				sourceJson = getSourceJSONObjectFromShare(sourceTemplateSelectEdit, request, response).toString(4);
+				sourceUpdateTemplateButton = "";
+				sourceCreateTemplateButton = "style=\"display: none\";";
+				templateShareId = sourceTemplateSelectEdit;
+				readOnlyTextArea = false;
+				readOnlyMessageVisible = "style=\"display: none\";"; 
+				notReadOnlyMessageVisible = "";
+				readOnlyBackgroundCSS = "white";
+				showTitleView = "style=\"display: none\";";
+				showTitleEdit = "";
 			}
 			else if (action.equals("updateTemplate")) {
 				updateTemplate(request, response);
@@ -112,6 +149,17 @@ limitations under the License.
 			{
 				logOut(request, response);
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
+			}
+			else if ( action.equals("cancelButton"))
+			{
+				//clear all the fields
+				shareTitle = "";
+				shareDescription = "";
+				shareTags = "";				
+				sourceJson = "";
+				communityId = "";
+				notReadOnlyMessageVisible = "style=\"display: none\";";
+				readOnlyMessageVisible = "style=\"display: none\";";
 			}
 			
 			createCommunityIdSelect(request, response);
@@ -186,14 +234,30 @@ limitations under the License.
 .hsplitbar.active, .hsplitbar:hover {
 	background: #e88 no-repeat center;
 }
-.CodeMirror { border-width:1px; border-style: solid; border-color:#DBDFE6; }
-.CodeMirror-foldmarker {
+.CodeMirror 
+{ 
+	border-width:1px; 
+	border-style: solid; 
+	border-color:#DBDFE6;
+	background-color: <%=readOnlyBackgroundCSS %>;
+	
+}
+.CodeMirror-gutters
+{
+	background-color: <%=readOnlyBackgroundCSS %>;
+}
+.CodeMirror-foldmarker 
+{
         color: blue;
         text-shadow: #b9f 1px 1px 2px, #b9f -1px -1px 2px, #b9f 1px -1px 2px, #b9f -1px 1px 2px;
         font-family: arial;
         line-height: .3;
         cursor: pointer;
-      }
+}
+p
+{
+	font-size: 14px;
+}
 </style>
 	
 <script type="text/javascript">
@@ -266,7 +330,7 @@ function clock()
 	}
 	function fill_in_source_template()
 	{
-		var el = document.getElementById("sourceTemplateSelect");
+		var el = document.getElementById("sourceTemplateSelectView");
 		if (SAMPLE_SOURCES[el.value]) {
 			document.getElementById('sourceTemplateSample').value = JSON.stringify(SAMPLE_SOURCES[el.value]);
 		}
@@ -305,10 +369,24 @@ function clock()
 				<td colspan="2" bgcolor="white">
 					<table class="listTable" cellpadding="3" cellspacing="1" width="100%">
 						<tr>
-							<td bgcolor="white"><%=sourceTemplateSelect %><button name="selectTemplate" value="selectTemplate"><fmt:message key='newsource.templates.action.select'/></button></td>
+							<td bgcolor="white">
+								<h3><fmt:message key='newsource.templates.action.view.header'/></h1>
+								<p><fmt:message key='newsource.templates.action.view.header.directions'/></p>
+								<%=sourceTemplateSelectView %>
+								<button name="selectTemplate" value="selectTemplate">
+									<fmt:message key='newsource.templates.action.select'/>
+								</button>
+							</td>
 						</tr>
 						<tr>
-							<td bgcolor="white">&nbsp;</td>
+							<td bgcolor="white">
+								<h3><fmt:message key='newsource.templates.action.edit.header'/></h1>
+								<p><fmt:message key='newsource.templates.action.edit.header.directions'/></p>
+								<%=sourceTemplateSelectEdit %>
+								<button name="editTemplate" value="editTemplate">
+									<fmt:message key='newsource.templates.action.edit'/>
+								</button>
+							</td>
 						</tr>
 					</table>
 				</td>
@@ -320,10 +398,18 @@ function clock()
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
-				<td class="headerLink"><fmt:message key='newsource.editor.title'/></td>
+				<td class="headerLink">
+					<div <%=showTitleView %>>
+						<fmt:message key='newsource.editor.title.view'/>
+					</div>
+					<div <%=showTitleEdit %>>
+						<fmt:message key='newsource.editor.title.edit'/>
+					</div>
+				</td>
 				<td align="right">
-					<button <%=  sourceUpdateTemplateButton %> onclick="return checkFormat(false) && confirm('<fmt:message key='newsource.editor.action.update_template'/>')" name="updateTemplate" value="updateTemplate"><fmt:message key='newsource.editor.action.update_template'/></button>				
-					<button onclick="return checkFormat(false)" name="saveSource" value="saveSource"><fmt:message key='newsource.editor.action.save_source'/></button>
+					<button name="cancelButton" value="cancelButton">Cancel</button>
+					<button <%=  sourceUpdateTemplateButton %> onclick="return checkFormat(false) && confirm('<fmt:message key='newsource.editor.action.update_template.confirm'/>')" name="updateTemplate" value="updateTemplate"><fmt:message key='newsource.editor.action.update_template'/></button>				
+					<button <%=  sourceCreateTemplateButton %> onclick="return checkFormat(false)" name="saveSource" value="saveSource"><fmt:message key='newsource.editor.action.save_source'/></button>
 				</td>
 			</tr>
 			<tr>
@@ -355,7 +441,9 @@ function clock()
 						</tr>
 					</table>
 					</div>
-					<div id="Bottom" class="Pane">					
+					<div id="Bottom" class="Pane">	
+						<p <%=notReadOnlyMessageVisible %>><fmt:message key="newsource.editor.notReadOnlyMessage" /></p>
+						<p <%=readOnlyMessageVisible %>><fmt:message key="newsource.editor.readOnlyMessage"/></p>				
 						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
 					</div>
 					</div>
@@ -378,6 +466,7 @@ var foldFunc = CodeMirror.newFoldFunction(CodeMirror.braceRangeFinder);
 		mode: "application/json",
 		lineNumbers: true,
 		matchBrackets: true,
+		readOnly: <%=readOnlyTextArea %>,
 		extraKeys: { "Tab": "indentAuto", "Ctrl-Q": function(cm){foldFunc(cm, cm.getCursor().line);}}
 	});
 	sourceJsonEditor.setSize("100%", "100%");
@@ -430,7 +519,7 @@ private String saveShare(HttpServletRequest request, HttpServletResponse respons
 		{
 			String urlShareTitle = URLEncoder.encode(shareTitle.trim(), "UTF-8");
 			String urlShareDescription = URLEncoder.encode(shareDescription.trim(), "UTF-8");
-			String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + urlShareDescription;
+			String apiAddress = "social/share/add/json/source/" + urlShareTitle + "/" + "$desc?desc=" + urlShareDescription;
 			
 			//
 			JSONObject source = new JSONObject(sourceJson);
@@ -548,7 +637,7 @@ private void createCommunityIdSelect(HttpServletRequest request, HttpServletResp
 private void createSourceTemplateSelect(HttpServletRequest request, HttpServletResponse response) 
 {
 	StringBuffer sources = new StringBuffer();
-	sources.append("<select name=\"sourceTemplateSelect\" id=\"sourceTemplateSelect\">");
+	sources.append("<select name=\"sourceTemplateSelectView\" id=\"sourceTemplateSelectView\">");
 	sources.append("<option value=\"\">------------------Select an example source or template:</option>");
 	sources.append("<option value=\"empty\">Empty Source Template</option>");
 	sources.append("<option value=\"rss\">RSS Source Example</option>");
@@ -566,6 +655,10 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	sources.append("<option value=\"logstash\">Logstash Template</option>");
 	sources.append("<option value=\"\">------------------User/Shared templates:</option>");
 	
+	StringBuffer sources_edit = new StringBuffer();
+	sources_edit.append("<select name=\"sourceTemplateSelectEdit\" id=\"sourceTemplateSelectEdit\">");
+	sources_edit.append("<option value=\"\">------------------User/Shared templates:</option>");
+	
 	String apiAddress = "social/share/search/?searchby=type&type=source_template";
 	try 
 	{
@@ -579,10 +672,16 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 			for (int i = 0; i < data.length(); i++) 
 			{
 				JSONObject source = data.getJSONObject(i);
-				String title = source.getString("title");
-				String id = source.getString("_id");
-				sources.append("<option value=\"" + id + "\">" + title
-						+ "</option>");
+				//hide extension templates, otherwise add item to list
+				if ( !isExtensionTemplate(source) )
+				{
+					String title = source.getString("title");
+					String id = source.getString("_id");
+					sources.append("<option value=\"" + id + "\">" + title
+							+ "</option>");
+					sources_edit.append("<option value=\"" + id + "\">" + title
+							+ "</option>");
+				}
 			}
 		}
 	} 
@@ -591,9 +690,23 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	}
 	
 	sources.append("</select>");
-	sourceTemplateSelect = sources.toString();
+	sources_edit.append("</select>");
+	sourceTemplateSelectView = sources.toString();
+	sourceTemplateSelectEdit = sources_edit.toString();
 } // TESTED
 
+private boolean isExtensionTemplate(JSONObject source)
+{
+	try
+	{
+		JSONObject share = new JSONObject(source.getString("share"));
+		return share.has("templates");
+	}
+	catch (Exception ex)
+	{
+		return false;
+	}
+}
 
 // getSourceJSONObject
 private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletRequest request, HttpServletResponse response)
@@ -676,7 +789,7 @@ private void updateTemplate(HttpServletRequest request, HttpServletResponse resp
 			
 			String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
 			String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
-			String apiAddress = "social/share/update/json/"+templateShareId+"/source_template/" + urlShareTitle + "/" + urlShareDescription;
+			String apiAddress = "social/share/update/json/"+templateShareId+"/source_template/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 			JSONObject JSONresponse = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 			{

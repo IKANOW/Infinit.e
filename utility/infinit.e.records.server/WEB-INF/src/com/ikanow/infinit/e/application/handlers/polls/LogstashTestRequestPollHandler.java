@@ -34,10 +34,11 @@ import org.apache.commons.io.IOUtils;
 
 
 
+
 import com.ikanow.infinit.e.application.data_model.TestLogstashExtractorPojo;
 import com.ikanow.infinit.e.application.utils.LogstashConfigUtils;
-import com.ikanow.infinit.e.application.utils.MongoQueue;
 import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.utils.MongoQueue;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 

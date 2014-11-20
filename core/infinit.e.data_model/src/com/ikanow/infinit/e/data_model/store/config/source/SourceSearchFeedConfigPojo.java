@@ -24,6 +24,8 @@ public class SourceSearchFeedConfigPojo {
 	
 	private String userAgent = null; // Optional, if present is used for the "User-Agent:" HTTP field
 	private LinkedHashMap<String, String> httpFields = null; // Optinal, to override other HTTP fields, eg Cookie, Authorization, X-*)
+	private String authExtractor = null; // (allows source creators to specify an ITextExtractor that can supply the authorizations credentials)
+	private LinkedHashMap<String, String> authExtractorOptions = null; // the extractor options to pass in
 	
 	private String script = null; // Mandatory, processes the search results and returns an array of the following JSON objects:
 									// { "description: string, // (optionally)
@@ -149,6 +151,18 @@ public class SourceSearchFeedConfigPojo {
 	}
 	public void setDeleteExisting(Boolean deleteExisting) {
 		this.deleteExisting = deleteExisting;
+	}
+	public String getAuthExtractor() {
+		return authExtractor;
+	}
+	public void setAuthExtractor(String authExtractor) {
+		this.authExtractor = authExtractor;
+	}
+	public LinkedHashMap<String, String> getAuthExtractorOptions() {
+		return authExtractorOptions;
+	}
+	public void setAuthExtractorOptions(LinkedHashMap<String, String> authExtractorOptions) {
+		this.authExtractorOptions = authExtractorOptions;
 	}
 	
 }

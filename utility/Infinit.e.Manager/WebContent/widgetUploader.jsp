@@ -216,9 +216,9 @@ limitations under the License.
 		
 		try{
 			if (prevId == null)
-				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/add/binary/" + URLEncoder.encode(title,charset) + "/$desc/?desc=" + URLEncoder.encode(description,charset);
 			else
-				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/" + URLEncoder.encode(description,charset) + "/";
+				url = "social/share/update/binary/" + prevId + "/" + URLEncoder.encode(title,charset) + "/$desc/?desc=" + URLEncoder.encode(description,charset);
 
 			String json = postToRestfulApi(url, bytes, mimeType, request, response);
 			            

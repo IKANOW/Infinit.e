@@ -1884,7 +1884,7 @@ public class ScoringUtils
 	{
 		// Highest prio: source key weight
 		if (null != scoreParams.sourceWeights) {			
-			String sourceKey = doc.getString(DocumentPojo.sourceKey_);
+			String sourceKey = DocumentPojo.getSourceKey(doc.getString(DocumentPojo.sourceKey_));
 			Double dWeight = scoreParams.sourceWeights.get(sourceKey);
 			
 			if (null != dWeight) {

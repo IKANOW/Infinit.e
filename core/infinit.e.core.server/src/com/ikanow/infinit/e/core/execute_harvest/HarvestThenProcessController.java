@@ -139,12 +139,15 @@ public class HarvestThenProcessController {
         boolean bAggDisabled = aggProps.getAggregationDisabled();
         StoreAndIndexManager dataStore = new StoreAndIndexManager();
         boolean bResizedDB = dataStore.resizeDB();
+        boolean deletedDocs = true;
         if (!bAggDisabled) {
-        	AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
-        }
-        dataStore.removeSoftDeletedDocuments();
-        if (!bAggDisabled) {
-        	AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+        	deletedDocs = AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
+        }        
+        if (deletedDocs) { // (or if agg disabled, in which case we don't know)
+	        dataStore.removeSoftDeletedDocuments();
+	        if (!bAggDisabled) {
+	        	AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());
+	        }
         }
         if (bResizedDB) {
         	_logger.info("(resized DB, now " + dataStore.getDatabaseSize() + " documents)");
@@ -339,11 +342,13 @@ public class HarvestThenProcessController {
 				// (if we've declared error, then "in_progress" lock already released so nothing to do)
 			}
 			catch (Error e) { // Don't like to catch these, but otherwise we leak away sources
+				_sourceToProcess.setReachedMaxDocs(); // (will try again - this really just ensured lastDistributedCycleComplete isn't tripped)
 				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0, "Source error: " + e.getMessage());					
 				_logger.error("Source error on " + _sourceToProcess.getKey() + ": " + e.getMessage());
 				e.printStackTrace();				
 			}
 			catch (Exception e) { // Limit any problems to a single source
+				_sourceToProcess.setReachedMaxDocs(); // (will try again - this really just ensured lastDistributedCycleComplete isn't tripped)
 				SourceUtils.updateHarvestStatus(_sourceToProcess, HarvestEnum.error, null, 0, "Source error: " + e.getMessage());					
 				_logger.error("Source error on " + _sourceToProcess.getKey() + ": " + e.getMessage());
 				e.printStackTrace();

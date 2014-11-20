@@ -143,7 +143,7 @@ public class EntityFeaturePojo  extends BaseDbPojo
 		this.db_sync_time = db_sync_time;
 	}
 	public void addAllAlias(Set<String> alias2) {
-		this.alias = new HashSet<String>();
+		if (null == this.alias) this.alias = new HashSet<String>();
 		this.alias.addAll(alias2);		
 	}
 	public void set_id(ObjectId _id) {

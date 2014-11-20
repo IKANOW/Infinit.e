@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.utility;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.List;
@@ -172,32 +173,73 @@ public class MongoDocumentTxfer {
 		if (null == query) {
 			query = new BasicDBObject();			
 		}
-		// Optimize communityId into sourceKeys...
-		if ((null != query.get(DocumentPojo.communityId_)) && (null == query.get(DocumentPojo.sourceKey_)))
-		{
-			try {
-				ObjectId commId = query.getObjectId(DocumentPojo.communityId_);
-				DBCursor dbc = sourcesDB.find(new BasicDBObject(SourcePojo.communityIds_, commId));
-				String[] sourceKeys = new String[dbc.count()];
-				int added = 0;
+		Object sourceKeyQueryTerm = query.remove(DocumentPojo.sourceKey_);
+		if (null != sourceKeyQueryTerm) {
+			if (query.toString().contains(new StringBuffer('"').append(DocumentPojo.sourceKey_).append('"').toString())) {
+				throw new RuntimeException("Can't specify sourceKey as part of complex query term: " + query.toString());
+			}//TESTED (by hand, "{ \"sourceKey\": \"x\", \"$or\": [ { \"sourceKey\": \"x\" } ] }")
+			
+			if (sourceKeyQueryTerm instanceof String) {
+				query.put(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm((String)sourceKeyQueryTerm));				
+			}//TESTED (by hand, "{\"sourceKey\": \"feeds.arstechnica.com.arstechnica.index.11.2.\" }")
+			else if (sourceKeyQueryTerm instanceof DBObject) { // find all the _sources_ matching this term, and convert to a big list including distribution
+				BasicDBObject fields = new BasicDBObject(SourcePojo.key_, 1);
+				fields.put(SourcePojo.highestDistributionFactorStored_, 1);
+				DBCursor dbc = sourcesDB.find(new BasicDBObject(SourcePojo.key_, sourceKeyQueryTerm), fields);
+				LinkedList<String> sourceKeys = new LinkedList<String>();
 				for (DBObject dbo: dbc) {
-					sourceKeys[added++] = (String) dbo.get(SourcePojo.key_);
+					String key = (String) dbo.get(SourcePojo.key_);
+					Integer distributionFactor = (Integer) dbo.get(SourcePojo.highestDistributionFactorStored_);
+					Collection<String> sourceKeysForSource = SourcePojo.getDistributedKeys(key, distributionFactor);
+					sourceKeys.addAll(sourceKeysForSource);
 				}
 				query.put(DocumentPojo.sourceKey_, new BasicDBObject(DbManager.in_, sourceKeys));
-				
-				System.out.println("(Optimized simple community query to " + sourceKeys.length + " source key(s))");
-			}
-			catch (Exception e) {
-				System.out.println("(Can't optimize complex community query)");
-			}
+			}//TESTED (by hand, "{\"sourceKey\": { \"$gt\": \"dev.ikanow\" } }")
+			else {
+				throw new RuntimeException("Can't specify sourceKey as part of complex query term");				
+			}//(actually not possible, just included here for mathematical completeness...)			
+		}
+		else {
+			if (query.toString().contains(new StringBuffer('"').append(DocumentPojo.sourceKey_).append('"').toString())) {
+				throw new RuntimeException("Can't specify sourceKey as part of complex query term");
+			}//TESTE (by hand, "{ \"$or\": [ { \"sourceKey\": \"x\" } ] }")
+			
+			// Optimize communityId into sourceKeys...
+			if (null != query.get(DocumentPojo.communityId_))
+			{
+				try {
+					ObjectId commId = query.getObjectId(DocumentPojo.communityId_);
+					BasicDBObject fields = new BasicDBObject(SourcePojo.key_, 1);
+					fields.put(SourcePojo.highestDistributionFactorStored_, 1);
+					DBCursor dbc = sourcesDB.find(new BasicDBObject(SourcePojo.communityIds_, commId), fields);
+					LinkedList<String> sourceKeys = new LinkedList<String>();
+					int added = 0;
+					for (DBObject dbo: dbc) {
+						String key = (String) dbo.get(SourcePojo.key_);
+						Integer distributionFactor = (Integer) dbo.get(SourcePojo.highestDistributionFactorStored_);
+						Collection<String> sourceKeysForSource = SourcePojo.getDistributedKeys(key, distributionFactor);						
+						sourceKeys.addAll(sourceKeysForSource);
+						added += sourceKeysForSource.size();
+					}
+					query.put(DocumentPojo.sourceKey_, new BasicDBObject(DbManager.in_, sourceKeys));
+					
+					System.out.println("(Optimized simple community query to " + added + " source key(s))");
+				}
+				catch (Exception e) {
+					//DEBUG
+					//e.printStackTrace();
+					
+					System.out.println("(Can't optimize complex community query: " + e.getMessage());
+				}
+			}//TESTED (by hand - including distributed source version)
 		}
 		// Ignored delete objects
-		Object sourceKeyQuery = query.get(DocumentPojo.sourceKey_);
-		if (null == sourceKeyQuery) {
-			query.put(DocumentPojo.sourceKey_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
+		Object urlQuery = query.get(DocumentPojo.url_);
+		if (null == urlQuery) {
+			query.put(DocumentPojo.url_, Pattern.compile("^[^?]")); // (ie nothing starting with ?)
 		}//TESTED
-		else if (sourceKeyQuery instanceof BasicDBObject) {
-			((BasicDBObject) sourceKeyQuery).append("$regex", "^[^?]");
+		else if (urlQuery instanceof BasicDBObject) {
+			((BasicDBObject) urlQuery).append("$regex", "^[^?]");
 		}//TESTED
 		//DEBUG
 		//System.out.println("COMBINED QUERY= " + query.toString());
@@ -259,9 +301,18 @@ public class MongoDocumentTxfer {
 				BasicDBObject contentQ = new BasicDBObject(CompressedFullTextPojo.url_, doc.getUrl());
 				contentQ.put(CompressedFullTextPojo.sourceKey_, new BasicDBObject(MongoDbManager.in_, Arrays.asList(null, doc.getSourceKey())));
 				BasicDBObject fields = new BasicDBObject(CompressedFullTextPojo.gzip_content_, 1);
+				fields.put(CompressedFullTextPojo.sourceKey_, 1);
 
-				BasicDBObject dboContent = (BasicDBObject) contentDB.findOne(contentQ, fields);
-				if (null != dboContent) {
+				DBCursor dbcGzip = contentDB.find(contentQ, fields);
+				while (dbcGzip.hasNext()) {
+					BasicDBObject dboContent = (BasicDBObject) dbcGzip.next();
+					if (!dboContent.containsField(CompressedFullTextPojo.sourceKey_)) {
+						// If this has another version then ignore this one...
+						if (dbc.hasNext()) {
+							continue;
+						}//TESTED (by hand)					
+					}
+
 					byte[] compressedData = ((byte[])dboContent.get(CompressedFullTextPojo.gzip_content_));
 					ByteArrayInputStream in = new ByteArrayInputStream(compressedData);
 					GZIPInputStream gzip = new GZIPInputStream(in);				
@@ -318,7 +369,7 @@ public class MongoDocumentTxfer {
 					//TODO (INF-2223): Handle append tags or not in the pipeline...
 					if ((null == src.getAppendTagsToDocs()) || src.getAppendTagsToDocs()) {					
 						if ((null == doc.getTags()) || (doc.getTags().size() < tagsTidied.size())) {
-							BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getSourceKey());
+							BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getRawSourceKey()); // (ie including the # if there is one)
 							updateQuery.put(DocumentPojo._id_, doc.getId());
 							docsDB.update(updateQuery, new BasicDBObject(DbManager.addToSet_, new BasicDBObject(
 													DocumentPojo.tags_, new BasicDBObject(DbManager.each_, tagsTidied))));
@@ -434,7 +485,7 @@ public class MongoDocumentTxfer {
 				dummy.setEntities(doc.getEntities());
 				dummy.setAssociations(doc.getAssociations());
 				DBObject toWrite = dummy.toDb();
-				BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getSourceKey());
+				BasicDBObject updateQuery = new BasicDBObject(DocumentPojo.sourceKey_, doc.getRawSourceKey());
 				updateQuery.put(DocumentPojo._id_, doc.getId());
 				MongoDbManager.getDocument().getMetadata().update(updateQuery, new BasicDBObject(MongoDbManager.set_, toWrite)); 
 			}//TESTED
@@ -517,17 +568,13 @@ public class MongoDocumentTxfer {
 					ObjectId community = doc.getCommunityId();
 					 Integer count = communityMap.get(community);
 					 communityMap.put(community, (count == null ? 1 : count + 1));
-					 int nSpecialFormat = doc.getSourceKey().indexOf('#');
 					 String sourceKey = doc.getSourceKey();
-					 if (nSpecialFormat > 0) {
-						 sourceKey = sourceKey.substring(0, nSpecialFormat);
-					 }
 					 Integer count2 = sourceKeyMap.get(sourceKey);
 					 sourceKeyMap.put(sourceKey, (count2 == null ? 1 : count2 + 1));
 				}
 			}
 			StoreAndIndexManager dataStore = new StoreAndIndexManager(); 
-			dataStore.removeFromDatastore_byURL(docs);
+			dataStore.removeFromDatastore_byURL(docs, null);
 			AggregationManager.updateEntitiesFromDeletedDocuments(dataStore.getUUID());
 			dataStore.removeSoftDeletedDocuments();
 			AggregationManager.updateDocEntitiesFromDeletedDocuments(dataStore.getUUID());			

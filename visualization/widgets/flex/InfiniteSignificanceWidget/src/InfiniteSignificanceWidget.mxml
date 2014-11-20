@@ -77,8 +77,6 @@
 			
 			private static const SORT_BY_QUERY_COVERAGE:int = 1;
 			
-			private static const SORT_BY_AVERAGE_FREQUENCY:int = 2;
-			
 			[Bindable]
 			private var showEffect:SeriesInterpolate = interpolateIn;
 			
@@ -198,7 +196,7 @@
 				
 				csv += '#Total_hits=,' + _context.getQuery_AllResults().getQuerySetSize() + '\r\n';
 				csv += '#query=,/api/knowledge/document/query/'+communityIds+'?json=' + JSONEncoder.encode(lastQuery).replace(/([,&#\r\n])/g, csvEscape ) + '\r\n'; 
-				csv += '#"entity_name","entity_type","entity_dimension",query_coverage,query_significance,query_avg_frequency,doc_count,total_frequency,sentiment_count,sentiment_positive,sentiment_negative\r\n';
+				csv += '#"entity_name","entity_type","entity_dimension",query_coverage,query_significance,doc_count,total_frequency,sentiment_count,sentiment_positive,sentiment_negative\r\n';
 				
 				for each (var ent:Object in this.currData_entities)
 				{
@@ -215,7 +213,6 @@
 						csv += ',' + csvSanitize(ent.dimension);
 						csv += ',' + ent.queryCoverage;
 						csv += ',' + ent.datasetSignificance;
-						csv += ',' + ent.averageFreq;
 						csv += ',' + ent.doccount;
 						csv += ',' + ent.totalfrequency;
 						if (null != ent.sentimentCount)
@@ -776,11 +773,6 @@
 					info += "Max Doc Frequency: " + data.item.frequency + "\n";
 					filterOption = true;
 				}
-				else
-				{
-					info += "Average Frequency: " + Number( data.item.averageFreq ).toFixed( 1 ) + "\n";
-					info += "(average across documents containing this entity only)\n";
-				}
 				
 				
 				info += "Entity Type: " + data.item.entity.type + "\n";
@@ -861,18 +853,7 @@
 					if ( Number( _ent.frequency ) > freq )
 					{
 						freq = Number( _ent.frequency );
-					}
-					
-					if ( Number( _ent.averageFreq ) > freq )
-					{
-						freq = Number( _ent.averageFreq );
-					}
-					
-					// Quick error handling for cases where the DB/index are out of sync
-					if ( _ent.frequency < _ent.averageFreq )
-					{ // (avg freq bigger than max freq, I don't think so!)
-						_ent.averageFreq = _ent.frequency;
-					}
+					}					
 				}
 				return freq;
 			}
@@ -889,8 +870,6 @@
 					entContainer[ "datasetSignificance" ] = entity.datasetSignificance;
 					entContainer[ "significance" ] = entity.significance;
 					entContainer[ "frequency" ] = entity.frequency;
-					entContainer[ "averageFreq" ] = 100.0 * entity.averageFreq / entity.queryCoverage; // (QC is a % so /100 to turn into a multiplier...)
-					// (average over documents in which the entity is present)
 					entities.addItem( entContainer );
 				}
 				return entities;
@@ -1038,16 +1017,11 @@
 					{
 						this.allEntities.sortOn( "datasetSignificance", Array.DESCENDING | Array.NUMERIC );
 					}
-					else if ( sortOptions.selectedIndex == SORT_BY_AVERAGE_FREQUENCY )
-					{
-						this.allEntities.sortOn( "averageFreq", Array.DESCENDING | Array.NUMERIC );
-					}
 					
 					// Display the following fields:
 					// Query coverage (%)
 					// Query Significance (%)
 					// (max) Doc significance (%)
-					// Average frequency
 					// (max) Doc frequency
 					// (also have a separator					
 					
@@ -1101,16 +1075,12 @@
 						}
 						
 						// Make the freqs be 10% of the significances, so differences are visible but less important than the %s
-						ent[ "augFrequency" ] = ( ( this.maxSig / maxFreq ) * Number( ent.frequency ) * 0.1 );
-						ent[ "augAvgFrequency" ] = ( ( this.maxSig / maxFreq ) * Number( ent.averageFreq ) * 0.1 );
-						
+						var adjustment:Number = ( this.maxSig / maxFreq );
+						if (adjustment > 10) adjustment = 10; // (ie can never make number bigger than it is)
+						ent[ "augFrequency" ] = ( adjustment * Number( ent.frequency ) * 0.1 );
+
 						// Since the tooltips dubiously use y-value to work out which field is which, need to ensure
 						// that the similar numbers don't get confused
-						if ( ent.augFrequency == ent.augAvgFrequency )
-						{
-							ent.augAvgFrequency += 0.0001;
-								// (need to leave freq alone since it's used for finding the right feed)
-						}
 						
 						if ( ent.significance == ent.datasetSignificance )
 						{
@@ -1185,11 +1155,6 @@
 								savedEnt.frequency = entity.frequency;
 							}
 							
-							if ( entity.averageFreq > savedEnt.averageFreq )
-							{
-								savedEnt.averageFreq = entity.averageFreq;
-							}
-							
 							if ( entity.significance > savedEnt.significance )
 							{
 								savedEnt.significance = entity.significance;
@@ -1223,8 +1188,6 @@
 							entContainer[ "datasetSignificance" ] = entity.datasetSignificance;
 							entContainer[ "significance" ] = entity.significance;
 							entContainer[ "frequency" ] = entity.frequency;
-							entContainer[ "averageFreq" ] = 100.0 * entity.averageFreq / entity.queryCoverage; // (QC is a % so /100 to turn into a multiplier...)
-							// (average over documents in which the entity is present)
 							entities.put( entity.index, entContainer );
 						}
 					} // end loop over ents in feeds
@@ -1301,7 +1264,6 @@
 			private function setSeriesEffect( effect:SeriesEffect ):void
 			{
 				frequency.setStyle( 'showDataEffect', effect );
-				avgFrequency.setStyle( 'showDataEffect', effect );
 				significance.setStyle( 'showDataEffect', effect );
 				datasetSignificance.setStyle( 'showDataEffect', effect );
 				queryCoverage.setStyle( 'showDataEffect', effect );
@@ -1533,10 +1495,6 @@
 								displayName="Max Doc Frequency"
 								stroke="{ seriesStroke }"
 								yField="augFrequency" />
-							<ilog:ColumnSeries3D id="avgFrequency"
-								displayName="Weighted Average Frequency"
-								stroke="{ seriesStroke }"
-								yField="augAvgFrequency" />
 						</ilog:series>
 					</ilog:ColumnChart3D>
 					<!--<mx:Spacer height="5"/>-->

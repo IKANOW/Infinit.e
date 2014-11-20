@@ -186,6 +186,9 @@ public class HarvestControllerPipeline {
 				if (null != pxPipe.harvest.maxDocs_global) {
 					source.setMaxDocs(pxPipe.harvest.maxDocs_global);
 				}
+				if (null != pxPipe.harvest.timeToLive_days) {
+					source.setTimeToLive_days(pxPipe.harvest.timeToLive_days);
+				}
 				if (null != pxPipe.harvest.searchCycle_secs) {
 					if (null == source.getSearchCycle_secs()) {
 						// (don't override top level search cycle - that's for suspending/enabling the source)
@@ -209,6 +212,11 @@ public class HarvestControllerPipeline {
 				}
 				
 			}//TESTED (storageSettings_test)
+			
+			if (null != pxPipe.lookupTables) {
+				requiresStructuredAnalysis();
+				requiresUnstructuredAnalysis();				
+			}
 			
 			// 3] Extraction - link extraction/document splitting, copy into feed pojo
 			
@@ -265,7 +273,7 @@ public class HarvestControllerPipeline {
 				requiresStructuredAnalysis();
 			}//TESTED (see requires* function)
 
-			if (null != pxPipe.searchIndex) { // Handles which fields need to be index
+			if (null != pxPipe.searchIndex) { // Handles which fields need to be indexed
 				source.setSearchIndexFilter(pxPipe.searchIndex);
 				//TODO (INF-2223): going to need to copy info from ents/assocs into here, some fiddly logic to worry about (see below for metad)			
 			}//TESTED (storageSettings_test)				
@@ -317,6 +325,7 @@ public class HarvestControllerPipeline {
 	/////////////////////////////////////////////////////////////////////////////////////////
 	//
 	// Gets metadata using the extractors and appends to documents
+	// *** IMPORTANT NOTE: ONLY USE SOURCE FOR ITS PIPELINE - FOR PER-DOC SRC USE DocumentPojo.getTempSource
 	//
 	
 	// Per document member variables used to pass between main loop and utilities:
@@ -327,6 +336,8 @@ public class HarvestControllerPipeline {
 	
 	public void enrichSource_processingPipeline(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
+		boolean multiSearchIndexCheck = false; // (just to add a handy warning while testing)
+		
 		Iterator<SourcePipelinePojo> pxPipeIt = source.getProcessingPipeline().iterator(); // (must be non null if here)
 		while (pxPipeIt.hasNext()) { 
 			SourcePipelinePojo pxPipe = pxPipeIt.next();
@@ -381,8 +392,21 @@ public class HarvestControllerPipeline {
 			// 3] Post processing operation
 			
 			if (null != pxPipe.searchIndex) {
+				// Add some warnings:
+				if (null != pxPipe.criteria) { // This is always global, but just use
+					if (_hc.isStandalone()) { // log a message
+						_hc.getHarvestStatus().logMessage("Warning: all searchIndex elements are global, criteria field ignored", true);
+					}
+				}//TESTED (search_index_warnings_test)
+				if (multiSearchIndexCheck) {
+					if (_hc.isStandalone()) { // log a message
+						_hc.getHarvestStatus().logMessage("Warning: only one searchIndex element is supported (the last one specified)", true);
+					}					
+				}//TESTED (search_index_warnings_test)
+				multiSearchIndexCheck = true;
+				
 				pxPipeIt.remove();
-				// Already handled
+				// Otherwise already handled
 				continue;
 			}//TESTED (storageSettings_test)
 			
@@ -435,6 +459,10 @@ public class HarvestControllerPipeline {
 				source.setReachedMaxDocs(); // (move to success iteration)		
 
 				// Remove the rest of the documents
+				// NOTE: this will leave "deleted" docs (eg by sourceKey or sourceUrl) ... these will
+				// then be re-imported later on - not ideal of course, but there's no way round that
+				// without re-architecting use of _id and updateId.
+				
 				doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 				docIt.remove();
 				while (docIt.hasNext()) {
@@ -706,6 +734,12 @@ public class HarvestControllerPipeline {
 							if (!handleStorageSettings(pxPipe, doc)) {
 								// (this is a manual rejection not an error so we're good)
 								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								
+								if ((null != pxPipe.storageSettings.deleteExistingOnRejection) && pxPipe.storageSettings.deleteExistingOnRejection) {
+									// Use another field to indicate that the doc has not only been rejected, it's going to delete the original also...
+									doc.setExplain(pxPipe.storageSettings); // otherwise will always be null
+								}//TESTED (under harvest_post_processor testing)								
+								
 								docIt.remove();
 								break; // (no more processing for this document)
 							}							

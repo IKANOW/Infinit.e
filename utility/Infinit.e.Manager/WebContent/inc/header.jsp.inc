@@ -31,7 +31,7 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 	<td width="100%" background="image/infinite_logo_bg.png">
 		<table width="100%" cellpadding="0" cellspacing="0" >
 			<tr valign="bottom">
-				<td width="200"><a href="index.jsp"><img src="image/infinite_logo.png" border="0"></a></td>
+				<td width="200"><a href="index.jsp"><img height="50" width="200" src="<%=getLogoUrl() %>" border="0"></a></td>
 				<td>
 					<a href="people.jsp" class="headerLink" title="<fmt:message key='header.people.description' />"><fmt:message key='header.people.title' /></a> &nbsp; &nbsp;
 					<a href="communities.jsp" class="headerLink" title="<fmt:message key='header.communities.description' />"><fmt:message key='header.communities.title' /></a> &nbsp; &nbsp;
@@ -42,7 +42,7 @@ private String getUserName(HttpServletRequest request, HttpServletResponse respo
 				<td align="right">
 					<a class="headerLink"><%=getUserName(request, response) %></a> &nbsp; &nbsp;
 				</td>
-				<td align="right" width="120">
+				<td align="right" width="120" style="<%=showPoweredByIkanowLogo() %>">
 					<a href="/"><img src="image/ikanow_logo_smaller_bg.png" border="0"></a>
 				</td>
 				

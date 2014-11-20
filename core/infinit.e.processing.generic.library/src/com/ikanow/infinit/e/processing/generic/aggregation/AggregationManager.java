@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -51,6 +52,12 @@ public class AggregationManager {
 
 	private static final Logger logger = Logger.getLogger(AggregationManager.class);
 
+	public void setIncrementalMode(boolean mode) {
+		EntityAggregationUtils.setIncrementalMode(mode);
+		AssociationAggregationUtils.setIncrementalMode(mode);
+		CommunityFeatureCaches.setIncrementalMode(mode);
+	}
+	
 	private static boolean _diagnosticMode = false;
 	public static void setDiagnosticMode(boolean bMode) {
 		EntityAggregationUtils.setDiagnosticMode(bMode);
@@ -66,13 +73,19 @@ public class AggregationManager {
 		}
 	}
 	private boolean _bBackgroundAggregationEnabled = false; 
+
+	public void reset() {
+		_aggregatedEntities = new TreeMap<String, Map<ObjectId, EntityFeaturePojo>>();
+		_aggregatedEvents = new TreeMap<String, Map<ObjectId, AssociationFeaturePojo>>();
+	}
 	
 	/////////////////////////////////////////////////////////////////////////////////////////	
 	/////////////////////////////////////////////////////////////////////////////////////////
 	
-	private Map<String, Map<ObjectId, EntityFeaturePojo>> _aggregatedEntities = new HashMap<String, Map<ObjectId, EntityFeaturePojo>>();
-	private Map<String, Map<ObjectId, AssociationFeaturePojo>> _aggregatedEvents = new HashMap<String, Map<ObjectId, AssociationFeaturePojo>>();
+	private Map<String, Map<ObjectId, EntityFeaturePojo>> _aggregatedEntities = new TreeMap<String, Map<ObjectId, EntityFeaturePojo>>();
+	private Map<String, Map<ObjectId, AssociationFeaturePojo>> _aggregatedEvents = new TreeMap<String, Map<ObjectId, AssociationFeaturePojo>>();
 		// (Note that the aggregation manager is invoked per source so normally the inner map will just have one thing in it)
+		// (making it a TreeMap should improve the working set size in MongoDB)
 	
 	/////////////////////////////////////////////////////////////////////////////////////////	
 	/////////////////////////////////////////////////////////////////////////////////////////
@@ -93,6 +106,9 @@ public class AggregationManager {
 				Iterator<EntityPojo> entIt = doc.getEntities().iterator();
 				while (entIt.hasNext())  {
 					EntityPojo ent = entIt.next();
+					if (ent.getAlreadyProcessedInternally()) { // (for incremental mode processing)
+						continue;
+					}//TESTED (by hand)
 					
 					// Some QA checking:
 					if ((null == ent.getIndex()) || (null == ent.getDisambiguatedName()) || (null == ent.getType())
@@ -150,6 +166,9 @@ public class AggregationManager {
 				Iterator<AssociationPojo> evtIt = doc.getAssociations().iterator();
 				while (evtIt.hasNext())  {	
 					AssociationPojo evt = evtIt.next();
+					if (evt.getAlreadyProcessedInternally()) { // (for incremental mode processing)
+						continue;
+					}//TESTED (by hand)
 
 					if (null != deletedEntities) { // check we're not using these entities in our associations
 						if (null != evt.getEntity1_index() && deletedEntities.contains(evt.getEntity1_index())) {
@@ -254,7 +273,7 @@ public class AggregationManager {
 		// (This is slightly expensive as would need to get all the entities for all the documents to be deleted,
 		//  and there currently isn't a big requirement ... for now, wrap this up instead in the weekly resyncs that occur
 		//  and will revisit if a use-case appears)
-
+		
 	}//TESTED
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
@@ -270,6 +289,10 @@ public class AggregationManager {
 		for (DocumentPojo doc: docsToAdd) {
 			
 			if (null != doc.getEntities()) for (EntityPojo ent: doc.getEntities()) {
+				if (ent.getAlreadyProcessedInternally()) {
+					continue;
+				}//TESTED (by hand)
+				
 				Map<ObjectId, EntityFeaturePojo> entityInCommunity = _aggregatedEntities.get(ent.getIndex());
 				if ((null != entityInCommunity) && !entityInCommunity.isEmpty()) { // (should always be true)
 					EntityFeaturePojo entityFeature = null;
@@ -332,6 +355,10 @@ public class AggregationManager {
 	// (This needs to happen last because it "corrupts" the entities and events)
 	
 	public void runScheduledSynchronization() {
+		if (_bBackgroundAggregationEnabled) {
+			//Used to also synchronize (the indexes of) first-time entities, but don't do that any more
+			return;
+		}
 		
 		// 3a. Check entity schedule for doc/feature updates and index synchronization
 		
@@ -347,9 +374,7 @@ public class AggregationManager {
 						bSync = doScheduleCheck(Schedule.SYNC_INDEX, entFeature.getValue().getIndex(), entFeature.getValue().getDoccount(), 
 												entFeature.getValue().getDbSyncDoccount(), entFeature.getValue().getDbSyncTime());
 					}
-					else { // Just synchronize first-time entities
-						bSync = (null == entFeature.getValue().getDbSyncTime());
-					}//TESTED
+					//Used to also synchronize (the indexes of) first-time entities, but don't do that any more
 	
 					if (bSync) {
 						EntityAggregationUtils.synchronizeEntityFeature(entFeature.getValue(), entFeature.getKey());
@@ -376,9 +401,7 @@ public class AggregationManager {
 					bSync = doScheduleCheck(Schedule.SYNC_INDEX, evtFeature.getValue().getIndex(), evtFeature.getValue().getDoccount(), 
 										evtFeature.getValue().getDb_sync_doccount(), evtFeature.getValue().getDb_sync_time());
 				}
-				else { // Just synchronize first-time entities
-					bSync = (null == evtFeature.getValue().getDb_sync_time());
-				}//TESTED
+				//Used to also synchronize (the indexes of) first-time entities, but don't do that any more
 				
 				if (bSync) {
 					AssociationAggregationUtils.synchronizeEventFeature(evtFeature.getValue(), evtFeature.getKey());
@@ -509,12 +532,18 @@ public class AggregationManager {
 	///////////////////////////////////////////////////////////////////////////////////////	
 	///////////////////////////////////////////////////////////////////////////////////////	
 
-	public static void updateEntitiesFromDeletedDocuments(String uuid) 
+	public static boolean updateEntitiesFromDeletedDocuments(String uuid) 
 	{		
 		try {
+			BasicDBObject mrQuery = new BasicDBObject(DocumentPojo.url_, uuid);
+			BasicDBObject mrFields = new BasicDBObject(DocumentPojo.url_, 1); // (ie will just hit the index, not the datastore)
+			if (null == DbManager.getDocument().getMetadata().findOne(mrQuery, mrFields)) {
+				return false;
+			}//TESTED
+			
 			PropertiesManager props = new PropertiesManager();
 			if (props.getAggregationDisabled()) { // (no need to do this)
-				return;
+				return true;
 			}		
 			// Load string resource
 			
@@ -545,9 +574,7 @@ public class AggregationManager {
 			// Perform the map reduce (count deleted entities and associations)
 	
 			String outCollection = new StringBuilder(uuid).append("_AggregationUtils").toString();
-	
-			BasicDBObject mrQuery = new BasicDBObject(DocumentPojo.url_, uuid);
-			
+				
 			@SuppressWarnings("unused")
 			MapReduceOutput res = 
 				DbManager.getDocument().getMetadata().mapReduce(mapScript, reduceScript, outCollection, OutputType.REPLACE, mrQuery);
@@ -555,8 +582,10 @@ public class AggregationManager {
 		}
 		catch (Exception e) { // (These should never be runtime failures, all I/O is vs files embedded at compile-time)
 			//DEBUG
-			e.printStackTrace();
+			//e.printStackTrace();
+			return true;
 		}
+		return true;
 	}	
 	//TESTED (including scriptlets in AggregationUtils_scriptlets)
 	

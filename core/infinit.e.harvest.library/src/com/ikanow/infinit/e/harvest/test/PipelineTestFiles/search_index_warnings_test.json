@@ -1,0 +1,37 @@
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {"extraUrls": [
+                {
+                    "description": "test1",
+                    "fullText": "test1",
+                    "title": "test1",
+                    "url": "test1"
+                },
+                {
+                    "description": "test2",
+                    "fullText": "test2",
+                    "title": "test2",
+                    "url": "test2"
+                },
+                {
+                    "description": "test3",
+                    "fullText": "test3",
+                    "title": "test3",
+                    "url": "test3"
+                }
+            ]}
+        },
+        {
+            "criteria": "return _doc.title == 'test1';",
+            "searchIndex": {
+            	"indexOnIngest": false
+			}            	
+        },
+        {
+            "criteria": "return _doc.title == 'test2';",
+            "searchIndex": {
+            	"entities": "test1"
+            }
+        }
+    ],

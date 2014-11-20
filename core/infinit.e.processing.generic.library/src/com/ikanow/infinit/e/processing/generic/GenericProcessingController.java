@@ -129,6 +129,9 @@ public class GenericProcessingController {
 			//
 			// Needed to handle updates of large files containing many URLs:
 			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			//^NOTE: if this index changes, also need to change DuplicateManager_Integrated - search for "sourceUrl_" to see where
+			//TODO (INF-1922): at some point should look into making (sparse) sourceUrl be compounded with sourceKey - this is a bit risky
+
 			// Needed for duplicate checking
 			// (Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey})
 			compIndex = new BasicDBObject(DocumentPojo.url_, 1);
@@ -161,6 +164,7 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
+			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1));
 			// Federated query engine
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.federatedQueryCommunityIds_, 1), new BasicDBObject(MongoDbManager.sparse_, true));
 			
@@ -275,6 +279,10 @@ public class GenericProcessingController {
 		
 		try { //create elasticsearch indexes
 			
+			if (!ElasticSearchManager.pingIndex(null, null)) {
+				throw new RuntimeException("Index is red, disable indexing operations");
+			}//TESTED
+			
 			PropertiesManager pm = new PropertiesManager();
 			
 			if (!pm.getAggregationDisabled()) {
@@ -282,7 +290,7 @@ public class GenericProcessingController {
 				boolean languageNormalization = pm.getNormalizeEncoding();
 				
 				Builder localSettingsEvent = ImmutableSettings.settingsBuilder();
-				localSettingsEvent.put("number_of_shards", 1).put("number_of_replicas", 0);
+				localSettingsEvent.put("number_of_shards", 10).put("number_of_replicas", 2);
 				localSettingsEvent.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
 				if (languageNormalization) {
 					localSettingsEvent.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "icu_normalizer","icu_folding","standard","lowercase");
@@ -292,7 +300,7 @@ public class GenericProcessingController {
 				}
 	
 				Builder localSettingsGaz = ImmutableSettings.settingsBuilder();
-				localSettingsGaz.put("number_of_shards", 1).put("number_of_replicas", 0);
+				localSettingsGaz.put("number_of_shards", 10).put("number_of_replicas", 2);
 				localSettingsGaz.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
 				if (languageNormalization) {
 					localSettingsGaz.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "icu_normalizer","icu_folding","standard","lowercase");
@@ -392,7 +400,9 @@ public class GenericProcessingController {
 		}
 		catch (Exception e) 
 		{
-			e.printStackTrace();
+			//DEBUG
+			//e.printStackTrace();
+			
 			throw new RuntimeException(e.getMessage());
 		}
 	}//TESTED (not changed since by-eye test in Beta - retested after moving code into createCommunityDocIndex below)
@@ -403,10 +413,13 @@ public class GenericProcessingController {
 	
 	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId,  boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex)
 	{
+		if (!ElasticSearchManager.pingCluster()) {
+			throw new RuntimeException("Index not running");
+		}//TESTED (by hand)
 		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, false); 
 	}
 	
-	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, 
+	protected static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, 
 			boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, boolean bParentsOnly)
 	{
 		//create elasticsearch indexes
@@ -533,6 +546,10 @@ public class GenericProcessingController {
 	//  to recreate it...)
 	
 	public static void recreateCommunityDocIndex_unknownFields(ObjectId communityId, boolean bDeleteFirst) {
+		if (!ElasticSearchManager.pingCluster()) {
+			throw new RuntimeException("Index not running");
+		}//TESTED (by c/p from createCommunityDocIndex)
+		
 		CommunityPojo cp = CommunityPojo.fromDb(MongoDbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", communityId)), CommunityPojo.class);
 		if (null != cp) {
 			deleteCommunityDocIndex(communityId.toString(), cp.getParentId(), true);
@@ -550,6 +567,9 @@ public class GenericProcessingController {
 	///////////////////////////
 		
 	public static void deleteCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, boolean bPersonalGroup) {
+		if (!ElasticSearchManager.pingCluster()) {
+			throw new RuntimeException("Index not running");
+		}//TESTED (by c/p from createCommunityDocIndex)
 		
 		String sGroupIndex = null; // for indexing, ie always a single index
 		String sAliasIndex = null; // for querying, ie will point to doc_commid, doc_commid_1, etc
@@ -739,7 +759,7 @@ public class GenericProcessingController {
 		// Delete toUpdate and toAdd (also overwriting "created" for updated docs, well all actually...)
 		toDelete.addAll(toUpdate_subsetOfAdd);
 		StoreAndIndexManager storageManager = new StoreAndIndexManager();
-		storageManager.removeFromDatastore_byURL(toDelete);
+		storageManager.removeFromDatastore_byURL(toDelete, source);
 			// (note: expands toDelete if any sourceUrl "docs" are present, see FileHarvester)
 
 		// (Storing docs messes up the doc/event/entity objects, so don't do that just yet...)

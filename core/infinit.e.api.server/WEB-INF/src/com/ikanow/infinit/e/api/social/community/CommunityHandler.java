@@ -96,7 +96,7 @@ public class CommunityHandler
 			{
 				DBCursor dbc = DbManager.getSocial().getCommunity().find();
 				
-				if ( dbc.count() > 0 )
+				if ( dbc.hasNext() )
 				{
 					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
 					filterCommunityMembers(communities, isSysAdmin, userIdStr);
@@ -117,7 +117,7 @@ public class CommunityHandler
 				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryTerm1, queryTerm2, queryTerm3));
 
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);				
-				if ( dbc.count() > 0 )
+				if ( dbc.hasNext() )
 				{
 					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
 					filterCommunityMembers(communities, isSysAdmin, userIdStr);
@@ -173,7 +173,7 @@ public class CommunityHandler
 			query.put("communityStatus", new BasicDBObject("$ne", "disabled"));
 			
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
-			if ( dbc.count() > 0 )
+			if ( dbc.hasNext() )
 			{
 				List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
 				filterCommunityMembers(communities, isSysAdmin, userIdStr);
@@ -658,7 +658,7 @@ public class CommunityHandler
 				}
 				// OK from here on, personId is the object Id...
 								
-				boolean bAuthorized = isSysAdmin || SocialUtils.isOwnerOrModerator(communityIdStr, callerIdStr);
+				boolean bAuthorized = isSysAdmin || SocialUtils.isOwnerOrModerator(communityIdStr, callerIdStr) || isRemovingSelf(userStatus, callerIdStr, personIdStr);
 				if (bAuthorized) {
 					
 					CommunityPojo cp = CommunityPojo.fromDb(dbo,CommunityPojo.class);
@@ -715,6 +715,21 @@ public class CommunityHandler
 		}
 		return rp;
 	}//TESTED
+
+	/**
+	 * Utility function for testing self removal from communities
+	 * Returns true if the status is "remove" and callerId == personId
+	 * 
+	 * @param userStatus
+	 * @param callerIdStr
+	 * @param personIdStr
+	 * @return
+	 */
+	private boolean isRemovingSelf(String userStatus, String callerIdStr, String personIdStr) 
+	{
+		return userStatus.toLowerCase().equals("remove") && ( callerIdStr.equals(personIdStr));
+	}
+
 
 	// (Note supports personId as either Id or username (email) both are unique indexes)
 
@@ -1682,7 +1697,7 @@ public class CommunityHandler
 		// Note: Only Sys Admins, Community Owner, and Community Moderators can remove users
 		boolean isOwnerOrModerator = SocialUtils.isOwnerOrModerator(communityIdStr, userIdStr);
 		boolean isSysAdmin = RESTTools.adminLookup(userIdStr);
-		boolean canRemove = (isOwnerOrModerator || isSysAdmin) ? true : false;
+		boolean canRemove = (isOwnerOrModerator || isSysAdmin || isRemovingSelf("remove", userIdStr, personIdStr)) ? true : false;
 		
 		ResponsePojo rp = new ResponsePojo();
 		

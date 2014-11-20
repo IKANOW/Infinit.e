@@ -80,6 +80,8 @@ public class EntityPojo
 	private Long sentimentCount; // (the total number of documents in the (query) dataset containing a sentiment value)
 	final public static String sentimentCount_ = "sentimentCount";
 	
+	private transient Boolean alreadyProcessedInternally;
+	
 	// Get/Sets
 	
 	public String getEntid() {
@@ -220,6 +222,12 @@ public class EntityPojo
 	}
 	public void setSentimentCount(Long sentimentCount) {
 		this.sentimentCount = sentimentCount;
+	}
+	public boolean getAlreadyProcessedInternally() { // (defaults to false)
+		return (alreadyProcessedInternally != null) && alreadyProcessedInternally;
+	}
+	public void setAlreadyProcessedInternally(Boolean alreadyProcessedInternally) {
+		this.alreadyProcessedInternally = alreadyProcessedInternally;
 	}
 	
 }

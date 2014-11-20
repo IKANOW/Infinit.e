@@ -132,6 +132,10 @@
 					{
 						urlStr = displayUrl;
 					}
+					else if (0 == displayUrl.indexOf("$infinite/"))
+					{
+						urlStr = (ExternalInterface.call( "getEndPointUrl" ) as String).replace("/api/", "/") + displayUrl.substring(10);
+					}
 					else // must be a relative path ... ie for files
 					{
 						urlStr = ExternalInterface.call( "getEndPointUrl" ) + "knowledge/document/file/get/" + sourceKey + "/" +displayUrl;

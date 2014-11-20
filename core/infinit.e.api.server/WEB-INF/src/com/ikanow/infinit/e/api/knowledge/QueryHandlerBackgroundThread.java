@@ -123,7 +123,6 @@ public class QueryHandlerBackgroundThread implements Runnable {
 	
 	protected long _nPollingPeriod_ms = 15000;
 	protected Thread _pollThread;
-	private static final Logger logger = Logger.getLogger(QueryHandlerBackgroundThread.class);
 	
 	public QueryHandlerBackgroundThread() {
 	}
@@ -143,7 +142,7 @@ public class QueryHandlerBackgroundThread implements Runnable {
 			}
 			catch (Throwable thrown)
 			{
-				logger.error("Error during poll", thrown);
+				_logger.error("Error during poll", thrown);
 			}
 						
 			try 

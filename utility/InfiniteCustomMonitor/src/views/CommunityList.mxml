@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:views="views.*"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:list="com.ikanow.infinit.e.community.view.list.*"
+	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
+	width="100%"
+	paddingBottom="7"
+	paddingLeft="7"
+	paddingRight="4"
+	paddingTop="7">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.events.ItemClickEvent;
+			import mx.utils.StringUtil;
+			import spark.events.IndexChangeEvent;
+			import events.CommunityEvent;
+			import objects.Community;
+			
+			[Bindable]
+			private var _communities:ArrayCollection;
+			
+			public function get communities():ArrayCollection
+			{
+				return _communities;
+			}
+			
+			public function set communities( communities:ArrayCollection ):void
+			{
+				this._communities = communities;
+			}
+			
+			/**
+			 * Select a community
+			 * @param community
+			 */
+			public function selectCommunity( community:Community ):void
+			{
+				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.SELECT_COMMUNITY );
+				communityEvent.community = community;
+				communityEvent.dialogControl = DialogControl.create( false );
+				dispatchEvent( communityEvent );
+			}
+			
+			/**
+			 * Select a community to join
+			 * @param community
+			 */
+			public function selectCommunityToJoin( community:Community ):void
+			{
+				var communityEvent:CommunityEvent = new CommunityEvent( CommunityEvent.JOIN_COMMUNITY_SELECTED );
+				communityEvent.community = community;
+				communityEvent.communityID = community._id;
+				dispatchEvent( communityEvent );
+				//selectCommunity( community );
+				//setTimeout( navigator.showCommunityRequestView, 200 );
+			}
+			
+			protected function communitiesList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				var community:Community = event.item as Community;
+				
+				if ( community.isUserMember )
+				{
+					selectCommunity( community );
+				}
+				
+				communitiesList.selectedItem = null;
+			}
+			
+			protected function communitiesList_joinCommunityHandler( event:ItemClickEvent ):void
+			{
+				var community:Community = event.item as Community;
+				selectCommunityToJoin( community );
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<!-- communities -->
+	<views:CommunityListComponent id="communitiesList"
+		dataProvider="{ _communities }"
+		styleName="titleWindowList"
+		labelField="name"
+		height="100%"
+		horizontalScrollPolicy="off"
+		width="100%"
+		itemClick="communitiesList_itemClickHandler(event)"
+		itemRenderer="renderers.CommunityListItemRenderer"
+		joinCommunity="communitiesList_joinCommunityHandler(event)" />
+
+</s:VGroup>

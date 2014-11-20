@@ -15,7 +15,6 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.generic.aggregation;
 
-import java.net.InetAddress;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -26,15 +25,19 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.Globals.Identity;
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
+import com.ikanow.infinit.e.data_model.utils.MongoApplicationLock;
+import com.ikanow.infinit.e.data_model.utils.MongoTransactionLock;
 import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 
 public class EntityBackgroundAggregationManager implements Runnable {
 
-	private static final Logger logger = Logger.getLogger(EntityBackgroundAggregationManager.class);
+	private static final Logger logger = Logger.getLogger(EntityBackgroundAggregationManager.class);	
+	private static MongoApplicationLock _appLock = null;
 	
 	private static EntityBackgroundAggregationManager _instance = null;
 	private static Thread _instanceThread;
@@ -99,28 +102,29 @@ public class EntityBackgroundAggregationManager implements Runnable {
 			sleepCycle = 0.0;
 		}
 		
-		boolean bControl = false;
+		if (null == _appLock) { 
+			_appLock = MongoApplicationLock.getLock(DbManager.getFeature().getEntity().getDB().getName(), true);
+		}
+		
 		while (!_bKillMe) {
-			bControl = getToken();
-			if (_bKillMe) {
-				break;
-			}
-			if (!bControl) { // Shouldn't ever happen, just sleep and then try again
+			
+			if (!_appLock.acquire(100))  {
 				try {
 					Thread.sleep(10000);
 				} catch (InterruptedException e) {}
 				
 				continue;
 			}//TESTED
-
+			
 			long nStartTime_ms = new Date().getTime();
 			long nEndTime_ms = nStartTime_ms;
 			long nTimeToSleep_ms = 0;
 			while (!_bKillMe) {
 			
 				// Get the offenders, ordered by prio:
+				BasicDBObject onlyPrioritized = new BasicDBObject(EntityFeaturePojo.db_sync_prio_, new BasicDBObject(DbManager.gt_, 0));
 				BasicDBObject orderBy = new  BasicDBObject(EntityFeaturePojo.db_sync_prio_, -1);
-				DBCursor dbc = MongoDbManager.getFeature().getEntity().find().limit(100).sort(orderBy);
+				DBCursor dbc = MongoDbManager.getFeature().getEntity().find(onlyPrioritized).sort(orderBy).limit(100);
 					// (feature has a sparse index, so this automatically filters out non-"prio" entities)
 	
 				// Get the top offenders:
@@ -216,132 +220,20 @@ public class EntityBackgroundAggregationManager implements Runnable {
 				}//TESTED
 				
 			} // end check entities every second in 20s blocks 			
+			
+			
+			if (_bKillMe) {
+				_appLock.release();
+				break;
+			}					
 		} // end while harvester is running
-		
-		if (bControl) { // relinquish control for politeness
-			MongoDbManager.getFeature().getAggregationLock().remove(new BasicDBObject());
-			logger.debug("Giving up control before exiting");
-
-		}//TESTED
 		
 		//Display some stats if anything has been updated?
 		if (nEntitiesUpdated > 0) {
-			logger.info("Background aggregation thread complete, ents=" + nEntitiesUpdated + " docs=" + nDocsUpdated + " dbtime=" + nTimeSpentUpdating_ms + " stoleToken=" + _nGrabbedControl + " lostToken=" + _nLostControl);
+			logger.info("Background aggregation thread complete, ents=" + nEntitiesUpdated + " docs=" + nDocsUpdated + " dbtime=" + nTimeSpentUpdating_ms);
 		}//TESTED		
 		
 	}//TESTED
-	
-	///////////////////////////////////////////////////////////////////////////
-	
-	// Synchronization utility between multiple harvesters
-
-	private int _nGrabbedControl = 0;
-	private int _nLostControl = 0;
-	
-	private boolean getToken() {
-
-		boolean bHaveControl = false;
-		
-		final String id_ = "_id";
-		final String hostname_ = "hostname";
-		final String oneUp_ = "1up";
-		
-		String savedHostname = "";
-		String savedOneUp = "";
-		
-		while (!_bKillMe) {
-			// Get IP address:
-			BasicDBObject query = new BasicDBObject(id_, _entityLockId);
-			BasicDBObject lockObj = (BasicDBObject) MongoDbManager.getFeature().getAggregationLock().findOne(query);
-			if (null == lockObj) {
-				lockObj = new BasicDBObject(id_, _entityLockId);
-				lockObj.put(hostname_, getHostname());
-				lockObj.put(oneUp_, Long.toString(1000000L*(new Date().getTime() % 10000))); 
-					// (ie a randomish start number)
-				
-				MongoDbManager.getFeature().getAggregationLock().insert(lockObj);
-					// (will fail if another harvester gets there first)
-				
-				logger.debug("Creating a new aggregation lock object: " + lockObj.toString());
-				
-				lockObj = (BasicDBObject) MongoDbManager.getFeature().getAggregationLock().findOne();
-			}//TESTED
-			
-			// So by here lockObj is always non-null
-			
-			// Do I have control?
-			String hostname = lockObj.getString(hostname_);
-			String oneUp = lockObj.getString(oneUp_);
-			
-			bHaveControl = getHostname().equals(hostname);
-			
-			if (!bHaveControl) { // Don't currently have control				
-				if (savedHostname.equals(hostname) && savedOneUp.equals(oneUp)) { // Now I have control...
-					logger.debug("I am taking control from: " + hostname + ", " + oneUp);				
-					bHaveControl = true;
-					_nGrabbedControl++;
-				}
-				else if (getHostname().equals(savedHostname)) { // I had control of this last time I checked
-					logger.debug("Lost control to: " + hostname);				
-					_nLostControl++;
-				}
-			}
-			else {
-				logger.debug("I have control already: " + hostname);				
-			}//TESTED
-			
-			if (bHaveControl) {
-				savedHostname = hostname;
-				long nOneUp = Long.parseLong(oneUp);
-				lockObj.put(hostname_, getHostname());
-				lockObj.put(oneUp_, Long.toString(nOneUp + 1));
-				MongoDbManager.getFeature().getAggregationLock().save(lockObj);
-				return true;
-			}//TESTED
-			else { // Save info and sleep for 60s 
-				savedHostname = hostname;
-				savedOneUp = oneUp;
-				logger.debug("Saving state and sleeping: " + savedHostname + ", " + savedOneUp);
-				
-				for (int i = 0; (i < 6) && !_bKillMe; ++i) {
-					try {
-						Thread.sleep(10000);
-					} catch (InterruptedException e) {}
-				}
-			}//TESTED
-			
-		} // end loop forever 
-		
-		return bHaveControl;
-	}//TESTED
-	
-	///////////////////////////////////////////////////////////////////////////
-	
-	// Utility to get harvest name for display purposes
-	
-	private static ObjectId _entityLockId = new ObjectId("4f976e98d4eefff2ed6963dc");
-	
-	private static String _hostname = null;
-	private static String getHostname() {
-		// (just get the hostname once)
-		if (null == _hostname) {
-			try {
-				_hostname = InetAddress.getLocalHost().getHostName();
-			} catch (Exception e) {
-				_hostname = "UNKNOWN";
-			}
-			if (null != _hostnameSuffix) {
-				_hostname = _hostname + _hostnameSuffix;
-			}
-		}		
-		return _hostname;
-	}//TESTED	
-	
-	// For testing purposes:
-	public static void setHostnameSuffix(String hostnameSuffix) {
-		_hostnameSuffix = hostnameSuffix;
-	}
-	private static String _hostnameSuffix = null;
 	
 	///////////////////////////////////////////////////////////////////////////
 	
@@ -353,7 +245,7 @@ public class EntityBackgroundAggregationManager implements Runnable {
 		Globals.overrideConfigLocation(args[0]);
 		PropertyConfigurator.configure(Globals.getLogPropertiesLocation());
 		
-		EntityBackgroundAggregationManager.setHostnameSuffix(args[1]); // (so i can test on the same host)
+		MongoTransactionLock.setHostnameSuffix(args[1]); // (so i can test on the same host)
 		
 		EntityBackgroundAggregationManager.startThread();
 		EntityBackgroundAggregationManager.startThread(); // (just check it only launched once)
@@ -367,5 +259,7 @@ public class EntityBackgroundAggregationManager implements Runnable {
 		logger.debug("TEST: Request background thread stop...");
 		EntityBackgroundAggregationManager.stopThreadAndWait();
 		logger.debug("TEST: main thread exiting...");
+		
+		MongoApplicationLock.registerAppShutdown(); 
 	}	
 }

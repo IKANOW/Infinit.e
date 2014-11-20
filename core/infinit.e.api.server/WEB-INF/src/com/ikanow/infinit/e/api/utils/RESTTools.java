@@ -39,6 +39,7 @@ public class RESTTools
 {
 	private static final Logger logger = Logger.getLogger(RESTTools.class);
 	private static final long COOKIE_TIMEOUT = 900000; //1000ms * 60s * 15m
+	public static final String AUTH_TOKEN_NAME = "inf_token";
 	
 	public static String createUniqueKey()
 	{
@@ -56,6 +57,11 @@ public class RESTTools
 		}
 	}
 
+	public static String getEncodedRESTParam(String name, Map<String,Object> attributes)
+	{
+		return (String) attributes.get(name);
+	}
+	
 	public static String decodeRESTParam(String name, Map<String,Object> attributes)
 	{
 		String toDecode = (String) attributes.get(name);
@@ -320,5 +326,38 @@ public class RESTTools
 		 return allowedToRegisterUpdate;
 		 
 	}//TESTED (just moved code across from PersonInterface)
+	
+	
+	private final static String ATTRIBUTE_VAR_PREFIX = "$";
+	/**
+	 * Looks in attributes for attr_name.  If nothing is there returns null.
+	 * If result is a String that starts with $var_name will look in queryOptions
+	 * for var_name and return that instead, otherwise null.
+	 * 
+	 * 
+	 * @param attr_name
+	 * @param attributes
+	 * @param queryOptions
+	 * @return
+	 */
+	public static String getUrlAttribute(String attr_name, Map<String,Object> attributes, Map<String, String> queryOptions)
+	{
+		String attr = RESTTools.getEncodedRESTParam(attr_name, attributes);
+		if ( attr != null )
+		{
+			if ( attr.startsWith(ATTRIBUTE_VAR_PREFIX))
+			{
+				//special case to grab from queryOptions instead of attribute
+				String attr_var_name = attr.substring(ATTRIBUTE_VAR_PREFIX.length());
+				return (String)queryOptions.get(attr_var_name); // (ie or null
+			}
+			else
+			{
+				//was just in attribute
+				return decodeURL(attr);
+			}
+		}
+		return null;
+	}
 	
 }

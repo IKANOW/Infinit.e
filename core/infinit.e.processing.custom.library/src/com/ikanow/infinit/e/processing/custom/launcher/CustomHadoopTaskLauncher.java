@@ -60,6 +60,7 @@ import org.xml.sax.SAXException;
 
 import com.ikanow.infinit.e.api.knowledge.QueryHandler;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
+import com.ikanow.infinit.e.data_model.custom.ICustomInfiniteInternalEngine;
 import com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoSplitter;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -70,6 +71,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
 import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
+import com.ikanow.infinit.e.processing.custom.utils.InfiniteElasticsearchHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
@@ -131,10 +133,13 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		// Now load the XML into a configuration object: 
 		Configuration config = new Configuration();
-		
-		// Set the default security policy:		
-		//TODO (INF-2118): This doesn't get applied, work out why:
-		//config.set("mapred.child.java.opts", "-Djava.security.policy=/opt/infinite-home/config/security.policy");
+		// Add the client configuration overrides:
+		if (!bLocalMode) {
+			String hadoopConfigPath = props_custom.getHadoopConfigPath() + "/hadoop/";
+			config.addResource(new Path(hadoopConfigPath + "core-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "mapred-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "hadoop-site.xml"));
+		}//TESTED
 		
 		try {
 			DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();
@@ -157,6 +162,12 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		catch (Exception e) {
 			throw new IOException(e.getMessage());
 		}
+		
+		// Some other config defaults:
+		// (not sure if these are actually applied, or derived from the defaults - for some reason they don't appear in CDH's client config)
+		config.set("mapred.map.tasks.speculative.execution", "false");
+		config.set("mapred.reduce.tasks.speculative.execution", "false");
+		// (default security is ignored here, have it set via HADOOP_TASKTRACKER_CONF in cloudera)
 		
 		// Now run the JAR file
 		try {
@@ -216,13 +227,33 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				}
 				catch (Exception e) {} // just carry on
 				
-			}//TOTEST
+			}//TODO (???): TOTEST
+			
+			// (need to do this here before the job is created, at which point the config class has been copied across)
+			Class<?> mapperClazz = Class.forName (job.mapper, true, child);
+			if (ICustomInfiniteInternalEngine.class.isAssignableFrom(mapperClazz)) { // Special case: internal custom engine, so gets an additional integration hook
+				ICustomInfiniteInternalEngine preActivities = (ICustomInfiniteInternalEngine) mapperClazz.newInstance();
+				preActivities.preTaskActivities(job._id, job.communityIds, config, !(bTestMode || bLocalMode));
+			}//TESTED
+
+			if (job.inputCollection.equals("records")) {
+				
+				//TODO (INF-2641): some optimizations should be added here (and in the create config xml fn)
+				InfiniteElasticsearchHadoopUtils.handleElasticsearchInput(job, config, advancedConfigurationDbo);
+				
+				//(won't run under 0.19 so running with "records" should cause all sorts of exceptions)
+				
+			}//TESTED (by hand)			
+
+			if (bTestMode || bLocalMode) { // If running locally, turn "snappy" off - tomcat isn't pointing its native library path in the right place
+				config.set("mapred.map.output.compression.codec", "org.apache.hadoop.io.compress.DefaultCodec");
+			}			
 			
 			// Manually specified caches
 			List<URL> localJarCaches = 
 					InfiniteHadoopUtils.handleCacheList(advancedConfigurationDbo.get("$caches"), job, config, props_custom);			
-			
-			Job hj = new Job( config );
+
+			Job hj = new Job( config ); // (NOTE: from here, changes to config are ignored)
 			try {
 				
 				if (null != localJarCaches) {
@@ -255,6 +286,9 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 					InfiniteFileInputFormat.setInfiniteInputPathFilter(hj, config);
 					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat", true, child));
 				}
+				else if (job.inputCollection.equals("records")) {
+					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteEsInputFormat", true, child));
+				}
 				else {
 					if (esMode) {
 						hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.processing.custom.utils.InfiniteElasticsearchMongoInputFormat", true, child));						
@@ -283,7 +317,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				else { // normal case, stays in MongoDB
 					hj.setOutputFormatClass((Class<? extends OutputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat", true, child));
 				}
-				hj.setMapperClass((Class<? extends Mapper>) Class.forName (job.mapper, true, child));
+				hj.setMapperClass((Class<? extends Mapper>) mapperClazz);
 				String mapperOutputKeyOverride = advancedConfigurationDbo.getString("$mapper_key_class", null);
 				if (null != mapperOutputKeyOverride) {
 					hj.setMapOutputKeyClass(Class.forName(mapperOutputKeyOverride));
@@ -594,7 +628,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				"\n\t<property><!-- Maximum number of splits [optional] --><name>max.splits</name><value>"+nSplits+"</value></property>"+
 				"\n\t<property><!-- Maximum number of docs per split [optional] --><name>max.docs.per.split</name><value>"+nDocsPerSplit+"</value></property>"+
 				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>update.incremental</name><value>"+tmpIncMode+"</value></property>"+
-				"\n\t<property><!-- Infinit.e incremental mode [optional] --><name>infinit.e.is.admin</name><value>"+isAdmin+"</value></property>"
+				"\n\t<property><!-- Infinit.e quick admin check [optional] --><name>infinit.e.is.admin</name><value>"+isAdmin+"</value></property>"+
+				"\n\t<property><!-- Infinit.e userid [optional] --><name>infinit.e.userid</name><value>"+userId+"</value></property>"
 			);		
 		if (null != cacheList) {
 			out.write(
@@ -718,6 +753,15 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		
 		// Get current thread id (need to check these even if we have them so we don't log them multiple times)
 		if (arg0.getLoggerName().equals("com.ikanow.infinit.e.data_model.custom.InfiniteFileInputReader")) {
+			if ((null != currJobName) && arg0.getRenderedMessage().startsWith(currJobName + ":")) {
+				if (null == currThreadId) { // this is one of the first message that is printed out so get the thread...
+					currThreadId = arg0.getThreadName();
+					currSanityCheck = "Task:attempt_" + currLocalJobId.substring(4) + "_";
+				}
+				return; // (don't log this)
+			}
+		}//TESTED
+		else if (arg0.getLoggerName().equals("com.ikanow.infinit.e.data_model.custom.InfiniteEsInputFormat$InfiniteEsRecordReader")) {
 			if ((null != currJobName) && arg0.getRenderedMessage().startsWith(currJobName + ":")) {
 				if (null == currThreadId) { // this is one of the first message that is printed out so get the thread...
 					currThreadId = arg0.getThreadName();

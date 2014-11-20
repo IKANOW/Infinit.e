@@ -23,6 +23,7 @@ import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpServletResponseWrapper;
 
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
+import com.ikanow.infinit.e.api.utils.RESTTools;
 
 import java.io.ByteArrayOutputStream;
 import java.io.CharArrayWriter;
@@ -169,7 +170,7 @@ public class CacheControlFilter implements Filter {
     	
     	int nInfiniteApiKey = -1;
     	String queryString = req.getQueryString();
-		String apiKey = null;
+		String apiKey = req.getHeader(RESTTools.AUTH_TOKEN_NAME);
     	if ((null != queryString) && ((nInfiniteApiKey = queryString.indexOf("infinite_api_key=")) >= 0))
     	{
     		if ((0 == nInfiniteApiKey) || ('&' == queryString.charAt(nInfiniteApiKey - 1)) || ('?' == queryString.charAt(nInfiniteApiKey - 1)))
@@ -182,16 +183,20 @@ public class CacheControlFilter implements Filter {
     			else {
     				apiKey = queryString.substring(nInfiniteApiKey, nEndApiKey);
     			}    			
-            	ExtendedServletRequest tmpReq = new ExtendedServletRequest(req);
-            	if (apiKey.startsWith("tmp:")) { // can be a temp cookie served up from the login
-            		tmpReq.setCookie(apiKey.substring(4));            		
-            	}
-            	else { // has to be an API key
-            		tmpReq.setCookie("api:" + apiKey);
-            	}
-            	request = tmpReq;
+            	
     		}
     	}//TESTED
+    	if ( apiKey != null )
+    	{
+    		ExtendedServletRequest tmpReq = new ExtendedServletRequest(req);
+	    	if (apiKey.startsWith("tmp:")) { // can be a temp cookie served up from the login
+	    		tmpReq.setCookie(apiKey.substring(4));            		
+	    	}
+	    	else { // has to be an API key
+	    		tmpReq.setCookie("api:" + apiKey);
+	    	}
+	    	request = tmpReq;
+    	}
 
     	// JSONP parsing...
     	
@@ -223,9 +228,27 @@ public class CacheControlFilter implements Filter {
         resp.setHeader("Expires", "0");
         resp.setHeader("Last-Modified", new Date().toString());
         resp.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0, post-check=0, pre-check=0");
-        resp.setHeader("Pragma", "no-cache");
-        resp.setHeader("Access-Control-Allow-Origin", "*");
-
+        resp.setHeader("Pragma", "no-cache");        
+        resp.setHeader("Access-Control-Allow-Methods", "OPTIONS, GET, POST, PUT, DELETE");
+        if ( null != apiKey || isHostTrusted(req) )
+        {
+	        resp.setHeader("Access-Control-Allow-Headers", "accept, content-type, " + RESTTools.AUTH_TOKEN_NAME);
+	        
+	        //ORIGIN handling	        
+	        //1. if origin is from dnsTrustedHost, set origin to that incoming host        
+	        //2. or if apikey != null, add that host
+	        //3. else just leave allow-origin to only allow from where this is being hosted
+	        //* works because modern browsers block * from diff origin requests
+	        String outgoing_origin = req.getHeader("Origin");
+	        if ( null != outgoing_origin )
+	        	resp.setHeader("Access-Control-Allow-Origin", outgoing_origin);
+        }
+        if (req.getMethod().equals("OPTIONS")) {
+        	resp.setHeader("Access-Control-Max-Age", "300");
+        	resp.setStatus(200);
+        	return;
+        }//TESTED
+        
         chain.doFilter(request, response);
         
         // Logging:
@@ -273,7 +296,7 @@ public class CacheControlFilter implements Filter {
         
     }
 
-    public void destroy() {
+	public void destroy() {
     }
     
     protected FilterConfig _config;

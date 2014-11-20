@@ -24,6 +24,7 @@ import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -41,6 +42,8 @@ import org.apache.hadoop.fs.Path;
 import org.bson.types.ObjectId;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.custom.ICustomInfiniteInternalEngine;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
@@ -199,17 +202,27 @@ public class InfiniteHadoopUtils {
 			// Compare dates (if it exists) to see if we need to update the cache) 
 			
 			if (!tempFile.exists() || (tempFile.lastModified() < share.getModified().getTime())) {
-				OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
-				if ( share.getBinaryId() != null )
-				{			
-					GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
-					file.writeTo(out);				
+				if (null != share.getDocumentLocation()) {
+					tempFileName = share.getDocumentLocation().getCollection(); // ie just return the pointer					
+					if (!(new File(tempFileName).exists())) { // (this is really only when debugging)
+						// Try looking in temp path
+						tempFileName = tempFileName.substring(1 + tempFileName.lastIndexOf('/'));
+						tempFileName = assignNewJarLocation(prop_custom, tempFileName);
+					}
+				}//TESTED
+				else {
+					OutputStream out = new BufferedOutputStream(new FileOutputStream(tempFileName));
+					if ( share.getBinaryId() != null )
+					{			
+						GridFSDBFile file = DbManager.getSocial().getShareBinary().find(share.getBinaryId());						
+						file.writeTo(out);				
+					}
+					else
+					{
+						out.write(share.getBinaryData());
+					}
 				}
-				else
-				{
-					out.write(share.getBinaryData());
-				}
-			}//TESTED
+			}//TESTED			
 			
 			return tempFileName;
 		}
@@ -375,10 +388,10 @@ public class InfiniteHadoopUtils {
 	 * Exception message generation
 	 * 
 	 */
-	public static StringBuffer createExceptionMessage(Exception e) {
+	public static StringBuffer createExceptionMessage(Throwable e) {
 		return createExceptionMessage(null, e);
 	}
-	public static StringBuffer createExceptionMessage(String prefix, Exception e) {
+	public static StringBuffer createExceptionMessage(String prefix, Throwable e) {
 		StackTraceElement[] st = e.getStackTrace();
 		StringBuffer errMessage = new StringBuffer();
 		if (null != prefix) {
@@ -603,5 +616,49 @@ public class InfiniteHadoopUtils {
 		}		
 		return localJarCache;
 	}//TOTEST (logically TESTED but needs local testing)
+	
+	//////////////////////////////////////////////////////////////////////////////////////////////
+	
+	// Supports post-task activities for custom internal engine
+	
+	public static void handlePostTaskActivities(CustomMapReduceJobPojo cmr, boolean isError, StringBuffer postTaskActivityErrors) {
+		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
+		try {
+			// Get the latest version of this file, if necessary
+			List<ObjectId> communityIds = InfiniteHadoopUtils.getUserCommunities(cmr.submitterID);
+			InfiniteHadoopUtils.downloadJarFile(cmr.jarURL, communityIds, new PropertiesManager(), cmr.submitterID);
+			
+			URLClassLoader child = new URLClassLoader (new URL[] { new File(cmr.tempJarLocation).toURI().toURL() }, savedClassLoader);			
+			Thread.currentThread().setContextClassLoader(child);
+			
+			Class<?> mapperClazz = null;
+			try {
+				mapperClazz = Class.forName (cmr.mapper, true, child);
+			}
+			catch (Exception e) { return; } 
+			catch (Error e) { return; }
+
+			if (ICustomInfiniteInternalEngine.class.isAssignableFrom(mapperClazz)) { // Special case: internal custom engine, so gets an additional integration hook
+				ICustomInfiniteInternalEngine postActivities = (ICustomInfiniteInternalEngine) mapperClazz.newInstance();
+				String jobName = new StringBuffer(cmr.jobidS).append("_").append(cmr.jobidN).toString();
+				postActivities.postTaskActivities(cmr._id, jobName, cmr.communityIds, cmr.arguments, isError, postTaskActivityErrors.toString());
+			}
+		}
+		catch (Exception e) {
+			if (postTaskActivityErrors.length() > 0) {
+				postTaskActivityErrors.append('\n');
+			}
+			Globals.populateStackTrace(postTaskActivityErrors, e);
+		}
+		catch (Error e) {
+			if (postTaskActivityErrors.length() > 0) {
+				postTaskActivityErrors.append('\n');
+			}
+			Globals.populateStackTrace(postTaskActivityErrors, e);
+		}
+		finally {
+			Thread.currentThread().setContextClassLoader(savedClassLoader);				
+		}		
+	}//TESTED
 	
 }

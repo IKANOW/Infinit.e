@@ -24,6 +24,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
 	import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryOperatorTypes;
+	import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManager;
 	import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManagerCopy;
 	import com.ikanow.infinit.e.shared.model.presentation.base.PresentationModel;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputRequest;
@@ -33,24 +34,29 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 	import com.ikanow.infinit.e.shared.model.vo.ui.ServiceStatistics;
 	import com.ikanow.infinit.e.shared.util.CollectionUtil;
 	import com.ikanow.infinit.e.shared.util.JSONUtil;
+	import com.ikanow.infinit.e.shared.util.PDFGenerator;
 	import com.ikanow.infinit.e.shared.util.PasswordUtil;
 	import com.ikanow.infinit.e.shared.util.QueryUtil;
 	import com.ikanow.infinit.e.shared.util.ServiceUtil;
 	import com.ikanow.infinit.e.widget.library.data.WidgetContext;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
+	
 	import flash.desktop.Clipboard;
 	import flash.desktop.ClipboardFormats;
 	import flash.events.Event;
 	import flash.net.FileReference;
 	import flash.net.URLRequest;
 	import flash.net.navigateToURL;
+	import flash.utils.ByteArray;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.collections.ListCollectionView;
 	import mx.controls.Alert;
 	import mx.managers.PopUpManager;
 	import mx.resources.ResourceManager;
+	
 	import spark.formatters.NumberFormatter;
 	
 	/**
@@ -247,12 +253,18 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 			fileRef.save( JSONUtil.formatJson( results ), ExportConstants.JSON_FILENAME );
 		}
 		
+		[Inject]
+		public var widgetModuleManager:WidgetModuleManager;
+		
 		/**
 		 * Export PDF
 		 */
 		public function exportPDF():void
 		{
-			dispatcher.dispatchEvent( new WidgetEvent( WidgetEvent.EXPORT_PDF ) );
+			var fileRef:FileReference = new FileReference();
+			var data:ByteArray = widgetModuleManager.exportPDF();	
+			if ( data != null )
+				fileRef.save(data, ExportConstants.PDF_FILENAME);	
 		}
 		
 		/**

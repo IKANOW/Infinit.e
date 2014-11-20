@@ -547,11 +547,11 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			if ((null != parentId) && (parentId.length() > 0)) {
 				parentIdStr = URLEncoder.encode(parentId, "UTF-8");
 				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
-						"/" + descriptionStr + "/" + tagsStr + "/" + parentIdStr, request, response));
+						"/$desc/" + tagsStr + "/" + parentIdStr + "?desc=" + descriptionStr, request, response));
 			}//TESTED - valid-works, invalid id, valid-but-not-allowed, valid-but-pending-delete, personal-community
 			else {
 				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
-						"/" + descriptionStr + "/" + tagsStr, request, response));
+						"/$desc/" + tagsStr + "?desc=" + descriptionStr, request, response));
 			}
 			
 			responseVal = new JSONObject(actionResponse.getString("response"));

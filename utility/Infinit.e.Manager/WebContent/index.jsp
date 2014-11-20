@@ -113,7 +113,9 @@ limitations under the License.
 						<ul>
 							<li><b><a href="fileUploader.jsp" title="<fmt:message key='index.file_uploader.description'/>" target="_blank"><fmt:message key='index.file_uploader.title'/></a></b> - <fmt:message key='index.file_uploader.description'/></li>
 							<li><b><a href="widgetUploader.jsp" title="<fmt:message key='index.widget_uploader.description'/>" target="_blank"><fmt:message key='index.widget_uploader.title'/></a></b> - <fmt:message key='index.widget_uploader.description'/></li>
-							<li><b><a href="pluginManager.jsp" title="<fmt:message key='index.plugin_manager.description'/>" target="_blank"><fmt:message key='index.plugin_manager.title'/></a></b> - <fmt:message key='index.plugin_manager.description'/></li>						
+							<li><b><a href="pluginManager.jsp" title="<fmt:message key='index.plugin_manager.description'/>" target="_blank"><fmt:message key='index.plugin_manager.title'/></a></b> - <fmt:message key='index.plugin_manager.description'/>
+								<ul><li><b><a href="custommonitor.jsp" title="<fmt:message key='index.custom_monitor.description'/>" target="_blank"><fmt:message key='index.custom_monitor.title' /></a></b> - <fmt:message key='index.custom_monitor.description'/></li></ul>
+							</li>						
 						</ul>
 						<!--  TODO fix this for new published chrome extension -->
 						<ul>

@@ -65,6 +65,9 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	private LinkedHashMap<String, String> distributedStatus = null;
 	final public static String distributedStatus_ = "distributedStatus";
 	final public static String sourceQuery_distributedStatus_ = "harvest.distributedStatus";
+	private Date distributedLastCompletedCycle = null;
+	final public static String distributedLastCompletedCycle_ = "distributedLastCompletedCycle";
+	final public static String sourceQuery_distributedLastCompletedCycle_ = "harvest.distributedLastCompletedCycle";
 	
 	public Long getDoccount() {
 		return doccount;
@@ -137,5 +140,12 @@ public class SourceHarvestStatusPojo extends BaseDbPojo {
 	}
 	public void setExtracted(Date extracted) {
 		this.extracted = extracted;
+	}
+	public Date getDistributedLastCompletedCycle() {
+		return distributedLastCompletedCycle;
+	}
+	public void setDistributedLastCompletedCycle(
+			Date distributedLastCompletedCycle) {
+		this.distributedLastCompletedCycle = distributedLastCompletedCycle;
 	}
 }

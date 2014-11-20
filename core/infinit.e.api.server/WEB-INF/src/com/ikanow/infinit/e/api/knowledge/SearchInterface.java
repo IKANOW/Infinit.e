@@ -56,38 +56,38 @@ public class SearchInterface extends ServerResource
 		 Request request = this.getRequest();
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);		 
 		 Map<String,Object> attributes = request.getAttributes();
+		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 String urlStr = request.getResourceRef().toString();
 		 
 		 if ( urlStr.contains("knowledge/searchSuggest") || urlStr.contains("feature/entitySuggest/"))
 		 {
 			 action = "suggest";
-			 term = RESTTools.decodeRESTParam("term", attributes);
-			 communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
+			 term = RESTTools.getUrlAttribute("term", attributes, queryOptions);
+			 communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
 		 }
 		 else if ( urlStr.contains("knowledge/searchEventSuggest") || urlStr.contains("feature/eventSuggest/") || urlStr.contains("feature/assocSuggest/"))
 		 {
 			 action ="suggestassoc";
-			 ent1 = RESTTools.decodeRESTParam("ent1", attributes);
-			 verb = RESTTools.decodeRESTParam("verb", attributes);
-			 ent2 = RESTTools.decodeRESTParam("ent2", attributes);
-			 field = RESTTools.decodeRESTParam("field", attributes);
-			 communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
+			 ent1 = RESTTools.getUrlAttribute("ent1", attributes, queryOptions);
+			 verb = RESTTools.getUrlAttribute("verb", attributes, queryOptions);
+			 ent2 = RESTTools.getUrlAttribute("ent2", attributes, queryOptions);
+			 field = RESTTools.getUrlAttribute("field", attributes, queryOptions);
+			 communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
 		 }
 		 else if ( urlStr.contains("knowledge/aliasSuggest/") || urlStr.contains("feature/aliasSuggest/"))
 		 {
 			 action = "alias";
-			 communityIdStrList = RESTTools.decodeRESTParam("communityids", attributes);
-			 field = RESTTools.decodeRESTParam("field", attributes);
-			 term = RESTTools.decodeRESTParam("term", attributes);
+			 communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
+			 field = RESTTools.getUrlAttribute("field", attributes, queryOptions);
+			 term = RESTTools.getUrlAttribute("term", attributes, queryOptions);
 		 }
 		 else if ( urlStr.contains("feature/geoSuggest/"))
 		 {
 			 action = "suggestgeo";
-			 term = RESTTools.decodeRESTParam("term", attributes);
+			 term = RESTTools.getUrlAttribute("term", attributes, queryOptions);
 		 }		 
 		 
 		 //turn off cookies for rss calls
-		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 String geo = queryOptions.get("geo");
 		 if ((null != geo) && ( (geo.equals("0")) || (geo.equalsIgnoreCase("false")) )) {
 			 wantGeo = false;			 

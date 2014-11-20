@@ -91,6 +91,7 @@ public class ShareInterface extends ServerResource
 		Request request = this.getRequest();
 		
 		Map<String,Object> attributes = request.getAttributes();
+		Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		urlStr = request.getResourceRef().toString();
 
 		//Every user must pass in their cookies	
@@ -99,31 +100,31 @@ public class ShareInterface extends ServerResource
 		// Method.POST
 		if (request.getMethod() == Method.POST) 
 		{
-			if (RESTTools.decodeRESTParam("id", attributes) != null) id = RESTTools.decodeRESTParam("id", attributes);
-			if (RESTTools.decodeRESTParam("type", attributes) != null) type = RESTTools.decodeRESTParam("type", attributes);
-			if (RESTTools.decodeRESTParam("title", attributes) != null) title = RESTTools.decodeRESTParam("title", attributes);
-			if (RESTTools.decodeRESTParam("description", attributes) != null) description = RESTTools.decodeRESTParam("description", attributes);
+			if (RESTTools.getUrlAttribute("id", attributes, queryOptions) != null) id = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+			if (RESTTools.getUrlAttribute("type", attributes, queryOptions) != null) type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+			if (RESTTools.getUrlAttribute("title", attributes, queryOptions) != null) title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+			if (RESTTools.getUrlAttribute("description", attributes, queryOptions) != null) description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 			
 			// Add a Ref (Pointer to a record within a collection)
 			if ( urlStr.contains("/share/add/ref/") )
 			{
-				type = RESTTools.decodeRESTParam("type", attributes);
-				documentLoc = RESTTools.decodeRESTParam("documentloc", attributes);
-				documentId = RESTTools.decodeRESTParam("documentid", attributes);
-				title = RESTTools.decodeRESTParam("title", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
+				type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+				documentLoc = RESTTools.getUrlAttribute("documentloc", attributes, queryOptions);
+				documentId = RESTTools.getUrlAttribute("documentid", attributes, queryOptions);
+				title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				action = "addRef";
 			}
 			
 			// Add a Ref (Pointer to a record within a collection)
 			else if ( urlStr.contains("/share/update/ref/") )
 			{
-				id = RESTTools.decodeRESTParam("id", attributes);
-				type = RESTTools.decodeRESTParam("type", attributes);
-				documentLoc = RESTTools.decodeRESTParam("documentloc", attributes);
-				documentId = RESTTools.decodeRESTParam("documentid", attributes);
-				title = RESTTools.decodeRESTParam("title", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
+				id = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+				documentLoc = RESTTools.getUrlAttribute("documentloc", attributes, queryOptions);
+				documentId = RESTTools.getUrlAttribute("documentid", attributes, queryOptions);
+				title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				action = "updateRef";
 			}
 			
@@ -133,7 +134,6 @@ public class ShareInterface extends ServerResource
 		if (request.getMethod() == Method.GET) 
 		{
 			// Method.GET
-			Map<String, String> queryOptions = this.getQuery().getValuesMap();
 			
 			// Query String Values
 			if (queryOptions.get("id") != null) id = queryOptions.get("id");
@@ -161,7 +161,7 @@ public class ShareInterface extends ServerResource
 			// Get Share by ID
 			if ( urlStr.contains("/share/get/") )
 			{
-				shareId = RESTTools.decodeRESTParam("id", attributes);
+				shareId = RESTTools.getUrlAttribute("id", attributes, queryOptions);
 				action = "getShare";			 
 			}
 			
@@ -176,10 +176,10 @@ public class ShareInterface extends ServerResource
 			else if ( urlStr.contains("/share/save/json/") || urlStr.contains("/share/add/json/") || 
 					  urlStr.contains("/share/update/json/") )
 			{
-				if (RESTTools.decodeRESTParam("id", attributes) != null) id = RESTTools.decodeRESTParam("id", attributes);
-				type = RESTTools.decodeRESTParam("type", attributes);
-				title = RESTTools.decodeRESTParam("title", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
+				if (RESTTools.getUrlAttribute("id", attributes, queryOptions) != null) id = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+				title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				// Use URLDecoder on the json string
 				try 
 				{
@@ -209,56 +209,56 @@ public class ShareInterface extends ServerResource
 			// Add a Ref (Pointer to a record within a collection)
 			else if ( urlStr.contains("/share/add/ref/") )
 			{
-				type = RESTTools.decodeRESTParam("type", attributes);
-				documentLoc = RESTTools.decodeRESTParam("documentloc", attributes);
-				documentId = RESTTools.decodeRESTParam("documentid", attributes);
-				title = RESTTools.decodeRESTParam("title", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
+				type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+				documentLoc = RESTTools.getUrlAttribute("documentloc", attributes, queryOptions);
+				documentId = RESTTools.getUrlAttribute("documentid", attributes, queryOptions);
+				title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				action = "addRef";
 			}
 			
 			// Add a Ref (Pointer to a record within a collection)
 			else if ( urlStr.contains("/share/update/ref/") )
 			{
-				id = RESTTools.decodeRESTParam("id", attributes);
-				type = RESTTools.decodeRESTParam("type", attributes);
-				documentLoc = RESTTools.decodeRESTParam("documentloc", attributes);
-				documentId = RESTTools.decodeRESTParam("documentid", attributes);
-				title = RESTTools.decodeRESTParam("title", attributes);
-				description = RESTTools.decodeRESTParam("description", attributes);
+				id = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				type = RESTTools.getUrlAttribute("type", attributes, queryOptions);
+				documentLoc = RESTTools.getUrlAttribute("documentloc", attributes, queryOptions);
+				documentId = RESTTools.getUrlAttribute("documentid", attributes, queryOptions);
+				title = RESTTools.getUrlAttribute("title", attributes, queryOptions);
+				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				action = "updateRef";
 			}
 
 			// Share - Remove a community from a share
 			else if ( urlStr.contains("/share/remove/community/") )
 			{
-				shareId = RESTTools.decodeRESTParam("shareid", attributes);
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
+				shareId = RESTTools.getUrlAttribute("shareid", attributes, queryOptions);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				action = "removeCommunity";
 			}
 
 			// Remove share
 			else if ( urlStr.contains("/share/remove/") )
 			{
-				shareId = RESTTools.decodeRESTParam("shareid", attributes);
+				shareId = RESTTools.getUrlAttribute("shareid", attributes, queryOptions);
 				action = "removeShare";
 			}
 
 			// Endorse share
 			else if ( urlStr.contains("/share/endorse/") )
 			{
-				shareId = RESTTools.decodeRESTParam("shareid", attributes);
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				isEndorsed = Boolean.parseBoolean(RESTTools.decodeRESTParam("isendorsed", attributes));
+				shareId = RESTTools.getUrlAttribute("shareid", attributes, queryOptions);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				isEndorsed = Boolean.parseBoolean(RESTTools.getUrlAttribute("isendorsed", attributes, queryOptions));
 				action = "endorseShare";
 			}
 			
 			// Share - Add a community so that members can view the share
 			else if ( urlStr.contains("/share/add/community/") )
 			{
-				shareId = RESTTools.decodeRESTParam("shareid", attributes);
-				communityId = RESTTools.decodeRESTParam("communityid", attributes);
-				comment = RESTTools.decodeRESTParam("comment", attributes);
+				shareId = RESTTools.getUrlAttribute("shareid", attributes, queryOptions);
+				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				comment = RESTTools.getUrlAttribute("comment", attributes, queryOptions);
 				action = "addCommunity";
 			}
 		}

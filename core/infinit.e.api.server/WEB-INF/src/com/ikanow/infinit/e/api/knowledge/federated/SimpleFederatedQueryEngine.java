@@ -810,7 +810,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	
 	// Convert some of the doc fields to 
 	private static BasicDBObject convertDocToQueryFormat(BasicDBObject doc, String[] communityIdStrs) {
-		doc.put(DocumentPojo.sourceKey_, Arrays.asList(doc.get(DocumentPojo.sourceKey_)));
+		doc.put(DocumentPojo.sourceKey_, Arrays.asList(doc.get(DocumentPojo.sourceKey_))); // (don't need to remove #N/#NN - fed queries can't have them)
 		doc.put(DocumentPojo.source_, Arrays.asList(doc.get(DocumentPojo.source_)));
 		doc.put(DocumentPojo.mediaType_, Arrays.asList(doc.get(DocumentPojo.mediaType_)));
 		doc.put(DocumentPojo.communityId_, communityIdStrs);

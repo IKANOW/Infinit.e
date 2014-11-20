@@ -196,9 +196,9 @@ limitations under the License.
 					commString += o._id + ",";
 				}
 				commString = commString.substring( 0, commString.length - 1 );
-				goodSourceService.url = ENDPOINT_URL + "config/source/good/" + commString + "?stripped=true";
+				goodSourceService.url = ENDPOINT_URL + "config/source/good/$commids?stripped=true&commids=" + commString;
 				goodSourceService.send();
-				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/" + commString + "?stripped=true";
+				pendingSourceService.url = ENDPOINT_URL + "config/source/pending/$commids?stripped=true&commids=" + commString;
 				pendingSourceService.send();
 				
 				if ( null == refreshTimer )

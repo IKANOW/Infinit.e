@@ -61,11 +61,10 @@ public class SourcePojoSubstitutionDbMap implements BasePojoDbMap<SourcePojo> {
 	@Override
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
 		if (null != _callingUserId) {
-			return gp.registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(_callingUserId)));
+			return new SourcePojo().extendBuilder(gp.registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(_callingUserId))));
 		}
 		else {
-			return gp.registerTypeAdapter(SourcePojo.class, (_errorHandler2 = new SourcePojoDeserializer()));
-			//return gp.registerTypeAdapter(String.class, );			
+			return new SourcePojo().extendBuilder(gp.registerTypeAdapter(SourcePojo.class, (_errorHandler2 = new SourcePojoDeserializer())));
 		}
 	}
 	public List<String> getErrorMessages() {

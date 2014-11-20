@@ -93,7 +93,7 @@ public class PersonInterface extends ServerResource
 		 {			 
 			 if (urlStr.contains("/person/get"))
 			 {
-				 personId = RESTTools.decodeRESTParam("personid", attributes);
+				 personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				 action = "getPerson";			 
 			 }
 			 else if (urlStr.contains("/person/list"))
@@ -103,8 +103,8 @@ public class PersonInterface extends ServerResource
 			 else if ( urlStr.contains("/person/register") || urlStr.contains("/people/register"))
 			 {
 				 needCookie = false;
-				 wpuser = RESTTools.decodeRESTParam("wpuser", attributes);
-				 wpauth = RESTTools.decodeRESTParam("wpauth", attributes);
+				 wpuser = RESTTools.getUrlAttribute("wpuser", attributes, queryOptions);
+				 wpauth = RESTTools.getUrlAttribute("wpauth", attributes, queryOptions);
 				 if (null == wpuser) {
 					 wpuser = parameters.getWpuser();					 
 				 }
@@ -116,14 +116,14 @@ public class PersonInterface extends ServerResource
 			 else if ( urlStr.contains("/person/delete") )
 			 {
 				 needCookie = false;
-				 personId = RESTTools.decodeRESTParam("userid", attributes);
+				 personId = RESTTools.getUrlAttribute("userid", attributes, queryOptions);
 				 action = "delete";
 			 }
 			 else if ( urlStr.contains("/person/update") || urlStr.contains("/person/wpupdate") || urlStr.contains("/people/wpupdate"))
 			 {
 				 needCookie = false;
-				 wpuser = RESTTools.decodeRESTParam("wpuser", attributes);
-				 wpauth = RESTTools.decodeRESTParam("wpauth", attributes);
+				 wpuser = RESTTools.getUrlAttribute("wpuser", attributes, queryOptions);
+				 wpauth = RESTTools.getUrlAttribute("wpauth", attributes, queryOptions);
 				 if (null == wpuser) {
 					 wpuser = parameters.getWpuser();					 
 				 }

@@ -212,6 +212,8 @@ public class AggregationUtils {
 				aggregation.moments.timesInterval = "month";
 			}
 			
+			//TODO (INF-2688): geo if in full accuracy mode			
+			
 			if (null != aggregation.moments.entityList) {
 				for (String entIndex: aggregation.moments.entityList) {
 					

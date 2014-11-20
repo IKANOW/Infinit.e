@@ -75,6 +75,8 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public static final String isCustomTable_ = "isCustomTable";
 	public Date lastRunTime = null;
 	public static final String lastRunTime_ = "lastRunTime";
+	public Date lastChecked = null;
+	public static final String lastChecked_ = "lastChecked";
 	public String mapper;
 	public static final String mapper_ = "mapper";
 	public String reducer;
@@ -127,7 +129,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	
 	public enum INPUT_COLLECTIONS
 	{	
-		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS, FILESYSTEM, FEATURE_TEMPORAL;
+		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS, FILESYSTEM, FEATURE_TEMPORAL, RECORDS;
 	}
 
 	// Getters and setters

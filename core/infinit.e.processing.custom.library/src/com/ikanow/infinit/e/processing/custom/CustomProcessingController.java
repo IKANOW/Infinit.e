@@ -271,7 +271,7 @@ public class CustomProcessingController {
 			
 			CustomMapReduceJobPojo cmr = jobOverride;
 			if (null == cmr)
-				cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled);
+				cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled, incompleteJobsMap);
 			else if (null == cmr.jobidS)
 				return true;
 			
@@ -291,8 +291,9 @@ public class CustomProcessingController {
 						{ 
 							// Better delete this, no idea what's going on....						
 							_logger.info("job_update_status_error_title=" + cmr.jobtitle + " job_update_status_error_id=" + cmr._id.toString() + " job_update_status_error_message=Skipping job: " + cmr.jobidS + cmr.jobidN + ", this node does not run mapreduce");							
-							_statusManager.setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error (check configuration in  /opt/hadoop-infinite/mapreduce/hadoop/, jobtracker may be localhost?).");							
-							cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled);
+							_statusManager.setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error (check configuration in  /opt/hadoop-infinite/mapreduce/hadoop/, jobtracker may be localhost?).");
+							incompleteJobsMap.remove(cmr._id);
+							cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled, incompleteJobsMap);
 							continue;
 						}
 					}
@@ -312,7 +313,7 @@ public class CustomProcessingController {
 							{
 								markedComplete = true;
 								error = true;
-								errorMessage = "Job failed while running, check for errors in the mapper/reducer or that your key/value classes are set up correctly?";
+								errorMessage = "Job failed while running, check for errors in the mapper/reducer or that your key/value classes are set up correctly? " + j.getFailureInfo();
 							}
 							_statusManager.setJobComplete(cmr, markedComplete, error, j.mapProgress(),j.reduceProgress(), errorMessage);
 							break; // (from mini loop over hadoop jobs, not main loop over infinite tasks)
@@ -342,13 +343,13 @@ public class CustomProcessingController {
 						_statusManager.setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error #1.");
 					}
 				}
-				//job was not done, need to set flag back
-				if ( !markedComplete )
+				//job was done, remove flag
+				if ( markedComplete )
 				{
-					incompleteJobsMap.put(cmr._id, cmr.jobidS);
+					incompleteJobsMap.remove(cmr._id);
 				}
 				if (null == jobOverride)
-					cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled);
+					cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled, incompleteJobsMap);
 				else
 					cmr = null;
 			}	
@@ -359,6 +360,7 @@ public class CustomProcessingController {
 		}	
 		catch (Error err) {
 			// Really really want to get to the next line of code, and clear the status...
+			_logger.info("job_error_checking_status_message=" + InfiniteHadoopUtils.createExceptionMessage(err) );			
 		}
 				
 		if (null == jobOverride)

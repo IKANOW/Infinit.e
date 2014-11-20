@@ -8,7 +8,7 @@ License: None
 Group: Infinit.e
 BuildArch: noarch
 Prefix: /mnt/opt
-Requires: mongo-10gen, mongo-10gen-server, vim-common
+Requires: mongodb-org-server, mongodb-org-tools, mongodb-org-shell, mongodb-org-mongos, vim-common
 
 %description
 Infinit.e Mongo DB installation and update
@@ -41,16 +41,18 @@ Infinit.e Mongo DB installation and update
 	if [ -d /etc/security ]; then
 		if [ -f /etc/security/limits.conf ]; then
 			sed -i -r /"^(soft|hard) (nofile|nproc).*"/d /etc/security/limits.conf
-		fi
-		
-		echo 'soft nofile 64000' >> /etc/security/limits.conf
-		echo 'hard nofile 64000' >> /etc/security/limits.conf
-		echo 'soft nproc 32000' >> /etc/security/limits.conf
-		echo 'hard nproc 32000' >> /etc/security/limits.conf
+			sed -i -r /"^mongod.*"/d /etc/security/limits.conf
+		fi		
+		echo 'mongod soft nofile 64000' >> /etc/security/limits.conf
+		echo 'mongod hard nofile 64000' >> /etc/security/limits.conf
+		echo 'mongod soft nproc 32000' >> /etc/security/limits.conf
+		echo 'mongod hard nproc 32000' >> /etc/security/limits.conf
 	fi
 	if [ -d /etc/security/limits.d/ ]; then
-		echo 'soft nproc 32000' > /etc/security/limits.d/90-nproc.conf
-		echo 'hard nproc 32000' >> /etc/security/limits.d/90-nproc.conf
+		echo 'mongod soft nproc 32000' > /etc/security/limits.d/99-mongod.conf
+		echo 'mongod hard nproc 32000' >> /etc/security/limits.d/99-mongod.conf
+		echo 'mongod soft nofile 64000' >> /etc/security/limits.d/99-mongod.conf
+		echo 'mongod hard nofile 64000' >> /etc/security/limits.d/99-mongod.conf
 	fi
 
 	###########################################################################

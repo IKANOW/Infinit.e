@@ -123,7 +123,7 @@ public class PersonHandler
 			DBCursor dbc = DbManager.getSocial().getPerson().find(query);
 			
 			
-			if (dbc.count() > 0)
+			if (dbc.hasNext())
 			{
 				rp.setData(PersonPojo.listFromDb(dbc, PersonPojo.listType()), new PersonPojoApiMap());
 				rp.setResponse(new ResponseObject("People List", true, "List returned successfully"));				
@@ -193,7 +193,7 @@ public class PersonHandler
 		{
 			DBCursor dbc = DbManager.getSocial().getPerson().find();
 			
-			if (dbc.count() > 0)
+			if (dbc.hasNext())
 			{
 				rp.setData(PersonPojo.listFromDb(dbc, PersonPojo.listType()), new PersonPojoApiMap());
 				rp.setResponse(new ResponseObject("People Info", true, "Info returned successfully"));				

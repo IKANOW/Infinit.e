@@ -71,8 +71,19 @@ Infinit.e base enterprise install
 	#Insert or update record-oriented widgets
 	sh /mnt/opt/logstash-infinite/scripts/insert_or_update_widgets.sh > /dev/null
 	
-	#Kill any templates with old-style protocols
-	if [ -d /etc/logstash/conf.d/ ]; then
+	#Ensure if binary mode is turned off then http versions of templates are used
+	USE_BINARY=`grep "^elastic.logstash=" /opt/infinite-install/config/infinite.configuration.properties | sed s/'elastic.logstash='// | sed s/' '//g`
+	if [ "$USE_BINARY" != "binary" ]; then
+		if [ -d /etc/logstash/conf.d/ ]; then
+			for i in `ls /etc/logstash/conf.d/*.auto.conf`; do 
+				if ! grep -q 'elasticsearch_http' $i; then 
+					echo "Deleting incompatible stream $i (will be regenerated in a few minutes)"
+					rm -f $i; 
+				fi; 
+			done
+		fi
+	elif [ -d /etc/logstash/conf.d/ ]; then
+		#Kill any templates with old-style protocols
 		for i in `ls /etc/logstash/conf.d/*.auto.conf`; do 
 			if ! grep -q 'protocol => "transport"' $i; then 
 				echo "Deleting old stream $i (will be regenerated in a few minutes)"
@@ -110,6 +121,8 @@ Infinit.e base enterprise install
 %config /mnt/opt/logstash-infinite/templates/test-output-template.conf
 %config /mnt/opt/logstash-infinite/templates/transient-record-output-template.conf
 %config /mnt/opt/logstash-infinite/templates/stashed-record-output-template.conf
+%config /mnt/opt/logstash-infinite/templates/transient-record-output-template_http.conf
+%config /mnt/opt/logstash-infinite/templates/stashed-record-output-template_http.conf
 %config /mnt/opt/logstash-infinite/templates/etc_sysconfig_logstash
 
 /mnt/opt/tomcat-infinite/interface-engine/webapps/infinit.e.records.war

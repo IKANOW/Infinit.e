@@ -26,11 +26,14 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.Globals.Identity;
+import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
+
+//TODO: (XXX): can't currently port this over to use MongoApplicationLock because currently only one per database
 
 public class AssociationBackgroundAggregationManager implements Runnable {
 
@@ -119,8 +122,9 @@ public class AssociationBackgroundAggregationManager implements Runnable {
 			while (!_bKillMe) {
 			
 				// Get the offenders, ordered by prio:
+				BasicDBObject onlyPrioritized = new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, new BasicDBObject(DbManager.gt_, 0));
 				BasicDBObject orderBy = new  BasicDBObject(AssociationFeaturePojo.db_sync_prio_, -1);
-				DBCursor dbc = MongoDbManager.getFeature().getAssociation().find().limit(100).sort(orderBy);
+				DBCursor dbc = MongoDbManager.getFeature().getAssociation().find(onlyPrioritized).sort(orderBy).limit(100);
 					// (feature has a sparse index, so this automatically filters out non-"prio" associations)
 	
 				// Get the top offenders:

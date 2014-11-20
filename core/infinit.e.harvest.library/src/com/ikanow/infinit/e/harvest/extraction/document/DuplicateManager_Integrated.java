@@ -120,7 +120,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			return duplicationLogic(query, source, duplicateSources);
 		}
 		else {
-			query.put(DocumentPojo.sourceKey_, source.getKey());
+			query.put(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm());
 			BasicDBObject fields = new BasicDBObject(DocumentPojo._id_, 1);
 			return null != MongoDbManager.getDocument().getMetadata().findOne(query, fields);
 		}
@@ -151,7 +151,6 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	 * @return boolean (true/false)
 	 */
 	public boolean needsUpdated_SourceUrl(Date modifiedDate, String sourceUrl, SourcePojo source) {
-		String sourceKey = source.getKey();
 		
 		// Performance shortcut:
 		if (!_bCalculatedMostRecentlyModifiedFile) {
@@ -160,14 +159,14 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			try {
 				if ((null != source.getHarvestStatus()) && (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
 				{
-					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm());
 					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
 					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
 					if (null != source.getDistributionFactor()) { // (need the created date also 
 						mostRecentFields.put(DocumentPojo.created_, 1);
 					}
 					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
-					if (mostRecentDocs.count() > 0) {
+					if (mostRecentDocs.hasNext()) {
 						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
 						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);
 						_mostRecentlyModifiedDocId = (ObjectId) mostRecentDocDbo.get(DocumentPojo._id_);	
@@ -203,8 +202,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		}//TESTED
 		else if (null == sourceUrl) {
 			return true; // (for custom checking - if we couldn't get a cached value to compare against then assume we are inspecting)
-		}
-		
+		}		
 		
 		// No short cut, go the long way round:		
 		
@@ -212,13 +210,15 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.sourceUrl_, sourceUrl);
-		query.put(DocumentPojo.sourceKey_, sourceKey); 
+		query.put(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm());
+		BasicDBObject hint = new BasicDBObject(DocumentPojo.sourceUrl_, 2);
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
-		DBCursor dbc = collection.find(query, fields).limit(1);
+		DBCursor dbc = collection.find(query, fields).hint(hint).limit(1);
 			// (this should be very fast since sourceUrl is indexed ... order doesn't matter as all docs should have the same modified)
+			//TODO (INF-1922): at some point should look into making (sparse) sourceUrl be compounded with sourceKey - this is a bit risky
 
-		if ( dbc.count() == 0 ) { //if there is no record, return true
+		if ( !dbc.hasNext() ) { //if there is no record, return true
 			ret = true;
 			modifiedDate.setTime(0);
 		}
@@ -236,7 +236,6 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 	}//TESTED	
 	
 	public boolean needsUpdated_Url(Date modifiedDate, String url, SourcePojo source) {
-		String sourceKey = source.getKey();
 		
 		// Performance shortcut:
 		if (!_bCalculatedMostRecentlyModifiedFile) {
@@ -245,41 +244,38 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 			try {
 				if ((null != source.getHarvestStatus()) && (HarvestEnum.success == source.getHarvestStatus().getHarvest_status()))
 				{
-					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getKey());
+					BasicDBObject mostRecentQuery = new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm());
+					if (null != source.getDistributionFactor()) { // if distributed, then apply extra term
+						if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getDistributedLastCompletedCycle())) {
+							Date d = source.getHarvestStatus().getDistributedLastCompletedCycle();
+							mostRecentQuery.put(DocumentPojo._id_, new BasicDBObject(DbManager.lte_, new ObjectId(d)));							
+						}
+					}//TESTED
+					
 					BasicDBObject mostRecentSort = new BasicDBObject(DocumentPojo._id_, -1);
 					BasicDBObject mostRecentFields = new BasicDBObject(DocumentPojo.modified_, 1);
 					if (null != source.getDistributionFactor()) { // (need the created date also 
 						mostRecentFields.put(DocumentPojo.created_, 1);
 					}
 					DBCursor mostRecentDocs = MongoDbManager.getDocument().getMetadata().find(mostRecentQuery, mostRecentFields).sort(mostRecentSort).limit(1);
-					if (mostRecentDocs.count() > 0) {
+					if (mostRecentDocs.hasNext()) {						
 						BasicDBObject mostRecentDocDbo = (BasicDBObject) mostRecentDocs.next();
 						_mostRecentlyModifiedFile = (Date) mostRecentDocDbo.get(DocumentPojo.modified_);						
 						_mostRecentlyModifiedDocId = (ObjectId) mostRecentDocDbo.get(DocumentPojo._id_);	
 						
-						if (null != source.getDistributionFactor()) { // This is a slightly more complex case because other...
-							//...threads for this source could be writing documents asynchronously ... so we're just going to disable everything
-							//if the most recent doc is _after_ our last harvest time
-							Date mostRecentlyModifedFile_createdTime = (Date) mostRecentDocDbo.get(DocumentPojo.created_);
-							if ((null != source.getHarvestStatus()) && (null != source.getHarvestStatus().getHarvested() && (null != mostRecentlyModifedFile_createdTime))) {								
-								if (mostRecentlyModifedFile_createdTime.after(source.getHarvestStatus().getHarvested())) {
-									_mostRecentlyModifiedFile = null;
-									_mostRecentlyModifiedDocId = null;									
-								}
-							}
-							else { // If we don't have a date then force a "slow" dedup
-								_mostRecentlyModifiedFile = null;
-								_mostRecentlyModifiedDocId = null;
-							}
-						}//TESTED
-						
 					}//TESTED (found docs)
-				}//(success mode)
+					
+					//DEBUG
+					//if (null != _mostRecentlyModifiedDocId)
+					//	System.out.println("DEDUP: " + mostRecentQuery + ": RESULTS IN " + new Date(_mostRecentlyModifiedDocId.getTime()));
+					
+				}//(success mode)				
 			}
-			catch (Exception e) {} // If anything goes wrong will just check all files (slower)			
+			catch (Exception e) {} // If anything goes wrong will just check all files (slower)
+			
 		}//TESTED
 		
-		if (null != _mostRecentlyModifiedFile) { // Use short cut...
+		if (null != _mostRecentlyModifiedFile) { // Use short cut...			
 			long nMostRecentlyModifiedTime = _mostRecentlyModifiedFile.getTime()/1000L;
 			long nFileTime = modifiedDate.getTime()/1000L;
 			
@@ -298,24 +294,26 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		boolean ret = true;
 		BasicDBObject query = new BasicDBObject();
 		query.put(DocumentPojo.url_, url);
-		query.put(DocumentPojo.sourceKey_, sourceKey); 
+		query.put(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm()); 
 		BasicDBObject fields = new BasicDBObject(DocumentPojo.modified_, 1); 
 		
-		DBCursor dbc = collection.find(query, fields).limit(1);
-		int nCount = dbc.count();
+		DBCursor dbc = collection.find(query, fields).limit(2); // (will normally return 0 or 1)
+		boolean foundMatch = dbc.hasNext();
 
-		if ( nCount == 0 ) { //if there is no record, return true
+		if ( !foundMatch ) { //if there is no record, return true
 			ret = true;
 		}
 		else{
-			BasicDBObject dbo = (BasicDBObject) dbc.iterator().next();
+			BasicDBObject dbo = (BasicDBObject) dbc.next();
 			Date oldModified = (Date) dbo.get(DocumentPojo.modified_);
 			
 			if ((modifiedDate.getTime()/1000) != (oldModified.getTime()/1000)) { // times don't match
-				if (1 == nCount) { // 1 matching doc, different modified times so update
+				if (!dbc.hasNext()) { // 1 matching doc, different modified times so update
 					ret = true;					
 				}//TESTED
-				else { // Not sure about this case, multiple docs, are any of them the same? (Shouldn't ever occur) 
+				else { // Not sure about this case, multiple docs, are any of them the same? (Shouldn't ever occur)
+					// (slightly slow but should be OK because not going to happen very often)					
+					int nCount = dbc.count();
 					query.put(DocumentPojo.modified_, modifiedDate);
 					ret = !(collection.find(query).limit(1).count() == nCount);					
 				}//TOTEST (shouldn't ever occur)			
@@ -398,7 +396,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		}		
 		while (dbc.hasNext()) {
 			DBObject dbo = dbc.next();
-			String sourceKey = (String) dbo.get(DocumentPojo.sourceKey_);
+			String sourceKey = DocumentPojo.getSourceKey((String) dbo.get(DocumentPojo.sourceKey_));
 			if (null != sourceKey) {
 				
 				// Check for exact duplicates, in which case can bypass horrible functional duplicate logic:

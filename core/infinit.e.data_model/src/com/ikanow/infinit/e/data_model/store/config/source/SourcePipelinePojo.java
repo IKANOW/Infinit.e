@@ -106,6 +106,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public Integer searchCycle_secs; // How often to run the harvester (copied to SourcePojo when published)
 		public Boolean duplicateExistingUrls; // If false (defaults to true) then documents matching the URL of any existing document in the community is ignored (copied to SourcePojo when published)
 		
+		public Integer timeToLive_days; // Sets a time to live for the documents harvested, after which they are deleted
+		
 		public Integer maxDocs_global; // If specified, limits the total number of documents that can be harvested for a given source - when new documents are harvested exceeding this limit, older documents are deleted to maintain the size
 		public Integer maxDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS_ITERATION ie the next harvest cycle, the harvester will pick up again, as above)
 		public Integer throttleDocs_perCycle; // If specified, limits the number of documents that can be harvested for a given source (state moves to SUCCESS - ie this+searchCycle_secs limits document ingest rate, the harvester will wait for searchCycle_secs before starting again)
@@ -156,7 +158,9 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public String publishedDate; // The string expression or $SCRIPT(...) specifying the document publishedDate
 		public String fullText; // The string expression or $SCRIPT(...) specifying the document fullText
 		public String displayUrl; // The string expression or $SCRIPT(...) specifying the document displayUrl
-		public Boolean appendTagsToDocs; // if true (*NOT* default) source tags are appended to the document 
+		public Boolean appendTagsToDocs; // if true (*NOT* default) source tags are appended to the document
+		public String mediaType; // The string expression or $SCRIPT(...) specifying the document mediaType
+		public String tags; // A ,-separated list of string expressions or $SCRIPT(...) - returning a ,-separated list, the result of each will be added to the tags
 		public StructuredAnalysisConfigPojo.GeoSpecPojo geotag; // Specify a document level geo-tag
 	}
 	
@@ -188,6 +192,7 @@ public class SourcePipelinePojo extends BaseDbPojo {
 	
 	public static class StorageSettingsPojo {
 		public String rejectDocCriteria; 	//OPTIONAL: If populated, runs a user script function and if return value is non-null doesn't create the object and logs the output.  *Not* wrapped in $SCRIPT().
+		public Boolean deleteExistingOnRejection; // OPTIONAL: if true, then if the doc is rejected and is updating an existing doc, then the existing doc is still deleted (default false)
 		public String onUpdateScript; 		//OPTIONAL: Used to preserve existing metadata when documents are updated, and also to generate new metadata based on the differences between old and new documents. *Not* wrapped in $SCRIPT().
 		public String metadataFieldStorage; //OPTIONAL: A comma-separated list of top-level metadata fields to either exclude (if "metadataFields" starts with '-'), or only include (starts with '+', default) - the fields are deleted at that point in the pipeline.
 		public Boolean exitPipeline; 		//OPTIONAL: if present and true then the document exits the pipeline at this point, bypassing any further elements in the pipeline (usually used in conjunction with "criteria")

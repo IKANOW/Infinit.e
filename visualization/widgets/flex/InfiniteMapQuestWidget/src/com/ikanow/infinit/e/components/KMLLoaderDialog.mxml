@@ -96,31 +96,29 @@
 				communities = comms;
 			}
 			
-			private var shareHttpService:HTTPService;
+			private var shareV2HttpService:HTTPService;
 			private function loadCompleteHandler(event:Event):void
-			{		
-				//we have the bytes of the kml file, send uplodaed file to share
-				shareHttpService = new HTTPService();
-				shareHttpService.addEventListener(ResultEvent.RESULT, createKMLShare_resultHandler);
-				shareHttpService.addEventListener(FaultEvent.FAULT, createKMLShare_faultHandler);
-				shareHttpService.url = ENDPOINT_URL + "social/share/add/binary/" + textInputKMLName.text + "/added%20from%20map%20widget";
-				shareHttpService.contentType = "application/vnd.google-earth.kml+xml";
-				shareHttpService.method = "POST";
-				shareHttpService.send(kml_fr.data);				
+			{						
+				//NEW SHARE METHOD				
+				shareV2HttpService = new HTTPService();
+				shareV2HttpService.addEventListener(ResultEvent.RESULT, createKMLShareV2_resultHandler);
+				shareV2HttpService.addEventListener(FaultEvent.FAULT, createKMLShare_faultHandler);
+				shareV2HttpService.url = ENDPOINT_URL + "social/share?title=" + textInputKMLName.text + "&type=binary&description=added%20from%20map%20widget&communityIds="+dropDownCommunity.selectedItem._id;				
+				shareV2HttpService.contentType = "application/vnd.google-earth.kml+xml";
+				shareV2HttpService.method = "POST";
+				shareV2HttpService.send(kml_fr.data);
 			}
 			
 			private var kml_share_url:String;
-			private var widgetsaveHttpService:HTTPService;
-			private function createKMLShare_resultHandler(event:ResultEvent):void
+			
+			private function createKMLShareV2_resultHandler(event:ResultEvent):void
 			{
 				var data:Object = JSONDecoder.decode(event.result as String);			
 				if ( data.response.success.toString() == "true" )
 				{
-					var shareid:String = data.data as String;
-					kml_share_url = "$infinite/social/share/get/" + shareid;					
-					
-					searchWidgetSave();	
-					updateBinaryShareComm(shareid);
+					var shareid:String = data.data._id as String;					
+					kml_share_url = "$infinite/social/share/get/" + shareid;										
+					searchWidgetSave();						
 				}
 				else
 				{
@@ -128,86 +126,14 @@
 					close();
 				}
 			}
-			
+						
 			private function createKMLShare_faultHandler(event:FaultEvent):void
 			{
 				Alert.show("Failed to upload kml: " + event.message);
 				close();
 			}
 			
-			private var binary_self_community_id:String = null;
-			private var binary_id:String = null;
-			private var binaryShareCommsHttpService:HTTPService;
-			/**
-			 * Add the correct comm to the share, then remove the original
-			 */
-			private function updateBinaryShareComm(share_id:String):void
-			{
-				binary_id = share_id; 				
-				//now we have to deal with the comms on the share, annoyingly get share to grab self comm, add new one, delete old one
-				binaryShareCommsHttpService = new HTTPService();
-				binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/get/" + binary_id + "?nocontent=true";
-				binaryShareCommsHttpService.addEventListener(ResultEvent.RESULT, binaryShareCommsGet_resultHandler);
-				binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsGet_faultHandler);
-				binaryShareCommsHttpService.send();	
-			}
-			
-			private function binaryShareCommsGet_resultHandler(event:ResultEvent):void
-			{
-				var data:Object = JSONDecoder.decode(event.result as String);	
-				if ( data.response.success.toString() == "true" )
-				{
-					binary_self_community_id = data.data.communities[0]._id;
-					//now add the self community
-					binaryShareCommsHttpService = new HTTPService();
-					binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/add/community/" + binary_id + "/added%20by%20map/" + dropDownCommunity.selectedItem._id;
-					binaryShareCommsHttpService.addEventListener(ResultEvent.RESULT, binaryShareCommsAdd_resultHandler);
-					binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsAdd_faultHandler);
-					binaryShareCommsHttpService.send();	
-				}
-				else
-				{
-					Alert.show("Failed to get binary share: " + data.response.message);
-					close();
-				}
-			}
-			
-			private function binaryShareCommsGet_faultHandler(event:FaultEvent):void
-			{
-				Alert.show("Failed to get binary share: " + event.message);
-				close();
-			}
-			
-			private function binaryShareCommsAdd_resultHandler(event:ResultEvent):void
-			{
-				var data:Object = JSONDecoder.decode(event.result as String);	
-				if ( data.response.success.toString() == "true" )
-				{
-					//now remove the self community
-					binaryShareCommsHttpService = new HTTPService();
-					binaryShareCommsHttpService.url = ENDPOINT_URL + "social/share/remove/community/" + binary_id + "/" + binary_self_community_id; 
-					binaryShareCommsHttpService.addEventListener(FaultEvent.FAULT, binaryShareCommsRemove_faultHandler);
-					binaryShareCommsHttpService.send();	
-				}
-				else
-				{
-					Alert.show("Failed to add community to binary share: " + data.response.message);
-					close();
-				}
-			}
-			
-			private function binaryShareCommsAdd_faultHandler(event:FaultEvent):void
-			{
-				Alert.show("Failed to add community to binary share: " + event.message);
-				close();
-			}
-			
-			private function binaryShareCommsRemove_faultHandler(event:FaultEvent):void
-			{
-				Alert.show("Failed to remove community from binary share: " + event.message);
-				close();
-			}
-			
+			private var widgetsaveHttpService:HTTPService;
 			private function searchWidgetSave():void
 			{
 				//Check for a widgetsave for the selected community
@@ -261,20 +187,20 @@
 			{
 				//save this widgetsave back to the server
 				widgetsaveCreateHttpService = new HTTPService();
-				if ( share_id == null )
+				var url:String = ENDPOINT_URL + "social/share?title="+URLEncoder.encode(WIDGET_TITLE)+"&description=updated%20by%20map%20widget&type=widgetsave&data_type=json";
+				if ( share_id != null )
 				{
-					widgetsaveCreateHttpService.url = ENDPOINT_URL + "social/share/add/json/widgetsave/"+URLEncoder.encode(WIDGET_TITLE)+"/updated%20by%20map%20widget";
-					widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveCreate_resultHandler);
-					widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveCreate_faultHandler);
+					url += "&id="+share_id;					
+					widgetsaveCreateHttpService.method = "PUT";
 				}
 				else
 				{
-					widgetsaveCreateHttpService.url = ENDPOINT_URL + "social/share/update/json/" + share_id + "/widgetsave/"+URLEncoder.encode(WIDGET_TITLE)+"/updated%20by%20map%20widget";
-					widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
-					widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);
+					url += "&communityIds=" + dropDownCommunity.selectedItem._id;
+					widgetsaveCreateHttpService.method = "POST";
 				}
-				
-				widgetsaveCreateHttpService.method = "POST";
+				widgetsaveCreateHttpService.url = url;
+				widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
+				widgetsaveCreateHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);				
 				widgetsaveCreateHttpService.contentType = "application/json";
 				widgetsaveCreateHttpService.send(com.ikanow.infinit.e.widget.library.utility.JSONEncoder.encode(widgetSave));
 			}
@@ -282,60 +208,6 @@
 			private function widgetSave_faultHandler(event:FaultEvent):void
 			{
 				Alert.show("Failed to check for previous kml save: " + event.message);
-				close();
-			}
-			
-			private var widgetSave_share_id:String;
-			private var shareCommsHttpService:HTTPService;
-			private function widgetSaveCreate_resultHandler(event:ResultEvent):void
-			{
-				var data:Object = JSONDecoder.decode(event.result as String);	
-				if ( data.response.success.toString() == "true" )
-				{
-					widgetSave_share_id = data.data._id as String;
-					self_community_id = data.data.communities[0]._id;
-					//now we have to deal with the comms on the share, so add new one, delete old one
-					shareCommsHttpService = new HTTPService();
-					shareCommsHttpService.url = ENDPOINT_URL + "social/share/add/community/" + widgetSave_share_id + "/added%20by%20map/" + dropDownCommunity.selectedItem._id;
-					shareCommsHttpService.addEventListener(ResultEvent.RESULT, shareCommsAdd_resultHandler);
-					shareCommsHttpService.addEventListener(FaultEvent.FAULT, shareCommsAdd_faultHandler);
-					shareCommsHttpService.send();	
-				}
-				else
-				{
-					Alert.show("Failed to create community share: " + data.response.message);
-					close();
-				}
-			}
-			
-			private function widgetSaveCreate_faultHandler(event:FaultEvent):void
-			{
-				Alert.show("Failed to set community share: " + event.message);
-				close();
-			}
-			
-			private function shareCommsAdd_resultHandler(event:ResultEvent):void
-			{
-				var data:Object = JSONDecoder.decode(event.result as String);	
-				if ( data.response.success.toString() == "true" )
-				{
-					//now remove the self community
-					shareCommsHttpService = new HTTPService();
-					shareCommsHttpService.url = ENDPOINT_URL + "social/share/remove/community/" + widgetSave_share_id + "/" + self_community_id; 
-					shareCommsHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
-					shareCommsHttpService.addEventListener(FaultEvent.FAULT, widgetSaveComplete_faultHandler);
-					shareCommsHttpService.send();	
-				}
-				else
-				{
-					Alert.show("Failed to add community to community share: " + data.response.message);
-					close();
-				}
-			}
-			
-			private function shareCommsAdd_faultHandler(event:FaultEvent):void
-			{
-				Alert.show("Failed to add community to community share: " + event.message);
 				close();
 			}
 			
