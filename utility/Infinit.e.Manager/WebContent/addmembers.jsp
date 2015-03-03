@@ -35,6 +35,7 @@ limitations under the License.
 	String tags = "";
 	String isSystemCommunity = "";
 	String isPersonalCommunity = "";
+	String communityType = "";
 	String ownerId = "";
 	String communityStatus = "";
 	String ownerDisplayName = "";
@@ -392,8 +393,17 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			visibleCommunityId = id;
 			name = community.getString("name");
 			description = community.getString("description");
-			numberOfMembers = community.getString("numberOfMembers");
 			ownerDisplayName = community.getString("ownerDisplayName");
+			if (community.has("type")) {
+				communityType = community.getString("type");
+			}
+			if (community.has("members")) {
+				JSONArray members = community.getJSONArray("members");
+				numberOfMembers = Integer.toString(members.length());
+			}
+			else {
+				numberOfMembers = "0";
+			}
 			
 			// Community tags
 			if (community.has("tags"))
@@ -465,6 +475,16 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 {
 	StringBuffer people = new StringBuffer();
 	Map<String, String> listOfPeople = getListOfAllPeople(request, response, communityMembers);
+
+	if ((null == communityType) || !communityType.equals("user")) { // (can't add user groups to user groups...)
+		// Can now add user groups to data groups
+		TreeMultimap<String,String> userGroups = getListOfAllUserGroups(request, response, communityMembers);
+		
+		// (should tidy this up to support things with the same name, for now just ignore communities with the same names...)
+		if (null != userGroups) for (Map.Entry<String, String> kv: userGroups.entries()) {
+			listOfPeople.put(kv.getKey(), kv.getValue());
+		}
+	}	
 	
 	if (listOfPeople.size() > 0)
 	{
@@ -514,9 +534,14 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				String listFilterString = "";
 				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
 				
-				editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
-						+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
-	
+				if (name.startsWith("[UserGrp]")) {
+					editLink = "<a href=\"communities.jsp?action=edit&communityid=" + id + "&page=" + currentPage 
+							+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";					
+				}
+				else {
+					editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
+							+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
+				}	
 				// Create the HTML table row
 				people.append("<tr>");
 				people.append("<td bgcolor=\"white\" width=\"100%\">" + editLink + "</td>");
@@ -555,6 +580,7 @@ private boolean addPersonToCommunity(String person, String community, HttpServle
 	try
 	{
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( addToCommunity(community, person, request, response) ).getString("response") );
+		
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
 			messageToDisplay = "Success: Person added to community."; return true;

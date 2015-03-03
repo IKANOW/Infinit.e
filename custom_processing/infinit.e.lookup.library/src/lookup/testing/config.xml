@@ -1,0 +1,179 @@
+<?xml version="1.0"?>
+<configuration>
+	<!--  NAME AND LOCATION -->
+	<property>
+		<!-- name of job shown in jobtracker -->
+		<name>mongo.job.name</name>
+		<value>MONGO HADOOP TEST (template)</value>
+	</property>
+	<property>
+		<!-- If you are reading from mongo, the URI -->
+		<!--  if using a real database you can populate a test collection with something like: 
+			db.getMongo().getDB("doc_metadata").metadata.find().limit(1000).forEach(function(x){db.getMongo().getDB("test").docs.save(x);})
+		-->
+		<name>mongo.input.uri</name>
+		<value>mongodb://127.0.0.1/test.seplogs_harvested</value>
+	</property>
+	<property>
+		<!-- If you are writing to mongo, the URI -->
+		<name>mongo.output.uri</name>
+		<value>mongodb://127.0.0.1/test.tst_simple_query_lib_key</value>
+	</property>
+
+	<!-- QUERY PARAMETERS -->
+	<property>
+		<!-- The query, in JSON, to execute [OPTIONAL] -->
+		<name>mongo.input.query</name>
+		<value>{}</value>
+	</property>
+	<!-- EXAMPLE NON-NULL QUERY:
+	<property><name>mongo.input.query</name><value>{ "SAMPLE_QUERY": "HERE" }</value></property>
+	 -->
+	<property>
+		<!-- The fields, in JSON, to read [OPTIONAL] -->
+		<name>mongo.input.fields</name>
+		<value>
+		</value>
+	</property>
+	<property>
+		<!-- A JSON sort specification for read [OPTIONAL] -->
+		<name>mongo.input.sort</name>
+		<value>
+		</value>
+	</property>
+
+	<!-- PROCESSING CLASSES -->
+	<property>
+		<!-- Class for the mapper -->
+		<name>mongo.job.mapper</name>
+		<value>lookup.testing.TestMapReduceEngine$InfiniteMapper</value>
+		<!--value>com.ikanow.infinit.e.hadoop.processing.TE$InfiniteMapper</value-->
+
+	</property>
+	<property>
+		<!-- Class for the combiner [optional] -->
+		<name>mongo.job.combiner</name>
+		<!-- 
+		<value>com.ikanow.infinit.e.hadoop.processing.InfiniteProcessingEngine$InfiniteCustomCombiner</value>
+		 -->
+		<value>lookup.testing.TestMapReduceEngine$InfiniteCustomCombiner</value>
+	</property>
+	<property>
+		<!-- Reducer class -->
+		<name>mongo.job.reducer</name>
+		<value>lookup.testing.TestMapReduceEngine$InfiniteReducer</value>
+	</property>
+	<property>
+		<!-- Output key class for the output format -->
+		<name>mongo.job.output.key</name>
+		<!--value>org.apache.hadoop.io.Text</value-->
+        <value>com.mongodb.hadoop.io.BSONWritable</value>
+	</property>
+	<property>
+		<!-- Output value class for the output format -->
+		<name>mongo.job.output.value</name>
+		<value>com.mongodb.hadoop.io.BSONWritable</value>
+	</property>
+
+	<!-- OPTIONAL ADVANCED PARAMETERS -->
+	<property>
+		<!-- run the job verbosely ? -->
+		<name>arguments</name>
+		<value>{
+
+					"customJobId":"tst_simple_query_lib",
+					"value": "_id",
+					"imports":[
+								{"field":"fields.Computer_Name.exampleValues.0.value", "alias":"IMPORTED_COMPUTER_NAME"}
+							  ]
+			}</value>
+	</property>
+	<property>
+		<name>max.splits</name>
+		<value>8</value>
+	</property>
+	<property>
+		<name>max.docs.per.split</name>
+		<value>12500</value>
+	</property>
+
+	<!-- DEBUG PARAMETERS -->
+	<!-- CURRENTLY, LEAVE THESE ALONE: THEY'RE NOT IN USE -->
+	<property>
+		<!-- The number of documents to limit to for read [NOT SUPPORTED] -->
+		<name>mongo.input.limit</name>
+		<value>30</value>
+		<!-- 0 == no limit -->
+	</property>
+	<property>
+		<!-- The number of documents to skip in read NOT SUPPORTED] -->
+		<name>mongo.input.skip</name>
+		<value>0</value>
+		<!-- 0 == no skip -->
+	</property>
+	<property>
+		<!-- Debug parameter, set to false for debugging [OPTIONAL] -->
+		<name>mongo.input.split.create_input_splits</name>
+		<value>false</value>
+		<!-- Defaults to "true" -->
+	</property>
+	<property>
+		<!-- Debug parameter, set to false for debugging [OPTIONAL] -->
+		<name>mongo.input.split.read_from_shards</name>
+		<value>false</value>
+		<!-- Defaults to "false" -->
+	</property>
+	<property>
+		<!-- Debug parameter, set to false for debugging [OPTIONAL] -->
+		<name>mongo.input.split.read_shard_chunks</name>
+		<value>false</value>
+		<!-- Defaults to "true" -->
+	</property>
+
+	<!-- LEAVE THESE ALONE -->
+	<property>
+		<!-- run the job verbosely ? -->
+		<name>mongo.job.verbose</name>
+		<value>true</value>
+	</property>
+	<property>
+		<!-- Run the job in the foreground and wait for response, or background it? -->
+		<name>mongo.job.background</name>
+		<value>false</value>
+	</property>
+	<property>
+		<!-- InputFormat Class -->
+		<name>mongo.job.input.format</name>
+		<value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoInputFormat</value>
+	</property>
+	<property>
+		<!-- OutputFormat Class -->
+		<name>mongo.job.output.format</name>
+		<value>com.ikanow.infinit.e.data_model.custom.InfiniteMongoOutputFormat</value>
+	</property>
+	<property>
+		<!-- Partitioner class [optional - NOT CURRENTLY SUPPORTED WITH THIS MONGOTOOL] -->
+		<name>mongo.job.partitioner</name>
+		<value>
+		</value>
+	</property>
+	<property>
+		<!-- Sort Comparator class [optional - NOT CURRENTLY SUPPORTED WITH THIS MONGOTOOL] -->
+		<name>mongo.job.sort_comparator</name>
+		<value>
+		</value>
+	</property>
+	<property>
+		<!-- Output key class for the mapper [optional - NOT CURRENTLY SUPPORTED WITH THIS MONGOTOOL] -->
+		<name>mongo.job.mapper.output.key</name>
+		<value>
+		</value>
+	</property>
+	<property>
+		<!-- Output value class for the mapper [optional - NOT CURRENTLY SUPPORTED WITH THIS MONGOTOOL] -->
+		<name>mongo.job.mapper.output.value</name>
+		<value>
+		</value>
+	</property>
+
+</configuration>

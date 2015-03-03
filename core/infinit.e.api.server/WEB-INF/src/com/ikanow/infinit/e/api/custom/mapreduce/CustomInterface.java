@@ -34,6 +34,7 @@ import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceJobPojoApiMap;
+import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResultPojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 
 public class CustomInterface extends ServerResource 
@@ -69,6 +70,7 @@ public class CustomInterface extends ServerResource
 	private String findStr = null;
 	private String sortStr = null;
 	private String commIds = null;
+	private boolean bCsv = false;
 	
 	private CustomHandler customhandler = null;
 	
@@ -129,6 +131,13 @@ public class CustomInterface extends ServerResource
 			 bQuickRun = true;			 
 		 }
 		 commIds = queryOptions.get("commids");
+		 
+		 String flattenToCsv = queryOptions.get("csv");
+		 if ((null != flattenToCsv) && ( (flattenToCsv.equals("1")) || (flattenToCsv.equalsIgnoreCase("true")) )) 
+		 {
+			 bCsv = true;			 
+		 }
+		 
 		 
 		 //Method.POST
 		 if (request.getMethod() == Method.POST) 
@@ -323,7 +332,13 @@ public class CustomInterface extends ServerResource
 			 {
 				 if ( action.equals("getresults") )
 				 {
-					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit, json, findStr, sortStr); 
+					 rp = this.customhandler.getJobResults(cookieLookup, jobid, limit, json, findStr, sortStr, bCsv);
+					 if (bCsv) {
+						 CustomMapReduceResultPojo cmrr = (CustomMapReduceResultPojo) rp.getData();
+						 if (cmrr.results instanceof String) {
+							 return new StringRepresentation((String) cmrr.results, MediaType.TEXT_PLAIN);
+						 }
+					 }
 				 }
 				 else if ( action.equals("schedule"))
 				 {

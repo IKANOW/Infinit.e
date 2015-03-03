@@ -258,6 +258,19 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/social/community/getsystem", CommunityInterface.class);
         attach(router, "/social/community/getpublic", CommunityInterface.class);
         attach(router, "/social/community/getprivate", CommunityInterface.class); 
+        // V1 NAMING
+        // User groups:
+        attach(router, "/social/group/user/get/{communityid}", CommunityInterface.class);   
+        attach(router, "/social/group/user/getall", CommunityInterface.class);
+        attach(router, "/social/group/user/getsystem", CommunityInterface.class);
+        attach(router, "/social/group/user/getpublic", CommunityInterface.class);
+        attach(router, "/social/group/user/getprivate", CommunityInterface.class); 
+        // Data groups:
+        attach(router, "/social/group/data/get/{communityid}", CommunityInterface.class);   
+        attach(router, "/social/group/data/getall", CommunityInterface.class);
+        attach(router, "/social/group/data/getsystem", CommunityInterface.class);
+        attach(router, "/social/group/data/getpublic", CommunityInterface.class);
+        attach(router, "/social/group/data/getprivate", CommunityInterface.class);         
         
         // Add/update/remove communities
         //BURCH changed the add community method to only allow a user adding it to himself, the
@@ -272,6 +285,17 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/social/community/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
         attach(router, "/social/community/remove/{id}",CommunityInterface.class);
         attach(router, "/social/community/update/{communityid}", CommunityInterface.class); 
+        // V1 NAMING
+        // User groups:
+        attach(router, "/social/group/user/add/{name}/{description}/{tags}",CommunityInterface.class);
+        attach(router, "/social/group/user/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
+        attach(router, "/social/group/user/remove/{id}",CommunityInterface.class);
+        attach(router, "/social/group/user/update/{communityid}", CommunityInterface.class); 
+        // Data groups:
+        attach(router, "/social/group/data/add/{name}/{description}/{tags}",CommunityInterface.class);
+        attach(router, "/social/group/data/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
+        attach(router, "/social/group/data/remove/{id}",CommunityInterface.class);
+        attach(router, "/social/group/data/update/{communityid}", CommunityInterface.class); 
         
         // Add/remove members, update their status or type
         //BETA NAMING
@@ -280,6 +304,13 @@ public class EmbeddedRestletApp extends Application
         //V0 NAMING
         attach(router, "/social/community/member/update/status/{communityid}/{personid}/{userstatus}", CommunityInterface.class);
         attach(router, "/social/community/member/update/type/{communityid}/{personid}/{usertype}", CommunityInterface.class);
+        // V1 NAMING
+        // User groups:
+        attach(router, "/social/group/user/member/update/status/{communityid}/{personid}/{userstatus}", CommunityInterface.class);
+        attach(router, "/social/group/user/member/update/type/{communityid}/{personid}/{usertype}", CommunityInterface.class);
+        // Data groups:
+        attach(router, "/social/group/data/member/update/status/{communityid}/{personid}/{userstatus}", CommunityInterface.class);
+        attach(router, "/social/group/data/member/update/type/{communityid}/{personid}/{usertype}", CommunityInterface.class);
         
         // Join/leave a community, update community profile information
         //BETA NAMING
@@ -292,6 +323,17 @@ public class EmbeddedRestletApp extends Application
         attach(router, "/social/community/member/leave/{communityid}", CommunityInterface.class);
         attach(router, "/social/community/member/invite/{communityid}/{personid}", CommunityInterface.class); 
         attach(router, "/social/community/requestresponse/{requestid}/{response}", CommunityInterface.class);
+        // V1 NAMING
+        // User groups:
+        attach(router, "/social/group/user/member/join/{communityid}", CommunityInterface.class);  
+        attach(router, "/social/group/user/member/leave/{communityid}", CommunityInterface.class);
+        attach(router, "/social/group/user/member/invite/{communityid}/{personid}", CommunityInterface.class); 
+        attach(router, "/social/group/user/requestresponse/{requestid}/{response}", CommunityInterface.class);
+        // Data groups:
+        attach(router, "/social/group/data/member/join/{communityid}", CommunityInterface.class);  
+        attach(router, "/social/group/data/member/leave/{communityid}", CommunityInterface.class);
+        attach(router, "/social/group/data/member/invite/{communityid}/{personid}", CommunityInterface.class); 
+        attach(router, "/social/group/data/requestresponse/{requestid}/{response}", CommunityInterface.class);
 
 // PEOPLE/PERSON:
         

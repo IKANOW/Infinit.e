@@ -1064,6 +1064,18 @@ public class QueryInterface extends ServerResource
 				}
 				_requestDetails.output.aggregation.moments.timesInterval = value;
 			}//TOTEST
+			else if (attrName.equals("output.aggregation.moments.geonumreturn")) {
+				if (null == _requestDetails.output) {
+					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation) {
+					_requestDetails.output.aggregation = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo();
+				}
+				if (null == _requestDetails.output.aggregation.moments) {
+					_requestDetails.output.aggregation.moments = new AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo.TemporalAggregationOutputPojo();
+				}
+				_requestDetails.output.aggregation.moments.geoNumReturn = Integer.parseInt(value);
+			}//TOTEST
 			else if (attrName.equals("output.aggregation.moments.entitylist")) {
 				if (null == _requestDetails.output) {
 					_requestDetails.output = new AdvancedQueryPojo.QueryOutputPojo();

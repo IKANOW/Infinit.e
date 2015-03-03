@@ -191,16 +191,26 @@ public class CommunityFeatureCaches {
 			to.setDoccount(to.getDoccount() + from.getDoccount());
 			to.setTotalfreq(to.getTotalfreq() + from.getTotalfreq());
 			if (null == to.getGeotag()) to.setGeotag(from.getGeotag());
-			if (null != from.getSemanticLinks()) to.addToSemanticLinks(from.getSemanticLinks());	
+			if (null != from.getSemanticLinks()) to.addToSemanticLinks(from.getSemanticLinks());
+			
+			//CURRENTLY UNUSED, LEFT HERE IN CASE IT BECOMES NECESSARY AGAIN
+			// Will be null except for complex federated query case: 
+			//if (null != from.getDatasetSignficance()) to.setDatasetSignficance(from.getDatasetSignficance());
+			//if (null != from.getQueryCoverage()) to.setQueryCoverage(from.getQueryCoverage());
 			
 			if (copyBack) { // In addition to update the statistics, we're copying back from the cache into the ent feature, that is 
 				if (null != to.getAlias()) from.addAllAlias(to.getAlias());
 				from.setDoccount(to.getDoccount());
 				from.setTotalfreq(to.getTotalfreq());
 				from.setDbSyncDoccount(to.getDbSyncDoccount());
-				from.setDbSyncTime(to.getDbSyncTime());				
+				from.setDbSyncTime(to.getDbSyncTime());
 				if (null == from.getGeotag()) from.setGeotag(to.getGeotag());
 				if (null != to.getSemanticLinks()) from.addToSemanticLinks(to.getSemanticLinks());
+				
+				//CURRENTLY UNUSED, LEFT HERE IN CASE IT BECOMES NECESSARY AGAIN
+				// Will be null except for complex federated query case: 
+				//if (null == from.getDatasetSignficance()) from.setDatasetSignficance(to.getDatasetSignficance());
+				//if (null == from.getQueryCoverage()) from.setQueryCoverage(to.getQueryCoverage());
 			}
 			else { // purely updating the cache for the first time
 				to.setDbSyncDoccount(from.getDbSyncDoccount());

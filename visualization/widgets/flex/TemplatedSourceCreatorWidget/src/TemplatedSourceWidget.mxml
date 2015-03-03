@@ -46,6 +46,7 @@ limitations under the License.
 			
 			import mx.collections.ArrayCollection;
 			import mx.controls.Alert;
+			import mx.events.CloseEvent;
 			import mx.events.FlexEvent;
 			import mx.rpc.events.FaultEvent;
 			import mx.rpc.events.ResultEvent;
@@ -226,6 +227,7 @@ limitations under the License.
 			
 			protected function textinput1_enterHandler(event:FlexEvent):void
 			{
+				//escape special chars and trim text
 				var search_term:String = escapeQuotes(StringUtil.trim( searchTermTextInput.text ));
 				if ( search_term.length > 0 )
 				{
@@ -236,7 +238,7 @@ limitations under the License.
 			
 			private function escapeQuotes(term:String):String
 			{
-				return term.replace( /\"/g,"\\\"").replace(/\s/g,"+");
+				return term.replace(/\s/g,"%20").replace(/\//g,"%2F").replace(/&/g,"%26").replace(/\"/g,"%22");
 			}
 			
 			protected function linkInput_enterHandler(event:Event):void
@@ -288,6 +290,14 @@ limitations under the License.
 					Alert.show("must submit at least 1 search term");
 					return;
 				}
+				if ( searchDepthTextInput.text.length == 0 || isNaN(Number(searchDepthTextInput.text)) )
+				{
+					Alert.show("Search Pages must be a number, put 0 for a single search");
+				}
+				if ( searchCycleTextInput.text.length == 0 || isNaN(Number(searchCycleTextInput.text)) )
+				{
+					Alert.show("Search Frequency must be a number, put 0 for a single run");
+				}				
 				if ( template_list.selectedIndices.length == 0 )
 				{
 					Alert.show("must select at least 1 template");
@@ -299,6 +309,7 @@ limitations under the License.
 				num_sources_submitted = 0;
 				num_sources_error = 0;
 				num_sources_success = 0;
+				
 				var communityIds:String = "";
 				var count:int = 0;
 				for each ( var community:Object in communityTemplateDropDown.selectedItems )
@@ -309,6 +320,14 @@ limitations under the License.
 					count++;
 				}
 				
+				var running_cost:Number = 0;
+				var one_time_cost:Number = 0;
+				var search_depth:Number = Number(searchDepthTextInput.text);
+				var search_cycle:Number = Number(searchCycleTextInput.text);
+				var search_cycle_secs:Number = search_cycle/3600; //convert from hours to seconds
+				//if ( search_cycle_secs == 0 ) //if seconds are 0, set to 10yrs because harvester doesn't have a run once function
+				//	search_cycle_secs = 315360000; //10yr in sec
+				var templates_ac:ArrayCollection = new ArrayCollection();
 				//loop over every keyword and every template sending them off to ikanow
 				for each ( var search_term:String in search_terms )
 				{
@@ -317,19 +336,88 @@ limitations under the License.
 						var templatesString:String = templates.share;
 						templatesString = templatesString.replace(new RegExp( "\\?\\?search_terms\\?\\?","g"), search_term);
 						templatesString = templatesString.replace(new RegExp( "\\?\\?search_params\\?\\?","g"), "");
+						templatesString = templatesString.replace(new RegExp( "\"\\?\\?search_cycle\\?\\?\"","g"), search_cycle_secs); //replace quotes also
+						templatesString = templatesString.replace(new RegExp( "\"\\?\\?search_depth\\?\\?\"","g"), search_depth); //replace quotes also
 						var templatesObject:Object = JSONDecoder.decode(templatesString);
 						for each ( var template:Object in templatesObject.templates )
-						{
-							var templateString:String = JSONEncoder.encode(template);							
-							submitSourceService.url = API_SERVER + "config/source/save/" + communityIds;
-							submitSourceService.method = "POST";
-							submitSourceService.contentType = "application/json";
-							submitSourceService.send(templateString);
-							num_sources_submitted++;
-							displaySubmissionStatus();
+						{							
+							var templateString:String = JSONEncoder.encode(template);			
+							var template_cost:Number = 0;							
+							if ( template.hasOwnProperty("template_per_url_cost") )
+							{
+								template_cost = template.template_per_url_cost;
+								var num_queries:Number = getNumberOfQueries(template);
+								if ( search_cycle > 0 )
+								{																		
+									var this_request_cost:Number = template_cost*num_queries*(search_depth+1)*(3600/search_cycle_secs);
+									running_cost += this_request_cost;
+									
+								}
+								else
+								{										
+									var this_request_cost1:Number = template_cost*num_queries*(search_depth+1);
+									one_time_cost += this_request_cost1;
+								}
+							}
+							templates_ac.addItem(templateString);
 						}
 					}
-				}			
+				}
+				
+				//TODO have a popup where user has to verify price if > 0
+				if ( running_cost > 0 || one_time_cost > 0 )
+				{
+					Alert.show("The cost of creating this will be approximately: $" 
+						+ one_time_cost + " ONE TIME FEE plus $" + running_cost + 
+						" DAILY, are you sure you want to create this?","Are you sure you want to spend money?", 
+						Alert.YES | Alert.NO, this,
+						function acceptCostHandler(event:CloseEvent):void
+						{
+							if ( event.detail == Alert.YES )
+							{								
+								createSources(templates_ac,communityIds);
+							}
+						}, null, Alert.YES);
+				}
+				else
+				{
+					createSources(templates_ac,communityIds);
+				}
+			}
+			
+			private function getNumberOfQueries(source:Object):Number
+			{				
+				var num_queries:Number = 0;
+				if ( source.hasOwnProperty("processingPipeline") )
+				{
+					var pipeline:Array = source.processingPipeline;
+					for ( var i:int = 0; i < pipeline.length; i++ )					
+					{
+						var pipe_elem:Object = pipeline[i];
+						if ( pipe_elem.hasOwnProperty("web") )
+						{
+							if ( pipe_elem.web.hasOwnProperty("extraUrls") )
+							{
+								return pipe_elem.web.extraUrls.length;
+							}							
+						}
+					}
+				}
+				return num_queries;
+			}
+			
+			private function createSources(templates_ac:ArrayCollection, communityIds:String):void
+			{
+				for each ( var template:String in templates_ac )
+				{	
+					//Alert.show(template);
+					submitSourceService.url = API_SERVER + "config/source/save/" + communityIds;
+					submitSourceService.method = "POST";
+					submitSourceService.contentType = "application/json";
+					submitSourceService.send(template);
+					num_sources_submitted++;
+					displaySubmissionStatus();
+				}				
 				displaySubmissionStatus();
 				setTimeout(showStatusButton,60000);
 			}
@@ -779,7 +867,7 @@ limitations under the License.
 										   click="buttonLinks_clickHandler(event)" />
 			<components:WidgetToggleButton id="buttonFiles"
 										   label="File Sources"
-										   
+										   visible="false" includeInLayout="false"
 										   click="buttonFiles_clickHandler(event)" enabled="false" toolTip="Coming Soon"/>
 		</s:HGroup>
 	</components:headerContent>	
@@ -812,6 +900,25 @@ limitations under the License.
 					</s:helpContent>
 					<s:TextInput id="searchTermTextInput" enter="textinput1_enterHandler(event)" prompt="Add search terms, and press enter" width="400" toolTip="Press Enter to add terms" />
 					<s:List id="search_term_list" dataProvider="{search_terms}" keyDown="search_term_list_keyDownHandler(event)" width="400" height="100" toolTip="Press Delete to remove terms" allowMultipleSelection="true" />
+				</s:FormItem>
+				<s:FormItem label="Search Pages">
+					<s:helpContent>
+						<s:Label text="(eg. number of pages to get results for)"/>      
+					</s:helpContent>
+					<s:HGroup width="100%" verticalAlign="middle">
+						<s:TextInput id="searchDepthTextInput" width="50" toolTip="Please enter a number of additional pages to retrieve" text="0" />
+						<s:Label text="A depth of 2 gets 2 additional pages after the first"/>													
+					</s:HGroup>
+					<s:Label text="(e.g. for yahoo, 150 results total @50/page)" />
+				</s:FormItem>
+				<s:FormItem label="Search Frequency (hours)">
+					<s:helpContent>
+						<s:Label text="(eg. the hourly frequency to check for new documents)"/>      
+					</s:helpContent>
+					<s:HGroup width="100%" verticalAlign="middle">
+						<s:TextInput id="searchCycleTextInput" width="50" toolTip="Please enter a number of hours to recheck" text="0" />
+						<s:Label text="0 to check only once, 24 to check daily, etc" />
+					</s:HGroup>
 				</s:FormItem>
 				<s:FormItem label="Community" >
 					<s:helpContent>
@@ -947,7 +1054,7 @@ limitations under the License.
 					<s:Label id="statusLabel" width="50%" />
 					<s:Button id="statusButton" visible="false" label="Close" click="button2_clickHandler(event)" />
 				</s:VGroup>
-			</s:Group>
+			</s:Group>			
 		</s:VGroup>
 	</s:Group>
 </components:WidgetModule>

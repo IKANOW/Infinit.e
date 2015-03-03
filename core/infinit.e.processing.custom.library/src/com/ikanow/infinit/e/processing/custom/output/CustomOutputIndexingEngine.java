@@ -164,21 +164,25 @@ public class CustomOutputIndexingEngine {
 		}
 		// Let's say 1 shard/500MB
 		final long SHARD_SIZE = 500L*1024L*1024L;
-		int numShards = 1 + (int)(collectionSize/SHARD_SIZE);
+		int numShards = 2;
 		if (appendMode) { // increase the size for the future shards=1 + 2*(initial size + 1)
+			numShards = 1 + (int)((collectionSize)/SHARD_SIZE); // (round down here, since going to be >1 anyway)
 			numShards++;
 			numShards *= 2;
 			numShards++; // (somewhat arbitrary equation, 1 shard -> 5 was pretty much the justification...)
-		}		
+		}
+		else { // round up in this case
+			numShards = 1 + (int)((collectionSize + SHARD_SIZE - 1)/SHARD_SIZE); // round up, ie min 2 (1 shard == distribute across all nodes, by INF convention)
+		}
 		
 		Builder localSettingsEvent = ImmutableSettings.settingsBuilder();
 		localSettingsEvent.put("number_of_shards", numShards).put("number_of_replicas", 0);
+		//TODO: (no replicas for now ... in theory can always re-generate this .. though in practice need a post proc tool to make it easier)
 		ElasticSearchManager customIndex = IndexManager.createIndex(indexToBuild, "custom", false, null, null, localSettingsEvent);
 			// (don't need to set the mapping - that happens automatically because I've registered a template)
 		
 		return customIndex;		
 	}//TESTED (basic functionality)
-	//TODO: totest (different shard sizes)
 	
     private static ThreadSafeSimpleDateFormat _dateFormat = new ThreadSafeSimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'");
 	
@@ -236,6 +240,7 @@ public class CustomOutputIndexingEngine {
 	
 	public static void swapAliases(ElasticSearchManager customIndex, List<ObjectId> newCommIds, boolean deleteOldAliases) {
 		// Add new aliases as sets of communities (at most 10 per alias)
+		// (NOTE: the API will enforce that the user belong to all communities)
 		TreeSet<ObjectId> newTreeSet = new TreeSet<ObjectId>();
 		HashSet<String> aliasSet = new HashSet<String>();
 		if (null != newCommIds) {

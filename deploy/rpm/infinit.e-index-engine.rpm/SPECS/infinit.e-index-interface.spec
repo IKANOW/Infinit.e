@@ -89,8 +89,32 @@ Infinit.e index engine using ElasticSearch
 			rm -rf head
 			unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/head.zip
 					
+			USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+			rm -rf cloud-aws
+			if [ "$USE_AWS" = "1" ]; then
+				unzip /mnt/opt/elasticsearch-infinite/plugins/1.3/cloud-aws.zip
+			fi
+			
 			#(re-)install compatibility layer
 			yes | cp /mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
+			
+		elif ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.4"; then
+			
+			rm -rf analysis-icu
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/analysis-icu.zip
+			rm -rf bigdesk
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/bigdesk.zip
+			rm -rf head
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/head.zip
+							
+			USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
+			rm -rf cloud-aws
+			if [ "$USE_AWS" = "1" ]; then
+				unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/cloud-aws.zip
+			fi
+			
+			#(re-)install compatibility layer
+			yes | cp /mnt/opt/elasticsearch-infinite/plugins/1.4/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib
 		fi 		
 		
 	else
@@ -207,6 +231,10 @@ Infinit.e index engine using ElasticSearch
 %dir /mnt/opt/elasticsearch-infinite/scripts
 %dir /mnt/opt/elasticsearch-infinite/plugins
 #(mostly temporary):
+/mnt/opt/elasticsearch-infinite/plugins/1.4/analysis-icu.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.4/bigdesk.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.4/cloud-aws.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.4/head.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/analysis-icu.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/bigdesk.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/head.zip
@@ -215,6 +243,7 @@ Infinit.e index engine using ElasticSearch
 /mnt/opt/elasticsearch-infinite/plugins/1.0/bigdesk.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.0/head.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.0/cloud-aws.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.4/elasticsearch_compatibility.jar
 /mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar
 /mnt/opt/elasticsearch-infinite/plugins/1.0/elasticsearch_compatibility.jar
 /mnt/opt/elasticsearch-infinite/plugins/0.19/elasticsearch_compatibility.jar
@@ -225,6 +254,7 @@ Infinit.e index engine using ElasticSearch
 
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/master_backup_index.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/write_es_yml_files.sh
+%attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/check_es_indices.sh
 %config /mnt/opt/elasticsearch-infinite/config/elasticsearch.yml.TEMPLATE
 %config /mnt/opt/elasticsearch-infinite/config/logging.yml
 # NOT FOR INDEX ENGINE, ONLY INDEX _INTERFACE_

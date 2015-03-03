@@ -30,6 +30,12 @@ public class SocialUtils
 	 * @param personIdStr
 	 * @return
 	 */
+	public static boolean isDataAllowed(String communityIdStr) {
+		BasicDBObject query = new BasicDBObject("communityType", CommunityPojo.CommunityType.user.toString());
+		BasicDBObject fields = new BasicDBObject();
+		// ie can't be user group
+		return null == DbManager.getSocial().getCommunity().findOne(query, fields);
+	}
 	public static boolean isOwnerOrModeratorOrContentPublisher(String communityIdStr, String personIdStr) 
 	{
 		return isOwnerOrModerator(communityIdStr, personIdStr, true);

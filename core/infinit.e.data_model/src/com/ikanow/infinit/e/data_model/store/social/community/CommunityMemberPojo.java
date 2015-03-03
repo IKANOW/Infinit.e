@@ -33,6 +33,8 @@ public class CommunityMemberPojo extends BaseDbPojo {
 	  * Private Class Variables
 	  */
 	private ObjectId _id = null;
+	public enum MemberType { user, user_group };
+	private MemberType type = null; // (defaults to user)
 	private String email = null;
 	private String displayName = null;
 	private String userType = null; // memberUserType: "Member", "Content_Publisher", "Moderator", "Owner"
@@ -159,6 +161,12 @@ public class CommunityMemberPojo extends BaseDbPojo {
 	 */
 	public Set<CommunityMemberLinkPojo> getLinks() {
 		return links;
+	}
+	public MemberType getType() {
+		return type == null ? MemberType.user : type;
+	}
+	public void setType(MemberType type) {
+		this.type = type;
 	}
 	
 }

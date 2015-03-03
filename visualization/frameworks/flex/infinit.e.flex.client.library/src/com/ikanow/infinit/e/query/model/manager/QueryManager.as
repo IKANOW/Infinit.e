@@ -1137,12 +1137,16 @@ package com.ikanow.infinit.e.query.model.manager
 		protected function initRecentQueries():void
 		{
 			// initialize the recent queries colloction and apply an ascending sort by dateTime
-			recentQueries = new ArrayCollection();
-			var sortOrderSortField:SortField = new SortField();
-			sortOrderSortField.name = Constants.TIME_SORT_ORDER_PROPERTY;
-			sortOrderSortField.numeric = true;
-			sortOrderSortField.descending = true;
-			CollectionUtil.applySort( recentQueries, [ sortOrderSortField ] );
+			// (unless it's already been initialized, then leave it alone)
+			if ( (null == recentQueries) || (0 == recentQueries.length) )
+			{
+				recentQueries = new ArrayCollection();
+				var sortOrderSortField:SortField = new SortField();
+				sortOrderSortField.name = Constants.TIME_SORT_ORDER_PROPERTY;
+				sortOrderSortField.numeric = true;
+				sortOrderSortField.descending = true;
+				CollectionUtil.applySort( recentQueries, [ sortOrderSortField ] );
+			}
 		}
 		
 		protected function overrideSetupQuery():void

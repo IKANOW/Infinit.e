@@ -36,6 +36,10 @@ package com.ikanow.infinit.e.query.model.presentation
 		private static const BUILDER_ID:String = NavigationConstants.QUERY_BUILDER_ID;
 		
 		private static const SETTINGS_ID:String = NavigationConstants.QUERY_SETTINGS_ID;
+
+		private static const PIVOTS_ID:String = NavigationConstants.QUERY_PIVOTS_ID;
+
+		private static const SAVED_ID:String = NavigationConstants.QUERY_SAVED_ID;
 		
 		
 		//======================================
@@ -77,7 +81,7 @@ package com.ikanow.infinit.e.query.model.presentation
 		 */
 		public static function updateViewStates( component:UIComponent, state:String = "" ):void
 		{
-			StateUtil.setStates( component, [ BUILDER_ID, SETTINGS_ID ], state );
+			StateUtil.setStates( component, [ BUILDER_ID, SETTINGS_ID, SAVED_ID, PIVOTS_ID ], state );
 		}
 		
 		
@@ -109,6 +113,22 @@ package com.ikanow.infinit.e.query.model.presentation
 			navigateById( SETTINGS_ID );
 		}
 		
+		/**
+		 * Show Settings View
+		 */
+		public function showPivotsView():void
+		{
+			navigateById( PIVOTS_ID );
+		}
+		
+		/**
+		 * Show Settings View
+		 */
+		public function showSavedView():void
+		{
+			navigateById( SAVED_ID );
+		}
+		
 		//======================================
 		// protected methods 
 		//======================================
@@ -125,6 +145,12 @@ package com.ikanow.infinit.e.query.model.presentation
 			
 			// settings
 			navStates.addItem( createNavigationItem( SETTINGS_ID, NavigationItemTypes.STATE, SETTINGS_ID, ResourceManager.getInstance().getString( 'infinite', 'query.querySettings' ) ) );
+			
+			// pivots
+			navStates.addItem( createNavigationItem( SAVED_ID, NavigationItemTypes.STATE, SAVED_ID, ResourceManager.getInstance().getString( 'infinite', 'query.querySaved' ) ) );
+			
+			// pivots
+			navStates.addItem( createNavigationItem( PIVOTS_ID, NavigationItemTypes.STATE, PIVOTS_ID, ResourceManager.getInstance().getString( 'infinite', 'query.queryPivots' ) ) );
 			
 			// set states - default query builder
 			setStates( navStates, BUILDER_ID );

@@ -137,7 +137,7 @@
 			<fileset dir="${dir.build.classes}"/>
 
 	  		<!-- Can't distribute jcifs.jar or tika-app.jar jtds.jar jsr*.jar in JAR due to OSS restrictions or RangeMap.jar -->
-			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar"/>
+			<zipgroupfileset dir="${dir.lib}" includes="*.jar" excludes="META-INF/*.SF junit.jar GridFSZipFile.jar"/>
 		</jar>
 	</target>
 	

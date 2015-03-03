@@ -1,29 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-   Copyright 2012, The Infinit.e Open Source Project
+Copyright 2012, The Infinit.e Open Source Project
 
-   Licensed under the Apache License, Version 2.0 (the "License");
-   you may not use this file except in compliance with the License.
-   You may obtain a copy of the License at
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
 
-   http://www.apache.org/licenses/LICENSE-2.0
+http://www.apache.org/licenses/LICENSE-2.0
 
-   Unless required by applicable law or agreed to in writing, software
-   distributed under the License is distributed on an "AS IS" BASIS,
-   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-   See the License for the specific language governing permissions and
-   limitations under the License.
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 -->
 <components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
-	xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
-	xmlns:flexlib="http://code.google.com/p/flexlib/"
-	xmlns:s="library://ns.adobe.com/flex/spark"
-	xmlns:mx="library://ns.adobe.com/flex/mx"
-	xmlns:skins="com.ikanow.infinit.e.skins.*"
-	width="650"
-	height="450"
-	implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
-	creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:flexlib="http://code.google.com/p/flexlib/"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 xmlns:skins="com.ikanow.infinit.e.skins.*"
+						 width="650"
+						 height="450"
+						 secondToolbarButtonVisible="true" 
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 	<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
@@ -42,25 +43,23 @@
 			import com.ikanow.infinit.e.widget.library.widget.IWidget;
 			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
 			
-			import mx.charts.*;
-			import mx.charts.events.*;
-			import mx.charts.renderers.*;
-			import mx.charts.series.*;
+			import mx.charts.Legend;
+			import mx.charts.PieChart;
+			import mx.charts.series.PieSeries;
 			import mx.charts.series.items.PieSeriesItem;
 			import mx.collections.ArrayCollection;
 			import mx.collections.ArrayList;
 			import mx.controls.Alert;
 			import mx.core.IFactory;
 			import mx.events.FlexEvent;
-			import mx.formatters.*;
 			import mx.graphics.IFill;
 			import mx.graphics.SolidColor;
 			import mx.utils.StringUtil;
 			
-			import org.alivepdf.pdf.PDF;
-			
 			import spark.events.GridEvent;
 			import spark.events.IndexChangeEvent;
+			
+			import org.alivepdf.pdf.PDF;
 			
 			import system.data.Collection;
 			import system.data.Iterator;
@@ -70,15 +69,17 @@
 			import system.data.sets.HashSet;
 			
 			//viewstate constants
-			private static const SOURCE_VIEW:int = 0; // (default to entity types)
+			// breakdown views
+			private static const ENTITY_VIEW:int = 0;
 			
-			private static const ENTITY_VIEW:int = 1;
+			private static const ASSOC_VIEW:int = 1;
 			
-			private static const ASSOC_VIEW:int = 2;
-			
+			private static const SOURCE_VIEW:int = 2;
+			// result set views
 			private static const ALL_VIEW:int = 0;
 			
 			private static const TOP_VIEW:int = 1;
+			
 			
 			//loading last setup
 			private var _widgetOptions:Object = null;
@@ -89,7 +90,7 @@
 			private var currAllData:IResultSet;
 			private var lastDocIdMap:Map = null;
 			
-	
+			
 			//arrays collections to store and sort entities
 			[Bindable]
 			private var _topEntitiesArrayList:ArrayCollection = new ArrayCollection();
@@ -119,7 +120,7 @@
 			private var _allSourceTypeArrayList:ArrayCollection = new ArrayCollection();
 			[Bindable]
 			private var _allSourceKeyArrayList:ArrayCollection = new ArrayCollection();
-
+			
 			
 			//array collections to store active lists
 			[Bindable]
@@ -228,6 +229,16 @@
 			 */
 			public function populateLists():void
 			{
+				//get old type index if this is not a fresh query
+				var selectedType:String = "";
+				if( viewOptions.selectedIndex == ENTITY_VIEW && entList1.selectedIndex != -1)
+				{
+					selectedType = _activeEntityTypeArrayList.getItemAt(entList1.selectedIndex).toString();
+				} else if ( viewOptions.selectedIndex == ASSOC_VIEW && assocList.selectedIndex != -1)
+				{
+					selectedType = _activeAssociationTypeArrayList.getItemAt(assocList.selectedIndex).toString();
+				} else selectedType = null;
+				
 				//clear old data entries
 				clearAllData();
 				//populate top or filtered results 
@@ -235,7 +246,45 @@
 				//populate all results 
 				populateAllResultsLists();
 				
-				resultsOptions_changeHandler(null);
+				//put the index back on the type list if the type still exists
+				var index:int = -1;
+				if(selectedType != null){
+					if( viewOptions.selectedIndex == ENTITY_VIEW)
+					{
+						for each ( var EObj:String in _activeEntityTypeArrayList)
+						{
+							if(EObj.toString() == selectedType)
+							{	
+								index = _activeEntityTypeArrayList.getItemIndex(EObj);
+								entList1.selectedIndex = index;
+								var event1:IndexChangeEvent = new IndexChangeEvent('change', false, false, -1, index);
+								entList1.dispatchEvent(event1);
+							}
+						}
+					}
+					if( viewOptions.selectedIndex == ASSOC_VIEW)
+					{
+						for each( var AObj:String in _activeAssociationTypeArrayList)
+						{	
+							if(AObj.toString() == selectedType)
+							{
+								index = _activeAssociationTypeArrayList.getItemIndex(AObj);
+								assocList.selectedIndex = index;
+								var event2:IndexChangeEvent = new IndexChangeEvent('change', false, false, -1, index);
+								assocList.dispatchEvent(event2);
+							}
+						}
+					}
+				} else { //if the type doesn't exist, set the index to -1
+					if( viewOptions.selectedIndex == ENTITY_VIEW)
+					{
+						entList1.selectedIndex = index;
+					}
+					if( viewOptions.selectedIndex == ASSOC_VIEW)
+					{
+						assocList.selectedIndex = index;
+					}
+				}
 			}
 			
 			/**
@@ -246,8 +295,12 @@
 			 */
 			public function populateTopResultsLists():void
 			{
+				//add the all flag to the entity types
+				_topEntityTypeArrayList.addItem('All');
 				populateTopEntityLists( currData.getEntities() );
 				//populate top results associations
+				//add the all flag to the assoc types
+				_topAssociationTypeArrayList.addItem('All');
 				populateTopAssociationLists( currData.getFacts() );
 				populateTopAssociationLists( currData.getEvents() );
 				//populate top results sources
@@ -262,20 +315,17 @@
 			 */
 			public function populateAllResultsLists():void
 			{
-				populateAllEntityLists( currAllData.getEntities(true) );
+				//add the all flag to the entity types
+				_allEntityTypeArrayList.addItem('All');
+				populateAllEntityLists( currAllData.getEntities() );
 				//populate all results associations
-				populateAllAssociationLists( currAllData.getFacts(true) );
-				populateAllAssociationLists( currAllData.getEvents(true) );
+				//add the all flag to the assoc types
+				_allAssociationTypeArrayList.addItem('All');
+				populateAllAssociationLists( currAllData.getFacts() );
+				populateAllAssociationLists( currAllData.getEvents() );
 				//populate all results sources
-				var checkIfEmpty:ArrayCollection = currAllData.getSourceTypeCounts(true);
-				if (checkIfEmpty.length == 0)
-					checkIfEmpty = currData.getSourceTypeCounts();				
-				populateAllSourceTypeList( checkIfEmpty );
-				
-				checkIfEmpty = currAllData.getSourceKeyCounts(true);
-				if (checkIfEmpty.length == 0)
-					checkIfEmpty = currData.getSourceKeyCounts();				
-				populateAllSourceKeyList( checkIfEmpty );
+				populateAllSourceTypeList( currAllData.getSourceTypeCounts() );
+				populateAllSourceKeyList( currAllData.getSourceKeyCounts() );
 			}
 			
 			/**
@@ -309,6 +359,14 @@
 			public function onInit( context:IWidgetContext ):void
 			{
 				_context = context;
+				clearAllData();
+				_activeEntityTypeArrayList = _allEntityTypeArrayList;
+				_activeEntityArrayList = _allEntitiesArrayList;
+				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
+				_activeAssociationArrayList = _allAssociationsArrayList;
+				_activeSourceTypeArrayList = _allSourceTypeArrayList;
+				_activeSourceKeyArrayList = _allSourceKeyArrayList;
+				currentView = ALL_VIEW;
 			}
 			
 			/**
@@ -335,7 +393,7 @@
 				this.width = newWidth;
 			}
 			
-
+			
 			/**
 			 * IWidget interface that fires when a new query is done.
 			 * We can access the data from the query by using our
@@ -343,21 +401,24 @@
 			 */
 			public function onReceiveNewQuery():void
 			{
+				//if not an internal filter update, reset filter status
 				if ( !internalFilterUpdate )
 				{
 					hasFilter = false;
 					//setTimeout( resetIgnoreLocalFilter, 1000 );
 				}
 				
-				if ( (currentView == TOP_VIEW) || isNewData(_context.getQuery_TopResults().getTopDocuments()) )
+				//if query is new data repopulate all lists
+				if ( isNewData(_context.getQuery_TopResults().getTopDocuments()) )
 				{
 					currData = _context.getQuery_TopResults();
 					currAllData = _context.getQuery_AllResults();
 					populateLists();
-				}
-				else { // All view and old data, can just changed the top results
-					clearTopResultsData();
-					populateTopResultsLists();
+				} else 
+				{
+					currData = _context.getQuery_TopResults();
+					currAllData = _context.getQuery_AllResults();
+					populateLists();
 				}
 			}
 			
@@ -366,31 +427,31 @@
 				var isNew:Boolean = false;
 				if ( lastDocIdMap != null ) //check against old map
 				{
-					if (lastDocIdMap.size() != docs.length) {
-						isNew = true;
-					}
-					else //
+					
+					//check length, if not equal treat as new data
+					if ( docs.length != lastDocIdMap.size())
 					{
-						for each ( var doc:Object in docs )
+						isNew = true;
+					} else { 
+						//compare results, if they don't match, treat as new data
+						for each ( var doc1:Object in docs )
 						{
-							//compare results
-							if ( !lastDocIdMap.containsKey(doc._id) )
+							if ( !lastDocIdMap.containsKey(doc1._id) )
 							{
 								isNew = true;
 								break;
 							}
 						}
-					}
-				} else 	
-					isNew = true; //first time through
-
+					}		
+				} else 	isNew = true; //first time through, treat as new data
+				
 				if ( isNew )
 				{
 					//create new map
 					lastDocIdMap = new HashMap();
-					for each (var doc:Object in docs)
+					for each (var doc2:Object in docs)
 					{
-							lastDocIdMap.put(doc._id,true);
+						lastDocIdMap.put(doc2._id,true);
 					}
 				}
 				
@@ -409,18 +470,21 @@
 				//TODO: removed for ux testing
 				//if ( !internalFilterUpdate )
 				//{
-					if(!ignoreLocalFilter){
-						this.currData = _context.getQuery_FilteredResults();
-						if (currentView == ALL_VIEW){
-							clearTopResultsData();
-							populateTopResultsLists();
-						} else {
-							clearAllData();
-							populateLists();
-							setActiveToTop();
-						}							
-					}
-					//setTimeout( resetIgnoreLocalFilter, 1000 );
+				if(!ignoreLocalFilter){
+					//TODO: New functionality, some testing - appears to work well for desired UX
+					this.currData = _context.getQuery_FilteredResults();
+					populateLists();
+					//REMOVED TO TEST NEW CODE FOR SIMPLER DISPLAY UPDATES
+					/*if (currentView == ALL_VIEW){
+					clearTopResultsData();
+					populateTopResultsLists();
+					} else {
+					clearAllData();
+					populateLists();
+					setActiveToTop();
+					}*/						
+				}
+				//setTimeout( resetIgnoreLocalFilter, 1000 );
 				//}
 			}
 			
@@ -454,15 +518,20 @@
 					
 					if ( hasFilter )
 					{
+						
+						//TODO: Test this code, tied to onReceiveNewFilter() changes
 						this.currData = _context.getQuery_FilteredResults();
-						if (currentView == ALL_VIEW){
-							clearTopResultsData();
-							populateTopResultsLists();
+						populateLists();
+						
+						//REMOVED TO TRY SIMPLER CODE
+						/*if (currentView == ALL_VIEW){
+						clearTopResultsData();
+						populateTopResultsLists();
 						} else {
-							clearAllData();
-							populateLists();
-							setActiveToTop();
-						}
+						clearAllData();
+						populateLists();
+						setActiveToTop();
+						}*/
 					}
 					else 
 					{
@@ -517,7 +586,7 @@
 				
 				for each ( var assoc:Object in _activeAssociationArrayList )
 				{
-					if ( assoc.verb_category == selectedType )
+					if ( 'All' == selectedType || assoc.verb_category == selectedType )
 					{
 						_displayAssociationsArrayList.addItem( assoc )
 					}
@@ -530,7 +599,7 @@
 			 **/
 			protected function entityIndex_changeHandler( event:IndexChangeEvent ):void
 			{
-				//logic removed due to change in functionality, header remains for testing
+				//logic removed due to change in functionality, header remains potential future use
 			}
 			
 			/** The callback handler for selecting a new entity in the entity types list
@@ -547,8 +616,11 @@
 				
 				for each ( var entity:Object in _activeEntityArrayList )
 				{
-					if ( entity.type == selectedType )
+					if ( 'All' == selectedType || entity.type == selectedType )
 					{
+						//hack to calculate query count, queryCoverage is an estimate percentage
+						//NOTE this works some times, but some results are way off from whole numbers?
+						entity.queryCount = Math.round( (entity.queryCoverage*currAllData.getQuerySetSize())/100 );
 						_displayEntitiesArrayList.addItem( entity )
 					}
 				}
@@ -643,7 +715,7 @@
 				else
 					return false;
 			}
-
+			
 			/**
 			 * Filters function for specific entities in widget
 			 */
@@ -659,21 +731,21 @@
 			 */
 			protected function addEntityToFilter_eventHandler(event:MouseEvent):void
 			{
-					var ent:Object = event.currentTarget.selectedItem;
-					var desc:String = "Doc Filter: Any Containing ";
-					var ents:Set = new HashSet();
-					
-					ents.add( ent.index );
-					desc += ent.index;
-					
-					if ( ents.isEmpty() )
-					{
-						Alert.show( "Nothing to filter" );
-						return;
-					}
-					
-					_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );	
-			 }
+				var ent:Object = event.currentTarget.selectedItem;
+				var desc:String = "Doc Filter: Any Containing ";
+				var ents:Set = new HashSet();
+				
+				ents.add( ent.index );
+				desc += ent.index;
+				
+				if ( ents.isEmpty() )
+				{
+					Alert.show( "Nothing to filter" );
+					return;
+				}
+				
+				_context.filterByEntities( FilterDataSetEnum.FILTER_GLOBAL_DATA, ents, EntityMatchTypeEnum.ALL, IncludeEntitiesEnum.INCLUDE_ALL_ENTITIES, desc );	
+			}
 			
 			/**
 			 * Method fired when module is done loading.  Sends
@@ -682,14 +754,7 @@
 			 */
 			private function onWidgetCreationComplete():void
 			{
-				clearAllData();
-				_activeEntityTypeArrayList = _allEntityTypeArrayList;				
-				_activeEntityArrayList = _allEntitiesArrayList;
-				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
-				_activeAssociationArrayList = _allAssociationsArrayList;
-				_activeSourceTypeArrayList = _allSourceTypeArrayList;
-				_activeSourceKeyArrayList = _allSourceKeyArrayList;
-				currentView = ALL_VIEW;			
+				
 			}
 			
 			
@@ -713,7 +778,6 @@
 			private function populateAllAssociationLists( assocs:ArrayCollection ):void
 			{
 				var present:Boolean;
-				
 				for each ( var assoc:Object in assocs )
 				{
 					//add entity to allEntityArrayList
@@ -743,7 +807,6 @@
 			private function populateAllEntityLists( entities:ArrayCollection ):void
 			{
 				var present:Boolean;
-				
 				for each ( var entity:Object in entities )
 				{
 					//add entity to allEntityArrayList
@@ -801,7 +864,6 @@
 			private function populateTopAssociationLists( assocs:ArrayCollection ):void
 			{
 				var present:Boolean;
-				
 				for each ( var assoc:Object in assocs )
 				{
 					//add entity to allEntityArrayList
@@ -832,7 +894,6 @@
 			private function populateTopEntityLists( entities:ArrayCollection ):void
 			{
 				var present:Boolean;
-				
 				for each ( var entity:Object in entities )
 				{
 					//add entity to allEntityArrayList
@@ -897,11 +958,7 @@
 				_displayEntitiesNamesArrayList.removeAll();
 				
 				//adjust data providers to meet new result sets to be displayed
-				var index:int = currentView;
-				if (null != event) 
-					index = event.newIndex;
-				
-				if ( index == TOP_VIEW )
+				if ( event.newIndex == TOP_VIEW )
 				{
 					currentView = TOP_VIEW;
 					setActiveToTop();
@@ -911,28 +968,29 @@
 					currentView = ALL_VIEW;
 					setActiveToAll();
 				}
-			
+				
 			}
 			
 			private function setActiveToTop():void
 			{
-				_activeEntityArrayList = _topEntitiesArrayList;				
+				_activeEntityTypeArrayList = _topEntityTypeArrayList;
+				_activeEntityArrayList = _topEntitiesArrayList;
 				_activeAssociationTypeArrayList = _topAssociationTypeArrayList;
 				_activeAssociationArrayList = _topAssociationsArrayList;
 				_activeSourceTypeArrayList = _topSourceTypeArrayList;
 				_activeSourceKeyArrayList = _topSourceKeyArrayList;
 			}
-				
+			
 			private function setActiveToAll():void
 			{
-				_activeEntityTypeArrayList = _allEntityTypeArrayList;				
+				_activeEntityTypeArrayList = _allEntityTypeArrayList;
 				_activeEntityArrayList = _allEntitiesArrayList;
 				_activeAssociationTypeArrayList = _allAssociationTypeArrayList;
 				_activeAssociationArrayList = _allAssociationsArrayList;
 				_activeSourceTypeArrayList = _allSourceTypeArrayList;
 				_activeSourceKeyArrayList = _allSourceKeyArrayList;
 			}
-	
+			
 			/**
 			 * function to add entities to the query
 			 *
@@ -999,154 +1057,79 @@
 					viewStack.selectedChild = associations;
 				}
 			}
+			
+			private function queryCoverageLabelFunction(item:Object, column:GridColumn):String
+			{
+				return Number(item.queryCoverage).toFixed(4) + "%";
+			}
+			
+			private function querySignificanceLabelFunction(item:Object, column:GridColumn):String
+			{
+				return Number(item.datasetSignificance).toFixed(4);
+			}
 		]]>
-
-
+		
+		
 	</fx:Script>
-
+	
 	<fx:Declarations>
 		<!--mx:SeriesInterpolate id="interpolateSources" duration="1000"/>-->
 	</fx:Declarations>
-
-	<!--Header Content-->
-	<components:headerContent>
-		<s:HGroup gap="-3">
-			<!-- Ignore Filter Toggle Button -->
-			<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
-													   toolTip="Ignore Workspace Filtering - Show All Results"
-													   click="setTimeout( onClickIgnoreLocalFilter, 100 )" />
-						<!-- View Drop Down List -->
-			<components:WidgetDropDownList id="viewOptions"
-				width="120"
-				selectedIndex="{ SOURCE_VIEW }"
-				toolTip="Select breakdown type"
-				change="setTimeout( viewOptions_changeHandler, 100, event )"
-				listWidth="93">
-				<components:dataProvider>
-					<s:ArrayList source="[Sources,Entities,Associations]" />
-				</components:dataProvider>
-			</components:WidgetDropDownList>
-
-			<!-- Toggle Results Button -->
-			<components:WidgetDropDownList id="resultOptions"
-				width="120"
-				selectedIndex="{ ALL_VIEW }"
-				toolTip="Toggle between 'All Results' and 'Top Results'"
-				change="setTimeout( resultsOptions_changeHandler, 100, event)">
-				<components:dataProvider>
-					<s:ArrayList source="[All Results, Top Results]" />
-				</components:dataProvider>
-			</components:WidgetDropDownList>
-
-			<!-- Add to Query Button -->
-			<components:WidgetPlusButton id="addToQueryButton"
-				toolTip="Add to query"
-				click="send2Query(event)"
-				visible="{ !( viewOptions.selectedIndex == SOURCE_VIEW ) }" />
-
-			<!-- External Search Button -->
-			<components:WidgetHeaderButton id="doExternalSearchButton"
-				height="100%"
-				label="{ ExternalInterface.call( 'getSearchProvider' ) }"
-				toolTip="Perform external search on the selected entity"
-				includeInLayout="{ !( ExternalInterface.call( 'getSearchProvider' ) == null 
-										   					|| ExternalInterface.call( 'getSearchProvider' ) == '' ) }"
-				click="createExternalSearch(event)"
-				visible="{ !( ExternalInterface.call( 'getSearchProvider' ) == null
-										   			|| ExternalInterface.call( 'getSearchProvider' ) == '' 
-										            || viewOptions.selectedIndex == SOURCE_VIEW ) }" />
-
-		</s:HGroup>
-	</components:headerContent>
-
+	
+	<!--Primary Header Content-->
+	<components:leftHeaderContent>
+		<!-- Ignore Filter Toggle Button -->
+		<components:WidgetIgnoreFilterToggleButton id="localFilterSettings"
+												   toolTip="Ignore Workspace Filtering - Show All Results"
+												   click="setTimeout( onClickIgnoreLocalFilter, 100 )" />	
+		<!-- Add to Query Button -->
+		<components:WidgetPlusButton id="addToQueryButton"
+									 toolTip="Add to query"
+									 click="send2Query(event)"
+									 visible="{ !( viewOptions.selectedIndex == SOURCE_VIEW ) }" />
+		<!-- View Drop Down List -->
+		<components:WidgetDropDownList id="viewOptions"
+									   width="120"
+									   selectedIndex="{ ENTITY_VIEW }"
+									   toolTip="Select breakdown type"
+									   change="setTimeout( viewOptions_changeHandler, 100, event )"
+									   listWidth="93">
+			<components:dataProvider>
+				<s:ArrayList source="[Entities,Associations,Sources]" />
+			</components:dataProvider>
+		</components:WidgetDropDownList>
+		<!-- Toggle Results Button -->
+		<components:WidgetDropDownList id="resultOptions"
+									   width="120"
+									   selectedIndex="{ ALL_VIEW }"
+									   toolTip="Toggle between 'All Results' and 'Top Results'"
+									   change="setTimeout( resultsOptions_changeHandler, 100, event)">
+			<components:dataProvider>
+				<s:ArrayList source="[All Results, Top Results]" />
+			</components:dataProvider>
+		</components:WidgetDropDownList>
+		<!-- External Search Button -->
+		<components:WidgetHeaderButton id="doExternalSearchButton"
+									   height="100%"
+									   label="{ ExternalInterface.call( 'getSearchProvider' ) }"
+									   toolTip="Perform external search on the selected entity"
+									   includeInLayout="{ !( ExternalInterface.call( 'getSearchProvider' ) == null 
+									   || ExternalInterface.call( 'getSearchProvider' ) == '' ) }"
+									   click="createExternalSearch(event)"
+									   visible="{ !( ExternalInterface.call( 'getSearchProvider' ) == null
+									   || ExternalInterface.call( 'getSearchProvider' ) == '' 
+									   || viewOptions.selectedIndex == SOURCE_VIEW ) }" />
+	</components:leftHeaderContent>
+	<!--Secondary Header Content-->
+	<!--<components:secondHeaderContent>
+	</components:secondHeaderContent>-->
+	
 	<!--View Panel-->
 	<mx:ViewStack id="viewStack"
-		width="100%"
-		height="100%"
-		borderStyle="solid">
-		<!--Sources View Panel-->
-		<mx:Canvas id="sources"
-			label="Sources"
-			width="100%"
-			height="100%">
-			<mx:Panel id="sourcePanel"
-				layout="vertical"
-				height="100%"
-				width="100%"
-				title="Source Distribution">
-				<s:HGroup 
-					width="100%"
-					height="50%">
-					
-					<mx:PieChart id="sourceTypeChart"
-						height="100%"
-						width="100%"
-						dataProvider="{ _activeSourceTypeArrayList }"
-						paddingLeft="5"
-						paddingRight="5"
-						showDataTips="true">
-						<mx:series>
-							<mx:PieSeries id="sourceTypeSeries"
-								labelFunction="pieSeries_displayCount"
-								field="count"
-								labelPosition="callout"
-								nameField="term" />
-						</mx:series>
-					</mx:PieChart>
-					<s:Panel title="Legend">
-						<mx:Legend id="sourceTypeLegend"
-							dataProvider="{ sourceTypeChart }" />
-					</s:Panel>
-				</s:HGroup>
-				<s:HGroup 
-					width="100%"
-					height="50%">
-					<mx:Panel 
-						width="50%"
-						height="100%"
-						title="All Results">
-						<s:DataGrid id="sourceDataGrid"
-							width="100%"
-							height="100%"
-							dataProvider="{ _allSourceKeyArrayList }">
-							<s:columns>
-								<s:ArrayList>
-									<s:GridColumn 
-										dataField="term"
-										headerText="Source Name" />
-									<s:GridColumn 
-										width="60"
-										dataField="count"
-										headerText="Number" />
-								</s:ArrayList>
-							</s:columns>
-						</s:DataGrid>
-					</mx:Panel>
-					<mx:Panel 
-						width="50%"
-						height="100%"
-						title="Top Results">
-						<s:DataGrid id="sourceDataGrid2"
-							width="100%"
-							height="100%"
-							dataProvider="{ _topSourceKeyArrayList }">
-							<s:columns>
-								<s:ArrayList>
-									<s:GridColumn 
-										dataField="term"
-										headerText="Source Name" />
-									<s:GridColumn 
-										width="60"
-										dataField="count"
-										headerText="Number" />
-								</s:ArrayList>
-							</s:columns>
-						</s:DataGrid>
-					</mx:Panel>
-				</s:HGroup>
-			</mx:Panel>
-		</mx:Canvas>
-
+				  width="100%"
+				  height="100%"
+				  borderStyle="solid">
+		
 		<!--Entities View Panel-->
 		<mx:Canvas id="entities"
 				   label="Entities">
@@ -1183,6 +1166,7 @@
 						doubleClickEnabled="true"
 						doubleClick="addEntityToFilter_eventHandler(event)"
 						dataProvider="{ _displayEntitiesArrayList }"
+						resizableColumns = "true"
 						width="100%"
 						height="100%">
 						<s:columns>
@@ -1191,11 +1175,22 @@
 									dataField="disambiguated_name"
 									headerText="Index" />
 								<s:GridColumn 
+									dataField="type"
+									headerText="Type" />
+								<s:GridColumn 
 									dataField="dimension"
 									headerText="Dimension" />
 								<s:GridColumn 
-									dataField="doccount"
-									headerText="Doc Count" />
+									dataField="queryCount"
+									headerText="Query Count (approx)" />
+								<s:GridColumn 
+									dataField="queryCoverage"
+									headerText="Query Coverage" 
+									labelFunction="queryCoverageLabelFunction"  />
+								<s:GridColumn 
+									dataField="datasetSignificance"
+									headerText="Query Significance"
+									labelFunction="querySignificanceLabelFunction" />								
 							</s:ArrayList>
 						</s:columns>
 					</s:DataGrid>
@@ -1206,11 +1201,11 @@
 		
 		<!--Associations View Panel-->
 		<mx:Canvas id="associations"
-			label="Associations">
+				   label="Associations">
 			<!--<mx:Panel id="assocPanel"
-				height="100%"
-				width="100%"
-				title="Association Distribution ({ _currentView })">-->
+			height="100%"
+			width="100%"
+			title="Association Distribution ({ _currentView })">-->
 			<s:HGroup 
 				width="100%"
 				height="100%">
@@ -1218,25 +1213,26 @@
 					height="100%"
 					width="25%">
 					<s:TextInput id="searchAssocTypes"
-						width="100%"
-						keyUp="filterAssociations()" />
+								 width="100%"
+								 keyUp="filterAssociations()" />
 					<s:List id="assocList"
-						width="100%"
-						height="100%"
-						dataProvider="{ _activeAssociationTypeArrayList }"
-						change="associationTypeIndex_changeHandler(event)" />
+							width="100%"
+							height="100%"
+							dataProvider="{ _activeAssociationTypeArrayList }"
+							change="associationTypeIndex_changeHandler(event)" />
 				</s:VGroup>
 				<s:VGroup 
 					height="100%"
 					width="75%">
 					<s:TextInput id="searchAssociations"
-						width="100%"
-						keyUp="filterAssociations()" />
+								 width="100%"
+								 keyUp="filterAssociations()" />
 					<s:DataGrid id="assocDataGrid"
-						dataProvider="{ _displayAssociationsArrayList }"
-						y="4"
-						width="100%"
-						height="100%">
+								dataProvider="{ _displayAssociationsArrayList }"
+								y="4"
+								resizableColumns = "true"
+								width="100%"
+								height="100%">
 						<s:columns>
 							<s:ArrayList>
 								<s:GridColumn 
@@ -1256,8 +1252,89 @@
 					</s:DataGrid>
 				</s:VGroup>
 			</s:HGroup>
-			<!--</mx:Panel>-->
+		</mx:Canvas>
+		<!--</mx:Panel>-->
+		<!--Sources View Panel-->
+		<mx:Canvas id="sources"
+				   label="Sources"
+				   width="100%"
+				   height="100%">
+			<mx:Panel id="sourcePanel"
+					  layout="vertical"
+					  height="100%"
+					  width="100%"
+					  title="Source Distribution">
+				<s:HGroup 
+					width="100%"
+					height="50%">
+					<mx:PieChart id="sourceTypeChart"
+								 height="100%"
+								 width="100%"
+								 dataProvider="{ _activeSourceTypeArrayList }"
+								 paddingLeft="5"
+								 paddingRight="5"
+								 showDataTips="true">
+						<mx:series>
+							<mx:PieSeries id="sourceTypeSeries"
+										  labelFunction="pieSeries_displayCount"
+										  field="count"
+										  labelPosition="callout"
+										  nameField="term" />
+						</mx:series>
+					</mx:PieChart>
+					<s:Panel title="Legend">
+						<mx:Legend id="sourceTypeLegend"
+								   dataProvider="{ sourceTypeChart }" />
+					</s:Panel>
+				</s:HGroup>
+				<s:HGroup 
+					width="100%"
+					height="50%">
+					<mx:Panel 
+						width="50%"
+						height="100%"
+						title="All Results">
+						<s:DataGrid id="sourceDataGrid"
+									width="100%"
+									height="100%"
+									dataProvider="{ _allSourceKeyArrayList }">
+							<s:columns>
+								<s:ArrayList>
+									<s:GridColumn 
+										dataField="term"
+										headerText="Source Name" />
+									<s:GridColumn 
+										width="60"
+										dataField="count"
+										headerText="Number" />
+								</s:ArrayList>
+							</s:columns>
+						</s:DataGrid>
+					</mx:Panel>
+					<mx:Panel 
+						width="50%"
+						height="100%"
+						title="Top Results">
+						<s:DataGrid id="sourceDataGrid2"
+									width="100%"
+									height="100%"
+									dataProvider="{ _topSourceKeyArrayList }">
+							<s:columns>
+								<s:ArrayList>
+									<s:GridColumn 
+										dataField="term"
+										headerText="Source Name" />
+									<s:GridColumn 
+										width="60"
+										dataField="count"
+										headerText="Number" />
+								</s:ArrayList>
+							</s:columns>
+						</s:DataGrid>
+					</mx:Panel>
+				</s:HGroup>
+			</mx:Panel>
 		</mx:Canvas>
 	</mx:ViewStack>
-
+	
 </components:WidgetModule>

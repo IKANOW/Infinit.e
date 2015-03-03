@@ -78,10 +78,12 @@ import com.ikanow.infinit.e.harvest.extraction.document.HarvestStatus_Integrated
 import com.ikanow.infinit.e.harvest.extraction.document.HarvestStatus_Standalone;
 import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.database.DatabaseHarvester;
+import com.ikanow.infinit.e.harvest.extraction.document.distributed.DistributedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.logstash.LogstashHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
+import com.ikanow.infinit.e.harvest.extraction.text.externalscript.TextExtractorExternalScript;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
 import com.ikanow.infinit.e.harvest.utils.AuthUtils;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
@@ -200,14 +202,28 @@ public class HarvestController implements HarvestContext
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
 		if (overrideTypeSettings) { // (override API settings in test mode)
-			sTypes = "Feed,File,Database,Logstash";
+			sTypes = "Feed,File,Database,Logstash,Distributed,Post_processing";
+				//(the post_processor isn't needed for harvester testing - but is needed for actual harvesting,... 
+				//...so they're included here for consistency - custom type scheduling is set up at publish time, so it isn't needed)
+				//(similar comments apply for logstash)
 		}
 		String sType[] = sTypes.split("\\s*,\\s*");
 
 		
 		// Add a harvester for each data type
 		for (String s: sType) {
-			if (s.equalsIgnoreCase("database")) {
+			if (s.equalsIgnoreCase("distributed")) { // (custom + distributed + post processing)
+				try {
+					this.harvesters.add(new DistributedHarvester());
+				}
+				catch (Exception e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}				
+			}
+			else if (s.equalsIgnoreCase("database")) {
 				try {
 					this.harvesters.add(new DatabaseHarvester());
 				}
@@ -364,6 +380,12 @@ public class HarvestController implements HarvestContext
 		}
 		catch (Exception e) {
 			logger.warn("Can't use AlchemyAPI as entity/text extractor: " + e.getMessage());			
+		}
+		try {
+			text_extractor_mappings.put("externalscript", new TextExtractorExternalScript());
+		}
+		catch (Exception e) {
+			logger.warn("Can't use ExternalScript as text extractor: " + e.getMessage());			
 		}
 		try {
 			text_extractor_mappings.put("boilerpipe", new TextExtractorBoilerpipe());
@@ -616,8 +638,9 @@ public class HarvestController implements HarvestContext
 					//DEBUG
 					//e.printStackTrace();
 					
-					logger.error("Error extracting source=" + source.getKey() + ", type=" + source.getExtractType() + ", reason=" + e.getMessage());					
-					_harvestStatus.update(source, new Date(), HarvestEnum.error, "Extraction error: " + e.getMessage(), false, false);					
+					String reason = Globals.populateStackTrace(new StringBuffer(), e).toString();
+					logger.error("Error extracting source=" + source.getKey() + ", type=" + source.getExtractType() + ", reason=" + reason);					
+					_harvestStatus.update(source, new Date(), HarvestEnum.error, "Extraction error: " + reason, false, false);					
 				}
 				break; //exit for loop, source is extracted
 			}
@@ -1391,6 +1414,8 @@ public class HarvestController implements HarvestContext
 			{
 				out.write(share.getBinaryData());
 			}
+			out.flush();
+			out.close();
 		}//TESTED
 		
 		return tempFileName;

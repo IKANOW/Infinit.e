@@ -1,0 +1,18 @@
+[
+	{
+		"docs_datastoreQuery": {
+			"query": "{ 'url': 'x' }",
+			"tmin": "now-4d",
+			"srcTags": "xxx"
+		}
+	},
+	{
+		"scheduler": {
+			"frequency": "hourly",
+			"runDate": "now",
+			
+			"tmin_initialOverride": " ",
+			"tmax_initialOverride": "now+1d"
+		}
+	}
+]

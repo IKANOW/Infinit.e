@@ -15,12 +15,15 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge.aliases;
 
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
@@ -96,6 +99,18 @@ public class AliasLookupTable {
 							logger.debug("Failed to deserialize aliasInfo", e);
 						}
 
+						if (masterAlias.endsWith("/")) { // it's a regex
+							try {
+								Pattern key = Pattern.compile(masterAlias.substring(0, masterAlias.length() - 1));
+								if (null == _entityRegexes) {
+									_entityRegexes = new HashMap<Pattern, EntityFeaturePojo>();
+								}
+								_entityRegexes.put(key, aliasInfo);
+							}
+							catch (Exception e) {} // ignore regex compile fails
+							continue;
+						}
+						
 						if ((null != aliasInfo) && (null != aliasInfo.getAlias()))
 						{							
 							aliasInfo.setIndex(masterAlias);
@@ -140,6 +155,34 @@ public class AliasLookupTable {
 	}
 	
 	public synchronized EntityFeaturePojo getAliases(String index) { // returns master from master index only
+		
+		
+		if (null != _entityRegexes) for (Map.Entry<Pattern, EntityFeaturePojo> regexKV: _entityRegexes.entrySet()) {
+			Matcher m = regexKV.getKey().matcher(index);
+			if (m.matches()) {
+				EntityFeaturePojo dynamicAlias = new EntityFeaturePojo();
+				EntityFeaturePojo dynamicTemplate = regexKV.getValue();
+				if ((null != dynamicTemplate.getSemanticLinks()) && !dynamicTemplate.getSemanticLinks().isEmpty()) {
+					dynamicAlias.addToSemanticLinks(new ArrayList<String>(dynamicTemplate.getSemanticLinks().size()));
+					for (String s: dynamicTemplate.getSemanticLinks()) {
+						for (int i = 1; i <= m.groupCount(); ++i) {
+							s =  s.replaceAll("\\$0+" + i, m.group(i));
+						}
+						dynamicAlias.getSemanticLinks().add(s);
+					}
+				}
+				if (null != dynamicTemplate.getAlias()) {
+					for (String s: dynamicTemplate.getAlias()) {
+						for (int i = 1; i <= m.groupCount(); ++i) {
+							s =  s.replaceAll("\\$0+" + i, m.group(i));
+						}
+						dynamicAlias.addAlias(s);
+					}
+				}
+				return dynamicAlias;
+			}
+		}//TESTED (both alias and semantic links) 
+		
 		return _reverseAliasTable.get(index);
 	}
 	
@@ -181,5 +224,6 @@ public class AliasLookupTable {
 	private Date _lastModified = null;
 	private HashMap<String, EntityFeaturePojo> _aliasTable = new HashMap<String, EntityFeaturePojo>();
 	private HashMap<String, EntityFeaturePojo> _reverseAliasTable = new HashMap<String, EntityFeaturePojo>();
+	private HashMap<Pattern, EntityFeaturePojo> _entityRegexes = null;
 	
 }

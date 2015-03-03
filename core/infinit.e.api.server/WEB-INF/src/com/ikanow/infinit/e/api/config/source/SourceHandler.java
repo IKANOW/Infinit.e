@@ -32,12 +32,14 @@ import org.apache.commons.lang.ArrayUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.custom.mapreduce.CustomHandler;
 import com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.utils.SendMail;
 import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
@@ -61,6 +63,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPoj
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.extraction.document.distributed.DistributedHarvester;
 import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -184,7 +187,11 @@ public class SourceHandler
 		{
 			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
 			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, userIdStr);
-			
+			if (!SocialUtils.isDataAllowed(communityIdStr)) {
+				rp.setResponse(new ResponseObject("Source", false, "Not allowed to create sources in user groups"));
+				return rp;							
+			}//(TESTED - cut and paste from saveSource)
+
 			//create source object
 			SourcePojo newSource = new SourcePojo();
 			newSource.setId(new ObjectId());
@@ -266,14 +273,13 @@ public class SourceHandler
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
-		if (userIdStr.equals(communityIdStr)) { // Don't allow personal sources
-			rp.setResponse(new ResponseObject("Source", false, "No longer allowed to create sources in personal communities"));
-			return rp;			
-		}
-		//TESTED
-		
 		try {
 			communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+			if (!SocialUtils.isDataAllowed(communityIdStr)) {
+				rp.setResponse(new ResponseObject("Source", false, "Not allowed to create sources in user groups"));
+				return rp;							
+			}//TODO (INF-2866): TOTEST
+			
 			boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, userIdStr);
 			
 			///////////////////////////////////////////////////////////////////////
@@ -297,6 +303,16 @@ public class SourceHandler
 				source.setFederatedQueryCommunityIds(null); // (can be filled in by fillInSourcePipelineFields() below)
 				source.fillInSourcePipelineFields(); // (needs to be after the community ids)
 				
+				int extractType = InfiniteEnums.castExtractType(source.getExtractType()); // (created by fillInSourcePipelineFields)
+				if ((InfiniteEnums.CUSTOM != extractType) && (InfiniteEnums.POSTPROC != extractType) && (InfiniteEnums.FEDERATED != extractType)) {
+					//TODO (INF-2685): at some point when are allowed to create docs from custom sources will need to tweak this
+					if (userIdStr.equals(communityIdStr)) { // Don't allow personal sources
+						rp.setResponse(new ResponseObject("Source", false, "No longer allowed to create sources in personal communities - EXCEPT for custom/post processing/federated"));
+						return rp;			
+					}
+				}
+				//TESTED								
+				
 				// RSS search harvest types tend to be computationally expensive and therefore
 				// should be done less frequently (by default once/4-hours seems good):
 				if (sourceSearchesWeb(source)) {
@@ -304,8 +320,15 @@ public class SourceHandler
 					if (null == source.getSearchCycle_secs()) {
 						source.setSearchCycle_secs(4*3600); // (ie 4 hours)
 					}
-				}
-				//TESTED
+				}//TESTED
+				else if (InfiniteEnums.POSTPROC == InfiniteEnums.castExtractType(source.getExtractType())) {
+					if (null == source.getSearchCycle_secs()) {
+						source.setSearchCycle_secs(0); // (ie run once then suspend)
+					}
+					else if ((0 != source.getSearchCycle_secs()) && (Math.abs(source.getSearchCycle_secs()) < 3600)) { // min freq is hourly
+						source.setSearchCycle_secs(source.getSearchCycle_secs() < 0 ? -3600 : 3600);
+					}
+				}//TESTED (by hand)		
 			}
 			catch (Exception e)
 			{
@@ -374,7 +397,16 @@ public class SourceHandler
 						}
 					}
 					//TESTED
-					
+
+					if (isApproved) { // (this activity can result in custom activity, so don't do it unless the source is approved)
+						try {
+							new DistributedHarvester().decomposeCustomSourceIntoMultipleJobs(source, false);
+						}
+						catch (Throwable t) {							
+							rp.setResponse(new ResponseObject("Source", false, Globals.populateStackTrace(new StringBuffer("Error creating custom source: "), t).toString()));
+							return rp;
+						}//TESTED (by hand)					
+					}					
 					DbManager.getIngest().getSource().save(source.toDb());
 					if (isUniqueSource(source, communityIdSet))
 					{
@@ -457,13 +489,17 @@ public class SourceHandler
 					}//TESTED - works if owner or moderator, or admin (enabled), not if not admin-enabled
 
 					// For now, don't allow you to change communities
-					if ((null == source.getCommunityIds()) || (null == oldSource.getCommunityIds()) // (robustness) 
-							|| 
-							!source.getCommunityIds().equals(oldSource.getCommunityIds()))
-					{
-						rp.setResponse(new ResponseObject("Source", false, "It is not currently possible to change the community of a published source. You must duplicate/scrub the source and re-publish it as a new source (and potentially suspend/delete this one)"));
-						return rp;
-					}//TOTEST
+					int extractType = InfiniteEnums.castExtractType(source.getExtractType()); // (created by fillInSourcePipelineFields)
+					if ((InfiniteEnums.CUSTOM != extractType) && (InfiniteEnums.POSTPROC != extractType) && (InfiniteEnums.FEDERATED != extractType)) {
+						//TODO (INF-2685): at some point when are allowed to create docs from custom sources will need to tweak this
+						if ((null == source.getCommunityIds()) || (null == oldSource.getCommunityIds()) // (robustness) 
+								|| 
+								!source.getCommunityIds().equals(oldSource.getCommunityIds()))
+						{
+							rp.setResponse(new ResponseObject("Source", false, "It is not currently possible to change the community of a published source. You must duplicate/scrub the source and re-publish it as a new source (and potentially suspend/delete this one) - EXCEPT for custom/post processing/federated"));
+							return rp;
+						}//TOTEST
+					}
 					
 					// Another special case: don't allow sources to change extract type...
 					if (!oldSource.getExtractType().equals(source.getExtractType())) {
@@ -556,16 +592,9 @@ public class SourceHandler
 					// Handle approval:
 					if (isApproved || oldHash.equalsIgnoreCase(source.getShah256Hash())) {
 						//(either i have permissions, or the source hasn't change)
-						
-						if (oldSource.isApproved()) { // Always approve - annoyingly no way of unsetting this
-							source.setApproved(true);
-						}
-						else if (source.isApproved()) { // Want to re-approve
-							if (!isApproved) // Don't have permission, so reset
-							{						
-								source.setApproved(oldSource.isApproved());
-							}
-						}					
+						// if source is unset then isApproved == false
+						// but that's pretty unlikely since the user would have had to hand-remove it
+						// so just leave source.isApproved alone
 					}
 					else { // Need to re-approve						
 						try {
@@ -580,6 +609,15 @@ public class SourceHandler
 						}
 					}//TOTEST					
 					
+					if (isApproved) { // (this activity can result in custom activity, so don't do it unless the source is approved)
+						try {
+							new DistributedHarvester().decomposeCustomSourceIntoMultipleJobs(source, true);
+						}
+						catch (Throwable t) {
+							rp.setResponse(new ResponseObject("Source", false, "Error updating custom source: " + t.getMessage()));
+							return rp;
+						}//TESTED (by hand)
+					}					
 					// Source exists, update and prepare reply
 					DbManager.getIngest().getSource().update(query, source.toDb());
 					if (isUniqueSource(source, communityIdSet))
@@ -640,6 +678,7 @@ public class SourceHandler
 			BasicDBObject queryFields = new BasicDBObject(SourcePojo.key_, 1);
 			queryFields.put(SourcePojo.extractType_, 1);
 			queryFields.put(SourcePojo.harvest_, 1);
+			queryFields.put(SourcePojo.ownerId_, 1);
 			queryFields.put(SourcePojo.distributionFactor_, 1);
 			queryFields.put(SourcePojo.processingPipeline_ + ".logstash.distributed", 1); // (this is needed to determine distribution status)
 			try {
@@ -698,6 +737,9 @@ public class SourceHandler
 				else { // !bDocsOnly, ie delete source also
 					DbManager.getIngest().getSource().remove(queryDbo);					
 				}
+				
+				// More complex processing:
+				
 				if ((null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("logstash")) {
 					BasicDBObject logStashMessage = new BasicDBObject();
 					logStashMessage.put("_id", source.getId());
@@ -714,7 +756,42 @@ public class SourceHandler
 					DbManager.getIngest().getLogHarvesterQ().save(logStashMessage);
 					// (the rest of this is async, so we're done here)
 				}//TESTED	
-				else { // Not logstash
+				if ((null != source.getExtractType()) && 
+						(source.getExtractType().equalsIgnoreCase("post_processing")||
+									source.getExtractType().equalsIgnoreCase("custom")||
+									source.getExtractType().equalsIgnoreCase("distributed")))
+				{
+					//TODO: yuri somehow managed to delete a source without deleting the corresponding custom
+					// (might have been in progress, which in theory should fail but haven't tested...)
+					
+					// Various distributed cases
+					//TODO (INF-2866) at some point will need to handle sources generating multiple custom objects 
+					// (also having actual docs being generated by a custom processing object)
+					// (...but today is not that day...)
+					ResponsePojo rp2 = CustomHandler.removeJob(source.getOwnerId().toString(), source.getKey(), null, false);
+					if (!rp2.getResponse().isSuccess()) {
+						rp.setResponse(rp.getResponse());
+						rp.getResponse().setAction("Delete Source");
+						return rp;
+					}
+					if (bDocsOnly) { // Put the source back again
+						try {
+							source = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(queryDbo), SourcePojo.class);
+							if (source.isApproved()) {
+								if (null != source.getHarvestStatus()) {
+									source.getHarvestStatus().setHarvest_status(null);
+								}
+								new DistributedHarvester().decomposeCustomSourceIntoMultipleJobs(source, false);
+							}
+						}
+						catch (Throwable t) {
+							rp.setResponse(new ResponseObject("Delete Source", false, Globals.populateStackTrace(new StringBuffer("Error re-creating custom source: "), t).toString()));
+							return rp;								
+						}							
+					}//TESTED (by hand)
+					
+				}//TESTED (by hand)
+				else { // Not logstash or distributed, ie "normal" document case
 					// Insert delete message on distributed Q
 					SourcePojo sourceDeletionMessage = new SourcePojo();
 					sourceDeletionMessage.setKey(source.getKey());
@@ -1275,6 +1352,10 @@ public class SourceHandler
 				testFederatedQuery.postQueryActivities(queryId, toAddTemp, rp);
 				for (BasicDBObject docObj: toAddTemp) {
 					DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
+					if (bReturnFullText) {
+						doc.setFullText(docObj.getString(DocumentPojo.fullText_));
+						doc.makeFullTextNonTransient();
+					}
 					if (null != doc.getEntities()) {
 						federatedQueryEnts += doc.getEntities().size();
 					}
@@ -1335,29 +1416,30 @@ public class SourceHandler
 				rp.setResponse(new ResponseObject("Test Source",true,"successfully returned " + toAdd.size() + " docs: " + message));			
 				try {
 					// If grabbing full text
-					// Also some logstash specific logic - these aren't docs so just output the entire record
+					// Also some logstash/custom specific logic - these aren't docs so just output the entire record
 					boolean isLogstash = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("logstash");
-					List<BasicDBObject> logstashRecords = null;
-					if (bReturnFullText || isLogstash) {
+					boolean isCustom = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("custom");
+					List<BasicDBObject> records = null;
+					if (bReturnFullText || isLogstash || isCustom) {
 						for (DocumentPojo doc: toAdd) {
-							if (isLogstash) {
-								if (null == logstashRecords) {
-									logstashRecords = new ArrayList<BasicDBObject>(toAdd.size());									
+							if (isLogstash || isCustom) {
+								if (null == records) {
+									records = new ArrayList<BasicDBObject>(toAdd.size());									
 								}
-								BasicDBObject dbo = (BasicDBObject) doc.getMetadata().get("logstash_record")[0];
+								BasicDBObject dbo = (BasicDBObject) doc.getMetadata().get("record")[0];
 								Object test = dbo.get("_id");
 								if ((null != test) && (test instanceof ObjectId)) {
 									dbo.remove("_id"); // (unless it's a custom _id added from logstash then remove it)
 								}
-								logstashRecords.add(dbo);
+								records.add(dbo);
 							}//TESTED
 							else if (bReturnFullText) {
 								doc.makeFullTextNonTransient();
 							}
 						}
 					}//TESTED
-					if (null != logstashRecords) {
-						rp.setData(logstashRecords, (BasePojoApiMap<BasicDBObject>)null);						
+					if (null != records) {
+						rp.setData(records, (BasePojoApiMap<BasicDBObject>)null);						
 					}//TESTED
 					else {
 						rp.setData(toAdd, new DocumentPojoApiMap());
@@ -1526,7 +1608,7 @@ public class SourceHandler
 			
 			//create a community request and post to db
 			CommunityApprovePojo cap = new CommunityApprovePojo();
-			cap.set_id(new ObjectId());
+			cap.set_id(RESTTools.generateRandomId());
 			cap.setCommunityId( c.getId().toString() );
 			cap.setIssueDate(new Date());
 			cap.setPersonId(owner.get_id().toString());
@@ -1746,7 +1828,8 @@ public class SourceHandler
 				//if turning off: set to negative of user - toplevel or -1
 				//if turning on: set to positive of user - toplevel or null
 				BasicDBObject update = new BasicDBObject(SourcePojo.modified_, new Date());				
-				int searchCycle_secs = Math.abs( getSearchCycleSecs(source) );
+				int searchCycle_secs_sgn = getSearchCycleSecs(source);
+				int searchCycle_secs = Math.abs( searchCycle_secs_sgn );
 				if ( shouldSuspend )
 				{
 					//turn off the source
@@ -1767,8 +1850,14 @@ public class SourceHandler
 						return rp;
 					}//TESTED
 					
+					//SPECIAL CASE: enforce a minimum search cycle of distributed types
+					else if (InfiniteEnums.POSTPROC == InfiniteEnums.castExtractType(source.getExtractType())) {
+						rp.setResponse(new ResponseObject("suspendSource", false, "Can't un-suspend post processing sources using this API call, unsuspend manually (eg from the Source Editor form)"));
+						return rp;
+					}//TESTED (by hand)							
+					
 					//turn on the source
-					if ( searchCycle_secs > 1 )
+					if ( searchCycle_secs_sgn >= 0 )
 					{
 						update.put(SourcePojo.searchCycle_secs_, searchCycle_secs);						
 					}

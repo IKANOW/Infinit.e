@@ -581,6 +581,14 @@
 							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
 							sortCompareFunction="{ SourceUtil.sortCompareTitle }" />
 						<s:GridColumn 
+							minWidth="0"
+							dataField="{ SourceConstants.FIELD_KEY }"
+							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"
+							headerText=""
+							visible="false"
+							itemRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextItemRenderer"
+							sortCompareFunction="{ SourceUtil.sortCompareTitle }" />
+						<s:GridColumn 
 							width="220"
 							dataField="{ SourceConstants.FIELD_TAGS_STRING }"
 							headerRenderer="com.ikanow.infinit.e.shared.view.renderer.GridTextHeaderRenderer"

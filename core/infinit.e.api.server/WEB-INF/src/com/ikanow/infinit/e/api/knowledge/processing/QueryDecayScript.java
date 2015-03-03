@@ -131,8 +131,18 @@ public class QueryDecayScript extends AbstractDoubleSearchScript
 				return this.score()*gfactor*tfactor;
 			}
 		}
-		catch (Exception e) { // something's gone wrong, not sure what (eg I saw a publishedDate with type double??)
-			return this.score()*gfactor*tfactor;
+		catch (Exception e) 
+		{ // something's gone wrong, not sure what (eg I saw a publishedDate with type double??)
+			try
+			{
+				return this.score()*gfactor*tfactor;
+			} 
+			catch (Exception e1)
+			{
+				//getting the score can throw an ioexception now? (es1.4.1)
+				//return some default I guess
+				return gfactor*tfactor;
+			}
 		}
 	}//TESTED
 	

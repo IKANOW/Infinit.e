@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.api.utils;
 import java.net.InetAddress;
 import java.net.URLDecoder;
 import java.net.UnknownHostException;
+import java.security.SecureRandom;
 import java.util.Date;
 import java.util.Map;
 
@@ -41,9 +42,11 @@ public class RESTTools
 	private static final long COOKIE_TIMEOUT = 900000; //1000ms * 60s * 15m
 	public static final String AUTH_TOKEN_NAME = "inf_token";
 	
-	public static String createUniqueKey()
-	{
-		return new ObjectId().toString();
+	public static ObjectId generateRandomId() {
+		SecureRandom randomBytes = new SecureRandom();
+		byte bytes[] = new byte[12];
+		randomBytes.nextBytes(bytes);
+		return new ObjectId(bytes); 		
 	}
 	
 	public static String decodeRESTPostParam(String name, Map<String,String> attributes)
@@ -123,8 +126,10 @@ public class RESTTools
 			//Find user
 			//create a new entry
 			CookiePojo cp = new CookiePojo();
-			cp.set_id(new ObjectId());
-			cp.setCookieId(cp.get_id());
+			ObjectId randomObjectId = generateRandomId();
+			
+			cp.set_id(randomObjectId); 
+			cp.setCookieId(randomObjectId);
 			cp.setLastActivity(new Date());
 			cp.setProfileId(userid);
 			cp.setStartDate(new Date());

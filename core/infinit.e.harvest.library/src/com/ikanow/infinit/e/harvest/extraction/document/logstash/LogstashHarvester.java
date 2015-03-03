@@ -142,7 +142,7 @@ public class LogstashHarvester implements HarvesterInterface {
 							DBCursor dbc = DbManager.getCollection("ingest", requestId.toString()).find().limit(context.getStandaloneMaxDocs());
 							for (Object o: dbc) {
 								DocumentPojo doc = new DocumentPojo();
-								doc.addToMetadata("logstash_record", o);
+								doc.addToMetadata("record", o);
 								toAdd.add(doc);
 							}
 							error = logStashDbo.getString("error", "no info");

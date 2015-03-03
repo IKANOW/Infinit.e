@@ -197,9 +197,9 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 			static public class TemporalAggregationOutputPojo {
 				public String timesInterval = null; // "month", or "<N>[ydwh]" (if null, takes from timesInterval - errors out if neither set)
 				public List<String> entityList; // List of entities to grab
-				//TODO (INF-955): NOT IMPLEMENTED YET
+				public Integer geoNumReturn = null; // Number of geo-counts to store per time, 0/null to not display at all			
+				//TODO (INF-955): NOT IMPLEMENTED YET:
 				public Boolean entityCountOnly = null; // If true counts only (default); if false then provides sentiment (if available), significance and total counts  
-				public Integer geoCount = null; // Number of geo-counts to store per time, 0/null to not display at all			
 			};
 			public TemporalAggregationOutputPojo moments = null;
 			

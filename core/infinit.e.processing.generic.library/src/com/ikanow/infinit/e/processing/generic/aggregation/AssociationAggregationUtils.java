@@ -48,7 +48,9 @@ public class AssociationAggregationUtils {
 	private static final Logger logger = Logger.getLogger(AssociationAggregationUtils.class);	
 	
 	private static boolean _diagnosticMode = false;
+	private static boolean _logInDiagnosticMode = true;
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
+	public static void setLogInDiagnosticMode(boolean bLog) { _logInDiagnosticMode = bLog; }	
 	
 	private static boolean _incrementalMode = false;
 	public static void setIncrementalMode(boolean mode) {
@@ -142,7 +144,7 @@ public class AssociationAggregationUtils {
 					if ((null == currCache) || !currCache.getCommunityId().equals(evtFeatureKV.getKey())) {
 						currCache = CommunityFeatureCaches.getCommunityFeatureCache(evtFeatureKV.getKey());							
 						if (_diagnosticMode) {
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, Opened cache for community: " + evtFeatureKV.getKey());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, Opened cache for community: " + evtFeatureKV.getKey());
 						}
 					}//TESTED (by hand)					
 					
@@ -151,12 +153,12 @@ public class AssociationAggregationUtils {
 					if (null != cachedAssoc) {							
 						if (_incrementalMode) {
 							if (_diagnosticMode) {
-								System.out.println("AssociationAggregationUtils.updateEventFeatures, skip cached: " + cachedAssoc.toDb());									
+								if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, skip cached: " + cachedAssoc.toDb());									
 								//TODO (INF-2825): should be continue-ing here so can use delta more efficiently...
 							}
 						}
 						else if (_diagnosticMode) {
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, grabbed cached: " + cachedAssoc.toDb());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, grabbed cached: " + cachedAssoc.toDb());
 						}								
 						numCacheHits++;							
 					}//TESTED (by hand)			
@@ -267,8 +269,8 @@ public class AssociationAggregationUtils {
 						// (in the cached case, evtFeature has already been updated by updateCachedAssocFeatureStatistics)
 						
 						if (_diagnosticMode) {
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, found: " + ((BasicDBObject)egp.toDb()).toString());
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, found: " + ((BasicDBObject)egp.toDb()).toString());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
 						}
 						// (In background aggregation mode we update db_sync_prio when checking the -otherwise unused, unlike entities- document update schedule) 
 					}
@@ -307,7 +309,7 @@ public class AssociationAggregationUtils {
 							col.update(query, new BasicDBObject(MongoDbManager.set_, baseFields));
 						}
 						else {
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, not found: " + query.toString() + " / " + baseFields.toString() + "/ orig_update= " + updateOp.toString());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, not found: " + query.toString() + " / " + baseFields.toString() + "/ orig_update= " + updateOp.toString());
 						}
 						
 						// (Note even in background aggregation mode we still perform the feature synchronization
@@ -318,7 +320,7 @@ public class AssociationAggregationUtils {
 					if (null == cachedAssoc) { // First time we've seen this locally, so add to cache
 						currCache.addCachedAssocFeature(evtFeature);
 						if (_diagnosticMode) {
-							System.out.println("AssociationAggregationUtils.updateEventFeatures, added to cache: " + evtFeature.toDb());
+							if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.updateEventFeatures, added to cache: " + evtFeature.toDb());
 						}							
 					}//TESTED (by hand)									
 				}
@@ -439,10 +441,10 @@ public class AssociationAggregationUtils {
 			
 			if (_diagnosticMode) {
 				if ((null != eventFeature.getDb_sync_time()) || (null != eventFeature.getDb_sync_prio())) {
-					System.out.println("AssociationAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());
+					if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());
 				}
 				else {
-					System.out.println("(WOULD NOT RUN) EventAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());				
+					if (_logInDiagnosticMode) System.out.println("(WOULD NOT RUN) EventAggregationUtils.synchronizeEventFeature, featureDB: " + query.toString() + " / " + update.toString());				
 				}
 			}
 			else {
@@ -451,7 +453,7 @@ public class AssociationAggregationUtils {
 		}
 
 		if (_diagnosticMode) {
-			System.out.println("AssociationAggregationUtils.synchronizeEventFeature, synchronize: " + new StringBuffer(eventFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
+			if (_logInDiagnosticMode) System.out.println("AssociationAggregationUtils.synchronizeEventFeature, synchronize: " + new StringBuffer(eventFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
 					IndexManager.mapToIndex(eventFeature, new AssociationFeaturePojoIndexMap()));
 		}
 		else {
@@ -472,7 +474,7 @@ public class AssociationAggregationUtils {
 		query.put(AssociationFeaturePojo.communityId_, communityId);
 		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, dPrio));
 		if (_diagnosticMode) {
-			System.out.println("EntityAggregationUtils.markAssociationFeatureForSync, featureDB: " + query.toString() + " / " + update.toString());				
+			if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.markAssociationFeatureForSync, featureDB: " + query.toString() + " / " + update.toString());				
 		}
 		else {
 			assocFeatureDb.update(query, update, false, true);

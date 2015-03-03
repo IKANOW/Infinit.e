@@ -1,0 +1,187 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:ItemRenderer xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:mx="library://ns.adobe.com/flex/mx"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	width="100%"
+	styleName="historyItem"
+	autoDrawBackground="false"
+	buttonMode.hovered="true"
+	useHandCursor.hovered="true">
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.shared.model.constant.Constants;
+			import flashx.textLayout.conversion.TextConverter;
+			import flashx.textLayout.elements.TextFlow;
+			import mx.events.FlexEvent;
+			import mx.events.ItemClickEvent;
+			import mx.events.ResizeEvent;
+			import assets.EmbeddedAssets;
+			
+			override public function set data( value:Object ):void
+			{
+				super.data = value;
+				
+				if ( value != null )
+				{
+					thisShare = value;
+					
+					summaryHTMLText = "<FONT COLOR='#ffffff'>" + value.title + "</FONT>";
+					//(alternative color: "#bbbec1")
+					textFlow = TextConverter.importToFlow( summaryHTMLText, TextConverter.TEXT_FIELD_HTML_FORMAT );
+					queryString.textFlow = textFlow;
+					
+					summaryHTMLTextHovered = "<FONT COLOR='#000000'>" + value.title + "</FONT>";
+					//(alternative color: "#666666")
+					textFlowHovered = TextConverter.importToFlow( summaryHTMLTextHovered, TextConverter.TEXT_FIELD_HTML_FORMAT );
+				}
+				
+				resizeTextArea();
+				
+				invalidateDisplayList();
+			}
+			
+			[Bindable]
+			protected var thisShare:Object;
+			
+			protected var summaryHTMLText:String = "";
+			
+			protected var summaryHTMLTextHovered:String = "";
+			
+			[Bindable]
+			protected var textFlow:TextFlow;
+			
+			[Bindable]
+			protected var textFlowHovered:TextFlow;
+			
+			protected function container_resizeHandler( event:ResizeEvent ):void
+			{
+				callLater( resizeTextArea );
+			}
+			
+			protected function itemrenderer_clickHandler( event:MouseEvent ):void
+			{
+				this.enabled = false;
+				
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				e.label = "apply";
+				dispatchEvent( e );
+				
+				setTimeout( enableThis, 500 );
+			}
+			
+			protected function resizeTextArea():void
+			{
+				queryString.invalidateProperties();
+				queryString.invalidateSize();
+				queryString.invalidateDisplayList();
+			}
+			
+			protected function closeButton_clickHandler():void
+			{
+				this.enabled = false;
+				
+				var e:ItemClickEvent = new ItemClickEvent( ItemClickEvent.ITEM_CLICK, true );
+				e.item = data;
+				e.index = itemIndex;
+				e.label = "delete";
+				dispatchEvent( e );
+				
+				setTimeout( enableThis, 500 );
+			}
+			
+			private function enableThis():void
+			{
+				this.enabled = true;
+			}
+		]]>
+	</fx:Script>
+
+	<fx:Declarations>
+		<s:DateTimeFormatter id="dtf"
+			dateTimePattern="{ Constants.DEFAULT_SPECIFIC_DATE_TIME_FORMAT }" />
+	</fx:Declarations>
+
+	<s:states>
+		<s:State name="normal" />
+		<s:State name="hovered" />
+		<s:State name="selected" />
+	</s:states>
+
+	<s:HGroup id="container"
+		width="100%"
+		resize="container_resizeHandler(event)"
+		gap="6">
+
+		<!-- time -->
+		<s:Label id="time"
+			text="{ dtf.format( thisShare.modified ) }"
+			styleName="lightGrey"
+			fontSize="12"
+			paddingRight="2"
+			paddingTop="9" />
+
+		<s:SkinnableContainer 
+			width="100%"
+			mouseDown="itemrenderer_clickHandler(event)"
+			styleName.hovered="historyItemHovered"
+			toolTip.hovered="{ resourceManager.getString( 'infinite', 'pivotListItemRenderer.runThisQuery' ) }">
+
+			<s:layout>
+				<s:HorizontalLayout 
+					paddingBottom="3"
+					paddingLeft="4"
+					paddingRight="4"
+					paddingTop="3"
+					gap="16" />
+			</s:layout>
+
+			<!-- type icon -->
+			<s:Image id="typeIcon"
+				source="{ EmbeddedAssets.QUERY_HISTORY_SETTINGS }"
+				source.hovered="{ EmbeddedAssets.RUN_QUERY }" />
+
+			<!-- query string -->
+			<common:InfRichText id="queryString"
+				width="100%"
+				styleName="lightGrey"
+				focusEnabled="false"
+				fontWeight="bold"
+				paddingBottom="2"
+				paddingTop="4"
+				lineBreak="toFit"
+				maxDisplayedLines="5"
+				showDropShadow="true"
+				showDropShadow.hovered="false"
+				textFlow="{ textFlow }"
+				textFlow.hovered="{ textFlowHovered }" />
+
+		</s:SkinnableContainer>
+
+		<common:InfButton 
+			toolTip="{ resourceManager.getString( 'infinite', 'common.delete' ) }"
+			styleName="closeButton"		
+			right="0"
+			click="closeButton_clickHandler()" />						
+		
+	</s:HGroup>
+
+</s:ItemRenderer>

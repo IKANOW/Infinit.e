@@ -30,6 +30,8 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.util.Date;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -51,15 +53,12 @@ import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
 import org.bson.types.ObjectId;
-import org.elasticsearch.common.joda.time.Interval;
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 import org.xml.sax.SAXException;
 
-import com.ikanow.infinit.e.api.knowledge.QueryHandler;
-import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.custom.ICustomInfiniteInternalEngine;
 import com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat;
 import com.ikanow.infinit.e.data_model.custom.InfiniteMongoSplitter;
@@ -75,7 +74,6 @@ import com.ikanow.infinit.e.processing.custom.utils.InfiniteElasticsearchHadoopU
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
-import com.mongodb.DBObject;
 
 public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 
@@ -228,17 +226,26 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				catch (Exception e) {} // just carry on
 				
 			}//TODO (???): TOTEST
-			
-			// (need to do this here before the job is created, at which point the config class has been copied across)
+
+			// (need to do these 2 things here before the job is created, at which point the config class has been copied across)
+			//1)
 			Class<?> mapperClazz = Class.forName (job.mapper, true, child);
 			if (ICustomInfiniteInternalEngine.class.isAssignableFrom(mapperClazz)) { // Special case: internal custom engine, so gets an additional integration hook
 				ICustomInfiniteInternalEngine preActivities = (ICustomInfiniteInternalEngine) mapperClazz.newInstance();
 				preActivities.preTaskActivities(job._id, job.communityIds, config, !(bTestMode || bLocalMode));
 			}//TESTED
+			//2)
+			if (job.inputCollection.equalsIgnoreCase("file.binary_shares")) {
+				// Need to download the GridFSZip file
+				try {
+					Path jarToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/lib/unbundled/", "GridFSZipFile.jar", config);
+					DistributedCache.addFileToClassPath(jarToCache, config);
+				}
+				catch (Throwable t) {} // (this is fine, will already be on the classpath .. otherwise lots of other stuff will be failing all over the place!)				
+			}
 
 			if (job.inputCollection.equals("records")) {
 				
-				//TODO (INF-2641): some optimizations should be added here (and in the create config xml fn)
 				InfiniteElasticsearchHadoopUtils.handleElasticsearchInput(job, config, advancedConfigurationDbo);
 				
 				//(won't run under 0.19 so running with "records" should cause all sorts of exceptions)
@@ -285,6 +292,29 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 					InfiniteFileInputFormat.setMaxInputSplitSize(hj, 33554432); // (32MB)
 					InfiniteFileInputFormat.setInfiniteInputPathFilter(hj, config);
 					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteFileInputFormat", true, child));
+				}
+				else if (job.inputCollection.equalsIgnoreCase("file.binary_shares")) {
+					
+					String[] oidStrs = null;
+					try {
+						String inputPath = MongoDbUtil.getProperty(advancedConfigurationDbo, "file.url");
+						Pattern oidExtractor = Pattern.compile("inf://share/([^/]+)");
+						Matcher m = oidExtractor.matcher(inputPath);
+						if (m.find()) {
+							oidStrs = m.group(1).split("\\s*,\\s*");
+							
+						}
+						else {
+							throw new RuntimeException("file.url must be in format inf://share/<oid-list>/<string>: " + inputPath);
+						}
+						InfiniteHadoopUtils.authenticateShareList(job, oidStrs);
+					}
+					catch (Exception e) {
+						throw new RuntimeException("Authentication error: " + e.getMessage() + ": " + advancedConfigurationDbo, e);
+					}
+					
+					hj.getConfiguration().setStrings("mapred.input.dir", oidStrs);
+					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteShareInputFormat", true, child));
 				}
 				else if (job.inputCollection.equals("records")) {
 					hj.setInputFormatClass((Class<? extends InputFormat>) Class.forName ("com.ikanow.infinit.e.data_model.custom.InfiniteEsInputFormat", true, child));
@@ -548,10 +578,10 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		Object fromOverrideObj = oldQueryObj.remove("$tmin");
 		Object toOverrideObj = oldQueryObj.remove("$tmax");
 		if (null != fromOverrideObj) {
-			fromOverride = dateStringFromObject(fromOverrideObj, true);
+			fromOverride = InfiniteHadoopUtils.dateStringFromObject(fromOverrideObj, true);
 		}
 		if (null != toOverrideObj) {
-			toOverride = dateStringFromObject(toOverrideObj, false);
+			toOverride = InfiniteHadoopUtils.dateStringFromObject(toOverrideObj, false);
 		}
 		
 		if ( !isCustomTable )
@@ -563,14 +593,14 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			else {
 				if (input.equals("feature.temporal")) {
 					if ((null != fromOverride) || (null != toOverride)) {
-						oldQueryObj.put("value.maxTime", createDateRange(fromOverride, toOverride, true));
+						oldQueryObj.put("value.maxTime", InfiniteHadoopUtils.createDateRange(fromOverride, toOverride, true));
 					}//TESTED
 					oldQueryObj.put("_id.c", new BasicDBObject(DbManager.in_, communityIds));
 				}
 				else {
 					oldQueryObj.put(DocumentPojo.communityId_, new BasicDBObject(DbManager.in_, communityIds));
 					if ((null != fromOverride) || (null != toOverride)) {
-						oldQueryObj.put("_id", createDateRange(fromOverride, toOverride, false));
+						oldQueryObj.put("_id", InfiniteHadoopUtils.createDateRange(fromOverride, toOverride, false));
 					}//TESTED			
 					if (input.equals("doc_metadata.metadata")) {
 						oldQueryObj.put(DocumentPojo.index_, new BasicDBObject(DbManager.ne_, "?DEL?")); // (ensures not soft-deleted)
@@ -581,7 +611,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		else
 		{
 			if ((null != fromOverride) || (null != toOverride)) {
-				oldQueryObj.put("_id", createDateRange(fromOverride, toOverride, false));
+				oldQueryObj.put("_id", InfiniteHadoopUtils.createDateRange(fromOverride, toOverride, false));
 			}//TESTED
 			//get the custom table (and database)
 			input = CustomOutputManager.getCustomDbAndCollection(input);
@@ -672,62 +702,6 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}
 	}
 
-	private static Date dateStringFromObject(Object o, boolean minNotMax) {
-		if (null == o) {
-			return null;
-		}
-		else if (o instanceof Long) {
-			return new Date((Long)o);
-		}
-		else if (o instanceof Integer) {
-			return new Date((long)(int)(Integer)o);
-		}
-		else if (o instanceof Date) {
-			return (Date)o;
-		}
-		else if (o instanceof DBObject) {
-			o = ((DBObject) o).get("$date");
-		}
-		if (o instanceof String) {
-			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
-			if (minNotMax) {
-				time.min = (String) o;
-				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
-				return i.getStart().toDate();
-			}
-			else {
-				time.max = (String) o;
-				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
-				return i.getEnd().toDate();				
-			}
-		}
-		else {
-			return null;
-		}
-	}//TESTED: relative string. string, $date obj, number - parse failure + success
-	
-	private static BasicDBObject createDateRange(Date min, Date max, boolean timeNotOid) {
-		BasicDBObject toFrom = new BasicDBObject();
-		if (null != min) {
-			if (timeNotOid) {
-				toFrom.put(DbManager.gte_, min.getTime());
-			}
-			else {
-				toFrom.put(DbManager.gte_, new ObjectId(min));
-				
-			}
-		}
-		if (null != max) {
-			if (timeNotOid) {
-				toFrom.put(DbManager.lte_, max.getTime());
-			}
-			else {
-				toFrom.put(DbManager.lte_, new ObjectId(max));				
-			}
-		}
-		return toFrom;
-	}//TESTED (min/max, _id/time)
-	
 	////////////////////////////////////////////////////////////////////////
 	////////////////////////////////////////////////////////////////////////
 	

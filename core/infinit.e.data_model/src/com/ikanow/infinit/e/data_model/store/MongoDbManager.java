@@ -15,11 +15,18 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store;
 
+import java.net.UnknownHostException;
+import java.util.Date;
+
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
+import com.mongodb.BasicDBObject;
 import com.mongodb.CommandResult;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
 import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
+import com.mongodb.WriteConcern;
+import com.mongodb.WriteResult;
 import com.mongodb.gridfs.GridFS;
 
 // Encapsulates Mongo Databases and collections
@@ -76,6 +83,13 @@ public class MongoDbManager {
 			}
         }
 	};
+	
+	private static DB initializeFastWriteDB(String dbName, Mongo savedMongo) {
+		DB db = savedMongo.getDB(dbName);
+		//(keep performance in line with 2.4)
+		db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+		return db;
+	}
 	
 	// Generic database access:
 	
@@ -165,31 +179,6 @@ public class MongoDbManager {
 		private DBCollection _social_gui_favmodules;
 		private DBCollection _social_gui_setup;		
 		
-		public CommandResult getLastError(String sLogicalCollectionName) {
-			// (In this case, version doesn't -currently- matter)
-			if (sLogicalCollectionName.equalsIgnoreCase("authentication")) {			
-				return _savedMongo.getDB("security").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("cookies")) {			
-				return _savedMongo.getDB("security").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("binary")) {			
-				return _savedMongo.getDB("file").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("uimodules")) {			
-				return _savedMongo.getDB("gui").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("uifavoritemodules")) {			
-				return _savedMongo.getDB("gui").getLastError();
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("uisetup")) {			
-				return _savedMongo.getDB("gui").getLastError();					
-			}
-			else {
-				return _savedMongo.getDB("social").getLastError();
-			}
-		}
-
 		public DBCollection getPerson() {
 			if (null == _social_person) {
 				_social_person = _savedMongo.getDB("social").getCollection("person");
@@ -277,19 +266,19 @@ public class MongoDbManager {
 		}
 		public DBCollection getMetadata() {
 			if (null == _document_metadata) {
-				_document_metadata = _savedMongo.getDB("doc_metadata").getCollection("metadata");					
+				_document_metadata = initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("metadata");					
 			}
 			return _document_metadata;
 		}
 		public DBCollection getContent() {
 			if (null == _document_content) {
-				_document_content = _savedMongo.getDB("doc_content").getCollection("gzip_content");					
+				_document_content = initializeFastWriteDB("doc_content", _savedMongo).getCollection("gzip_content");					
 			}
 			return _document_content;
 		}
 		public DBCollection getCounts() {
 			if (null == _document_counts) {
-				_document_counts = _savedMongo.getDB("doc_metadata").getCollection("doc_counts");					
+				_document_counts = initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("doc_counts");					
 			}
 			return _document_counts;			
 		}
@@ -307,38 +296,33 @@ public class MongoDbManager {
 		private DBCollection _feature_sync_lock;
 		private DBCollection _feature_agg_lock;
 		
-		public CommandResult getLastError(String sLogicalCollectionName) {
-			// (In this case, logical collection name doesn't matter)
-			return _savedMongo.getDB("feature").getLastError();				
-		}
-		
 		public DBCollection getEntity() {
 			if (null == _feature_entity) {
-				_feature_entity = _savedMongo.getDB("feature").getCollection("entity");					
+				_feature_entity = initializeFastWriteDB("feature", _savedMongo).getCollection("entity");					
 			}
 			return _feature_entity;
 		}
 		public DBCollection getAssociation() {
 			if (null == _feature_assoc) {
-				_feature_assoc = _savedMongo.getDB("feature").getCollection("association");					
+				_feature_assoc = initializeFastWriteDB("feature", _savedMongo).getCollection("association");					
 			}
 			return _feature_assoc;
 		}
 		public DBCollection getGeo() {
 			if (null == _feature_geo) {
-				_feature_geo = _savedMongo.getDB("feature").getCollection("geo");					
+				_feature_geo = initializeFastWriteDB("feature", _savedMongo).getCollection("geo");					
 			}
 			return _feature_geo;
 		}
-		public DBCollection getSyncLock() { // (Used to synchronize batch operations performed via script)
+		public DBCollection getSyncLock() { // (Used to synchronize batch operations performed via script - manually ack writes to/from this)
 			if (null == _feature_sync_lock) {
-				_feature_sync_lock = _savedMongo.getDB("feature").getCollection("sync_lock");					
+				_feature_sync_lock = initializeFastWriteDB("feature", _savedMongo).getCollection("sync_lock");					
 			}
 			return _feature_sync_lock;			
 		}
-		public DBCollection getAggregationLock() { // (Used to lock aggregation activities to one harvester)
+		public DBCollection getAggregationLock() { // (Used to lock aggregation activities to one harvester - manually ack writes to/from this)
 			if (null == _feature_agg_lock) {
-				_feature_agg_lock = _savedMongo.getDB("feature").getCollection("agg_lock");					
+				_feature_agg_lock = initializeFastWriteDB("feature", _savedMongo).getCollection("agg_lock");					
 			}
 			return _feature_agg_lock;			
 		}
@@ -355,11 +339,6 @@ public class MongoDbManager {
 		private DBCollection _ingest_log_harvester_q;
 		private DBCollection _ingest_log_harvester_slaves;
 		private DBCollection _ingest_federated_cache;
-		
-		public CommandResult getLastError(String sLogicalCollectionName) {
-			// (In this case, logical collection name doesn't matter)
-			return _savedMongo.getDB("ingest").getLastError();				
-		}
 		
 		public DBCollection getSource() {
 			if (null == _ingest_source) {
@@ -403,11 +382,6 @@ public class MongoDbManager {
 		private DBCollection _config_customlookup;
 		private DBCollection _config_customSavedQueryCache;
 		
-		public CommandResult getLastError(String sLogicalCollectionName) {
-			// (In this case, logical collection name doesn't matter)
-			return _savedMongo.getDB("custommr").getLastError();				
-		}
-		
 		public DBCollection getLookup() {
 			if (null == _config_customlookup) {
 				_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");										
@@ -422,5 +396,216 @@ public class MongoDbManager {
 		}
 	}
 	
+	// TEST CODE TO UNDERSTAND PERFORMANCE
+	@SuppressWarnings("deprecation")
+	public static void main(String[] args) throws UnknownHostException {
+		MongoClient mc = new MongoClient(args[0]);
+		long tnow = 0;		
+		DB db = mc.getDB("test");
+		DBCollection test = db.getCollection("test123");
+		BasicDBObject outObj = new BasicDBObject();
+		int ITS = 1000;
+		test.drop();
+		
+		boolean checkPerformance = false;
+		boolean checkFunctionality = false;
+		boolean checkErrors = false;
+		
+		// 1] Performance
+		
+		if (checkPerformance) {
+		
+			// ack'd
+			db.setWriteConcern(WriteConcern.ACKNOWLEDGED);
+			test.drop();
+			tnow = new Date().getTime();
+			for (int i = 0; i < ITS; ++i) {
+				outObj.remove("_id");
+				outObj.put("val", i);
+				test.save(outObj);
+			}
+			tnow = new Date().getTime() - tnow;
+			System.out.println("1: Ack'd: " + tnow);
+			
+			// un ack'd
+			db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+			test.drop();
+			tnow = new Date().getTime();
+			outObj = new BasicDBObject();
+			for (int i = 0; i < ITS; ++i) {
+				outObj.remove("_id");
+				outObj.put("val", i);
+				test.save(outObj);
+			}
+			tnow = new Date().getTime() - tnow;
+			System.out.println("2: unAck'd: " + tnow);
+			
+			// un ack'd but call getLastError
+			db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+			test.drop();
+			tnow = new Date().getTime();
+			outObj = new BasicDBObject();
+			for (int i = 0; i < ITS; ++i) {
+				outObj.remove("_id");
+				outObj.put("val", i);
+				test.save(outObj);
+				db.getLastError();
+			}
+			tnow = new Date().getTime() - tnow;
+			test.drop();
+			System.out.println("3: unAck'd but GLEd: " + tnow);
+			
+			// ack'd override
+			db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+			test.drop();
+			tnow = new Date().getTime();
+			outObj = new BasicDBObject();
+			for (int i = 0; i < ITS; ++i) {
+				outObj.remove("_id");
+				outObj.put("val", i);
+				test.save(outObj, WriteConcern.ACKNOWLEDGED);
+				db.getLastError();
+			}
+			tnow = new Date().getTime() - tnow;
+			System.out.println("4: unAck'd but ACKd: " + tnow);
+			
+			// Performance Results:
+			// 2.6) (unack'd 100ms ... ack'd 27000)
+			// 2.4) (same)
+		}
+		
+		// 2] Functionality
+		
+		if (checkFunctionality) {
+		
+			// Unack:
+			db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+			WriteResult wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("val2", "x")), false, true);
+			CommandResult cr = db.getLastError();
+			System.out.println("UNACK: wr: " + wr);
+			System.out.println("UNACK: cr: " + cr);
+			
+			// bonus, check that we get N==0 when insert dup object
+			WriteResult wr2 = test.insert(outObj);
+			System.out.println("ACK wr2 = " + wr2.getN()  + " all = " +wr2);
+			CommandResult cr2 = db.getLastError();
+			System.out.println("ACK cr2 = " + cr2);
+			
+			// Ack1:
+			db.setWriteConcern(WriteConcern.ACKNOWLEDGED);
+			wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("val3", "x")), false, true);
+			cr = db.getLastError();
+			System.out.println("ACK1: wr: " + wr);
+			System.out.println("ACK1: cr: " + cr);
+			
+			// Ack2:
+			db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+			wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("val4", "x")), false, true, WriteConcern.ACKNOWLEDGED);
+			cr = db.getLastError();
+			System.out.println("ACK2: wr: " + wr);
+			System.out.println("ACK2: cr: " + cr);
 	
+			// bonus, check that we get N==0 when insert dup object
+			wr2 = test.insert(outObj);
+			System.out.println("ACK wr2 = " + wr2.getN()  + " all = " +wr2);
+			
+			// Functionality results:
+			// 2.6: unack wr == N/A, otherwise both have "n", "ok"
+			// 2.4: unack wr == N/A all other wrs + crs identical 
+		}
+		
+		if (checkErrors) {
+
+			//set up sharding
+			DbManager.getDB("admin").command(new BasicDBObject("enablesharding", "test"));			
+			// Ack:
+			try {
+				test.drop();
+				test.createIndex(new BasicDBObject("key", 1));
+				BasicDBObject command1 = new BasicDBObject("shardcollection", "test.test123");
+				command1.append("key", new BasicDBObject("key", 1));
+				DbManager.getDB("admin").command(command1);
+				
+				db.setWriteConcern(WriteConcern.ACKNOWLEDGED);
+				outObj = new BasicDBObject("key", "test");
+				test.save(outObj);
+				WriteResult wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("key", "test2")));
+				System.out.println("ACK wr = " + wr);
+			}
+			catch (Exception e) {
+				System.out.println("ACK err = " + e.toString());
+			}
+			
+			// UnAck:
+			try {
+				test.drop();
+				test.createIndex(new BasicDBObject("key", 1));
+				BasicDBObject command1 = new BasicDBObject("shardcollection", "test.test123");
+				command1.append("key", new BasicDBObject("key", 1));
+				DbManager.getDB("admin").command(command1);
+				
+				db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+				outObj = new BasicDBObject("key", "test");
+				test.save(outObj);
+				WriteResult wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("key", "test2")), false, false, WriteConcern.ACKNOWLEDGED);
+				System.out.println("ACK override wr = " + wr);
+			}
+			catch (Exception e) {
+				System.out.println("ACK override  err = " + e.toString());
+			}
+
+			// UnAck:
+			try {
+				test.drop();
+				test.createIndex(new BasicDBObject("key", 1));
+				BasicDBObject command1 = new BasicDBObject("shardcollection", "test.test123");
+				command1.append("key", new BasicDBObject("key", 1));
+				DbManager.getDB("admin").command(command1);
+				
+				db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+				outObj = new BasicDBObject("key", "test");
+				test.save(outObj);
+				WriteResult wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("key", "test2")));
+				System.out.println("UNACK wr = " + wr);
+			}
+			catch (Exception e) {
+				System.out.println("UNACK err = " + e.toString());
+			}
+			
+			// UnAck + GLE:
+			try {
+				test.drop();
+				test.createIndex(new BasicDBObject("key", 1));
+				BasicDBObject command1 = new BasicDBObject("shardcollection", "test.test123");
+				command1.append("key", new BasicDBObject("key", 1));
+				DbManager.getDB("admin").command(command1);
+				
+				db.setWriteConcern(WriteConcern.UNACKNOWLEDGED);
+				outObj = new BasicDBObject("key", "test");
+				test.save(outObj);
+				WriteResult wr = test.update(new BasicDBObject(), new BasicDBObject(DbManager.set_, new BasicDBObject("key", "test2")));
+				CommandResult cr = db.getLastError();
+				System.out.println("UNACK GLE wr = " + wr);
+				System.out.println("UNACK GLE cr = " + cr);
+			}
+			catch (Exception e) {
+				System.out.println("UNACK GLE err = " + e.toString());
+			}
+		
+			// Error handling:
+			
+			// 2.6:
+			// Ack - exception
+			// Ack override - exception
+			// UnAck - no error given
+			// UnAck + GLE  - gle error
+			
+			// 2.4:
+			// Ack - exception
+			// Ack override - exception
+			// UnAck - no error given
+			// UnAck + GLE  - gle error
+			
+		}
+	}
 }

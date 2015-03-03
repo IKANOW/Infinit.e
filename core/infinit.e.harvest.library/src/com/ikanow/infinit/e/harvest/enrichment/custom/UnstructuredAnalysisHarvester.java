@@ -176,7 +176,7 @@ public class UnstructuredAnalysisHarvester {
 			if ((null != meta.store) && !meta.store) {
 				unstoredFields.add(meta.fieldName); 
 			}
-			else if (unstoredFields.contains(meta.fieldName)) {
+			else if ((null != unstoredFields) && unstoredFields.contains(meta.fieldName)) {
 				unstoredFields.remove(meta.fieldName);
 			}
 			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);						
@@ -1092,7 +1092,7 @@ public class UnstructuredAnalysisHarvester {
 						xml = true;
 						break;
 					}
-					if ('{' == text.charAt(i)) {
+					if ('{' == text.charAt(i) || '[' == text.charAt(i)) {
 						json = true;
 						break;
 					}
@@ -1150,7 +1150,7 @@ public class UnstructuredAnalysisHarvester {
 						LlistObj = new ArrayList<Object>(docs.size());
 					}
 					for (DocumentPojo doc: docs) {
-						if ((null != doc.getFullText()) || (null != doc.getMetadata())) {
+						if ((null != doc.getFullText()) || (null != doc.getMetadata())) {							
 							if (textNotObject) {
 								Llist.add(doc.getFullText());
 							}//TESTED
@@ -1160,10 +1160,13 @@ public class UnstructuredAnalysisHarvester {
 							else if (json) {
 								Object o = doc.getMetadata();
 								if (null != o) {
-									o = doc.getMetadata().get("json");
-									if (null != o) {
-										LlistObj.add(o);
+									o = doc.getMetadata().get("json");									
+									if (o instanceof Object[]) {
+										LlistObj.addAll(Arrays.asList((Object[])o));
 									}
+									else if (null != o) {
+										LlistObj.add(o);
+									}//TESTED
 								}
 							}//TESTED
 						}
@@ -1659,7 +1662,7 @@ public class UnstructuredAnalysisHarvester {
 			if ( null != engine )
 			{
 				if (null != source) {
-					loadLookupCaches(uap.getCaches(), source.getCommunityIds());
+					loadLookupCaches(uap.getCaches(), source.getCommunityIds(), source.getOwnerId());
 					List<String> scriptFiles = null;
 					if (null != uap.getScriptFiles()) {
 						scriptFiles = Arrays.asList(uap.getScriptFiles());
@@ -1687,12 +1690,15 @@ public class UnstructuredAnalysisHarvester {
 	// Utilities that in legacy mode are called from the initializeScriptEngine, but can be called
 	// standalone in the pipelined mode:
 	
-	public void loadLookupCaches(Map<String, ObjectId> caches, Set<ObjectId> communityIds)
+	public void loadLookupCaches(Map<String, ObjectId> caches, Set<ObjectId> communityIds, ObjectId sourceOwnerId)
 	{
 		try
 		{
 			if (null != caches) {
-				CacheUtils.addJSONCachesToEngine(caches, engine, securityManager, communityIds, _context);
+				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, engine, securityManager, communityIds, sourceOwnerId, _context);
+				for (String err: errs) {
+					_context.getHarvestStatus().logMessage(err, true);
+				}				
 			}
 		}
 		catch (Exception ex)

@@ -15,14 +15,19 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.social.person;
 
+import java.util.Set;
+
 import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 
 public class PersonCommunityPojo extends BaseDbPojo 
 {
 	private ObjectId _id = null;
 	private String name = null;
+	private CommunityPojo.CommunityType type = null;
+	private Set<ObjectId> derived = null; // (for data groups that belong because of user group membership)
 	
 	public PersonCommunityPojo()
 	{
@@ -59,6 +64,22 @@ public class PersonCommunityPojo extends BaseDbPojo
 	 */
 	public String getName() {
 		return name;
+	}
+
+	public Set<ObjectId> getDerived() {
+		return derived;
+	}
+
+	public void setDerived(Set<ObjectId> derived) {
+		this.derived = derived;
+	}
+
+	public CommunityPojo.CommunityType getType() {
+		return (null == type) ? CommunityPojo.CommunityType.data : type;
+	}
+
+	public void setType(CommunityPojo.CommunityType type) {
+		this.type = type;
 	}	
 	
 }

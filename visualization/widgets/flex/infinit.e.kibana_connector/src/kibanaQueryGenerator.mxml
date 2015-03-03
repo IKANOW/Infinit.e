@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+			   xmlns:s="library://ns.adobe.com/flex/spark"
+			   xmlns:mx="library://ns.adobe.com/flex/mx" width="400" height="230" close="handleCloseEvent();">
+	<fx:Declarations>
+		<s:RadioButtonGroup id="qt" />
+		<s:RadioButtonGroup id="how" />
+	</fx:Declarations>
+	
+	<s:layout>
+		<s:VerticalLayout/>
+	</s:layout>
+	
+	<fx:Script>
+		<![CDATA[
+			import classes.KibanaQueryControlObject;
+			
+			import com.ikanow.infinit.e.widget.library.components.InfiniteFlexIFrame;
+			
+			import flashx.textLayout.debug.assert;
+			
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.managers.PopUpManager;
+			
+			import spark.components.RadioButtonGroup;
+			
+			[Bindable]
+			public var entities:ArrayCollection;
+			[Bindable]
+			public var associations:ArrayCollection;
+			public var jsIFrameKibana:InfiniteFlexIFrame;
+			
+			// Handle the close button and Cancel button.
+			private function handleCloseEvent():void {
+				PopUpManager.removePopUp(this);
+			}            
+			
+			public function addQueryElementsToEntitiesList(queryElements:ArrayCollection):void
+			{
+				if (null != queryElements)
+				{
+					if (null == entities)
+						entities = new ArrayCollection();
+					
+					var ent_term:String = null;
+					
+					entities.addAll(queryElements); //TODO: Dedup?
+				}
+			}
+			
+			// Handle the OK button.
+			private function processSumbit(append:Boolean):void {
+				// Check credentials (not shown) then remove pop up.
+				var qt_string:String = qt.selectedValue.toString();
+				var how_string:String = how.selectedValue.toString();
+				
+				if ((null != entities || null != associations) && null != jsIFrameKibana)
+				{
+					if ( null != qt_string && null != how_string)
+					{
+						var applyToFilter:Boolean = false;
+						if ( qt_string == "query" || qt_string == "filter")
+						{
+							if (qt_string == "filter")
+								applyToFilter = true;
+							jsIFrameKibana.callIFrameFunction('ikanowObjectsToKibana',[new KibanaQueryControlObject(append,(how_string == "decompose"),how_string,applyToFilter,entities, associations).toJson()]);
+							trace(new KibanaQueryControlObject(append,(how_string == "decompose"),how_string,applyToFilter,entities, associations).toJson());
+						}
+						else
+						{
+							Alert.show("Please select to apply to query or filter.");
+							return;
+						}
+					}
+					else
+					{
+						Alert.show("Please select how to apply these elements");
+						return;
+					}
+				}
+				else
+				{
+					Alert.show("There are no entites to apply these settings to.");
+					return;
+				}
+
+				PopUpManager.removePopUp(this);
+			}
+		]]>
+	</fx:Script>
+	
+	
+	<s:Form defaultButton="{add}" width="100%">
+		<s:layout>
+			<s:FormLayout gap="-14" />
+		</s:layout>
+		<s:FormItem label="Apply Elements To:">
+			<s:RadioButton id="query" label="Query" toolTip="Apply Elements to Kibana Query" group="{qt}" value="query" selected="true" width="100%"/>
+			<s:RadioButton id="filter" label="Filter" toolTip="Apply Elements to Kibana Filter" group="{qt}" value="filter" width="100%"/>
+		</s:FormItem> 
+		<s:FormItem label="Term Combining:" >
+			<s:RadioButton id="and" label="Combine with 'AND'" toolTip="Each element will combined into 1 search combined with 'AND'" group="{how}" value="AND" selected="true"  width="100%"/>
+			<s:RadioButton id="or" label="Combine with 'OR'" toolTip="Each element will combined into 1 search combined with 'OR'" group="{how}" value="OR"  width="100%"/>
+			<s:RadioButton id="decompose" label="Decompose" toolTip="Each element will be added separately" group="{how}" value="decompose"  width="100%"/>
+		</s:FormItem> 
+	</s:Form>
+	<s:HGroup horizontalAlign="right" paddingRight="20" width="100%"> 
+		<s:Button id="add" label="Add" toolTip="Add to the existing Terms"
+				  click="processSumbit(true);" /> 
+		<s:Button label="Replace" toolTip="Replace the existing Terms"
+				  click="processSumbit(false);" /> 
+		<s:Button label="Cancel" toolTip="Cancel adding Terms"
+				  click="handleCloseEvent();"/> 
+	</s:HGroup> 
+	
+</s:TitleWindow>

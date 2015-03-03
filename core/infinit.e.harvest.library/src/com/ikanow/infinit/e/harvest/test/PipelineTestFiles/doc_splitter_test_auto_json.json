@@ -1,0 +1,84 @@
+    [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "title": "test1",
+                        "description": "test1a,test1b,test1c,test1d",
+                        "publishedDate": "2001-02-13T15:08:19Z",
+                        "fullText": "test1",
+                        "url": "test1"
+                    },
+                    {
+                        "title": "test2",
+                        "description": "test2a,test2b,test2c,test2d",
+                        "fullText": "test2",
+                        "url": "test2"
+                    },
+                    {
+                        "title": "test3",
+                        "description": "test3a,test3b,test3c,test3d",
+                        "publishedDate": "2003-02-13T15:08:19Z",
+                        "fullText": "{'nested':{'name':'test3_1'}}\n{'nested':{'name':'test3_2'}}",
+                        "url": "test3"
+                    },
+                    {
+                        "title": "test4",
+                        "description": "test4a,test4b,test4c,test4d",
+                        "publishedDate": "2003-02-13T15:08:19Z",
+                        "fullText": "<list><element><a>test4_1</a><b>TEST4_1</b></element><element><a>test4_2</a><b>TEST4_2</b></element></list>",
+                        "url": "test4"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "just to check where spawned docs first appear...",
+            "criteria": "return _doc.title == 'test1' || _doc.title == 'test2';",
+            "contentMetadata": [
+                {
+                    "scriptlang": "javascript",
+                    "fieldName": "test12objs",
+                    "script": "var x = [{'nested':{'name':'test12_1'}},{'nested':{'name':'test12_2'}}]; x;",
+                    "flags": "d"
+                }
+            ]
+        },
+        {
+            "criteria": "return _doc.title == 'test1';",
+            "splitter": {
+                "scriptlang": "automatic_json",
+                "deleteExisting": true,
+                "script": "test12objs"
+            },
+            "display": "TEST1: Test JSON extractor, automated URL extraction"
+        },
+        {
+            "display": "TEST2: Test text extractor, simple manual URL extraction",
+            "criteria": "return _doc.title == 'test2';",
+            "splitter": {
+                "script": "test12objs,nested.name,",
+                "deleteExisting": true,
+                "scriptlang": "automatic"
+            }
+        },
+        {
+            "criteria": "return _doc.title == 'test3';",
+            "splitter": {
+                "scriptlang": "automatic_json",
+                "deleteExisting": true,
+                "script": "fullText,id1={1},nested.name"
+            },
+            "display": "TEST3: Test text->JSON extractor, complex manual URL extraction"
+        },
+        {
+            "criteria": "return _doc.title == 'test4';",
+            "splitter": {
+                "scriptlang": "automatic_json",
+                "deleteExisting": true,
+                "script": "fullText.element,id1={1}&id2={2},a,b"
+            },
+            "display": "TEST4: Test text->XML extractor, complex manual URL extraction"
+        }
+    ]

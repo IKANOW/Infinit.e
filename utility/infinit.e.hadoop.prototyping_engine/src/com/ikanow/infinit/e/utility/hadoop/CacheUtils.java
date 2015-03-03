@@ -56,8 +56,19 @@ public class CacheUtils
 					json = getShareFromDB(shareId);
 				}				
 				if (null == json) { // not a share, maybe it's a custom job?
-					if (!createCustomCache(engine, secManager, cacheName, cacheName)) {
-						createSourceCache(engine, secManager, cacheName, cacheName, debugMode);
+					try {
+						createCustomCache(engine, secManager, cacheName, cacheName);
+					}
+					catch (Exception e) {
+						try {
+							createSourceCache(engine, secManager, cacheName, cacheName, debugMode);
+						}
+						catch (Exception e2) {
+							/**/
+							e.printStackTrace();
+							e2.printStackTrace();
+							throw new RuntimeException("Source or Custom cache fail: " + e2.getMessage() + " / " + e.getMessage());
+						}
 					}
 				}
 				else { // is a share
@@ -92,175 +103,167 @@ public class CacheUtils
 	
 	/**
 	 * Code for managing larger caches (represented as custom objects)
+	 * @throws ScriptException 
 	 */
 
-	public static synchronized boolean createCustomCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String jobNameOrShareId) {
+	public static synchronized void createCustomCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String jobNameOrShareId) throws ScriptException {
+		if (null == _customCache) {
+			_customCache = new HashMap<String, CustomCacheInJavascript>();
+		}
+		
+		// 1) Check authentication
+		
+		String jobName = null;
+		ObjectId jobId = null;
+		CustomMapReduceJobPojo customJob = null;
+		BasicDBObject query = new BasicDBObject();
+			// (already authenticated by this point)
+		
 		try {
-			if (null == _customCache) {
-				_customCache = new HashMap<String, CustomCacheInJavascript>();
-			}
-			
-			// 1) Check authentication
-			
-			String jobName = null;
-			ObjectId jobId = null;
-			CustomMapReduceJobPojo customJob = null;
-			BasicDBObject query = new BasicDBObject();
-				// (already authenticated by this point)
-			
-			try {
-				jobId = new ObjectId(jobNameOrShareId);
-				query.put(CustomMapReduceJobPojo._id_, jobId);
-				customJob = CustomMapReduceJobPojo.fromDb(
-						MongoDbManager.getCustom().getLookup().findOne(query), 
-							CustomMapReduceJobPojo.class);
-			}
-			catch (Exception e) {
-				// it's a job name
-				jobName = jobNameOrShareId;
-				query.put(CustomMapReduceJobPojo.jobtitle_, jobName);
-				customJob = CustomMapReduceJobPojo.fromDb(
-						MongoDbManager.getCustom().getLookup().findOne(query), 
-							CustomMapReduceJobPojo.class);
-			} 
-			if (null == customJob) {
-				throw new RuntimeException("Authentication failure or no matching custom job");
-			}
-			jobName = customJob.jobtitle;
-			jobId = customJob._id;
-			
-			DBCollection cacheCollection = MongoDbManager.getCollection(customJob.getOutputDatabase(), customJob.outputCollection);
-			
-			// 2) Do we already have this cache?
-			
-			CustomCacheInJavascript cacheElement = _customCache.get(jobNameOrShareId);
-			
-			if (null != cacheElement) {
-				// Cache has changed:
-				if (cacheElement.getCollection().equals(customJob.outputCollection)) {
-					_customCache.remove(jobNameOrShareId);
-					cacheElement = null;
-				}
-			}//TOTEST
-			if (null == cacheElement) {
-				// 3) Check key is indexed
-				cacheCollection.ensureIndex(new BasicDBObject("key", 1));
-				
-				// 4) Check key is Text or single value BSON (and what is that value?)
-				String keyField = null;
-				if (null == customJob.outputKey) {
-					throw new RuntimeException("Invalid key: " + customJob.outputKey);
-				}
-				if (customJob.outputKey.equalsIgnoreCase("com.mongodb.hadoop.io.BSONWritable")) {
-					// Just going to use the first element in the key
-					BasicDBObject record = (BasicDBObject) cacheCollection.findOne();
-					if (null != record) {
-						BasicDBObject key = (BasicDBObject) record.get("key");
-						if (1 == key.size()) {
-							keyField = "key." + key.entrySet().iterator().next().getKey();
-						}
-						else {
-							throw new RuntimeException("Invalid key size, too complex, eg: " + keyField);					
-						}//TOTEST
-					}
-				}//TESTED (apart from too complex case TOTEST)
-				else if (!customJob.outputKey.equalsIgnoreCase("org.apache.hadoop.io.Text")) {
-					throw new RuntimeException("Invalid key: " + customJob.outputKey);					
-				}//TOTEST
-				cacheElement = new CustomCacheInJavascript(cacheCollection, keyField);
-			}		
-
-			// 5) Add object to js
-			
-			if (null != cacheElement) {
-				//DEBUG
-				//System.out.println("ADDED " + jobAlias);
-				
-				_customCache.put(jobNameOrShareId, cacheElement);
-				engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
-				engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
-			}//TESTED
+			jobId = new ObjectId(jobNameOrShareId);
+			query.put(CustomMapReduceJobPojo._id_, jobId);
+			customJob = CustomMapReduceJobPojo.fromDb(
+					MongoDbManager.getCustom().getLookup().findOne(query), 
+						CustomMapReduceJobPojo.class);
 		}
 		catch (Exception e) {
-			// Apparently we're failing silently?!
-			//DEBUG
-			//e.printStackTrace();
-			return false;
+			// it's a job name
+			jobName = jobNameOrShareId;
+			if (jobName.startsWith("custom:")) {
+				jobName = jobName.substring(7);
+			}
+			query.put(CustomMapReduceJobPojo.jobtitle_, jobName);
+			customJob = CustomMapReduceJobPojo.fromDb(
+					MongoDbManager.getCustom().getLookup().findOne(query), 
+						CustomMapReduceJobPojo.class);
+		} 
+		if (null == customJob) {
+			throw new RuntimeException("No matching custom job");
 		}
-		return true;
+		jobName = customJob.jobtitle;
+		jobId = customJob._id;
+		
+		DBCollection cacheCollection = MongoDbManager.getCollection(customJob.getOutputDatabase(), customJob.outputCollection);
+		
+		// 2) Do we already have this cache?
+		
+		CustomCacheInJavascript cacheElement = _customCache.get(jobNameOrShareId);
+		
+		if (null != cacheElement) {
+			// Cache has changed:
+			if (cacheElement.getCollection().equals(customJob.outputCollection)) {
+				_customCache.remove(jobNameOrShareId);
+				cacheElement = null;
+			}
+		}//TOTEST
+		if (null == cacheElement) {
+			// 3) Check key is indexed
+			cacheCollection.createIndex(new BasicDBObject("key", 1));
+			
+			// 4) Check key is Text or single value BSON (and what is that value?)
+			String keyField = null;
+			if (null == customJob.outputKey) {
+				throw new RuntimeException("Invalid key: " + customJob.outputKey);
+			}
+			if (customJob.outputKey.equalsIgnoreCase("com.mongodb.hadoop.io.BSONWritable")) {
+				// Just going to use the first element in the key
+				BasicDBObject record = (BasicDBObject) cacheCollection.findOne();
+				if (null != record) {
+					BasicDBObject key = (BasicDBObject) record.get("key");
+					if (1 == key.size()) {
+						keyField = key.entrySet().iterator().next().getKey();
+					}
+					else {
+						throw new RuntimeException("Invalid key size, too complex, eg: " + key);					
+					}//TOTEST
+				}
+			}//TESTED (apart from too complex case TOTEST)
+			else if (!customJob.outputKey.equalsIgnoreCase("org.apache.hadoop.io.Text")) {
+				throw new RuntimeException("Invalid key: " + customJob.outputKey);					
+			}//TOTEST
+			cacheElement = new CustomCacheInJavascript(cacheCollection, keyField);
+		}		
+
+		// 5) Add object to js
+		
+		if (null != cacheElement) {
+			//DEBUG
+			//System.out.println("ADDED " + jobAlias);
+			
+			_customCache.put(jobNameOrShareId, cacheElement);
+			engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
+			engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
+		}//TESTED
 	}
 	/**
 	 * Code for managing larger caches (represented as communities)
+	 * @throws ScriptException 
 	 */
-	public static synchronized void createSourceCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String sourceKeyOrId, boolean testMode)
+	public static synchronized void createSourceCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String sourceKeyOrId, boolean testMode) throws ScriptException
 	{
+		if (null == _customCache) {
+			_customCache = new HashMap<String, CustomCacheInJavascript>();
+		}
+		
+		// 1) Check authentication
+		
+		ObjectId sourceId = null;
+		SourcePojo source = null;
+		BasicDBObject query = new BasicDBObject();
+			// (already authenticated by this point)
+		
 		try {
-			if (null == _customCache) {
-				_customCache = new HashMap<String, CustomCacheInJavascript>();
-			}
-			
-			// 1) Check authentication
-			
-			ObjectId sourceId = null;
-			SourcePojo source = null;
-			BasicDBObject query = new BasicDBObject();
-				// (already authenticated by this point)
-			
-			try {
-				sourceId = new ObjectId(sourceKeyOrId);
-				query.put(SourcePojo._id_, sourceId);
-				source = SourcePojo.fromDb(
-						MongoDbManager.getIngest().getSource().findOne(query), 
-						SourcePojo.class);
-			}
-			catch (Exception e) {
-				// it's a job name
-				String sourceKey = sourceKeyOrId;
-				query.put(SourcePojo.key_, sourceKey);
-				source = SourcePojo.fromDb(
-						MongoDbManager.getIngest().getSource().findOne(query), 
-						SourcePojo.class);
-			} 
-			if (null == source) {
-				throw new RuntimeException("Authentication failure or no matching source");
-			}
-			sourceId = source.getId();
-			
-			DBCollection cacheCollection = DbManager.getDocument().getMetadata();
-			
-			// 2) Do we already have this cache?
-			
-			CustomCacheInJavascript cacheElement = _customCache.get(sourceKeyOrId);
-
-			if (testMode) {
-				_customCache.remove(sourceKeyOrId);
-				cacheElement = null;				
-			}//TESTED
-			
-			if (null == cacheElement) {				
-				cacheElement = new CustomCacheInJavascript(cacheCollection, DocumentPojo.url_);
-				cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm()));
-			}//TESTED (by c/p from harvest equivalent - distributed and non-distributed cases)
-
-			// 3) Add object to js
-			
-			if (null != cacheElement) {
-				//DEBUG
-				//System.out.println("ADDED " + jobAlias);
-				
-				_customCache.put(sourceKeyOrId, cacheElement);
-				engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
-				engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
-				
-			}//TESTED
+			sourceId = new ObjectId(sourceKeyOrId);
+			query.put(SourcePojo._id_, sourceId);
+			source = SourcePojo.fromDb(
+					MongoDbManager.getIngest().getSource().findOne(query), 
+					SourcePojo.class);
 		}
 		catch (Exception e) {
-			// Apparently we're failing silently?!
-			//DEBUG
-			//e.printStackTrace();
+			// it's a job name
+			// if it starts with "source:" remove that (lets users force a name to be a source)
+			String sourceKey = sourceKeyOrId;
+			if (sourceKey.startsWith("source:")) {
+				sourceKey = sourceKey.substring(7);
+			}
+			query.put(SourcePojo.key_, sourceKey);
+			source = SourcePojo.fromDb(
+					MongoDbManager.getIngest().getSource().findOne(query), 
+					SourcePojo.class);
+		} 
+		if (null == source) {
+			throw new RuntimeException("No matching source");
 		}
-	}//TESTED (except where noted)
+		sourceId = source.getId();
+		
+		DBCollection cacheCollection = DbManager.getDocument().getMetadata();
+		
+		// 2) Do we already have this cache?
+		
+		CustomCacheInJavascript cacheElement = _customCache.get(sourceKeyOrId);
 
+		if (testMode) {
+			_customCache.remove(sourceKeyOrId);
+			cacheElement = null;				
+		}//TESTED
+		
+		if (null == cacheElement) {				
+			cacheElement = new CustomCacheInJavascript(cacheCollection, DocumentPojo.url_);
+			cacheElement.setBaseQuery(new BasicDBObject(DocumentPojo.sourceKey_, source.getDistributedKeyQueryTerm()));
+		}//TESTED (by c/p from harvest equivalent - distributed and non-distributed cases)
+
+		// 3) Add object to js
+		
+		if (null != cacheElement) {
+			//DEBUG
+			//System.out.println("ADDED " + jobAlias);
+			
+			_customCache.put(sourceKeyOrId, cacheElement);
+			engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
+			engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
+			
+		}//TESTED
+	}
 	
 	/**
 	 * Utility code for larger caches
@@ -328,7 +331,7 @@ public class CacheUtils
 					}//TESTED
 					else {
 						if ((null != key) && (0 != key.length())) {
-							query.put(_keyField, key);
+							query.put("key", new BasicDBObject(_keyField, key));
 						}
 						dbo = (BasicDBObject) _cacheCollection.findOne(query);					
 					}//TESTED

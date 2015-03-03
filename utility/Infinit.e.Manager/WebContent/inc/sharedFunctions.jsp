@@ -150,7 +150,6 @@ limitations under the License.
 <%!	
 //!---------- SSL handling -------------!
 
-	/**/
 	static class TrustManagerManipulator implements X509TrustManager {
 	
 		private static TrustManager[] trustManagers;
@@ -601,6 +600,11 @@ limitations under the License.
 		return callRestfulApi("social/community/getall/", request, response);
 	}
 	
+	// getAllUserGroups - 
+	private String getAllUserGroups(HttpServletRequest request, HttpServletResponse response) 
+	{
+		return callRestfulApi("social/group/user/getall/", request, response);
+	}
 	
 	// getPublicCommunities - 
 	public String getPublicCommunities(HttpServletRequest request, HttpServletResponse response) 
@@ -813,6 +817,9 @@ limitations under the License.
 							String tempTitle = sourceObj.getString("title");
 							if ( isSuspended(sourceObj) )
 								tempTitle = "[SUSPENDED] " + tempTitle;
+							if ( isPendingApproval(sourceObj) ) {
+								tempTitle = "[PENDING APPROVAL] " + tempTitle;
+							}
 							
 							if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) tempTitle += " (+)";							
 							
@@ -863,6 +870,9 @@ limitations under the License.
 						}						
 						if ( isSuspended(sourceObj) || suspended )
 							tempTitle = "[SUSPENDED] " + tempTitle;
+						if ( isPendingApproval(sourceObj) ) {
+							tempTitle = "[PENDING APPROVAL] " + tempTitle;
+						}
 						
 						if (sourceObj.has("ownerId") && !sourceObj.getString("ownerId").equalsIgnoreCase(userIdStr)) 
 							tempTitle += " (+)";
@@ -971,8 +981,7 @@ limitations under the License.
 		}
 		catch (Exception e) {
 			// field not present, discard source
-			/**/
-			e.printStackTrace();
+			//e.printStackTrace();
 		} 
 		if ( !value.toLowerCase().contains( filter.toLowerCase() ) )
 		{
@@ -981,11 +990,26 @@ limitations under the License.
 		return false;
 	}//TESTED
 	
+	private boolean isPendingApproval(JSONObject source) {
+		try
+		{
+			if ( source.has("isApproved") && !source.getBoolean("isApproved"))
+			{
+				return true;
+			}
+		}
+		catch (Exception ex)
+		{
+			//do nothing, we return false anyways
+		}
+		return false;		
+	}
+	
 	private boolean isSuspended(JSONObject source)
 	{
 		try
 		{
-			if ( source.has("searchCycle_secs") && source.getInt("searchCycle_secs") <= 0)
+			if ( source.has("searchCycle_secs") && source.getInt("searchCycle_secs") < 0)
 			{
 				return true;
 			}
@@ -1053,14 +1077,33 @@ limitations under the License.
 					for (int i = 0; i < members.length(); i++) 
 					{
 						JSONObject member = members.getJSONObject(i);
+						
+						String name = "";
+						if (member.has("type")) {
+							String type = member.getString("type");
+							if (type.equals("user_group")) {
+								name = "[UserGrp] ";
+							}
+						}
+						else if (!member.has("email")) { // (legacy logic) 
+							name = "[UserGrp] ";							
+						}
+						if (member.has("userStatus")) {
+							String status = member.getString("userStatus");
+							if (status.equalsIgnoreCase("pending")) {
+								name += "[PENDING] ";
+							}
+						}
+						
 						if (member.has("displayName"))
 						{
-							allPeople.put( member.getString("displayName"), member.getString("_id") );
+							name += member.getString("displayName");
 						}
 						else
 						{
-							allPeople.put( member.getString("_id"), member.getString("_id") );
+							name += member.getString("_id");
 						}
+						allPeople.put(name, member.getString("_id"));
 					}
 				}
 			}
@@ -1088,11 +1131,71 @@ limitations under the License.
 					JSONObject community = communities.getJSONObject(i);
 					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.has("name"))
 					{
-						String name = community.getString("name");
+						String name = "";
+						if (community.has("type")) {
+							String type = community.getString("type");
+							if (null != type) {
+								if (type.equalsIgnoreCase("data")) {
+									name = "[DataGrp] ";
+								}
+								else if (type.equalsIgnoreCase("user")) {
+									name = "[UserGrp] ";								
+								}
+							}
+						}
+						name += community.getString("name");
 						if (community.has("communityStatus") && (community.getString("communityStatus").equalsIgnoreCase("disabled"))) {
 							name += " (Disabled pending deletion)";
 						}
 						allCommunities.put( name, community.getString("_id") );
+					}
+				}
+			}
+		}
+		catch (Exception e)
+		{
+			System.out.println(e.getMessage());
+		}
+		return allCommunities;
+	}
+	
+	// getListOfAllCommunities
+	public TreeMultimap<String,String> getListOfAllUserGroups(HttpServletRequest request, HttpServletResponse response, Set<String> groupFilter)
+	{
+		TreeMultimap<String,String> allCommunities = TreeMultimap.create();
+		try
+		{
+			JSONObject communitiesObj = new JSONObject ( getAllUserGroups(request, response) );
+			if ( communitiesObj.has("data") )
+			{
+				JSONArray communities = communitiesObj.getJSONArray("data");
+				for (int i = 0; i < communities.length(); i++) 
+				{
+					JSONObject community = communities.getJSONObject(i);
+					
+					String id = community.getString("_id");
+					if ((null != groupFilter) && groupFilter.contains(id))
+						continue;					
+					
+					if (community.getString("isPersonalCommunity").equalsIgnoreCase("false") && community.has("name"))
+					{
+						String name = "";
+						if (community.has("type")) {
+							String type = community.getString("type");
+							if (null != type) {
+								if (type.equalsIgnoreCase("data")) {
+									name = "[DataGrp] ";
+								}
+								else if (type.equalsIgnoreCase("user")) {
+									name = "[UserGrp] ";								
+								}
+							}
+						}
+						name += community.getString("name");
+						if (community.has("communityStatus") && (community.getString("communityStatus").equalsIgnoreCase("disabled"))) {
+							name += " (Disabled pending deletion)";
+						}
+						allCommunities.put( name, id );
 					}
 				}
 			}

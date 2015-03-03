@@ -35,6 +35,7 @@ import java.util.regex.Pattern;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.hppc.cursors.ObjectCursor;
 import org.restlet.Request;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
@@ -71,6 +72,8 @@ public class RecordInterface extends ServerResource {
 	
 	final static String CONTROL_REF = "infinit.e.records/proxy/"; // (in debug mode, wont' start with infinit.e.records)
 	final static String RECS_DUMMY_INDEX = "recs_dummy"; // (guaranteed to exist, have a sensible mapping)
+
+	final static Pattern ID_FINDER = Pattern.compile("[0-9a-f]{24}", Pattern.CASE_INSENSITIVE);
 	
 	String _proxyUrl;
 	String _indexOrAdminCommand;
@@ -121,6 +124,13 @@ public class RecordInterface extends ServerResource {
 		 //System.out.println(_proxyUrl + " ... " + _indexOrAdminCommand + " THEN " + _indexCommand);
 		
 		 _queryOptions = this.getQuery().getValuesMap();
+		 
+		 if (null != _indexOrAdminCommand) if (_indexOrAdminCommand.startsWith("$")) {
+			 String subVar = _queryOptions.get(_indexOrAdminCommand.substring(1));
+			 if (null != subVar) {
+				 _indexOrAdminCommand = subVar;
+			 }
+		 }//TOTEST
 		 
 	}//TESTED
 	
@@ -223,7 +233,6 @@ public class RecordInterface extends ServerResource {
 		// Authentication:
 		HashSet<String> communityIds = null;
 		
-
 		_driver = new InfiniteDriver("http://localhost:8080/api/");
 		//DEBUG
 		//_driver = new InfiniteDriver("http://localhost:8184/");
@@ -308,6 +317,10 @@ public class RecordInterface extends ServerResource {
 			//(TESTED: records, custom)
 			
 			communityIds = new HashSet<String>();
+			HashSet<String> personCommunityIds = null;
+			if (showCustom && (null != commIdOverrideSet)) {
+				personCommunityIds = new HashSet<String>(); // (needed for custom, and different to user override set)								
+			}
 			for (PersonCommunityPojo myComm: me.getCommunities()) {
 				String commIdStr =  myComm.get_id().toString();
 				if (null != commIdOverrideSet) {
@@ -318,10 +331,17 @@ public class RecordInterface extends ServerResource {
 				else { // no override, all communities
 					communityIds.add(commIdStr);
 				}
+				if (null != personCommunityIds) {
+					personCommunityIds.add(commIdStr);
+				}
 				if (null != dashboardOnly_fullCommunitySet) {
 					dashboardOnly_fullCommunitySet.add(commIdStr);
 				}
 			}//TESTED (see handleDashboardSharing, test 5)
+			
+			if (null == personCommunityIds) { // (else either we don't need this, or it's the same as communityIds
+				personCommunityIds = communityIds;
+			}
 			
 			// Create a regex of user's communities
 			StringBuffer indexBuffer = new StringBuffer();
@@ -460,6 +480,7 @@ public class RecordInterface extends ServerResource {
 					for (String communityId: communityIds) {
 						if (showCustom && !customJobSpecified) { // Append all possible custom jobs onto the end
 							indexes[i] = "customs_*" + communityId +"*";
+							//(note this is just a short cut to get a list of candidate custom jobs that we'll whittle down further)
 							i++;
 						}//TESTED (by hand)
 						if (showDocs && !docsSpecified) { // Append all possible doc communities onto the end
@@ -486,6 +507,34 @@ public class RecordInterface extends ServerResource {
 				for (IndexMetaData indexMetadata: retVal.getState().getMetaData()) {
 					String index = indexMetadata.index();
 
+					// For custom jobs, you need _all_ registered comm ids to be present
+					if (index.startsWith("custom_")) {
+						HashSet<String> allCommIdStrs = new HashSet<String>();
+						// Find all the community ids...
+						for (ObjectCursor<String> ss: indexMetadata.aliases().keys()) {
+							String s = ss.value;
+							if (s.startsWith("customs_")) {
+								Matcher m = ID_FINDER.matcher(s);
+								while (m.find()) {
+									allCommIdStrs.add(m.group().toLowerCase());
+								}
+							}
+						}
+						// OK now we know all the commids that are present in the custom job, check my community ids against them...
+						// (note "my" community ids, not the override set - we're just using that as a filter .. eg if i say show custom jobs
+						//  in X I would expect to see a custom job that includes X+Y+T, as long as I am authorized to see it, ie I belong to Y and T also) 
+						boolean authenticated = true;
+						for (String commIdStr: allCommIdStrs) {
+							if (!personCommunityIds.contains(commIdStr)) {
+								authenticated = false;
+								break;
+							}
+						}
+						if (!authenticated) {
+							continue;
+						}
+					}//TESTED (by hand)
+					
 					// For docs, only allowed to look at indexes that have been "fixed"
 					if (index.startsWith("docs_") || index.startsWith("doc_")) {
 						try {

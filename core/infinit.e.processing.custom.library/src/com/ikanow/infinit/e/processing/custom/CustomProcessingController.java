@@ -28,12 +28,15 @@ import org.apache.hadoop.mapred.RunningJob;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.control.DocumentQueueControlPojo;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.processing.custom.launcher.CustomHadoopTaskLauncher;
 import com.ikanow.infinit.e.processing.custom.launcher.CustomSavedQueryQueueLauncher;
@@ -161,7 +164,7 @@ public class CustomProcessingController {
 					int jobN = Integer.parseInt( jobParts[2] );	
 					job.jobidS = jobS;
 					job.jobidN = jobN;
-					_statusManager.updateJobPojo(job._id, jobS, jobN, job.tempConfigXMLLocation, job.tempJarLocation);
+					_statusManager.updateJobPojo(job._id, jobS, jobN, job.tempConfigXMLLocation, job.tempJarLocation, job);
 				}
 				else
 				{
@@ -245,7 +248,14 @@ public class CustomProcessingController {
 					_logger.error("Killed job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  ", but job failed to stop within time allowed");
 					return false;
 				}
-			}			
+			}		
+			if (null != jobToKillInfo.derivedFromSourceKey) { // Update the derived source, if one existse 
+				BasicDBObject query = new BasicDBObject(SourcePojo.key_, jobToKillInfo.derivedFromSourceKey);
+				BasicDBObject setUpdate = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString());
+				setUpdate.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, "Manually stopped");
+				BasicDBObject srcUpdate = new BasicDBObject(DbManager.set_, setUpdate);
+				DbManager.getIngest().getSource().update(query, srcUpdate, false, false);					
+			}//TESTED (actually a bit pointless usually because is then overwritten by the source publish)
 			return true;
 		}
 		catch (Exception e) {

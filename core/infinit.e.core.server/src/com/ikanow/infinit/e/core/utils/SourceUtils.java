@@ -592,6 +592,11 @@ public class SourceUtils {
 		BasicDBObject incClause = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_doccount_, docsAdded - nDocsDeleted);
 		update.put(MongoDbManager.inc_, incClause);
 		
+		// Special case, if searchCycle_secs == 0 and not success_iteration, then suspend:
+		if ((harvestStatus != HarvestEnum.success_iteration) && (null != source.getSearchCycle_secs()) && (0 == source.getSearchCycle_secs())) {
+			setClause.put(SourcePojo.searchCycle_secs_, -1);
+		}
+		
 		if (null != source.getDistributionTokens()) { // Distribution logic (specified and also enabled - eg ignore Feed/DB)
 			updateHarvestDistributionState_tokenComplete(source, harvestStatus, incClause, setClause);
 		}

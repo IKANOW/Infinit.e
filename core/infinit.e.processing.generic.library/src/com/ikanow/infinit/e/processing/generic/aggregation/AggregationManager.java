@@ -59,10 +59,16 @@ public class AggregationManager {
 	}
 	
 	private static boolean _diagnosticMode = false;
+	private static boolean _logInDiagnosticMode = true;
 	public static void setDiagnosticMode(boolean bMode) {
 		EntityAggregationUtils.setDiagnosticMode(bMode);
 		AssociationAggregationUtils.setDiagnosticMode(bMode);
 		_diagnosticMode = bMode;
+	}
+	public static void setLogInDiagnosticMode(boolean bLog) {
+		EntityAggregationUtils.setLogInDiagnosticMode(bLog);
+		AssociationAggregationUtils.setLogInDiagnosticMode(bLog);
+		_logInDiagnosticMode = bLog;
 	}
 	
 	public AggregationManager() {
@@ -304,7 +310,13 @@ public class AggregationManager {
 					}
 					ent.setDoccount(entityFeature.getDoccount());
 					ent.setTotalfrequency(entityFeature.getTotalfreq());
-				}				
+					
+					//CURRENTLY UNUSED, LEFT HERE IN CASE IT BECOMES NECESSARY AGAIN
+					// (these will be null except in the complex federated query case)
+					//ent.setDatasetSignificance(entityFeature.getDatasetSignficance());
+					//ent.setSignificance(entityFeature.getDatasetSignficance());
+					//ent.setQueryCoverage(entityFeature.getQueryCoverage());
+				}					
 			}// (End loop over entities)
 			
 			//TODO (INF-1276): The listed INF has a workaround for this, need to decide whether to implement
@@ -510,7 +522,7 @@ public class AggregationManager {
 			}		
 		}
 		if (_diagnosticMode) {
-			System.out.println("AggregationManager.doScheduleCheck("+type.name()+"): "+featureIndex + 
+			if (_logInDiagnosticMode) System.out.println("AggregationManager.doScheduleCheck("+type.name()+"): "+featureIndex + 
 					" dc="+nDocCount + " lastdc="+nDbSyncDocCount + " last="+dbSyncTime + ": " + "index="+((null == dbSyncTime)||bUpdateDocs) + " docs="+bUpdateDocs);
 		}
 		// Note currently always sync both or neither:
@@ -635,7 +647,7 @@ public class AggregationManager {
 				BasicDBObject entityUpdate = new BasicDBObject(DbManager.inc_, entityUpdate1);
 				
 				if (_diagnosticMode) {
-					System.out.println("UPDATE FEATURE DATABASE: " + updateQuery.toString() + "/" + entityUpdate.toString());
+					if (_logInDiagnosticMode) System.out.println("UPDATE FEATURE DATABASE: " + updateQuery.toString() + "/" + entityUpdate.toString());
 				}
 				else {
 					DbManager.getFeature().getEntity().update(updateQuery, entityUpdate);
@@ -653,7 +665,7 @@ public class AggregationManager {
 					BasicDBObject entityUpdate2 = new BasicDBObject(DbManager.set_, entityUpdate2_1);
 	
 					if (_diagnosticMode) {
-						System.out.println("UPDATE DOC DATABASE: " + updateQuery2.toString() + "/" + entityUpdate2.toString());
+						if (_logInDiagnosticMode) System.out.println("UPDATE DOC DATABASE: " + updateQuery2.toString() + "/" + entityUpdate2.toString());
 					}
 					else {
 						DbManager.getDocument().getMetadata().update(updateQuery2, entityUpdate2, false, true);						

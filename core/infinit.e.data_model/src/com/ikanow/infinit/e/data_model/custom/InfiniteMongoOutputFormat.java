@@ -19,6 +19,9 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Iterator;
+//These can be commented in temporarily to test J6 code in J8 branch
+//import java.util.Spliterator;
+//import java.util.function.Consumer;
 
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.mongodb.BasicDBObject;
@@ -26,6 +29,7 @@ import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
+import com.mongodb.WriteConcern;
 import com.mongodb.hadoop.MongoOutput;
 import com.mongodb.hadoop.MongoOutputFormat;
 import com.mongodb.hadoop.output.MongoRecordWriter;
@@ -128,19 +132,19 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 
 			try {
 				if (updateKeys == null) {
-					_collection.save( o );
+					_collection.save( o, WriteConcern.UNACKNOWLEDGED );
 				}
 				else if ((null != _updatingReducer) && _updatingReducer.isReducing()) {
 					ObjectId reduceId = _updatingReducer.getReduceId();
 					
 					if (null != _updatingReducer.getDeletionQuery()) { // (else there wasn't an existing record)
-						_collection.remove(_updatingReducer.getDeletionQuery());
+						_collection.remove(_updatingReducer.getDeletionQuery(), WriteConcern.UNACKNOWLEDGED);
 					}
 					if (null != reduceId) {
 						o.put("_updateId", _updatingReducer.getReduceId()); // (so we know when this was last created)						
 					}
 					o.removeField("_id"); // (so will get re-created on save)
-					_collection.save( o );
+					_collection.save( o, WriteConcern.UNACKNOWLEDGED);
 				}//TESTED
 				else {
 					// if we've found the object then we need to do a reduce on it:
@@ -166,7 +170,7 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 						fields.put("_updateId", 1);
 						DBCursor dbc = _collection.find(query, fields);
 						if (!dbc.hasNext()) { // new _id, just save it as normal
-							_collection.save( o );
+							_collection.save( o, WriteConcern.UNACKNOWLEDGED );
 						}
 						else { // need to update an existing object...					
 							DBObject currObj = dbc.next();
@@ -175,8 +179,8 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 								id = (ObjectId) currObj.get("_id");
 							}
 							o.put("_updateId", id);
-							_collection.remove(query);
-							_collection.save( o );							
+							_collection.remove(query, WriteConcern.UNACKNOWLEDGED);
+							_collection.save( o, WriteConcern.UNACKNOWLEDGED );							
 						}						
 					}//TESTED (both cases above, second case with ==1 and >1 objects, not that it really matters)
 					else { // complex case, the user re-reduces
@@ -598,7 +602,19 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 				super(conf, taskid, input == null ? new UpdatingReducerDummyIterator() : input, inputKeyCounter, inputValueCounter, output,
 						committer, reporter, comparator, keyClass, valueClass);
 				_delegateContext = context;
-			}			
+			}
+
+			// These can be commented in temporarily to test J6 code in J8 branch
+			//BEGIN
+//			public void forEachRemaining(Consumer<? super InVal> arg0) {
+//			}
+//
+//			public void forEach(Consumer<? super InVal> arg0) {
+//			}
+//			public Spliterator<InVal> spliterator() {
+//				return null;
+//			}
+			//END
 		}
 		public static class UpdatingReducerDummyIterator implements RawKeyValueIterator { // just needed in the c'tor
 			public void close() throws IOException {}

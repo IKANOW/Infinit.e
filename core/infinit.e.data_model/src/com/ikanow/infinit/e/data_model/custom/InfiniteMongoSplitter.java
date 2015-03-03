@@ -750,6 +750,7 @@ public class InfiniteMongoSplitter
 		BasicDBObject keyQuery = new BasicDBObject(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, communityIds));
 		BasicDBObject keyFields = new BasicDBObject(SourcePojo.key_, 1);
 		keyFields.put(SourceHarvestStatusPojo.sourceQuery_doccount_, 1);
+		BasicDBObject sortFields = new BasicDBObject(SourcePojo.key_, 1);
 
 		// Get and remove the sourceKey information, incorporate into source query:
 		Object sourceKeyQueryTerm = query.get(DocumentPojo.sourceKey_);
@@ -760,7 +761,8 @@ public class InfiniteMongoSplitter
 			keyQuery.put(SourcePojo.tags_, srcTagsQuery.get(SourcePojo.tags_));
 		}//TESTED
 		
-		DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields).sort(keyFields);
+		DBCursor dbc = MongoDbManager.getIngest().getSource().find(keyQuery, keyFields).sort(sortFields);
+			// (note the sort is needed so that the potentially expensive doc query has a sensibly ordered $in clause)
 		if (dbc.count() > 5000) {
 			// (too many source keys to process, just going to leave well alone... note this means $srctags will fail open)
 			return null;

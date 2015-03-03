@@ -16,9 +16,12 @@
 package com.ikanow.infinit.e.harvest;
 
 import java.io.IOException;
+import java.text.MessageFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -33,17 +36,22 @@ import javax.script.ScriptException;
 import org.json.JSONException;
 
 import com.google.common.collect.HashMultimap;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
+import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.DocumentJoinSpecPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.MetadataSpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo.SourceSearchIndexFilter;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.ExtraUrlPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.EntitySpecPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
@@ -53,6 +61,8 @@ import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester_search
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
+import com.mongodb.BasicDBObject;
+import com.mongodb.DBObject;
 
 public class HarvestControllerPipeline {
 
@@ -71,12 +81,17 @@ public class HarvestControllerPipeline {
 	
 	protected String _defaultTextExtractor = null;
 	
+	// Distributed processing bypasses the pipeline and uses the custom processing
+	
+	protected boolean _bypassHarvestPipeline = false;
+	
 	// Object initialization:
 	
 	public void clearState() {
 		// (just ensure the memory associated with this can be removed)
 		_sah = null;
-		_uah = null;		
+		_uah = null;	
+		_bypassHarvestPipeline = false;
 	}
 	
 	private void intializeState()
@@ -121,7 +136,8 @@ public class HarvestControllerPipeline {
 		for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
 			
 			// 1] Input source, copy into src pojo
-			//(note "extractType" should be filled in anyway from SourceHandler.savedSource->SourcePojo.fillInSourcePipelineFields)
+			//(note "extractType" should be normally filled in anyway from SourceHandler.savedSource->SourcePojo.fillInSourcePipelineFields)
+			// ^except in test mode)
 			
 			if (null != pxPipe.criteria) {
 				Matcher m = BRANCH_MAP_SET.matcher(pxPipe.criteria);
@@ -136,7 +152,7 @@ public class HarvestControllerPipeline {
 				}
 			}
 			//TESTED (complex_criteria_test)
-			
+
 			if (null != pxPipe.database) {
 				source.setUrl(pxPipe.database.getUrl());
 				source.setAuthentication(pxPipe.database.getAuthentication());
@@ -168,6 +184,22 @@ public class HarvestControllerPipeline {
 			else if (null != pxPipe.federatedQuery) {
 				source.setExtractType("Federated");
 			}
+			// DISTRIBUTED HANDLING:
+			else if (null != pxPipe.postProcessing) {
+				source.setExtractType("Post_processing");
+				_bypassHarvestPipeline = true;
+				return;
+			}
+			else if ((null != pxPipe.docs_datastoreQuery) || (null != pxPipe.docs_documentQuery) ||
+					(null != pxPipe.custom_file) || (null != pxPipe.custom_datastoreQuery) ||
+					(null != pxPipe.records_indexQuery) || (null != pxPipe.feature_datastoreQuery))
+			{
+				source.setExtractType("Custom");
+				_bypassHarvestPipeline = true;
+				return;
+			}				
+			//(END DISTRIBUTED HANDLING)
+			
 			
 			// 2] Globals - copy across harvest control parameters, if any
 			
@@ -224,6 +256,7 @@ public class HarvestControllerPipeline {
 				applyGlobalsToDocumentSplitting(source, pxPipe.links, globalScript, true);
 			}
 			if (null != pxPipe.splitter) {
+				requiresUnstructuredAnalysis();				
 				applyGlobalsToDocumentSplitting(source, pxPipe.splitter, globalScript, false);
 			}
 			
@@ -265,6 +298,12 @@ public class HarvestControllerPipeline {
 					}//TESTED (storageSettings_advanced.json - note DiscardTest1 not included because !meta.store)
 				}				
 			}//TESTED (see requires* function)
+			
+			// Joins: always require UAH, usually require SAH (so just grab it)
+			if (null != pxPipe.joins) {
+				requiresUnstructuredAnalysis();
+				requiresStructuredAnalysis();
+			}
 			
 			// SAH
 			
@@ -336,6 +375,9 @@ public class HarvestControllerPipeline {
 	
 	public void enrichSource_processingPipeline(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
+		if (_bypassHarvestPipeline) {
+			return;
+		}		
 		boolean multiSearchIndexCheck = false; // (just to add a handy warning while testing)
 		
 		Iterator<SourcePipelinePojo> pxPipeIt = source.getProcessingPipeline().iterator(); // (must be non null if here)
@@ -369,11 +411,11 @@ public class HarvestControllerPipeline {
 				pxPipeIt.remove();
 				
 				if (null != _sah) {
-					_sah.loadLookupCaches(pxPipe.lookupTables, source.getCommunityIds());
+					_sah.loadLookupCaches(pxPipe.lookupTables, source.getCommunityIds(), source.getOwnerId());
 						// (will also load them into the UAH if created)
 				}
 				else { // UAH specified but SAH not					
-					_uah.loadLookupCaches(pxPipe.lookupTables, source.getCommunityIds());
+					_uah.loadLookupCaches(pxPipe.lookupTables, source.getCommunityIds(), source.getOwnerId());
 				}
 			}
 			//TESTED (uah:import_and_lookup_test.json, sah+uah:import_and_lookup_test_uahSah.json)
@@ -684,6 +726,10 @@ public class HarvestControllerPipeline {
 							}//(TESTED: ((cache available) text_content_then_raw_to_boilerpipe (not available) text_default_then_content_then_default_test.json)
 						}
 						//TESTED (fulltext_regexTests.json, basic_web_uahRawText.json)
+						
+						if (null != pxPipe.joins) {
+							handleJoins(doc, pxPipe.joins);
+						}
 						
 						// 6] Entities and Associations
 						
@@ -1291,17 +1337,95 @@ public class HarvestControllerPipeline {
 				source.setRssConfig(new SourceRssConfigPojo());
 			}
 			if (null != source.getRssConfig().getExtraUrls()) { // refreshed ready for new document
-				source.getRssConfig().setExtraUrls(null);
+				source.getRssConfig().setExtraUrls(null);				
 			}
-			source.getRssConfig().setSearchConfig(splitter.splitter);
-
-			FeedHarvester_searchEngineSubsystem subsys = new FeedHarvester_searchEngineSubsystem();
-			subsys.generateFeedFromSearch(source, _hc, doc);
 			
+			HashMap<String, Object> jsonLookup = new HashMap<String, Object>();
+			if ((null != splitter.splitter.getScriptlang()) && splitter.splitter.getScriptlang().startsWith("automatic"))
+			{
+				// (automatic or automatic_json or automatic_xml)
+				
+				String[] args = splitter.splitter.getScript().split("\\s*,\\s*");
+				Object[] objList = null;		
+				
+				String field = args[0];
+				if (field.startsWith(DocumentPojo.fullText_)) { // fullText, or fullText.[x] where [x] is the root value
+					
+					DocumentPojo dummyDoc = new DocumentPojo();
+					dummyDoc.setFullText(doc.getFullText());							
+					MetadataSpecPojo dummyContent = new MetadataSpecPojo();
+					dummyContent.fieldName = "extract";
+					dummyContent.scriptlang = "stream";
+					dummyContent.flags = "o";
+					
+					if (field.equals(DocumentPojo.fullText_)) { // fullText
+						dummyContent.script = "";
+					}
+					else {
+						dummyContent.script = field.substring(1 + DocumentPojo.fullText_.length()); //+1 for the "."
+					}
+					_uah.processMetadataChain(dummyDoc, Arrays.asList(dummyContent), source.getRssConfig(), null);
+					
+					BasicDBObject dummyDocDbo = (BasicDBObject) dummyDoc.toDb();
+					dummyDocDbo = (BasicDBObject) dummyDocDbo.get(DocumentPojo.metadata_);
+					if (null != dummyDocDbo) {
+						objList = ((Collection<?>)(dummyDocDbo.get("extract"))).toArray(); // (returns a list of strings)
+					}
+				}//TESTED (doc_splitter_test_auto_json, json: test3, xml: test4)
+				else if (field.startsWith(DocumentPojo.metadata_)) { // field starts with "metadata."
+					objList = doc.getMetadata().get(field.substring(1 + DocumentPojo.metadata_.length())); //+1 for the "."					
+				}//TESTED (doc_splitter_test_auto_json, test1)
+				else { // direct reference to metadata field
+					objList = doc.getMetadata().get(field);
+				}//TESTED (doc_splitter_test_auto_json, test2)
+				
+				if ((null != objList) && (objList.length > 0)) {
+					source.getRssConfig().setExtraUrls(new ArrayList<ExtraUrlPojo>(objList.length));
+					int num = 0;
+					for (Object o: objList) {
+						num++;
+						ExtraUrlPojo url = new ExtraUrlPojo();
+						if ((1 == args.length) || !(o instanceof DBObject)) { // generate default URL
+							url.url = doc.getUrl() + "#" + num;							
+						}//TESTED (doc_splitter_test_auto_json, test1)
+						else if (2 == args.length) { // url specified in the format <fieldname-in-dot-notation>
+							url.url = MongoDbUtil.getProperty((DBObject)o, args[1]);
+						}//TESTED (doc_splitter_test_auto_json, test2)
+						else { // url specified in format <message-format-with-{1}-{2}-etc>,<fieldname-in-dot-notation-for-1>,..
+							ArrayList<Object> cmdArgs = new ArrayList<Object>(args.length - 1); //-2 + 1 (+1 - see below)
+							cmdArgs.add("[INDEX_FROM_1_NOT_0]");
+							for (int j = 2; j < args.length; ++j) {
+								cmdArgs.add(MongoDbUtil.getProperty((DBObject)o, args[j]));
+							}
+							url.url = MessageFormat.format(args[1], cmdArgs.toArray());
+						}//TESTED (doc_splitter_test_auto_json, test3, test4)
+						
+						if (null == url.url) { // (if we can't extract a URL then bail out)
+							continue;
+						}
+						
+						url.title = new StringBuffer(doc.getTitle()).append(" (").append(num).append(")").toString();
+						url.fullText = o.toString();
+						source.getRssConfig().getExtraUrls().add(url);	
+						if (splitter.splitter.getScriptlang().startsWith("automatic_")) { // automatic_json or automatic_xml
+							jsonLookup.put(url.url, o);
+						}
+					}
+				}//TESTED (doc_splitter_test_auto_json)
+			}
+			else { // normal case - run the 'follow web links' code to get the docs
+				source.getRssConfig().setSearchConfig(splitter.splitter);
+	
+				FeedHarvester_searchEngineSubsystem subsys = new FeedHarvester_searchEngineSubsystem();
+				subsys.generateFeedFromSearch(source, _hc, doc);
+			}			
 			if (null != source.getRssConfig().getExtraUrls()) {
 				for (ExtraUrlPojo newDocInfo: source.getRssConfig().getExtraUrls()) {
 					if (null == doc.getSourceUrl()) { // (if sourceUrl != null, bypass it's because it's been generated by a file so is being deleted anyway)
+						//(note: this null check above is relied upon by the federated query engine, so don't go randomly changing it!) 
+						
 						if (_hc.getDuplicateManager().isDuplicate_Url(newDocInfo.url, source, null)) {
+							//TODO: should handle updateCycle_secs?
 							continue;
 						}
 					}					
@@ -1312,6 +1436,29 @@ public class HarvestControllerPipeline {
 					newDoc.setTitle(newDocInfo.title);
 					newDoc.setDescription(newDocInfo.description);
 					newDoc.setFullText(newDocInfo.fullText);
+					
+					// For JSON, also create the metadata)
+					if (null != splitter.splitter.getScriptlang()) {
+						if (splitter.splitter.getScriptlang().equals("automatic_json")) {
+							newDoc.addToMetadata("json", jsonLookup.get(newDoc.getUrl()));
+						}
+						else if (splitter.splitter.getScriptlang().equals("automatic_xml")) {
+							Object obj = jsonLookup.get(newDoc.getUrl());
+							if (obj instanceof DBObject) {
+								DBObject dbo = (DBObject) obj;
+								for (String key: dbo.keySet()) {
+									Object objArray = dbo.get(key);
+									if (objArray instanceof Object[]) {
+										newDoc.addToMetadata(key, (Object[])objArray);
+									}	
+									else if (objArray instanceof Collection<?>) {
+										newDoc.addToMetadata(key, ((Collection<?>)objArray).toArray());
+									}
+								}
+							}//(test4)
+						}
+					}//TESTED (doc_splitter_test_auto_json, test1:json, test4:xml)
+					
 					// Published date is a bit more complex
 					if (null != newDocInfo.publishedDate) {
 						try {
@@ -1327,6 +1474,7 @@ public class HarvestControllerPipeline {
 					}//TESTED (test2)
 					newDoc.setTempSource(source);
 					newDoc.setSource(doc.getSource());
+					newDoc.setMediaType(doc.getMediaType());
 					newDoc.setSourceKey(doc.getSourceKey());
 					newDoc.setSourceUrl(doc.getSourceUrl()); // (otherwise won't be able to delete child docs that come from a file)
 					newDoc.setCommunityId(doc.getCommunityId());
@@ -1345,5 +1493,34 @@ public class HarvestControllerPipeline {
 		
 	}//TESTED (doc_splitter_test, see above for details)
 	
+	private void handleJoins(DocumentPojo doc, List<DocumentJoinSpecPojo> joins) {
+		// OK we're going to hack this up via existing function calls, even though it's not very efficient...
+		try {
+			StructuredAnalysisHarvester joinSah = new StructuredAnalysisHarvester();
+			List<EntitySpecPojo> ents = new ArrayList<EntitySpecPojo>(joins.size());
+
+			for (DocumentJoinSpecPojo join: joins) {
+				// First off, we need to go get the list of keys to use in the look-up:						
+				EntitySpecPojo entitySpecPojo = new EntitySpecPojo();
+				entitySpecPojo.setIterateOver(join.iterateOver);
+				if (null != join.accessorScript) { 
+					//TODO (INF-2479): doesn't have access to globals?
+					entitySpecPojo.setDisambiguated_name(join.accessorScript);
+				}
+				else { // default, hope this works...
+					entitySpecPojo.setDisambiguated_name("$value");				
+				}
+				entitySpecPojo.setType(join.toString());
+				entitySpecPojo.setDimension("What");
+				ents.add(entitySpecPojo);
+			}
+			DocumentPojo dummyDoc = new DocumentPojo();
+			dummyDoc.setMetadata(doc.getMetadata());
+			joinSah.setEntities(dummyDoc, ents);
+		}
+		catch (Exception e) {
+			_hc.getHarvestStatus().logMessage(Globals.populateStackTrace(new StringBuffer("handleJoins: "), e).toString(), true);			
+		}
+	}//TODO: in progress
 }
 

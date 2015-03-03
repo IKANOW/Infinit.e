@@ -132,6 +132,10 @@ package com.ikanow.infinit.e.shared.model.constant
 		public static const QUERY_BUILDER_ID:String = WORKSPACES_QUERY_ID + "Builder";
 		
 		public static const QUERY_SETTINGS_ID:String = WORKSPACES_QUERY_ID + "Settings";
+				
+		public static const QUERY_PIVOTS_ID:String = WORKSPACES_QUERY_ID + "Pivots";
+		
+		public static const QUERY_SAVED_ID:String = WORKSPACES_QUERY_ID + "Saved";
 		
 		// query term editor
 		

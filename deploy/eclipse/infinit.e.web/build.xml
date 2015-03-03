@@ -21,6 +21,7 @@
 	<property name="InfiniteSignificanceWidget.location" value="../InfiniteSignificanceWidget/"/>
 	<property name="InfiniteTimelineEventWidget.location" value="../InfiniteTimelineEventWidget/"/>
 	<property name="InfiniteTimelineWidget.location" value="../InfiniteTimelineWidget/"/>
+	<property name="TemplatedSourceCreatorWidget.location" value="../TemplatedSourceCreatorWidget/"/>
 	
 	<!-- Other flex utilities -->
 	<property name="InfiniteSourceMonitor.location" value="../InfiniteSourceMonitor/"/>
@@ -89,6 +90,12 @@
 			<fileset dir="${InfiniteTimelineWidget.location}/dist"/>
 		</copy>
 		
+		<!-- Copy the InfiniteTimelineWidget -->
+		<mkdir dir="${dir.build}/TemplatedSourceCreatorWidget"/>
+		<copy todir="${dir.build}/TemplatedSourceCreatorWidget/">
+			<fileset dir="${TemplatedSourceCreatorWidget.location}/dist"/>
+		</copy>
+				
 		<!-- Copy the InfiniteSourceMonitor -->
 		<copy todir="${dir.build}/">
 			<fileset dir="${InfiniteSourceMonitor.location}/dist"/>

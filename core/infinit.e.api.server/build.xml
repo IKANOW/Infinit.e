@@ -90,19 +90,28 @@
 	<!-- ================================= 
 	     target: prepare             
 	================================= -->
-	<target name="prepare" depends="clean">
+	<target name="prepare-war" depends="clean">
 		<mkdir dir="${dir.build}"/>
 		<copy file="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar" tofile="${dir.lib}/infinit.e.harvest.library.jar"/>
 		<copy file="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar" tofile="${dir.lib}/infinit.e.processing.custom.library.jar" failonerror="false"/>
 		<copy file="${infinit.e.processing.generic.library.location}/dist/infinit.e.processing.generic.library.jar" tofile="${dir.lib}/infinit.e.processing.generic.library.jar"/>
 		<copy file="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar" tofile="${dir.lib}/infinit.e.data_model.jar"/>
 	</target>
+	<target name="prepare-jar" depends="clean">
+		<mkdir dir="${dir.build}"/>
+	</target>
 	
 	<!-- ================================= 
       target: resolve     
       use apache ivy to pull in dependencies         
      ================================= -->
-	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+	<target name="resolve-war" depends="prepare-war" description="retrieve dependencies with ivy">
+		<!--
+		<ivy:configure file="ivysettings.xml" />
+		<ivy:retrieve/>
+		-->
+	</target>
+	<target name="resolve-jar" depends="prepare-jar" description="retrieve dependencies with ivy">
 		<!--
 		<ivy:configure file="ivysettings.xml" />
 		<ivy:retrieve/>
@@ -113,19 +122,34 @@
 	  target: compile  
 	  compile the source code using javac            
 	================================= -->
-	<target name="compile-war" depends="resolve" description="Compilation of all source code.">
+	<target name="compile-war" depends="resolve-war" description="Compilation of all source code.">
 		<mkdir dir="${dir.build.classes}"/>
 		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
 			<classpath refid="infinit.e.api.classpath-war"/>
 		</javac>
 	</target>
-	<target name="compile-jar" depends="resolve" description="Compilation of all source code.">
+	<target name="compile-jar" depends="resolve-jar" description="Compilation of all source code.">
+		
+		<!--
+		<property name="myclasspath" refid="infinit.e.api.classpath-jar"/>
+		<echo message="Classpath = ${myclasspath}"/>
+		-->
+		
 		<mkdir dir="${dir.build.classes}"/>
-		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" srcdir="${dir.src}" destdir="${dir.build.classes}" source="${source}" target="${target}">
+		<javac debug="true" includeantruntime="false" debuglevel="${debuglevel}" destdir="${dir.build.classes}" source="${source}" target="${target}">
 			<classpath refid="infinit.e.api.classpath-jar"/>
+			<src path="${dir.src}"/>
+			
 			<include name="com/ikanow/infinit/e/api/knowledge/**" />
 			<include name="com/ikanow/infinit/e/api/knowledge/social/sharing/**" />
 			<include name="com/ikanow/infinit/e/api/utils/**" />
+			
+			<exclude name="com/ikanow/infinit/e/api/knowledge/QueryInterface*" />
+			<exclude name="com/ikanow/infinit/e/api/knowledge/Document*" />
+			<exclude name="com/ikanow/infinit/e/api/knowledge/Feature*" />
+			<exclude name="com/ikanow/infinit/e/api/knowledge/Search*" />
+			<exclude name="com/ikanow/infinit/e/api/knowledge/federated/**" />
+			<exclude name="com/ikanow/infinit/e/api/knowledge/output/**" />
 		</javac>
 	</target>
 	

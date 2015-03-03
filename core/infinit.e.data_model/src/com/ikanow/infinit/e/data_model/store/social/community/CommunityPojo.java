@@ -30,6 +30,7 @@ import com.mongodb.MongoException;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo.MemberType;
 import com.ikanow.infinit.e.data_model.store.social.person.*;;
 
 /**
@@ -48,6 +49,8 @@ public class CommunityPojo extends BaseDbPojo
 	  * Private Class Variables
 	  */
 	private ObjectId _id = null;
+	public enum CommunityType { user, data };
+	private CommunityType type = null; // (defaults to combined)
 	private Date created = null;
 	private Date modified = null;
 	private String name = null;
@@ -63,7 +66,6 @@ public class CommunityPojo extends BaseDbPojo
 	private ObjectId ownerId = null;
 	private String communityStatus = "active"; //communityStatusEnum defaults to active
 	private String ownerDisplayName = null;
-	private int numberOfMembers = 0;
 	private Set<CommunityMemberPojo> members = null;
 	private Set<ObjectId> children = null;
 	private DocCountPojo documentInfo = null; // (added by certain API calls, stored separately in the DB, under doc_metadata.doc_counts)
@@ -305,20 +307,6 @@ public class CommunityPojo extends BaseDbPojo
 		this.ownerDisplayName = ownerDisplayName;
 	}
 
-	/**
-	 * Set the number of community members
-	 */
-	public void setNumberOfMembers(int numberOfMembers) {
-		this.numberOfMembers = numberOfMembers;
-	}
-
-	/**
-	 * Get the number of community members
-	 */
-	public int getNumberOfMembers() {
-		return numberOfMembers;
-	}
-	
 	/*
 	 * Set the community members
 	 */
@@ -370,9 +358,9 @@ public class CommunityPojo extends BaseDbPojo
 	 * @throws MongoException 
 	 * @throws UnknownHostException 
 	 */
-	public void addMember(PersonPojo pp) throws UnknownHostException, MongoException, IOException 
+	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup) throws UnknownHostException, MongoException, IOException 
 	{
-		addMember(pp, false);		
+		addMember(personOrUserGroupId, user, userGroup, false);		
 	}
 	
 	
@@ -383,18 +371,18 @@ public class CommunityPojo extends BaseDbPojo
 	 * If the person is already a member and isInvite is false, will set
 	 * the person to active
 	 * 
-	 * @param pp
+	 * @param user
 	 * @param isInvite
 	 * @throws IOException 
 	 * @throws MongoException 
 	 * @throws UnknownHostException 
 	 */
-	public void addMember(PersonPojo pp, boolean isInvite) throws UnknownHostException, MongoException, IOException 
+	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup, boolean isInvite) throws UnknownHostException, MongoException, IOException 
 	{
 		CommunityMemberPojo old_cmp = null;
 		for ( CommunityMemberPojo cmp : this.getMembers() )
 		{
-			if ( cmp.get_id().equals(pp.get_id()) )
+			if ( cmp.get_id().equals(personOrUserGroupId) )
 			{
 				//found the user
 				old_cmp = cmp;			
@@ -406,9 +394,16 @@ public class CommunityPojo extends BaseDbPojo
 		{			
 			// Create the new member object
 			CommunityMemberPojo cmp = new CommunityMemberPojo();
-			cmp.set_id(pp.get_id());
-			cmp.setEmail(pp.getEmail());
-			cmp.setDisplayName(pp.getDisplayName());
+			cmp.set_id(personOrUserGroupId);
+			if (null != user) {
+				cmp.setEmail(user.getEmail());
+				cmp.setDisplayName(user.getDisplayName());
+				cmp.setType(MemberType.user);
+			}
+			else {
+				cmp.setDisplayName(userGroup.getName());
+				cmp.setType(MemberType.user_group);
+			}
 			cmp.setUserType("content_publisher");
 			
 			if (isInvite)
@@ -418,7 +413,6 @@ public class CommunityPojo extends BaseDbPojo
 			else
 			{
 				cmp.setUserStatus("active");
-				this.setNumberOfMembers(this.getNumberOfMembers()+1);				
 			}
 
 			// Set the userAttributes based on default
@@ -440,43 +434,45 @@ public class CommunityPojo extends BaseDbPojo
 
 			// Get Person data to added to member record
 
-			if (pp.getContacts() != null)
-			{
-				// Set contacts from person record
-				Set<CommunityMemberContactPojo> contacts = new HashSet<CommunityMemberContactPojo>();
-				Map<String, PersonContactPojo> pcp = pp.getContacts();
-				Iterator<Map.Entry<String, PersonContactPojo>> it2 = pcp.entrySet().iterator();
-				while (it.hasNext())
+			if (null != user) {
+				if (user.getContacts() != null)
 				{
-					CommunityMemberContactPojo c = new CommunityMemberContactPojo();
-					Map.Entry<String, PersonContactPojo> pair = it2.next();
-					c.setType(pair.getKey().toString());
-					PersonContactPojo v = (PersonContactPojo)pair.getValue();
-					c.setValue(v.getValue());
-					contacts.add(c);
+					// Set contacts from person record
+					Set<CommunityMemberContactPojo> contacts = new HashSet<CommunityMemberContactPojo>();
+					Map<String, PersonContactPojo> pcp = user.getContacts();
+					Iterator<Map.Entry<String, PersonContactPojo>> it2 = pcp.entrySet().iterator();
+					while (it.hasNext())
+					{
+						CommunityMemberContactPojo c = new CommunityMemberContactPojo();
+						Map.Entry<String, PersonContactPojo> pair = it2.next();
+						c.setType(pair.getKey().toString());
+						PersonContactPojo v = (PersonContactPojo)pair.getValue();
+						c.setValue(v.getValue());
+						contacts.add(c);
+					}
+					cmp.setContacts(contacts);
 				}
-				cmp.setContacts(contacts);
-			}
-
-			// Set links from person record
-			if (pp.getLinks() != null)
-			{
-				// Set contacts from person record
-				Set<CommunityMemberLinkPojo> links = new HashSet<CommunityMemberLinkPojo>();
-				Map<String, PersonLinkPojo> plp = pp.getLinks();
-				Iterator<Map.Entry<String, PersonLinkPojo>> it3 = plp.entrySet().iterator();
-				while (it.hasNext())
+	
+				// Set links from person record
+				if (user.getLinks() != null)
 				{
-					CommunityMemberLinkPojo c = new CommunityMemberLinkPojo();
-					Map.Entry<String, PersonLinkPojo> pair = it3.next();
-					c.setTitle(pair.getKey().toString());
-					PersonLinkPojo v = (PersonLinkPojo)pair.getValue();
-					c.setUrl(v.getUrl());
-					links.add(c);
+					// Set contacts from person record
+					Set<CommunityMemberLinkPojo> links = new HashSet<CommunityMemberLinkPojo>();
+					Map<String, PersonLinkPojo> plp = user.getLinks();
+					Iterator<Map.Entry<String, PersonLinkPojo>> it3 = plp.entrySet().iterator();
+					while (it.hasNext())
+					{
+						CommunityMemberLinkPojo c = new CommunityMemberLinkPojo();
+						Map.Entry<String, PersonLinkPojo> pair = it3.next();
+						c.setTitle(pair.getKey().toString());
+						PersonLinkPojo v = (PersonLinkPojo)pair.getValue();
+						c.setUrl(v.getUrl());
+						links.add(c);
+					}
+					cmp.setLinks(links);
 				}
-				cmp.setLinks(links);
 			}
-
+			
 			//remove the old entry if it exists
 			if ( old_cmp != null )
 			{
@@ -502,7 +498,6 @@ public class CommunityPojo extends BaseDbPojo
 			{
 				//found member, remove
 				members.remove(cmp);
-				numberOfMembers--;
 				break;
 			}
 		}		
@@ -542,8 +537,6 @@ public class CommunityPojo extends BaseDbPojo
 			if ( cmp.get_id().equals(userID) )
 			{
 				//if user is now active, add a member
-				if (!cmp.getUserStatus().equals(userStatus) && userStatus.equals("active"))
-					this.setNumberOfMembers(this.getNumberOfMembers()+1);
 				cmp.setUserStatus(userStatus);
 				return true;
 			}
@@ -560,11 +553,11 @@ public class CommunityPojo extends BaseDbPojo
 	 * @param requesterId
 	 * @return
 	 */
-	public CommunityApprovePojo createCommunityApprove(String personId, String communityId,
+	public CommunityApprovePojo createCommunityApprove(ObjectId randomId, String personId, String communityId,
 			String requestType, String requesterId) 
 	{
 		CommunityApprovePojo cap = new CommunityApprovePojo();
-		cap.set_id(new ObjectId());
+		cap.set_id(randomId);
 		cap.setCommunityId(communityId);
 		cap.setIssueDate(new Date());
 		cap.setPersonId(personId);
@@ -587,5 +580,13 @@ public class CommunityPojo extends BaseDbPojo
 
 	public void setDocumentInfo(DocCountPojo documentInfo) {
 		this.documentInfo = documentInfo;
+	}
+
+	public CommunityType getType() {
+		return type == null ? CommunityType.data : type;
+	}
+
+	public void setType(CommunityType type) {
+		this.type = type;
 	}
 }

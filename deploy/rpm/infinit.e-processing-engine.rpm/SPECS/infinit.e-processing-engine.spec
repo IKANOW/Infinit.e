@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 0.19, infinit.e-index-engine >= v0.3
+Requires: tomcat6, infinit.e-config, infinit.e-db-instance, elasticsearch >= 1.0, infinit.e-index-engine >= v0.3
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -93,6 +93,8 @@ Infinit.e harvesting and cleansing services
 			yes | cp /mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib	
 		elif ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.3"; then
 			yes | cp /mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib	
+		elif ls /usr/share/elasticsearch/lib/ | grep -q -F "elasticsearch-1.4"; then
+			yes | cp /mnt/opt/infinite-home/es-compat/1.4/elasticsearch_compatibility.jar /usr/share/elasticsearch/lib	
 		fi 		
 	else
 		yes | cp /mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar /usr/share/java/elasticsearch/lib	
@@ -165,6 +167,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/templates/doc_mapping_changes.json
 
 #(es compatibility)
+%attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/1.4/elasticsearch_compatibility.jar
 %attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar
 %attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar
 %attr(-,elasticsearch,elasticsearch) /mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar

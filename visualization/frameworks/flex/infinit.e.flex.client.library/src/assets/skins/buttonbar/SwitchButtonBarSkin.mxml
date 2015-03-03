@@ -41,7 +41,7 @@
 		</fx:Component>
 
 		<fx:Component id="middleButton">
-			<s:ButtonBarButton skinClass="spark.skins.spark.ButtonBarMiddleButtonSkin" />
+			<s:ButtonBarButton skinClass="assets.skins.buttonbar.SwitchButtonBarMiddleSkin" />
 		</fx:Component>
 
 		<fx:Component id="lastButton">

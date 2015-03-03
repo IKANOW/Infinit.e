@@ -301,7 +301,9 @@ public class PersonPojo extends BaseDbPojo
 		{
 			PersonCommunityPojo pcp = new PersonCommunityPojo();
 			pcp.set_id(cp.getId());
-			pcp.setName(cp.getName());						
+			pcp.setName(cp.getName());
+			pcp.setType(cp.getType());
+			//TODO (INF-2866): if a user group then add that user group's data groups... (and then find everywhere to sync it)
 			communities.add(pcp);
 		}		
 	}

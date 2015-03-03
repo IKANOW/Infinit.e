@@ -43,7 +43,9 @@ public class EntityAggregationUtils {
 	private static final Logger logger = Logger.getLogger(EntityAggregationUtils.class);	
 	
 	private static boolean _diagnosticMode = false;
+	private static boolean _logInDiagnosticMode = true;
 	public static void setDiagnosticMode(boolean bMode) { _diagnosticMode = bMode; }
+	public static void setLogInDiagnosticMode(boolean bLog) { _logInDiagnosticMode = bLog; }	
 	
 	private static boolean _incrementalMode = false;
 	public static void setIncrementalMode(boolean mode) {
@@ -104,7 +106,7 @@ public class EntityAggregationUtils {
 						if ((null == currCache) || !currCache.getCommunityId().equals(entFeatureKV.getKey())) {
 							currCache = CommunityFeatureCaches.getCommunityFeatureCache(entFeatureKV.getKey());							
 							if (_diagnosticMode) {
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, Opened cache for community: " + entFeatureKV.getKey());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, Opened cache for community: " + entFeatureKV.getKey());
 							}
 						}//TESTED (by hand)
 						
@@ -113,12 +115,12 @@ public class EntityAggregationUtils {
 						if (null != cachedEnt) {							
 							if (_incrementalMode) {
 								if (_diagnosticMode) {
-									System.out.println("EntityAggregationUtils.updateEntityFeatures, skip cached: " + cachedEnt.toDb());									
+									if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, skip cached: " + cachedEnt.toDb());									
 									//TODO (INF-2825): should be continue-ing here (after implementing incremental caching fully) so can use delta more efficiently...
 								}
 							}
 							else if (_diagnosticMode) {
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, grabbed cached: " + cachedEnt.toDb());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, grabbed cached: " + cachedEnt.toDb());
 							}								
 							numCacheHits++;							
 							
@@ -209,8 +211,8 @@ public class EntityAggregationUtils {
 							// (in the cached case, entFeature has already been updated by updateCachedEntityFeatureStatistics)
 							
 							if (_diagnosticMode) {
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, found: " + ((BasicDBObject)gp.toDb()).toString());
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, found: " + ((BasicDBObject)gp.toDb()).toString());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, ^^^ found from query: " + query.toString() + " / " + updateOp.toString());
 							}
 							// (In background aggregation mode we update db_sync_prio when checking the doc update schedule) 
 						}
@@ -259,7 +261,7 @@ public class EntityAggregationUtils {
 								col.update(query, new BasicDBObject(MongoDbManager.set_, baseFields));
 							}
 							else {
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, not found: " + query.toString() + ": " + baseFields.toString());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, not found: " + query.toString() + ": " + baseFields.toString());
 							}
 							
 						}//(end first time this feature seen - globally)
@@ -267,7 +269,7 @@ public class EntityAggregationUtils {
 						if (null == cachedEnt) { // First time we've seen this locally, so add to cache
 							currCache.addCachedEntityFeature(entFeature);
 							if (_diagnosticMode) {
-								System.out.println("EntityAggregationUtils.updateEntityFeatures, added to cache: " + entFeature.toDb());
+								if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateEntityFeatures, added to cache: " + entFeature.toDb());
 							}							
 						}//TESTED (by hand)							
 						
@@ -331,7 +333,7 @@ public class EntityAggregationUtils {
 			BasicDBObject multiopA = new BasicDBObject(MongoDbManager.set_, multiopB);
 
 			if (_diagnosticMode) {
-				System.out.println("EntityAggregationUtils.updateMatchingEntities: " + query1.toString() + " / " + multiopA.toString());
+				if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.updateMatchingEntities: " + query1.toString() + " / " + multiopA.toString());
 			}
 			else {
 				synchronized (GenericProcessingController.class) {
@@ -388,10 +390,10 @@ public class EntityAggregationUtils {
 	
 			if (_diagnosticMode) {
 				if ((null != entityFeature.getDbSyncTime()) || (null != entityFeature.getDb_sync_prio())) {
-					System.out.println("EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());
+					if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());
 				}
 				else {
-					System.out.println("(WOULD NOT RUN) EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());					
+					if (_logInDiagnosticMode) System.out.println("(WOULD NOT RUN) EntityAggregationUtils.synchronizeEntityFeature, featureDB: " + query.toString() + " / " + update.toString());					
 				}
 			}
 			else {
@@ -400,7 +402,7 @@ public class EntityAggregationUtils {
 		}
 
 		if (_diagnosticMode) {
-			System.out.println("EntityAggregationUtils.synchronizeEntityFeature, synchronize: " + new StringBuffer(entityFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
+			if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.synchronizeEntityFeature, synchronize: " + new StringBuffer(entityFeature.getIndex()).append(':').append(communityId).toString() + " = " + 
 					IndexManager.mapToIndex(entityFeature, new EntityFeaturePojoIndexMap()));
 		}
 		else {
@@ -422,7 +424,7 @@ public class EntityAggregationUtils {
 		query.put(EntityFeaturePojo.communityId_, communityId);
 		BasicDBObject update = new BasicDBObject(MongoDbManager.set_, new BasicDBObject(EntityFeaturePojo.db_sync_prio_, dPrio));
 		if (_diagnosticMode) {
-			System.out.println("EntityAggregationUtils.markEntityFeatureForSynchronization, featureDB: " + query.toString() + " / " + update.toString());				
+			if (_logInDiagnosticMode) System.out.println("EntityAggregationUtils.markEntityFeatureForSynchronization, featureDB: " + query.toString() + " / " + update.toString());				
 		}
 		else {
 			entityFeatureDb.update(query, update, false, true);

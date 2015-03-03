@@ -1593,7 +1593,7 @@ package com.ikanow.infinit.e.widget.library.components
 				widgetName = module.title;
 				widgetClass = flash.utils.getQualifiedClassName( module );
 			}
-			var widgetDropEvent:WidgetDropEvent = new WidgetDropEvent( "widgetDrop", dragObject.entities, dragObject.associations, dragObject.documents, dragObject.dragSource, widgetName, widgetClass );
+			var widgetDropEvent:WidgetDropEvent = new WidgetDropEvent( "widgetDrop", dragObject.entities, dragObject.associations, dragObject.documents, dragObject.dragSource, widgetName, widgetClass, dragObject.queryElements );
 			this.dispatchEvent( widgetDropEvent );
 		}
 		

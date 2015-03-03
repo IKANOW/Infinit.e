@@ -21,6 +21,7 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.List;
@@ -33,8 +34,10 @@ import com.ikanow.infinit.e.api.custom.mapreduce.CustomHandler;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.utils.SendMail;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
+import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.social.community.CommunityApprovalPojo;
@@ -49,9 +52,11 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityAttribute
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberContactPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberLinkPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo.MemberType;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberUserAttributePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityUserAttributePojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonContactPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonLinkPojo;
@@ -76,13 +81,13 @@ public class CommunityHandler
 	//////////////////////////////////////////////////////////////////////////
 	////////////////////////   REST handlers  ////////////////////////////////
 	//////////////////////////////////////////////////////////////////////////
-	
+		
 	/**
 	 * getCommunities (REST)
 	 * Returns information for all communities
 	 * @return
 	 */
-	public ResponsePojo getCommunities(String userIdStr) 
+	public ResponsePojo getCommunities(String userIdStr, CommunityPojo.CommunityType communityType) 
 	{	
 		ResponsePojo rp = new ResponsePojo();
 
@@ -94,7 +99,9 @@ public class CommunityHandler
 		{
 			if (isSysAdmin)
 			{
-				DBCursor dbc = DbManager.getSocial().getCommunity().find();
+				BasicDBObject query = new BasicDBObject();
+				addCommunityTypeTerm(query, communityType);
+				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 				
 				if ( dbc.hasNext() )
 				{
@@ -115,6 +122,7 @@ public class CommunityHandler
 				BasicDBObject queryTerm2 = new BasicDBObject("members._id", new ObjectId(userIdStr));
 				BasicDBObject queryTerm3 = new BasicDBObject("ownerId", new ObjectId(userIdStr));
 				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryTerm1, queryTerm2, queryTerm3));
+				addCommunityTypeTerm(query, communityType);
 
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);				
 				if ( dbc.hasNext() )
@@ -152,7 +160,7 @@ public class CommunityHandler
 	 * @param isPublic
 	 * @return
 	 */
-	public ResponsePojo getCommunities(String userIdStr, Boolean isPublic) 
+	public ResponsePojo getCommunities(String userIdStr, Boolean isPublic, CommunityPojo.CommunityType communityType) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -171,6 +179,7 @@ public class CommunityHandler
 				query.put("members._id", new ObjectId(userIdStr));
 			}
 			query.put("communityStatus", new BasicDBObject("$ne", "disabled"));
+			addCommunityTypeTerm(query, communityType);
 			
 			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 			if ( dbc.hasNext() )
@@ -200,7 +209,7 @@ public class CommunityHandler
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo getCommunity(String userIdStr, String communityIdStr, boolean showDocInfo) 
+	public ResponsePojo getCommunity(String userIdStr, String communityIdStr, boolean showDocInfo, CommunityPojo.CommunityType communityType) 
 	{	
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -218,6 +227,7 @@ public class CommunityHandler
 			{
 				query.put("_id", new ObjectId("4c927585d591d31d7b37097a")); // (hardwired sys community)
 			}
+			addCommunityTypeTerm(query, communityType);
 			
 			// Get GsonBuilder object with MongoDb de/serializers registered
 			BasicDBObject dbo = (BasicDBObject)DbManager.getSocial().getCommunity().findOne(query);
@@ -253,9 +263,9 @@ public class CommunityHandler
 	 * getSystemCommunity (REST)
 	 * @return ResponsePojo
 	 */
-	public ResponsePojo getSystemCommunity() 
+	public ResponsePojo getSystemCommunity(CommunityPojo.CommunityType communityType) 
 	{	
-		return getCommunity(null, null, false);
+		return getCommunity(null, null, false, communityType);
 	}
 	
 	/**
@@ -271,7 +281,7 @@ public class CommunityHandler
 	 * @param ownerDisplayName
 	 * @return ResponsePojo
 	 */
-	public ResponsePojo addCommunity(String userIdStr, String name, String description, String parentIdStr, String tags)
+	public ResponsePojo addCommunity(String userIdStr, String name, String description, String parentIdStr, String tags, CommunityPojo.CommunityType communityType)
 	{
 		String userName = null;
 		String userEmail = null;
@@ -332,7 +342,7 @@ public class CommunityHandler
 		{
 			return new ResponsePojo(new ResponseObject("Add Community", false, "General Error: " + ex.getMessage()));
 		}
-		return addCommunity(userIdStr, name, description, parentIdStr, parentName, tags, userIdStr, userName, userEmail);
+		return addCommunity(userIdStr, name, description, parentIdStr, parentName, tags, userIdStr, userName, userEmail, communityType);
 	}
 	
 	/**
@@ -341,14 +351,14 @@ public class CommunityHandler
 	 */
 	private ResponsePojo addCommunity(String userIdStr, String name, String description, 
 			String parentIdStr, String parentName, String tags, String ownerIdStr, 
-			String ownerDisplayName, String ownerEmail)
+			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType)
 	{
 		return addCommunity(userIdStr, null, name, description, parentIdStr, parentName, tags, 
-				ownerIdStr, ownerDisplayName, ownerEmail);	
+				ownerIdStr, ownerDisplayName, ownerEmail, communityType);	
 	}	
 	public ResponsePojo addCommunity(String userId, String idStr, String name, String description, 
 			String parentIdStr, String parentName, String tags, String ownerIdStr, 
-			String ownerDisplayName, String ownerEmail)
+			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -381,6 +391,7 @@ public class CommunityHandler
 					oId = new ObjectId(idStr);
 				}
 				CommunityPojo c = new CommunityPojo();
+				c.setType(communityType);
 				c.setId(oId);
 				c.setCreated(new Date());
 				c.setModified(new Date());
@@ -396,7 +407,6 @@ public class CommunityHandler
 				c.setTags(getTagsFromString(tags));
 				c.setOwnerId(new ObjectId(ownerIdStr));
 				c.setOwnerDisplayName(ownerDisplayName);
-				c.setNumberOfMembers(0);
 				c.setCommunityAttributes(getDefaultCommunityAttributes());
 				c.setCommunityUserAttribute(getDefaultCommunityUserAttributes());
 				
@@ -404,12 +414,14 @@ public class CommunityHandler
 				DBObject commObj = c.toDb();
 
 				// Create the index form of the community:
-				try {
-					GenericProcessingController.createCommunityDocIndex(c.getId().toString(), c.getParentId(), c.getIsPersonalCommunity(), c.getIsSystemCommunity(), false);
-				}
-				catch (Exception e) { // Can't create community
-					rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of index failure: " + e.getMessage()));
-					return rp;
+				if (CommunityType.user != c.getType()) {
+					try {
+						GenericProcessingController.createCommunityDocIndex(c.getId().toString(), c.getParentId(), c.getIsPersonalCommunity(), c.getIsSystemCommunity(), false);
+					}
+					catch (Exception e) { // Can't create community
+						rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of index failure: " + e.getMessage()));
+						return rp;
+					}
 				}
 				//TESTED
 				
@@ -425,14 +437,12 @@ public class CommunityHandler
 				
 				// Update the new community record to add the owner to the list of members
 				rp = addCommunityMember(userId, oId.toStringMongod(), name, ownerIdStr, ownerEmail, ownerDisplayName, "owner", "active");
-				rp.setResponse(new ResponseObject("Add Community", true, "The " + name + " community has " +
-					"been added."));				
+				rp.setResponse(new ResponseObject("Add Community", true, "The " + name + " community has been added."));				
 			}
 			else
 			{
 				rp.setResponse(new ResponseObject("Add Community", false, 
-						"Error adding new community. A community with the name " + name + " " +
-						"already exists."));
+						"Error adding new community. A community with the name " + name + " already exists."));
 			}
 			
 		}
@@ -455,7 +465,7 @@ public class CommunityHandler
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo removeCommunity(String personIdStr, String communityIdStr) 
+	public ResponsePojo removeCommunity(String personIdStr, String communityIdStr, CommunityPojo.CommunityType communityType) 
 	{
 		boolean isSysAdmin = RESTTools.adminLookup(personIdStr);
 		ResponsePojo rp = new ResponsePojo();
@@ -484,6 +494,20 @@ public class CommunityHandler
 									return rp;
 								}
 								//TESTED
+								
+								// 0] If it's a user group then remove from all communities
+								
+								if (CommunityType.user == cp.getType()) {
+									BasicDBObject query = new BasicDBObject("members._id", cp.getId()); 
+									CommunityMemberPojo cmp = new CommunityMemberPojo();
+									cmp.set_id(cp.getId());
+									BasicDBObject actions = new BasicDBObject();
+									actions.put("$pull", new BasicDBObject("members", new BasicDBObject("_id", cp.getId())));
+										// ie for communities for which he's a member...remove...any elements of the list members...with his _id
+									
+									DbManager.getSocial().getCommunity().update(query, actions, false, true); 
+										// (don't upsert, many times)			
+								}//TESTED
 								
 								// 1] Remove from all shares (delete shares if that leaves them orphaned)
 								
@@ -553,7 +577,9 @@ public class CommunityHandler
 								DbManager.getSocial().getCommunity().remove(new BasicDBObject("_id", communityId));
 								
 								// Remove from index:
-								GenericProcessingController.deleteCommunityDocIndex(communityId.toString(), cp.getParentId(), false);
+								if (CommunityType.user != cp.getType()) {
+									GenericProcessingController.deleteCommunityDocIndex(communityId.toString(), cp.getParentId(), false);
+								}
 								//TESTED
 								
 								// 5] Finally finally remove from parent communities
@@ -635,7 +661,7 @@ public class CommunityHandler
 	 * updateMemberStatus (REST)
 	 */
 	
-	public ResponsePojo updateMemberStatus(String callerIdStr, String personIdStr, String communityIdStr, String userStatus) 
+	public ResponsePojo updateMemberStatus(String callerIdStr, String personIdStr, String communityIdStr, String userStatus, CommunityPojo.CommunityType communityType) 
 	{
 		boolean isSysAdmin = RESTTools.adminLookup(callerIdStr);
 		ResponsePojo rp = new ResponsePojo();
@@ -650,10 +676,7 @@ public class CommunityHandler
 			{
 				// PersonId can be _id or username/email
 				BasicDBObject dboPerson = (BasicDBObject) DbManager.getSocial().getPerson().findOne(new BasicDBObject("email", personIdStr));
-				if (null == dboPerson) { // (ie personId isn't an email address... convert to ObjectId and try again)
-					dboPerson = (BasicDBObject) DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id", new ObjectId(personIdStr)));
-				}
-				else {
+				if (null != dboPerson) { // (ie personId isn't an email address... convert to ObjectId and try again)
 					personIdStr = dboPerson.getString("_id"); 
 				}
 				// OK from here on, personId is the object Id...
@@ -711,7 +734,7 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Update member status",false,"General Error, bad params maybe? " + ex.getMessage()));
+			rp.setResponse(new ResponseObject("Update member status",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}//TESTED
@@ -734,9 +757,59 @@ public class CommunityHandler
 	// (Note supports personId as either Id or username (email) both are unique indexes)
 
 	/**
+	 * bulkUpdateOperation (REST)
+	 * For ,-separated personIdStr variables, applies the operation to each member in turn, aggregating the results, supporting:
+	 * - inviteCommunity
+	 * - updateMemberType
+	 * - updateMemberStatus
+	 */
+	public ResponsePojo bulkUpdateOperation(String opName, String callerIdStr, String personIdStr, String userType, String userStatus, String communityIdStr, CommunityPojo.CommunityType communityType, String skipInvitation)
+	{
+		 String[] personIds = personIdStr.split("\\s*,\\s*");
+		 HashMap<String, String> failed = new HashMap<String, String>();
+		 int num_failed = 0;
+		 LinkedList<String> succeeded = new LinkedList<String>();
+		 int num_succeeded = 0;
+		 ResponsePojo rp = new ResponsePojo();
+		 rp.setResponse(new ResponseObject());
+		 rp.getResponse().setSuccess(true);
+		 for (String subPerson: personIds) {
+			 ResponsePojo tmpRp = null;
+			 if (opName.equalsIgnoreCase("inviteCommunity")) {
+				 tmpRp = this.inviteCommunity(callerIdStr, subPerson, communityIdStr, skipInvitation, communityType);
+			 }
+			 else if (opName.equalsIgnoreCase("updateMemberType")) {
+				 tmpRp = this.updateMemberType(callerIdStr, subPerson, communityIdStr, userType, communityType);
+			 }
+			 else if (opName.equalsIgnoreCase("updateMemberStatus")) {
+				 tmpRp = this.updateMemberStatus(callerIdStr, subPerson, communityIdStr, userStatus, communityType);
+			 }
+			 rp.getResponse().setAction(tmpRp.getResponse().getAction());
+			 rp.getResponse().setTime(rp.getResponse().getTime() + tmpRp.getResponse().getTime());
+			 if (!tmpRp.getResponse().isSuccess()) {
+				 rp.getResponse().setSuccess(false);
+				 failed.put(subPerson, tmpRp.getResponse().getMessage());
+				 num_failed++;
+			 }
+			 else {
+				 succeeded.add(subPerson);							 
+				 num_succeeded++;
+			 }						 
+		 }//(end loop over bulk users)
+		 BasicDBObject breakdown = new BasicDBObject();
+		 breakdown.put("succeeded", succeeded);
+		 breakdown.put("failed", failed);
+		 rp.getResponse().setMessage("succeeded=" + num_succeeded + " failed=" + num_failed);
+		 rp.setData(breakdown, (BasePojoApiMap<BasicDBObject>)null);
+		 
+		 return rp;
+		
+	}//TESTED (by hand)
+	
+	/**
 	 * updateMemberType (REST)
 	 */
-	public ResponsePojo updateMemberType(String callerIdStr, String personIdStr, String communityIdStr, String userType) 
+	public ResponsePojo updateMemberType(String callerIdStr, String personIdStr, String communityIdStr, String userType, CommunityPojo.CommunityType communityType) 
 	{
 		boolean isSysAdmin = RESTTools.adminLookup(callerIdStr);
 		ResponsePojo rp = new ResponsePojo();
@@ -756,10 +829,7 @@ public class CommunityHandler
 			{
 				// PersonId can be _id or username/email
 				BasicDBObject dboPerson = (BasicDBObject) DbManager.getSocial().getPerson().findOne(new BasicDBObject("email", personIdStr));
-				if (null == dboPerson) { // (ie personId isn't an email address... convert to ObjectId and try again)
-					dboPerson = (BasicDBObject) DbManager.getSocial().getPerson().findOne(new BasicDBObject("_id", new ObjectId(personIdStr)));
-				}
-				else {
+				if (null != dboPerson) { // (ie personId isn't an email address... convert to ObjectId and try again)
 					personIdStr = dboPerson.getString("_id"); 
 				}
 				// OK from here on, personId is the object Id...
@@ -798,6 +868,12 @@ public class CommunityHandler
 						{
 							if ( cmp.get_id().equals(personId) )
 							{
+								if ((MemberType.user_group == cmp.getType()) && bOwnershipChangeRequested) {
+									// Not allowed to set a user group to be the owner (obv)
+									rp.setResponse(new ResponseObject("Update member type",false,"Can't set a user group to be the owner"));
+									return rp;									
+								}//TESTED
+								
 								cmp.setUserType(userType);	
 								personDisplayName = cmp.getDisplayName();
 								bChangedMembership = true;
@@ -848,7 +924,7 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Update member type",false,"General Error, bad params maybe? " + ex.getMessage()));
+			rp.setResponse(new ResponseObject("Update member type",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}//TESTED (see sub-clauses for details)
@@ -856,13 +932,13 @@ public class CommunityHandler
 	/**
 	 * joinCommunity (REST)
 	 */
-	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr) 
+	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr, CommunityPojo.CommunityType communityType) 
 	{
 		boolean isSysAdmin = RESTTools.adminLookup(personIdStr);
-		return joinCommunity(personIdStr, communityIdStr, isSysAdmin);
+		return joinCommunity(personIdStr, communityIdStr, isSysAdmin, communityType);
 	}
 	
-	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr, boolean isSysAdmin) 
+	public ResponsePojo joinCommunity(String personIdStr, String communityIdStr, boolean isSysAdmin, CommunityPojo.CommunityType communityType) 
 	{		
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -877,8 +953,34 @@ public class CommunityHandler
 				{
 					BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(personIdStr));
 					DBObject dboPerson = DbManager.getSocial().getPerson().findOne(queryPerson);
-					PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
-					boolean isPending = isMemberPending(cp, pp);
+					ObjectId personOrUserGroupId = null;
+					PersonPojo pp = null;
+					CommunityPojo userGroup = null;
+					if (null == dboPerson) {							
+						userGroup = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(personIdStr))), CommunityPojo.class);
+						if (null != userGroup)
+							personOrUserGroupId = userGroup.getId();
+						
+						if ((null != userGroup) && (CommunityType.user != userGroup.getType())) {
+							rp.setResponse(new ResponseObject("Join member to community", false, "Can't add data groups as members."));
+							return rp;								
+						}
+						if ((null != userGroup) && (CommunityType.user == cp.getType())) {
+							rp.setResponse(new ResponseObject("Join member to community", false, "Can't add user groups to user groups."));
+							return rp;															
+						}
+					}
+					else {
+						pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+						if (null != pp)
+							personOrUserGroupId = pp.get_id();
+					}
+					if ((null == pp) && (null == userGroup)) {
+						rp.setResponse(new ResponseObject("Join community", false, "Can't find user or user group."));
+						return rp;														
+					}
+					
+					boolean isPending = isMemberPending(cp, personOrUserGroupId);
 					
 					if ( !cp.isMember(new ObjectId(personIdStr)) || isPending )
 					{
@@ -892,7 +994,7 @@ public class CommunityHandler
 							//otherwise go ahead and add as a member
 							if ( requiresApproval )
 							{
-								cp.addMember(pp,true);
+								cp.addMember(personOrUserGroupId, pp, userGroup, true);
 								//write both objects back to db now
 								/////////////////////////////////////////////////////////////////////////////////////////////////
 								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
@@ -901,7 +1003,7 @@ public class CommunityHandler
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
 															
 								//send email out to owner for approval
-								CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"join",personIdStr);
+								CommunityApprovePojo cap = cp.createCommunityApprove(RESTTools.generateRandomId(), personIdStr,communityIdStr,"join",personIdStr);
 								DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
 								
 								// Get to addresses for Owner and Moderators
@@ -910,8 +1012,10 @@ public class CommunityHandler
 								PropertiesManager propManager = new PropertiesManager();
 								String rootUrl = propManager.getUrlRoot();
 								
-								String subject = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName();
-								String body = pp.getDisplayName() + " is trying to join infinit.e community: " + cp.getName() + "<br/>Do you want to accept this request?" +
+								String displayName = (null != pp) ? pp.getDisplayName() : userGroup.getName();
+								
+								String subject = displayName + " is trying to join infinit.e community: " + cp.getName();
+								String body = displayName + " is trying to join infinit.e community: " + cp.getName() + "<br/>Do you want to accept this request?" +
 								"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
 								"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
 								
@@ -929,15 +1033,17 @@ public class CommunityHandler
 							}
 							else
 							{
-								cp.addMember(pp);
-								pp.addCommunity(cp);
+								cp.addMember(personOrUserGroupId, pp, userGroup);
+								if (null != pp)
+									pp.addCommunity(cp);
 								//write both objects back to db now
 								/////////////////////////////////////////////////////////////////////////////////////////////////
 								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 								// Caleb: this means change update to $set
 								/////////////////////////////////////////////////////////////////////////////////////////////////
 								DbManager.getSocial().getCommunity().update(query, cp.toDb());
-								DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
+								if (null != pp)
+									DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 								rp.setResponse(new ResponseObject("Join Community",true,"Joined community successfully"));
 								rp.setData(new CommunityApprovalPojo(true));
 							}						
@@ -964,7 +1070,8 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Join Community",false,"General Error, bad params maybe? " + ex.getMessage()));
+			
+			rp.setResponse(new ResponseObject("Join Community",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}
@@ -973,7 +1080,10 @@ public class CommunityHandler
 	 * leaveCommunity (REST)
 	 */
 	
-	public ResponsePojo leaveCommunity(String personIdStr, String communityIdStr) 
+	/**/
+	//TODO: can this be called for user groups?
+	
+	public ResponsePojo leaveCommunity(String personIdStr, String communityIdStr, CommunityPojo.CommunityType communityType) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -1012,7 +1122,7 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Leave Community",false,"General Error, bad params maybe? " + ex.getMessage()));
+			rp.setResponse(new ResponseObject("Leave Community",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}
@@ -1029,7 +1139,7 @@ public class CommunityHandler
 	 * @param communityIdStr
 	 * @return
 	 */
-	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr, String skipInvitation) 
+	public ResponsePojo inviteCommunity(String userIdStr, String personIdStr, String communityIdStr, String skipInvitation, CommunityPojo.CommunityType communityType) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try {
@@ -1072,51 +1182,77 @@ public class CommunityHandler
 						else {
 							personIdStr = dboPerson.getString("_id"); 
 						}
-						// OK from here on, personId is the object Id...
+						ObjectId personOrUserGroupId = null;
+						PersonPojo pp = null;
+						CommunityPojo userGroup = null;
+						if (null == dboPerson) {							
+							userGroup = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(personIdStr))), CommunityPojo.class);
+							if (null != userGroup)
+								personOrUserGroupId = userGroup.getId();
+							
+							if ((null != userGroup) && (CommunityType.user != userGroup.getType())) {
+								rp.setResponse(new ResponseObject("Join member to community", false, "Can't add data groups as members."));
+								return rp;								
+							}
+							if ((null != userGroup) && (CommunityType.user == cp.getType())) {
+								rp.setResponse(new ResponseObject("Join member to community", false, "Can't add user groups to user groups."));
+								return rp;															
+							}
+						}
+						else {
+							pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);
+							if (null != pp)
+								personOrUserGroupId = pp.get_id();							
+						}
+						// OK from here on, personIdStr is the object Id...
 						
-						if ( dboPerson != null )
+						if ( (pp != null) || (userGroup != null) )
 						{
-							PersonPojo pp = PersonPojo.fromDb(dboPerson,PersonPojo.class);							
 							//need to check for if a person is pending, and skipInvite and isSysAdmin, otherwise
 							//they would just get sent an email again, so leave it be
 							boolean isPending = false;
 							if ( isSysAdmin && skipInvite )
 							{
-								isPending = isMemberPending(cp, pp);
+								isPending = isMemberPending(cp, personOrUserGroupId);
 							}
 							
 							if ( selfRegister )
 							{
 								//If the comm allows for self registering, just call join community
 								//instead of invite, it will handle registration
-								return this.joinCommunity(pp.get_id().toString(), communityIdStr, isSysAdmin);
+								return this.joinCommunity(personOrUserGroupId.toString(), communityIdStr, isSysAdmin, communityType);
 							}
-							else if ( !cp.isMember(pp.get_id()) || isPending )
+							else if ( !cp.isMember(personOrUserGroupId) || isPending )
 							{
 								if (isSysAdmin && skipInvite) // Can only skip invite if user is Admin
 								{
 									// Update community with new member
-									cp.addMember(pp, false); // Member status set to Active
-									cp.setNumberOfMembers(cp.getNumberOfMembers() + 1); // Increment number of members
+									cp.addMember(personOrUserGroupId, pp, userGroup, false); // Member status set to Active
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
 									
-									// Add community to persons object and save to db
-									pp.addCommunity(cp);
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set
 									/////////////////////////////////////////////////////////////////////////////////////////////////
-									DbManager.getSocial().getPerson().update(new BasicDBObject("_id", pp.get_id()), pp.toDb());
-									
-									rp.setResponse(new ResponseObject("Invite Community",true,"User added to community successfully."));
+									if (null != pp) {
+										// Add community to persons object and save to db
+										pp.addCommunity(cp);
+										
+										DbManager.getSocial().getPerson().update(new BasicDBObject("_id", pp.get_id()), pp.toDb());
+										rp.setResponse(new ResponseObject("Invite Community",true,"User added to community successfully."));
+									}
+									else {
+										//TODO (INF-2866): might need to do some person manipulation
+										rp.setResponse(new ResponseObject("Invite Community",true,"User group added to community successfully."));
+									}
 								}
 								else
 								{
-									cp.addMember(pp, true); // Member status set to Pending
+									cp.addMember(personOrUserGroupId, pp, userGroup, true); // Member status set to Pending
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set
@@ -1124,7 +1260,7 @@ public class CommunityHandler
 									DbManager.getSocial().getCommunity().update(query, cp.toDb());
 									
 									//send email out inviting user
-									CommunityApprovePojo cap = cp.createCommunityApprove(personIdStr,communityIdStr,"invite",userIdStr);
+									CommunityApprovePojo cap = cp.createCommunityApprove(RESTTools.generateRandomId(), personIdStr,communityIdStr,"invite",userIdStr);
 									DbManager.getSocial().getCommunityApprove().insert(cap.toDb());
 									
 									PropertiesManager propManager = new PropertiesManager();
@@ -1139,16 +1275,28 @@ public class CommunityHandler
 									String body = "You have been invited to join the community " + cp.getName() + 
 										"<br/><a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/true\">Accept</a> " +
 										"<a href=\"" + rootUrl + "social/community/requestresponse/"+cap.get_id().toString() + "/false\">Deny</a>"; 
-									
-									SendMail mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
+														
+									SendMail mail = null;
+									if (null != pp) {
+										mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), pp.getEmail(), subject, body);
+									}
+									else {
+										mail = new SendMail(new PropertiesManager().getAdminEmailAddress(), getToAddressesFromCommunity(userGroup), subject, body);
+									}
 									
 									if (mail.send("text/html"))
 									{
 										if (isSysAdmin) {
-											rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+											if (null == pp) 
+												rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully: " + cap.get_id().toString()));
+											else
+												rp.setResponse(new ResponseObject("Invite Community",true,"Invited user group to community successfully: " + cap.get_id().toString()));
 										}
 										else {
-											rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));									
+											if (null == pp) 
+												rp.setResponse(new ResponseObject("Invite Community",true,"Invited user to community successfully"));
+											else
+												rp.setResponse(new ResponseObject("Invite Community",true,"Invited user group to community successfully"));
 										}
 									}
 									else
@@ -1165,7 +1313,7 @@ public class CommunityHandler
 						}
 						else
 						{
-							rp.setResponse(new ResponseObject("Invite Community",false,"Person does not exist"));
+							rp.setResponse(new ResponseObject("Invite Community",false,"Person/User Group does not exist"));
 						}
 					}
 					else
@@ -1185,7 +1333,7 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Invite Community",false,"General Error, bad params maybe? " + ex.getMessage()));
+			rp.setResponse(new ResponseObject("Invite Community",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}
@@ -1214,11 +1362,11 @@ public class CommunityHandler
 	 * 
 	 * @return
 	 */
-	private boolean isMemberPending( CommunityPojo cp, PersonPojo pp)
+	private boolean isMemberPending( CommunityPojo cp, ObjectId personOrUserGroupId)
 	{									
 		for ( CommunityMemberPojo cmp : cp.getMembers() )
 		{
-			if ( cmp.get_id().equals(pp.get_id()) )
+			if ( cmp.get_id().equals(personOrUserGroupId) )
 			{
 				if ( cmp.getUserStatus().equals("pending") )
 				{
@@ -1239,7 +1387,7 @@ public class CommunityHandler
 	 * @param resp
 	 * @return
 	 */
-	public ResponsePojo requestResponse(String requestIdStr, String resp) 
+	public ResponsePojo requestResponse(String requestIdStr, String resp, CommunityPojo.CommunityType communityType) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -1279,12 +1427,31 @@ public class CommunityHandler
 						//get user
 						BasicDBObject queryPerson = new BasicDBObject("_id",new ObjectId(cap.getPersonId()));
 						DBObject dboperson = DbManager.getSocial().getPerson().findOne(queryPerson);
-						PersonPojo pp = PersonPojo.fromDb(dboperson, PersonPojo.class);
 						
-						if ( dboComm != null )
+						// handle user vs user group:
+						ObjectId personOrUserGroupId = null;
+						PersonPojo pp = null;
+						CommunityPojo userGroup = null;
+						if (null == dboperson) {							
+							userGroup = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", new ObjectId(cap.getPersonId()))), CommunityPojo.class);
+							if (null != userGroup)
+								personOrUserGroupId = userGroup.getId();
+							
+							//(must be a user group etc etc if we got this far)
+						}
+						else {
+							pp = PersonPojo.fromDb(dboperson,PersonPojo.class);
+							if (null != pp)
+								personOrUserGroupId = pp.get_id();
+						}
+						if ((null == pp) && (null == userGroup)) {
+							rp.setResponse(new ResponseObject("Request Response",false,"The user or user group does not exist."));
+							return rp;
+						}						
+						else if ( dboComm != null )
 						{
 							CommunityPojo cp = CommunityPojo.fromDb(dboComm, CommunityPojo.class);
-							boolean isStillPending = isMemberPending(cp, pp);
+							boolean isStillPending = isMemberPending(cp, personOrUserGroupId);
 							//make sure the user is still waiting to join the community, otherwise remove this request and return
 							if ( isStillPending )
 							{
@@ -1302,15 +1469,14 @@ public class CommunityHandler
 								{
 									//if response is true (allow), always just add community info to user, and change status to active
 									
-									if ( dboperson != null)
-									{
-										cp.updateMemberStatus(cap.getPersonId(), "active");
-										cp.setNumberOfMembers(cp.getNumberOfMembers()+1);
-										/////////////////////////////////////////////////////////////////////////////////////////////////
-										// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
-										// Caleb: this means change update to $set
-										/////////////////////////////////////////////////////////////////////////////////////////////////
-										DbManager.getSocial().getCommunity().update(query, cp.toDb());
+									cp.updateMemberStatus(cap.getPersonId(), "active");
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
+									// Caleb: this means change update to $set
+									/////////////////////////////////////////////////////////////////////////////////////////////////
+									DbManager.getSocial().getCommunity().update(query, cp.toDb());
+									
+									if (null != pp) {
 										pp.addCommunity(cp);
 										/////////////////////////////////////////////////////////////////////////////////////////////////
 										// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
@@ -1318,9 +1484,8 @@ public class CommunityHandler
 										/////////////////////////////////////////////////////////////////////////////////////////////////
 										DbManager.getSocial().getPerson().update(queryPerson, pp.toDb());
 									}
-									else
-									{
-										rp.setResponse(new ResponseObject("Request Response",false,"The person does not exist."));
+									else {
+										//TODO (INF-2866): handle user group level updating
 									}
 								}
 								//return successfully
@@ -1353,7 +1518,7 @@ public class CommunityHandler
 		}
 		catch(Exception ex)
 		{
-			rp.setResponse(new ResponseObject("Request Response",false,"General Error, bad params maybe?"  + ex.getMessage()));
+			rp.setResponse(new ResponseObject("Request Response",false, Globals.populateStackTrace(new StringBuffer("General Error, bad params maybe? "), ex).toString()));
 		}
 		return rp;
 	}
@@ -1368,7 +1533,7 @@ public class CommunityHandler
 	 * @param json
 	 * @return
 	 */
-	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json) 
+	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json, CommunityPojo.CommunityType communityType) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try {
@@ -1419,6 +1584,12 @@ public class CommunityHandler
 					rp.setResponse(new ResponseObject("Update Community",false,"Community to update does not exist"));
 					return rp;
 				}
+				// (not allowed to change community type, too complex)
+				if (cp.getType() != updateCommunity.getType()) {
+					rp.setResponse(new ResponseObject("Update Community",false,"Can't update community type, currently: " + cp.getType().toString()));
+					return rp;					
+				}
+				
 				// Here are the fields you are allowed to change:
 				// name:
 				if (null != updateCommunity.getName()) 
@@ -1573,6 +1744,7 @@ public class CommunityHandler
 						// Create the new member object
 						CommunityMemberPojo cmp = new CommunityMemberPojo();
 						cmp.set_id(new ObjectId(personIdStr));
+						// (These all come from API - so applies to both users and user groups)
 						cmp.setEmail(email);
 						cmp.setDisplayName(displayName);
 						cmp.setUserStatus(userStatus);
@@ -1600,48 +1772,70 @@ public class CommunityHandler
 						DBObject dbo2 = DbManager.getSocial().getPerson().findOne(query2);
 						PersonPojo p = PersonPojo.fromDb(dbo2, PersonPojo.class);
 
-						if (p.getContacts() != null)
-						{
-							// Set contacts from person record
-							Set<CommunityMemberContactPojo> contacts = new HashSet<CommunityMemberContactPojo>();
-							Map<String, PersonContactPojo> pcp = p.getContacts();
-							Iterator<Map.Entry<String, PersonContactPojo>> it2 = pcp.entrySet().iterator();
-							while (it2.hasNext())
-							{
-								CommunityMemberContactPojo c = new CommunityMemberContactPojo();
-								Map.Entry<String, PersonContactPojo> pair = it2.next();
-								c.setType(pair.getKey().toString());
-								PersonContactPojo v = (PersonContactPojo)pair.getValue();
-								c.setValue(v.getValue());
-								contacts.add(c);
+						if (null == p) {
+							// This could be a user group instead ... note can't add user groups to user groups... 
+							CommunityPojo userGroup = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", cmp.get_id())), CommunityPojo.class);
+							if ((null != userGroup) && (CommunityType.user != userGroup.getType())) {
+								rp.setResponse(new ResponseObject("Add member to community", false, "Can't add data groups as members."));
+								return rp;								
 							}
-							cmp.setContacts(contacts);
-						}
-
-						// Set links from person record
-						if (p.getLinks() != null)
-						{
-							// Set contacts from person record
-							Set<CommunityMemberLinkPojo> links = new HashSet<CommunityMemberLinkPojo>();
-							Map<String, PersonLinkPojo> plp = p.getLinks();
-							Iterator<Map.Entry<String, PersonLinkPojo>> it3 = plp.entrySet().iterator();
-							while (it.hasNext())
-							{
-								CommunityMemberLinkPojo c = new CommunityMemberLinkPojo();
-								Map.Entry<String, PersonLinkPojo> pair = it3.next();
-								c.setTitle(pair.getKey().toString());
-								PersonLinkPojo v = (PersonLinkPojo)pair.getValue();
-								c.setUrl(v.getUrl());
-								links.add(c);
+							if (null == userGroup) {
+								rp.setResponse(new ResponseObject("Add member to community", false, "User/User Group not found."));
+								return rp;
 							}
-							cmp.setLinks(links);
-						}
-
+							else if (CommunityPojo.CommunityType.user == community.getType()) {
+								rp.setResponse(new ResponseObject("Add member to community", false, "Can't add user group to user group."));
+								return rp;								
+							}
+							else {
+								//TODO (INF-2866): If doing it that way, then add community to all members 
+							}
+							cmp.setType(MemberType.user_group);
+							
+						}//TESTED
+						else {
+							if (p.getContacts() != null)
+							{
+								// Set contacts from person record
+								Set<CommunityMemberContactPojo> contacts = new HashSet<CommunityMemberContactPojo>();
+								Map<String, PersonContactPojo> pcp = p.getContacts();
+								Iterator<Map.Entry<String, PersonContactPojo>> it2 = pcp.entrySet().iterator();
+								while (it2.hasNext())
+								{
+									CommunityMemberContactPojo c = new CommunityMemberContactPojo();
+									Map.Entry<String, PersonContactPojo> pair = it2.next();
+									c.setType(pair.getKey().toString());
+									PersonContactPojo v = (PersonContactPojo)pair.getValue();
+									c.setValue(v.getValue());
+									contacts.add(c);
+								}
+								cmp.setContacts(contacts);
+							}
+	
+							// Set links from person record
+							if (p.getLinks() != null)
+							{
+								// Set contacts from person record
+								Set<CommunityMemberLinkPojo> links = new HashSet<CommunityMemberLinkPojo>();
+								Map<String, PersonLinkPojo> plp = p.getLinks();
+								Iterator<Map.Entry<String, PersonLinkPojo>> it3 = plp.entrySet().iterator();
+								while (it.hasNext())
+								{
+									CommunityMemberLinkPojo c = new CommunityMemberLinkPojo();
+									Map.Entry<String, PersonLinkPojo> pair = it3.next();
+									c.setTitle(pair.getKey().toString());
+									PersonLinkPojo v = (PersonLinkPojo)pair.getValue();
+									c.setUrl(v.getUrl());
+									links.add(c);
+								}
+								cmp.setLinks(links);
+							}
+							cmp.setType(MemberType.user);
+							
+						}//(end if adding user _not_ user group to community) 
+	
 						// Add new member object to the set
 						cmps.add(cmp);
-
-						// Increment number of members by 1
-						community.setNumberOfMembers(community.getNumberOfMembers() + 1);
 
 						/////////////////////////////////////////////////////////////////////////////////////////////////
 						// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
@@ -1649,16 +1843,21 @@ public class CommunityHandler
 						/////////////////////////////////////////////////////////////////////////////////////////////////
 						DbManager.getSocial().getCommunity().update(query, community.toDb());
 
-						PersonHandler person = new PersonHandler();
-						person.addCommunity(personIdStr, communityIdStr, communityName);
-
 						rp.setData(community, new CommunityPojoApiMap());
 
-						rp.setResponse(new ResponseObject("Add member to community", true, "Person has been added as member of community"));	
+						if (MemberType.user == cmp.getType()) {
+							PersonHandler person = new PersonHandler();
+							person.addCommunity(personIdStr, communityIdStr, communityName, community.getType());
+							
+							rp.setResponse(new ResponseObject("Add member to community", true, "Person has been added as member of community"));
+						}
+						else {
+							rp.setResponse(new ResponseObject("Add member to community", true, "User Group has been added to community"));							
+						}
 					}					
 					else
 					{
-						rp.setResponse(new ResponseObject("Add member to community",true,"Person is already a member of the community."));	
+						rp.setResponse(new ResponseObject("Add member to community",true,"Person/Group is already a member of the community."));	
 					}
 				}
 				else
@@ -1736,23 +1935,28 @@ public class CommunityHandler
 					{
 						cmps.remove(cmp);
 
-						community.setNumberOfMembers(community.getNumberOfMembers() - 1);
-
 						/////////////////////////////////////////////////////////////////////////////////////////////////
 						// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 						// Caleb: this means change update to $set
 						/////////////////////////////////////////////////////////////////////////////////////////////////					
 						DbManager.getSocial().getCommunity().update(query, community.toDb());
 
-						PersonHandler person = new PersonHandler();
-						person.removeCommunity(personIdStr, communityIdStr);
-
-						rp.setData(community, new CommunityPojoApiMap());
-						rp.setResponse(new ResponseObject("Remove member from community", true, "Member has been removed from community"));	
+						if (CommunityMemberPojo.MemberType.user == cmp.getType()) {
+							PersonHandler person = new PersonHandler();
+							person.removeCommunity(personIdStr, communityIdStr);
+	
+							rp.setData(community, new CommunityPojoApiMap());
+							rp.setResponse(new ResponseObject("Remove member from community", true, "Member has been removed from community"));
+						}
+						else { // user group
+							//TODO (INF-2866): remove from community from each user, if that's the way we end up implementing this (?)							
+							rp.setData(community, new CommunityPojoApiMap());
+							rp.setResponse(new ResponseObject("Remove member from community", true, "User Group has been removed from community"));							
+						}
 					}					
 					else
 					{
-						rp.setResponse(new ResponseObject("Remove member from community",true,"Person is not a member of this community."));	
+						rp.setResponse(new ResponseObject("Remove member from community",true,"Person/Group is not a member of this community."));	
 					}
 				}
 				else
@@ -1807,7 +2011,6 @@ public class CommunityHandler
 			commUserAttributes.put("publishQueriesToActivityFeed", new CommunityUserAttributePojo("boolean","true",true));
 			commUserAttributes.put("publishCommentsPublicly", new CommunityUserAttributePojo("boolean","false",true));
 			selfCommunity.setCommunityUserAttribute(commUserAttributes);
-			selfCommunity.setNumberOfMembers(0);
 			
 			// Create the index form of the community:
 			try {
@@ -1854,10 +2057,26 @@ public class CommunityHandler
 		{
 			if (cm.getUserType().equalsIgnoreCase("moderator"))
 			{
-				emailAddresses.append(";" + cm.getEmail());
+				if (CommunityMemberPojo.MemberType.user == cm.getType()) {
+					emailAddresses.append(";" + cm.getEmail());
+				}
+				else {// user group
+					
+					CommunityPojo userGroup = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id", cm.get_id())), CommunityPojo.class);
+
+					if (null != userGroup) {
+						emailAddresses.append(";" + userGroup.getOwner().getEmail());
+						for (CommunityMemberPojo cm2 : userGroup.getMembers())
+						{
+							if (CommunityMemberPojo.MemberType.user_group != cm.getType()) {
+								emailAddresses.append(";" + cm2.getEmail());
+							}
+							//(don't support recursion, so just ignore from here)
+						}						
+					}
+				}//TESTED
 			}
-		}
-		
+		}		
 		return emailAddresses.toString();
 	}
 	
@@ -1998,6 +2217,18 @@ public class CommunityHandler
 		}	
 		return communityIdStr;
 	}		
+
+	// UTILITY: data/user group handling
 	
+	private BasicDBObject addCommunityTypeTerm(BasicDBObject query, CommunityType type) {
+		if (CommunityType.data == type) { // ie both combined and data (except personal/combined)
+			query.put("type", new BasicDBObject(DbManager.ne_, CommunityType.user.toString()));
+			query.put("isPersonalCommunity", false);
+		}
+		else if (CommunityType.user == type) { // (user only)
+			query.put("type", CommunityType.user.toString());
+		}
+		return query;
+	}//TESTED (by hand)
 	
 }

@@ -22,7 +22,7 @@
 	xmlns:request="com.ikanow.infinit.e.community.view.request.*"
 	xmlns:textInput="com.ikanow.infinit.e.shared.view.component.textInput.*"
 	width="310"
-	height="310"
+	height="320"
 	styleName="titleWindowSearchArrow"
 	currentState="{ model.navigator.currentState }"
 	creationComplete="headercontenttitlewindowCreationCompleteHandler(event)"
@@ -73,8 +73,13 @@
 			{
 				fadeOut.end();
 				fadeOut.play();
+				setTimeout( handleEffectReallyEnded, 1000);				
 			}
 			
+			protected function handleEffectReallyEnded():void
+			{
+				this.clipboardLabel_preClick.visible = true;
+			}
 			/**
 			 * function to handle when the user copies one of the
 			 * data elements in the list
@@ -83,6 +88,7 @@
 			 */
 			protected function handleSourceDataCopiedEvent( event:SourceEvent ):void
 			{
+				this.clipboardLabel_preClick.visible = false;
 				fadeIn.end();
 				fadeIn.play();
 				fadeIn.addEventListener( EffectEvent.EFFECT_END, handleEffectEndEvent );
@@ -124,7 +130,7 @@
 
 		<common:InfLabel id="titleLabel"
 			width="100%"
-			text="Infinite Source Monitor"
+			text="Infinit.e Source Monitor"
 			styleName="lightGrey"
 			fontWeight="bold"
 			horizontalCenter="0"
@@ -137,6 +143,21 @@
 			maxDisplayedLines="1"
 			showDropShadow="true" />
 
+		<common:InfLabel id="clipboardLabel_preClick"
+						 text="Double click item to copy to clipboard"
+						 styleName="lightGrey"
+						 width="100%"
+						 fontWeight="bold"
+						 horizontalCenter="0"
+						 left="7"
+						 paddingRight="40"
+						 right="-4"
+						 textAlign="center"
+						 top="{ titleLabel.height + 10 }"
+						 verticalAlign="middle"
+						 alpha="100"
+						 showDropShadow="true" />
+		
 		<common:InfLabel id="clipboardLabel"
 			text="Data copied to clipboard"
 			styleName="lightGrey"

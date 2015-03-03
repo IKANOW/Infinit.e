@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+   Copyright 2012, The Infinit.e Open Source Project.
+   
+   This program is free software: you can redistribute it and/or modify
+   it under the terms of the GNU Affero General Public License, version 3,
+   as published by the Free Software Foundation.
+   
+   This program is distributed in the hope that it will be useful,
+   but WITHOUT ANY WARRANTY; without even the implied warranty of
+   MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+   GNU Affero General Public License for more details.
+   
+   You should have received a copy of the GNU Affero General Public License
+   along with this program. If not, see <http://www.gnu.org/licenses/>.
+-->
+<s:Group xmlns:fx="http://ns.adobe.com/mxml/2009"
+	xmlns:s="library://ns.adobe.com/flex/spark"
+	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
+	xmlns:component="com.ikanow.infinit.e.shared.view.component.*">
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<fx:Script>
+		<![CDATA[
+			import com.ikanow.infinit.e.query.model.presentation.QueryModel;
+			
+			import mx.controls.AdvancedDataGrid;
+			import mx.controls.Alert;
+			import mx.events.ItemClickEvent;
+			
+			[Bindable]
+			[Inject]
+			public var model:QueryModel;
+			
+			protected function queryList_itemClickHandler( event:ItemClickEvent ):void
+			{
+				if (event.label == "apply")
+				{					
+					savedQueryList.enabled = false;
+					
+					model.navigator.closeQueryView();
+					model.applySavedQueryAndRun(event.item);
+				}
+				else if (event.label == "delete")
+				{				
+					model.deletePivotOrQuery(event.item._id, false);
+				}					
+				setTimeout( enableList, 500 );
+			}
+			
+			private function enableList():void
+			{
+				savedQueryList.enabled = true;
+			}
+		]]>
+	</fx:Script>
+
+	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+	<!-- Views :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
+
+	<s:VGroup 
+		width="100%"
+		height="100%"
+		paddingBottom="20"
+		paddingLeft="20"
+		paddingRight="20"
+		paddingTop="6">
+
+		<!-- history list -->
+		<common:InfNonSelectableItemClickList id="savedQueryList"
+			width="100%"
+			height="100%"
+			focusEnabled="false"
+			styleName="historyList"
+			horizontalScrollPolicy="off"
+			dataProvider="{ model.queries }"
+			itemClick="queryList_itemClickHandler(event)"
+			itemRenderer="com.ikanow.infinit.e.query.view.saved.SavedQueryListItemRender">
+			<common:layout>
+				<s:VerticalLayout 
+					gap="20"
+					requestedMinRowCount="1"
+					useVirtualLayout="false"
+					variableRowHeight="true" />
+			</common:layout>
+		</common:InfNonSelectableItemClickList>
+
+	</s:VGroup>
+
+</s:Group>

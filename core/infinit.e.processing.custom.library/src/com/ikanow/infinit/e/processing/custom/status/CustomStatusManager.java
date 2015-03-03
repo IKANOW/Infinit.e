@@ -16,17 +16,22 @@
 package com.ikanow.infinit.e.processing.custom.status;
 
 import java.util.Date;
+import java.util.LinkedList;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
+import com.ikanow.infinit.e.data_model.store.config.source.SourceHarvestStatusPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputManager;
 import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
 import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
+import com.ikanow.infinit.e.processing.custom.utils.SourcePipelineToCustomConversion;
 import com.mongodb.BasicDBObject;
 
 public class CustomStatusManager {
@@ -147,7 +152,8 @@ public class CustomStatusManager {
 					}
 					//failed, just append error message										
 					updates.append(CustomMapReduceJobPojo.errorMessage_, errorMessage);
-					incs.append(CustomMapReduceJobPojo.timesFailed_,1);					
+					incs.append(CustomMapReduceJobPojo.timesFailed_,1);
+					cmr.timesFailed++; // (so that in memory processes can tell if a job failed)
 				}
 				update.append(MongoDbManager.inc_, incs);
 				
@@ -173,13 +179,55 @@ public class CustomStatusManager {
 				update.append(MongoDbManager.set_,updates);
 					// (if isComplete, should always include resetting jobidS and jobidN)
 				DbManager.getCustom().getLookup().update(new BasicDBObject(CustomMapReduceJobPojo._id_,cmr._id),update);
+				
+				// (also set local version)
+				cmr.errorMessage = errorMessage;
 			}
+			if (isComplete || isError) {
+				// If we're derived from a source then update the source:
+				if (null != cmr.derivedFromSourceKey) {
+					
+					// For a source's first run, need to grab the entire source to check if we need to override the tmin/tmax
+					SourcePojo srcJustRun = null;
+					
+					if ((isComplete && !isError) && (0 == cmr.timesRan)) {
+						BasicDBObject srcQuery = new BasicDBObject(SourcePojo.key_, cmr.derivedFromSourceKey);
+						srcJustRun = SourcePojo.fromDb(DbManager.getIngest().getSource().findOne(srcQuery), SourcePojo.class);
+						if (null == srcJustRun.getHarvestStatus()) { // (don't allow initial override, if one is set)
+							srcJustRun.setHarvestStatus(new SourceHarvestStatusPojo());
+						}
+						srcJustRun.getHarvestStatus().setHarvest_status(HarvestEnum.success);
+						
+						if (null != srcJustRun) {
+							try {
+								LinkedList<CustomMapReduceJobPojo> updatedJobs = new LinkedList<CustomMapReduceJobPojo>();
+								SourcePipelineToCustomConversion.convertSourcePipeline(srcJustRun, updatedJobs, false);
+								for (CustomMapReduceJobPojo cmrUpdate: updatedJobs) {
+									if (cmrUpdate._id.equals(cmr._id)) {
+										DbManager.getCustom().getLookup().save(cmrUpdate.toDb());
+									}
+								}
+							}
+							catch (Exception e) {} // just carry on
+						}						
+					}//TESTED (by hand)
+					
+					BasicDBObject query = new BasicDBObject(SourcePojo.key_, cmr.derivedFromSourceKey);
+					BasicDBObject setUpdate = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 
+																	isError ? HarvestEnum.error.toString() : HarvestEnum.success.toString());
+					if (null != cmr.errorMessage) {
+						setUpdate.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, cmr.errorMessage);
+					}
+					BasicDBObject srcUpdate = new BasicDBObject(DbManager.set_, setUpdate);
+					DbManager.getIngest().getSource().update(query, srcUpdate, false, false);
+				}				
+			}//TESTED (by hand)
 		}
 	}
 	/**
 	 * Updates the status of the current, active, job
 	 */
-	public void updateJobPojo(ObjectId _id, String jobids, int jobidn, String xmlLocation, String jarLocation)
+	public void updateJobPojo(ObjectId _id, String jobids, int jobidn, String xmlLocation, String jarLocation, CustomMapReduceJobPojo job)
 	{
 		try
 		{			
@@ -190,7 +238,15 @@ public class CustomStatusManager {
 			set.append(CustomMapReduceJobPojo.tempJarLocation_,jarLocation);
 			set.append(CustomMapReduceJobPojo.errorMessage_, null);
 			BasicDBObject updateObject = new BasicDBObject(MongoDbManager.set_,set);
-			DbManager.getCustom().getLookup().update(new BasicDBObject(CustomMapReduceJobPojo._id_, _id), updateObject);		
+			DbManager.getCustom().getLookup().update(new BasicDBObject(CustomMapReduceJobPojo._id_, _id), updateObject);
+			
+			if ((null != job) && (null != job.derivedFromSourceKey)) {
+				//update to success_iteration
+				BasicDBObject query = new BasicDBObject(SourcePojo.key_, job.derivedFromSourceKey);
+				BasicDBObject setUpdate = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.success_iteration.toString());
+				BasicDBObject srcUpdate = new BasicDBObject(DbManager.set_, setUpdate);
+				DbManager.getIngest().getSource().update(query, srcUpdate, false, false);					
+			}
 		}
 		catch (Exception ex)
 		{

@@ -125,8 +125,8 @@
 		<!-- Count Button-->
 		<common:InfButton id="countButton"
 			styleName="columnSelectorCountButton"
-			label="{ columnSelector.dataProvider.length }"
-			click="countButton_clickHandler(event)" />
+			label="{ 0 == columnSelector.dataProvider.length ? '-' : columnSelector.dataProvider.length }"
+			click="if (0 != columnSelector.dataProvider.length) countButton_clickHandler(event)" />
 
 	</component:GradientContainer>
 

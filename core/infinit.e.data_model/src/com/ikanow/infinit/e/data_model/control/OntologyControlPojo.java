@@ -19,6 +19,8 @@ import java.util.List;
 
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
+import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
+import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeaturePojo;
 
 public class OntologyControlPojo extends BaseApiPojo {
 
@@ -26,13 +28,19 @@ public class OntologyControlPojo extends BaseApiPojo {
 	@SuppressWarnings("unchecked")
 	static public TypeToken<List<OntologyControlPojo>> listType() { return new TypeToken<List<OntologyControlPojo>>(){}; }
 
-	//TODO
 	public static class TypeInfo {
-		// One of these 2 must be filled in:
+		// One of these 3 must be filled in:
 		String type;
-		String category; // (optional if type present)
+		AssociationFeaturePojo assocType; // (types go in entity1 and entity2; otherwise only verb_category is read)
+		String category; // (optional if type/assocType present)
 		
+		// Entity replacements
 		String iconUri;
-		String dimension;
+		String dimension;		
+		List<String> replacingTypes; // (optional - these can be "aliased" if present)
+		
+		// Assoc replacements
+		String assocStyle;
+		List<AssociationFeaturePojo> replacingAssocs; // (optional, only applicable if assocType specified - these can be aliased, matches entity1 and entity2)
 	}
 }

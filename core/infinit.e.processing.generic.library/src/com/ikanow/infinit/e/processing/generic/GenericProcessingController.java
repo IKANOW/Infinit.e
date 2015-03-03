@@ -167,6 +167,8 @@ public class GenericProcessingController {
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1));
 			// Federated query engine
 			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.federatedQueryCommunityIds_, 1), new BasicDBObject(MongoDbManager.sparse_, true));
+			// Communities:
+			DbManager.getSocial().getCommunity().ensureIndex(new BasicDBObject("members._id", 1));
 			
 			// Searching shares
 			// Compound index lets me access {type, communities._id}, {type} efficiently

@@ -24,6 +24,8 @@
 		value="dist" />
 	<property name="infinit.e.data_model.location"
 		value="../infinit.e.data_model" />
+	<property name="infinit.e.processing.custom.library.location" 
+		value="../infinit.e.processing.custom.library"/>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<property name="infinit.e.elasticsearch.driver.location"
 		value="../infinit.e.elasticsearch.driver" />
@@ -59,6 +61,9 @@
 	<path id="infinit.e.data_model.classpath">
 	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
 	</path>
+	<path id="infinit.e.processing.custom.library.classpath">
+	     <pathelement location="${infinit.e.processing.custom.library.location}/dist/infinit.e.processing.custom.library.jar"/>
+	</path>
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<path id="infinit.e.elasticsearch.driver.classpath">
 		<fileset dir="${infinit.e.elasticsearch.driver.location}/lib">
@@ -74,6 +79,7 @@
 		</fileset>
 
 		<path refid="infinit.e.data_model.classpath" />
+        <path refid="infinit.e.processing.custom.library.classpath"/>
 		<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 		<path refid="infinit.e.elasticsearch.driver.classpath" />
 	</path>
@@ -93,6 +99,7 @@
 	<target name="prepare"
 		depends="clean">
 		<mkdir dir="${dir.build}" />
+		<copy file="${infinit.e.data_model.location}/lib/GridFSZipFile.jar" tofile="${dir.lib}/GridFSZipFile.jar"/>
 	</target>
 
 	<!-- =================================

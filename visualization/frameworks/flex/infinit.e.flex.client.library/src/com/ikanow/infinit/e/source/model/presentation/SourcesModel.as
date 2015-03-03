@@ -108,6 +108,11 @@ package com.ikanow.infinit.e.source.model.presentation
 		public var titlesDictionary:Dictionary;
 		
 		/**
+		 * A dictionary of the source titles
+		 */
+		public var keysDictionary:Dictionary;
+		
+		/**
 		 * A dictionary of the tags
 		 */
 		public var tagsDictionary:Dictionary;
@@ -333,6 +338,7 @@ package com.ikanow.infinit.e.source.model.presentation
 			communitiesDictionary = new Dictionary( true );
 			mediaTypesDictionary = new Dictionary( true );
 			titlesDictionary = new Dictionary( true );
+			keysDictionary = new Dictionary( true );
 			tagsDictionary = new Dictionary( true );
 			
 			if ( sources )
@@ -365,6 +371,8 @@ package com.ikanow.infinit.e.source.model.presentation
 						else
 							ColumnSelectorItem( titlesDictionary[ source.title ] ).count++;
 					}
+					
+					//don't add key, we just want the column selector in order to  have filtering from the text box
 					
 					// tags
 					if ( source.tags && source.tags.length > 0 )
@@ -525,7 +533,7 @@ package com.ikanow.infinit.e.source.model.presentation
 		 */
 		protected function updateColumnSelectorDataProviders():void
 		{
-			if ( selectableColumns && communitiesDictionary && mediaTypesDictionary && tagsDictionary && titlesDictionary )
+			if ( selectableColumns && communitiesDictionary && mediaTypesDictionary && tagsDictionary && titlesDictionary && keysDictionary)
 			{
 				for each ( var columnSelector:ColumnSelector in selectableColumns )
 				{
@@ -539,6 +547,9 @@ package com.ikanow.infinit.e.source.model.presentation
 							break;
 						case SourceConstants.FIELD_TAGS_STRING:
 							columnSelector.dataProvider = getColumnSelectorDataProvider( tagsDictionary );
+							break;
+						case SourceConstants.FIELD_KEY:
+							columnSelector.dataProvider = getColumnSelectorDataProvider( keysDictionary );
 							break;
 						case SourceConstants.FIELD_TITLE:
 							columnSelector.dataProvider = getColumnSelectorDataProvider( titlesDictionary );

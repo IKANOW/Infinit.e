@@ -17,11 +17,12 @@
 <component:DialogPanel xmlns:fx="http://ns.adobe.com/mxml/2009"
 	xmlns:s="library://ns.adobe.com/flex/spark"
 	xmlns:builder="com.ikanow.infinit.e.query.view.builder.*"
+	xmlns:saved="com.ikanow.infinit.e.query.view.saved.*"
 	xmlns:common="com.ikanow.infinit.e.shared.view.component.common.*"
 	xmlns:component="com.ikanow.infinit.e.shared.view.component.*"
 	xmlns:settings="com.ikanow.infinit.e.query.view.settings.*"
 	currentState="{ model.navigator.currentState }"
-	preinitialize="QueryNavigator.updateViewStates( this )">
+	preinitialize="QueryNavigator.updateViewStates( this )" >
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
 	<!-- Script ::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -30,12 +31,20 @@
 		<![CDATA[
 			import com.ikanow.infinit.e.query.model.presentation.QueryModel;
 			import com.ikanow.infinit.e.query.model.presentation.QueryNavigator;
+			import com.ikanow.infinit.e.query.view.saved.SavePivotOrQueryPopup;
+			
 			import flash.utils.setTimeout;
+			
+			import mx.controls.Alert;
+			import mx.managers.PopUpManager;
+			
 			import spark.events.IndexChangeEvent;
 			
 			[Bindable]
 			[Inject]
 			public var model:QueryModel;
+			
+			protected var _savePivotOrQueryPopup:SavePivotOrQueryPopup = null;					
 			
 			protected function loadButton_clickHandler( event:MouseEvent ):void
 			{
@@ -53,13 +62,55 @@
 			
 			}
 			
-			
 			protected function saveButton_mouseUpHandler( event:MouseEvent ):void
-			{
-				model.createAdvancedQuery();
-				model.saveAdvancedQuery();
-				model.navigator.closeQueryView();
+			{				
+				if (this.currentState == "InfiniteMainDashboardWorkspacesQueryPivots")
+				{
+					_savePivotOrQueryPopup = SavePivotOrQueryPopup( PopUpManager.createPopUp( this, SavePivotOrQueryPopup, true ) );
+					_savePivotOrQueryPopup.addCallback = saveButton_pivotConfirmed;
+					this.focusManager.setFocus(_savePivotOrQueryPopup.saveButton); // (also had saveButton set as default in popup, which didn't seem to do anything)
+				}
+				else if (this.currentState == "InfiniteMainDashboardWorkspacesQuerySaved")
+				{
+					_savePivotOrQueryPopup = SavePivotOrQueryPopup( PopUpManager.createPopUp( this, SavePivotOrQueryPopup, true ) );
+					_savePivotOrQueryPopup.addCallback = saveButton_queryConfirmed;
+					this.focusManager.setFocus(_savePivotOrQueryPopup.saveButton); // (also had saveButton set as default in popup, which didn't seem to do anything)
+				}
+				else
+				{
+					model.createAdvancedQuery();
+					model.exportAdvancedQuery();
+					model.navigator.closeQueryView();
+				}
 			}
+			
+			protected function saveButton_pivotConfirmed(event:MouseEvent):void
+			{
+				try {
+					var title:String = _savePivotOrQueryPopup.titleTextBox.text;
+					PopUpManager.removePopUp(_savePivotOrQueryPopup);
+					if (title.length > 0)
+					{
+						model.savePivot(title);
+					}
+				}
+				catch (e:Error) {
+				}
+			}			
+			
+			protected function saveButton_queryConfirmed(event:MouseEvent):void
+			{
+				try {
+					var title:String = _savePivotOrQueryPopup.titleTextBox.text;
+					PopUpManager.removePopUp(_savePivotOrQueryPopup);
+					if (title.length > 0)
+					{
+						model.saveQuery(title);
+					}
+				}
+				catch (e:Error) {
+				}
+			}			
 			
 			protected function searchButton_clickHandler( event:MouseEvent ):void
 			{
@@ -95,6 +146,8 @@
 	<component:states>
 		<s:State name="builder" />
 		<s:State name="settings" />
+		<s:State name="saved" />
+		<s:State name="pivots" />
 	</component:states>
 
 	<!-- :::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::::: -->
@@ -152,20 +205,33 @@
 
 					<common:InfButton id="loadButton"
 						width="90"
+						enabled.pivots="false"
+						enabled.saved="false"
+						enabled.builder="true"
+						enabled.settings="true"
 						styleName="roundedBlueButton"
-						label="{ resourceManager.getString( 'infinite', 'common.load' ) }"
+						label="{ resourceManager.getString( 'infinite', 'common.import' ) }"
 						click="loadButton_clickHandler(event)" />
 
 					<common:InfButton id="saveButton"
 						width="90"
 						styleName="roundedBlueButton"
-						label="{ resourceManager.getString( 'infinite', 'common.save' ) }"
+						label.builder="{ resourceManager.getString( 'infinite', 'common.export' ) }"
+						label.settings="{ resourceManager.getString( 'infinite', 'common.export' ) }"
+						label.saved="{ resourceManager.getString( 'infinite', 'common.save' ) }"
+						label.pivots="{ resourceManager.getString( 'infinite', 'common.save' ) }"
 						mouseDown="saveButton_mouseDownHandler(event)"
 						mouseUp="saveButton_mouseUpHandler(event)" />
+					
 					<s:Spacer width="20" />
+					
 					<!-- Search Button -->
 					<common:InfButton id="searchButton"
 						width="90"
+						enabled.pivots="false"
+						enabled.saved="false"
+						enabled.builder="true"
+						enabled.settings="true"
 						styleName="roundedBlueButton"
 						label="{ resourceManager.getString( 'infinite', 'common.search' ) }"
 						click="searchButton_clickHandler(event)" />
@@ -196,8 +262,12 @@
 		<builder:QueryBuilder id="queryBuilder"
 			width="100%"
 			height="100%"
+			includeInLayout.pivots="false"
+			includeInLayout.saved="false"
 			includeInLayout.builder="true"
 			includeInLayout.settings="false"
+			visible.pivots="false"
+			visible.saved="false"
 			visible.builder="true"
 			visible.settings="false" />
 
@@ -205,11 +275,39 @@
 		<settings:QuerySettings id="querySettings"
 			width="100%"
 			height="100%"
+			includeInLayout.pivots="false"
+			includeInLayout.saved="false"
 			includeInLayout.builder="false"
 			includeInLayout.settings="true"
+			visible.pivots="false"
+			visible.saved="false"
 			visible.builder="false"
 			visible.settings="true" />
 
+		<saved:SavedQueries id="savedQueries"
+				  width="100%"
+				  height="100%"
+				  includeInLayout.pivots="false"
+				  includeInLayout.saved="true"
+				  includeInLayout.builder="false"
+				  includeInLayout.settings="false"
+				  visible.pivots="false"
+				  visible.saved="true"
+				  visible.builder="false"
+				  visible.settings="false" />
+				
+		<saved:Pivots id="savedPivots"
+			  width="100%"
+			  height="100%"
+			  includeInLayout.pivots="true"
+			  includeInLayout.saved="false"
+			  includeInLayout.builder="false"
+			  includeInLayout.settings="false"
+			  visible.pivots="true"
+			  visible.saved="false"
+			  visible.builder="false"
+			  visible.settings="false" />					  
+		
 	</component:content>
 
 </component:DialogPanel>

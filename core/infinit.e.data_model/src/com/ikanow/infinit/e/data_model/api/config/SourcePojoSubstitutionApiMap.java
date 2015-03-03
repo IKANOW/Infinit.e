@@ -40,5 +40,6 @@ public class SourcePojoSubstitutionApiMap implements BasePojoApiMap<SourcePojo> 
 	@Override
 	public GsonBuilder extendBuilder(GsonBuilder gp) {
 		return new SourceFederatedQueryConfigPojo().extendBuilder(gp.registerTypeAdapter(String.class, (_errorHandler = new SourcePojoSubstitutionDeserializer(_callingUserId))));
+		//(note this bypasses the custom source pojo deserialization - but it isn't needed because extractor options are already in "." notation)
 	}
 }

@@ -538,7 +538,7 @@ public class SourcePojo extends BaseDbPojo {
 		}
 		//TESTED (urls with and without ?)
 		
-		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[/:+?&(),#]", ".");
+		s = s.replaceAll("http://|https://|smb://|ftp://|ftps://|file://|[^a-zA-Z0-9_.]", ".");
 		if (s.startsWith(".")) s = s.substring(1);
 		return s;
 	}
@@ -749,7 +749,9 @@ public class SourcePojo extends BaseDbPojo {
 		@Override
 		public SourcePojo deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException
 		{
-			SourcePojo src = new SourceFederatedQueryConfigPojo().extendBuilder(BaseDbPojo.getDefaultBuilder()).create().fromJson(json, SourcePojo.class);  
+			SourcePojo src = new SourceFederatedQueryConfigPojo().extendBuilder(BaseDbPojo.getDefaultBuilder()).create().fromJson(json, SourcePojo.class);
+				//(note the src api sub map bypasses this but explicity adds the SourceFederatedQueryConfigPojo itself)
+			
 			if (null != src.extractorOptions) {
 				src.extractorOptions = decodeKeysForDatabaseStorage(src.extractorOptions);
 			}
@@ -872,6 +874,26 @@ public class SourcePojo extends BaseDbPojo {
 				catch (Exception e) {} // return null will error out
 				return url;
 			}
+			// ALL THE DISTRIBUTED CASES
+			else if (null != px.postProcessing) { // just use the title, gets a bit complex otherwise
+				return "inf://docs/proc/" + this.title.replaceAll("\\s+", "_");
+			}
+			else if ((null != px.docs_datastoreQuery) || (null != px.docs_documentQuery)) {
+				return "inf://proc/doc/" + this.title.replaceAll("\\s+", "_");				
+			}
+			else if (null != px.custom_file) {
+				return "inf://proc/hdfs/" + this.title.replaceAll("\\s+", "_");								
+			}
+			else if (null != px.custom_datastoreQuery) {
+				return "inf://proc/custom/" + this.title.replaceAll("\\s+", "_");												
+			}
+			else if (null != px.records_indexQuery) {
+				return "inf://proc/records/" + this.title.replaceAll("\\s+", "_");												
+			}
+			else if (null != px.feature_datastoreQuery) {
+				return "inf://proc/feature/" + this.title.replaceAll("\\s+", "_");																
+			}
+			//(END DISTRIBUTED CASES)
 			else {
 				SourceRssConfigPojo webOrFeed = px.feed;
 				if (null == webOrFeed) {
@@ -886,6 +908,7 @@ public class SourcePojo extends BaseDbPojo {
 	}//TESTED (legacy+basic_web_test_ocOptions)
 	
 	public void fillInSourcePipelineFields() {
+		// Note the extract type code is "sort of" duplicated in the HarvestControllerPipeline.extractSource_preProcessingPipeline code
 		if (null != this.getProcessingPipeline()) {
 			this.extractType = null; // always derive from the px pipeline, ignore user input
 			
@@ -906,15 +929,32 @@ public class SourcePojo extends BaseDbPojo {
 					this.extractType = "Federated";
 					this.federatedQueryCommunityIds = this.communityIds;
 				}
+				else if (null != px.postProcessing) {
+					this.extractType = "Post_processing";
+				}
+				else if ((null != px.docs_datastoreQuery) || (null != px.docs_documentQuery) ||
+						(null != px.custom_file) || (null != px.custom_datastoreQuery) ||
+						(null != px.records_indexQuery) || (null != px.feature_datastoreQuery))
+				{
+					this.extractType = "Custom";
+				}				
+				
 				if (null != px.harvest) {
+					if (null != px.harvest.distributionFactor) {
+						distributionFactor = px.harvest.distributionFactor;					
+					}//TESTED
 					if (null != px.harvest.searchCycle_secs) {
-						if ((null == searchCycle_secs) || (searchCycle_secs > 0)) {
+						if ((null == searchCycle_secs) || (searchCycle_secs >= 0)) {
 							searchCycle_secs = Math.abs(px.harvest.searchCycle_secs);
 						}
 						else { // (searchCycle_secs < 0 ie want to suspend source)
-							searchCycle_secs = -Math.abs(px.harvest.searchCycle_secs);
+							if (0 == px.harvest.searchCycle_secs) { // (0 == run once and then suspend) 
+								searchCycle_secs = -1;
+							}
+							else {
+								searchCycle_secs = -Math.abs(px.harvest.searchCycle_secs);
+							}
 						}
-						distributionFactor = px.harvest.distributionFactor;
 					}//TESTED
 					else if ((null != searchCycle_secs) && (searchCycle_secs < 0)) {
 						// No search cycle specfiied, source suspended

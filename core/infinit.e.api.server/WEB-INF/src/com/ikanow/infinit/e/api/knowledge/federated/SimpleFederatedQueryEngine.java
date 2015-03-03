@@ -15,11 +15,15 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.api.knowledge.federated;
 
+import java.io.IOException;
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
@@ -40,6 +44,8 @@ import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
+import com.ikanow.infinit.e.api.knowledge.QueryHandler.ISimpleFederatedQueryEngine;
+import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.interfaces.query.IQueryExtension;
@@ -48,9 +54,14 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SimpleFederatedCache;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceFederatedQueryConfigPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
+import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
+import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.HarvestControllerPipeline;
+import com.ikanow.infinit.e.harvest.extraction.text.externalscript.TextExtractorExternalScript;
 import com.jayway.jsonpath.JsonPath;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -64,7 +75,7 @@ import com.ning.http.client.Response;
 import org.apache.commons.io.IOUtils;
 import org.apache.log4j.Logger;
 
-public class SimpleFederatedQueryEngine implements IQueryExtension {
+public class SimpleFederatedQueryEngine implements IQueryExtension, ISimpleFederatedQueryEngine {
 
 	//DEBUG
 	static private boolean _DEBUG = false;
@@ -72,6 +83,11 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	
 	static Logger _logger = Logger.getLogger(SimpleFederatedQueryEngine.class);
 
+	private ScoringUtils _scoreStats = null;
+	public void registerScoringEngine(ScoringUtils scoreStats) {
+		_scoreStats = scoreStats;
+	}
+	
 	private boolean _cacheMode = true;
 	private boolean _testMode = false;
 	public void setTestMode(boolean testMode) {
@@ -91,6 +107,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		public AdvancedQueryPojo fullQuery;
 		public Throwable errorMessage;
 		public BasicDBObject scriptResult = null;
+		public List<DocumentPojo> complexSourceProcResults = null;
 		
 		// Joint
 		public SourceFederatedQueryConfigPojo endpointInfo;
@@ -118,6 +135,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	@Override
 	public void preQueryActivities(ObjectId queryId, AdvancedQueryPojo query, String[] communityIdStrs) {
 		
+		_scoreStats = null;
 		_asyncRequestsPerQuery = null;
 		
 		// 1] Check whether this makes sense to query, get the (sole) entity if so
@@ -267,8 +285,11 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 						}
 					}//TESTED (by hand, importScript != null and scriptlang: "python", jython not on classpath)
 				}
+				else if (endpoint.scriptlang.equalsIgnoreCase("external")) {
+					//nothing to do here, just carry on, will handle the external bit later on
+				}
 				else {
-					_logger.error("Python is currently the only supported scriptlang");
+					_logger.error("Python/External is currently the only supported scriptlang");
 					if (_testMode) {
 						throw new RuntimeException("Python is currently the only supported scriptlang");
 					}
@@ -280,27 +301,45 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 			}
 			if ((null != endpoint.entityTypes) && endpoint.entityTypes.contains(entityType)) {
 				
-				// Check if the *doc* (not *API response*) generated from this endpoint/entity has been cached, check expiry if so
-				String cachedDocUrl = buildScriptUrl(endpoint.parentSource.getKey(), entityIndex);
+				// If not using the full source pipeline processing capability (ie always generating 0/1
 				BasicDBObject cachedDoc = null;
+				String cachedDocUrl = buildScriptUrl(endpoint.parentSource.getKey(), entityIndex);
 				BasicDBObject cachedDoc_expired = null;
-				if (_cacheMode && ((null == endpoint.cacheTime_days) || (endpoint.cacheTime_days >= 0))) {
-					BasicDBObject cachedDocQuery = new BasicDBObject(DocumentPojo.url_, cachedDocUrl);
-					cachedDocQuery.put(DocumentPojo.sourceKey_, endpoint.parentSource.getKey());
-					cachedDoc = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(cachedDocQuery);
-					
-					if ((null != cachedDoc) && checkDocCache_isExpired(cachedDoc, endpoint)) {
-						cachedDoc_expired = cachedDoc;
-						cachedDoc = null;
-					}
-				}//TESTED (by hand)
+				if (!isComplexSource(endpoint.parentSource)) {
+					// Check if the *doc* (not *API response*) generated from this endpoint/entity has been cached, check expiry if so
+					if (_cacheMode && ((null == endpoint.cacheTime_days) || (endpoint.cacheTime_days >= 0))) {
+						
+						if (_DEBUG) _logger.debug("DEB: preQA6ya: Search Doc Cache: " + cachedDocUrl + " , " + endpoint.cacheTime_days);						
+						
+						BasicDBObject cachedDocQuery = new BasicDBObject(DocumentPojo.url_, cachedDocUrl);
+						cachedDocQuery.put(DocumentPojo.sourceKey_, endpoint.parentSource.getKey());
+						cachedDoc = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(cachedDocQuery);
+						if (null != cachedDoc) {
+							// (quick check if we have a complex source in here)
+							String sourceUrl = cachedDoc.getString(DocumentPojo.sourceUrl_);
+							if (null != sourceUrl) { // switching from complex to simple source - delete the cached docs
+								
+								if (_DEBUG) _logger.debug("DEB: preQA6yb: Clear Search Doc Cache: " + cachedDocUrl + " , " + sourceUrl);						
+								
+								cachedDocQuery.remove(DocumentPojo.url_);
+								cachedDocQuery.put(DocumentPojo.sourceUrl_, sourceUrl);
+								DbManager.getDocument().getMetadata().remove(cachedDocQuery);
+								cachedDoc = null;
+							}//TESTED (by hand)
+							else if (checkDocCache_isExpired(cachedDoc, endpoint)) {
+								cachedDoc_expired = cachedDoc;
+								cachedDoc = null;
+							}
+						}
+					}//TESTED (by hand)
+				}
 				
 				if (null == _asyncRequestsPerQuery) {
 					// If we've got this far create a list to store the async requests
 					_asyncRequestsPerQuery = new LinkedList<FederatedRequest>();
 				}
 
-				if (null != cachedDoc) {
+				if (null != cachedDoc) { // (simple sources only, by construction)
 					// Common params:
 					FederatedRequest requestOverview = new FederatedRequest();
 					requestOverview.endpointInfo = endpoint;
@@ -315,6 +354,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 					_asyncRequestsPerQuery.add(requestOverview);
 				}//TESTED (by hand)
 				else if (null != endpoint.importScript) {
+					
 					BasicDBObject cachedVal = null;
 					if (_cacheMode) { // (source key not static, plus not sure it's desirable, so for simplicity just don't cache requests in test mode) 
 						cachedVal = this.getCache(cachedDocUrl, endpoint);
@@ -327,107 +367,79 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 					requestOverview.requestParameter = entityValue;
 					requestOverview.queryIndex = entityIndex;
 					requestOverview.mergeKey = endpoint.parentSource.getKey();
-					requestOverview.cachedDoc_expired = cachedDoc_expired;
+					requestOverview.cachedDoc_expired = cachedDoc_expired;					
 					
-					if (null == cachedVal) {
-						requestOverview.importThread = new FederatedHarvest();
+					if (null != cachedVal) {
+						if (checkIfNeedToClearCache(cachedVal, endpoint.parentSource)) {
+							if (_DEBUG) _logger.debug("DEB: preQA6aa: Clear cache: " + cachedDocUrl + " , " + cachedVal);						
+							cachedVal = null;
+						}
+					}
+					requestOverview.cachedResult = cachedVal; // will often be null						
+					
+					if ((null == cachedVal) || isComplexSource(endpoint.parentSource)) {
+						if (null != cachedVal) {
+							if (_DEBUG) _logger.debug("DEB: preQA6ab: Complex Src Cache: " + cachedDocUrl + " , " + cachedVal);													
+						}						
+						if (endpoint.scriptlang.equalsIgnoreCase("external")) {
+							requestOverview.importThread = new FederatedScriptHarvest();
+						}
+						else {
+							requestOverview.importThread = new FederatedJythonHarvest();
+						}
 						requestOverview.importThread.queryEngine = this;
 						requestOverview.importThread.request = requestOverview;
 						requestOverview.importThread.start();
 					}
 					else {
 						if (_DEBUG) _logger.debug("DEB: preQA6a: Cache: " + cachedDocUrl + " , " + cachedVal);						
-						
-						requestOverview.cachedResult = cachedVal;						
 					}
 					// Launch thread
 					_asyncRequestsPerQuery.add(requestOverview);
 				}//TESTED (by hand)
 				else {
-					AsyncHttpClient asyncHttpClient = null;
-					try {
-						for (SourceFederatedQueryConfigPojo.FederatedQueryEndpointUrl request: endpoint.requests) {
-							asyncHttpClient = new AsyncHttpClient();
-							BoundRequestBuilder asyncRequest = null;
-							String postContent = null;
-							if (null != request.httpFields) {
-								postContent = request.httpFields.get("Content");
-								if (null == postContent) 
-									postContent = request.httpFields.get("content");
-							}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "test" }
-							
-							if (null == postContent) {
-								asyncRequest = asyncHttpClient.prepareGet(request.endPointUrl.replace("$1", entityValue));
-							}
-							else {
-								asyncRequest = asyncHttpClient.preparePost(request.endPointUrl.replace("$1", entityValue));							
-							}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "test" }
-							
-							if (null != request.urlParams) {
-								for (Map.Entry<String, String> keyValue: request.urlParams.entrySet()) {
-									asyncRequest = asyncRequest.addQueryParameter(keyValue.getKey(), keyValue.getValue().replace("$1", entityValue));
-								}
-							}//TESTED (1.5, 1.6, 3.*, 4.*)
-							if (null != request.httpFields) {
-								for (Map.Entry<String, String> keyValue: request.httpFields.entrySet()) {
-									if (!keyValue.getKey().equalsIgnoreCase("content")) {
-										asyncRequest = asyncRequest.addHeader(keyValue.getKey(), keyValue.getValue().replace("$1", entityValue));
-									}
-								}							
-							}//TESTED (by hand, "http://httpbin.org/cookies", "httpFields": { "Cookie": "mycookie=test" }
-							if (null != postContent) {
-								asyncRequest = asyncRequest.setBody(postContent.replace("$1", entityValue));
-							}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "$1" }
-							
-							// Common params:
-							FederatedRequest requestOverview = new FederatedRequest();
-							requestOverview.endpointInfo = endpoint;
-							requestOverview.communityIdStrs = communityIdStrs;
-							requestOverview.requestParameter = entityValue;
-							requestOverview.asyncClient = asyncHttpClient;
-							requestOverview.queryIndex = entityIndex;
-							requestOverview.mergeKey = endpoint.parentSource.getKey();
-							requestOverview.subRequest = request;
-		
-							// Now check out the cache:
-							URI rawUri = asyncRequest.build().getRawURI();
-							String url = rawUri.toString();
-							if ((null == endpoint.parentSource.getOwnedByAdmin()) || !endpoint.parentSource.getOwnedByAdmin())
-							{
-								//TODO (INF-2798): Make this consistent with the how security is handled elsewhere 
-								int port = rawUri.getPort();
-								if ((80 != port) && (443 != port) && (-1 != port)) {
-									_logger.error("Only admin can make requests on non-standard ports: " + url + ": " + port);
-									if (_testMode) {
-										asyncHttpClient.close();
-										throw new RuntimeException("Only admin can make requests on non-standard ports: " + url + ": " + port);
-									}									
-								}
-							}//TESTED (by hand)
-							
-							BasicDBObject cachedVal = this.getCache(url, endpoint);
-							requestOverview.cachedResult = cachedVal;
-							requestOverview.cachedDoc_expired = cachedDoc_expired;
-							
-							if (null == cachedVal) {
-								requestOverview.responseFuture = asyncRequest.execute();						
-							}					
-							else {
-								//DEBUG
-								if (_DEBUG) _logger.debug("DEB: preQA6b: Cache: " + url + " , " + cachedVal);
+					
+					if (isComplexSource(endpoint.parentSource)) {
+						
+						//DEBUG
+						if (_DEBUG) _logger.debug("DEB: preQA6ba: Build complex source, num requests = " + endpoint.requests.size());								
+						
+						FederatedRequest requestOverview = new FederatedRequest();
+						requestOverview.endpointInfo = endpoint;
+						requestOverview.communityIdStrs = communityIdStrs;
+						requestOverview.requestParameter = entityValue;
+						requestOverview.queryIndex = entityIndex;
+						requestOverview.mergeKey = endpoint.parentSource.getKey();
+						requestOverview.cachedDoc_expired = cachedDoc_expired;	
+						
+						requestOverview.importThread = new FederatedSimpleHarvest();
+						requestOverview.importThread.queryEngine = this;
+						requestOverview.importThread.request = requestOverview;
+						requestOverview.importThread.start();						
+						
+						// Launch thread
+						_asyncRequestsPerQuery.add(requestOverview);						
+					}
+					else { // simple source					
+						try {
+							for (SourceFederatedQueryConfigPojo.FederatedQueryEndpointUrl request: endpoint.requests) {																								
+								FederatedRequest requestOverview = createSimpleHttpEndpoint_includingCache(
+																	entityValue, entityIndex, communityIdStrs, 
+																		endpoint, request, cachedDoc_expired);
 								
-								requestOverview.responseFuture = null;
-								asyncHttpClient.close();
-							}
-							_asyncRequestsPerQuery.add(requestOverview);
-						}//(end loop over multiple requests
-					}
-					catch (Exception e) {
-						_logger.error("Unknown error creating federated query for " + endpoint.titlePrefix + ": " + e.getMessage());
-						if (_testMode) {
-							throw new RuntimeException("Unknown error creating federated query for " + endpoint.titlePrefix + ": " + e.getMessage(), e);
+								//DEBUG
+								if (_DEBUG) _logger.debug("DEB: preQA6bb: Build request: " + request.endPointUrl);								
+								
+								_asyncRequestsPerQuery.add(requestOverview);
+							}//(end loop over multiple requests
 						}
-					}
+						catch (Exception e) {
+							_logger.error("Unknown error creating federated query for " + endpoint.titlePrefix + ": " + e.getMessage());
+							if (_testMode) {
+								throw new RuntimeException("Unknown error creating federated query for " + endpoint.titlePrefix + ": " + e.getMessage(), e);
+							}
+						}
+					}//(end if simple not complex)
 				}//(end cached doc vs script vs request mode for queries)
 				
 			}//(end if this request is for this entity type)
@@ -449,15 +461,18 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		
 		if (null != _asyncRequestsPerQuery) {
 			int added = 0;
-			BasicDBObject doc = null;
 			BasicDBList bsonArray = new BasicDBList();
 			PeekingIterator<FederatedRequest> it = Iterators.peekingIterator(_asyncRequestsPerQuery.iterator());
 			while (it.hasNext()) {
+				// loop state:
+				BasicDBObject[] docOrDocs = new BasicDBObject[1];
+				docOrDocs[0] = null;
 				
 				FederatedRequest request = it.next();
-				if (null == request.cachedDoc) { // no cached doc
+				boolean isComplexSource = isComplexSource(request.endpointInfo.parentSource);
+				if (null == request.cachedDoc) { // no cached doc, simple source processing (OR ANY COMPLEX CASE BY CONSTRUCTION)
 					try {
-						if (null == request.cachedResult) {	// no cached value				
+						if ((null == request.cachedResult) || isComplexSource) {	// no cached api response, or complex			
 							if (null != request.importThread) {
 								// 1) wait for the thread to finish
 								if (null == request.endpointInfo.queryTimeout_secs) {
@@ -471,7 +486,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 										}
 									}//TESTED (by hand)
 									catch (Exception e) {
-										
+										//(carry on)
 									}
 								}
 								if (request.importThread.isAlive()) {
@@ -484,12 +499,31 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 										throw new RuntimeException(request.errorMessage);
 									}
 								}
+								else if (isComplexSource) {
+									//DEBUG 
+									if (_DEBUG) _logger.debug("DEB: postQA0: " + request.complexSourceProcResults.size());
+
+									handleComplexDocCaching(request, _cacheMode, _scoreStats);									
+									
+									// Get a list of docs
+									docOrDocs = ((BasicDBList)DocumentPojo.listToDb(request.complexSourceProcResults, DocumentPojo.listType())).toArray(new BasicDBObject[0]);
+
+									// (_API_ caching is exactly the same between cache and non-cache cases)
+									// (note that if null != complexSourceProcResults then follows that null != scriptResult)
+									String url = buildScriptUrl(request.mergeKey, request.queryIndex);
+									
+									if (!(request.importThread instanceof FederatedSimpleHarvest) && _cacheMode) { // (don't cache python federated queries in test mode)
+										// (simple harvest caching is done separately)
+										this.cacheApiResponse(url, request.scriptResult, request.endpointInfo);
+									}									
+								}//TESTED (by hand - single and multiple doc mode)					
 								else if (null == request.scriptResult) {								
 									if (_testMode) {
 										throw new RuntimeException("Script mode: no cached result found from: " + request.requestParameter);
 									}
 								}
 								else {
+									// (_API_ caching is exactly the same between cache and non-cache cases)
 									String url = buildScriptUrl(request.mergeKey, request.queryIndex);
 									if (_cacheMode) { // (don't cache python federated queries in test mode)
 										this.cacheApiResponse(url, request.scriptResult, request.endpointInfo);
@@ -497,7 +531,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 									bsonArray.add(request.scriptResult);								
 								}
 							} // end script mode
-							else { // HTTP mode
+							else { // HTTP mode (also: must be simple source builder)
 								Response endpointResponse = request.responseFuture.get();
 								request.asyncClient.close();
 								request.asyncClient = null;
@@ -511,10 +545,10 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 									bson = (BasicDBObject) bsonUnknownType;
 								}
 								else if (bsonUnknownType instanceof BasicDBList) {
-									bson = new BasicDBObject("array", bsonUnknownType);
+									bson = new BasicDBObject(SimpleFederatedCache.array_, bsonUnknownType);
 								}
 								else if (bsonUnknownType instanceof String) {
-									bson = new BasicDBObject("value", bsonUnknownType);									
+									bson = new BasicDBObject(SimpleFederatedCache.value_, bsonUnknownType);									
 								}
 								
 								//DEBUG
@@ -549,43 +583,30 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 							}
 						}
 					}
-					if (!it.hasNext() || (request.mergeKey != it.peek().mergeKey)) { // deliberate ptr arithmetic
-						String url = buildScriptUrl(request.mergeKey, request.queryIndex);
-						
-						//DEBUG
-						if (_DEBUG) _logger.debug("DEB: postQA3: " + url + ": " + bsonArray);					
-						
-						doc = createDocFromJson(bsonArray, url, request, request.endpointInfo);
-					}
-				} // (end if no cached doc)
-				else { // cached doc, bypass lots of processing because no merging and doc already built
-					doc = request.cachedDoc;
-				}//TESTED (by hand)
-					
-				if (null != doc) {
-					// Cache the document unless already cached (or caching disabled)
-					if ((null == request.cachedDoc) && _cacheMode && 
-							((null == request.endpointInfo.cacheTime_days) || (request.endpointInfo.cacheTime_days >= 0)))
-					{
-						if (null != request.cachedDoc_expired) {
-							ObjectId updateId = request.cachedDoc_expired.getObjectId(DocumentPojo.updateId_);
-							if (null != updateId) {
-								doc.put(DocumentPojo.updateId_, updateId);
-							}
-							else {
-								doc.put(DocumentPojo.updateId_, request.cachedDoc_expired.getObjectId(DocumentPojo._id_));
-							}
-							BasicDBObject docUpdate = new BasicDBObject(DocumentPojo.url_, doc.getString(DocumentPojo.url_));
-							docUpdate.put(DocumentPojo.sourceKey_, doc.getString(DocumentPojo.sourceKey_));
-							DbManager.getDocument().getMetadata().remove(docUpdate);
+										
+					if (null == docOrDocs[0]) {
+						// (this next bit of logic can only occur in simple source cases by construction, phew)
+						if (!it.hasNext() || (request.mergeKey != it.peek().mergeKey)) { // deliberate ptr arithmetic
+							String url = buildScriptUrl(request.mergeKey, request.queryIndex);
 							
 							//DEBUG
-							if (_DEBUG) _logger.debug("DEB: postQA4a: re-cached ... " + docUpdate.toString() + ": " + doc.getObjectId(DocumentPojo.updateId_));
+							if (_DEBUG) _logger.debug("DEB: postQA3: " + url + ": " + bsonArray);					
+							
+							docOrDocs[0] = createDocFromJson(bsonArray, url, request, request.endpointInfo);
 						}
-						//DEBUG
-						if (_DEBUG) _logger.debug("DEB: postQA4b: cached ... " + doc);					
-						DbManager.getDocument().getMetadata().save(doc);
-
+					}
+				} // (end if no cached doc)
+				else { // cached doc, bypass lots of processing because no merging and doc already built (simple source processing)
+					docOrDocs[0] = request.cachedDoc;
+				}//TESTED (by hand)
+					
+				if (null != docOrDocs[0]) for (BasicDBObject doc: docOrDocs) {
+					
+					// Cache the document unless already cached (or caching disabled)
+					if ((null == request.cachedDoc) && _cacheMode && !isComplexSource &&
+							((null == request.endpointInfo.cacheTime_days) || (request.endpointInfo.cacheTime_days >= 0)))
+					{
+						simpleDocCache(request, doc);
 					}//TESTED (by hand, 3 cases: cached not expired, cached expired first time, cached expired multiple times)
 					
 					if (!grabbedScores) {
@@ -596,27 +617,37 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 							score = topDoc.getDouble(DocumentPojo.score_, score);
 							grabbedScores = true;
 							
-							// OK would also like to grab the original matching entity
-							BasicDBList ents = (BasicDBList) topDoc.get(DocumentPojo.entities_);
-							if (null != ents) {
-								for (Object entObj: ents) {
-									BasicDBObject ent = (BasicDBObject)entObj;
-									String entIndex = ent.getString(EntityPojo.index_, "");
-									if (entIndex.equals(request.queryIndex)) {
-										ents = (BasicDBList) doc.get(DocumentPojo.entities_);
-										if (null != ents) {
-											ents.add(ent);
+							// OK would also like to grab the original matching entity, if it exists
+							if (!isComplexSource) {
+								BasicDBList ents = (BasicDBList) topDoc.get(DocumentPojo.entities_);
+								if (null != ents) {
+									for (Object entObj: ents) {
+										BasicDBObject ent = (BasicDBObject)entObj;
+										String entIndex = ent.getString(EntityPojo.index_, "");
+										if (entIndex.equals(request.queryIndex)) {
+											ents = (BasicDBList) doc.get(DocumentPojo.entities_);
+											if (null != ents) {
+												ents.add(ent);
+											}
+											break;
 										}
-										break;
 									}
-								}
-							}//TESTED (by hand)
+								}//TESTED (by hand)
+							}
 						}
 					}
 					doc.put(DocumentPojo.aggregateSignif_, aggregateSignif);
 					doc.put(DocumentPojo.queryRelevance_, queryRelevance);
 					doc.put(DocumentPojo.score_, score);
 
+					// Swap id and updateId, everything's been cached now:
+					// Handle update ids vs normal ids:
+					ObjectId updateId = (ObjectId) doc.get(DocumentPojo.updateId_);
+					if (null != updateId) { // swap the 2...
+						doc.put(DocumentPojo.updateId_, doc.get(DocumentPojo._id_));
+						doc.put(DocumentPojo._id_, updateId);
+					}//TESTED (by hand)				
+					
 					// If we're returning to a query then we'll adjust the doc format (some of the atomic fields become arrays)
 					if (!_testMode) {
 						convertDocToQueryFormat(doc, request.communityIdStrs);							
@@ -624,7 +655,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 					
 					docs.add(0, doc);
 					added++;
-					doc = null; //(reset)
+					//(doc auto reset at top of loop)
 					
 					//(end if built a doc from the last request/set of requests)
 				}//TESTED (3.1)		
@@ -640,6 +671,94 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	/////////////////////////////////////////////////
 	
 	// UTILITY
+	
+	public FederatedRequest createSimpleHttpEndpoint_includingCache(
+			String entityValue, String entityIndex, String[] communityIdStrs,
+			SourceFederatedQueryConfigPojo endpoint,
+			SourceFederatedQueryConfigPojo.FederatedQueryEndpointUrl request,
+			BasicDBObject cachedDoc_expired) throws IOException
+	{
+		AsyncHttpClient asyncHttpClient = new AsyncHttpClient();
+		BoundRequestBuilder asyncRequest = null;
+		String postContent = null;
+		if (null != request.httpFields) {
+			postContent = request.httpFields.get("Content");
+			if (null == postContent) 
+				postContent = request.httpFields.get("content");
+		}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "test" }
+		
+		if (null == postContent) {
+			asyncRequest = asyncHttpClient.prepareGet(request.endPointUrl.replace("$1", entityValue));
+		}
+		else {
+			asyncRequest = asyncHttpClient.preparePost(request.endPointUrl.replace("$1", entityValue));							
+		}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "test" }
+		
+		if (null != request.urlParams) {
+			for (Map.Entry<String, String> keyValue: request.urlParams.entrySet()) {
+				asyncRequest = asyncRequest.addQueryParameter(keyValue.getKey(), keyValue.getValue().replace("$1", entityValue));
+			}
+		}//TESTED (1.5, 1.6, 3.*, 4.*)
+		if (null != request.httpFields) {
+			for (Map.Entry<String, String> keyValue: request.httpFields.entrySet()) {
+				if (!keyValue.getKey().equalsIgnoreCase("content")) {
+					asyncRequest = asyncRequest.addHeader(keyValue.getKey(), keyValue.getValue().replace("$1", entityValue));
+				}
+			}							
+		}//TESTED (by hand, "http://httpbin.org/cookies", "httpFields": { "Cookie": "mycookie=test" }
+		if (null != postContent) {
+			asyncRequest = asyncRequest.setBody(postContent.replace("$1", entityValue));
+		}//TESTED (by hand, "http://httpbin.org/post", "httpFields": { "Content": "$1" }
+		
+		// Common params:
+		FederatedRequest requestOverview = new FederatedRequest();
+		requestOverview.endpointInfo = endpoint;
+		requestOverview.communityIdStrs = communityIdStrs;
+		requestOverview.requestParameter = entityValue;
+		requestOverview.asyncClient = asyncHttpClient;
+		requestOverview.queryIndex = entityIndex;
+		requestOverview.mergeKey = endpoint.parentSource.getKey();
+		requestOverview.subRequest = request;
+
+		// Now check out the cache:
+		URI rawUri = asyncRequest.build().getRawURI();
+		String url = rawUri.toString();
+		if ((null == endpoint.parentSource.getOwnedByAdmin()) || !endpoint.parentSource.getOwnedByAdmin())
+		{
+			int port = rawUri.getPort();
+			if ((80 != port) && (443 != port) && (-1 != port)) {
+				_logger.error("Only admin can make requests on non-standard ports: " + url + ": " + port);
+				if (_testMode) {
+					asyncHttpClient.close();
+					throw new RuntimeException("Only admin can make requests on non-standard ports: " + url + ": " + port);
+				}									
+			}
+		}//TESTED (by hand)
+		
+		BasicDBObject cachedVal = this.getCache(url, endpoint);
+		if (null != cachedVal) {
+			if (checkIfNeedToClearCache(cachedVal, endpoint.parentSource)) {
+				//DEBUG
+				if (_DEBUG) _logger.debug("DEB: pre:CSHEb: Clear cache: " + url + " , " + cachedVal);
+				
+				cachedVal = null;
+			}
+		}		
+		requestOverview.cachedResult = cachedVal;
+		requestOverview.cachedDoc_expired = cachedDoc_expired;
+		
+		if (null == cachedVal) {
+			requestOverview.responseFuture = asyncRequest.execute();						
+		}					
+		else {
+			//DEBUG
+			if (_DEBUG) _logger.debug("DEB: pre:CSHEb: Cache: " + url + " , " + cachedVal);
+			
+			requestOverview.responseFuture = null;
+			asyncHttpClient.close();
+		}
+		return requestOverview;
+	}
 	
 	public BasicDBObject createDocFromJson(BasicDBList jsonList, String url, FederatedRequest request, SourceFederatedQueryConfigPojo endpointInfo) {
 		BasicDBObject doc = null; // (don't create unless needed)
@@ -759,6 +878,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 								ent.put(EntityPojo.doccount_, 1L); // (ie relative to this query)
 								ent.put(EntityPojo.averageFreq_, 1.0);
 								ent.put(EntityPojo.datasetSignificance_, 10.0); // (ie relative to this query)
+								ent.put(EntityPojo.significance_, 10.0); // (ie relative to this query)
 								ent.put(EntityPojo.frequency_, 1.0);
 								ent.put(EntityPojo.index_, index);
 								ent.put(EntityPojo.queryCoverage_, 100.0); // (ie relative to this query)
@@ -827,7 +947,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	
 	// CACHE UTILITIES
 	
-	public static boolean TEST_MODE_ONLY = false;	
+	public static boolean TEST_MODE_ONLY = false;		
 	public static DBCollection getCacheCollection() {
 		if (TEST_MODE_ONLY) {
 			return MongoDbManager.getCollection("test", "fed_query_cache");
@@ -875,7 +995,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 	}//TESTED (4.*)
 	
 	private static final int DEFAULT_CACHE_TIME_DAYS = 5;
-	
+
 	private void cacheApiResponse(String url, BasicDBObject toCacheJson, SourceFederatedQueryConfigPojo endpoint) {
 		
 		int cacheTime_days = DEFAULT_CACHE_TIME_DAYS;
@@ -891,11 +1011,36 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		BasicDBObject toCacheObj = new BasicDBObject(SimpleFederatedCache._id_, url);
 		toCacheObj.put(SimpleFederatedCache.cachedJson_, toCacheJson);
 		toCacheObj.put(SimpleFederatedCache.expiryDate_, new Date(new Date().getTime() + cacheTime_days*3600L*24L*1000L));
+		toCacheObj.put(SimpleFederatedCache.created_, new Date());
 		endpointCacheCollection.save(toCacheObj);
 	}//TESTED (3.1, 4.*)
 
 	// Document level caching, although it effectively serves as a mostly redundant request cache,
-	// It's actually used to allow users to save federated query documents in their buckets
+	// It's actually used to allow users to save federated query documents in their buckets	
+	
+	public static void simpleDocCache(FederatedRequest request, BasicDBObject doc) {
+		if (null != request.cachedDoc_expired) {
+			ObjectId updateId = request.cachedDoc_expired.getObjectId(DocumentPojo.updateId_);
+			if (null != updateId) {
+				doc.put(DocumentPojo.updateId_, updateId);
+			}
+			else {
+				doc.put(DocumentPojo.updateId_, request.cachedDoc_expired.getObjectId(DocumentPojo._id_));
+			}
+			BasicDBObject docUpdate = new BasicDBObject(DocumentPojo.url_, doc.getString(DocumentPojo.url_));
+			docUpdate.put(DocumentPojo.sourceKey_, doc.getString(DocumentPojo.sourceKey_));
+			DbManager.getDocument().getMetadata().remove(docUpdate);
+			
+			//DEBUG
+			if (_DEBUG) _logger.debug("DEB: postQA4a: re-cached ... " + docUpdate.toString() + ": " + doc.getObjectId(DocumentPojo.updateId_));
+		}
+		else if (null == request.cachedDoc) { // if no currently cached doc, simply save what we have
+			//DEBUG
+			if (_DEBUG) _logger.debug("DEB: postQA4b: cached ... " + doc);					
+			DbManager.getDocument().getMetadata().save(doc);
+		}		
+		// (else already have a valid cached doc so nothing to do)
+	}
 	
 	public static boolean checkDocCache_isExpired(BasicDBObject cachedDoc, SourceFederatedQueryConfigPojo endpoint) {
 		if (null == endpoint.cacheTime_days)
@@ -906,6 +1051,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		
 		if (cacheThreshold < now.getTime()) // (ie doc-creation-time + cache is earlier than now => time to decache)
 		{
+			//DEBUG
 			if (_DEBUG) _logger.debug("DEB: preQA6zz: Cache expired: " + cachedDoc.getString(DocumentPojo.url_) + ": " + new Date(cacheThreshold) + " vs " + now);						
 			
 			return true;
@@ -914,57 +1060,280 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 			return false;
 	}//TESTED
 	
+	private static BasicDBObject getCachedApiResponse(String scriptResult) {
+		Object parsedScriptResult;
+		BasicDBObject outResult;
+		try {
+			parsedScriptResult = com.mongodb.util.JSON.parse(scriptResult);
+		}
+		catch (Exception e) {
+			throw new RuntimeException("Error deserializing " + scriptResult + ": " + e.getMessage(), e);			
+		}
+		if (parsedScriptResult instanceof BasicDBObject) {
+			outResult = (BasicDBObject) parsedScriptResult;
+		}
+		else if (parsedScriptResult instanceof BasicDBList) {
+			outResult = new BasicDBObject(SimpleFederatedCache.array_, parsedScriptResult);
+		}
+		else if (parsedScriptResult instanceof String) {
+			outResult = new BasicDBObject(SimpleFederatedCache.value_, parsedScriptResult);
+		}
+		else {
+			throw new RuntimeException("Error deserializing " + scriptResult + ": " + parsedScriptResult);
+		}
+		try {
+			MongoDbUtil.enforceTypeNamingPolicy(outResult, 0);
+		}
+		catch (Exception ee) {
+			throw new RuntimeException("Error deserializing " + scriptResult + ": " + ee.getMessage(), ee);
+		}			
+		return outResult;
+	}//TESTED (c/p from tested code though I deleted the test cases)
+	
+	private static boolean isComplexSource(SourcePojo src) {
+		return (null != src.getProcessingPipeline()) && (src.getProcessingPipeline().size() > 1);		
+	}
+
+	private static boolean checkIfNeedToClearCache(BasicDBObject cachedVal, SourcePojo src)
+	{
+		BasicDBObject cachedJson = (BasicDBObject) cachedVal.get(SimpleFederatedCache.cachedJson_);
+		if (null == cachedJson) {
+			return true; // (corrupt cache)
+		}
+		boolean isComplexSrc = isComplexSource(src);
+		if (isComplexSrc) { // check API response
+			Date createdDate = (Date) cachedVal.get(SimpleFederatedCache.created_);
+			if (null == createdDate) {
+				return true; // (needs date for doc caching code so just remove from cache and re-create)
+			}
+		}
+		if ((1 == cachedJson.size()) && (cachedJson.get(SimpleFederatedCache.__infinite__value_) instanceof String)) {
+			// ie if complex source, return false - no need to clear cache
+			return !isComplexSrc; 
+		}
+		else { // opposite
+			return isComplexSrc; 			
+		}
+	}//TESTED (by hand - all 4 combos)
+		
 	///////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////////
 
 	// (my own threading)
-	
-	public static class FederatedHarvest extends Thread {
+
+	public abstract class FederatedHarvest extends Thread {
 		public FederatedRequest request;
-		public SimpleFederatedQueryEngine queryEngine;
+		public SimpleFederatedQueryEngine queryEngine;		
+	}	
+	public class FederatedJythonHarvest extends FederatedHarvest {
+		
 		public void run() {
 			String scriptResult = null;
 			LinkedList<String> debugLog = queryEngine._testMode ? new LinkedList<String>() : null;
 			try {
-				scriptResult = queryEngine.performImportPythonScript(request.endpointInfo.importScript, request.requestParameter, request.fullQuery, request.endpointInfo.parentSource.getOwnedByAdmin(), debugLog);
+				if (null != request.cachedResult) { // we have a cached value but are in complex mode so can't immediately 
+					BasicDBObject cachedJson = (BasicDBObject) request.cachedResult.get(SimpleFederatedCache.cachedJson_);
+					scriptResult = (String) cachedJson.get(SimpleFederatedCache.__infinite__value_);
+				}
+				else {				
+					scriptResult = queryEngine.performImportPythonScript(request.endpointInfo.importScript, request.requestParameter, request.fullQuery, request.endpointInfo.parentSource.getOwnedByAdmin(), debugLog);
+				}
+			}
+			catch (Exception e) {
+				request.errorMessage = e;
+				return;
+			}
+			try {
+				if (isComplexSource(request.endpointInfo.parentSource)) {
+					DocumentPojo doc = new DocumentPojo();
+					
+					// Fields that are specific to the federated query type:
+					doc.setFullText(scriptResult);
+					doc.setUrl(buildScriptUrl(request.mergeKey, request.queryIndex));
+	
+					// (always cache complex source pipeline results like this)
+					request.scriptResult = new BasicDBObject(SimpleFederatedCache.__infinite__value_, scriptResult); 
+					if ((null != debugLog) && !debugLog.isEmpty()) {
+						request.scriptResult.put("$logs", debugLog);
+					}						
+					handleComplexDocProcessing(doc, request, _cacheMode);				
+				}
+				else { // simple case:
+					// In this simple case, the output has to be JSON
+					request.scriptResult = getCachedApiResponse(scriptResult);
+					if ((null != debugLog) && !debugLog.isEmpty()) {
+						request.scriptResult.put("$logs", debugLog);
+					}
+				}//(END simple vs complex post processing case)
 			}
 			catch (Exception e) {
 				request.errorMessage = e;
 				return;
 			}			
-			Object parsedScriptResult = null;
+		}
+	}//TESTED (by hand)
+	
+	public class FederatedSimpleHarvest extends FederatedHarvest {
+		public void run() {
+
+			// 1) Kick off all the requests asynchronously
+			
+			BasicDBList bsonArray = new BasicDBList();
+			StringBuffer sb = new StringBuffer();
 			try {
-				parsedScriptResult = com.mongodb.util.JSON.parse(scriptResult.toString());
+				LinkedList<FederatedRequest> asyncRequestsPerQuery = new LinkedList<FederatedRequest>();
+				
+				for (SourceFederatedQueryConfigPojo.FederatedQueryEndpointUrl httpRequest: request.endpointInfo.requests) {																								
+					FederatedRequest requestOverview = createSimpleHttpEndpoint_includingCache(
+														request.requestParameter, request.queryIndex, request.communityIdStrs, 
+														request.endpointInfo, httpRequest, null);
+					
+					if (_DEBUG) _logger.debug("DEB: FederatedSimpleHarvest: Build request: " + httpRequest.endPointUrl);								
+					
+					asyncRequestsPerQuery.add(requestOverview);
+					
+				}//(end loop over multiple requests
+				//TESTED (by hand)
+			
+				// 2) Combine the results (waiting asyncronously for the results) - see the mergeKey code equivalent for simple queries
+				
+				while (!asyncRequestsPerQuery.isEmpty()) {
+					Iterator<FederatedRequest> it = asyncRequestsPerQuery.iterator();
+					while (it.hasNext()) {
+						FederatedRequest requestOverview = it.next();
+						if (null != requestOverview.cachedResult) { // cached result, note must be in format cachedJson.__infinite__value (else will have been discarded)
+						
+							BasicDBObject jsonCache = (BasicDBObject) requestOverview.cachedResult.get(SimpleFederatedCache.cachedJson_);
+							if (null != jsonCache) {
+								String s = (String) jsonCache.get(SimpleFederatedCache.__infinite__value_);
+								if (null != s) {
+									//DEBUG
+									if (_DEBUG) _logger.debug("DEB: FederatedSimpleHarvest: found cached element: " + requestOverview.cachedResult);
+									
+									bsonArray.add(s);
+									sb.append(s).append("\n\n");
+									
+									it.remove();
+									continue;
+								}
+							}
+						}//TESTED (by hand)
+						
+						//IF HERE THEN CACHE DIDN'T EXIST OR FAILED (see continue above)
+						if (requestOverview.responseFuture.isDone()) {
+							it.remove();
+							
+							Response endpointResponse = requestOverview.responseFuture.get();
+							requestOverview.asyncClient.close();
+							requestOverview.asyncClient = null;
+							String jsonStr = endpointResponse.getResponseBody();
+							String url = endpointResponse.getUri().toURL().toString();
+							
+							//DEBUG
+							if (_DEBUG) _logger.debug("DEB: FederatedSimpleHarvest: found new element: " + url + " = " + jsonStr);													
+							
+							BasicDBObject bson = new BasicDBObject(SimpleFederatedCache.__infinite__value_, jsonStr);							
+							cacheApiResponse(url, bson, request.endpointInfo);
+							
+							bsonArray.add(jsonStr);
+							sb.append(jsonStr).append("\n\n");
+						}//TESTED (by hand)
+					}
+					if (!asyncRequestsPerQuery.isEmpty()) { // wait 100ms to stop thrashing
+						try { Thread.sleep(100); } catch (Exception e) {}
+					}
+				} //TESTED (by hand)
 			}
 			catch (Exception e) {
-				request.errorMessage = new RuntimeException("Error deserializing " + scriptResult + ": " + e.getMessage());
+				request.errorMessage = e;
 				return;
-			}			
-			if (parsedScriptResult instanceof BasicDBObject) {
-				request.scriptResult = (BasicDBObject) parsedScriptResult;
 			}
-			else if (parsedScriptResult instanceof BasicDBList) {
-				request.scriptResult = new BasicDBObject("array", parsedScriptResult);
+			
+			// 3) Run the document processing
+			
+			DocumentPojo doc = new DocumentPojo();
+			
+			// Fields that are specific to the federated query type:
+			doc.setFullText(sb.toString());
+			if (bsonArray.size() > 1) {
+				doc.addToMetadata("__FEDERATED_REPLIES__", bsonArray.toArray());
 			}
-			else if (parsedScriptResult instanceof String) {
-				request.scriptResult = new BasicDBObject("value", parsedScriptResult);
-			}
-			else {
-				request.errorMessage = new RuntimeException("Error deserializing " + scriptResult + ": " + parsedScriptResult);
-				return;				
-			}
+			doc.setUrl(buildScriptUrl(request.mergeKey, request.queryIndex));
+
+			// (always cache complex source pipeline results like this)
+			handleComplexDocProcessing(doc, request, _cacheMode);				
+		}
+	}
+	
+	public class FederatedScriptHarvest extends FederatedHarvest {
+		public void run() {
+			String scriptResult = null;
 			try {
-				MongoDbUtil.enforceTypeNamingPolicy(request.scriptResult, 0);
-				if ((null != debugLog) && !debugLog.isEmpty()) {
-					request.scriptResult.put("$logs", debugLog);
+				if (null != request.cachedResult) { // we have a cached value but are in complex mode so can't immediately 
+					BasicDBObject cachedJson = (BasicDBObject) request.cachedResult.get(SimpleFederatedCache.cachedJson_);
+					scriptResult = (String) cachedJson.get(SimpleFederatedCache.__infinite__value_);
+				}
+				else { // Use the TextExtractorExternalScript function:
+					
+					TextExtractorExternalScript extractor = new TextExtractorExternalScript();
+					LinkedHashMap<String, String> dummyExtractorOptions = new LinkedHashMap<String, String>();
+					String[] args = request.endpointInfo.importScript.split("\\s+");
+					int i = 0;
+					for (String arg: args) {
+						arg = arg.replace("$1", request.requestParameter);
+						if (0 == i) {
+							dummyExtractorOptions.put("script", arg);
+						}
+						else {
+							dummyExtractorOptions.put("arg" + i, arg);
+						}
+						i++;
+					}
+					if (null != request.endpointInfo.queryTimeout_secs) {
+						dummyExtractorOptions.put("timeout", Long.toString(request.endpointInfo.queryTimeout_secs.longValue()*1000L));
+							//(convert to ms then to string)
+					}
+					SourcePojo dummySrc = new SourcePojo();
+					dummySrc.setOwnerId(request.endpointInfo.parentSource.getOwnerId());
+					dummySrc.setExtractorOptions(dummyExtractorOptions);
+					dummySrc.setCommunityIds(request.endpointInfo.parentSource.getCommunityIds());
+					DocumentPojo dummyDoc = new DocumentPojo();
+					dummyDoc.setTempSource(dummySrc);
+					extractor.extractText(dummyDoc);
+					scriptResult = dummyDoc.getFullText();
+					if (null == scriptResult) {
+						request.errorMessage = new RuntimeException("Unknown problem, script didn't return text: " + dummyExtractorOptions.toString());
+						return;						
+					}
 				}
 			}
-			catch (Exception ee) {
-				request.errorMessage = new RuntimeException("Error deserializing " + scriptResult + ": " + ee.getMessage());
+			catch (Exception e) {
+				request.errorMessage = e;
+				return;
+			}			
+			try {
+				if (isComplexSource(request.endpointInfo.parentSource)) {
+					DocumentPojo doc = new DocumentPojo();
+					
+					// Fields that are specific to the federated query type:
+					doc.setFullText(scriptResult);
+					doc.setUrl(buildScriptUrl(request.mergeKey, request.queryIndex));
+	
+					// (always cache complex source pipeline results like this)
+					request.scriptResult = new BasicDBObject(SimpleFederatedCache.__infinite__value_, scriptResult); 
+					handleComplexDocProcessing(doc, request, _cacheMode);				
+				}
+				else { // simple case:
+					// In this simple case, the output has to be JSON
+					request.scriptResult = getCachedApiResponse(scriptResult);
+				}//(END simple vs complex post processing case)
+			}
+			catch (Exception e) {
+				request.errorMessage = e;
 				return;
 			}			
 		}
-	}//TESTED (by hand)
+	}
 	
 	///////////////////////////////////////////////////////////////////////////////
 
@@ -1011,7 +1380,6 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 				_scriptingSecurityManager.eval(_pyEngine, modCode);
 			}
 			else {
-				//TODO (INF-2798): Make this consistent with the how security is handled elsewhere 
 				_pyEngine.eval(modCode);
 			}
 
@@ -1033,6 +1401,155 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		catch (Error ee) {
 			throw new RuntimeException(ee);
 		}		
+	}//TESTED
+
+	///////////////////////////////////////////////////////////////////////////////
+
+	public static void handleComplexDocProcessing(DocumentPojo doc, FederatedRequest request, boolean cacheMode) {
+		List<DocumentPojo> docWrapper = null;
+		if (null != request.cachedResult) { // API result was cached, so docs might be
+			Date createdDate = request.cachedResult.getDate(SimpleFederatedCache.created_);
+			if ((null != request.endpointInfo.parentSource.getModified()) && (request.endpointInfo.parentSource.getModified().getTime() > createdDate.getTime())) {
+				
+				//DEBUG
+				if (_DEBUG) _logger.debug("DEB: HCDP0: cache out of date, src=" + request.endpointInfo.parentSource.getModified() + " cache=" + createdDate);					
+								
+				request.cachedResult = null; // (clear cache)
+			}
+			if (null != request.cachedResult) { // see if we can get the docs from the DB instead of from the harvester  
+				BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, request.endpointInfo.parentSource.getKey());
+				query.put(DocumentPojo.sourceUrl_, doc.getUrl());
+				DBCursor dbc = DbManager.getDocument().getMetadata().find(query);
+				if (dbc.hasNext()) {
+					docWrapper = DocumentPojo.listFromDb(dbc, DocumentPojo.listType());
+					if (null == docWrapper) { // (shouldn't ever happen)
+						request.cachedResult = null;
+					}
+					else {
+						//DEBUG
+						if (_DEBUG) _logger.debug("DEB: HCDP2: cache, found docs=" + docWrapper.size());						
+					}
+				}
+				else { // last chance to clear cache
+					//DEBUG
+					if (_DEBUG) _logger.debug("DEB: HCDP3: empty cache from " + query);
+					
+					request.cachedResult = null;
+				}
+			}
+		}//TESTED (by hand)
+		
+		// Need to set this 1) to avoid the harvest controller from deduplicating and 2) so i can retrieve those docs
+		if (null == docWrapper) { // Go ahead and harvest these docs
+			doc.setSourceUrl(doc.getUrl());
+			
+			doc.setId(new ObjectId());
+			doc.setSourceKey(request.endpointInfo.parentSource.getKey());
+			doc.setSource(request.endpointInfo.parentSource.getTitle());
+			doc.setMediaType(request.endpointInfo.parentSource.getMediaType());
+			doc.setTitle(request.endpointInfo.titlePrefix);
+			Date d = new Date();
+			doc.setCreated(d);
+			doc.setModified(d);
+			docWrapper = new ArrayList<DocumentPojo>(1);
+			ArrayList<DocumentPojo> dummyDocs = new ArrayList<DocumentPojo>(0);
+			docWrapper.add(doc);
+			
+			try {
+				HarvestController hc = new HarvestController();
+				HarvestControllerPipeline hcp = new HarvestControllerPipeline();
+				hcp.extractSource_preProcessingPipeline(request.endpointInfo.parentSource, hc);
+				hcp.enrichSource_processingPipeline(request.endpointInfo.parentSource, docWrapper, dummyDocs, dummyDocs);
+				
+				//DEBUG
+				if (_DEBUG) _logger.debug("DEB: HCDP4: created " + docWrapper.size() + " doc(s)");					
+			} 
+			catch (IOException e) {
+				throw new RuntimeException("Complex source processing", e);
+			}
+		}
+		request.complexSourceProcResults = docWrapper;
+	}
+	
+	public static void handleComplexDocCaching(FederatedRequest request, boolean cacheMode, ScoringUtils scoreStats) {
+
+		List<DocumentPojo> docWrapper = request.complexSourceProcResults;
+
+		//In non-test mode .. Go through the list of docs and work out what the deal is with caching, ie remove docs + add update ids
+		//Also go through and set default scores for any entities that haven't been scored based on existing docs
+		BasicDBObject query = new BasicDBObject(DocumentPojo.sourceKey_, request.endpointInfo.parentSource.getKey());
+		BasicDBObject fields = new BasicDBObject(DocumentPojo.updateId_, 1); // (ie _id and updateId only)
+		String srcUrl = null;
+		for (DocumentPojo outDoc: docWrapper) {
+			if (null == srcUrl) {
+				srcUrl = outDoc.getSourceUrl();
+			}
+			// Always make the text non-transient, so gets stored
+			outDoc.makeFullTextNonTransient();
+			if (null == outDoc.getId()) {
+				outDoc.setId(new ObjectId());
+			}
+			
+			if (cacheMode && (null == request.cachedResult)) { // (if result not previously cached)
+				// Step 1: deduplication
+				query.put(DocumentPojo.url_, outDoc.getUrl());
+				BasicDBObject outVal = (BasicDBObject) DbManager.getDocument().getMetadata().findOne(query, fields);
+				if (null != outVal) {
+					//DEBUG
+					if (_DEBUG) _logger.debug("DEB: HCDC1: update cache from : " + outVal + " for " + outDoc.getUrl());			
+
+					// Use updateId if it exists, otherwise _id
+					ObjectId updateId = outVal.getObjectId(DocumentPojo.updateId_);
+					if (null == updateId) {
+						updateId = outVal.getObjectId(DocumentPojo._id_);
+					}
+					outDoc.setUpdateId(updateId);
+				}
+			}//TESTED (by hand - single and multiple docs mode)
+			
+			// Step 2: add fake scores to all the entities that didn't get scores from the aggregation manager
+			if (null != outDoc.getEntities()) for (EntityPojo ent: outDoc.getEntities()) {
+				boolean fakeStats = true;
+				if (null != scoreStats) {
+					if (scoreStats.fillInEntityStatistics(ent)) {
+						fakeStats = false;
+					}
+				}
+				if (fakeStats) {
+					ent.setDoccount(1L);
+					ent.setTotalfrequency(1L);
+					ent.setDatasetSignificance(10.0);
+					ent.setSignificance(10.0);
+					ent.setQueryCoverage(100.0);
+				}
+				//DEBUG
+				if (_DEBUG) _logger.debug("DEB: HCDC2: entity: " + ent.getIndex() + " , sig=" + ent.getDatasetSignificance());			
+			}//TESTED
+			
+			if (null != outDoc.getAssociations()) for (AssociationPojo assoc: outDoc.getAssociations()) {
+				assoc.setAssoc_sig(10.0);
+				assoc.setDoccount(1L);
+			}
+		}//TESTED (by hand - overlapping and non-overlapping case)
+		
+		if (cacheMode && (null == request.cachedResult)) { // (if result not previously cached)
+			//Remove old docs now we have new ones
+			DbManager.getDocument().getMetadata().remove(query); // remove everything with this specific URL (ie simple source)
+			query.remove(DocumentPojo.url_);
+			query.put(DocumentPojo.sourceUrl_, srcUrl);
+			DbManager.getDocument().getMetadata().remove(query); // remove everything with this specific _source_ URL (ie docs generated from this URL)
+			
+			// Now cache all the existing docs:
+			
+			@SuppressWarnings("unchecked")
+			ArrayList<Object> tmpDocList = (ArrayList<Object>) DocumentPojo.listToDb(docWrapper, DocumentPojo.listType());
+			
+			DbManager.getDocument().getMetadata().insert(tmpDocList.toArray(new BasicDBObject[0]));		
+			
+			//DEBUG
+			if (_DEBUG) _logger.debug("DEB: HCDC3: remove/insert cache: " + query.toString());			
+		}//TESTED (by hand - single and multiple docs)
+		
 	}//TESTED
 	
 	///////////////////////////////////////////////////////////////////////////////
@@ -1094,7 +1611,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension {
 		doc.remove(DocumentPojo.publishedDate_);
 
 		String docToCheck = 
-			"{ \"displayUrl\" : \"http://test3_1\" , \"url\" : \"inf://federated/fakeendpoint.123/test3_1/testentityin\" , \"sourceKey\" : [ \"fakeendpoint.123\"] , \"source\" : [ \"fakeendpoint\"] , \"communityId\" : [ \"4c927585d591d31d7b37097a\"] , \"mediaType\" : [ \"Report\"] , \"metadata\" : { \"json\" : [ { \"test\" : { \"field\" : [ \"test3_1\" , \"test3_1\"] , \"field2\" : \"http://test3_1\"}}]} , \"title\" : \"fake endpoint: : test3_1: test3_1\" , \"entities\" : [ { \"disambiguated_name\" : \"test3_1\" , \"type\" : \"TestEntityOut\" , \"dimension\" : \"What\" , \"relevance\" : 1.0 , \"doccount\" : 1 , \"averageFreq\" : 1.0 , \"datasetSignificance\" : 10.0 , \"frequency\" : 1.0 , \"index\" : \"test3_1/testentityout\" , \"queryCoverage\" : 100.0 , \"totalfrequency\" : 1.0}] , \"description\" : \"[\\n  {\\n    \\\"test\\\": {\\n      \\\"field\\\": [\\n        \\\"test3_1\\\",\\n        \\\"test3_1\\\"\\n      ],\\n      \\\"field2\\\": \\\"http://test3_1\\\"\\n    }\\n  }\\n]\" , \"aggregateSignif\" : 115.0 , \"queryRelevance\" : 105.0 , \"score\" : 110.0}";
+			"{ \"displayUrl\" : \"http://test3_1\" , \"url\" : \"inf://federated/fakeendpoint.123/test3_1/testentityin\" , \"sourceKey\" : [ \"fakeendpoint.123\"] , \"source\" : [ \"fakeendpoint\"] , \"communityId\" : [ \"4c927585d591d31d7b37097a\"] , \"mediaType\" : [ \"Report\"] , \"metadata\" : { \"json\" : [ { \"test\" : { \"field\" : [ \"test3_1\" , \"test3_1\"] , \"field2\" : \"http://test3_1\"}}]} , \"title\" : \"fake endpoint: : test3_1: test3_1\" , \"entities\" : [ { \"disambiguated_name\" : \"test3_1\" , \"type\" : \"TestEntityOut\" , \"dimension\" : \"What\" , \"relevance\" : 1.0 , \"doccount\" : 1 , \"averageFreq\" : 1.0 , \"datasetSignificance\" : 10.0 , \"significance\" : 10.0 , \"frequency\" : 1.0 , \"index\" : \"test3_1/testentityout\" , \"queryCoverage\" : 100.0 , \"totalfrequency\" : 1.0}] , \"description\" : \"[\\n  {\\n    \\\"test\\\": {\\n      \\\"field\\\": [\\n        \\\"test3_1\\\",\\n        \\\"test3_1\\\"\\n      ],\\n      \\\"field2\\\": \\\"http://test3_1\\\"\\n    }\\n  }\\n]\" , \"aggregateSignif\" : 115.0 , \"queryRelevance\" : 105.0 , \"score\" : 110.0}";
 		
 		if (!docToCheck.equals(doc.toString())) {
 			System.out.println("*** " + testName + ": document incorrect:\n" + docToCheck + "\nVS\n" + doc.toString());

@@ -66,6 +66,11 @@ public class EntityFeaturePojo  extends BaseDbPojo
 	private Set<String> linkdata = null; // Set of semantic references
 	final public static String linkdata_ = "linkdata";
 	
+	// Query-specific fields
+	// THESE ARE UNUSED - ORIGINALLY PLANNED THEY WOULD BE USED FOR COMPLEX FED QUERIES	
+	//private transient Double datasetSignficance; 
+	//private transient Double queryCoverage; 
+	
 	public void setDisambiguatedName(String dname) {
 		this.disambiguated_name = dname;
 		if (null != this.type) {
@@ -179,4 +184,18 @@ public class EntityFeaturePojo  extends BaseDbPojo
 	public Double getDb_sync_prio() {
 		return db_sync_prio;
 	}
+	
+	// THESE ARE UNUSED - ORIGINALLY PLANNED THEY WOULD BE USED FOR COMPLEX FED QUERIES	
+//	public Double getDatasetSignficance() {
+//		return datasetSignficance;
+//	}
+//	public void setDatasetSignficance(Double datasetSignficance) {
+//		this.datasetSignficance = datasetSignficance;
+//	}
+//	public Double getQueryCoverage() {
+//		return queryCoverage;
+//	}
+//	public void setQueryCoverage(Double queryCoverage) {
+//		this.queryCoverage = queryCoverage;
+//	}
 }

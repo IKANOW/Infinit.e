@@ -71,6 +71,11 @@ public class FederatedQueryTestCode {
 	
 	public static void main(String[] args) throws Exception {
 
+		//TODO: need to add (essentially identical) test cases for:
+		// - python script
+		// - "external" script
+		// - full source pipeline functionality 
+		
 		// SETUP:
 		
 		System.out.println(Arrays.toString(args));

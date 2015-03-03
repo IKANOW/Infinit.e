@@ -9,6 +9,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.FilterBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.aggregations.AbstractAggregationBuilder;
 import org.elasticsearch.search.facets.CrossVersionFacetBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
@@ -16,6 +17,14 @@ import org.elasticsearch.search.sort.SortOrder;
 public class SearchRequestBuilder {
 
 	protected org.elasticsearch.action.search.SearchRequestBuilder _delegate;
+	
+	// 1.x:
+	public SearchRequestBuilder addAggregation(AbstractAggregationBuilder agg) {
+		_delegate.addAggregation(agg);
+		return this;
+	}
+	
+	// 0.19-
 	
 	public SearchRequestBuilder(org.elasticsearch.action.search.SearchRequestBuilder delegate) {
 		_delegate = delegate;

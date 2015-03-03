@@ -142,7 +142,7 @@ public class JsonToMetadataParser {
 		JsonElement meta = parser.parse(reader);
 		
 		// Check if all required fields exist:
-		if (!textOnly && !checkIfMandatoryFieldsExist(meta)) {
+		if (!textOnly && !checkIfMandatoryFieldsExist(meta)) {			
 			return null;
 		}
 		//TESTED
@@ -225,8 +225,8 @@ public class JsonToMetadataParser {
 					}
 				}//TESTED
 				else if (meta.isJsonArray()) {
-					for (JsonElement meta2: meta.getAsJsonArray()) {
-						if (textOnly || checkIfMandatoryFieldsExist(meta2)) {
+					for (JsonElement meta2: meta.getAsJsonArray()) {						
+						if (textOnly || checkIfMandatoryFieldsExist(meta2)) {							
 							DocumentPojo doc = new DocumentPojo();
 							if ((null != primaryKey) && (null != sourceName)) {
 								String primaryKey = getPrimaryKey(meta2);
@@ -237,7 +237,10 @@ public class JsonToMetadataParser {
 							if (textOnly) {
 								doc.setFullText(meta2.toString());
 							}
-							else {
+							else if (meta2.isJsonArray()) { // treat it as an object, ie don't just append it
+								doc.addToMetadata("json", (Object)handleJsonArray(meta2.getAsJsonArray(), false, null));
+							}
+							else { // seems to recover if not an object
 								doc.addToMetadata("json", convertJsonObjectToLinkedHashMap(meta2.getAsJsonObject(), _memUsage));
 							}
 							docList.add(doc);						

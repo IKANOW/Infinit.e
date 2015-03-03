@@ -54,7 +54,13 @@
 					
 					sourceInfo.addItem( { title: "Title", name: model.selectedSource.title } );
 					sourceInfo.addItem( { title: "ID", name: model.selectedSource._id } );
-					sourceInfo.addItem( { title: "Community", name: model.selectedSource.community } );
+					sourceInfo.addItem( { title: "Key", name: model.selectedSource.key } );
+					var s:String = model.selectedSource.community;
+					var index:int = s.lastIndexOf(" [");						
+					if (index != -1) {
+						s = s.substring(0, index - 1);
+					}
+					sourceInfo.addItem( { title: "Community", name: s } );
 					sourceInfo.addItem( { title: "Community ID", name: model.selectedSource.communityIds } );
 					//sourceInfo.addItem({title: "Approved", name: model.selectedSource.isApproved});
 					sourceInfo.addItem( { title: "Harvest Status", name: ( model.selectedSource.harvest != null ) ? getReadableHarvestStatus( model.selectedSource.harvest.harvest_status ) : "" } );

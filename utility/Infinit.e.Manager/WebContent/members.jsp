@@ -431,7 +431,12 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 					
 					personid = person.getString("_id");
 					displayName = person.getString("displayName");
-					email = person.getString("email");
+					if (person.has("email")) {
+						email = person.getString("email");
+					}
+					else { // user group
+						email = "[No email, user group]";
+					}
 					
 					// User Type: Owner, Moderator, User
 					StringBuffer type = new StringBuffer();

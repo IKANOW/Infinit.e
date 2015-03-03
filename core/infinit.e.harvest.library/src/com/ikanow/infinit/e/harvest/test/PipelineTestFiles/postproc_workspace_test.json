@@ -1,0 +1,85 @@
+[
+    {
+        "display": "",
+        "postProcessing": {
+            "query": "https://infinite.ikanow.com:443/index.html?query=%7B%22logic%22%3A%22%201%20AND%202%20%22%2C%22qtOptions%22%3Anull%2C%22output%22%3A%7B%22format%22%3A%22json%22%2C%22docs%22%3A%7B%22enable%22%3Atrue%2C%22ents%22%3Atrue%2C%22events%22%3Atrue%2C%22facts%22%3Atrue%2C%22numReturn%22%3A100%2C%22geo%22%3Atrue%2C%22skip%22%3A0%2C%22summaries%22%3Atrue%2C%22eventsTimeline%22%3Afalse%2C%22metadata%22%3Atrue%7D%2C%22aggregation%22%3A%7B%22sources%22%3A20%2C%22entsNumReturn%22%3A5000%2C%22factsNumReturn%22%3A100%2C%22eventsNumReturn%22%3A100%2C%22sourceMetadata%22%3A20%2C%22timesInterval%22%3A%221d%22%2C%22geoNumReturn%22%3A1000%7D%2C%22filter%22%3A%7B%22entityTypes%22%3Anull%2C%22assocVerbs%22%3Anull%7D%7D%2C%22communityIds%22%3A%5B%2251a60d9ee4b05fca332279a1%22%2C%22527bb108e4b026ff8e622c39%22%5D%2C%22qt%22%3A%5B%7B%22etext%22%3A%22*%22%7D%2C%7B%22entity%22%3A%22cve-2014-9188%2Fcve%22%7D%5D%2C%22score%22%3A%7B%22numAnalyze%22%3A1000%2C%22timeProx%22%3A%7B%22decay%22%3A%221m%22%2C%22time%22%3A%22now%22%7D%2C%22adjustAggregateSig%22%3Anull%2C%22tagWeights%22%3Anull%2C%22typeWeights%22%3Anull%2C%22relWeight%22%3A33%2C%22geoProx%22%3A%7B%22decay%22%3A%22%22%2C%22ll%22%3A%2241.742706%2C-76.398203%22%7D%2C%22sourceWeights%22%3Anull%2C%22sigWeight%22%3A67%2C%22scoreEnts%22%3Atrue%7D%7D&communityIds=51a60d9ee4b05fca332279a1,527bb108e4b026ff8e622c39&widgetIds=4e3bcd7feeea4e72000eeb76,52843a21fcb505b3da991988,4e4bf8adbce84e723f3b297d,4e4bf986bce84e72463b297d",
+            "debugMode": true,
+            "rebuildAllCommunities": false,
+            "queryType": "document"
+        }
+    },
+    {
+        "display": "",
+        "featureEngine": {
+            "exitOnError": true,
+            "engineName": "549194f64c98e59d57e9d56a"
+        }
+    }
+]
+// RESULTS:
+{ 
+     "$caches" : "549194f64c98e59d57e9d56a", 
+     "logic" : " 1 AND 2 ", 
+     "output" : { 
+       "aggregation" : { 
+         "entsNumReturn" : "5000", 
+         "eventsNumReturn" : "100", 
+         "factsNumReturn" : "100", 
+         "geoNumReturn" : "1000", 
+         "sourceMetadata" : "20", 
+         "sources" : "20", 
+         "timesInterval" : "1d"
+       }, 
+       "docs" : { 
+         "enable" : true, 
+         "ents" : true, 
+         "events" : true, 
+         "eventsTimeline" : false, 
+         "facts" : true, 
+         "geo" : true, 
+         "metadata" : true, 
+         "numReturn" : "100", 
+         "skip" : "0", 
+         "summaries" : true
+       }, 
+       "filter" : { 
+         
+       }, 
+       "format" : "json"
+     }, 
+     "qt" : [ 
+       { 
+         "etext" : "*"
+       }, 
+       { 
+         "entity" : "cve-2014-9188/cve"
+       }
+     ], 
+     "score" : { 
+       "geoProx" : { 
+         "decay" : "", 
+         "ll" : "41.742706,-76.398203"
+       }, 
+       "numAnalyze" : "1000", 
+       "relWeight" : "33", 
+       "scoreEnts" : true, 
+       "sigWeight" : "67", 
+       "timeProx" : { 
+         "decay" : "1m", 
+         "time" : "now"
+       }
+     }
+   }
+   {
+  "debugMode": true,
+  "rebuildAllCommunities": false,
+  "processingPipeline": [
+    {
+      "display": "",
+      "featureEngine": {
+        "engineName": "549194f64c98e59d57e9d56a",
+        "exitOnError": true
+      }
+    }
+  ]
+}

@@ -33,5 +33,8 @@ db.modules.update({"_id": module._id}, {"\$set": {"url":module.url, "imageurl":m
 module={ "_id" : ObjectId("4e4bfa90bce84e724e3b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:29:52.418Z"), "description" : "Shows events on a timeline", "imageurl" : "./InfiniteTimelineEventWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:29:52.418Z"), "searchterms" : [ 	"Dev", 	"Event", 	"Timeline", 	"Shows", 	"events", 	"on", 	"a", 	"timeline" ], "swf" : "", "title" : "Event Timeline", "url" : "./InfiniteTimelineEventWidget/InfiniteTimelineEventWidget.swf", "version" : "0.1" };
 db.modules.insert(module);
 db.modules.update({"_id": module._id}, {"\$set": {"url":module.url, "imageurl":module.imageurl}}, false, false);
+module={ "_id" : ObjectId("4e4bfa90bce84e72513b297d"), "approved" : true, "author" : "$ADMIN_EMAIL", "created" : ISODate("2011-08-17T17:29:52.418Z"), "description" : "Enables users to create sources quickly from pre-prepared templates", "imageurl" : "./TemplatedSourceCreatorWidget/Thumbnail.png", "modified" : ISODate("2011-08-17T17:29:52.418Z"), "searchterms" : [ 	"Source", "Template", "Creator" ], "swf" : "", "title" : "Templated Source Creator", "url" : "./TemplatedSourceCreatorWidget/TemplatedSourceCreatorWidget.swf", "version" : "0.1" };
+db.modules.insert(module);
+db.modules.update({"_id": module._id}, {"\$set": {"url":module.url, "imageurl":module.imageurl}}, false, false);
 
 EOF

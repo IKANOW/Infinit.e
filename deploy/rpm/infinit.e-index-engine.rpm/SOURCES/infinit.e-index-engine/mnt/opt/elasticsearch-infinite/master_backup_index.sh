@@ -21,13 +21,13 @@ END_FILENAME=index_backup_${CLUSTER_NAME}_`hostname`_latest.tgz
 	 
 function do_backup() {
 	# Disable flushing
-	curl -XPUT 'localhost:9200/_settings' -d '{ "index":{ "translog.disable.flush": true } }'
+	curl -XPUT 'localhost:9200/_settings' -d '{ "index":{ "translog.disable_flush": true } }'
 
 	# Do backup (1/day-of-week, so 7 daily backups max)
 	tar czf $FILENAME $BACKUP_DIR
 
 	# Re-enable flushing
-	curl -XPUT 'localhost:9200/_settings' -d '{ "index":{ "translog.disable.flush": false } }'
+	curl -XPUT 'localhost:9200/_settings' -d '{ "index":{ "translog.disable_flush": false } }'
 
 	#Transfer:
 	if [ "$S3_URL" != "" ]; then

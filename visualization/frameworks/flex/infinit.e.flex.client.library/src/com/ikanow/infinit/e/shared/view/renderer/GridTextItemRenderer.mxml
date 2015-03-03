@@ -63,8 +63,27 @@
 								break;
 						}
 					}
-					columnData = data;
-				}else
+					columnData = data;				
+				}
+				else if (column.dataField == SourceConstants.FIELD_COMMUNITY) // (strip id)
+				{
+					var s:String = data[ column.dataField ] as String;
+					var index:int = -1;
+					if (null != s)
+					{
+						index = s.lastIndexOf(" [");						
+					}
+					
+					if (-1 == index)
+					{						
+						displayData = data[ column.dataField ]
+					}
+					else
+					{
+						displayData = s.substring(0, index);
+					}
+				}
+				else
 					displayData = data[ column.dataField ]
 				
 				// change the background if the item is selected

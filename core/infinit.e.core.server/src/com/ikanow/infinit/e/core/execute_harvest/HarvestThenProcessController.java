@@ -17,6 +17,7 @@ package com.ikanow.infinit.e.core.execute_harvest;
 
 import java.io.IOException;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Timer;
@@ -29,6 +30,7 @@ import org.apache.log4j.Logger;
 import com.ikanow.infinit.e.core.execute_harvest.utils.BlockingExecutor;
 import com.ikanow.infinit.e.core.utils.PropertiesManager;
 import com.ikanow.infinit.e.core.utils.SourceUtils;
+import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
@@ -87,6 +89,17 @@ public class HarvestThenProcessController {
         PropertiesManager threadConfig = new PropertiesManager();
         String sThreadConfig = threadConfig.getHarvestThreadConfig();
         
+        HashSet<String> types = new HashSet<String>();
+        try {
+	        String harvestTypes = new com.ikanow.infinit.e.harvest.utils.PropertiesManager().getHarvesterTypes();	        
+	        for (String s: harvestTypes.split("\\s*,\\s*")) {
+	        	types.add(s.toLowerCase());
+	        }
+        }
+        catch (Exception e) {
+        	_logger.error(Globals.populateStackTrace(new StringBuffer("Failed to register all harvest types"), e));
+        }//TESTED (by hand)
+        
         // Max time for harvester (defaults to 25 mins)
         
         long maxTime_secs = threadConfig.getMaximumHarvestTime();
@@ -115,6 +128,7 @@ public class HarvestThenProcessController {
         		if (2 == sTypeOrNumThreads.length) {
         			try {
         				int nThreads = Integer.parseInt(sTypeOrNumThreads[1]);
+        				types.remove(sTypeOrNumThreads[0].toLowerCase());
         				SourceTypeHarvesterRunnable typeRunner = new SourceTypeHarvesterRunnable(sources, nThreads, sTypeOrNumThreads[0]);
         	    		_logger.info("(Launching " + nThreads + " threads for " + sTypeOrNumThreads[0] + " source types)");	    
         	    		exec.submit(typeRunner);
@@ -127,12 +141,26 @@ public class HarvestThenProcessController {
         			_logger.error("Error in harvester thread configuration: " + sThreadConfig);        			
         		}
         	}//(end loop over different file types)
+        	
+        	// (generate one thread for everything else)
+        	for (String unusedType: types) { // (note case unimportant)
+				SourceTypeHarvesterRunnable typeRunner = new SourceTypeHarvesterRunnable(sources, 1, unusedType);
+	    		_logger.info("(Launching 1 thread for " + unusedType + " source types)");	            	
+	    		exec.submit(typeRunner);
+        	}//TESTED (by hand)
+        	
 			exec.shutdown();
+			int i = 0;
 			while (!exec.isTerminated()) {
 				try {
 					Thread.sleep(1000);
 				} 
 				catch (InterruptedException e3) { }
+				if (_bStopHarvest) i++;
+				if (i > 14400) { // emergency shutdown time...
+					_logger.error("Emergency shutdown after 4 hours of waiting for manual shutdown");
+					System.exit(0);
+				}
 			}			        
         }
         com.ikanow.infinit.e.processing.generic.utils.PropertiesManager aggProps = new com.ikanow.infinit.e.processing.generic.utils.PropertiesManager();

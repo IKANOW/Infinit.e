@@ -196,6 +196,8 @@ public class DateUtility
 	 */
 	public static String getIsoDateString(String date)
 	{
+		
+		
 		SimpleDateFormat format = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss");
 		
 		try
@@ -205,24 +207,7 @@ public class DateUtility
 		}
 		catch (Exception e1)
 		{
-			//
-			try
-			{
-				Long l = Long.valueOf( date );
-				if ((l > 99999999L) && (l < 10000000000L))
-				{
-					Date d = new Date( l );
-					return format.format( d );
-				}
-				else
-				{
-					return null;
-				}
-			}
-			catch (Exception e2)
-			{
-				return null;
-			}
+			return format.format( new Date(parseDate(date)) );
 		}
 	}
 	

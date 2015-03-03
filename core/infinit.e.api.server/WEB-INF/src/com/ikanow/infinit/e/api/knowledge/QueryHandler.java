@@ -58,7 +58,6 @@ import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasLookupTable;
 import com.ikanow.infinit.e.api.knowledge.aliases.AliasManager;
 import com.ikanow.infinit.e.api.knowledge.federated.FederatedQueryInMemoryCache;
-import com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine;
 import com.ikanow.infinit.e.api.knowledge.processing.AggregationUtils;
 import com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory;
 import com.ikanow.infinit.e.api.knowledge.processing.ScoringUtils;
@@ -101,6 +100,13 @@ import com.mongodb.ReadPreference;
 @SuppressWarnings("all")
 public class QueryHandler {
 
+	public static interface ISimpleFederatedQueryEngine extends IQueryExtension {
+		// Let's me get round a horrible circular compile dependency (paging Joern to do it properly via dependency injection!)
+		void addEndpoint(SourceFederatedQueryConfigPojo source);
+		void registerScoringEngine(ScoringUtils scoreStats);
+	}
+	public static Class<ISimpleFederatedQueryEngine> federatedQueryClazz = null;
+	
 	private final StringBuffer _logMsg = new StringBuffer();	
 	private static final Logger _logger = Logger.getLogger(QueryHandler.class);
 	
@@ -129,7 +135,7 @@ public class QueryHandler {
 	private static ArrayList<Class<IQueryExtension>> _queryExtensions = null;
 	
 	// Built in query extension: federated query engine
-	private SimpleFederatedQueryEngine _builtInFederatedQueryEngine = null; // (note: _not_ static)
+	private ISimpleFederatedQueryEngine _builtInFederatedQueryEngine = null; // (note: _not_ static)
 	private static HashMap<String, FederatedQueryInMemoryCache> _federatedQueryCache = new HashMap<String, FederatedQueryInMemoryCache>();
 	static void setFederatedQueryCache(HashMap<String, FederatedQueryInMemoryCache> newCache) {
 		_federatedQueryCache = newCache;
@@ -373,6 +379,7 @@ public class QueryHandler {
 				}
 			}
 			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, 
+														(null != manualGeoNumReturn),
 														tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, 
 															searchSettings, bSpecialCase?tempFilterInfo.parentFilterObj:null);
 
@@ -424,7 +431,13 @@ public class QueryHandler {
 					FederatedQueryInMemoryCache fedQueryCacheEl = _federatedQueryCache.get(srcKey);
 					if (null != fedQueryCacheEl) {
 						if (null == this._builtInFederatedQueryEngine) {
-							_builtInFederatedQueryEngine = new SimpleFederatedQueryEngine();
+							if (null == federatedQueryClazz) {
+								try {
+									federatedQueryClazz = (Class<ISimpleFederatedQueryEngine>) Class.forName("com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine");
+								}
+								catch (Throwable t) { throw new RuntimeException("classpath error", t); }
+							}
+							_builtInFederatedQueryEngine = federatedQueryClazz.newInstance();
 						}
 						_builtInFederatedQueryEngine.addEndpoint(fedQueryCacheEl.source);
 					}
@@ -447,7 +460,13 @@ public class QueryHandler {
 						for (Map.Entry<String, SourceFederatedQueryConfigPojo> fedQueryKV: fedQueryCacheEl.sources.entrySet()) {
 							if ((null == excludeSrcs) || !excludeSrcs.contains(fedQueryKV.getKey())) {
 								if (null == this._builtInFederatedQueryEngine) {
-									_builtInFederatedQueryEngine = new SimpleFederatedQueryEngine();
+									if (null == federatedQueryClazz) {
+										try {
+											federatedQueryClazz = (Class<ISimpleFederatedQueryEngine>) Class.forName("com.ikanow.infinit.e.api.knowledge.federated.SimpleFederatedQueryEngine");
+										}
+										catch (Throwable t) { throw new RuntimeException("classpath error", t); }
+									}
+									_builtInFederatedQueryEngine = federatedQueryClazz.newInstance();
 								}
 								_builtInFederatedQueryEngine.addEndpoint(fedQueryKV.getValue());
 							}
@@ -620,16 +639,14 @@ public class QueryHandler {
 		if ((null != query.output.aggregation) && (null != query.output.aggregation.raw)) {
 			rp.setFacets(queryResults.getFacets().facetsAsMap());
 		}
-		else if ((null != queryResults.getFacets()) && (null != queryResults.getFacets().getFacets())) { // "Logical" aggregation
+		else { // "Logical" aggregation
 
 			if (0.0 == query.score.sigWeight) {
 				scoreStats = null; // (don't calculate event/fact aggregated significance if it's not wanted)
 			}
-			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets().getFacets(), query.output.aggregation, scoreStats, _aliasLookup, tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, extraAliasAggregatedGeo);
+			AggregationUtils.loadAggregationResults(rp, queryResults.getFacets(), queryResults.getAggregations(), query.output.aggregation, scoreStats, _aliasLookup, tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, extraAliasAggregatedGeo);
 			
 		} // (end facets not overwritten)			
-		
-		scoreStats = null; // (now definitely never need scoreStats)
 		
 		// 0.9.3] Documents
 		if  (query.output.docs.enable) {
@@ -656,8 +673,11 @@ public class QueryHandler {
 		
 		// (Built-in version)
 		if (null != _builtInFederatedQueryEngine) {
+			_builtInFederatedQueryEngine.registerScoringEngine(scoreStats);
 			_builtInFederatedQueryEngine.postQueryActivities(queryId, docs, rp);
 		}
+		
+		scoreStats = null; // (now definitely never need scoreStats)
 		
 		// 0.9.5] Timing/logging
 		
@@ -1402,15 +1422,7 @@ public class QueryHandler {
 		
 		else if (null != qt.entity) 
 		{
-			qt.entity = qt.entity.toLowerCase();
-			
-			int nIndex1 = qt.entity.lastIndexOf(':');
-			int nIndex2 = qt.entity.lastIndexOf('/');
-
-			if (nIndex1 > nIndex2) {
-				qt.entity = qt.entity.substring(0, nIndex1) + "/" + qt.entity.substring(nIndex1 + 1);
-			}//TESTED logic2
-			
+			qt.entity = qt.entity.toLowerCase();			
 		}//TESTED: logic2 
 		
 	// 1.3c] Logic	
@@ -1482,7 +1494,12 @@ public class QueryHandler {
 					}
 					sQueryTerm.append(" OR ").append(sFieldName).append(":$manual_aliases");
 					termBoolQ = termBoolQ.should(QueryBuilders.termQuery(sFieldName, qt.entity));
-					termQ = termBoolQ = termBoolQ.should(QueryBuilders.termsQuery(sFieldName, masterAlias.getAlias().toArray()));
+					if (null != masterAlias.getAlias()) {
+						termQ = termBoolQ = termBoolQ.should(QueryBuilders.termsQuery(sFieldName, masterAlias.getAlias().toArray()));
+					}
+					else {
+						termQ = termBoolQ;
+					}
 
 					// If want to add manual aliases as full text also...
 					if ((null != qt.entityOpt) && qt.entityOpt.rawText) {
@@ -1495,7 +1512,7 @@ public class QueryHandler {
 						}
 						
 						// (slightly annoying because I have to derive the dnames for all of them) 
-						for (String alias: masterAlias.getAlias()) {
+						if (null != masterAlias.getAlias()) for (String alias: masterAlias.getAlias()) {
 							int nIndex2 = alias.lastIndexOf('/');
 							String dName = alias.substring(0, nIndex2);
 							
@@ -1590,14 +1607,7 @@ public class QueryHandler {
 			if ((null != qt.entityOpt) && qt.entityOpt.expandAlias) {
 				String s = null;
 				if (null != qt.entity) {
-					int nIndex1 = qt.entity.lastIndexOf(':');
-					int nIndex2 = qt.entity.lastIndexOf('/');
-					if (nIndex1 > nIndex2) {
-						s = qt.entity.substring(0, nIndex1) + "/" + qt.entity.substring(nIndex1 + 1);
-					}//TESTED logic2 (cut and paste)
-					else {
-						s = qt.entity;
-					}
+					s = qt.entity;
 				}
 				else if ((null != qt.entityValue) && (null != qt.entityType)) {
 					s = qt.entityValue + "/" + qt.entityType;
@@ -2679,6 +2689,7 @@ public class QueryHandler {
 		{
 			System.out.println("Fail 2"); System.out.println(logic2a); System.out.println(answer2a); System.out.println(logic2b); System.out.println(answer2b);  
 		}	
+		// (NOTE: this will fail .. the code used to have some odd logic to allow the format <entity-containing-/s>:<type>, which i just removed because lots of people want to put :s in the entity type)
 		// (entityValue/entityType tested by logic3 below) 
 		
 	// Alias expansion (leave this commented out since results depend on current DB - ie check by eye)

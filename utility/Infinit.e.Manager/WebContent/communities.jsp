@@ -29,6 +29,7 @@ limitations under the License.
 	//
 	String editTableTitle = "Add New Community";
 	String communityid = "";
+	String communityType = "";
 	String visibleCommunityId = "";
 	String name = "";
 	String description = "";
@@ -60,6 +61,7 @@ limitations under the License.
 	String editMembersLink = "";
 	String addMembersLink = "";
 
+	String communityTypeDropdown = "<select id='communityType' name='communityType'><option selected='true'>Community</option><option>Data Group (Testing Only)</option><option>User Group (Testing Only)</option></select>";
 %>
 
 <%
@@ -125,6 +127,7 @@ limitations under the License.
 			registrationRequiresApproval = (request.getParameter("registrationRequiresApproval") != null) ? request.getParameter("registrationRequiresApproval") : "";
 			publishMemberOverride = (request.getParameter("publishMemberOverride") != null) ? request.getParameter("publishMemberOverride") : "";
 			usersCanSelfRegister = (request.getParameter("usersCanSelfRegister") != null) ? request.getParameter("usersCanSelfRegister") : "";
+			communityType = (request.getParameter("communityType") != null) ? request.getParameter("communityType") : "";
 
 			Boolean redirect = false;
 			
@@ -515,13 +518,7 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			community.remove("communityAttributes");
 			community.put("communityAttributes", communityProperties);
 			
-			// Fix number of members in the community
-			JSONArray members = community.getJSONArray("members");
-			int numberOfMembers = members.length();
-			community.remove("numberOfMembers");
-			community.put("numberOfMembers", numberOfMembers);
-
-			System.out.println(community.toString(4));
+			//System.out.println(community.toString(4));
 			
 			actionResponse = new JSONObject(postToRestfulApi("social/community/update/" + communityid, 
 					community.toString(), request, response));
@@ -544,13 +541,21 @@ private boolean saveCommunity( boolean isNewCommunity, HttpServletRequest reques
 			String descriptionStr = URLEncoder.encode(description, "UTF-8");
 			String tagsStr = URLEncoder.encode(trimTagString(tags), "UTF-8");
 			String parentIdStr = null;
+			String prefix = "social/community";
+			if (communityType.contains("User Group")) {
+				prefix = "social/group/user";
+			}
+			else if (communityType.contains("Data Group")) {
+				prefix = "social/group/data";				
+			}
+			
 			if ((null != parentId) && (parentId.length() > 0)) {
 				parentIdStr = URLEncoder.encode(parentId, "UTF-8");
-				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
+				actionResponse = new JSONObject(callRestfulApi(prefix + "/add/" + nameStr + 
 						"/$desc/" + tagsStr + "/" + parentIdStr + "?desc=" + descriptionStr, request, response));
 			}//TESTED - valid-works, invalid id, valid-but-not-allowed, valid-but-pending-delete, personal-community
 			else {
-				actionResponse = new JSONObject(callRestfulApi("social/community/add/" + nameStr + 
+				actionResponse = new JSONObject(callRestfulApi(prefix + "/add/" + nameStr + 
 						"/$desc/" + tagsStr + "?desc=" + descriptionStr, request, response));
 			}
 			
@@ -640,7 +645,14 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 				parentId = "";
 			}
 			description = community.getString("description");
-			numberOfMembers = community.getString("numberOfMembers");
+			if (community.has("members")) {
+				JSONArray members = community.getJSONArray("members");
+				numberOfMembers = Integer.toString(members.length());
+			}
+			else {
+				numberOfMembers = "0";
+			}
+			
 			ownerDisplayName = community.getString("ownerDisplayName");
 			
 			// Community tags
@@ -697,7 +709,7 @@ private void clearForm()
 {
 	editTableTitle = "Add New Community";
 	parentIdIsReadonly="";
-	communityStatus = "";
+	communityStatus = communityTypeDropdown;
 	visibleCommunityId = "";
 	name =  "";
 	parentId = "";

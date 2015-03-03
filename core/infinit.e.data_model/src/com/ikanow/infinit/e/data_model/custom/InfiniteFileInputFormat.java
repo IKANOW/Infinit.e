@@ -43,8 +43,18 @@ public class InfiniteFileInputFormat extends CombineFileInputFormat<Object, BSON
 
 	@Override
 	public List<InputSplit> getSplits(JobContext job) throws IOException {
+		
+		// Test mode needs to restrict the docs also, otherwise things can get out of hand...
+		int debugLimit = job.getConfiguration().getInt("mongo.input.limit", Integer.MAX_VALUE);
+		if (debugLimit <= 0) { // (just not set)
+			debugLimit = Integer.MAX_VALUE;
+		}		
+		
 		List<InputSplit> splits = super.getSplits(job);
 		
+		if (splits.size() > debugLimit) {
+			splits = splits.subList(0, debugLimit);
+		}
 		return splits;
 	}
 

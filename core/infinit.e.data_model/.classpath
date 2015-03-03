@@ -5,7 +5,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/mongo-hadoop-core.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-io-2.0.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-codec-1.6.jar"/>
-	<classpathentry exported="true" kind="lib" path="lib/mongo-2.10.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-lang-2.4.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/gson-2.2.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/guava-r09.jar"/>
@@ -16,6 +15,8 @@
 	<classpathentry exported="true" kind="lib" path="lib/jasypt-1.6.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/opencsv-2.3-ikanow.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-hadoop-2.0.2.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/GridFSZipFile.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/mongo-java-driver-2.12.4.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="output" path="bin"/>

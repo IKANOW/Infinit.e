@@ -705,8 +705,6 @@ public class PersonHandler
 			BasicDBObject actions = new BasicDBObject();
 			actions.put("$pull", new BasicDBObject("members", new BasicDBObject("_id", pp.get_id())));
 				// ie for communities for which he's a member...remove...any elements of the list members...with his _id
-			actions.put("$inc", new BasicDBObject("numberOfMembers", -1));
-				// ie decrement number of members
 			
 			DbManager.getSocial().getCommunity().update(query, actions, false, true); 
 				// (don't upsert, many times)			
@@ -758,7 +756,7 @@ public class PersonHandler
 	 * @param communityName
 	 * @return ResponsePojo
 	 */
-	public ResponsePojo addCommunity(String personId, String communityId, String communityName)
+	public ResponsePojo addCommunity(String personId, String communityId, String communityName, CommunityPojo.CommunityType type)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try
@@ -777,6 +775,7 @@ public class PersonHandler
 				PersonCommunityPojo community = new PersonCommunityPojo();
 				community.set_id(new ObjectId(communityId));
 				community.setName(communityName);
+				community.setType(type);
 				
 				// Check to see if person is already a member of the community to be added
 				List<PersonCommunityPojo> communities = person.getCommunities();

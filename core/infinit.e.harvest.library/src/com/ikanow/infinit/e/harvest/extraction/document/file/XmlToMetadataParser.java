@@ -39,6 +39,7 @@ public class XmlToMetadataParser {
 	public String AttributePrefix;
 	private int nMaxDocs = Integer.MAX_VALUE;
 	private int nCurrDocs = 0;
+	private boolean _bPrefixMode = false; // (if true then includes prefix in its matching)
 
 	// Track approximate memory usage
 	private long _memUsage = 0;	
@@ -50,6 +51,7 @@ public class XmlToMetadataParser {
 	{
 		levelOneFields = new ArrayList<String>();
 		ignoreFields = new ArrayList<String>();
+		_bPrefixMode = false;
 	}
 
 	/**
@@ -79,6 +81,12 @@ public class XmlToMetadataParser {
 	public void setLevelOneField(List<String> levelOneFields) {
 		if (null != levelOneFields) {
 			this.levelOneFields = levelOneFields;
+			
+			for (String s: levelOneFields) {
+				if (s.contains(":")) {
+					_bPrefixMode = true;
+				}
+			}//TESTED (by hand)
 		}
 	}
 
@@ -88,6 +96,14 @@ public class XmlToMetadataParser {
 	public void setIgnoreField(List<String> ignoreFields) {
 		if (null != ignoreFields) {
 			this.ignoreFields = ignoreFields;
+			
+			if (!_bPrefixMode) {
+				for (String s: ignoreFields) {
+					if (s.contains(":")) {
+						_bPrefixMode = true;
+					}
+				}
+			}//TESTED (by hand)
 		}
 	}
 
@@ -193,8 +209,11 @@ public class XmlToMetadataParser {
 			switch (eventCode)
 			{
 			case(XMLStreamReader.START_ELEMENT):
-			{
+			{				
 				String tagName = reader.getLocalName();
+				if (_bPrefixMode && (null != reader.getPrefix())) {
+					tagName = reader.getPrefix() + ":" + tagName;
+				}//TESTED (by hand)
 			
 				if (null == levelOneFields || levelOneFields.size() == 0) {
 					levelOneFields = new ArrayList<String>();
@@ -216,15 +235,15 @@ public class XmlToMetadataParser {
 				}
 				else{
 					if (this.bPreserveCase) {
-						sb.append("<").append(tagName).append(">");					
+						sb.append("<").append(reader.getLocalName()).append(">");					
 					}
 					else {
-						sb.append("<").append(tagName.toLowerCase()).append(">");
+						sb.append("<").append(reader.getLocalName().toLowerCase()).append(">");
 					}
 					justIgnored = false;
 				}
 				if (null != doc) {
-					fullText.append("<").append(tagName);
+					fullText.append("<").append(reader.getLocalName());
 					for (int ii = 0; ii < reader.getAttributeCount(); ++ii) {
 						fullText.append(" ");
 						fullText.append(reader.getAttributeLocalName(ii)).append("=\"").append(reader.getAttributeValue(ii)).append('"');
@@ -279,13 +298,33 @@ public class XmlToMetadataParser {
 			break;
 			case (XMLStreamReader.END_ELEMENT):
 			{
-				if (null != doc) {
-					fullText.append("</").append(reader.getLocalName()).append(">");
-				}//TESTED
+				String tagName = reader.getLocalName();
+				if (_bPrefixMode && (null != reader.getPrefix())) {
+					tagName = reader.getPrefix() + ":" + tagName;
+				}//TESTED (by hand)			
 				
-				hitIdentifier = !reader.getLocalName().equalsIgnoreCase(PKElement);
-				if ((null != ignoreFields) && !ignoreFields.contains(reader.getLocalName())){
-					if (levelOneFields.contains(reader.getLocalName())) {
+				if (null != doc) {
+					if (this.bPreserveCase) {
+						fullText.append("</").append(reader.getLocalName()).append(">");
+					}
+					else {
+						fullText.append("</").append(reader.getLocalName()).append(">");						
+					}
+				}//TESTED						
+				
+				hitIdentifier = !tagName.equalsIgnoreCase(PKElement);
+				if ((null != ignoreFields) && !ignoreFields.contains(tagName)){
+					if (levelOneFields.contains(tagName)) {						
+						if (null == doc) {
+							// Uh oh, something has gone very wrong here, we've found an end element
+							// but we didn't find a start element
+							if (null != reader.getPrefix()) {
+								throw new RuntimeException("XML parse error, found end without start: " + reader.getPrefix() + ':' + reader.getLocalName() + "; prefix mode = " + _bPrefixMode);								
+							}
+							else {
+								throw new RuntimeException("XML parse error, found end without start: " + reader.getLocalName() + "; prefix mode = " + _bPrefixMode);
+							}
+						}//TESTED
 						JSONObject json;
 						if (!textOnly) {
 							try {

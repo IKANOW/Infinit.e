@@ -33,6 +33,8 @@ package com.ikanow.infinit.e.source.model.constant
 		
 		public static const FIELD_TITLE:String = "title";
 		
+		public static const FIELD_KEY:String = "key";
+		
 		public static const FIELD_TAG:String = "tag";
 		
 		public static const FIELD_TAGS_STRING:String = "tagsString";
@@ -57,6 +59,7 @@ package com.ikanow.infinit.e.source.model.constant
 			var selectableColumns:ArrayCollection = new ArrayCollection();
 			
 			selectableColumns.addItem( new ColumnSelector( FIELD_TITLE, FIELD_TITLE, ResourceManager.getInstance().getString( 'infinite', 'sources.sourceName' ), QueryOperatorTypes.AND, selected ) );
+			selectableColumns.addItem( new ColumnSelector( FIELD_KEY, FIELD_KEY, ResourceManager.getInstance().getString( 'infinite', 'sources.sourceKey' ), QueryOperatorTypes.AND, selected ) );
 			selectableColumns.addItem( new ColumnSelector( FIELD_TAG, FIELD_TAGS_STRING, ResourceManager.getInstance().getString( 'infinite', 'sources.tags' ), QueryOperatorTypes.AND, selected ) );
 			selectableColumns.addItem( new ColumnSelector( FIELD_MEDIA_TYPE, FIELD_MEDIA_TYPE, ResourceManager.getInstance().getString( 'infinite', 'sources.type' ), QueryOperatorTypes.AND, selected ) );
 			selectableColumns.addItem( new ColumnSelector( FIELD_COMMUNITY, FIELD_COMMUNITY, ResourceManager.getInstance().getString( 'infinite', 'sources.community' ), QueryOperatorTypes.AND, selected ) );

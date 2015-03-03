@@ -49,6 +49,7 @@
 	<property name="InfiniteSignificanceWidget.location" value="${basedir}/../InfiniteSignificanceWidget"/>
 	<property name="InfiniteTimelineEventWidget.location" value="${basedir}/../InfiniteTimelineEventWidget"/>
 	<property name="InfiniteTimelineWidget.location" value="${basedir}/../InfiniteTimelineWidget"/>
+	<property name="TemplatedSourceCreatorWidget.location" value="${basedir}/../TemplatedSourceCreatorWidget/"/>
 	<property name="InfiniteSourceMonitor.location" value="${basedir}/../InfiniteSourceMonitor"/>
 	<property name="InfiniteCustomMonitor.location" value="${basedir}/../InfiniteCustomMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
@@ -75,18 +76,20 @@
 		<ant antfile="${infinit.e.data_model.location}/build.xml">
 			<property name="basedir" value="${infinit.e.data_model.location}"/>
 		</ant>
+		<ant antfile="${infinit.e.api.server.location}/build.xml" target="jar">
+		    <!-- First call: just builds the query library JAR (do this to avoid circular deps vs custom library)  -->
+			<!-- (this needs to be before the custom library) -->
+			<property name="basedir" value="${infinit.e.api.server.location}"/>
+		</ant>
+		<ant antfile="${infinit.e.processing.custom.library.location}/build.xml">
+			<!-- (this needs to be before the harvest library) -->
+			<property name="basedir" value="${infinit.e.processing.custom.library.location}"/>
+		</ant>
 		<ant antfile="${infinit.e.harvest.library.location}/build.xml">
 			<property name="basedir" value="${infinit.e.harvest.library.location}"/>
 		</ant>
 		<ant antfile="${infinit.e.processing.generic.library.location}/build.xml">
 			<property name="basedir" value="${infinit.e.processing.generic.library.location}"/>
-		</ant>
-		<ant antfile="${infinit.e.api.server.location}/build.xml" target="jar">
-		    <!-- First call: just builds the query library JAR (do this to avoid circular deps vs custom library)  -->
-			<property name="basedir" value="${infinit.e.api.server.location}"/>
-		</ant>
-		<ant antfile="${infinit.e.processing.custom.library.location}/build.xml">
-			<property name="basedir" value="${infinit.e.processing.custom.library.location}"/>
 		</ant>
 		<ant antfile="${infinit.e.api.server.location}/build.xml">
 		    <!-- Second call: builds WAR and es JAR (do this to avoid circular deps vs custom library)  -->
@@ -130,6 +133,9 @@
 		</ant>
 		<ant antfile="${InfiniteTimelineWidget.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteTimelineWidget.location}"/>
+		</ant>
+		<ant antfile="${TemplatedSourceCreatorWidget.location}/build/build.xml">
+			<property name="basedir" value="${TemplatedSourceCreatorWidget.location}"/>
 		</ant>
 		<ant antfile="${InfiniteSourceMonitor.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteSourceMonitor.location}"/>

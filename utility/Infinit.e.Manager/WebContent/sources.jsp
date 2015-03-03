@@ -657,8 +657,9 @@ function clock()
 			}
 
 			
-			if (null != srcObj.processingPipeline) { // (handle the 2 pipeline cases, logstash and JS)
-				var globals = null;					
+			if (null != srcObj.processingPipeline) { // (handle the 3 pipeline cases, logstash, custom, and JS)
+				var globals = null;		
+				var isCustomJob = false;
 				for (var x in srcObj.processingPipeline) {
 					var pxPipe = srcObj.processingPipeline[x];
 					if (pxPipe.logstash) {
@@ -673,25 +674,31 @@ function clock()
 						globals = pxPipe.globals;
 						break;
 					}
-				}
-				if ((null != uah) && (uah.trim() != "")) {
-					if (null == globals) { // no globals, insert
-						globals = {};
-						srcObj.processingPipeline.splice(1, 0, { "globals": globals });
+					if (pxPipe.scriptingEngine) {
+						isCustomJob = true;
+						pxPipe.scriptingEngine.globalScript = uah;
 					}
-					globals.scriptlang = "javascript";
-					if (null == globals.scripts) {
-						globals.scripts = [];
-					}
-					globals.scripts[0] = uah;
 				}
-				else {
-					if (null != globals) {
-						delete globals.scripts;
+				if (!isCustomJob) {
+					if ((null != uah) && (uah.trim() != "")) {
+						if (null == globals) { // no globals, insert
+							globals = {};
+							srcObj.processingPipeline.splice(1, 0, { "globals": globals });
+						}
+						globals.scriptlang = "javascript";
+						if (null == globals.scripts) {
+							globals.scripts = [];
+						}
+						globals.scripts[0] = uah;
 					}
-					//(else nothing to do)
+					else {
+						if (null != globals) {
+							delete globals.scripts;
+						}
+						//(else nothing to do)
+					}
 				}
-			}
+			}//(end if px pipeline mode)
 			
 			if ((null != uah) && (uah.trim() != "")) {
 				if (null == srcObj.processingPipeline) { // (legacy format)
@@ -727,6 +734,7 @@ function clock()
 				sourceJsonEditor_uah.setValue(srcObj.unstructuredAnalysis.script);				
 			}
 			else if (srcObj.processingPipeline) {
+				var isCustomJob = false;
 				var globals = null;
 				sourceJsonEditor_logstash.setValue("");
 				for (var x in srcObj.processingPipeline) {
@@ -740,13 +748,30 @@ function clock()
 						globals = pxPipe.globals;
 						break;
 					}
+					if (pxPipe.custom_file || pxPipe.docs_datastoreQuery || pxPipe.docs_documentQuery || pxPipe.records_indexQuery || pxPipe.custom_datastoreQuery || pxPipe.feature_datastoreQuery) {
+						isCustomJob = true;
+					}
+					if (pxPipe.scriptingEngine) {
+						globals = pxPipe.scriptingEngine;
+					}
 				}
-				if ((null == globals) || (null == globals.scripts) || (0 == globals.scripts.length)) { 
-					// no globals, set script to be blank
-					sourceJsonEditor_uah.setValue("");					
-				}				
-				else {
-					sourceJsonEditor_uah.setValue(globals.scripts[0]);
+				if (!isCustomJob) {
+					if ((null == globals) || (null == globals.scripts) || (0 == globals.scripts.length)) { 
+						// no globals, set script to be blank
+						sourceJsonEditor_uah.setValue("");					
+					}				
+					else {
+						sourceJsonEditor_uah.setValue(globals.scripts[0]);
+					}
+				}
+				else if (isCustomJob && (the_editor == sourceJsonEditor_uah)){ // bit more restrictive in custom mode, scriptingEngine has to exist
+					if (null == globals) {
+						alert("Can't use the JS tab until a scriptingEngine elements exists");
+						return;
+					}
+					else {
+						sourceJsonEditor_uah.setValue(globals.globalScript);
+					}
 				}
 			}
 			else {
@@ -844,10 +869,14 @@ function clock()
 		// Convert source JSON text into JSON
 		var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
 
-		if (srcObj.hasOwnProperty('searchCycle_secs')) {
+		if (srcObj.hasOwnProperty('searchCycle_secs')) {			
 			if (srcObj.searchCycle_secs == -1) {
 				delete srcObj.searchCycle_secs;
 				enableOrDisable.value = "<fmt:message key='source.editor.action.disable_source'/>";
+			}
+			else if (srcObj.searchCycle_secs == 0) { // => run once only
+				srcObj.searchCycle_secs = -1;
+				enableOrDisable.value = "<fmt:message key='source.editor.action.enable_source'/>";
 			}
 			else {
 				srcObj.searchCycle_secs = -srcObj.searchCycle_secs;
@@ -2002,8 +2031,12 @@ private void createCommunityIdSelect(HttpServletRequest request, HttpServletResp
 			for (int i = 0; i < communities.length(); i++) 
 			{
 				JSONObject source = communities.getJSONObject(i);
+				
 				String name = source.getString("name");
 				String id = source.getString("_id");
+				if (source.has("type") && source.getString("type").equals("user")) {
+					continue;
+				}
 				String selectedString = (id.equalsIgnoreCase(communityId)) ? " SELECTED" : "";
 				html.append("<option value=\"" + id + "\"" + selectedString + ">" + name + "</option>");
 			}				

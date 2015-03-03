@@ -1,7 +1,7 @@
 <!-- ======================================= -->
 <!-- Flex application build file -->
 <!-- ======================================= -->
-<project name="BetterDocViewWidget" basedir="../" default="create-release">
+<project name="TemplatedSourceCreatorWidget" basedir="../" default="create-release">
 
 	<!-- ======================================= -->
 	<!--  Configuration -->

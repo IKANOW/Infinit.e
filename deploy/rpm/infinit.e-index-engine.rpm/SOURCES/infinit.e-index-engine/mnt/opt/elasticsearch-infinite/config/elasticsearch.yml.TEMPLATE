@@ -13,7 +13,7 @@ discovery:
   ec2.tag.cluster-name: CLUSTER_NAME
   ec2.tag.index-node: 1 
 #ec2 only:
-cloud:	
+cloud:
   aws.region: AWS_REGION
   aws.access_key: AWS_KEY
   aws.secret_key: SECRET_KEY

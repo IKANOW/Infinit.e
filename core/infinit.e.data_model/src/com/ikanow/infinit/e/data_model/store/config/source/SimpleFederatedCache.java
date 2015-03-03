@@ -33,8 +33,15 @@ public class SimpleFederatedCache extends BaseDbPojo {
 	public String _id; // (the URL)
 	public Date expiryDate;
 	public BasicDBObject cachedJson;
+	public Date created;
 
 	public static final String _id_ = "_id";
 	public static final String expiryDate_ = "expiryDate";
 	public static final String cachedJson_ = "cachedJson";
+	public static final String created_ = "created";
+	
+	// cachedJson has the following special fields:
+	public static final String __infinite__value_ = "__infinite__value";
+	public static final String array_ = "array";
+	public static final String value_ = "value";
 }

@@ -118,6 +118,9 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	public static final String selfMerge_ = "selfMerge";
 	public Boolean selfMerge;
 	
+	public static final String derivedFromSourceKey_ = "derivedFromSourceKey";
+	public String derivedFromSourceKey; // (used internally to update source status following completion)
+	
 	public enum SCHEDULE_FREQUENCY
 	{
 		NONE,
@@ -129,7 +132,7 @@ public class CustomMapReduceJobPojo extends BaseDbPojo
 	
 	public enum INPUT_COLLECTIONS
 	{	
-		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS, FILESYSTEM, FEATURE_TEMPORAL, RECORDS;
+		DOC_METADATA, DOC_CONTENT, FEATURE_ENTITIES, FEATURE_ASSOCS, FILESYSTEM, SHARE_ZIP, FEATURE_TEMPORAL, RECORDS;
 	}
 
 	// Getters and setters

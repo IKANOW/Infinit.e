@@ -40,6 +40,9 @@ import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.CommandResult;
 import com.mongodb.DBObject;
+import com.mongodb.MongoException;
+import com.mongodb.WriteConcern;
+import com.mongodb.WriteResult;
 
 public class CustomScheduleManager {
 
@@ -279,16 +282,18 @@ public class CustomScheduleManager {
 							if ((null == savedQuery.getQueryInfo().getLastRun()) ||
 									((nowTime - savedQuery.getQueryInfo().getLastRun().getTime()) > freqOffset))
 							{
-								//(does nothing if the share already exists)
-								DbManager.getCustom().getSavedQueryCache().insert(savedQueryShare.toDb());
-								CommandResult cr = DbManager.getCustom().getSavedQueryCache().getDB().getLastError();
-								
-								if (null == cr.get("err")) { // if we've actually done something, update the main share table also
-									savedQuery.getQueryInfo().setLastRun(now);
-									savedQueryShare.setShare(savedQuery.toApi());
-									// (this will overwrite the existing version)
-									DbManager.getSocial().getShare().save(savedQueryShare.toDb());								
-								}//TESTED (by hand with prints)
+								try {
+									//(does nothing if the share already exists)
+									WriteResult wr = DbManager.getCustom().getSavedQueryCache().insert(savedQueryShare.toDb(), WriteConcern.ACKNOWLEDGED);
+									
+									if (wr.getN() > 0) { // if we've actually done something, update the main share table also
+										savedQuery.getQueryInfo().setLastRun(now);
+										savedQueryShare.setShare(savedQuery.toApi());
+										// (this will overwrite the existing version)
+										DbManager.getSocial().getShare().save(savedQueryShare.toDb());								
+									}//TESTED (by hand with prints)
+								}
+								catch (MongoException e) {} // just carry on - this is equivalent to getLastERror returning true
 								
 							}//TESTED (test3-5)
 							

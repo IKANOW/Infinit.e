@@ -23,6 +23,10 @@ public class InfiniteEnums
 	public static final int DATABASE = 4;
 	public static final int FILES = 8;
 	public static final int LOGSTASH = 16;
+	public static final int DISTRIBUTED = 32;
+	public static final int POSTPROC = 64;
+	public static final int CUSTOM = 128;
+	public static final int FEDERATED = 256;
 	
 	public static int castExtractType(String type)
 	{
@@ -34,6 +38,14 @@ public class InfiniteEnums
 			return FILES;
 		else if ( type.toLowerCase().equals("logstash"))
 			return LOGSTASH;
+		else if ( type.toLowerCase().equals("distributed"))
+			return DISTRIBUTED;
+		else if ( type.toLowerCase().equals("post_processing"))
+			return POSTPROC;
+		else if ( type.toLowerCase().equals("custom"))
+			return CUSTOM;
+		else if ( type.toLowerCase().equals("federated"))
+			return FEDERATED;
 		return 0;
 	}
 	

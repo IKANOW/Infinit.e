@@ -1,0 +1,86 @@
+[
+    {
+        "display": "",
+        "postProcessing": {
+            "srcTags": "tag1,tag2",
+            "rebuildAllCommunities": false,
+            "tmin": "now-4d",
+            "query": "{\"_id\": { \"$oid\": \"549194f64c98e59d57e9d56e\" } }",
+            "debugMode": false,
+            "groupOverrideRegex": "*system",
+            "queryType": "datastore",
+            "tmax": "now"
+        }
+    },
+    {
+        "harvest": {
+            "searchCycle_secs": 7200,
+            "duplicateExistingUrls": true
+        },
+        "display": ""
+    },
+    {
+        "display": "",
+        "lookupTables": {
+            "test2": "549194f64c98e59d57e9d56b",
+            "test1": "549194f64c98e59d57e9d56a"
+        }
+    },
+    {
+        "display": "",
+        "textEngine": {
+            "exitOnError": true,
+            "engineName": "549194f64c98e59d57e9d56c"
+        }
+    },
+    {
+        "display": "",
+        "featureEngine": {
+            "exitOnError": true,
+            "engineName": "549194f64c98e59d57e9d56d"
+        }
+    }
+]
+// RESULTS:
+{ 
+     "$caches" : "549194f64c98e59d57e9d56a,549194f64c98e59d57e9d56b,549194f64c98e59d57e9d56c,549194f64c98e59d57e9d56d", 
+     "$srctags" : "tag1,tag2", 
+     "$tmax" : "now", 
+     "$tmin" : "now-4d", 
+     "_id" : { "$oid" : "549194f64c98e59d57e9d56e" }
+   }
+{
+  "debugMode": false,
+  "rebuildAllCommunities": false,
+  "processingPipeline": [
+    {
+      "display": "",
+      "harvest": {
+        "searchCycle_secs": 7200,
+        "duplicateExistingUrls": true
+      }
+    },
+    {
+      "display": "",
+      "lookupTables": {
+        "test1": "549194f64c98e59d57e9d56a",
+        "test2": "549194f64c98e59d57e9d56b"
+      }
+    },
+    {
+      "display": "",
+      "textEngine": {
+        "engineName": "549194f64c98e59d57e9d56c",
+        "exitOnError": true
+      }
+    },
+    {
+      "display": "",
+      "featureEngine": {
+        "engineName": "549194f64c98e59d57e9d56d",
+        "exitOnError": true
+      }
+    }
+  ]
+}
+//(check system community is enabled)

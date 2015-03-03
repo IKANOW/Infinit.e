@@ -93,7 +93,13 @@ public class PropertiesManager {
 	 */
 	
 	public Boolean isSaasDeployment() {
-		return this.getProperty("app.saas").toLowerCase().equals("true");
+		String s = this.getProperty("app.saas");
+		if (null != s) {
+			return s.toLowerCase().equals("true");
+		}
+		else {
+			return false;
+		}
 	}
 	public String getSaasTrustedDns() {
 		return this.getProperty("app.saas.trusted.dns");

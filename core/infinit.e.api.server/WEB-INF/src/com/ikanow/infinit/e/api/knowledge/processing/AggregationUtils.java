@@ -34,9 +34,17 @@ import org.elasticsearch.index.query.NestedFilterBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryFilterBuilder;
 import org.elasticsearch.index.search.geo.GeoHashUtils;
+import org.elasticsearch.search.aggregations.Aggregation;
+import org.elasticsearch.search.aggregations.AggregationBuilders;
+import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram.Interval;
+import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuilder;
+import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.facet.Facet;
+import org.elasticsearch.search.facet.Facets;
 import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet;
-import org.elasticsearch.search.facet.datehistogram.DateHistogramFacet.Entry;
 import org.elasticsearch.search.facet.terms.TermsFacet;
 import org.elasticsearch.search.facets.CrossVersionFacetBuilder;
 import org.elasticsearch.search.facets.CrossVersionFacetBuilders;
@@ -53,6 +61,7 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
+import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 
 public class AggregationUtils {
@@ -70,15 +79,15 @@ public class AggregationUtils {
 	
 	// OUTPUT PARSING - TOP LEVEL
 	
-	public static void loadAggregationResults(ResponsePojo rp, Map<String, Facet> facets, AggregationOutputPojo aggOutParams, 
+	public static void loadAggregationResults(ResponsePojo rp, Facets facets, Aggregations aggs,
+												AggregationOutputPojo aggOutParams, 
 												ScoringUtils scoreStats, AliasLookupTable aliasLookup,
 												String[] entityTypeFilterStrings, String[] assocVerbFilterStrings,
 												AggregationUtils.GeoContainer extraAliasAggregatedGeo)
 	{
-		HashMap<String, List<? extends Entry>> moments = null;
+		HashMap<String, List<? extends Object>> moments = null;
 		
-		for (Map.Entry<String, Facet> facet: facets.entrySet()) {
-			
+		if ((null != facets) && (null != facets.getFacets())) for (Map.Entry<String, Facet> facet: facets.getFacets().entrySet()) {			
 			// Geo
 			
 			if (facet.getKey().equals("geo")) {
@@ -148,12 +157,61 @@ public class AggregationUtils {
 			if (facet.getKey().startsWith("moments.")) {
 				DateHistogramFacet momentFacet = (DateHistogramFacet) facet.getValue();
 				if (null == moments) {
-					moments = new HashMap<String, List<? extends Entry>>();
+					moments = new HashMap<String, List<? extends Object>>();
 				}
 				moments.put(facet.getKey().substring(8), momentFacet.getEntries());
 			}//TESTED
 				
 		}//(end loop over generated facets)	
+
+		if ((null != aggs) && (null != aggs.asMap())) for (Map.Entry<String, Aggregation> agg: aggs.asMap().entrySet()) {
+			
+			if (agg.getKey().equals("moments")) {
+				if (null == moments) {
+					moments = new HashMap<String, List<? extends Object>>();
+				}
+				
+				DateHistogram val = (DateHistogram)agg.getValue();
+				
+				//TODO (INF-2688): Finalize format 
+				BasicDBList dbl = new BasicDBList();
+				for (DateHistogram.Bucket dateBucket: val.getBuckets()) {
+					if (dateBucket.getKeyAsNumber().longValue() > 0) {
+						BasicDBObject dataBucketDbo = new BasicDBObject();
+						dataBucketDbo.put("time", dateBucket.getKeyAsNumber().longValue());
+						dataBucketDbo.put("count", dateBucket.getDocCount());						
+						for (Map.Entry<String, Aggregation> dateAggs: dateBucket.getAggregations().asMap().entrySet()) {
+							if (dateAggs.getKey().equals("geo")) {
+								
+								BasicDBList dbl_geo = new BasicDBList();
+								MultiBucketsAggregation geoVal = (MultiBucketsAggregation) dateAggs.getValue();
+								
+								long nHighestCount = Long.MIN_VALUE;
+								for (MultiBucketsAggregation.Bucket geoBucket: geoVal.getBuckets()) {
+									String geohash = geoBucket.getKey().substring(2);
+									double[] loc =  GeoHashUtils.decode(geohash);
+									GeoAggregationPojo geoObj = new GeoAggregationPojo(loc[0],loc[1]);
+									BasicDBObject geoDbo = new BasicDBObject(4);
+									geoDbo.put("lat", geoObj.lat);
+									geoDbo.put("lon", geoObj.lon);
+									geoDbo.put("count", geoBucket.getDocCount());
+									geoDbo.put("type", GeoOntologyMapping.decodeOntologyCode(geoBucket.getKey().charAt(0)));
+									dbl_geo.add(geoDbo);
+									
+									if ( geoBucket.getDocCount() > nHighestCount) { // (the counts can be modified by the add command above)
+										nHighestCount =  geoBucket.getDocCount();
+									}
+								}
+								dataBucketDbo.put("maxGeoCount", nHighestCount);
+								dataBucketDbo.put("geo", dbl_geo);
+							}
+						}
+						dbl.add(dataBucketDbo);
+					}					
+				}
+				moments.put("times", dbl);				
+			}
+		}//(end loop over generated aggregations)		
 		
 		if ((null != moments) && !moments.isEmpty()) {
 			rp.setMoments(moments, QueryHandler.getInterval(aggOutParams.moments.timesInterval, 'm'));
@@ -166,6 +224,7 @@ public class AggregationUtils {
 	// OUTPUT PARSING - UTILS:
 	
 	public static void parseOutputAggregation(AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo aggregation, AliasLookupTable aliasLookup,
+			boolean geoLowAccuracy,
 			String[] entTypeFilterStrings, String[] assocVerbFilterStrings, SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj)
 	{
 		// 1.] Go through aggregation list
@@ -195,6 +254,8 @@ public class AggregationUtils {
 				fb = fb.facetFilter(parentFilterObj);
 			}
 			searchSettings.addFacet(fb);
+			
+			//TODO (INF-2688): if using certain types of moments then don't want this?
 		}//(TESTED)
 
 		// Temporal Moments
@@ -211,8 +272,14 @@ public class AggregationUtils {
 			if (aggregation.moments.timesInterval.contains("m")) {
 				aggregation.moments.timesInterval = "month";
 			}
-			
-			//TODO (INF-2688): geo if in full accuracy mode			
+						
+			//TODO (INF-2688): Other cross filter type things
+			if (!geoLowAccuracy && (null != aggregation.moments.geoNumReturn) && (aggregation.moments.geoNumReturn > 0)) {
+				DateHistogramBuilder timeAgg = AggregationBuilders.dateHistogram("moments").field(DocumentPojo.publishedDate_).interval(new Interval(aggregation.moments.timesInterval));
+				TermsBuilder geoAgg = AggregationBuilders.terms("geo").field(DocumentPojo.locs_).size(aggregation.moments.geoNumReturn);
+				timeAgg.subAggregation(geoAgg);
+				searchSettings.addAggregation(timeAgg);
+			}
 			
 			if (null != aggregation.moments.entityList) {
 				for (String entIndex: aggregation.moments.entityList) {

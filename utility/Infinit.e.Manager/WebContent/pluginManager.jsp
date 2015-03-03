@@ -53,6 +53,7 @@ limitations under the License.
 		{
 			String _id;
 			String name;
+			String type;
 		}
 		static class data
 		{
@@ -345,6 +346,11 @@ limitations under the License.
 		{
 			for(personGet.community comm : pgs)
 			{
+				if ((null != comm.type) && comm.type.equals("user")) {
+					continue; // (data groups/communities only)
+				}
+				
+				
 				toReturn += "<option value=\""+ comm._id + "\">"+ comm.name +"</option>";
 			}	
 		}
@@ -1207,6 +1213,10 @@ $().ready(function() {
 			{
 				inputcollection.value = "DOC_METADATA";
 			}
+			else if (jsonObj.inputCollection == "file.binary_shares")
+			{
+				inputcollection.value = "SHARE_ZIP";
+			}
 			else if (jsonObj.inputCollection == "doc_content.gzip_content")
 			{
 				inputcollection.value = "DOC_CONTENT";
@@ -1545,10 +1555,10 @@ $().ready(function() {
 			}
 			else
 			{
-				var regex = /^[a-zA-Z0-9_]+$/;
+				var regex = /^[a-zA-Z0-9_.]+$/;
 				if (!regex.test(title))
 				{				
-					alert('The title can consist of only of alphanumeric characters and _. ');
+					alert('The title can consist of only of alphanumeric characters,. and _. ');
 					return false;
 				}//TESTED
 			}
@@ -1807,6 +1817,7 @@ $().ready(function() {
 								<option value="FEATURE_ASSOCS">Aggregated Association Collection</option>
 								<option value="RECORDS">Records/Logs Collections</option>
 								<option value="FILESYSTEM">Distributed Filesystem</option>
+								<option value="SHARE_ZIP">Uploaded ZIP files</option>
 								<% out.print(inputCollectionList); %>
 							</select>
 							<span>&nbsp;&nbsp;&nbsp;&nbsp;Self Join:</span>

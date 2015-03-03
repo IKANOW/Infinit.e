@@ -29,6 +29,7 @@ import java.net.URLConnection;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 
@@ -40,9 +41,12 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.FileSystem;
 import org.apache.hadoop.fs.Path;
 import org.bson.types.ObjectId;
+import org.elasticsearch.common.joda.time.Interval;
 import org.xml.sax.SAXException;
 
+import com.ikanow.infinit.e.api.knowledge.QueryHandler;
 import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.custom.ICustomInfiniteInternalEngine;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
@@ -54,6 +58,7 @@ import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
+import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.gridfs.GridFSDBFile;
 
@@ -62,8 +67,8 @@ public class InfiniteHadoopUtils {
 	final public static long MS_IN_DAY = 86400000;
 	final public static long SECONDS_60 = 60000;
 	
-	private static final String BUILT_IN_JOB_PATH = "file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar"; 
-	private static final String BUILT_IN_JOB_NAME = "infinit.e.hadoop.prototyping_engine.jar"; 
+	public static final String BUILT_IN_JOB_PATH = "file:///opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine.jar"; 
+	private static final String BUILT_IN_JOB_NAME = "infinit.e.hadoop.prototyping_engine.jar";
 
 	/**
 	 * Takes the query argument from a CustomMapReduceJobPojo
@@ -134,6 +139,62 @@ public class InfiniteHadoopUtils {
 		}
 	}
 	
+	public static Date dateStringFromObject(Object o, boolean minNotMax) {
+		if (null == o) {
+			return null;
+		}
+		else if (o instanceof Long) {
+			return new Date((Long)o);
+		}
+		else if (o instanceof Integer) {
+			return new Date((long)(int)(Integer)o);
+		}
+		else if (o instanceof Date) {
+			return (Date)o;
+		}
+		else if (o instanceof DBObject) {
+			o = ((DBObject) o).get("$date");
+		}
+		if (o instanceof String) {
+			AdvancedQueryPojo.QueryTermPojo.TimeTermPojo time = new AdvancedQueryPojo.QueryTermPojo.TimeTermPojo();
+			if (minNotMax) {
+				time.min = (String) o;
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
+				return i.getStart().toDate();
+			}
+			else {
+				time.max = (String) o;
+				Interval i = QueryHandler.parseMinMaxDates(time, 0L, new Date().getTime(), false);
+				return i.getEnd().toDate();				
+			}
+		}
+		else {
+			return null;
+		}
+	}//TESTED: relative string. string, $date obj, number - parse failure + success
+	
+	public static BasicDBObject createDateRange(Date min, Date max, boolean timeNotOid) {
+		BasicDBObject toFrom = new BasicDBObject();
+		if (null != min) {
+			if (timeNotOid) {
+				toFrom.put(DbManager.gte_, min.getTime());
+			}
+			else {
+				toFrom.put(DbManager.gte_, new ObjectId(min));
+				
+			}
+		}
+		if (null != max) {
+			if (timeNotOid) {
+				toFrom.put(DbManager.lte_, max.getTime());
+			}
+			else {
+				toFrom.put(DbManager.lte_, new ObjectId(max));				
+			}
+		}
+		return toFrom;
+	}//TESTED (min/max, _id/time)
+	
 	/**
 	 * Downloads jar file from web using URL call.  Typically
 	 * the jar files we be kept in our /share store so we will
@@ -173,7 +234,7 @@ public class InfiniteHadoopUtils {
 			SharePojo share = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query),SharePojo.class);
 			
 			if (null == share) {
-				throw new RuntimeException("Can't find JAR file or share or custom table or source, or insufficient permissions");
+				throw new RuntimeException("Can't find JAR file or share or custom table or source, or insufficient permissions: " + shareid);
 			}
 			
 			// The JAR owner needs to be an admin:
@@ -221,6 +282,8 @@ public class InfiniteHadoopUtils {
 					{
 						out.write(share.getBinaryData());
 					}
+					out.flush();
+					out.close();
 				}
 			}//TESTED			
 			
@@ -239,7 +302,7 @@ public class InfiniteHadoopUtils {
 			else if (!jarURL.startsWith("http")) {
 				// Can't access the file system, except for this one nominated file:
 				if (!jarURL.equals(BUILT_IN_JOB_PATH)) {
-					throw new RuntimeException("Can't find JAR file or insufficient permissions");
+					throw new RuntimeException("Can't find JAR file or insufficient permissions: " + jarURL);
 				}
 				jarURL = BUILT_IN_JOB_PATH.substring(7);
 				if (!(new File(jarURL).exists())) { // (this is really only when debugging)
@@ -377,10 +440,11 @@ public class InfiniteHadoopUtils {
 	 */
 	public static void removeTempFile(String file)
 	{
-		if (( file != null ) && !file.contains(".cache") && !file.endsWith(BUILT_IN_JOB_NAME))
-		{
+		if (file != null) {
 			File f = new File(file);
-			f.delete();
+			if (f.getName().startsWith("temp")) {
+				f.delete();				
+			}
 		}
 	}
 	
@@ -426,6 +490,34 @@ public class InfiniteHadoopUtils {
 	/////////////////////////////////////////////////////////////////////////////
 	/////////////////////////////////////////////////////////////////////////////
 	
+	// Some Share utilities
+	
+	public static void authenticateShareList(CustomMapReduceJobPojo cmr, String[] path) {
+		
+		ArrayList<ObjectId> list = new ArrayList<ObjectId>(path.length);
+		for (String s: path) {
+			list.add(new ObjectId(s));
+		}
+		BasicDBObject query = new BasicDBObject(SharePojo._id_, new BasicDBObject(DbManager.in_, list));
+		query.put(ShareCommunityPojo.shareQuery_id_, new BasicDBObject(DbManager.ne_, new BasicDBObject(DbManager.in_, list)));
+		BasicDBObject fields = new BasicDBObject(ShareCommunityPojo.shareQuery_id_, 1);
+		DBCursor dbc = DbManager.getSocial().getShare().find(query, fields);
+		StringBuffer sb = new StringBuffer();
+		for (Object o: dbc) {
+			BasicDBObject dbo = (BasicDBObject) o;
+			if (0 != sb.length()) {
+				sb.append(", ");
+				sb.append(dbo.toString());
+			}
+		}
+		if (sb.length() > 0) {
+			throw new RuntimeException("Share authentication error: " + sb.toString());
+		}
+	}//TODO (INF-2865): TOTEST (pass and fail)
+	
+	/////////////////////////////////////////////////////////////////////////////
+	/////////////////////////////////////////////////////////////////////////////
+	
 	// Some HDFS utilities
 	
 	// Ensure the input directory is allowed, exceptions out if not allowed
@@ -451,7 +543,7 @@ public class InfiniteHadoopUtils {
 				}
 			}
 		}
-		throw new RuntimeException("Access to this directory is not authenticated: the second directory level must contain a matching community ID - eg 'completed/50bcd6fffbf0fd0b27875a7c/', 'input/52b1be6145ce02c2c6fbab9e,50bcd6fffbf0fd0b27875a7c/' etc");
+		throw new RuntimeException("Access to this directory is not authenticated: the second directory level must contain a matching community ID - eg 'completed/50bcd6fffbf0fd0b27875a7c/', 'input/52b1be6145ce02c2c6fbab9e,50bcd6fffbf0fd0b27875a7c/' etc: " + path);
 	}
 	
 	// Create an output directory
@@ -553,17 +645,10 @@ public class InfiniteHadoopUtils {
 			
 			if ((null != cacheId) || cacheStr.startsWith("http:") || cacheStr.startsWith("https:") || cacheStr.startsWith("$")) {
 				if (null != cacheId) { // this might be a custom cache in which case just bypass all this, handled in the main list
-					BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo._id_, cacheId);
-					query.put(CustomMapReduceJobPojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
-					if (null != DbManager.getCustom().getLookup().findOne(query)) {
-						continue; // carry on...)
-					}//TESTED
-					query = new BasicDBObject(SourcePojo._id_, cacheId);
-					query.put(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
-					if (null != DbManager.getIngest().getSource().findOne(query)) {
-						continue; // carry on...)
-					}//TESTED
-				}				
+					if (checkIfSourceOrCustomAndAuthenticate(null, cacheId, job)) {
+						continue;
+					}
+				}//TESTED (by hand = skip and continue)
 				
 				// Use existing code to cache to local fs (and then onwards to HDFS!)
 				URL localPathURL = new File(downloadJarFile(cacheStr, job.communityIds, prop_custom, job.submitterID)).toURI().toURL(); 
@@ -586,17 +671,9 @@ public class InfiniteHadoopUtils {
 				}//TESTED
 			}
 			else { // this is the location of a file (it is almost certainly an input/output path)
-				// Oh could also be sourceKey or custom job title
-				BasicDBObject query = new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, cacheStr);
-				query.put(CustomMapReduceJobPojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
-				if (null != DbManager.getCustom().getLookup().findOne(query)) {
-					continue; // carry on...)
-				}//TESTED
-				query = new BasicDBObject(SourcePojo.key_, cacheStr);
-				query.put(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
-				if (null != DbManager.getIngest().getSource().findOne(query)) {
-					continue; // carry on...)
-				}//TESTED				
+				if (checkIfSourceOrCustomAndAuthenticate(cacheStr, null, job)) {
+					continue;
+				}//TESTED (by hand - seen it skip if not a jobid/sourcekey - currently not possible for it to be one anyway; c/p from checkIfSourceOrCustomAndAuthenticate call in previous call anyway^2)				
 				
 				String path = authenticateInputDirectory(job, cacheStr);
 				if (null == fs) {
@@ -618,10 +695,68 @@ public class InfiniteHadoopUtils {
 	}//TOTEST (logically TESTED but needs local testing)
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////
+
+	private static boolean checkIfSourceOrCustomAndAuthenticate(String cacheObjStr, ObjectId cacheObjectId, CustomMapReduceJobPojo job) {
+		// Custom: 
+		BasicDBObject query = new BasicDBObject();
+		BasicDBObject fields = new BasicDBObject();
+		BasicDBObject fields1 = new BasicDBObject(CustomMapReduceJobPojo.communityIds_, 1);
+		if (null != cacheObjectId) {
+			query.put(CustomMapReduceJobPojo._id_, cacheObjectId);
+		}
+		else {			
+			if (cacheObjStr.startsWith("custom:")) {
+				cacheObjStr = cacheObjStr.substring(7);
+			}
+			query.put(CustomMapReduceJobPojo.jobtitle_, cacheObjStr);
+		}
+		CustomMapReduceJobPojo targetJob = CustomMapReduceJobPojo.fromDb(DbManager.getCustom().getLookup().findOne(query, fields1), CustomMapReduceJobPojo.class);
+		if (null != targetJob) {
+			BasicDBObject submitterQuery = new BasicDBObject("_id", job.submitterID);
+			submitterQuery.put("communities._id", new BasicDBObject(DbManager.all_, targetJob.communityIds));
+			
+			// This object exists as a custom object ... check authentication
+			if (null == DbManager.getSocial().getPerson().findOne(submitterQuery, fields)) {
+				throw new RuntimeException("Custom authentication error: " + query);
+			}			
+			return true;
+		}//TESTED (by hand - matches and doesn't match, single and multiple communities)
+		
+		// Source
+		query = new BasicDBObject();
+		if (null != cacheObjectId) {
+			query.put(SourcePojo._id_, cacheObjectId);
+		}
+		else {
+			if (cacheObjStr.startsWith("source:")) {
+				cacheObjStr = cacheObjStr.substring(7);
+			}
+			query.put(SourcePojo.key_, cacheObjStr);
+		}
+		if (null != DbManager.getIngest().getSource().findOne(query, fields)) {
+			
+			// This object exists as a source object ... check authentication
+			// (source auth is simpler - is this source in the new job's data groups?) 
+			query.put(SourcePojo.communityIds_, new BasicDBObject(DbManager.in_, job.communityIds));
+			
+			if (null == DbManager.getIngest().getSource().findOne(query, fields)) {
+				throw new RuntimeException("Source authentication error: " + query);
+			}
+			return true;
+		}//TESTED (not working - not in community, working)
+		return false;
+	}//TESTED (by hand - see above clauses for details)	
+	
+	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Supports post-task activities for custom internal engine
 	
 	public static void handlePostTaskActivities(CustomMapReduceJobPojo cmr, boolean isError, StringBuffer postTaskActivityErrors) {
+		if (null == cmr.jarURL) {
+			// (it's a saved query so just ignore)
+			return;
+		}
+		
 		ClassLoader savedClassLoader = Thread.currentThread().getContextClassLoader();
 		try {
 			// Get the latest version of this file, if necessary

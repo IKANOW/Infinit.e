@@ -392,12 +392,15 @@ public class StructuredAnalysisHarvester
 	
 	// Loads the caches into script
 	
-	public void loadLookupCaches(Map<String, ObjectId> caches, Set<ObjectId> communityIds) {
+	public void loadLookupCaches(Map<String, ObjectId> caches, Set<ObjectId> communityIds, ObjectId sourceOwnerId) {
 		//grab any json cache and make it available to the engine
 		try
 		{
 			if (null != caches) {
-				CacheUtils.addJSONCachesToEngine(caches, _scriptEngine, _securityManager, communityIds, _context);
+				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, _scriptEngine, _securityManager, communityIds, sourceOwnerId, _context);
+				for (String err: errs) {
+					_context.getHarvestStatus().logMessage(err, true);
+				}
 			}
 		}
 		catch (Exception ex)
@@ -645,7 +648,7 @@ public class StructuredAnalysisHarvester
 			// the type of script specified in StructuredAnalysisPojo.scriptEngine
 			this.intializeScriptEngine();			
 						
-			this.loadLookupCaches(s.getCaches(), source.getCommunityIds());
+			this.loadLookupCaches(s.getCaches(), source.getCommunityIds(), source.getOwnerId());
 			
 			// Iterate over each doc in docs, create entity and association pojo objects
 			// to add to the feed using the source entity and association spec pojos
@@ -2625,37 +2628,54 @@ public class StructuredAnalysisHarvester
 			// Entity.start_time
 			if (esp.getTime_start() != null)
 			{
-				String startTimeString = null;
-				if (JavaScriptUtils.containsScript(esp.getTime_start()))
-				{
-					startTimeString = (String)getValueFromScript(esp.getTime_start(), field, index);
+				try {
+					String startTimeString = null;
+					if (JavaScriptUtils.containsScript(esp.getTime_start()))
+					{
+						startTimeString = (String)getValueFromScript(esp.getTime_start(), field, index);
+					}
+					else
+					{
+						startTimeString = getFormattedTextFromField(esp.getTime_start(), field);
+					}
+					if (null != startTimeString) {
+						e.setTime_start(DateUtility.getIsoDateString(startTimeString));
+						if (null == e.getTime_start()) {
+							_context.getHarvestStatus().logMessage("getTime_start: parse (ISO/long) fail vs" + startTimeString, true);							
+						}
+					}
 				}
-				else
-				{
-					startTimeString = getFormattedTextFromField(esp.getTime_start(), field);
+				catch (Exception ts) {
+					_context.getHarvestStatus().logMessage("getTime_start: " + ts.getMessage(), true);
 				}
-				if (null != startTimeString) {
-					e.setTime_start(DateUtility.getIsoDateString(startTimeString));
-				}
+
 				// Allow this to be intrinsically optional
 			}
 			
 			// Entity.end_time
 			if (esp.getTime_end() != null)
 			{		
-				String endTimeString = null;
-				if (JavaScriptUtils.containsScript(esp.getTime_end()))
-				{
-					endTimeString = (String)getValueFromScript(esp.getTime_end(), field, index);
+				try {
+					String endTimeString = null;
+					if (JavaScriptUtils.containsScript(esp.getTime_end()))
+					{
+						endTimeString = (String)getValueFromScript(esp.getTime_end(), field, index);
+					}
+					else
+					{
+						endTimeString = getFormattedTextFromField(esp.getTime_end(), field);
+					}
+					if (null != endTimeString) {
+						e.setTime_end(DateUtility.getIsoDateString(endTimeString));
+						if (null == e.getTime_end()) {
+							_context.getHarvestStatus().logMessage("getTime_start: parse (ISO/long) fail vs" + endTimeString, true);							
+						}
+					}
+					// Allow this to be intrinsically optional
 				}
-				else
-				{
-					endTimeString = getFormattedTextFromField(esp.getTime_end(), field);
+				catch (Exception ts) {
+					_context.getHarvestStatus().logMessage("getTime_start: " + ts.getMessage(), true);
 				}
-				if (null != endTimeString) {
-					e.setTime_end(DateUtility.getIsoDateString(endTimeString));
-				}
-				// Allow this to be intrinsically optional
 			}
 			
 			

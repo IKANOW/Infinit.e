@@ -242,6 +242,7 @@ package com.ikanow.infinit.e.source.model.manager
 		protected function updateSourceCommunityNames():void
 		{
 			var communityNames:String;
+			var communityIdStrs:String;
 			
 			if ( sourcesMaster && communities )
 			{
@@ -250,6 +251,7 @@ package com.ikanow.infinit.e.source.model.manager
 					var communityIds:ArrayCollection = source.communityIds;
 					
 					communityNames = Constants.BLANK;
+					communityIdStrs = Constants.BLANK;
 					
 					for each ( var communityId:String in communityIds )
 					{
@@ -261,14 +263,17 @@ package com.ikanow.infinit.e.source.model.manager
 								{
 									communityNames += Constants.COMMA;
 									communityNames += Constants.BLANK;
+									communityIdStrs += Constants.COMMA;
+									communityIdStrs += Constants.BLANK;
 								}
 								
 								communityNames += community.name;
+								communityIdStrs += communityId;
 							}
 						}
 					}
 					
-					source.community = communityNames;
+					source.community = communityNames + " [" + communityIdStrs + "]";
 				}
 			}
 		}

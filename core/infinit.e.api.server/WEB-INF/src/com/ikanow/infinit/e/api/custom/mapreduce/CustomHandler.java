@@ -28,11 +28,9 @@ import org.bson.types.ObjectId;
 import com.ikanow.infinit.e.api.social.sharing.ShareHandler;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
-import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceJobPojoApiMap;
-import com.ikanow.infinit.e.data_model.api.custom.mapreduce.CustomMapReduceResultPojo;
 import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
@@ -40,21 +38,20 @@ import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJob
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo.SCHEDULE_FREQUENCY;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo.INPUT_COLLECTIONS;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.processing.custom.CustomProcessingController;
 import com.ikanow.infinit.e.processing.custom.output.CustomOutputIndexingEngine;
-import com.ikanow.infinit.e.processing.custom.scheduler.CustomScheduleManager;
+import com.ikanow.infinit.e.processing.custom.utils.CustomApiUtils;
 import com.ikanow.infinit.e.processing.custom.utils.HadoopUtils;
-import com.ikanow.infinit.e.processing.custom.utils.InfiniteHadoopUtils;
-import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 
 public class CustomHandler 
 {
-	public final static long DONT_RUN_TIME = 4070908800000L; // 01-01-2099 in Java time, used in the GUI to mean don't run. 
 	
 	private static final Logger logger = Logger.getLogger(CustomHandler.class);
 	
@@ -73,7 +70,8 @@ public class CustomHandler
 	 * @param jobid
 	 * @return
 	 */
-	public ResponsePojo getJobResults(String userid, String jobid, int limit, String fields, String findStr, String sortStr ) 
+	
+	public ResponsePojo getJobResults(String userid, String jobid, int limit, String fields, String findStr, String sortStr, boolean bCsv ) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		
@@ -102,75 +100,7 @@ public class CustomHandler
 					//get results collection if done and return
 					if ( ( cmr.lastCompletionTime != null ) || (cmr.mapper.equals("none") && cmr.exportToHdfs))
 					{
-						BasicDBObject queryDbo = null;
-						if (null != findStr) {
-							queryDbo = (BasicDBObject) com.mongodb.util.JSON.parse(findStr);
-						}
-						else {
-							queryDbo = new BasicDBObject();	
-						}//TOTEST
-						
-						BasicDBObject fieldsDbo = new BasicDBObject();
-						if (null != fields) {
-							fieldsDbo = (BasicDBObject) com.mongodb.util.JSON.parse("{" + fields + "}");
-						}
-
-						//return the results:
-						
-						// Need to handle sorting...
-						BasicDBObject sort = null;
-						if (null != sortStr) { //override
-							sort = (BasicDBObject) com.mongodb.util.JSON.parse(sortStr);
-						}
-						else { //defaults
-							String sortField = "_id";
-							int sortDir = 1;
-							BasicDBObject postProcObject = (BasicDBObject) com.mongodb.util.JSON.parse(InfiniteHadoopUtils.getQueryOrProcessing(cmr.query, InfiniteHadoopUtils.QuerySpec.POSTPROC));
-							if ( postProcObject != null )
-							{
-								sortField = postProcObject.getString("sortField", "_id");
-								sortDir = postProcObject.getInt("sortDirection", 1);
-							}//TESTED (post proc and no post proc)
-							sort = new BasicDBObject(sortField, sortDir);
-						}//TOTEST
-						
-						// Case 1: DB
-						rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",true,"Map reduce job completed at: " + cmr.lastCompletionTime));
-						if ((null == cmr.exportToHdfs) || !cmr.exportToHdfs) {
-							DBCursor resultCursor = null;
-							if (limit > 0) {
-								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(sort).limit(limit);
-							}
-							else {
-								resultCursor = DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).find(queryDbo, fieldsDbo).sort(sort);
-							}
-							CustomMapReduceResultPojo cmrr = new CustomMapReduceResultPojo();
-							cmrr.lastCompletionTime = cmr.lastCompletionTime;
-							cmrr.results = resultCursor.toArray();
-							rp.setData(cmrr);
-						}//TESTED
-						else { // Case 2: HDFS
-							
-							if ((null != cmr.outputKey) && (null != cmr.outputValue) && 
-								cmr.outputKey.equalsIgnoreCase("org.apache.hadoop.io.text") && cmr.outputValue.equalsIgnoreCase("org.apache.hadoop.io.text"))
-							{
-								// special case, text file
-								try {
-									rp.setData(HadoopUtils.getBsonFromTextFiles(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
-								}
-								catch (Exception e) {
-									rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"Files don't appear to be in text file format, did you run the job before changing the output to Text/Text?"));
-								}
-							}//TESTED
-							else { // sequence file
-								try {
-									rp.setData(HadoopUtils.getBsonFromSequenceFile(cmr, limit, fields), (BasePojoApiMap<BasicDBList>) null);
-								}
-								catch (Exception e) {
-									rp.setResponse(new ResponseObject("Custom Map Reduce Job Results",false,"Files don't appear to be in sequence file format, did you run the job with Text/Text?"));
-								}
-							}//TESTED
-						}//TESTED
+						CustomApiUtils.getJobResults(rp, cmr, limit, fields, findStr, sortStr, bCsv);
 					}
 					else
 					{
@@ -215,6 +145,10 @@ public class CustomHandler
 			{
 				DBObject dbo = dbc.next();				
 				CommunityPojo cp = CommunityPojo.fromDb(dbo, CommunityPojo.class);
+				if (CommunityType.user == cp.getType()) { // Insta fail if adding a user group
+					return false;
+				}//TODO (INF-2866): TOTEST
+				
 				//if this is not your self community AND you are not a member THEN you are not in all these communities
 				if ( !((cp.getId().toString()).equals(userid)) && !(cp.isMember(new ObjectId(userid))) )
 					return false;
@@ -233,7 +167,8 @@ public class CustomHandler
 	 * 
 	 * @param userid
 	 * @return
-	 */
+	 */	
+	
 	public ResponsePojo scheduleJob(String userid, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun, Boolean selfMerge)
 	{
 		ResponsePojo rp = new ResponsePojo();
@@ -257,7 +192,7 @@ public class CustomHandler
 				cmr.isCustomTable = true;
 			}
 			if ( inputCollection != null)
-			{				
+			{			
 				try 
 				{					
 					cmr.communityIds = commids;
@@ -278,13 +213,7 @@ public class CustomHandler
 					cmr.outputCollectionTemp = cmr._id.toString() + "_2";
 					cmr.exportToHdfs = exportToHdfs;
 					
-					// Get the output database, based on the size of the collection
-					long nJobs = DbManager.getCustom().getLookup().count();
-					long nDbNum = nJobs / 3000; // (3000 jobs per collection, max is 6000)
-					if (nDbNum > 0) { // else defaults to custommr
-						String dbName = cmr.getOutputDatabase() + Long.toString(nDbNum);
-						cmr.setOutputDatabase(dbName);
-					}
+					cmr.setOutputDatabase(CustomApiUtils.getJobDatabase(cmr));
 					
 					cmr.submitterID = new ObjectId(userid);
 					long nextRun = Long.parseLong(nextRunTime);
@@ -390,7 +319,7 @@ public class CustomHandler
 						rp.setData(cmr._id.toString(), null);
 												
 						if (bRunNowIfPossible) {
-							runJobAndWaitForCompletion(cmr, bQuickRun);
+							CustomApiUtils.runJobAndWaitForCompletion(cmr, bQuickRun, false, _debugLimit);
 						}//TESTED
 						else {
 							DbManager.getCustom().getLookup().save(cmr.toDb());							
@@ -423,6 +352,55 @@ public class CustomHandler
 			rp.setResponse(new ResponseObject("Schedule MapReduce Job",false,"You do not have permissions for all the communities given."));
 		}
 		return rp;
+	}
+	
+	/**
+	 * Tests a map reduce job to be run, discarding the output
+	 * 
+	 * @param userid
+	 * @return
+	 */	
+	public ResponsePojo testJob(String userId, String communityIds, CustomMapReduceJobPojo job, int testLimit)
+	{
+		//TODO (INF-2865): add support to be able to call this from the RESTful interface
+		
+		// Simple security checks:
+		List<ObjectId> commids = null;
+		if (null != communityIds) {
+			commids = new ArrayList<ObjectId>(); 
+			for ( String s : communityIds.split(","))
+				commids.add(new ObjectId(s));
+		}
+		else {
+			commids = job.communityIds;
+		}
+		boolean bAdmin = RESTTools.adminLookup(userId);
+		
+		//first make sure user is allowed to submit on behalf of the commids given
+		if ( bAdmin || isInAllCommunities(commids, userId) )
+		{			
+			ObjectId testCollection = new ObjectId();
+	
+			job.setOutputDatabase(CustomApiUtils.getJobDatabase(job));
+			job.outputCollection = testCollection.toString();
+			job.outputCollectionTemp = job.outputCollection;
+			
+			try {
+				CustomApiUtils.runJobAndWaitForCompletion(job, true, true, _debugLimit);
+				ResponsePojo rp = new ResponsePojo();
+				CustomApiUtils.getJobResults(rp, job, 100, null, null, null);
+				rp.getResponse().setAction("Test MapReduce Job");
+				return rp;
+			}
+			finally {
+				DbManager.getCollection(job.getOutputDatabase(), job.outputCollection).drop();
+			}
+		}
+		else {
+			ResponsePojo rp = new ResponsePojo();
+			rp.setResponse(new ResponseObject("Test MapReduce Job",false,"You do not have permissions for all the communities given."));
+			return rp;
+		}
 	}
 	
 	public ResponsePojo updateJob(String userid, String jobidortitle, String title, String desc, String communityIds, String jarURL, String nextRunTime, String schedFreq, String mapperClass, String reducerClass, String combinerClass, String query, String inputColl, String outputKey, String outputValue, String appendResults, String ageOutInDays, Boolean incrementalMode, String jobsToDependOn, String json, Boolean exportToHdfs, boolean bQuickRun, Boolean selfMerge)
@@ -470,7 +448,7 @@ public class CustomHandler
 								candidateNextRuntime = Long.parseLong(nextRunTime);
 							}
 							catch (Exception e) {}
-							if (candidateNextRuntime >= DONT_RUN_TIME) {
+							if (candidateNextRuntime >= CustomApiUtils.DONT_RUN_TIME) {
 								tryToKillJob = true;
 							}
 						}
@@ -531,6 +509,7 @@ public class CustomHandler
 				{
 					//make sure user can use the input collection
 					String inputCollection = getStandardInputCollection(inputColl);			
+					
 					if ( inputCollection != null )
 					{
 						cmr.isCustomTable = false;
@@ -741,7 +720,7 @@ public class CustomHandler
 				rp.setData(cmr._id.toString(), null);
 
 				if (bRunNowIfPossible) {
-					runJobAndWaitForCompletion(cmr, bQuickRun);
+					CustomApiUtils.runJobAndWaitForCompletion(cmr, bQuickRun, false, _debugLimit);
 				}//TESTED
 				else {
 					DbManager.getCustom().getLookup().save(cmr.toDb());					
@@ -776,6 +755,8 @@ public class CustomHandler
 				return "feature.temporal";			
 			if ( input == INPUT_COLLECTIONS.FILESYSTEM )
 				return "filesystem";			
+			if ( input == INPUT_COLLECTIONS.SHARE_ZIP )
+				return "file.binary_shares";
 			if ( input == INPUT_COLLECTIONS.RECORDS )
 				return "records";			
 		}
@@ -961,52 +942,6 @@ public class CustomHandler
 		}		
 		return dependencies;
 	}
-
-	// UTILITY FUNCTION FOR SCHEDULE/UPDATE JOB
-	
-	private void runJobAndWaitForCompletion(CustomMapReduceJobPojo job, boolean bQuickRun) {
-		com.ikanow.infinit.e.processing.custom.utils.PropertiesManager customProps = new com.ikanow.infinit.e.processing.custom.utils.PropertiesManager();
-		boolean bLocalMode = customProps.getHadoopLocalMode();
-		if (!bLocalMode || bQuickRun || (null != _debugLimit)) {			
-			// (if local mode is running then initializing job is bad because it will wait until the job is complete
-			//  ... except if quickRun is set then this is what we want anyway!)
-			
-			// Check there are available timeslots:
-			if (CustomScheduleManager.availableSlots(customProps)) {
-				job.lastRunTime = new Date();
-				job.jobidS = "";
-				DbManager.getCustom().getLookup().save(job.toDb());							
-				
-				// Run the job
-				CustomProcessingController pxController = null;
-				if (null != _debugLimit) {
-					pxController = new CustomProcessingController(_debugLimit);					
-				}
-				else {
-					pxController = new CustomProcessingController();
-				}
-				pxController.initializeJob(job); // (sets job.jobid*)
-				
-				// In quick run mode, keep checking until the job is done (5s intervals)
-				if (bQuickRun) {
-					int nRuns = 0;
-					while (!pxController.checkRunningJobs(job)) {
-						try { Thread.sleep(5000); } catch (Exception e) {}
-						if (++nRuns > 120) { // bail out after 10 minutes 
-							break;
-						}
-					}
-				}
-			}
-			else { // (no available timeslots - just save as is and let the px engine start it)
-				DbManager.getCustom().getLookup().save(job.toDb());											
-			}
-		}		
-		else { // still need to save the job
-			DbManager.getCustom().getLookup().save(job.toDb());														
-		}
-		
-	}//TESTED: (local mode on/off, quick mode on/off) //TESTED (local/quick, local/!quick)
 	
 	/**
 	 * Attempts to remove the map reduce job as well as results and
@@ -1017,7 +952,7 @@ public class CustomHandler
 	 * @param forced 
 	 * @return
 	 */
-	public static ResponsePojo removeJob(String userid, String jobidortitle, boolean removeJar, boolean forced) 
+	public static ResponsePojo removeJob(String userid, String jobidortitle, Boolean removeJar, boolean forced) 
 	{
 		ResponsePojo rp = new ResponsePojo();		
 		
@@ -1041,6 +976,10 @@ public class CustomHandler
 			{				
 				CustomMapReduceJobPojo cmr = CustomMapReduceJobPojo.fromDb(dbo, CustomMapReduceJobPojo.class);
 				//make sure user is allowed to see results
+				
+				if (null == removeJar) {
+					removeJar = doesJobOwnJar(cmr);
+				}				
 				if ( forced || RESTTools.adminLookup(userid) || cmr.submitterID.toString().equals(userid) )
 				{
 					//make sure job is not running
@@ -1106,6 +1045,24 @@ public class CustomHandler
 		return rp;
 	}
 	
+	public static boolean doesJobOwnJar(CustomMapReduceJobPojo cmr) {
+		if (null != cmr.jarURL) {
+			try {
+				String jaridstr = cmr.jarURL.substring( cmr.jarURL.lastIndexOf("/") + 1 );
+				ObjectId jarid = new ObjectId(jaridstr);
+				BasicDBObject query = new BasicDBObject(SharePojo._id_, jarid);
+				BasicDBObject fields = new BasicDBObject();
+				SharePojo jarShare = SharePojo.fromDb(DbManager.getSocial().getShare().findOne(query, fields), SharePojo.class);
+				if (null != jarShare) {
+					return cmr.jobtitle.equals(jarShare.getTitle());
+				}
+			}
+			catch (Exception e) {} // it's fine just don't delete
+	
+		}
+		return false; // (if we're not sure then leave it alone)
+	}//TODO (INF-2866)
+	
 	/**
 	 * Tries to remove given community from any jobs it may be connected to.
 	 * If jobs have no community now, deletes them completely.
@@ -1130,7 +1087,7 @@ public class CustomHandler
 		List<CustomMapReduceJobPojo> failedToRemove = new ArrayList<CustomMapReduceJobPojo>();
 		for ( CustomMapReduceJobPojo cmr : jobs )
 		{			
-			ResponsePojo rp = removeJob(null, cmr.jobtitle, true, true);
+			ResponsePojo rp = removeJob(null, cmr.jobtitle, null, true);
 			if ( !rp.getResponse().isSuccess() )
 			{
 				failedToRemove.add(cmr);

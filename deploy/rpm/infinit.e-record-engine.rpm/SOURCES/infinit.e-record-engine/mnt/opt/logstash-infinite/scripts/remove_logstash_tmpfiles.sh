@@ -31,3 +31,7 @@ fi
 if [ -d /opt/logstash-infinite/dist.logstash.conf.d/ ]; then
         chmod a+w /opt/logstash-infinite/dist.logstash.conf.d/*.conf
 fi
+
+#Finally, check the main dirs are writable by everyone:
+chmod a+w /etc/logstash/conf.d/
+chmod a+w /opt/logstash

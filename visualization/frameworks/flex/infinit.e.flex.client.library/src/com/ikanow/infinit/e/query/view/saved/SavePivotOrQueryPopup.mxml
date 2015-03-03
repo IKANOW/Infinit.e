@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mx:TitleWindow xmlns:fx="http://ns.adobe.com/mxml/2009" 
+				xmlns:s="library://ns.adobe.com/flex/spark" 
+				xmlns:ui="http://www.kapit.fr/flex4/ui"
+				xmlns:mx="library://ns.adobe.com/flex/mx" layout="absolute" width="600" height="145" title="Save" 
+				creationComplete="titlewindow1_creationCompleteHandler(event)"
+				defaultButton="{saveButton}"
+				>
+	<fx:Script>
+		<![CDATA[
+			import mx.collections.ArrayCollection;
+			import mx.controls.Alert;
+			import mx.controls.Spacer;
+			import mx.events.FlexEvent;
+			import mx.managers.IFocusManagerComponent;
+			import mx.managers.PopUpManager;
+			
+			import spark.components.Button;
+			
+			public var addCallback:Function;
+			
+			protected function titlewindow1_creationCompleteHandler(event:FlexEvent):void
+			{
+				saveButton.addEventListener(MouseEvent.CLICK, addCallback);				
+				
+				PopUpManager.centerPopUp(this); 
+			}
+			
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	<s:VGroup id="viewport" height="100%" width="100%" paddingTop="16" paddingBottom="8">
+		
+		<s:VGroup height="100%" width="100%" horizontalAlign="center">
+			<s:TextInput prompt="Enter Title Here" width="90%" id="titleTextBox" />
+		</s:VGroup>
+		<s:HGroup horizontalAlign="center" verticalAlign="bottom" height="95%" width="95%"> 
+			<s:Button id="saveButton" label="Save" enabled="{ titleTextBox.text != '' }" /> 
+			<s:Button id="cancelButton" label="Cancel" click="PopUpManager.removePopUp(this);"/> 
+		</s:HGroup>
+	</s:VGroup>
+	
+</mx:TitleWindow>

@@ -314,7 +314,7 @@ public class HadoopPrototypingTool extends MongoTool {
 				try {
 					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, _javascript._secManager, (config.getLimit() > 0));
 				} catch (Exception e) {
-					throw new RuntimeException("Error setting up caches: " + caches);
+					throw new RuntimeException("Error setting up caches: " + caches + ": " + e.getMessage());
 				}
 			}
 		}
@@ -358,7 +358,7 @@ public class HadoopPrototypingTool extends MongoTool {
 				try {
 					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, _javascript._secManager, (config.getLimit() > 0));
 				} catch (Exception e) {
-					throw new RuntimeException("Error setting up caches: " + caches);
+					throw new RuntimeException("Error setting up caches: " + caches + ": " + e.getMessage());
 				}
 			}
 		}
@@ -402,7 +402,7 @@ public class HadoopPrototypingTool extends MongoTool {
 				try {
 					CacheUtils.addJSONCachesToEngine(caches, _javascript._engine, _javascript._secManager, (config.getLimit() > 0));
 				} catch (Exception e) {
-					throw new RuntimeException("Error setting up caches: " + caches);
+					throw new RuntimeException("Error setting up caches: " + caches + ": " + e.getMessage());
 				}
 			}
 		}

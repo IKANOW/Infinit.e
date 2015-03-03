@@ -522,6 +522,27 @@ public class ScoringUtils
 
 /////////////////////////////////////////////////////////////
 	
+// (Top level logic - entities)
+	
+	// Interface to allow other internal services to take advantage of all the work that's gone into this:
+	public boolean fillInEntityStatistics(EntityPojo ent) {
+		EntSigHolder entStat = _s1_entitiesInDataset.get(ent.getIndex());
+		if (null == entStat) {
+			return false;
+		}
+		else {
+			ent.setDoccount(entStat.nTotalDocCount);
+			ent.setTotalfrequency(entStat.nTotalDocCount); // (don't seem to have that)
+			
+			ent.setDatasetSignificance(entStat.datasetSignificance);
+			ent.setSignificance(entStat.datasetSignificance); // (doc significance isn't normalized correctly in most cases)
+			ent.setQueryCoverage(entStat.queryCoverage);
+			return true;
+		}
+	}//TESTED
+	
+/////////////////////////////////////////////////////////////
+	
 	// (Top level logic - associations)
 	
 	public boolean calcAssocationSignificance(String ent1_index, String ent2_index, String geo_index, BasicDBObject assoc) {

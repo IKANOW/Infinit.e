@@ -26,12 +26,14 @@ import java.util.regex.Pattern;
 import org.bson.BSONObject;
 import org.bson.types.ObjectId;
 
+import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.JsonDeserializationContext;
 import com.google.gson.JsonDeserializer;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParseException;
 import com.ikanow.infinit.e.data_model.Globals;
+import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
 import com.ikanow.infinit.e.data_model.store.BasePojoDbMap;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
@@ -47,7 +49,10 @@ public class SourcePojoSubstitutionDbMap implements BasePojoDbMap<SourcePojo> {
 	protected ObjectId _callingUserId;
 	protected SourcePojoSubstitutionDeserializer _errorHandler1;
 	protected SourcePojoDeserializer _errorHandler2;
-	
+
+	// NOTE: this is not currently needed because the only time one user can call another's source is from the API test,
+	// and that case is handled by the SourcePojoApiSubstitutionMap (note: which doesn't have to worry about SourcePojo deserialization
+	// since the extractor options are in "." notation, not converted - it handles the federated query pojo by hand)
 	public SourcePojoSubstitutionDbMap(ObjectId callingUserId) {
 		_callingUserId = callingUserId;
 	}
@@ -64,7 +69,7 @@ public class SourcePojoSubstitutionDbMap implements BasePojoDbMap<SourcePojo> {
 			return new SourcePojo().extendBuilder(gp.registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(_callingUserId))));
 		}
 		else {
-			return new SourcePojo().extendBuilder(gp.registerTypeAdapter(SourcePojo.class, (_errorHandler2 = new SourcePojoDeserializer())));
+			return gp.registerTypeAdapter(SourcePojo.class, (_errorHandler2 = new SourcePojoDeserializer()));
 		}
 	}
 	public List<String> getErrorMessages() {
@@ -108,14 +113,24 @@ public class SourcePojoSubstitutionDbMap implements BasePojoDbMap<SourcePojo> {
 						ownerId = new ObjectId(ownerIdStr);
 					}
 					catch (Exception ee) {} // just carry on - this isn't a source sub specific error, and it will break elsewhere
-				}
+				}				
 				if (null != ownerId) {
-					return SourcePojo.getDefaultBuilder().
-							registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(ownerId))).
-								create().fromJson(json, SourcePojo.class);
+					// (the following horror is necessary because the SourcePojo.extendBuilder re-creates its own chain hence ignores the string adapter registered here)
+					// Will apply source pojo deser, with extraction options handling
+					GsonBuilder gp1 = new SourcePojo().extendBuilder(BaseDbPojo.getDefaultBuilder()).
+							registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(ownerId)));
+					// Will apply the string manipulation but no the extractor logic 
+					GsonBuilder gp2 = BaseDbPojo.getDefaultBuilder().
+							registerTypeAdapter(String.class, (_errorHandler1 = new SourcePojoSubstitutionDeserializer(ownerId)));
+					
+					SourcePojo intermediate1 = gp1.create().fromJson(json, SourcePojo.class); // full deser - source but no subs
+					Gson really = gp2.create();
+					JsonElement intermediate2 = really.toJsonTree(intermediate1); // partial ser - only string options
+					return really.fromJson(intermediate2, SourcePojo.class);
 				}
 			}
-			return SourcePojo.getDefaultBuilder().create().fromJson(json, SourcePojo.class);
+			// Fallback to default serialization
+			return new SourcePojo().extendBuilder(SourcePojo.getDefaultBuilder()).create().fromJson(json, SourcePojo.class);
 		}		
 	}//TESTED
 	
@@ -137,7 +152,7 @@ public class SourcePojoSubstitutionDbMap implements BasePojoDbMap<SourcePojo> {
 
 		@Override
 		public String deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext context) throws JsonParseException {
-						
+
 			String val = json.getAsString();
 			Matcher m = SUBVARIABLE.matcher(val);
 			StringBuffer sb = null;
