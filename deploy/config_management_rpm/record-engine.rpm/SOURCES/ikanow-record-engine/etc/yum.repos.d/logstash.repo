@@ -1,5 +1,0 @@
-[logstash-1.4]
-name=logstash repository for 1.4.x packages
-baseurl=http://packages.elasticsearch.org/logstash/1.4/centos
-gpgcheck=0
-enabled=1
