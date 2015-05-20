@@ -19,7 +19,10 @@ import java.io.ByteArrayOutputStream;
 import java.io.InputStream;
 import java.io.UnsupportedEncodingException;
 import java.net.URLDecoder;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.List;
 import java.util.Map;
 
 import org.mozilla.universalchardet.UniversalDetector;
@@ -34,11 +37,14 @@ import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
+import com.ikanow.infinit.e.api.utils.ProjectUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.BasePojoApiMap;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
+import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
+import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
 import com.mongodb.util.JSON;
@@ -77,7 +83,7 @@ public class ShareInterface extends ServerResource
 	private boolean ignoreAdmin = false;
 	private boolean isEndorsed = false;	
 	private boolean readWrite = false; // (by default is read only)
-	
+	String project_id = null; 	
 	/**
 	 * ShareResource
 	 * @param context
@@ -93,7 +99,8 @@ public class ShareInterface extends ServerResource
 		Map<String,Object> attributes = request.getAttributes();
 		Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		urlStr = request.getResourceRef().toString();
-
+		project_id = queryOptions.get(ProjectUtils.query_param);
+		
 		//Every user must pass in their cookies	
 		cookie = request.getCookies().getFirstValue("infinitecookie", true);
 		
@@ -451,7 +458,48 @@ public class ShareInterface extends ServerResource
 				 }
 				 else if (action.equals("searchShares"))
 				 {
-					 rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin, returnContent, searchParent);
+					//modify search if project_id was supplied
+					try
+					{						
+						rp = this.shareController.searchShares(personId, searchby, id, type, skip, limit, ignoreAdmin, returnContent, searchParent);
+						if ( project_id != null )
+						{
+							try
+							{
+								//filter out any results that aren't in the project_id communities
+								String commIdStr = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));
+								List<String> commIds = Arrays.asList( commIdStr.split(",") );
+								List<SharePojo> shares_to_return = new ArrayList<SharePojo>();
+								@SuppressWarnings("unchecked")
+								List<SharePojo> shares = (List<SharePojo>) rp.getData();
+								for ( SharePojo share : shares )
+								{
+									boolean found = false;
+									for ( ShareCommunityPojo comm : share.getCommunities() )
+									{
+										if ( commIds.contains(comm.get_id().toString()) )
+										{
+											found = true;
+											break;
+										}
+									}
+									if ( found )
+										shares_to_return.add(share);
+								}
+								rp.setData(shares_to_return, new SharePojoApiMap(null));
+							}
+							catch (Exception ex)
+							{
+								rp = new ResponsePojo();
+								rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));
+							}
+						}
+					}
+					catch (Exception ex)
+					{
+						rp = new ResponsePojo();
+						rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));						
+					}
 				 }	 
 			 }
 		 }

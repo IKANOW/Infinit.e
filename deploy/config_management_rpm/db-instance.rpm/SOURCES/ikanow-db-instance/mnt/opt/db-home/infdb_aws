@@ -1,0 +1,224 @@
+#!/bin/sh
+################################################################################
+
+if [ ! -f "/usr/bin/aws" ]
+then
+	echo -e "\aaws file prerequisite not met"
+else
+	region=$(curl -s http://169.254.169.254/latest/meta-data/placement/availability-zone/ | sed -e 's/[^0-9]*$//')
+	AWS="aws --region $region "
+	#(replacing this with an actual count to get private IP)
+	#vpc_instance=`curl -s "http://169.254.169.254/latest/meta-data/network/interfaces/macs/$(curl -s http://169.254.169.254/latest/meta-data/mac | tr '[:upper:]' '[:lower:]')/" | grep -o 'vpc-id'`
+	this_instance=$(curl -s http://169.254.169.254/1.0/meta-data/instance-id)
+	IP_COL=$(expr 1 + $($AWS din --filter "instance-id=$this_instance" | head -n 2 | grep -o ".*privateIpAddress" | grep -o -P '[^ ]+' | wc -l))
+	cluster_name=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=cluster-name" --simple | gawk '{ print $4 }' | tr "," "\n")
+	case "$1" in 
+		config_ips)
+			# Special case #1: if the "db.config.servers" param is specifed then use that
+			SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
+			CONFIG_SERVERS=`grep "^db.config.servers=" $SERVICE_PROPERTY_FILE | sed s/'db.config.servers='// | sed s/' '//g`					
+			if [ ! -z "$CONFIG_SERVERS" ]; then
+				echo "$CONFIG_SERVERS" | sed 's/,/ /g'
+				exit 0
+			fi 
+			# Special case #2 (legacy): if the order needs to be different because the mongods were intialized that way
+			#(file should be space separated hostnames, no port)
+			if [ -s "/opt/db-home/config_ips_override" ]; then
+				echo $(cat /opt/db-home/config_ips_override)
+				exit 0
+			fi
+			if [ $cluster_name ]; then
+			
+				#First try to use DNS names, fallback to legacy private IPs (which work badly if you need to restart a config server)
+				INSTANCES=$($AWS din --filter "tag:cluster-name=$cluster_name" --filter "tag:config=1" --filter "tag:DnsName=*" --simple| grep "running" | awk '{print $1}')
+				DNS_NAMES=""
+				for i in $INSTANCES; do
+				        NEW_NAME=$($AWS dtags --filter "resource-id=$i" --filter "key=DnsName" --simple | awk '{print $4}')
+				        DNS_NAMES="$DNS_NAMES $NEW_NAME"
+				done
+				if [ "$DNS_NAMES" != "" ]; then
+					OUTPUT="$DNS_NAMES"
+				else
+					OUTPUT=$($AWS din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+				fi
+				OUTPUT=$(echo $OUTPUT | tr " " "\n" | sort -g | tr "\n" " ")
+				echo $OUTPUT
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		my_ip)
+			echo $(curl -s http://169.254.169.254/1.0/meta-data/local-ipv4)
+		;;
+		my_instance)
+			echo $this_instance
+		;;
+		mongos_ip)
+			if [ $cluster_name ]; then
+				echo $($AWS din --filter 'private-ip-address=*' --filter "tag:db_interface=1" --filter "tag:cluster-name=$cluster_name" | awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/'| tail -1)
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		num_repl_sets)
+			repl_sets=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | sort -u | tr "," "\n")
+			echo $(echo $repl_sets | wc -w)
+		;;
+		repl_sets)
+			echo $($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_instance" --simple | gawk '{ print $4 }' | tr "," "\n")
+		;;
+		cluster-name)
+			if [ $cluster_name ]; then
+				echo $cluster_name
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		kill_db)
+			mongo <<EOF admin --port $2
+db.shutdownServer()
+exit
+EOF
+		;;
+		kill_db_force)
+			mongo <<EOF admin --port $2
+db.shutdownServer({"force":true})
+exit
+EOF
+		;;
+		is_config)
+			is_mongos=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=config" --filter "value=1" --simple)
+			if [ "$is_mongos" != "" ]; then
+				if echo "$is_mongos" | grep -q "$this_instance"; then
+					echo true
+				else
+					echo false
+				fi
+			else
+				echo false
+			fi
+		;;
+		is_dbinstance)
+			num_repls=$(infdb repl_sets | wc -w)
+			if [ "$num_repls" -eq 0 ]; then
+				echo false;
+			else
+				echo true;
+			fi
+		;;
+		is_mongos)
+			is_config=$($AWS dtags --filter "resource-id=$this_instance" --filter "key=db_interface" --filter "value=1" --simple)
+			if [ "$is_config" != "" ]; then
+				echo true
+			else
+				echo false
+			fi
+		;;
+		all_configs_running)
+			if [ $cluster_name ]; then
+				config_ips=$($AWS din --filter 'private-ip-address=*' --filter "tag:config=1" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}" | awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+				total=0
+				started=0
+				for ip in $config_ips
+				do
+					if [ $(mongo $ip:27016 --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+					started=$(($started+1))
+					fi
+					total=$(($total+1))
+				done
+
+				if [ $total -eq $started ]; then
+					echo true
+				else
+					echo false
+				fi
+			else
+				echo "cluster-name not set"
+			fi
+		;;
+		mongo_running)
+			if [ $2 ]; then
+				if [ $3 ]; then
+					mip="$3:$2"
+				else
+					mip="--port $2"
+				fi
+					if [ $(mongo $mip --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+						echo "true"
+					else
+						echo "false"
+					fi
+			else
+				echo -e "\aMust supply port Parameter"
+			fi
+		;;
+		all_members_of_set)
+			if [ $cluster_name ]; then
+				if [ $2 ]; then
+					ipCandidates=$($AWS din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}"|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+
+					for pip in $ipCandidates
+					do
+						idCandidates=$($AWS din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+							# (Get the instance ID so I can use the more robust dtags for checking)
+						for pid in $idCandidates
+						do
+							# (There should only be one of these)		
+							reg_ex_chk=$($AWS dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							if [ $reg_ex_chk ]; then
+								echo -e "$pip"
+							fi
+						done
+					done
+				else
+					echo -e "\aMust supply Replica Set Parameter"
+				fi
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		master_of_set)
+			if [ $cluster_name ]; then
+				if [ $2 ]; then
+					port=$((27017+$2))
+					ipCandidates=$($AWS din --filter 'private-ip-address=*' --filter "tag:db_instance=*$2*" --filter "tag:cluster-name=$cluster_name" |awk "{print \$$IP_COL}"|awk '/[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+/')
+
+						#(these might be false positives due eg 11 vs 1; need this *$2* to handle ,-separated lists though)
+					for pip in $ipCandidates
+					do
+						idCandidates=$($AWS din --filter "private-ip-address=$pip"  |awk -F '|' '{print $2}'|grep -vi 'instanceid' | grep -o -P "[^\s]+" )
+							# (Get the instance ID so I can use the more robust dtags for checking)
+						for pid in $idCandidates
+						do
+							# (There should only be one of these)		
+							reg_ex_chk=$($AWS dtags --simple --filter "key=db_instance" --filter "resource-id=$pid" | awk '{print $4}'| egrep "(^|,)$2(,|$)")					
+							if [ $reg_ex_chk ]; then
+								if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
+									echo $pip:$port
+								fi													
+								break
+							fi
+						done
+					done
+				else
+					echo -e "\aMust supply Replica Set Parameter"
+				fi
+			else
+				echo -e "\acluster-name not set"
+			fi
+		;;
+		mongos_running)
+			if [ $(ps -ef | grep mongos | wc -l) -eq 0 ]; then
+				echo false
+			else
+				echo true
+			fi
+		;;
+		"help")
+			separator="\t\t\t\t"
+			echo -e "Commands: \n my_ip $separator\t returns the ec2 internal ip address \n config_ips $separator returns a comma delimited list of config servers \n my_instance $separator returns the ec2 instance ID number \n mongos_ip $separator returns a single MongoS ip address \n num_repl_sets $separator returns the total number of replica sets you are a member of \n repl_sets $separator returns IP address to replica sets you are a member of \n cluster-name $separator displays the cluster-name for the local machine \n kill_db {port number} \t\t\t kills the mongo instance on the specified port \n kill_db_force {port number} \t\t tries harder to kill the mongo instance on the specified port \n all_members_of_set {replica set id} \t returns all members of specified replica set id \n is_config $separator returns if config=1 \n is_dbinstance $separator returns if db_instance=# \n is_mongos $separator returns if db_interface=1 \n mongos_running \t\t\t returns if MongoS is running locally on port 27017 \n mongo_running {port} {ip:optional} \t returns if mongo can be connected to on specified port \n all_configs_running \t\t\t returns if all config servers are running \n master_of_set {replica set} \t\t returns the ip:port of the master of the specified replica set \n help $separator\t brings up this menu";
+		;;
+		*) echo "Command Not Found. Type help for a list of commands."
+		;;
+	esac
+fi

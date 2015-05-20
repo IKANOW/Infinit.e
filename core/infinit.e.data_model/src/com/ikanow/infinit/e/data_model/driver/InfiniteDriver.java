@@ -69,6 +69,7 @@ import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJob
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.feature.entity.EntityFeaturePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
@@ -89,6 +90,7 @@ public class InfiniteDriver
 	private String apiKey = null;
 	
 	private String cookie = null;
+	private String project_id = null;
 	
 	public InfiniteDriver()
 	{
@@ -356,23 +358,27 @@ public class InfiniteDriver
 	
 	// SOCIAL - COMMUNITIES
 	
-	/**
-	 * createCommunity
-	 * @param communityName
-	 * @param communityDesc
-	 * @param communityTag
-	 * @param responsePojo
-	 * @return CommunityPojo
-	 */
-	public CommunityPojo createCommunity(String communityName, String communityDesc, String communityTags,String parentid, ResponseObject responseObject )
+	public CommunityPojo createCommunity(String communityName, String communityDesc, String communityTags,String parentid, ResponseObject responseObject, CommunityType communityType )
 	{
-		try{
-			String createCommunityAddress = apiRoot + "social/community/add/" + URLEncoder.encode(communityName,"UTF-8") + "/" +
-					URLEncoder.encode(communityDesc,"UTF-8") + "/" + URLEncoder.encode(communityTags,"UTF-8");
-			if (null != parentid)
-				createCommunityAddress += "/" + URLEncoder.encode(parentid,"UTF-8");
+		StringBuilder url = new StringBuilder(apiRoot).append("social/");
+		try
+		{
+			if ( communityType == null)
+				url.append("community/");
+			else if ( communityType.equals(CommunityType.data))
+				url.append("group/data/");
+			else if ( communityType.equals(CommunityType.user))
+				url.append("group/user/");
 			
-			String communityresult = sendRequest(createCommunityAddress, null);
+			url.append("add/").append(URLEncoder.encode(communityName,"UTF-8")).append("/")
+				.append(URLEncoder.encode(communityDesc,"UTF-8")).append("/").append(URLEncoder.encode(communityTags,"UTF-8"));
+			//String createCommunityAddress = apiRoot + "social/community/add/" + URLEncoder.encode(communityName,"UTF-8") + "/" +
+			//		URLEncoder.encode(communityDesc,"UTF-8") + "/" + URLEncoder.encode(communityTags,"UTF-8");
+			if (null != parentid)
+				url.append("/").append(URLEncoder.encode(parentid,"UTF-8"));
+				//createCommunityAddress += "/" + URLEncoder.encode(parentid,"UTF-8");
+			
+			String communityresult = sendRequest(url.toString(), null);
 
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(communityresult, ResponsePojo.class, CommunityPojo.class, new CommunityPojoApiMap()); 
 			ResponseObject internal_ro = internal_responsePojo.getResponse();
@@ -387,6 +393,19 @@ public class InfiniteDriver
 		}
 
 		return null;
+	}
+	
+	/**
+	 * createCommunity
+	 * @param communityName
+	 * @param communityDesc
+	 * @param communityTag
+	 * @param responsePojo
+	 * @return CommunityPojo
+	 */
+	public CommunityPojo createCommunity(String communityName, String communityDesc, String communityTags,String parentid, ResponseObject responseObject )
+	{
+		return createCommunity(communityName, communityDesc, communityTags, parentid, responseObject, null);
 	}
 
 	public String addToCommunity(String communityId, String personId, ResponseObject responseObject )
@@ -457,6 +476,19 @@ public class InfiniteDriver
 		return null;
 	}
 	
+	/**
+	 * Helper function that calls the backwards update community member status function that allows
+	 * removing other community members
+	 * 
+	 * @param personId
+	 * @param communityId
+	 * @param responseObject
+	 */
+	public void removeUserFromCommunity(String personId, String communityId, ResponseObject responseObject)
+	{
+		updateCommunityMemberStatus(communityId, personId, "remove", responseObject);		
+	}
+	
 	public CommunityPojo getCommunity(String communityIdentifier, ResponseObject responseObject )
 	{
 		try
@@ -505,11 +537,16 @@ public class InfiniteDriver
 		return null;
 	}
 	
-	public List<CommunityPojo> getAllCommunity(ResponseObject responseObject)
+	public List<CommunityPojo> getAllCommunity(ResponseObject responseObject){
+		return getAllCommunity(responseObject, null);
+	}
+	public List<CommunityPojo> getAllCommunity(ResponseObject responseObject, String communityIdStr)
 	{
 		try
 		{
 			String getCommunityAddress = apiRoot + "social/community/getall";
+			if ( communityIdStr != null )
+				getCommunityAddress += "/" + communityIdStr;
 			String getResult = sendRequest(getCommunityAddress, null);
 			
 			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class); 
@@ -1091,19 +1128,100 @@ public class InfiniteDriver
 		return docs;
 	}
 	
+	/**
+	 * calls get source good/bad/pending and merges results
+	 * @param responseObject
+	 * @return
+	 */
+	public List<SourcePojo> getSourceAll(String communityIdList, ResponseObject responseObject)
+	{
+		List<SourcePojo> sources = getSourceGood(communityIdList, responseObject);
+		sources.addAll(getSourceBad(communityIdList, responseObject));
+		sources.addAll(getSourcePending(communityIdList, responseObject));
+		return sources;
+	}
+	public List<SourcePojo> getSourceGood(String communityIdList, ResponseObject responseObject)
+	{
+		List<SourcePojo> sources = new ArrayList<SourcePojo>();
+		try{
+			String getSourceAddress = apiRoot + "config/source/good/" + URLEncoder.encode(communityIdList,"UTF-8");
+
+			String getResult = sendRequest(getSourceAddress, null);
+			ResponsePojo internal_response = ResponsePojo.fromApi(getResult, ResponsePojo.class);
+			shallowCopy(responseObject, internal_response.getResponse());
+			//ResponsePojo internal_responsePojo = ResponsePojo.fromApi(getResult, ResponsePojo.class, SourcePojo.class, new SourcePojoApiMap(null));  
+			//ResponseObject internal_ro = internal_responsePojo.getResponse();
+			//responseObject = shallowCopy(responseObject, internal_ro);
+			
+			//TODO I'm passing null as the commids currently, I think this will return all commids and not wipe based on permissions
+			if ( responseObject.isSuccess() )
+				sources = ApiManager.mapListFromApi((JsonElement)internal_response.getData(), SourcePojo.listType(), new SourcePojoApiMap(null));			
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return sources;
+	}
+	public List<SourcePojo> getSourceBad(String communityIdList, ResponseObject responseObject)
+	{
+		List<SourcePojo> sources = new ArrayList<SourcePojo>();
+		try{
+			String getSourceAddress = apiRoot + "config/source/bad/" + URLEncoder.encode(communityIdList,"UTF-8");
+
+			String getResult = sendRequest(getSourceAddress, null);
+			ResponsePojo internal_response = ResponsePojo.fromApi(getResult, ResponsePojo.class);
+			shallowCopy(responseObject, internal_response.getResponse());
+			
+			//TODO I'm passing null as the commids currently, I think this will return all commids and not wipe based on permissions
+			if ( responseObject.isSuccess() )
+				sources = ApiManager.mapListFromApi((JsonElement)internal_response.getData(), SourcePojo.listType(), new SourcePojoApiMap(null));			
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return sources;		
+	}
+	public List<SourcePojo> getSourcePending(String communityIdList, ResponseObject responseObject)
+	{
+		List<SourcePojo> sources = new ArrayList<SourcePojo>();
+		try{
+			String getSourceAddress = apiRoot + "config/source/pending/" + URLEncoder.encode(communityIdList,"UTF-8");
+
+			String getResult = sendRequest(getSourceAddress, null);
+			ResponsePojo internal_response = ResponsePojo.fromApi(getResult, ResponsePojo.class);
+			shallowCopy(responseObject, internal_response.getResponse());
+			
+			//TODO I'm passing null as the commids currently, I think this will return all commids and not wipe based on permissions
+			if ( responseObject.isSuccess() )
+				sources = ApiManager.mapListFromApi((JsonElement)internal_response.getData(), SourcePojo.listType(), new SourcePojoApiMap(null));			
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return sources;		
+	}
+	
 	//////////////////////////////////////////////////////////////////////////////////////////////
 	
 	// KNOWLEDGE - QUERY
 	
 	// Queries are slightly different - the entire ResponsePojo is used.
 	
+	
 	public ResponsePojo sendQuery(AdvancedQueryPojo query, ObjectId communityId, ResponseObject response) {
 		ArrayList<ObjectId> community = new ArrayList<ObjectId>(1);
 		community.add(communityId);
-		return sendQuery(query, community, response);
+		return sendQuery(query, community, response);		
 	}
-	public ResponsePojo sendQuery(AdvancedQueryPojo query, Collection<ObjectId> communities, ResponseObject response) {
-		
+	
+	
+	public ResponsePojo sendQuery(AdvancedQueryPojo query, Collection<ObjectId> communities, ResponseObject response) {	
 		StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/query/");
 		boolean bFirstComm = true;
 		for (ObjectId commId: communities) {
@@ -1111,7 +1229,7 @@ public class InfiniteDriver
 				theUrl.append(',');
 			theUrl.append(commId.toString());
 			bFirstComm = false;
-		}
+		}		
 		String testResult = sendRequest(theUrl.toString(), query.toApi());
 		
 		ResponsePojo internal_response = ResponsePojo.fromApi(testResult, ResponsePojo.class);
@@ -1369,9 +1487,9 @@ public class InfiniteDriver
 	public List<CustomMapReduceJobPojo> getCustomTaskOrQuery(String jobtitle, ResponseObject response) {
 		List<CustomMapReduceJobPojo> retVal = null;
 		try {
-			StringBuilder url = new StringBuilder(apiRoot).append("custom/mapreduce/getjobs/");
+			StringBuilder url = new StringBuilder(apiRoot).append("custom/mapreduce/getjobs");
 			if (null != jobtitle) {
-				url.append(jobtitle);
+				url.append("/").append(jobtitle);
 			}
 			// (else get all)
 			
@@ -1789,6 +1907,43 @@ public class InfiniteDriver
 		return this.sendKeepalive(true);
 	}
 	
+	/**
+	 * Let's the driver know to send the project_id with every api call.
+	 * 
+	 * @param project_id
+	 */
+	public void setProjectFilter(String project_id) {
+		this.project_id = project_id;		
+	}
+	
+	/**
+	 * Turns off sending the project_id with every api call.
+	 * 
+	 */
+	public void clearProjectFilter() {
+		this.project_id = null;
+	}
+	
+	/**
+	 * Helper function to add the project_id if it exists to the given
+	 * url
+	 * 
+	 * @param url
+	 * @return
+	 */
+	public String appendProjectIdToUrl(String url){
+		if ( project_id != null)
+		{
+			//TODO hardcode the project_id param
+			String param = "project_id=" + this.project_id;
+			if ( url.contains("?") )
+				url += "&" + param;
+			else
+				url += "?" + param;
+		}
+		return url;
+	}
+	
 	///////// Request Calls	
 	
 	public String sendRequest(String urlAddress, String postData)
@@ -1812,7 +1967,8 @@ public class InfiniteDriver
 	private String sendPostRequest(String urlAddress, String data, int redirects) throws MalformedURLException, IOException
 	{	
 		String result = "";
-
+		urlAddress = appendProjectIdToUrl(urlAddress);
+		
 		if (urlAddress.startsWith("https:")) {
 			TrustManagerManipulator.allowAllSSL();
 		}
@@ -1891,7 +2047,9 @@ public class InfiniteDriver
 			TrustManagerManipulator.allowAllSSL();
 		}
 		
-		URL url = new URL(urlAddress);
+		urlAddress = appendProjectIdToUrl(urlAddress);
+		
+		URL url = new URL(urlAddress);		
 		URLConnection urlConnection = url.openConnection();
 		if ( cookie != null )
 			urlConnection.setRequestProperty("Cookie", cookie);
@@ -2000,4 +2158,6 @@ public class InfiniteDriver
 			}
 		}
 	}
+
+	
 }

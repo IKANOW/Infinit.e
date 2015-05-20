@@ -50,7 +50,7 @@ public class InfiniteHadoopTestUtils {
 	{
 		Configuration config = new Configuration();
 		config.set("mapred.job.tracker", "local");
-		config.set("fs.default.name", "local");
+		config.set("fs.defaultFS", "local");
 		// Now read in via XML
 		File fXmlFile = new File(configPath);
 		DocumentBuilderFactory dbFactory = DocumentBuilderFactory.newInstance();

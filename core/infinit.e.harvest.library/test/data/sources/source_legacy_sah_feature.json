@@ -1,0 +1,55 @@
+{
+    "_id": "51a8d083e4b0dc1ee76df242",
+    "communityIds": ["51a8ca80e4b0dc1ee76df23b"],
+    "created": "May 31, 2013 04:32:03 PM UTC",
+    "description": "Quick investigation of what can be done with AlchemyAPI-metadata",
+    "extractType": "File",
+    "extractorOptions": {"app.alchemyapi-metadata.strict": "true"},
+    "file": {
+        "XmlRootLevelValues": [],
+        "domain": "WORKGROUP",
+        "password": "modus!",
+        "username": "modus"
+    },
+    "harvest": {"doccount": 8},
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "modus.139.infinit.e_files.financial_reports..71",
+    "mediaType": "Report",
+    "modified": "Jan 30, 2015 10:48:20 PM UTC",
+    "ownerId": "506dc16dfbf042893dd6b8f2",
+    "searchCycle_secs": 3600,
+    "searchIndexFilter": {"metadataFieldList": ""},
+    "shah256Hash": "sVhdMIKRLxAz2/J2/9t1D1n9Gm2p04N9OYCEqw+ZKcE=",
+    "structuredAnalysis": {
+        "associations": [{
+            "entity1_index": "$SCRIPT(return _doc.metadata._FILE_METADATA_[0].metadata.Author + '/person';)",
+            "entity2": "Topic",
+            "iterateOver": "entity2,dummy",
+            "verb": "writes about",
+            "verb_category": "writes about"
+        }],
+        "entities": [
+            {
+                "disambiguated_name": "$text",
+                "iterateOver": "AlchemyAPI_concepts",
+                "relevance": "$relevance",
+                "type": "Topic"
+            },
+            {
+                "disambiguated_name": "$metadata._FILE_METADATA_.metadata.Author",
+                "relevance": "1.0",
+                "type": "Person"
+            }
+        ]
+    },
+    "tags": [
+        "report",
+        "financial",
+        "alchemy"
+    ],
+    "title": "Financial report demo (Alchemy metadata)",
+    "url": "smb://modus:139/infinit.e_files/financial_reports/",
+    "useExtractor": "AlchemyAPI-metadata"
+}

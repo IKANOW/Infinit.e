@@ -1,12 +1,6 @@
 
 //////////////////////////////////////////////////////
 
-importPackage(org.bson.types);
-importPackage(java.util);
-importPackage(java.text);
-
-//////////////////////////////////////////////////////
-
 // INPUT/INTERMEDIATE UTILITIES
 
 var _emit_list = [];

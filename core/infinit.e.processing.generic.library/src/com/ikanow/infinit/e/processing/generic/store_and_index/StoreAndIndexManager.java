@@ -44,9 +44,10 @@ import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
-import com.mongodb.CommandResult;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
+import com.mongodb.WriteConcern;
+import com.mongodb.WriteResult;
 
 /**
  * Class used to commit records to backend storage during harvest process
@@ -423,8 +424,8 @@ public class StoreAndIndexManager {
 			}//TESTED
 			
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
-			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
-			// (don't do getLastError just yet since it can block waiting for completion)
+			WriteResult wr = DbManager.getDocument().getMetadata().update(query, softDeleter, false, true, WriteConcern.ACKNOWLEDGED);
+			long ndocs = (long)wr.getN();
 			
 			// Quick delete for index though:
 			StringBuffer sb = new StringBuffer();
@@ -442,8 +443,7 @@ public class StoreAndIndexManager {
 			}//TESTED
 			indexManager.doDeleteByQuery(soloOrCombinedQuery);						
 			
-			CommandResult result = DbManager.getDocument().getLastError("metadata");
-			return result.getLong("n", 0);
+			return ndocs;
 			
 		} catch (Exception e) {
 			// If an exception occurs log the error
@@ -472,8 +472,8 @@ public class StoreAndIndexManager {
 			BasicDBObject query = new BasicDBObject(DocumentPojo.sourceUrl_, sourceUrl);
 			query.put(DocumentPojo.sourceKey_, SourcePojo.getDistributedKeyQueryTerm(sourceKey));
 			BasicDBObject softDeleter = getSoftDeleteUpdate();
-			DbManager.getDocument().getMetadata().update(query, softDeleter, false, true);
-			CommandResult result = DbManager.getDocument().getLastError("metadata");
+			WriteResult wr = DbManager.getDocument().getMetadata().update(query, softDeleter, false, true, WriteConcern.ACKNOWLEDGED);
+			long ndocs = (long)wr.getN();
 			
 			// Quick delete for index though:
 			if (!communityId.equals(_cachedCommunityIdForSourceXxxDeletion)) {
@@ -487,7 +487,7 @@ public class StoreAndIndexManager {
 						.must(QueryBuilders.termQuery(DocumentPojo.sourceKey_, sourceKey))
 					);
 			
-			return result.getLong("n", 0);
+			return ndocs;
 			
 		} catch (Exception e) {
 			// If an exception occurs log the error
@@ -716,7 +716,7 @@ public class StoreAndIndexManager {
 		}//TESTED (2.1.2, diagnostic mode, doc2)
 		if (!needToFindAndModify) { // set created if we need to, since we're not grabbing it from the datastore
 			if (null != doc.getUpdateId()) { // (this means we have an approx created if we don't need to go fetch the deleted doc)
-				doc.setCreated(new Date(doc.getUpdateId().getTime()));
+				doc.setCreated(doc.getUpdateId().getDate());
 			}//TESTED (2.1.2, diagnostic mode, doc2)					
 		}
 		// (if we're here and index is not set, then it is intended to be null)

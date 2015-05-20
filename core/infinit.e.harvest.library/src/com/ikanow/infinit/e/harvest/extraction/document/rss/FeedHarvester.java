@@ -44,8 +44,8 @@ import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
-import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
+import com.ikanow.infinit.e.harvest.extraction.document.HarvesterInterface;
 import com.ikanow.infinit.e.harvest.extraction.document.file.XmlToMetadataParser;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
@@ -86,6 +86,7 @@ public class FeedHarvester implements HarvesterInterface
 
 	// Parameters
 	PropertiesManager props = new PropertiesManager();
+
 	
 	/**
 	 * Default Constructor, does nothing
@@ -303,7 +304,7 @@ public class FeedHarvester implements HarvesterInterface
 		else if ((null != source.getRssConfig())&&(null != source.getRssConfig().getSearchConfig()))
 		{
 			try {
-				FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem();
+				FeedHarvester_searchEngineSubsystem searchEngineSubsystem = new FeedHarvester_searchEngineSubsystem(source,_context);
 				searchEngineSubsystem.generateFeedFromSearch(source, _context, null);
 				confirmedUrlsExtracted = true;
 			}//TESTED
@@ -637,8 +638,8 @@ public class FeedHarvester implements HarvesterInterface
 					} 
 					catch (Exception e) {
 						// If an exception occurs log the error
-						//DEBUG: don't log document-level errors
-						//logger.error("Exception Message: " + e.getMessage(), e);
+						//DEBUG: only log document-level errors in debug
+						logger.debug("Document-level error: " + e.getMessage(), e);
 					} 
 				}
 			} // (end loop over feeds in a syndicate)

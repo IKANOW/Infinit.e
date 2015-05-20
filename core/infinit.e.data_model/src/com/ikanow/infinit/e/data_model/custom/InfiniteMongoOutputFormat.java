@@ -18,14 +18,13 @@ package com.ikanow.infinit.e.data_model.custom;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URI;
 import java.util.Iterator;
-//These can be commented in temporarily to test J6 code in J8 branch
-//import java.util.Spliterator;
-//import java.util.function.Consumer;
 
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCollectionProxyFactory;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
@@ -75,10 +74,13 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 	@Override
 	public RecordWriter<K, V> getRecordWriter(final TaskAttemptContext context){
 		if (InfiniteMongoConfigUtil.getUpdateModeIncremental(context.getConfiguration())) {
-			return new InfiniteMongoRecordWriter<K, V>(MongoConfigUtil.getOutputCollection( context.getConfiguration() ), context, "key");			
+			return new InfiniteMongoRecordWriter<K, V>(
+					DBCollectionProxyFactory.get(MongoConfigUtil.getOutputCollection( context.getConfiguration() )), 
+					context, "key");			
 		}
 		else {
-			return new InfiniteMongoRecordWriter<K, V>(MongoConfigUtil.getOutputCollection( context.getConfiguration() ), context);
+			return new InfiniteMongoRecordWriter<K, V>(
+					DBCollectionProxyFactory.get(MongoConfigUtil.getOutputCollection( context.getConfiguration() )), context);
 		}
 	}
 
@@ -155,8 +157,9 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 						catch (Exception e) {
 							// (this will handle the inval != outval issue)
 							_updatingReduceNotPossible = true;
+							/**/
 							//DEBUG
-							//e.printStackTrace();
+							e.printStackTrace();
 						}
 					}//TOTEST (see that _updatingReduceNotPossible is set correctly, )
 					
@@ -599,22 +602,117 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 					StatusReporter reporter, RawComparator<InKey> comparator,
 					Class<InKey> keyClass, Class<InVal> valueClass)
 					throws IOException, InterruptedException {
-				super(conf, taskid, input == null ? new UpdatingReducerDummyIterator() : input, inputKeyCounter, inputValueCounter, output,
-						committer, reporter, comparator, keyClass, valueClass);
+				//TODO: this will fail terribly because it was relying on a concrete implementation
+//				super(conf, taskid, input == null ? new UpdatingReducerDummyIterator() : input, inputKeyCounter, inputValueCounter, output,
+//						committer, reporter, comparator, keyClass, valueClass);
+				_delegateOutput = output;
 				_delegateContext = context;
 			}
 
-			// These can be commented in temporarily to test J6 code in J8 branch
-			//BEGIN
-//			public void forEachRemaining(Consumer<? super InVal> arg0) {
-//			}
-//
-//			public void forEach(Consumer<? super InVal> arg0) {
-//			}
-//			public Spliterator<InVal> spliterator() {
-//				return null;
-//			}
-			//END
+			//TODO: (COMPAT)
+			RecordWriter<K, V> _delegateOutput;
+			
+			@Override
+			public void write(K arg0, V arg1) throws IOException,
+					InterruptedException {
+				_delegateOutput.write(arg0, arg1);
+			}
+
+			@Override
+			public Path[] getArchiveClassPaths() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public String[] getArchiveTimestamps() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public URI[] getCacheArchives() throws IOException {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public URI[] getCacheFiles() throws IOException {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public RawComparator<?> getCombinerKeyGroupingComparator() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public Path[] getFileClassPaths() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public String[] getFileTimestamps() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public boolean getJobSetupCleanupNeeded() {
+				// TODO Auto-generated method stub
+				return false;
+			}
+
+			@Override
+			public Path[] getLocalCacheArchives() throws IOException {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public Path[] getLocalCacheFiles() throws IOException {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public int getMaxMapAttempts() {
+				// TODO Auto-generated method stub
+				return 0;
+			}
+
+			@Override
+			public int getMaxReduceAttempts() {
+				// TODO Auto-generated method stub
+				return 0;
+			}
+
+			@Override
+			public boolean getProfileEnabled() {
+				// TODO Auto-generated method stub
+				return false;
+			}
+
+			@Override
+			public String getProfileParams() {
+				// TODO Auto-generated method stub
+				return null;
+			}
+
+			@Override
+			public boolean getSymlink() {
+				// TODO Auto-generated method stub
+				return false;
+			}
+
+			@Override
+			public String getUser() {
+				// TODO Auto-generated method stub
+				return null;
+			}			
 		}
 		public static class UpdatingReducerDummyIterator implements RawKeyValueIterator { // just needed in the c'tor
 			public void close() throws IOException {}

@@ -225,11 +225,21 @@ public class SourcePojo extends BaseDbPojo {
 	public void setDatabaseConfig(SourceDatabaseConfigPojo database) {
 		this.database = database;
 	}
+	
+	/** 
+	  * Get the id
+	  * 
+	  */
 	public ObjectId getId() {
 		return _id;
 	}
-	public void setId(ObjectId id) {
-		this._id = id;
+	
+	/** 
+	  * Set the id
+	  * 
+	  */
+	public void setId(ObjectId _id) {
+		this._id = _id;
 	}
 	public Collection<String> getDistributedKeys() {
 		if (null != _distributedKeys) {
@@ -939,6 +949,11 @@ public class SourcePojo extends BaseDbPojo {
 					this.extractType = "Custom";
 				}				
 				
+				if (null != px.docMetadata) {
+					if (null != px.docMetadata.appendTagsToDocs) {
+						this.appendTagsToDocs = px.docMetadata.appendTagsToDocs;
+					}
+				}
 				if (null != px.harvest) {
 					if (null != px.harvest.distributionFactor) {
 						distributionFactor = px.harvest.distributionFactor;					
@@ -963,7 +978,6 @@ public class SourcePojo extends BaseDbPojo {
 					else { // No search cycle specified and source not suspended
 						searchCycle_secs = null;
 					}//TESTED
-					break;
 				}
 			}
 		}//TESTED		

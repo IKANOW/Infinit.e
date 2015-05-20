@@ -27,8 +27,8 @@ import java.util.regex.Pattern;
 
 import org.apache.log4j.Logger;
 
-import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
@@ -37,20 +37,34 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfi
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.Context;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
+import com.ikanow.infinit.e.data_model.store.document.ChangeAwareDocumentWrapper;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptWrapperUtility;
 import com.mongodb.BasicDBObject;
 
 public class FeedHarvester_searchEngineSubsystem {
 
-	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(FeedHarvester_searchEngineSubsystem.class);
 	
 	private int maxDocsPerCycle = Integer.MAX_VALUE; // (should never exceed this, anyway...)
-	
+	private CompiledScriptFactory compiledScriptFactory = null;
+
+
+	public FeedHarvester_searchEngineSubsystem(SourcePojo src, HarvestContext context){
+		compiledScriptFactory = new CompiledScriptFactory(src,context);
+	}
+
 	public void generateFeedFromSearch(SourcePojo src, HarvestContext context, DocumentPojo docToSplit) throws Exception {
+
+		// initialize _docPojo.		
+		if(docToSplit!=null && !(docToSplit instanceof ChangeAwareDocumentWrapper)){
+			docToSplit = new ChangeAwareDocumentWrapper(docToSplit);
+		}
+		CompiledScriptWrapperUtility.initializeDocumentPojoInEngine(compiledScriptFactory,docToSplit);
 
 		if (context.isStandalone()) {
 			maxDocsPerCycle = context.getStandaloneMaxDocs();
@@ -58,7 +72,7 @@ public class FeedHarvester_searchEngineSubsystem {
 		// otherwise get everything and worry about max docs in the main feed harvester
 		// (probably slightly less efficient than checking duplicates here, but much simpler, can 
 		//  always change it later)
-		
+
 		String savedUrl = src.getUrl();
 		SourceRssConfigPojo feedConfig = src.getRssConfig();		
 		SourceSearchFeedConfigPojo searchConfig = feedConfig.getSearchConfig();
@@ -254,7 +268,8 @@ public class FeedHarvester_searchEngineSubsystem {
 					DocumentPojo searchDoc = docToSplit;
 					Object[] savedMeta = null;
 					if (null == searchDoc) {
-						searchDoc = new DocumentPojo();
+						searchDoc = CompiledScriptWrapperUtility.convertToWrappedDocumentPojo(new DocumentPojo(), compiledScriptFactory);
+
 						// Required terms:
 						searchDoc.setUrl(url);
 						searchDoc.setScore((double)nIteratingDepth); // (spidering param)
@@ -271,7 +286,11 @@ public class FeedHarvester_searchEngineSubsystem {
 						savedMeta = searchDoc.getMetadata().remove("searchEngineSubsystem");
 							// (this is normally null)
 					}//TOTEST
+
 					UnstructuredAnalysisHarvester dummyUAH = new UnstructuredAnalysisHarvester();
+					dummyUAH.intializeScriptEngine(null, null, compiledScriptFactory);
+					CompiledScriptWrapperUtility.initializeDocumentPojoInEngine(compiledScriptFactory,searchDoc);
+					
 					boolean bMoreDocs = (nPage < nMaxPages - 1);
 					Object[] searchResults = null;
 					try {
@@ -453,7 +472,7 @@ public class FeedHarvester_searchEngineSubsystem {
 			catch (Exception e) {
 				//DEBUG
 				//e.printStackTrace();
-				
+				logger.error("generateFeedFromSearch",e);
 				if ((null == dedupSet) || dedupSet.isEmpty()) {
 					throw new ExtractorSourceLevelTransientException("generateFeedFromSearch: " + e.getMessage());					
 				}

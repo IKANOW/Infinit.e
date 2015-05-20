@@ -269,7 +269,7 @@ public class MongoTransactionLock {
 			BasicDBObject queryObj = new BasicDBObject();
 			queryObj.put(hostname_, _savedHostname);
 			queryObj.put(oneUp_, _savedOneUp);
-			WriteResult wr = cachedCollection.update(queryObj, new BasicDBObject(MongoDbManager.set_, lockObj), false, true);
+			WriteResult wr = cachedCollection.update(queryObj, new BasicDBObject(MongoDbManager.set_, lockObj), false, true, WriteConcern.ACKNOWLEDGED);
 				// (need the true in case the db is sharded)
 			
 			if (wr.getN() > 0) {

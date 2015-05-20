@@ -359,6 +359,15 @@ public class DocumentPojo extends BaseDbPojo {
 		return this.metadata;
 	}
 
+	/** 
+	 * Placeholder function for overwrites in ChangeAwareDocumentWrapper.
+	 * @return
+	 */
+	public LinkedHashMap<String, Object[]> getMetadataReadOnly()
+	{
+		return this.metadata;
+	}
+
 	public LinkedHashMap<String, Object[]> getMetaData() {
 		return metadata;
 	}

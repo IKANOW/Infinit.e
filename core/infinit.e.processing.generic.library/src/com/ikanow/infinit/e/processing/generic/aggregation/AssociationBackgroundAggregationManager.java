@@ -32,6 +32,7 @@ import com.ikanow.infinit.e.data_model.store.feature.association.AssociationFeat
 import com.ikanow.infinit.e.processing.generic.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCursor;
+import com.mongodb.WriteConcern;
 
 //TODO: (XXX): can't currently port this over to use MongoApplicationLock because currently only one per database
 
@@ -216,7 +217,7 @@ public class AssociationBackgroundAggregationManager implements Runnable {
 		} // end while harvester is running
 		
 		if (bControl) { // relinquish control for politeness
-			MongoDbManager.getFeature().getAggregationLock().remove(new BasicDBObject());
+			MongoDbManager.getFeature().getAggregationLock().remove(new BasicDBObject(), WriteConcern.ACKNOWLEDGED);
 			logger.debug("Giving up control before exiting");
 
 		}//TESTED
@@ -292,7 +293,7 @@ public class AssociationBackgroundAggregationManager implements Runnable {
 				long nOneUp = Long.parseLong(oneUp);
 				lockObj.put(hostname_, getHostname());
 				lockObj.put(oneUp_, Long.toString(nOneUp + 1));
-				MongoDbManager.getFeature().getAggregationLock().save(lockObj);
+				MongoDbManager.getFeature().getAggregationLock().save(lockObj, WriteConcern.ACKNOWLEDGED);
 				return true;
 			}//TESTED
 			else { // Save info and sleep for 60s 

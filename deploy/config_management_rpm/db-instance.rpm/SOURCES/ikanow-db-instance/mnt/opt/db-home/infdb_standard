@@ -1,0 +1,229 @@
+#!/bin/sh
+################################################################################
+# DB related configuration properties in infinite.service.properties 
+SERVICE_PROPERTY_FILE='/opt/infinite-home/config/infinite.service.properties'
+S3_URL=`grep "^s3.url=" $SERVICE_PROPERTY_FILE | sed s/'s3.url='// | sed s/' '//g`
+USE_AWS=`grep "^use.aws=" $SERVICE_PROPERTY_FILE | sed s/'use.aws='// | sed s/' '//g`
+ELASTIC_CLUSTER=`grep "^elastic.cluster=" $SERVICE_PROPERTY_FILE | sed s/'elastic.cluster='// | sed s/' '//g`
+CLUSTER_SUBNET=`grep "^db.cluster.subnet=" $SERVICE_PROPERTY_FILE | sed s/'db.cluster.subnet='// | sed s/' '//g | sed 's/[.]/\\./g'`
+CONFIG_SERVERS=`grep "^db.config.servers=" $SERVICE_PROPERTY_FILE | sed s/'db.config.servers='// | sed s/' '//g`
+REPLICA_SETS=`grep "^db.replica.sets=" $SERVICE_PROPERTY_FILE | sed s/'db.replica.sets='// | sed s/' '//g`
+
+if [ -z $CLUSTER_SUBNET ]; 
+then
+	my_ip=$(hostname -s)
+else
+	if [ "$CLUSTER_SUBNET" == "FQDN" ]; then
+		my_ip=$(hostname -f)
+	else
+		my_ip=$(ifconfig | grep -o -P "addr:[0-9.]+" | grep -o -P "[0-9.]+" | grep "^$CLUSTER_SUBNET")
+	fi
+fi
+
+################################################################################
+#
+case "$1" in
+ 
+		config_ips)
+			echo "$CONFIG_SERVERS" | sed 's/,/ /g'
+		;;
+
+		my_ip)
+			echo $my_ip
+		;;
+
+		my_instance)
+			echo "EC2 only feature"
+		;;
+
+		mongos_ip)
+			echo $my_ip # All servers have mongos installed and running
+		;;
+
+		num_repl_sets)
+			SAVEIFS=$IFS
+			IFS=";"
+			rset=0
+			for sets in $REPLICA_SETS
+			do				
+				rset=$(($rset+1))
+			done
+			echo $rset
+			IFS=$SAVEIFS
+		;;
+
+		repl_sets)
+			toReturn=""
+			SAVEIFS=$IFS
+			IFS=";"
+			# (if config servers are specified then start from 1/27108 (27107 is mongos)
+			#  else start from 27107)
+			if [ -z "$CONFIG_SERVERS" ]; then
+				rset=0
+			else
+				rset=1
+			fi
+			for sets in $REPLICA_SETS
+			do
+				if [ $(echo $sets | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
+					echo -en "$rset\n"
+				fi
+				
+				rset=$(($rset+1))
+			done
+			
+			IFS=$SAVEIFS
+		;;
+		
+		cluster-name)
+			echo "$ELASTIC_CLUSTER"
+		;;
+		
+		kill_db)
+			mongo <<EOF admin --port $2
+db.shutdownServer()
+exit
+EOF
+		;;
+		kill_db_force)
+			mongo <<EOF admin --port $2
+db.shutdownServer({"force":true})
+exit
+EOF
+		;;
+		
+		is_config)
+			if [ $(echo $CONFIG_SERVERS | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
+				echo true
+			 else
+				echo false
+			 fi
+		;;
+		
+		is_dbinstance)
+			 if [ $(echo $REPLICA_SETS | grep -P "$my_ip($|[,;])" | wc -l) -ge 1 ]; then
+				echo true
+			 else
+				echo false
+			 fi
+		;;
+		
+		is_mongos)
+			# For non-EC2 deployments, just always start a mongos (unless config not specified)
+			if [ -z "$CONFIG_SERVERS" ]; then
+				echo false
+			else
+				echo true
+			fi
+		;;
+		
+		all_configs_running)
+			SAVEIFS=$IFS
+			IFS=","
+			total=0
+			started=0
+			for ip in $CONFIG_SERVERS
+			do
+				if [ $(mongo $ip:27016 --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+				started=$(($started+1))
+				fi
+				total=$(($total+1))
+			done
+
+			if [ $total -eq $started ]; then
+				echo true
+			else
+				echo false
+			fi
+			IFS=$SAVEIFS
+		;;
+		
+		mongo_running)
+			if [ $2 ]; then
+				if [ $3 ]; then
+					mip="$3:$2"
+				else
+					mip="--port $2"
+				fi
+					if [ $(mongo $mip --eval '{}' | grep "Error" | wc -m) -eq 0 ]; then
+						echo "true"
+					else
+						echo "false"
+					fi
+			else
+				echo -e "\aMust supply port Parameter"
+			fi
+		;;
+		
+		all_members_of_set)
+            if [ $2 ]; then
+                toReturn=""
+                SAVEIFS=$IFS
+                IFS=";"
+				if [ -z "$CONFIG_SERVERS" ]; then
+    	            rset=0
+				else
+    	            rset=1
+    	        fi
+                for sets in $REPLICA_SETS
+                do
+                    if [ $rset == $2 ]; then
+                        echo $(echo $sets | tr "," "\n")
+                    fi
+                    
+                    rset=$(($rset+1))
+                done
+                IFS=$SAVEIFS                
+            else
+                echo -e "\aMust supply Replica Set Parameter"
+            fi
+        ;;
+		
+		master_of_set)
+			if [ $2 ]; then
+				port=$((27017+$2))
+				SAVEIFS=$IFS
+				IFS=";"
+				if [ -z "$CONFIG_SERVERS" ]; then
+    	            rset=0
+				else
+    	            rset=1
+    	        fi
+				for sets in $REPLICA_SETS
+				do
+					if [ $rset == $2 ]; then
+						ipCandidates=$(echo $sets | tr "," "\n")
+					fi
+                    
+                    rset=$(($rset+1))
+				done
+				IFS=$SAVEIFS
+				
+				for pip in $ipCandidates
+				do
+					if [ $(mongo $pip:$port --eval 'rs.isMaster().ismaster' | grep "true" | wc -m) -gt 0 ]; then
+						echo $pip:$port
+						break
+					fi													
+				done
+			else
+				echo -e "\aMust supply Replica Set Parameter"
+			fi
+		;;
+		
+		mongos_running)
+			if [ $(ps -ef | grep mongos | wc -l) -eq 0 ]; then
+				echo false
+			else
+				echo true
+			fi
+		;;
+		
+		"help")
+			separator="\t\t\t\t"
+			echo -e "Commands: \n my_ip $separator\t returns the ec2 internal ip address \n config_ips $separator returns a comma delimited list of config servers \n my_instance $separator returns the ec2 instance ID number \n mongos_ip $separator returns a single MongoS ip address \n num_repl_sets $separator returns the total number of replica sets you are a member of \n repl_sets $separator returns IP address to replica sets you are a member of \n cluster-name $separator displays the cluster-name for the local machine \n kill_db {port number} \t\t\t kills the mongo instance on the specified port \n kill_db_force {port number} \t\t tries harder to kill the mongo instance on the specified port \n all_members_of_set {replica set id} \t returns all members of specified replica set id \n is_config $separator returns if config=1 \n is_dbinstance $separator returns if db_instance=# \n is_mongos $separator returns if db_interface=1 \n mongos_running \t\t\t returns if MongoS is running locally on port 27017 \n mongo_running {port} {ip:optional} \t returns if mongo can be connected to on specified port \n all_configs_running \t\t\t returns if all config servers are running \n all_members_of_set {replica set} \t returns all IP addresses in the specified replica set \n master_of_set {replica set} \t\t returns the ip:port of the master of the specified replica set \n help $separator\t brings up this menu";
+		;;
+		
+		*) echo "Command Not Found. Type help for a list of commands."
+		;;
+	esac

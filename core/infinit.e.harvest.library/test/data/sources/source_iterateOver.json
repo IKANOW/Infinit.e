@@ -1,0 +1,73 @@
+{
+    "_id": "52706cbbe4b0f9c81ace0b05",
+    "appendTagsToDocs": false,
+    "communityIds": ["52706a16e4b02751568b8aab"],
+    "created": "Oct 30, 2013 02:19:39 AM UTC",
+    "description": "XML files about taxes",
+    "extractType": "Feed",
+    "harvest": {
+        "doccount": 209,
+        "harvest_message": "source=inf://share/52706b94e4b0a94efaebc7cc/wkluwerszip extracted=17 updated=0 deleted=0 urlerrors=0",
+        "harvest_status": "success",
+        "harvested": "Oct 31, 2013 01:36:54 AM UTC",
+        "lastHarvestedBy": "ip-10-113-42-186"
+    },
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "inf...share.52706b94e4b0a94efaebc7cc.wkluwerszip.",
+    "mediaType": "Report",
+    "modified": "Oct 31, 2013 03:20:38 PM UTC",
+    "ownerId": "506dc16dfbf042893dd6b8f2",
+    "processingPipeline": [
+        {
+            "display": "",
+            "file": {
+                "XmlPreserveCase": false,
+                "XmlRootLevelValues": ["wkna-shared-cms"],
+                "pathExclude": ".*Pilo.*",
+                "pathInclude": ".*\\.xml$",
+                "url": "inf://share/52706b94e4b0a94efaebc7cc/wkluwerszip"
+            }
+        },
+        {
+            "display": "",
+            "text": [{
+                "fieldName": "fullText",
+                "flags": "H",
+                "script": "//para",
+                "scriptlang": "xpath"
+            }]
+        },
+        {
+            "display": "",
+            "entities": [{
+                "dimension": "What",
+                "disambiguated_name": "${key-phrases.key-phrase}",
+                "iterateOver": "va-metadata-set",
+                "type": "GroundTruthTopic",
+                "useDocGeo": false
+            }]
+        },
+        {
+            "display": "",
+            "storageSettings": {"metadataFieldStorage": ""}
+        },
+        {
+            "display": "",
+            "featureEngine": {
+                "engineConfig": {
+                    "salience.concept_topic_file": "empty.dat",
+                    "salience.query_topic_file": "taxes.dat",
+                    "salience.topics_to_entities": "true"
+                },
+                "engineName": "salience"
+            }
+        }
+    ],
+    "searchCycle_secs": -1,
+    "searchIndexFilter": {"metadataFieldList": ""},
+    "shah256Hash": "1m6k03kE83K60yDrWJvyCfubi7L14HbDfrVh/YY9IJk=",
+    "tags": ["taxes"],
+    "title": "Wolter Kluwers Demonstration - basic topics"
+}

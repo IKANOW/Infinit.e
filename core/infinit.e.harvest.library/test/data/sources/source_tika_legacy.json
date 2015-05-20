@@ -1,0 +1,50 @@
+{
+    "_id": "54d1509de4b0725b288b59f8",
+    "communityIds": ["54073207e4b00ebcc24e88bc"],
+    "created": "Feb 3, 2015 10:50:05 PM UTC",
+    "description": "Performance Tika Source",
+    "extractType": "File",
+    "extractorOptions": {"app.alchemyapi-metadata.strict": "true"},
+    "file": {
+        "XmlRootLevelValues": [],
+        "domain": "WORKGROUP",
+        "password": "modus!",
+        "username": "modus"
+    },
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "modus.139.infinit.e_files.financial_reports..7646",
+    "mediaType": "Report",
+    "modified": "Feb 3, 2015 10:50:05 PM UTC",
+    "ownerId": "53973d78e4b0e7c14274960b",
+    "searchCycle_secs": -1,
+    "searchIndexFilter": {"metadataFieldList": ""},
+    "shah256Hash": "sVhdMIKRLxAz2/J2/9t1D1n9Gm2p04N9OYCEqw+ZKcE=",
+    "structuredAnalysis": {
+        "associations": [{
+            "entity1_index": "$SCRIPT(return _doc.metadata._FILE_METADATA_[0].metadata.Author + '/person';)",
+            "entity2": "Topic",
+            "iterateOver": "entity2,dummy",
+            "verb": "writes about",
+            "verb_category": "writes about"
+        }],
+        "entities": [
+            {
+                "disambiguated_name": "$text",
+                "iterateOver": "AlchemyAPI_concepts",
+                "relevance": "$relevance",
+                "type": "Topic"
+            },
+            {
+                "disambiguated_name": "$metadata._FILE_METADATA_.metadata.Author",
+                "relevance": "1.0",
+                "type": "Person"
+            }
+        ]
+    },
+    "tags": [""],
+    "title": "Performance Tika Source",
+    "url": "smb://localhost:139/infinit.e_files/financial_reports/",
+    "useExtractor": "AlchemyAPI-metadata"
+}

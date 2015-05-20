@@ -1,0 +1,161 @@
+{
+    "description": "Twitter Sandy Performance Test Source",
+    "extractType": "File",
+    "isPublic": false,
+    "mediaType": "Social",
+    "processingPipeline": [
+        {
+            "display": "",
+            "file": {
+                "XmlPreserveCase": false,
+                "domain": "WORKGROUP",
+                "password": "modus!",
+                "url": "smb://localhost:139/datasift/sandy_demo/hourly/2012_11_01_19/",
+                "username": "modus"
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": [
+                    "function getAddressVal( addressStr, number) { try { var addressArray = addressStr.split(/ *, */); if (addressArray != null && addressArray.length > 0) { if (addressArray[number].toLowerCase()=='ny') { return 'new york'; } else if (addressArray[number].toLowerCase()=='long island' || addressArray[number].toLowerCase()=='li') { return 'medford'; } else { return addressArray[number]; } } else { return ''; } } catch (err) { return ''; } } function getRegion( code ) { if (code.toLowerCase()=='ny') {return 'New York';} else if (code.toLowerCase()=='nj') {return 'New Jersey';} else if (code.toLowerCase()=='ct') {return 'Connecticut';} else if (code.toLowerCase()=='md') {return 'Maryland';} else if (code.toLowerCase()=='va') {return 'Virginia';} else if (code.toLowerCase()=='pa') {return 'Pennsylvania';} else if (code.toLowerCase()=='nj') {return 'New Jersey';} else {return 'New York';} }"
+                ]
+            }
+        },
+        {
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "description": "$metadata.json.body",
+                "fullText": "$metadata.json.body",
+                "geotag": {
+                    "alternatives": [],
+                    "lat": "$SCRIPT( try {return _doc.metadata.json[0].geo.coordinates[0];} catch (err) {return '';})",
+                    "lon": "$SCRIPT( try {return _doc.metadata.json[0].geo.coordinates[1];} catch (err) {return '';})"
+                },
+                "publishedDate": "$SCRIPT(return _doc.metadata.json[0].postedTime.replace(/.[0-9]{3}Z/,'Z');)",
+                "title": "$metadata.json.body"
+            }
+        },
+        {
+            "display": "",
+            "featureEngine": {
+                "engineConfig": {
+                    "app.alchemyapi-metadata.batchSize": "100",
+                    "app.alchemyapi-metadata.numKeywords": "5",
+                    "app.alchemyapi-metadata.strict": "true"
+                },
+                "engineName": "AlchemyAPI-metadata",
+                "exitOnError": true
+            }
+        },
+        {
+            "display": "",
+            "entities": [
+                {
+                    "actual_name": "$metadata.json.actor.displayName",
+                    "dimension": "Who",
+                    "disambiguated_name": "$metadata.json.actor.preferredUsername",
+                    "linkdata": "$metadata.json.actor.link",
+                    "type": "TwitterHandle",
+                    "useDocGeo": false
+                },
+                {
+                    "actual_name": "$SCRIPT(return _iterator.name;)",
+                    "dimension": "Who",
+                    "disambiguated_name": "$SCRIPT(return _iterator.screen_name;)",
+                    "iterateOver": "json.twitter_entities.user_mentions",
+                    "linkdata": "$SCRIPT(return 'http://www.twitter.com/' + _iterator.screen_name;)",
+                    "type": "TwitterHandle",
+                    "useDocGeo": false
+                },
+                {
+                    "actual_name": "$metadata.json.object.actor.displayName",
+                    "dimension": "Who",
+                    "disambiguated_name": "$metadata.json.object.actor.preferredUsername",
+                    "linkdata": "$metadata.json.object.actor.link",
+                    "type": "TwitterHandle",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Where",
+                    "disambiguated_name": "$metadata.json.object.actor.location.displayName",
+                    "type": "Location",
+                    "useDocGeo": false
+                },
+                {
+                    "disambiguated_name": "$SCRIPT(return _iterator.text;)",
+                    "iterateOver": "json.twitter_entities.hashtags",
+                    "type": "HashTag",
+                    "useDocGeo": false
+                },
+                {
+                    "actual_name": "$SCRIPT(return _iterator.url)",
+                    "disambiguated_name": "$SCRIPT(return _iterator.expanded_url;)",
+                    "iterateOver": "json.gnip.urls",
+                    "type": "URL",
+                    "useDocGeo": false
+                }
+            ]
+        },
+        {
+            "associations": [
+                {
+                    "assoc_type": "Event",
+                    "creationCriteriaScript": "$SCRIPT( return (null != _doc.metadata.json[0].object.actor); )",
+                    "entity1_index": "$SCRIPT( return _doc.metadata.json[0].actor.preferredUsername + '/twitterhandle';)",
+                    "entity2_index": "$SCRIPT( return _doc.metadata.json[0].object.actor.preferredUsername + '/twitterhandle';)",
+                    "verb": "retweets",
+                    "verb_category": "retweets"
+                },
+                {
+                    "assoc_type": "Event",
+                    "creationCriteriaScript": "$SCRIPT( return (null != _doc.metadata.json[0].object.actor) && (null != _doc.metadata.json[0].object.actor.location); )",
+                    "entity1_index": "$SCRIPT( return _doc.metadata.json[0].object.actor.preferredUsername + '/twitterhandle';)",
+                    "entity2_index": "$SCRIPT( return _doc.metadata.json[0].object.actor.location.displayName+ '/location';)",
+                    "verb": "twitter_location",
+                    "verb_category": "twitter_location"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1_index": "$SCRIPT( return _doc.metadata.json[0].actor.preferredUsername + '/twitterhandle';)",
+                    "entity2_index": "$SCRIPT( return _iterator.text + '/hashtag'; )",
+                    "iterateOver": "json.twitter_entities.hashtags",
+                    "verb": "tweets_about",
+                    "verb_category": "tweets_about"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1_index": "$SCRIPT( return _doc.metadata.json[0].actor.preferredUsername + '/twitterhandle';)",
+                    "entity2_index": "$SCRIPT( return _iterator.screen_name + '/twitterhandle'; )",
+                    "iterateOver": "json.twitter_entities.user_mentions",
+                    "verb": "tweets_to",
+                    "verb_category": "tweets_to"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1_index": "$SCRIPT( return _doc.metadata.json[0].actor.preferredUsername + '/twitterhandle';)",
+                    "entity2_index": "$SCRIPT( return _iterator.expanded_url + '/url'; )",
+                    "iterateOver": "json.gnip.urls",
+                    "verb": "tweets_link",
+                    "verb_category": "tweets_link"
+                }
+            ],
+            "display": ""
+        },
+        {
+            "display": "",
+            "storageSettings": {
+                "exitPipeline": false,
+                "onUpdateScript": "var delta = 1234;var retVal = { 'delta': delta }; retVal;",
+                "rejectDocCriteria": "$SCRIPT( if (null == _doc.metadata.json[0].link || null == _doc.metadata.json[0].object) return 'reject'; )"
+            }
+        }
+    ],
+    "searchCycle_secs": -1,
+    "tags": [
+        ""
+    ],
+    "title": "Twitter Sandy Performance Test Source Pipeline"
+}

@@ -4,7 +4,7 @@ Summary: Infinit.e index engine SOLR API
 Name: infinit.e-index-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: elasticsearch >= 0.19, infinit.e-config
+Requires: elasticsearch >= 1.4, infinit.e-config
 License: None
 Group: Infinit.e
 BuildArch: noarch

@@ -1,10 +1,18 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <classpath>
 	<classpathentry kind="src" path="src"/>
-	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
-	<classpathentry kind="lib" path="lib/mahout-core-0.7.jar"/>
-	<classpathentry kind="lib" path="lib/mahout-math-0.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/mahout-core-0.7.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/mahout-math-0.7.jar"/>
 	<classpathentry kind="lib" path="/infinit.e.api.server/WEB-INF/classes"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/commons-cli-1.2.jar"/>
+	<classpathentry kind="lib" path="standalone_libs/hadoop-common-2.5.0-cdh5.3.1-IKANOW_LOCAL_NOCRC_STUBS.jar"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/avro.jar"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/commons-configuration-1.6.jar"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/hadoop-annotations-2.5.0-cdh5.3.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/hadoop-auth-2.5.0-cdh5.3.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/hadoop-hdfs-2.5.0-cdh5.3.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="standalone_libs/protobuf-java-2.5.0.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

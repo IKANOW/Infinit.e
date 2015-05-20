@@ -39,8 +39,7 @@ import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-import javax.script.ScriptEngine;
-import javax.script.ScriptEngineManager;
+import javax.script.ScriptContext;
 import javax.script.ScriptException;
 import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLInputFactory;
@@ -57,6 +56,9 @@ import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.log4j.Logger;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.Metadata;
 import org.bson.types.ObjectId;
 import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.DomSerializer;
@@ -70,8 +72,6 @@ import org.w3c.dom.NamedNodeMap;
 import org.w3c.dom.Node;
 import org.w3c.dom.NodeList;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
 import com.google.gson.stream.JsonReader;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
@@ -83,12 +83,12 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.Context;
 import com.ikanow.infinit.e.data_model.store.config.source.UnstructuredAnalysisConfigPojo.metaField;
-import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
-import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
 import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptWrapperUtility;
 import com.ikanow.infinit.e.harvest.extraction.document.file.JsonToMetadataParser;
 import com.ikanow.infinit.e.harvest.extraction.document.file.XmlToMetadataParser;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
@@ -104,11 +104,11 @@ import com.mongodb.BasicDBObject;
 public class UnstructuredAnalysisHarvester {
 	
 	///////////////////////////////////////////////////////////////////////////////////////////
-	
+	private CompiledScriptFactory compiledScriptFactory = null;
+
 	// NEW PROCESSING PIPELINE INTERFACE
 
 	//TODO (INF-1922): Handle headers and footers
-	
 	public void setContext(HarvestContext context) {
 		_context = context;
 		securityManager = _context.getSecurityManager();
@@ -148,6 +148,7 @@ public class UnstructuredAnalysisHarvester {
 		// Map metadata list to a legacy meta format (they're really similar...)
 		UnstructuredAnalysisConfigPojo.metaField mappedEl = new UnstructuredAnalysisConfigPojo.metaField();
 		boolean textSet = false;
+		
 		for (MetadataSpecPojo meta: metadataFields) {
 			mappedEl.fieldName = meta.fieldName;
 			mappedEl.context = Context.All;
@@ -165,7 +166,9 @@ public class UnstructuredAnalysisHarvester {
 					textSet = true;
 				}
 			}//TESTED (content_needed_test)
-			
+			// DO not remove until unless you want to debug for 2 days
+			//ScriptUtil.printEngineState(compiledScriptFactory);
+
 			mappedEl.scriptlang = meta.scriptlang;
 			mappedEl.script = meta.script;
 			mappedEl.replace = meta.replace;
@@ -180,7 +183,7 @@ public class UnstructuredAnalysisHarvester {
 				unstoredFields.remove(meta.fieldName);
 			}
 			this.processMeta(doc, mappedEl, doc.getFullText(), null, null);						
-		}
+		} // metaSpecFields
 		//TESTED (storageSettings_advanced.json)
 	}
 	//TESTED (fulltext_regexTests.json, storageSettings_advanced.json)
@@ -294,11 +297,28 @@ public class UnstructuredAnalysisHarvester {
 			if (null != metadataHeaderObj) {
 				doc.addToMetadata("__FEED_METADATA__", metadataHeaderObj);
 			}//TESTED
-			s = new Scanner(urlStream, "UTF-8");
-			doc.setFullText(s.useDelimiter("\\A").next());
+			
+			String contentType = urlConnect.getContentType();
+			
+			if ((null != contentType) && contentType.contains("html")) { // HTML
+				s = new Scanner(urlStream, "UTF-8");
+				s.useDelimiter("\\A");
+				doc.setFullText(s.next());																			
+			}
+			else { // not HTML, send to tika instead
+				if (null == _tika) {
+					_tika = new Tika();
+				}
+				Metadata metadata = new Metadata();
+				String text = _tika.parseToString(urlStream, metadata);
+				doc.setFullText(text);					
+				TextExtractorTika.addMetadata(doc, metadata);
+			}//TESTED			
 		}
 		catch (MalformedURLException me) { // This one is worthy of a more useful error message
 			throw new MalformedURLException(me.getMessage() + ": Likely because the document has no full text (eg JSON) and you are calling a contentMetadata block without setting flags:'m' or 'd'");
+		} catch (TikaException e) {
+			throw new MalformedURLException(e.getMessage() + ": tika error on binary data");
 		}
 		finally { //(release resources)
 			if (null != s) {
@@ -322,17 +342,12 @@ public class UnstructuredAnalysisHarvester {
 	private Pattern footerPattern = null;
 	private UnstructuredAnalysisConfigPojo savedUap = null;
 
-	// Javascript handling, if needed
-	private ScriptEngineManager factory = null;
-	private ScriptEngine engine = null;
-	private static String parsingScript = null;
-
 	// Using Tika to process documents:
-	TextExtractorTika tikaExtractor = null;
+	TextExtractorTika tikaExtractor = null; // (cases where the user specifically asks for it)
+	protected Tika _tika = null;  // (mutually exclusive case where we override because it's a binary file)
 	
 	private HarvestContext _context = null;
-	private Logger logger = Logger
-			.getLogger(UnstructuredAnalysisHarvester.class);
+	private Logger logger = Logger.getLogger(UnstructuredAnalysisHarvester.class);
 
 	// (some web scraping may be needed)
 	private long nBetweenDocs_ms = -1;
@@ -343,7 +358,7 @@ public class UnstructuredAnalysisHarvester {
 	private HtmlCleaner cleaner = null;
 	
 	//if the sah already init'd an engine we'll just use it
-	private ScriptEngine _sahEngine = null; 
+//	private ScriptEngine _sahEngine = null; 
 	private IkanowSecurityManager securityManager = null;
 	
 	/**
@@ -429,8 +444,8 @@ public class UnstructuredAnalysisHarvester {
 							// Special case: if tika enabled then do that first
 							if (null == tikaExtractor) {
 								tikaExtractor = new TextExtractorTika();
-								tikaExtractor.extractText(d);
 							}
+							tikaExtractor.extractText(d);
 						}
 						else {
 							this.getRawTextFromUrlIfNeeded(d, source.getRssConfig());
@@ -481,6 +496,7 @@ public class UnstructuredAnalysisHarvester {
 					processBody(d, meta, false, source, uap);
 					
 				} catch (Exception e) {
+					logger.error("executeHarvest caught exception calling processBody:",e);
 					this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
 					//DEBUG (don't output log messages per doc)
 					//logger.error("processBody2: " + e.getMessage(), e);
@@ -605,6 +621,7 @@ public class UnstructuredAnalysisHarvester {
 				processBody(doc, meta, true, source, uap);
 				
 			} catch (Exception e) {
+				logger.error("executeHarvest caught exception calling processBody:",e);
 				this._context.getHarvestStatus().logMessage("processBody1: " + e.getMessage(), true);
 				//DEBUG (don't output log messages per doc)
 				//logger.error("processBody1: " + e.getMessage(), e);
@@ -623,6 +640,7 @@ public class UnstructuredAnalysisHarvester {
 				processFooter(footerPattern, doc, meta, source, uap);
 				
 			} catch (Exception e) {
+				logger.error("executeHarvest caught exception calling processHeader/Footer:",e);
 				this._context.getHarvestStatus().logMessage("header/footerPattern: " + e.getMessage(), true);
 				//DEBUG (don't output log messages per doc)
 				//logger.error("header/footerPattern: " + e.getMessage(), e);
@@ -631,6 +649,7 @@ public class UnstructuredAnalysisHarvester {
 				processBody(doc, meta, false, source, uap);
 				
 			} catch (Exception e) {
+				logger.error("executeHarvest caught exception calling processBody:",e);
 				this._context.getHarvestStatus().logMessage("processBody2: " + e.getMessage(), true);
 				//DEBUG (don't output log messages per doc)
 				//logger.error("processBody2: " + e.getMessage(), e);
@@ -680,7 +699,15 @@ public class UnstructuredAnalysisHarvester {
 			if (null != headerText && null != meta) {
 				for (metaField m : meta) {
 					if (m.context == Context.Header || m.context == Context.All) {
-						this.processMeta(f, m, headerText, source, uap);
+						String text = null;
+						try{
+							text = f.getFullText();
+							f.setFullText(headerText);
+							this.processMeta(f, m, headerText, source, uap);
+						}
+						finally{
+								f.setFullText(text);
+						}
 					}
 				}
 			}
@@ -714,7 +741,15 @@ public class UnstructuredAnalysisHarvester {
 			if (null != footerText && null != meta) {
 				for (metaField m : meta) {
 					if (m.context == Context.Footer || m.context == Context.All) {
-						this.processMeta(f, m, footerText, source, uap);
+						// hack, put text into doc.Fulltect for engine and replace back afterwards
+						String text = null;
+						try{
+							text = f.getFullText();
+							f.setFullText(footerText);
+							this.processMeta(f, m, footerText, source, uap);
+						}finally{						
+							f.setFullText(text);
+						}
 					}
 				}
 			}
@@ -748,7 +783,15 @@ public class UnstructuredAnalysisHarvester {
 						if (toProcess == null)
 							continue;
 					}
-					this.processMeta(f, m, toProcess, source, uap);
+					// hack, put text into doc.Fulltect for engine and replace back afterwards
+					String text = null;
+					try{
+						text = f.getFullText();
+						f.setFullText(toProcess);
+						this.processMeta(f, m, toProcess, source, uap);
+					}finally{						
+						f.setFullText(text);
+					}
 				}
 			}
 		}
@@ -837,63 +880,43 @@ public class UnstructuredAnalysisHarvester {
 			//set the script engine up if necessary
 			if ((null != source) && (null != uap)) {
 				//(these are null if called from new processing pipeline vs legacy code)
-				intializeScriptEngine(source, uap);
+				intializeScriptEngine(source, uap,compiledScriptFactory);
 			}
 			
 			try 
 			{
+				CompiledScriptWrapperUtility.initializeDocumentPojoInEngine(compiledScriptFactory, f);
+				// DO not remove until unless you want to debug for 2 days
+				//ScriptUtil.printEngineState(compiledScriptFactory);
+				
 				//TODO (INF-2488): in new format, this should only happen in between contentMeta blocks/docs
 				// (also should be able to use SAH _document object I think?)
 				
 				// Javascript: the user passes in 
-				Object[] currField = f.getMetadata().get(m.fieldName);
+				Object[] currField = f.getMetadataReadOnly().get(m.fieldName);
 				if ((null == m.flags) || m.flags.isEmpty()) {
 					if (null == currField) {
-						engine.put("text", text);
-						engine.put("_iterator", null);
+						// for legacy reasons text is not coming from documentPojo.text here
+						compiledScriptFactory.getScriptContext().setAttribute("text", text, ScriptContext.ENGINE_SCOPE);
+						compiledScriptFactory.getScriptContext().setAttribute("_iterator", null, ScriptContext.ENGINE_SCOPE);
 					}
 					//(otherwise will just pass the current fields in there)
 				}
 				else { // flags specified
 					if (m.flags.contains("t")) { // text
-						engine.put("text", text);							
-					}
-					if (m.flags.contains("d")) { // entire document (minus ents and assocs)
-						GsonBuilder gb = new GsonBuilder();
-						Gson g = gb.create();
-						List<EntityPojo> ents = f.getEntities();
-						List<AssociationPojo> assocs = f.getAssociations();
-						try {
-							f.setEntities(null);
-							f.setAssociations(null);
-					        engine.put("document", g.toJson(f));
-					        securityManager.eval(engine, JavaScriptUtils.initScript);
-						}
-						finally {
-							f.setEntities(ents);
-							f.setAssociations(assocs);
-						}
-					}
-					if (m.flags.contains("m")) { // metadata
-						GsonBuilder gb = new GsonBuilder();
-						Gson g = gb.create();	
-						engine.put("_metadata", g.toJson(f.getMetadata()));
-						securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
+						compiledScriptFactory.getScriptContext().setAttribute("text", text, ScriptContext.ENGINE_SCOPE);
 					}
 				}//(end flags processing)
 				
 				if (null != currField) {
 					f.getMetadata().remove(m.fieldName);
-					
-					GsonBuilder gb = new GsonBuilder();
-					Gson g = gb.create();	
-					engine.put("_iterator", g.toJson(currField));
-					securityManager.eval(engine, JavaScriptUtils.iteratorDocScript);		        	
+					compiledScriptFactory.executeCompiledScript(JavaScriptUtils.getIteratorOm2js(),"iteratorPojo", currField);
 				}
 				//TESTED (handling of flags, and replacing of existing fields, including when field is null but specified)
 
-				Object returnVal = securityManager.eval(engine, m.script);
-
+				// DO not remove until unless you want to debug for 2 days
+				//ScriptUtil.printEngineState(compiledScriptFactory);
+				Object returnVal = compiledScriptFactory.executeCompiledScript(m.script);				        
 				if (null != returnVal) {
 					if (returnVal instanceof String) { // The only easy case
 						Object[] array = new Object[1];
@@ -905,7 +928,8 @@ public class UnstructuredAnalysisHarvester {
 					} else { // complex object or array - in either case the engine turns these into
 								// internal.NativeArray or internal.NativeObject
 						
-						BasicDBList outList = JavaScriptUtils.parseNativeJsObject(returnVal, engine);												
+						BasicDBList outList = JavaScriptUtils.parseNativeJsObjectCompiled(returnVal, compiledScriptFactory);
+						// set metadata to object inside engine
 						f.addToMetadata(m.fieldName, outList.toArray());
 					}
 				}
@@ -1410,38 +1434,17 @@ public class UnstructuredAnalysisHarvester {
 		else if (scriptLang.equalsIgnoreCase("javascript")) {
 			try {
 				SourcePojo src = f.getTempSource();
-				intializeScriptEngine(src, src.getUnstructuredAnalysisConfig());
+				intializeScriptEngine(src, src.getUnstructuredAnalysisConfig(),compiledScriptFactory);
 
 				// Setup input:
 				if (null == flags) {
 					flags = "t";
 				}
 				if (flags.contains("t")) { // text
-					engine.put("text", field);							
+					compiledScriptFactory.getScriptContext().setAttribute("text", field, ScriptContext.ENGINE_SCOPE);
 				}
-				if (flags.contains("d")) { // entire document
-					GsonBuilder gb = new GsonBuilder();
-					Gson g = gb.create();	
-					List<EntityPojo> ents = f.getEntities();
-					List<AssociationPojo> assocs = f.getAssociations();
-					try {
-						f.setEntities(null);
-						f.setAssociations(null);
-				        engine.put("document", g.toJson(f));
-				        securityManager.eval(engine, JavaScriptUtils.initScript);
-					}
-					finally {
-						f.setEntities(ents);
-						f.setAssociations(assocs);
-					}
-				}
-				if (flags.contains("m")) { // metadata
-					GsonBuilder gb = new GsonBuilder();
-					Gson g = gb.create();	
-					engine.put("_metadata", g.toJson(f.getMetadata()));
-					securityManager.eval(engine, JavaScriptUtils.iteratorMetaScript);
-				}
-				Object returnVal = securityManager.eval(engine, script);
+				Object returnVal = compiledScriptFactory.executeCompiledScript(script);				        
+
 				field = (String) returnVal; // (If not a string or is null then will exception out)
 				if ((null != flags) && flags.contains("H") && (null != field)) { // HTML decode
 					field = StringEscapeUtils.unescapeHtml(field);
@@ -1632,58 +1635,22 @@ public class UnstructuredAnalysisHarvester {
 		}		
 	}
 
-	public void set_sahEngine(ScriptEngine _sahEngine) {
-		this._sahEngine = _sahEngine;
-	}
 
-	public ScriptEngine get_sahEngine() {
-		return _sahEngine;
-	}	
-
-	///////////////////////////////////////////////////
-	
-	// Javascript scripting utilities:
-	
-	public void intializeScriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap) {
-		if ( null == engine )
-		{
-			//use the passed in sah one if possible
-			if ( null != this.get_sahEngine())
-			{
-				engine = this.get_sahEngine();
+	public void intializeScriptEngine(SourcePojo source, UnstructuredAnalysisConfigPojo uap, CompiledScriptFactory compiledScriptFactory) {
+		if (this.compiledScriptFactory == null) {
+			this.compiledScriptFactory = compiledScriptFactory;
+			try {
+				// COMPILED_SCRIPT initialization
+				this.compiledScriptFactory.executeCompiledScript(CompiledScriptFactory.GLOBAL);
+			} catch (ScriptException e) {
+				this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
 			}
-			else if (null == factory)  //otherwise create our own
-			{
-				factory = new ScriptEngineManager();
-				engine = factory.getEngineByName("JavaScript");		
-				//grab any json cache and make it available to the engine
-			}
-			//once engine is created, do some initialization
-			if ( null != engine )
-			{
-				if (null != source) {
-					loadLookupCaches(uap.getCaches(), source.getCommunityIds(), source.getOwnerId());
-					List<String> scriptFiles = null;
-					if (null != uap.getScriptFiles()) {
-						scriptFiles = Arrays.asList(uap.getScriptFiles());
-					}
-					loadGlobalFunctions(scriptFiles, uap.getScript());
-				}
-				if (null == parsingScript)  {
-					parsingScript = JavaScriptUtils.generateParsingScript();
-				}
-				try  {
-					securityManager.eval(engine, parsingScript);						
-				} 
-				catch (ScriptException e) { // Just do nothing and log
-					e.printStackTrace();
-					logger.error("intializeScriptEngine: " + e.getMessage());
-				}
-				
-			}
-		}//end start engine up		
 		
-	}//TESTED (legacy + imports_and_lookup_test.json + imports_and_lookup_test_uahSah.json)
+			if ((null != source) && (uap!=null)) {
+				loadLookupCaches(uap.getCaches(), source.getCommunityIds(), source.getOwnerId());
+			}
+		}
+	}// TESTED (legacy + imports_and_lookup_test.json + imports_and_lookup_test_uahSah.json)
 	
 	//////////////////////////////////////////////////////
 	
@@ -1695,7 +1662,7 @@ public class UnstructuredAnalysisHarvester {
 		try
 		{
 			if (null != caches) {
-				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, engine, securityManager, communityIds, sourceOwnerId, _context);
+				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, compiledScriptFactory, communityIds, sourceOwnerId, _context);
 				for (String err: errs) {
 					_context.getHarvestStatus().logMessage(err, true);
 				}				
@@ -1713,37 +1680,7 @@ public class UnstructuredAnalysisHarvester {
 	
 	public void loadGlobalFunctions(List<String> imports, String script) 
 	{
-        // Pass scripts into the engine
-        try 
-        {
-        	// Eval script passed in s.script
-        	if (script != null) securityManager.eval(engine, script);
-        	
-        	// Retrieve and eval script files in s.scriptFiles
-        	if (imports != null)
-        	{
-        		for (String file : imports)
-        		{
-        	        try 
-        	        {
-        	        	securityManager.eval(engine, JavaScriptUtils.getJavaScriptFile(file, securityManager));
-        	        }
-        	        catch (Exception e) 
-        			{
-        				this._context.getHarvestStatus().logMessage("ScriptException (imports): " + e.getMessage(), true);
-        				//DEBUG
-        				//logger.error("ScriptException (imports): " + e.getMessage(), e);
-        			}
-        		}
-        	}
-		} 
-        catch (ScriptException e) 
-		{
-			this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);						
-			//DEBUG
-			//logger.error("ScriptException: " + e.getMessage(), e);
-		}
-        
+		intializeScriptEngine(null,null,compiledScriptFactory);
 	}//TESTED (legacy + imports_and_lookup_test.json)
 	
 	// UTILITY - CURRENTLY ONLY JS CAN SURVIVE WITHOUT TEXT...

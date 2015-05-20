@@ -21,6 +21,7 @@ import java.util.LinkedList;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
@@ -200,11 +201,15 @@ public class CustomStatusManager {
 						
 						if (null != srcJustRun) {
 							try {
-								LinkedList<CustomMapReduceJobPojo> updatedJobs = new LinkedList<CustomMapReduceJobPojo>();
-								SourcePipelineToCustomConversion.convertSourcePipeline(srcJustRun, updatedJobs, false);
-								for (CustomMapReduceJobPojo cmrUpdate: updatedJobs) {
-									if (cmrUpdate._id.equals(cmr._id)) {
-										DbManager.getCustom().getLookup().save(cmrUpdate.toDb());
+								int srcType = InfiniteEnums.castExtractType(srcJustRun.getExtractType());
+								
+								if (InfiniteEnums.POSTPROC != srcType) { // Don't do this to post processing jobs, only to new style
+									LinkedList<CustomMapReduceJobPojo> updatedJobs = new LinkedList<CustomMapReduceJobPojo>();
+									SourcePipelineToCustomConversion.convertSourcePipeline(srcJustRun, updatedJobs, false);
+									for (CustomMapReduceJobPojo cmrUpdate: updatedJobs) {
+										if (cmrUpdate._id.equals(cmr._id)) {
+											DbManager.getCustom().getLookup().save(cmrUpdate.toDb());
+										}
 									}
 								}
 							}

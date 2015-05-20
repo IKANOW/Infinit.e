@@ -35,6 +35,8 @@ import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
+import com.mongodb.MongoException;
+import com.mongodb.WriteConcern;
 
 //TODO (INF-1660): here and for assocs, I think I should delete entities that have doccount==0
 
@@ -341,9 +343,11 @@ public class EntityAggregationUtils {
 					// we don't allow all the threads to hammer it at once (the updates all yield to each other
 					// enough that the disk goes totally crazy)
 					
-					docDb.update(query1, multiopA, false, true);
-					DbManager.getDocument().getLastError(DbManager.getDocument().getMetadata().getName());
-						// (enforce consecutive accesses for this potentially very slow operation)
+					try {
+						docDb.update(query1, multiopA, false, true, WriteConcern.ACKNOWLEDGED);
+							// (enforce consecutive accesses for this potentially very slow operation)
+					}
+					catch (MongoException e) {} // carry on if failed
 				}
 				
 				// Was originally checked updatedExisting but for INF-1406, it sometimes seemed to be 

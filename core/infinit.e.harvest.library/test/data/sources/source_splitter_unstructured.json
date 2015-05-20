@@ -1,0 +1,122 @@
+{
+    "_id": "54c80f29e4b0eb0c2df73024",
+    "communityIds": ["54073207e4b00ebcc24e88bc"],
+    "created": "Jan 27, 2015 10:20:25 PM UTC",
+    "description": "Performance Test source2 govtrack",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isPublic": true,
+    "key": "www.govtrack.us.api.v2.bill.8.49.",
+    "mediaType": "Report",
+    "modified": "Jan 29, 2015 09:18:24 PM UTC",
+    "ownerId": "53973d78e4b0e7c14274960b",
+    "processingPipeline": [
+        {
+            "display": "Specify one or more JSON (or XML or ...) endpoints from which to extract objects, each endpoint/URL generates multiple documents",
+            "web": {"extraUrls": [{
+                "title": "Cyber Bills on GovTrack",
+                "url": "https://www.govtrack.us/api/v2/bill?q=cyber"
+            }]}
+        },
+        {
+            "display": "A global space to group all the complex parsing and processing logic, can be called from anywhere",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": ["function create_links( urls, input_array )\n{\n    for (var x in input_array) {\n        var input = input_array[x];\n        urls.push( { url: input.link, title: input.title, description: input.current_status_description, publishedData: input.current_status_date, fullText: input });\n    }\n}"]
+            }
+        },
+        {
+            "display": "Only check the API every 10 minutes (can be set to whatever you'd like)",
+            "harvest": {
+                "duplicateExistingUrls": true,
+                "searchCycle_secs": 1
+            }
+        },
+        {
+            "contentMetadata": [{
+                "fieldName": "json",
+                "script": "var json = eval('('+text+')'); json; ",
+                "scriptlang": "javascript"
+            }],
+            "display": "Convert the text into a JSON object in the document's metadata field: _doc.metadata.json[0]"
+        },
+        {
+            "display": "Take the original documents, split them using their metadata into new documents, and then delete the originals",
+            "splitter": {
+                "deleteExisting": true,
+                "numPages": 10,
+                "numResultsPerPage": 1,
+                "script": "var urls = []; create_links( urls, _metadata.json[0].objects ); urls;",
+                "scriptflags": "m",
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "contentMetadata": [{
+                "fieldName": "json",
+                "script": "var json = eval('('+text+')'); json; ",
+                "scriptlang": "javascript"
+            }],
+            "display": "Convert the text into a JSON object in the document's metadata field: _doc.metadata.json[0]"
+        },
+        {
+            "display": "Improve ingest performance by not full-text-indexing the JSON object itself (the full text, entities etc still get indexed)",
+            "searchIndex": {
+                "indexOnIngest": true,
+                "metadataFieldList": "+"
+            }
+        },
+        {
+            "display": "",
+            "entities": [
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$metadata.json.display_number",
+                    "linkdata": "$metadata.json.link",
+                    "type": "BillName",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Who",
+                    "disambiguated_name": "$metadata.json.sponsor.firstname $metadata.json.sponsor.lastname",
+                    "linkdata": "$metadata.json.sponsor.link",
+                    "type": "$SCRIPT( if (_doc.metadata.json[0].sponsor_role.senator_class == null) {return 'MemberName';} else {return  'SenatorName';})",
+                    "useDocGeo": false
+                }
+            ]
+        },
+        {
+            "associations": [
+                {
+                    "assoc_type": "Event",
+                    "entity1": "BillName",
+                    "entity2": "membername",
+                    "iterateOver": "entity1/entity2",
+                    "time_start": "$SCRIPT(return _doc.metadata.json[0].introduced_date)",
+                    "verb": "introduced_by",
+                    "verb_category": "legislative_action"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1": "BillName",
+                    "entity2": "senatorname",
+                    "iterateOver": "entity1/entity2",
+                    "time_start": "$SCRIPT(return _doc.metadata.json[0].introduced_date)",
+                    "verb": "introduced_by",
+                    "verb_category": "legislative_action"
+                }
+            ],
+            "display": ""
+        },
+        {
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "publishedDate": "$SCRIPT(return _doc.metadata.json[0].introduced_date)"
+            }
+        }
+    ],
+    "searchCycle_secs": -1,
+    "shah256Hash": "kzB5DOEttU1KI4OuaGRqJmNgG78EvMpN/ird6lDcrvw=",
+    "title": "Performance Test source2 govtrack"
+}

@@ -1,0 +1,61 @@
+{
+    "description": "A google search source providing pages matching '#SEARCH_TERM#' (keywords)",
+    "extractType": "Custom",
+    "isPublic": true,
+    "mediaType": "Report",
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {
+                "extraUrls": [
+                    {
+                        "description": "test",
+                        "fullText": "test",
+                        "title": "test",
+                        "url": "test"
+                    }
+                ]
+            }
+        },
+        {
+            "display": "",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": [
+                    "function followLinks(doc, meta) {\n    var doc = { 'url': 'test2', 'title': doc.title + ': test2', 'description': meta.chain[0], 'fullText': meta.chain[0] };\n    return doc;\n}"
+                ]
+            }
+        },
+        {
+            "display": "",
+            "links": {
+                "extraMeta": [
+                    {
+                        "fieldName": "chain",
+                        "index": false,
+                        "script": "var x = {'test':'alex'}; x; ",
+                        "scriptlang": "javascript",
+                        "store": true
+                    },
+                    {
+                        "fieldName": "chain",
+                        "flags": "c",
+                        "index": false,
+                        "script": "var x = {'nest_test':_iterator}; x;",
+                        "scriptlang": "javascript",
+                        "store": true
+                    }
+                ],
+                "numPages": 10,
+                "numResultsPerPage": 1,
+                "script": "var x = followLinks(_doc, _metadata); x;",
+                "scriptlang": "javascript",
+                "stopPaginatingOnDuplicate": false
+            }
+        }
+    ],
+    "tags": [
+        "Google"
+    ],
+    "title": "AAAA google test"
+}

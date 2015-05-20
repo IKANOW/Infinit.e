@@ -15,20 +15,24 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.store.social.community;
 
-import java.io.IOException;
-import java.net.UnknownHostException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import org.apache.commons.collections4.map.HashedMap;
 import org.bson.types.ObjectId;
 
-import com.mongodb.MongoException;
+import com.mongodb.BasicDBObject;
 import com.google.gson.reflect.TypeToken;
 import com.ikanow.infinit.e.data_model.store.BaseDbPojo;
+import com.ikanow.infinit.e.data_model.store.DbManager;
+import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.document.DocCountPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo.MemberType;
 import com.ikanow.infinit.e.data_model.store.social.person.*;;
@@ -39,6 +43,8 @@ import com.ikanow.infinit.e.data_model.store.social.person.*;;
  */
 public class CommunityPojo extends BaseDbPojo
 {
+	
+
 	// Standard static function for readability
 	@SuppressWarnings("unchecked")
 	static public TypeToken<List<CommunityPojo>> listType() { return new TypeToken<List<CommunityPojo>>(){}; }
@@ -49,6 +55,7 @@ public class CommunityPojo extends BaseDbPojo
 	  * Private Class Variables
 	  */
 	private ObjectId _id = null;
+	final public static String _id_ = "_id";
 	public enum CommunityType { user, data };
 	private CommunityType type = null; // (defaults to combined)
 	private Date created = null;
@@ -66,6 +73,7 @@ public class CommunityPojo extends BaseDbPojo
 	private ObjectId ownerId = null;
 	private String communityStatus = "active"; //communityStatusEnum defaults to active
 	private String ownerDisplayName = null;
+	final public static String members_ = "members";
 	private Set<CommunityMemberPojo> members = null;
 	private Set<ObjectId> children = null;
 	private DocCountPojo documentInfo = null; // (added by certain API calls, stored separately in the DB, under doc_metadata.doc_counts)
@@ -91,6 +99,7 @@ public class CommunityPojo extends BaseDbPojo
 	
 	/** 
 	  * Get the id
+	  * 
 	  */
 	public ObjectId getId() {
 		return _id;
@@ -98,6 +107,7 @@ public class CommunityPojo extends BaseDbPojo
 	
 	/** 
 	  * Set the id
+	  * 
 	  */
 	public void setId(ObjectId _id) {
 		this._id = _id;
@@ -354,11 +364,9 @@ public class CommunityPojo extends BaseDbPojo
 	 * addMember
 	 * Attempts to add a user to community
 	 * @param pp
-	 * @throws IOException 
-	 * @throws MongoException 
-	 * @throws UnknownHostException 
+	 * @throws Exception 
 	 */
-	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup) throws UnknownHostException, MongoException, IOException 
+	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup) throws Exception 
 	{
 		addMember(personOrUserGroupId, user, userGroup, false);		
 	}
@@ -373,11 +381,9 @@ public class CommunityPojo extends BaseDbPojo
 	 * 
 	 * @param user
 	 * @param isInvite
-	 * @throws IOException 
-	 * @throws MongoException 
-	 * @throws UnknownHostException 
+	 * @throws Exception 
 	 */
-	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup, boolean isInvite) throws UnknownHostException, MongoException, IOException 
+	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup, boolean isInvite) throws Exception 
 	{
 		CommunityMemberPojo old_cmp = null;
 		for ( CommunityMemberPojo cmp : this.getMembers() )
@@ -413,6 +419,12 @@ public class CommunityPojo extends BaseDbPojo
 			else
 			{
 				cmp.setUserStatus("active");
+				//if user gets set to active and this is datagroup
+				if ( this.type == CommunityType.data )
+				{
+					//add dg to user/usergroup
+					addDatagroupToUserOrUserGroup(this, user, userGroup);
+				}
 			}
 
 			// Set the userAttributes based on default
@@ -484,6 +496,163 @@ public class CommunityPojo extends BaseDbPojo
 	}
 	
 	
+
+	/**
+	 * Adds datagroup and reason to usergroup users or user
+	 * 
+	 * @param communityPojo
+	 * @param user
+	 * @param userGroup
+	 * @throws Exception 
+	 */
+	public static void addDatagroupToUserOrUserGroup(CommunityPojo dataGroup,
+			PersonPojo user, CommunityPojo userGroup) throws Exception 
+	{
+		if ( dataGroup.type == CommunityType.data )
+		{
+			List<PersonPojo> usersToUpdate = new ArrayList<PersonPojo>();
+			if ( user != null )
+				usersToUpdate.add(user);
+			if ( userGroup != null )
+			{
+				for ( CommunityMemberPojo member : userGroup.getMembers() )
+				{
+					PersonPojo person = PersonPojo.fromDb( DbManager.getSocial().getPerson().findOne(new BasicDBObject(PersonPojo._id_, member.get_id())), PersonPojo.class);
+					if ( person != null )
+					{
+						usersToUpdate.add(person);
+					}
+				}			
+			}
+			
+			
+			for ( PersonPojo person : usersToUpdate )
+			{
+				//add datagroup to user.communities
+				person.addCommunity(dataGroup);
+				
+				//add usergroup to user.datagroup_reason
+				Map<String, Set<String>> datagroup_reason = person.getDatagroupReason();
+				if ( datagroup_reason == null )
+					datagroup_reason = new HashedMap<String, Set<String>>();
+				
+				if ( !datagroup_reason.containsKey(dataGroup.getId().toString()) )
+					datagroup_reason.put(dataGroup.getId().toString(), new HashSet<String>());
+				
+				if ( user != null )
+					datagroup_reason.get(dataGroup.getId().toString()).add(user.get_id().toString());
+				if ( userGroup != null )
+					datagroup_reason.get(dataGroup.getId().toString()).add(userGroup.getId().toString());
+				
+				
+				person.setDatagroupReason(datagroup_reason);
+				//TODO don't use save, use $set and such
+				DbManager.getSocial().getPerson().update(new BasicDBObject(PersonPojo._id_, person.get_id()), person.toDb());
+			}
+		}
+		else
+		{
+			throw new Exception("Community was not a datagroup, can't update user/usergroup");
+		}
+	}
+	
+	/**
+	 * Removes the usergroup from user.reason for all it's members
+	 * 
+	 * @param dataGroup
+	 * @throws Exception 
+	 */
+	public static void removeDatagroupFromUserOrUsergroup( PersonPojo userBeingRemoved, CommunityPojo communityBeingRemoved, CommunityPojo communityLeaving) throws Exception
+	{
+		if ( userBeingRemoved != null || communityBeingRemoved.type == CommunityType.user )
+		{
+			//if comm being removed is a user group, find all datagroups this usergroup is a member of
+			//and remove them from all user.reason
+			ObjectId reason = null;
+			List<PersonPojo> usersToUpdate = new ArrayList<PersonPojo>();
+			if ( userBeingRemoved != null )
+			{
+				reason = userBeingRemoved.get_id();
+				usersToUpdate.add(userBeingRemoved);
+			}
+			else
+			{
+				reason = communityBeingRemoved.getId();
+				for ( CommunityMemberPojo member : communityBeingRemoved.getMembers() )
+				{
+					PersonPojo person = PersonPojo.fromDb( DbManager.getSocial().getPerson().findOne(new BasicDBObject(PersonPojo._id_, member.get_id())), PersonPojo.class);
+					if ( person != null )
+					{
+						usersToUpdate.add(person);
+					}
+				}
+			}
+			
+			List<CommunityPojo> data_groups = null;
+			//if we aren't given a community we are leaving, assume we are being deleted and removed from all comms
+			if ( communityLeaving == null )
+				data_groups = CommunityPojo.listFromDb( MongoDbManager.getSocial().getCommunity().find(new BasicDBObject(CommunityPojo.members_+ "." + CommunityMemberPojo._id_, reason)), CommunityPojo.listType());
+			else //assume we are only leaving the given community
+				data_groups = Arrays.asList(communityLeaving);
+			
+			for ( CommunityPojo data_group : data_groups)
+				removeDatagroupReason(data_group, usersToUpdate, reason.toString());
+		}
+		else
+		{
+			//NOTE: this should never be called w/ communityLeaving because a datagroup can't be a member of any other community so it has
+			//no community to leave, we assume it's being deleted
+			
+			//if comm being removed is a datagroup, find all users with this datagroup as a reason and remove it			
+			List<PersonPojo> usersToUpdate = PersonPojo.listFromDb(MongoDbManager.getSocial().getPerson().find(new BasicDBObject(PersonPojo.communities_ + "." + PersonCommunityPojo._id_, communityBeingRemoved.getId())), PersonPojo.listType());
+			removeDatagroupReason(communityBeingRemoved, usersToUpdate, null);
+		}						
+	}
+	
+	/**
+	 * Removes the datagroup as a reason from all the given users.
+	 * 
+	 * @param datagroup
+	 * @param usersToUpdate
+	 */
+	public static void removeDatagroupReason(CommunityPojo datagroup , List<PersonPojo> usersToUpdate, String reason_id)
+	{
+		if ( datagroup.type == CommunityType.data )
+		{
+			for ( PersonPojo person : usersToUpdate )
+			{
+				//remove usergroup/user from reason
+				Map<String, Set<String>> datagroup_reason = person.getDatagroupReason();
+				if ( datagroup_reason == null )
+					datagroup_reason = new HashMap<String, Set<String>>();
+				Set<String> reasons = datagroup_reason.get(datagroup.getId().toString());
+				if ( reasons != null )
+				{
+					if ( reason_id != null )
+					{
+						//if we were given a reason, only remove that
+						reasons.remove(reason_id);
+					}
+					else
+					{
+						//if reason_id is null, clear all entries (usually for when a datagroup is deleted)
+						reasons.clear();
+					}
+					
+					//if reason is now empty, remove from communities
+					if ( reasons.isEmpty() )
+					{
+						person.removeCommunity(datagroup);
+						datagroup_reason.remove(datagroup.getId());
+					}
+					
+					person.setDatagroupReason(datagroup_reason);
+					//TODO don't use save, use $set and such
+					DbManager.getSocial().getPerson().update(new BasicDBObject(PersonPojo._id_, person.get_id()), person.toDb());
+				}
+			}
+		}
+	}
 
 	/**
 	 * removeMember

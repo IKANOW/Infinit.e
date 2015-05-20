@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="ikanow-index-engine" default="rpm" basedir=".">
+	<!-- ================================= 
+		     Properties              
+	================================= -->
+	
+	<property name="dir.specs" value="./SPECS"/>
+	<property name="dir.src" value="./SOURCES"/>
+	<property name="dir.build" value="./BUILD"/>
+	<property name="dir.rpms" value="./RPMS"/>
+	
+	<!-- The horror: ANT/RPM moves - to _ while setting topdir, so... -->
+    <taskdef resource="net/sf/antcontrib/antlib.xml">
+       <classpath>
+           <pathelement location="${basedir}/ant-contrib.jar" />
+       </classpath>
+    </taskdef>
+	<propertyregex property="modified_name"
+					input="${ant.project.name}"
+					regexp="-"
+					replace= "_"
+					global="true"
+					defaultValue="${ant.project.name}_tmp"
+		/>
+	
+	<!-- Versioning: these are not set again if already set -->
+	
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>
+	
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.rpms}"/>
+		<delete file="${dir.src}/${ant.project.name}.tgz"/>
+		<symlink action="delete" link="../${modified_name}.rpm" failOnError="false"/>		
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+		<mkdir dir="${dir.rpms}"/>
+		<symlink link="../${modified_name}.rpm" resource="${ant.project.name}.rpm" />		
+		
+		<copy file="../infinit.e.elasticsearch.driver_1.4/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-index-engine/mnt/opt/elasticsearch-infinite/plugins/1.4/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_1.3/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-index-engine/mnt/opt/elasticsearch-infinite/plugins/1.3/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_1.0/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-index-engine/mnt/opt/elasticsearch-infinite/plugins/1.0/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-index-engine/mnt/opt/elasticsearch-infinite/plugins/0.19/elasticsearch_compatibility.jar"/>
+			
+		<copy file="../infinit.e.api.server/dist/querydecayscript.jar" 
+					tofile="./SOURCES/ikanow-index-engine/usr/share/java/elasticsearch/plugins/scoringscripts/querydecayscript.jar"/>
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+	</target>
+	
+	<!-- ================================= 
+	  target: compile  
+	  compile the source code using javac            
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	<target name="compile-tests" depends="compile" description="Compilation of testing code.">
+	</target>
+	
+	<!-- =================================
+			target: test
+	==================================-->
+	<target name="test" depends="compile-tests" description="Run JUnit Tests">
+	</target>
+	
+	
+	<!-- =================================
+	target: rpm
+	create the RPM file
+	================================= -->
+	<target name="rpm" depends="compile" description="Generates ${ant.project.name}-{ant.version}.rpm file in to the '${dir.build.rpm}' directory.">
+		<!-- ====================================================================== 
+		  ikanow-index-engine
+		  ====================================================================== -->
+		<tar tarfile="${dir.src}/${ant.project.name}.tgz" 
+		       basedir="${dir.src}/${ant.project.name}" 
+			   compression="gzip"
+		       includes="**"
+		       excludes=".svn, **/INTERFACE_ONLY" 
+			/>
+		<copy file="${dir.specs}/${ant.project.name}.spec" tofile="${dir.specs}/${ant.project.name}_tmp.spec"/>
+		<replace file="${dir.specs}/${ant.project.name}_tmp.spec">
+			<replacefilter token="INFINITE_VERSION" value="${infinite_version}"/>
+			<replacefilter token="INFINITE_RELEASE" value="${infinite_release}"/>
+		</replace>
+				
+		<rpm
+			topDir="."
+			command="-bb --buildroot ${basedir}/BUILD"
+			specFile="${ant.project.name}_tmp.spec"
+			failOnError="true"
+			/>
+		<delete file="${dir.src}/${ant.project.name}.tgz"/>
+		<delete file="${dir.specs}/${ant.project.name}_tmp.spec"/>
+		
+		<!-- ====================================================================== 
+		  ikanow-index-interface
+		  ====================================================================== -->
+		<tar tarfile="${dir.src}/${ant.project.name}.tgz" 
+		       basedir="${dir.src}/${ant.project.name}" 
+			   compression="gzip"
+		       includes="**"
+		       excludes=".svn" 
+			/>
+		<copy file="${dir.specs}/ikanow-index-interface.spec" tofile="${dir.specs}/ikanow-index-interface_tmp.spec"/>
+		<replace file="${dir.specs}/ikanow-index-interface_tmp.spec">
+			<replacefilter token="INFINITE_VERSION" value="${infinite_version}"/>
+			<replacefilter token="INFINITE_RELEASE" value="${infinite_release}"/>
+		</replace>
+		<rpm
+			topDir="."
+			command="-bb --buildroot ${basedir}/BUILD"
+			specFile="ikanow-index-interface_tmp.spec"
+			failOnError="true"
+			/>
+		<delete file="${dir.src}/ikanow-index-interface.tgz"/>
+		<delete file="${dir.specs}/ikanow-index-interface_tmp.spec"/>
+	</target>
+	
+</project>

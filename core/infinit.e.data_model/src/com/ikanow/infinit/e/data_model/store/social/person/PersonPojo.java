@@ -18,6 +18,8 @@ package com.ikanow.infinit.e.data_model.store.social.person;
 import java.util.Date;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+
 import org.bson.types.ObjectId;
 
 import com.google.gson.reflect.TypeToken;
@@ -36,6 +38,7 @@ public class PersonPojo extends BaseDbPojo
 	
 	// Private class fields
 	private ObjectId _id = null;
+	final public static String _id_ = "_id";
 	private Date created = null;
 	private Date modified = null;
 	private String accountStatus = null;
@@ -52,7 +55,10 @@ public class PersonPojo extends BaseDbPojo
 	private String phone = null;
 	private Map<String, PersonContactPojo> contacts = null;
 	private Map<String, PersonLinkPojo> links = null;
+	final public static String communities_ = "communities";
 	private List<PersonCommunityPojo> communities = null;
+	final public static String datagroup_reason_ = "datagroup_reason";
+	private Map<String, Set<String>> datagroup_reason = null;
 	private List<String> tags = null;
 	
 	//Wordpress fields
@@ -279,6 +285,16 @@ public class PersonPojo extends BaseDbPojo
 	 */
 	public List<PersonCommunityPojo> getCommunities() {
 		return communities;
+	}
+	
+	public void setDatagroupReason(Map<String, Set<String>> datagroup_reason)
+	{
+		this.datagroup_reason = datagroup_reason;
+	}
+	
+	public Map<String, Set<String>> getDatagroupReason()
+	{
+		return datagroup_reason;
 	}
 	
 	public boolean isInCommunity(String communityId)

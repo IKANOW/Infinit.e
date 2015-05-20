@@ -1,0 +1,217 @@
+{
+    "communityIds": ["54073207e4b00ebcc24e88bc"],
+    "description": "Joern Symantex Tic Example",
+    "extractType": "File",
+    "isPublic": true,
+    "mediaType": "Report",
+    "processingPipeline": [
+        {
+            "display": "The location of a zip or JSON file uploaded to Infinit.e as a 'share'. Type can be set to 'csv', 'json', 'xml', or 'office' - by default it will attempt to auto-detect",
+            "file": {
+                "XmlPreserveCase": false,
+                "pathInclude": ".*0018-186-2014.json.*",
+                "url": "inf://share/53c7e93fe4b06e5acf505ae9/"
+            }
+        },
+        {"globals": {
+            "scriptlang": "javascript",
+            "scripts": ["function shallowCloneMeta(in_obj) {\n    var out = {};\n    for (var x in in_obj) {\n        out[x] = in_obj[x];\n    }\n    return out;\n}\n\nfunction splitDocuments(retVal, doc)\n{\n    var old_meta = doc.metadata.json[0];\n    var len = old_meta.IND_domain.length;\n    var count = 0;\n    var max_count_per_doc = 30;\n    var new_docs = 0;\n    while (count < len) {\n        new_docs++;\n        new_meta = shallowCloneMeta(old_meta);\n        new_meta.IND_domain = [];\n        new_meta.IND_ip = []; \n        for (var x = 0; (x < max_count_per_doc) && ((count + x) < len); ++x) {\n            new_meta.IND_domain.push(old_meta.IND_domain[count + x]);\n            new_meta.IND_ip.push(old_meta.IND_ip[count + x]);\n        }\n        count += x;\n        var new_doc = { url: doc.url + '__' + new_docs, title: doc.title + ' (subdoc ' + new_docs + ')', description: doc.description, fullText: new_meta };\n        retVal.push(new_doc);\n    }\n}"]
+        }},
+        {"lookupTables": {"ip_org_lookup": "542088d0e4b0286110bcafb9"}},
+        {
+            "display": "",
+            "docMetadata": {
+                "description": "$SCRIPT( return 'WTF: '; )",
+                "title": "$metadata.json.tic_id: $metadata.json.subject"
+            }
+        },
+        {
+            "criteria": "$SCRIPT( try { return (_doc.metadata.json[0].IND_domain.length > 30); } catch (e) { } return false; )",
+            "display": "",
+            "splitter": {
+                "deleteExisting": true,
+                "numPages": 10,
+                "numResultsPerPage": 1,
+                "script": "var retVal = []; splitDocuments(retVal, _doc); retVal;",
+                "scriptflags": "d",
+                "scriptlang": "javascript"
+            }
+        },
+        {
+            "contentMetadata": [{
+                "fieldName": "json",
+                "script": "var json = eval('(' + text + ')'); try { json.tictext = json.tictext.substring(0,1024) + '...' } catch (e) { }; json;",
+                "scriptlang": "javascript"
+            }],
+            "criteria": "$SCRIPT( return (null == _doc.metadata || null == _doc.metadata.json); )",
+            "display": ""
+        },
+        {
+            "display": "",
+            "docMetadata": {
+                "appendTagsToDocs": false,
+                "description": "SUBJECT: ${metadata.json.subject}\n\nMETHODOLOGY: ${metadata.json.methodology}\n\nTOPIC: ${metadata.json.TOPIC}\n\nREQUIREMENT: ${metadata.json.REQUIREMENT}\n\nSUMMARY: ${metadata.json.summary}\n\nTEXT: ${metadata.json.tictext}\n\nCOLLECTOR: ${metadata.json.collector}\n\nCOLLECTOR COMMENT: ${metadata.json.collector_comment}",
+                "fullText": "$metadata.json.tictext",
+                "publishedDate": "$metadata.json.report_dt"
+            }
+        },
+        {
+            "display": "",
+            "entities": [{
+                "dimension": "What",
+                "disambiguated_name": "$value",
+                "iterateOver": "json.IND_ip",
+                "relevance": "1.0",
+                "type": "ExternalIp",
+                "useDocGeo": false
+            }]
+        },
+        {
+            "display": "",
+            "entities": [
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.METHODOLOGY",
+                    "relevance": "0.25",
+                    "type": "Methodology",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.TOPIC",
+                    "relevance": "0.25",
+                    "type": "SymantecTopic",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Who",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.REQUIREMENT",
+                    "relevance": "1.0",
+                    "type": "SymantecRequirement",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.COLLECTOR",
+                    "relevance": "1.0",
+                    "type": "Collector",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Who",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_screenname",
+                    "relevance": "1.0",
+                    "type": "ScreenName",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_domain",
+                    "relevance": "1.0",
+                    "type": "ExternalDomain",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_ip",
+                    "relevance": "1.0",
+                    "type": "ExternalIp",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Who",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_email",
+                    "relevance": "1.0",
+                    "type": "EmailAddress",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_phone",
+                    "relevance": "1.0",
+                    "type": "PhoneNumber",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_file",
+                    "relevance": "1.0",
+                    "type": "FileName",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_url",
+                    "relevance": "1.0",
+                    "type": "URL",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_md5",
+                    "relevance": "1.0",
+                    "type": "FileHash",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_sha1",
+                    "relevance": "1.0",
+                    "type": "FileHash",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_sha256",
+                    "relevance": "1.0",
+                    "type": "FileHash",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "Who",
+                    "disambiguated_name": "$value",
+                    "iterateOver": "json.IND_qq",
+                    "relevance": "1.0",
+                    "type": "ScreenNameQQ",
+                    "useDocGeo": false
+                }
+            ]
+        },
+        {"contentMetadata": [{
+            "fieldName": "ip_organizations",
+            "flags": "m",
+            "script": "var orgs = []; try { for (var i in _metadata.json[0].IND_ip) { var x = _custom['ip_org_lookup'].get(_metadata.json[0].IND_ip[i]); if (null != x) orgs.push(x.organization); } } catch (e) { orgs.push(e.message); } orgs;",
+            "scriptlang": "javascript",
+            "store": false
+        }]},
+        {"entities": [{
+            "dimension": "Who",
+            "disambiguated_name": "$value",
+            "iterateOver": "ip_organizations",
+            "type": "Organization"
+        }]},
+        {
+            "display": "Improve ingest performance by not full-text-indexing the JSON/XML object itself if a JSON object (the full text, entities etc still get indexed)",
+            "searchIndex": {
+                "indexOnIngest": true,
+                "metadataFieldList": "+"
+            }
+        }
+    ],
+    "searchCycle_secs": -1,
+    "title": "Joern Symantex Tic Example"
+}

@@ -30,10 +30,8 @@
 	<property name="infinit.e.elasticsearch.driver.location"
 		value="../infinit.e.elasticsearch.driver" />
 
-	<property name="target"
-		value="1.6" />
-	<property name="source"
-		value="1.6" />
+	<property name="target"	value="1.8" />
+	<property name="source"	value="1.8" />
 
 	<property name="debuglevel"
 		value="source,lines,vars" />
@@ -158,6 +156,10 @@
 		depends="compile"
 		description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
 		<mkdir dir="${dir.build.jar}" />
+		<!-- Copy js resources into build file so they end up in a JAR -->
+		<copy todir="${dir.build.classes}">
+		    <fileset dir="${dir.src}" includes="**/*.js" />
+		</copy>		
 
 		<!-- create a property containing all .jar files, without prefix, and seperated with a space -->
 		<pathconvert 
@@ -178,7 +180,7 @@
 				<!-- NOTE: tika is a special case - it contains different versions of many other JARs, leave it unbundled to force it to the end of the classpath -->
 				<fileset 
 					dir="${dir.lib}"
-					includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar aws-java*.jar kundera-*.jar GridFSZipFile.jar" />
+					includes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar aws-java*.jar GridFSZipFile.jar" />
 			</path>
 		</pathconvert>
 
@@ -203,7 +205,7 @@
 			<!-- NOTE: tika is a special case - it contains different versions of many other JARs, leave it unbundled to force it to the end of the classpath -->			
 			<zipgroupfileset 
 				dir="${dir.lib}"
-				excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar aws-java*.jar kundera-*.jar GridFSZipFile.jar"
+				excludes="jsr*.jar jtds*.jar jcifs*.jar tika*.jar META-INF/*.SF junit.jar j-calais*.jar aws-java*.jar GridFSZipFile.jar"
 				includes="*.jar" />
 		</jar>
 	</target>

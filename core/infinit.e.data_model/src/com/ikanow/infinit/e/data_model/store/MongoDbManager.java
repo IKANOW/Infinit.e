@@ -23,6 +23,7 @@ import com.mongodb.BasicDBObject;
 import com.mongodb.CommandResult;
 import com.mongodb.DB;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCollectionProxyFactory;
 import com.mongodb.Mongo;
 import com.mongodb.MongoClient;
 import com.mongodb.WriteConcern;
@@ -97,7 +98,7 @@ public class MongoDbManager {
 		return _connections.get().getMongo().getDB(dbName);
 	}
 	public static DBCollection getCollection(String dbName, String collectionName) {
-		return _connections.get().getMongo().getDB(dbName).getCollection(collectionName);
+		return DBCollectionProxyFactory.get(_connections.get().getMongo().getDB(dbName).getCollection(collectionName));
 	}
 	
 	// 2. MongoDB database management
@@ -181,38 +182,38 @@ public class MongoDbManager {
 		
 		public DBCollection getPerson() {
 			if (null == _social_person) {
-				_social_person = _savedMongo.getDB("social").getCollection("person");
+				_social_person = DBCollectionProxyFactory.get(_savedMongo.getDB("social").getCollection("person"));
 			}
 			return _social_person;
 		}
 		public DBCollection getCommunity() {
 			if (null == _social_community) {
-				_social_community = _savedMongo.getDB("social").getCollection("community");
+				_social_community = DBCollectionProxyFactory.get(_savedMongo.getDB("social").getCollection("community"));
 			}
 			return _social_community;
 		}
 		public DBCollection getCommunityApprove() {
 			if (null == _social_communityapprove) {
-				_social_communityapprove = _savedMongo.getDB("social").getCollection("communityapprove");
+				_social_communityapprove = DBCollectionProxyFactory.get(_savedMongo.getDB("social").getCollection("communityapprove"));
 			}
 			return _social_communityapprove;
 			
 		}
 		public DBCollection getAuthentication() {
 			if (null == _social_authentication) {
-				_social_authentication = _savedMongo.getDB("security").getCollection("authentication");
+				_social_authentication = DBCollectionProxyFactory.get(_savedMongo.getDB("security").getCollection("authentication"));
 			}
 			return _social_authentication;
 		}
 		public DBCollection getCookies() {
 			if (null == _social_cookies) {
-				_social_cookies = _savedMongo.getDB("security").getCollection("cookies");
+				_social_cookies = DBCollectionProxyFactory.get(_savedMongo.getDB("security").getCollection("cookies"));
 			}
 			return _social_cookies;
 		}
 		public DBCollection getShare() {
 			if (null == _social_share) {
-				_social_share = _savedMongo.getDB("social").getCollection("share");
+				_social_share = DBCollectionProxyFactory.get(_savedMongo.getDB("social").getCollection("share"));
 			}
 			return _social_share;
 		}
@@ -224,19 +225,19 @@ public class MongoDbManager {
 		}
 		public DBCollection getUIModules() {
 			if (null == _social_gui_modules) {
-				_social_gui_modules = _savedMongo.getDB("gui").getCollection("modules");					
+				_social_gui_modules = DBCollectionProxyFactory.get(_savedMongo.getDB("gui").getCollection("modules"));					
 			}
 			return _social_gui_modules;
 		}
 		public DBCollection getUIFavoriteModules() {
 			if (null == _social_gui_favmodules) {
-				_social_gui_favmodules = _savedMongo.getDB("gui").getCollection("favmodules");					
+				_social_gui_favmodules = DBCollectionProxyFactory.get(_savedMongo.getDB("gui").getCollection("favmodules"));					
 			}
 			return _social_gui_favmodules;
 		}
 		public DBCollection getUISetup() {
 			if (null == _social_gui_setup) {
-				_social_gui_setup = _savedMongo.getDB("gui").getCollection("setup");					
+				_social_gui_setup = DBCollectionProxyFactory.get(_savedMongo.getDB("gui").getCollection("setup"));					
 			}
 			return _social_gui_setup;
 		}
@@ -252,33 +253,21 @@ public class MongoDbManager {
 		private DBCollection _document_content;
 		private DBCollection _document_counts;
 		
-		public CommandResult getLastError(String sLogicalCollectionName) {
-			// (In this case, logical collection name doesn't matter)
-			if (sLogicalCollectionName.equalsIgnoreCase("metadata")){
-				return _savedMongo.getDB("doc_metadata").getLastError();				
-			}
-			else if (sLogicalCollectionName.equalsIgnoreCase("content")){
-				return _savedMongo.getDB("doc_content").getLastError();				
-			}
-			else {
-				return null;
-			}
-		}
 		public DBCollection getMetadata() {
 			if (null == _document_metadata) {
-				_document_metadata = initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("metadata");					
+				_document_metadata = DBCollectionProxyFactory.get(initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("metadata"));					
 			}
 			return _document_metadata;
 		}
 		public DBCollection getContent() {
 			if (null == _document_content) {
-				_document_content = initializeFastWriteDB("doc_content", _savedMongo).getCollection("gzip_content");					
+				_document_content = DBCollectionProxyFactory.get(initializeFastWriteDB("doc_content", _savedMongo).getCollection("gzip_content"));					
 			}
 			return _document_content;
 		}
 		public DBCollection getCounts() {
 			if (null == _document_counts) {
-				_document_counts = initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("doc_counts");					
+				_document_counts = DBCollectionProxyFactory.get(initializeFastWriteDB("doc_metadata", _savedMongo).getCollection("doc_counts"));					
 			}
 			return _document_counts;			
 		}
@@ -298,31 +287,31 @@ public class MongoDbManager {
 		
 		public DBCollection getEntity() {
 			if (null == _feature_entity) {
-				_feature_entity = initializeFastWriteDB("feature", _savedMongo).getCollection("entity");					
+				_feature_entity = DBCollectionProxyFactory.get(initializeFastWriteDB("feature", _savedMongo).getCollection("entity"));					
 			}
 			return _feature_entity;
 		}
 		public DBCollection getAssociation() {
 			if (null == _feature_assoc) {
-				_feature_assoc = initializeFastWriteDB("feature", _savedMongo).getCollection("association");					
+				_feature_assoc = DBCollectionProxyFactory.get(initializeFastWriteDB("feature", _savedMongo).getCollection("association"));					
 			}
 			return _feature_assoc;
 		}
 		public DBCollection getGeo() {
 			if (null == _feature_geo) {
-				_feature_geo = initializeFastWriteDB("feature", _savedMongo).getCollection("geo");					
+				_feature_geo = DBCollectionProxyFactory.get(initializeFastWriteDB("feature", _savedMongo).getCollection("geo"));					
 			}
 			return _feature_geo;
 		}
 		public DBCollection getSyncLock() { // (Used to synchronize batch operations performed via script - manually ack writes to/from this)
 			if (null == _feature_sync_lock) {
-				_feature_sync_lock = initializeFastWriteDB("feature", _savedMongo).getCollection("sync_lock");					
+				_feature_sync_lock = DBCollectionProxyFactory.get(initializeFastWriteDB("feature", _savedMongo).getCollection("sync_lock"));					
 			}
 			return _feature_sync_lock;			
 		}
 		public DBCollection getAggregationLock() { // (Used to lock aggregation activities to one harvester - manually ack writes to/from this)
 			if (null == _feature_agg_lock) {
-				_feature_agg_lock = initializeFastWriteDB("feature", _savedMongo).getCollection("agg_lock");					
+				_feature_agg_lock = DBCollectionProxyFactory.get(initializeFastWriteDB("feature", _savedMongo).getCollection("agg_lock"));					
 			}
 			return _feature_agg_lock;			
 		}
@@ -342,31 +331,31 @@ public class MongoDbManager {
 		
 		public DBCollection getSource() {
 			if (null == _ingest_source) {
-				_ingest_source = _savedMongo.getDB("ingest").getCollection("source");										
+				_ingest_source = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("source"));										
 			}
 			return _ingest_source;
 		}
 		public DBCollection getLogHarvesterQ() {
 			if (null == _ingest_log_harvester_q) {
-				_ingest_log_harvester_q = _savedMongo.getDB("ingest").getCollection("log_harvester_q");										
+				_ingest_log_harvester_q = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("log_harvester_q"));										
 			}
 			return _ingest_log_harvester_q;
 		}
 		public DBCollection getSourceDeletionQ() {
 			if (null == _ingest_source_deletion_q) {
-				_ingest_source_deletion_q = _savedMongo.getDB("ingest").getCollection("source_deletion_q");										
+				_ingest_source_deletion_q = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("source_deletion_q"));										
 			}
 			return _ingest_source_deletion_q;
 		}
 		public DBCollection getLogHarvesterSlaves() {
 			if (null == _ingest_log_harvester_slaves) {
-				_ingest_log_harvester_slaves = _savedMongo.getDB("ingest").getCollection("log_harvester_slaves");										
+				_ingest_log_harvester_slaves = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("log_harvester_slaves"));										
 			}
 			return _ingest_log_harvester_slaves;
 		}
 		public DBCollection getFederatedCache() {
 			if (null == _ingest_federated_cache) {
-				_ingest_federated_cache = _savedMongo.getDB("ingest").getCollection("federated_cache");										
+				_ingest_federated_cache = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("federated_cache"));										
 			}
 			return _ingest_federated_cache;
 		}
@@ -384,13 +373,13 @@ public class MongoDbManager {
 		
 		public DBCollection getLookup() {
 			if (null == _config_customlookup) {
-				_config_customlookup = _savedMongo.getDB("custommr").getCollection("customlookup");										
+				_config_customlookup = DBCollectionProxyFactory.get(_savedMongo.getDB("custommr").getCollection("customlookup"));										
 			}
 			return _config_customlookup;
 		}
 		public DBCollection getSavedQueryCache() {
 			if (null == _config_customSavedQueryCache) {
-				_config_customSavedQueryCache = _savedMongo.getDB("custommr").getCollection("saved_query_cache");										
+				_config_customSavedQueryCache = DBCollectionProxyFactory.get(_savedMongo.getDB("custommr").getCollection("saved_query_cache"));										
 			}
 			return _config_customSavedQueryCache;
 		}

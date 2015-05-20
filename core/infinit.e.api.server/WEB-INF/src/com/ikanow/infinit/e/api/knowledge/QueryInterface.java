@@ -42,6 +42,7 @@ import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
 import com.ikanow.infinit.e.api.knowledge.output.KmlOutput;
 import com.ikanow.infinit.e.api.knowledge.output.RssOutput;
 import com.ikanow.infinit.e.api.knowledge.output.XmlOutput;
+import com.ikanow.infinit.e.api.utils.ProjectUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.Globals;
@@ -76,9 +77,10 @@ public class QueryInterface extends ServerResource
 	String _cookie;
 	String _ipAddress;
 	String _communityIdStrList;
-	String _queryJson = null;
+	String _queryJson = null;	
 	AdvancedQueryPojo _requestDetails = null;
-
+	String project_id = null; 	
+	
 	//___________________________________________________________________________________
 	
 	// Constructor/main processing 
@@ -94,21 +96,12 @@ public class QueryInterface extends ServerResource
 		 Map<String,Object> attributes = request.getAttributes();
 		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 
+		 _communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
+		 project_id = queryOptions.get(ProjectUtils.query_param);
+		 
 		 //Optional query object (else is a POST)
-		 if (Method.POST == request.getMethod()) 
-		 {
-			 // (Parameters a bit different in POSTs)
-			 
-				 
-				 _communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
-			 
-			 // This is handled elsewhere, in acceptRepresentation, have faith.....
-		 }
-		 else 
-		 {
-			 // If we're in here, then we're in a query call, we don't support any others...
-			 _communityIdStrList = RESTTools.getUrlAttribute("communityids", attributes, queryOptions);
-			 
+		 if (Method.POST != request.getMethod()) {
+			 // If we're in here, then we're in a query call, we don't support any others...			 
 			 _queryJson = queryOptions.get("json");
 			 if (null == _queryJson) {
 				 // Either a POST (see below) or the parameters are scattered across many URL parameters
@@ -272,6 +265,22 @@ public class QueryInterface extends ServerResource
 			}
 			else 
 			{
+				//modify query if project_id was supplied
+				if ( project_id != null )
+				{
+					try
+					{
+						//then apply project filter
+						_communityIdStrList = ProjectUtils.filterQuery(project_id, _requestDetails, cookieLookup);
+					}
+					catch (Exception ex)
+					{
+						rp = new ResponsePojo();
+						rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));
+						data = rp.toApi();
+					}
+				}
+				
 				//check communities are valid before using
 				if ( SocialUtils.validateCommunityIds(cookieLookup, _communityIdStrList) )
 					rp = _queryController.doQuery(cookieLookup, _requestDetails, _communityIdStrList, errorString);

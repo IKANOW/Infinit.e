@@ -50,14 +50,14 @@
 			
 			protected function onRollOut():void
 			{
-				highlightColor = ToggleButton( hostComponent ).selected ? 0xCDCDCD : 0xE8E9E9;
+				highlightColor = ToggleButton( hostComponent ).selected ? 0x969696 : 0xE8E9E9;
 				
 				invalidateDisplayList();
 			}
 			
 			protected function onRollOver():void
 			{
-				highlightColor = ToggleButton( hostComponent ).selected ? 0xE8E9E9 : 0xCDCDCD;
+				highlightColor = ToggleButton( hostComponent ).selected ? 0xE8E9E9 : 0x969696;
 				
 				invalidateDisplayList();
 			}

@@ -16,8 +16,8 @@
 	<property name="infinit.e.processing.custom.library.location" value="../infinit.e.processing.custom.library"/>
 	<property name="infinit.e.processing.generic.library.location" value="../infinit.e.processing.generic.library"/>
 	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
-	<property name="target" value="1.6"/>
-	<property name="source" value="1.6"/>
+	<property name="target" value="1.8"/>
+	<property name="source" value="1.8"/>
 	<property name="debuglevel" value="source,lines,vars"/>	
 	
 	<property name="bamboo.majorBuild" value="localBuild"/>

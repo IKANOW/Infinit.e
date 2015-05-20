@@ -278,11 +278,11 @@ public class HadoopUtils {
 	{
 		Configuration conf = new Configuration();
 		if (prop_custom.getHadoopLocalMode()) {
-			conf.set("fs.default.name", "local");							
+			conf.set("fs.defaultFS", "local");							
 		}
 		else {
-			String fsUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
-			conf.set("fs.default.name", fsUrl);				
+			String fsUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.defaultFS");
+			conf.set("fs.defaultFS", fsUrl);				
 		}		
 		return conf;
 	}//TOTEST

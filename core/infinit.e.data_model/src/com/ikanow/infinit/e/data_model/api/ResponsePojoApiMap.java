@@ -176,10 +176,10 @@ public class ResponsePojoApiMap implements BasePojoApiMap<ResponsePojo> {
 					}
 					else if (null != _listType2) {
 						if (null != _deserMap) {
-							rp.setData(_deserMap.extendBuilder(BaseApiPojo.getDefaultBuilder()).create().fromJson(data, _listType2.getType()), null);
+							rp.setData((Object)_deserMap.extendBuilder(BaseApiPojo.getDefaultBuilder()).create().fromJson(data, _listType2.getType()), (BasePojoApiMap<Object>)null);
 						}
 						else {
-							rp.setData(BaseApiPojo.getDefaultBuilder().create().fromJson(data, _listType2.getType()), null);						
+							rp.setData((Object)BaseApiPojo.getDefaultBuilder().create().fromJson(data, _listType2.getType()), (BasePojoApiMap<Object>)null);						
 						}
 					}
 					else { // Raw access

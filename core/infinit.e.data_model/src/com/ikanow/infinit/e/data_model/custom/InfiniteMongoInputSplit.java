@@ -24,6 +24,7 @@ import org.bson.BasicBSONObject;
 
 import com.mongodb.BasicDBObject;
 import com.mongodb.Bytes;
+import com.mongodb.DBCollectionProxyFactory;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoURI;
@@ -72,7 +73,7 @@ public class InfiniteMongoInputSplit extends MongoInputSplit
 			else {
 				query = new BasicDBObject(queryObj);
 			}
-			_cursor = InfiniteMongoConfigUtil.getCollection( _mongoURI ).find( query, _fieldSpec ).sort( _sortSpec ).limit(_limit).skip(_skip);
+			_cursor = DBCollectionProxyFactory.get(InfiniteMongoConfigUtil.getCollection( _mongoURI )).find( query, _fieldSpec ).sort( _sortSpec ).limit(_limit).skip(_skip);
 			
 			if (null != minObj) {
 				

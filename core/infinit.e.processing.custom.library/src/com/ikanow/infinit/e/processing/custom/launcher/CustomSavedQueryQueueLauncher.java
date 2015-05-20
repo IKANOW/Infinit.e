@@ -51,7 +51,7 @@ public class CustomSavedQueryQueueLauncher {
 		// 1) append the a time as an extra query term (unless it's the first time)
 		
 		if (null != savedQuery.getLastDocIdInserted()) {
-			long lastRun = savedQuery.getLastDocIdInserted().getTime();
+			long lastRun = savedQuery.getLastDocIdInserted().getDate().getTime();
 			if (null != savedQuery.getQueryInfo().getLastRun()) {
 				long altLastRun = savedQuery.getQueryInfo().getLastRun().getTime();
 				if (altLastRun < lastRun) { // pick the longest duration

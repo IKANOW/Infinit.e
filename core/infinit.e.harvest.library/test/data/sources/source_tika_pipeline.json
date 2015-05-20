@@ -1,0 +1,57 @@
+{
+    "_id": "54d15152e4b0725b288b59fa",
+    "communityIds": ["54073207e4b00ebcc24e88bc"],
+    "created": "Feb 3, 2015 10:53:06 PM UTC",
+    "description": "Performance Tika Source",
+    "extractType": "File",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "modus.139.infinit.e_files.financial_reports..7766",
+    "mediaType": "Report",
+    "modified": "Feb 3, 2015 10:53:06 PM UTC",
+    "ownerId": "53973d78e4b0e7c14274960b",
+    "processingPipeline": [
+        {"file": {
+            "XmlRootLevelValues": [],
+            "domain": "WORKGROUP",
+            "password": "modus!",
+            "url": "smb://localhost:139/infinit.e_files/financial_reports/",
+            "username": "modus"
+        }},
+        {"harvest": {"searchCycle_secs": 1}},
+        {"textEngine": {
+            "engineConfig": {"app.alchemyapi-metadata.strict": "true"},
+            "engineName": "default"
+        }},
+        {"featureEngine": {
+            "engineConfig": {"app.alchemyapi-metadata.strict": "true"},
+            "engineName": "AlchemyAPI-metadata"
+        }},
+        {"entities": [
+            {
+                "disambiguated_name": "$text",
+                "iterateOver": "AlchemyAPI_concepts",
+                "relevance": "$relevance",
+                "type": "Topic"
+            },
+            {
+                "disambiguated_name": "$metadata._FILE_METADATA_.metadata.Author",
+                "relevance": "1.0",
+                "type": "Person"
+            }
+        ]},
+        {"associations": [{
+            "entity1_index": "$SCRIPT(return _doc.metadata._FILE_METADATA_[0].metadata.Author + '/person';)",
+            "entity2": "Topic",
+            "iterateOver": "entity2,dummy",
+            "verb": "writes about",
+            "verb_category": "writes about"
+        }]},
+        {"searchIndex": {"metadataFieldList": ""}}
+    ],
+    "searchCycle_secs": -1,
+    "shah256Hash": "/iCmwNxFtsFvq72h/JLLvd1fwVY2ZFmChwT0KdQrlrA=",
+    "tags": [""],
+    "title": "Performance Tika Source"
+}

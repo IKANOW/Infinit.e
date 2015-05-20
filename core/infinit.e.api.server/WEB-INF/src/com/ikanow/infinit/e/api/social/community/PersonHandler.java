@@ -41,6 +41,7 @@ import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
@@ -782,7 +783,7 @@ public class PersonHandler
 				Boolean alreadyMember = false;
 				for (PersonCommunityPojo c : communities)
 				{
-					String idToTest = c.get_id().toStringMongod();					
+					String idToTest = c.get_id().toString();					
 					if (idToTest.equals(communityId))
 					{
 						alreadyMember = true;
@@ -847,7 +848,7 @@ public class PersonHandler
 				int communityIndex = 0;
 				for (PersonCommunityPojo c : communities)
 				{
-					String idToTest = c.get_id().toStringMongod();					
+					String idToTest = c.get_id().toString();					
 					if (idToTest.equals(communityId))
 					{
 						alreadyMember = true;
@@ -859,10 +860,21 @@ public class PersonHandler
 				// Remove the community from the list
 				if (alreadyMember)
 				{
-					//TODO (INF-1214): (not thread safe)					
-					communities.remove(communityIndex);	
-					person.setModified(new Date());					
-					DbManager.getSocial().getPerson().update(personQuery.toDb(), person.toDb());
+					//if community is a datagroup, need to run special logic
+					CommunityPojo commToRemove = CommunityPojo.fromDb(MongoDbManager.getSocial().getCommunity().findOne(new BasicDBObject(CommunityPojo._id_, new ObjectId(communityId))), CommunityPojo.class);
+					if ( commToRemove.getType() == CommunityType.data )
+					{
+						//TODO only remove this if communityId is not a datagroup, otherwise run
+						//the datagroup logic?
+						CommunityPojo.removeDatagroupFromUserOrUsergroup(person, null, commToRemove);						
+					}
+					else
+					{
+						//TODO (INF-1214): (not thread safe)
+						communities.remove(communityIndex);	
+						person.setModified(new Date());					
+						DbManager.getSocial().getPerson().update(personQuery.toDb(), person.toDb());
+					}
 					rp.setData(person, new PersonPojoApiMap());
 					rp.setResponse(new ResponseObject("Remove community status",true,"Community removed successfully."));	
 				}					

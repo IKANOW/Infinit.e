@@ -7,6 +7,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.log4j.LogManager;
+import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import org.junit.After;
 import org.junit.AfterClass;
@@ -26,7 +28,9 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
+import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.social.sharing.SharePojoApiMap;
+import com.ikanow.infinit.e.data_model.driver.InfiniteDriver;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.DocumentLocationPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo.ShareCommunityPojo;
@@ -35,6 +39,9 @@ public class ShareV2ApiTest extends Object
 {
 	private static String test_api_key = "123qweasd";
 	private ShareV2Interface shareV2Interface = new ShareV2Interface();
+	private static long counter = 0;
+	private static String test_share_name_prefix = "test123_";
+	private static Logger logger = LogManager.getLogger(ShareV2ApiTest.class);
 	
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception 
@@ -52,6 +59,33 @@ public class ShareV2ApiTest extends Object
 
 	@After
 	public void tearDown() throws Exception {
+	}
+	
+	public static SharePojo createTestShare(InfiniteDriver driver, ResponseObject responseObject, String communityId)
+	{
+		SharePojo share = driver.addShareJSON(test_share_name_prefix+"share_"+counter, "asdf", test_share_name_prefix, "{\"key\":\"test\"}", responseObject);
+		if ( communityId != null && share != null)
+		{
+			driver.addShareToCommunity(share.get_id().toString(), "asd", communityId, responseObject);
+		}
+		return share;
+	}
+	
+	public static void removeTestShares(InfiniteDriver driver, ResponseObject responseObject)
+	{
+		List<SharePojo> shares = driver.searchShares(null, null, test_share_name_prefix, responseObject);
+		if ( shares != null )
+		{
+			for (SharePojo share : shares )
+			{
+				if ( share.getTitle().startsWith(test_share_name_prefix))
+				{				
+					driver.removeShare(share.get_id().toString(), responseObject);
+					if ( !responseObject.isSuccess() )
+						logger.error("Error removing test share: " + share.get_id() + " : " + share.getTitle());
+				}
+			}
+		}
 	}
 
 	@Test

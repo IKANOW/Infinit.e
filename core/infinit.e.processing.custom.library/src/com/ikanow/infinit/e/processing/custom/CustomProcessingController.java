@@ -230,6 +230,15 @@ public class CustomProcessingController {
 	
 	public boolean killRunningJob(CustomMapReduceJobPojo jobToKillInfo) {		
 		try  {
+			// Do this regardless of anyrthing else:
+			if (null != jobToKillInfo.derivedFromSourceKey) { // Update the derived source, if one existse 
+				BasicDBObject query = new BasicDBObject(SourcePojo.key_, jobToKillInfo.derivedFromSourceKey);
+				BasicDBObject setUpdate = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString());
+				setUpdate.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, "Manually stopped");
+				BasicDBObject srcUpdate = new BasicDBObject(DbManager.set_, setUpdate);
+				DbManager.getIngest().getSource().update(query, srcUpdate, false, false);					
+			}//TESTED (actually a bit pointless usually because is then overwritten by the source publish)
+			
 			Configuration conf = new Configuration();
 			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), conf);
 			jc.setConf(conf); // (doesn't seem to be set by the above call)
@@ -237,6 +246,10 @@ public class CustomProcessingController {
 			RunningJob jobToKill = jc.getJob(new JobID(jobToKillInfo.jobidS, jobToKillInfo.jobidN));
 			if (null == jobToKill) {
 				_logger.error("Couldn't find this job: " + jobToKillInfo.jobidS + "_" + jobToKillInfo.jobidN +  " / " + new JobID(jobToKillInfo.jobidS, jobToKillInfo.jobidN).toString());
+				
+				// Update the custom pojo though:
+				_statusManager.setJobComplete(jobToKillInfo, true, true, (float)0.0, (float)0.0, "Manually stopped");
+				
 				return false;
 			}
 			jobToKill.killJob();
@@ -249,13 +262,6 @@ public class CustomProcessingController {
 					return false;
 				}
 			}		
-			if (null != jobToKillInfo.derivedFromSourceKey) { // Update the derived source, if one existse 
-				BasicDBObject query = new BasicDBObject(SourcePojo.key_, jobToKillInfo.derivedFromSourceKey);
-				BasicDBObject setUpdate = new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, HarvestEnum.error.toString());
-				setUpdate.put(SourceHarvestStatusPojo.sourceQuery_harvest_message_, "Manually stopped");
-				BasicDBObject srcUpdate = new BasicDBObject(DbManager.set_, setUpdate);
-				DbManager.getIngest().getSource().update(query, srcUpdate, false, false);					
-			}//TESTED (actually a bit pointless usually because is then overwritten by the source publish)
 			return true;
 		}
 		catch (Exception e) {
@@ -284,6 +290,8 @@ public class CustomProcessingController {
 				cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled, incompleteJobsMap);
 			else if (null == cmr.jobidS)
 				return true;
+			else 
+				incompleteJobsMap.put(cmr._id, cmr.jobtitle);
 			
 			while (cmr != null)
 			{		
@@ -353,6 +361,7 @@ public class CustomProcessingController {
 						_statusManager.setJobComplete(cmr,true,true, -1,-1, "Failed to launch job, unknown error #1.");
 					}
 				}
+				
 				//job was done, remove flag
 				if ( markedComplete )
 				{

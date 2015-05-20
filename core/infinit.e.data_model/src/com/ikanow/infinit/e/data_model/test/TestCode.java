@@ -72,6 +72,8 @@ public class TestCode {
 	 */
 	public static void main(String[] args) throws UnknownHostException, MongoException, IOException {
 
+		org.apache.hadoop.security.UserGroupInformation.setConfiguration(null);;
+		
 		System.out.println(Arrays.toString(args));
 		Globals.setIdentity(Identity.IDENTITY_SERVICE);
 		Globals.overrideConfigLocation(args[0]);

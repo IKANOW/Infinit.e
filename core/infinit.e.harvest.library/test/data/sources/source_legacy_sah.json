@@ -1,0 +1,159 @@
+{
+    "_id": "5155a9a3e4b0c8e0d69f2313",
+    "communityIds": ["5154cd50e4b0e8a9798d3d03"],
+    "created": "Mar 29, 2013 02:48:03 PM UTC",
+    "description": "Datasift/Salience test",
+    "extractType": "File",
+    "extractorOptions": {
+        "salience.data_path": "twitter_data",
+        "salience.evidence_threshold": "0",
+        "salience.generate_keyword_associations": "true",
+        "salience.generate_keywords": "true",
+        "salience.kw_score_threshold": "0.0",
+        "salience.topic_score_threshold": "0.0",
+        "salience.topics_to_entities": "true",
+        "salience.topics_to_tags": "true"
+    },
+    "file": {
+        "XmlPrimaryKey": "",
+        "XmlRootLevelValues": [],
+        "domain": "WORKGROUP",
+        "password": "modus!",
+        "username": "modus"
+    },
+    "harvest": {
+        "doccount": 0,
+        "harvest_message": "[2014-08-20T16:43:45] extracted=0 updated=0 deleted=0 urlerrors=5 pxerrors=5\nFailed to initialize Salience engine: The license period for a component has expired.: C:\\Program Files\\Lexalytics\\/data/C:\\Program Files\\Lexalytics\\/license.v5:com.lexalytics.salience.client.InfiniteInterface.extractEntities:165 (Occurences: 5)",
+        "harvest_status": "success",
+        "harvested": "Aug 20, 2014 08:43:45 PM UTC",
+        "lastHarvestedBy": "ikanow-acp-1",
+        "realHarvested": "Aug 20, 2014 08:43:45 PM UTC",
+        "synced": "Oct 25, 2013 09:49:49 PM UTC"
+    },
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": false,
+    "key": "modus.139.datasift.sandy_demo.test..",
+    "mediaType": "Social",
+    "modified": "Oct 25, 2013 09:49:33 PM UTC",
+    "ownerId": "506dc16dfbf042893dd6b8f2",
+    "shah256Hash": "+DEddHJmqyreTyQ4HCmVe++AamtdIC+lnGiNyPYhzZA=",
+    "structuredAnalysis": {
+        "associations": [
+            {
+                "assoc_type": "Event",
+                "creationCriteriaScript": "$SCRIPT( return (null != _doc.metadata.json[0].object.actor); )",
+                "entity1_index": "$SCRIPT( return '@' + _doc.metadata.json[0].actor.preferredUsername + '/twitterer';)",
+                "entity2_index": "$SCRIPT( return  '@' + _doc.metadata.json[0].object.actor.preferredUsername + '/twitterer';)",
+                "verb": "retweets",
+                "verb_category": "retweets"
+            },
+            {
+                "assoc_type": "Event",
+                "creationCriteriaScript": "$SCRIPT( return (null != _doc.metadata.json[0].object.actor) && (null != _doc.metadata.json[0].object.actor.location); )",
+                "entity1_index": "$SCRIPT( return '@' + _doc.metadata.json[0].object.actor.preferredUsername + '/twitterer';)",
+                "entity2_index": "$SCRIPT( return _doc.metadata.json[0].object.actor.location.displayName+ '/location';)",
+                "verb": "twitter_location",
+                "verb_category": "twitter_location"
+            },
+            {
+                "assoc_type": "Event",
+                "entity1_index": "$SCRIPT( return '@' + _doc.metadata.json[0].actor.preferredUsername + '/twitterer';)",
+                "entity2_index": "$SCRIPT( return _iterator.text + '/hashtag'; )",
+                "iterateOver": "json.twitter_entities.hashtags",
+                "verb": "tweets_about",
+                "verb_category": "tweets_about"
+            },
+            {
+                "assoc_type": "Event",
+                "entity1_index": "$SCRIPT( return '@' + _doc.metadata.json[0].actor.preferredUsername + '/twitterer';)",
+                "entity2_index": "$SCRIPT( return  '@' + _iterator.screen_name + '/twitterer'; )",
+                "iterateOver": "json.twitter_entities.user_mentions",
+                "verb": "tweets_to",
+                "verb_category": "tweets_to"
+            },
+            {
+                "assoc_type": "Event",
+                "entity1_index": "$SCRIPT( return '@' + _doc.metadata.json[0].actor.preferredUsername + '/twitterer';)",
+                "entity2_index": "$SCRIPT( return _iterator.expanded_url + '/url'; )",
+                "iterateOver": "json.gnip.urls",
+                "verb": "tweets_link",
+                "verb_category": "tweets_link"
+            }
+        ],
+        "description": "$metadata.json.body",
+        "displayUrl": "$metadata.json.link",
+        "docGeo": {
+            "lat": "$SCRIPT( try {return _doc.metadata.json[0].geo.coordinates[0];} catch (err) {return '';})",
+            "lon": "$SCRIPT( try {return _doc.metadata.json[0].geo.coordinates[1];} catch (err) {return '';})"
+        },
+        "entities": [
+            {
+                "actual_name": "@$metadata.json.actor.displayName",
+                "dimension": "Who",
+                "disambiguated_name": "@$metadata.json.actor.preferredUsername",
+                "linkdata": "$metadata.json.actor.link",
+                "type": "Twitterer"
+            },
+            {
+                "actual_name": "$SCRIPT(return _iterator.name;)",
+                "dimension": "Who",
+                "disambiguated_name": "$SCRIPT(return '@'+_iterator.screen_name;)",
+                "iterateOver": "json.twitter_entities.user_mentions",
+                "linkdata": "$SCRIPT(return 'http://www.twitter.com/' + _iterator.screen_name;)",
+                "type": "Twitterer"
+            },
+            {
+                "actual_name": "$metadata.json.object.actor.displayName",
+                "dimension": "Who",
+                "disambiguated_name": "@$metadata.json.object.actor.preferredUsername",
+                "linkdata": "$metadata.json.object.actor.link",
+                "type": "Twitterer"
+            },
+            {
+                "dimension": "Where",
+                "disambiguated_name": "$metadata.json.actor.location.displayName",
+                "geotag": {
+                    "alternatives": [{
+                        "countryCode": "US",
+                        "stateProvince": "$SCRIPT( return getRegion(getAddressVal( _doc.metadata.json[0].actor.location.displayName, 1 )) )"
+                    }],
+                    "city": "$SCRIPT( return getAddressVal( _doc.metadata.json[0].actor.location.displayName, 0 ) )",
+                    "countryCode": "US",
+                    "stateProvince": "$SCRIPT( return getRegion(getAddressVal( _doc.metadata.json[0].actor.location.displayName, 1 )) )"
+                },
+                "type": "Location"
+            },
+            {
+                "dimension": "Where",
+                "disambiguated_name": "$metadata.json.object.actor.location.displayName",
+                "type": "Location"
+            },
+            {
+                "disambiguated_name": "$SCRIPT(return _iterator.text;)",
+                "iterateOver": "json.twitter_entities.hashtags",
+                "type": "HashTag"
+            },
+            {
+                "actual_name": "$SCRIPT(return _iterator.url)",
+                "disambiguated_name": "$SCRIPT(return _iterator.expanded_url;)",
+                "iterateOver": "json.gnip.urls",
+                "type": "URL"
+            }
+        ],
+        "fullText": "$metadata.json.body",
+        "publishedDate": "$SCRIPT(return _doc.metadata.json[0].postedTime.replace(/.[0-9]{3}Z/,'Z');)",
+        "rejectDocCriteria": "$SCRIPT( if (null == _doc.metadata.json[0].link || null == _doc.metadata.json[0].object) return 'reject'; )",
+        "script": "function getAddressVal( addressStr, number) { try { var addressArray = addressStr.split(/ *, */); if (addressArray != null && addressArray.length > 0) { if (addressArray[number].toLowerCase()=='ny') { return 'new york'; } else if (addressArray[number].toLowerCase()=='long island' || addressArray[number].toLowerCase()=='li') { return 'medford'; } else { return addressArray[number]; } } else { return ''; } } catch (err) { return ''; } } function getRegion( code ) { if (code.toLowerCase()=='ny') {return 'New York';} else if (code.toLowerCase()=='nj') {return 'New Jersey';} else if (code.toLowerCase()=='ct') {return 'Connecticut';} else if (code.toLowerCase()=='md') {return 'Maryland';} else if (code.toLowerCase()=='va') {return 'Virginia';} else if (code.toLowerCase()=='pa') {return 'Pennsylvania';} else if (code.toLowerCase()=='nj') {return 'New Jersey';} else {return 'New York';} }",
+        "scriptEngine": "javascript",
+        "title": "$metadata.json.body"
+    },
+    "tags": [
+        "gnip",
+        "twitter"
+    ],
+    "title": "Datasift/Salience test",
+    "url": "smb://modus:139/datasift/sandy_demo/test3/",
+    "useExtractor": "salience",
+    "useTextExtractor": "none"
+}

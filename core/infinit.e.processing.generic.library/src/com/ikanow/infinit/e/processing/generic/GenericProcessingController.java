@@ -120,15 +120,15 @@ public class GenericProcessingController {
 			compIndex.put(DocumentPojo._id_, 1);
 			addIndexIfNeeded(DbManager.getDocument().getMetadata(), "sourceKey_1__id_-1", 0, compIndex); // (remove legacy 1_-1 and replace with 1_1, which supports shards)
 			// ** Entities and associations
-			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.index_, 1));
-			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
+			DbManager.getFeature().getEntity().createIndex(new BasicDBObject(EntityFeaturePojo.index_, 1));
+			DbManager.getFeature().getAssociation().createIndex(new BasicDBObject(AssociationFeaturePojo.index_, 1));
 			
 			////////////////////////
 			//
 			// Other indexes
 			//
 			// Needed to handle updates of large files containing many URLs:
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getDocument().getMetadata().createIndex(new BasicDBObject(DocumentPojo.sourceUrl_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			//^NOTE: if this index changes, also need to change DuplicateManager_Integrated - search for "sourceUrl_" to see where
 			//TODO (INF-1922): at some point should look into making (sparse) sourceUrl be compounded with sourceKey - this is a bit risky
 
@@ -136,54 +136,54 @@ public class GenericProcessingController {
 			// (Compound index lets me access {url, sourceKey}, {url} efficiently ... but need sourceKey separately to do {sourceKey})
 			compIndex = new BasicDBObject(DocumentPojo.url_, 1);
 			compIndex.put(DocumentPojo.sourceKey_, 1);
-			DbManager.getDocument().getMetadata().ensureIndex(compIndex);
+			DbManager.getDocument().getMetadata().createIndex(compIndex);
 			// Needed to handle document updates
-			DbManager.getDocument().getMetadata().ensureIndex(new BasicDBObject(DocumentPojo.updateId_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getDocument().getMetadata().createIndex(new BasicDBObject(DocumentPojo.updateId_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			// Needed to update documents' entities' doc counts
 			if (!pm.getAggregationDisabled()) {
 				compIndex = new BasicDBObject(EntityPojo.docQuery_index_, 1);
 				compIndex.put(DocumentPojo.communityId_, 1);
-				DbManager.getDocument().getMetadata().ensureIndex(compIndex);
+				DbManager.getDocument().getMetadata().createIndex(compIndex);
 			}
 			// Needed for keeping source/community doc counts
 			compIndex = new BasicDBObject(DocCountPojo._id_, 1);
 			compIndex.put(DocCountPojo.doccount_, 1);
-			DbManager.getDocument().getCounts().ensureIndex(compIndex);
+			DbManager.getDocument().getCounts().createIndex(compIndex);
 			// Needed for keep tracking of entities
-			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.disambiguated_name_, 1));
-			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.alias_, 1));
+			DbManager.getFeature().getEntity().createIndex(new BasicDBObject(EntityFeaturePojo.disambiguated_name_, 1));
+			DbManager.getFeature().getEntity().createIndex(new BasicDBObject(EntityFeaturePojo.alias_, 1));
 			// Needed for background re-calculation
-			DbManager.getFeature().getEntity().ensureIndex(new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
-			DbManager.getFeature().getAssociation().ensureIndex(new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getFeature().getEntity().createIndex(new BasicDBObject(EntityFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getFeature().getAssociation().createIndex(new BasicDBObject(AssociationFeaturePojo.db_sync_prio_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			// Needed for geo-location in the entity pipeline
-			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("country", 1));
-			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("search_field", 1));
-			DbManager.getFeature().getGeo().ensureIndex(new BasicDBObject("geoindex", "2d"));
+			DbManager.getFeature().getGeo().createIndex(new BasicDBObject("country", 1));
+			DbManager.getFeature().getGeo().createIndex(new BasicDBObject("search_field", 1));
+			DbManager.getFeature().getGeo().createIndex(new BasicDBObject("geoindex", "2d"));
 			// Needed for source management
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.key_, 1));
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourcePojo.key_, 1));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourcePojo.communityIds_, 1));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvested_, 1));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_synced_, 1));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourceHarvestStatusPojo.sourceQuery_harvest_status_, 1));
 			// Federated query engine
-			DbManager.getIngest().getSource().ensureIndex(new BasicDBObject(SourcePojo.federatedQueryCommunityIds_, 1), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getIngest().getSource().createIndex(new BasicDBObject(SourcePojo.federatedQueryCommunityIds_, 1), new BasicDBObject(MongoDbManager.sparse_, true));
 			// Communities:
-			DbManager.getSocial().getCommunity().ensureIndex(new BasicDBObject("members._id", 1));
+			DbManager.getSocial().getCommunity().createIndex(new BasicDBObject("members._id", 1));
 			
 			// Searching shares
 			// Compound index lets me access {type, communities._id}, {type} efficiently
 			compIndex = new BasicDBObject("type", 1);
 			compIndex.put("communities._id", 1);			
-			DbManager.getSocial().getShare().ensureIndex(compIndex);
+			DbManager.getSocial().getShare().createIndex(compIndex);
 			// User logins
-			DbManager.getSocial().getCookies().ensureIndex(new BasicDBObject("apiKey", 2), new BasicDBObject(MongoDbManager.sparse_, true));
+			DbManager.getSocial().getCookies().createIndex(new BasicDBObject("apiKey", 2), new BasicDBObject(MongoDbManager.sparse_, true));
 			// Custom job scheduling
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, 1));
+			DbManager.getCustom().getLookup().createIndex(new BasicDBObject(CustomMapReduceJobPojo.jobtitle_, 1));
 			//TODO (): MOVE THESE TO SPARSE INDEXES AFTER YOU'VE UPDATED THE LOGIC (SWAP THE 1 AND 2)
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
+			DbManager.getCustom().getLookup().createIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
 //			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.jobidS_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 //			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.jobidS_, 1);
-			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
+			DbManager.getCustom().getLookup().createIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 1), new BasicDBObject(MongoDbManager.sparse_, false));
 //			DbManager.getCustom().getLookup().ensureIndex(new BasicDBObject(CustomMapReduceJobPojo.waitingOn_, 2), new BasicDBObject(MongoDbManager.sparse_, true));
 //			dropIndexIfItExists(DbManager.getCustom().getLookup(),CustomMapReduceJobPojo.waitingOn_, 1);
 		}		
@@ -211,7 +211,7 @@ public class GenericProcessingController {
 		}
 		// If we're here then we didn't find the index so create a new index
 		try { 
-			coll.ensureIndex(newIndex); 
+			coll.createIndex(newIndex); 
 		} 
 		catch (Exception e) {} 
 	}//TESTED

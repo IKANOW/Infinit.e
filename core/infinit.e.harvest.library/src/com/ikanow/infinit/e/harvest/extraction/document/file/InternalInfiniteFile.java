@@ -136,7 +136,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 				DBCursor dbc = outColl.find().sort(sort).limit(1);
 				List<DBObject> firstOrLastRecordList = dbc.toArray();
 				if (!firstOrLastRecordList.isEmpty()) {
-					_overwriteTime = ((ObjectId)firstOrLastRecordList.iterator().next().get("_id")).getTime();
+					_overwriteTime = ((ObjectId)firstOrLastRecordList.iterator().next().get("_id")).getDate().getTime();
 				}
 				else { // No records, use lastRunTime_ as backup
 					_overwriteTime = _resultObj.getDate(CustomMapReduceJobPojo.lastRunTime_, new Date()).getTime();
@@ -223,10 +223,10 @@ public class InternalInfiniteFile extends InfiniteFile {
 		_originalUrl = parent._originalUrl;
 		_isCustom = true;
 		if (null != endId) {
-			_overwriteTime = endId.getTime();			
+			_overwriteTime = endId.getDate().getTime();			
 		}
 		else if (null != startId) {
-			_overwriteTime = startId.getTime();			
+			_overwriteTime = startId.getDate().getTime();			
 		}
 		else _overwriteTime = parent._overwriteTime;
 	}//TESTED (6.2.2) (custom _overwriteTime by hand)
@@ -241,7 +241,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 		
 		Object id = _resultObj.get("_id");
 		if ((null != id) && (id instanceof ObjectId)) {
-			_overwriteTime = ((ObjectId)id).getTime();
+			_overwriteTime = ((ObjectId)id).getDate().getTime();
 		}
 		else _overwriteTime = parent._overwriteTime;
 		// (backup for odd/old custom jobs)
@@ -349,7 +349,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 							if ((null != minId) || (null != maxId)) {
 								if ((null != maxId) && (null != optionalFilterDate)) { // (also used on the files below)
 									
-									if (maxId.getTime() < optionalFilterDate.getTime()) {
+									if (maxId.getDate().getTime() < optionalFilterDate.getTime()) {
 										// (the "getTime()"s can overlap across chunks so we have to use minId
 										//  and accept that we'll often deserialize 1+ extra chunk every harvest)
 										continue;
@@ -369,7 +369,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 					BasicDBObject query = new BasicDBObject();
 					if (null != _virtualDirStartLimit) {
 						if (null != optionalFilterDate) {
-							ObjectId altStartId = new ObjectId((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
+							ObjectId altStartId = ObjectId.createFromLegacyFormat((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
 								//(zero out the inc/machine ids so this query is independent to calling service)
 							
 							if (altStartId.compareTo(_virtualDirStartLimit) > 0) { // (altStartId > _virtualDirStartLimit)
@@ -384,7 +384,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 						}
 					}
 					else if (null != optionalFilterDate) { // (first chunk so always overwrite with optionalFilter date if applicable)
-						ObjectId altStartId = new ObjectId((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
+						ObjectId altStartId = ObjectId.createFromLegacyFormat((int)(optionalFilterDate.getTime()/1000L), 0, 0); 
 						query.put(MongoDbManager.gte_, altStartId);						
 					}//TESTED (by hand)
 					if (null != _virtualDirEndLimit) {
@@ -409,7 +409,7 @@ public class InternalInfiniteFile extends InfiniteFile {
 						// (if didn't use a query then apply internal filter date by hand)
 						if ((null == _virtualDirStartLimit) && (null == _virtualDirEndLimit) && (null != optionalFilterDate)) {
 							ObjectId docId = (ObjectId) docObj.get("_id");
-							if (optionalFilterDate.getTime() > docId.getTime()) {
+							if (optionalFilterDate.getTime() > docId.getDate().getTime()) {
 								continue;
 							}
 						}//TESTED

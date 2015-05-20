@@ -249,12 +249,14 @@ public class EmbeddedRestletApp extends Application
         //BETA NAMING
         router.attach("/community/get/{communityid}", CommunityInterface.class);   
         router.attach("/community/getall/", CommunityInterface.class);
+        router.attach("/community/getall/{communityid}", CommunityInterface.class);
         router.attach("/community/getsystem/", CommunityInterface.class);
         router.attach("/community/getpublic/", CommunityInterface.class);
         router.attach("/community/getprivate/", CommunityInterface.class); 
         //V0 NAMING
         attach(router, "/social/community/get/{communityid}", CommunityInterface.class);   
         attach(router, "/social/community/getall", CommunityInterface.class);
+        attach(router, "/social/community/getall/{communityid}", CommunityInterface.class);
         attach(router, "/social/community/getsystem", CommunityInterface.class);
         attach(router, "/social/community/getpublic", CommunityInterface.class);
         attach(router, "/social/community/getprivate", CommunityInterface.class); 
@@ -262,12 +264,14 @@ public class EmbeddedRestletApp extends Application
         // User groups:
         attach(router, "/social/group/user/get/{communityid}", CommunityInterface.class);   
         attach(router, "/social/group/user/getall", CommunityInterface.class);
+        attach(router, "/social/group/user/getall/{communityid}", CommunityInterface.class);
         attach(router, "/social/group/user/getsystem", CommunityInterface.class);
         attach(router, "/social/group/user/getpublic", CommunityInterface.class);
         attach(router, "/social/group/user/getprivate", CommunityInterface.class); 
         // Data groups:
         attach(router, "/social/group/data/get/{communityid}", CommunityInterface.class);   
         attach(router, "/social/group/data/getall", CommunityInterface.class);
+        attach(router, "/social/group/data/getall/{communityid}", CommunityInterface.class);
         attach(router, "/social/group/data/getsystem", CommunityInterface.class);
         attach(router, "/social/group/data/getpublic", CommunityInterface.class);
         attach(router, "/social/group/data/getprivate", CommunityInterface.class);         
@@ -434,13 +438,29 @@ public class EmbeddedRestletApp extends Application
     
     // BACKGROUND THREADS
     
+    private static boolean _started = false;
 	public static void setupPollingHandlers() {
-		// Query handler background thread (for caching)
-		QueryHandlerBackgroundThread queryHandlerPoll = new QueryHandlerBackgroundThread(); 
-		queryHandlerPoll.startThread();
+		if (!_started) {
+			_started = true;
+			new Thread(new StartPollingHandlers()).start();			
+		}
+	}
+	
+	public static class StartPollingHandlers implements Runnable {
+
+		@Override
+		public void run() {
+			// Give tomcat a chance to start up its classloader 
+			try { Thread.sleep(60000); } catch (Exception e) { } 
+			
+			// Query handler background thread (for caching)
+			QueryHandlerBackgroundThread queryHandlerPoll = new QueryHandlerBackgroundThread(); 
+			queryHandlerPoll.startThread();
+			
+			// Source deletion handler
+			SourceDeletionHandlerBackgroundThread sourceDeletionPoll = new SourceDeletionHandlerBackgroundThread();
+			sourceDeletionPoll.startThread();
+		}
 		
-		// Source deletion handler
-		SourceDeletionHandlerBackgroundThread sourceDeletionPoll = new SourceDeletionHandlerBackgroundThread();
-		sourceDeletionPoll.startThread();
 	}
 }  

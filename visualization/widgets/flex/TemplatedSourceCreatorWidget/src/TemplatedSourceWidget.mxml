@@ -324,7 +324,7 @@ limitations under the License.
 				var one_time_cost:Number = 0;
 				var search_depth:Number = Number(searchDepthTextInput.text);
 				var search_cycle:Number = Number(searchCycleTextInput.text);
-				var search_cycle_secs:Number = search_cycle/3600; //convert from hours to seconds
+				var search_cycle_secs:Number = search_cycle*3600; //convert from hours to seconds
 				//if ( search_cycle_secs == 0 ) //if seconds are 0, set to 10yrs because harvester doesn't have a run once function
 				//	search_cycle_secs = 315360000; //10yr in sec
 				var templates_ac:ArrayCollection = new ArrayCollection();
@@ -349,7 +349,7 @@ limitations under the License.
 								var num_queries:Number = getNumberOfQueries(template);
 								if ( search_cycle > 0 )
 								{																		
-									var this_request_cost:Number = template_cost*num_queries*(search_depth+1)*(3600/search_cycle_secs);
+									var this_request_cost:Number = template_cost*num_queries*(search_depth+1)*((3600*24)/search_cycle_secs);
 									running_cost += this_request_cost;
 									
 								}

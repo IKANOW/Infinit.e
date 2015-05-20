@@ -1,0 +1,6 @@
+<assembly>
+    <id>bin</id>
+    <formats>
+        <format>jar</format>
+    </formats>
+</assembly>

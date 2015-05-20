@@ -218,7 +218,7 @@ public class BaseApiPojo {
 		@Override
 		public JsonElement serialize(ObjectId id, Type typeOfT, JsonSerializationContext context)
 		{
-			return new JsonPrimitive(id.toStringMongod());
+			return new JsonPrimitive(id.toString());
 		}
 	}	
 	protected static class ObjectIdDeserializer implements JsonDeserializer<ObjectId> 

@@ -25,6 +25,7 @@ import java.util.LinkedList;
 import java.util.Map;
 import java.util.Set;
 import java.util.List;
+import java.util.TreeSet;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -87,7 +88,7 @@ public class CommunityHandler
 	 * Returns information for all communities
 	 * @return
 	 */
-	public ResponsePojo getCommunities(String userIdStr, CommunityPojo.CommunityType communityType) 
+	public ResponsePojo getCommunities(String userIdStr, CommunityPojo.CommunityType communityType, String communityIdStrList) 
 	{	
 		ResponsePojo rp = new ResponsePojo();
 
@@ -100,6 +101,18 @@ public class CommunityHandler
 			if (isSysAdmin)
 			{
 				BasicDBObject query = new BasicDBObject();
+				if (communityIdStrList != null)
+				{
+					String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
+					Set<ObjectId> communityIdSet = new TreeSet<ObjectId>();
+					for (String s: communityIdStrs) {
+						ObjectId communityId = new ObjectId(s); 
+						communityIdSet.add(communityId);
+					}
+					query.put(CommunityPojo._id_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
+					//communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+					//query.put("_id", new ObjectId(communityIdStr));
+				}
 				addCommunityTypeTerm(query, communityType);
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
 				
@@ -122,6 +135,20 @@ public class CommunityHandler
 				BasicDBObject queryTerm2 = new BasicDBObject("members._id", new ObjectId(userIdStr));
 				BasicDBObject queryTerm3 = new BasicDBObject("ownerId", new ObjectId(userIdStr));
 				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryTerm1, queryTerm2, queryTerm3));
+				
+				Set<ObjectId> communityIdSet = null;
+				if (communityIdStrList != null)
+				{
+					String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
+					communityIdSet = new TreeSet<ObjectId>();
+					for (String s: communityIdStrs) {
+						ObjectId communityId = new ObjectId(s); 
+						communityIdSet.add(communityId);
+					}
+					query.put(CommunityPojo._id_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
+					//communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+					//query.put("_id", new ObjectId(communityIdStr));
+				}
 				addCommunityTypeTerm(query, communityType);
 
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);				
@@ -129,11 +156,13 @@ public class CommunityHandler
 				{
 					List<CommunityPojo> communities = CommunityPojo.listFromDb(dbc, CommunityPojo.listType());
 					filterCommunityMembers(communities, isSysAdmin, userIdStr);
-					//add personal community
+					//add personal community (if not filtered)
 					DBObject dbo = DbManager.getSocial().getCommunity().findOne(new BasicDBObject("_id",new ObjectId(userIdStr)));
 					if ( dbo != null )
 					{
-						communities.add(CommunityPojo.fromDb(dbo, CommunityPojo.class));
+						CommunityPojo personal_community = CommunityPojo.fromDb(dbo, CommunityPojo.class);
+						if ( communityIdSet == null || communityIdSet.contains(personal_community.getId()) )
+							communities.add(personal_community);
 					}
 					rp.setData(communities, new CommunityPojoApiMap());
 					rp.setResponse(new ResponseObject("Community Info", true, "Community info returned successfully"));				
@@ -436,7 +465,7 @@ public class CommunityHandler
 				//TESTED
 				
 				// Update the new community record to add the owner to the list of members
-				rp = addCommunityMember(userId, oId.toStringMongod(), name, ownerIdStr, ownerEmail, ownerDisplayName, "owner", "active");
+				rp = addCommunityMember(userId, oId.toString(), name, ownerIdStr, ownerEmail, ownerDisplayName, "owner", "active");
 				rp.setResponse(new ResponseObject("Add Community", true, "The " + name + " community has been added."));				
 			}
 			else
@@ -497,7 +526,7 @@ public class CommunityHandler
 								
 								// 0] If it's a user group then remove from all communities
 								
-								if (CommunityType.user == cp.getType()) {
+								if (CommunityType.user == cp.getType()) {									
 									BasicDBObject query = new BasicDBObject("members._id", cp.getId()); 
 									CommunityMemberPojo cmp = new CommunityMemberPojo();
 									cmp.set_id(cp.getId());
@@ -506,7 +535,7 @@ public class CommunityHandler
 										// ie for communities for which he's a member...remove...any elements of the list members...with his _id
 									
 									DbManager.getSocial().getCommunity().update(query, actions, false, true); 
-										// (don't upsert, many times)			
+										// (don't upsert, many times)																					
 								}//TESTED
 								
 								// 1] Remove from all shares (delete shares if that leaves them orphaned)
@@ -597,6 +626,10 @@ public class CommunityHandler
 								//set community as inactive (for some reason we don't delete it)
 								DbManager.getSocial().getCommunity().update(new BasicDBObject("_id", communityId), 
 																			new BasicDBObject(DbManager.set_, new BasicDBObject("communityStatus","disabled")));
+								
+
+								//run user.datagroup_reason logic
+								CommunityPojo.removeDatagroupFromUserOrUsergroup(null, cp, null);
 								
 								//remove all members
 								for ( CommunityMemberPojo cmp : cp.getMembers())
@@ -985,10 +1018,10 @@ public class CommunityHandler
 					if ( !cp.isMember(new ObjectId(personIdStr)) || isPending )
 					{
 						Map<String,CommunityAttributePojo> commatt = cp.getCommunityAttributes();
-						if ( isSysAdmin || (commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true") ))
+						if ( isSysAdmin || (commatt.containsKey("usersCanSelfRegister") && commatt.get("usersCanSelfRegister").getValue().equals("true") ) || isPending )
 						{		
 							boolean requiresApproval = false;
-							if ( !isSysAdmin && commatt.containsKey("registrationRequiresApproval") )
+							if ( !isSysAdmin && !isPending && commatt.containsKey("registrationRequiresApproval") )
 								requiresApproval = commatt.get("registrationRequiresApproval").getValue().equals("true");
 							//if approval is required, add user to comm, wait for owner to approve
 							//otherwise go ahead and add as a member
@@ -1723,7 +1756,7 @@ public class CommunityHandler
 						cmps = community.getMembers();
 						for (CommunityMemberPojo c : cmps)
 						{
-							if (c.get_id().toStringMongod().equals(personIdStr)) alreadyMember = true;
+							if (c.get_id().toString().equals(personIdStr)) alreadyMember = true;
 						}
 					}
 					else
@@ -1923,7 +1956,7 @@ public class CommunityHandler
 						cmps = community.getMembers();
 						for (CommunityMemberPojo c : cmps)
 						{
-							if (c.get_id().toStringMongod().equals(personIdStr))
+							if (c.get_id().toString().equals(personIdStr))
 							{
 								cmp = c;
 								isMember = true;
@@ -1949,7 +1982,9 @@ public class CommunityHandler
 							rp.setResponse(new ResponseObject("Remove member from community", true, "Member has been removed from community"));
 						}
 						else { // user group
-							//TODO (INF-2866): remove from community from each user, if that's the way we end up implementing this (?)							
+							//TODO (INF-2866): remove from community from each user, if that's the way we end up implementing this (?)
+							CommunityPojo user_group = CommunityPojo.fromDb(MongoDbManager.getSocial().getCommunity().findOne(new BasicDBObject(CommunityPojo._id_, new ObjectId(personIdStr))), CommunityPojo.class);
+							CommunityPojo.removeDatagroupFromUserOrUsergroup(null, user_group, community);
 							rp.setData(community, new CommunityPojoApiMap());
 							rp.setResponse(new ResponseObject("Remove member from community", true, "User Group has been removed from community"));							
 						}

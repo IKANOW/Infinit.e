@@ -32,6 +32,7 @@ public class CommunityMemberPojo extends BaseDbPojo {
 	/** 
 	  * Private Class Variables
 	  */
+	final public static String _id_ = "_id";
 	private ObjectId _id = null;
 	public enum MemberType { user, user_group };
 	private MemberType type = null; // (defaults to user)

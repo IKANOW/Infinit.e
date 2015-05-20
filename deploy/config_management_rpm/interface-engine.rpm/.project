@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<projectDescription>
+	<name>ikanow-interface-engine.rpm</name>
+	<comment></comment>
+	<projects>
+		<project>infinit.e.api</project>
+		<project>infinit.e.library</project>
+		<project>infinit.e.mongo.driver</project>
+	</projects>
+	<buildSpec>
+	</buildSpec>
+	<natures>
+	</natures>
+</projectDescription>

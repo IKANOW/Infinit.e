@@ -1,3 +1,18 @@
+/*******************************************************************************
+ * Copyright 2015, The Infinit.e Open Source Project.
+ * 
+ * This program is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3,
+ * as published by the Free Software Foundation.
+ * 
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ * GNU Affero General Public License for more details.
+ * 
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ ******************************************************************************/
 package com.ikanow.infinit.e.data_model.utils;
 
 import java.io.File;
@@ -8,8 +23,12 @@ import java.security.Permission;
 import java.security.PrivilegedActionException;
 import java.security.PrivilegedExceptionAction;
 
+import javax.script.Compilable;
+import javax.script.CompiledScript;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
+
+import org.apache.log4j.Logger;
 
 public class IkanowSecurityManager 
 {
@@ -17,6 +36,8 @@ public class IkanowSecurityManager
 	private static InternalSecurityManager ssm;
 	private static boolean SECURITY_ACTIVATED = false;
 	private boolean _disabled = false;
+
+	protected static Logger logger = Logger.getLogger(IkanowSecurityManager.class);
 	
 	public IkanowSecurityManager()
 	{
@@ -169,14 +190,18 @@ public class IkanowSecurityManager
 			if ( lock != null && lock )
 			{			
 				//if failed we are using our javascript security
+				//http://en.wikipedia.org/wiki/Private_network
+				//see also http://en.wikipedia.org/wiki/Reserved_IP_addresses 
+				// (note I don't block all the addresses in there, only local/local subnet ones)
 				//deny for 10.*
 				//deny for 192.186.*
 				//deny for 127.*
-				if ( host.matches("^(10\\.|127\\.|192\\.168\\.|172\\.1[6-9]|172\\.[2-9][0-9]).*") )
+				//deny for 169.253.*
+				if ( host.matches("^(10\\.|127\\.|192\\.168\\.|172\\.1[6-9]\\.|172\\.[2][0-9]\\.|172\\.3[01]\\.|169\\.254\\.).*") )
 				{
 					if (_DEBUG)
 						debugDisplayErrorMessage(host + ": " + port);
-					throw new SecurityException("Hosts: 10.*, 192.168.*, 127.*, 172.16+ are not allowed to be connected to");
+					throw new SecurityException("Hosts: 10.*, 192.168.*, 127.*, 172.16-31,169.254.* are not allowed to be connected to");
 				}
 			}
 			// Always do this: so we're the union of configured restrictions+the above custom restrictions
@@ -296,7 +321,7 @@ public class IkanowSecurityManager
 			Boolean lock = javascriptLock.get();
 			if ( lock != null && lock )
 			{
-				if (packageName.startsWith("com.ikanow.infinit.e.")) {
+				if (packageName.startsWith("com.ikanow.infinit.e.") && !packageName.startsWith("com.ikanow.infinit.e.script_visible")) {
 					debugDisplayErrorMessage(packageName);
 					throw new SecurityException("Not allowed access to these packages: " + packageName);
 				}
@@ -414,5 +439,41 @@ public class IkanowSecurityManager
 //		}//TOTEST
 	}
 	
+	public CompiledScript compile(final ScriptEngine scriptEngine, final String script) throws ScriptException
+	{			
+		if ( SECURITY_ACTIVATED )
+		{
+			//Security ON
+			try
+			{
+				CompiledScript retVal = (CompiledScript)AccessController.doPrivileged(new PrivilegedExceptionAction<Object>() {
+					@Override
+					public Object run() throws ScriptException
+					{
+						ssm.setSecureFlag(true);
+						Compilable compilingEngine = (Compilable)scriptEngine;
+						return compilingEngine.compile(script);
+					}
+				}, _accessControlContext);
+				return retVal;
+			}
+			catch ( PrivilegedActionException ex )
+			{			
+				throw (ScriptException)ex.getException();
+			}
+			catch ( Exception ex2 ) { // (shouldn't ever occur in practice)
+				throw new ScriptException(ex2.getMessage());
+			}
+			finally {
+				ssm.setSecureFlag(false);				
+			}
+		}
+		else
+		{
+			//Security OFF
+			Compilable compilingEngine = (Compilable)scriptEngine;
+			return compilingEngine.compile(script);
+		}
+	}
 
 }

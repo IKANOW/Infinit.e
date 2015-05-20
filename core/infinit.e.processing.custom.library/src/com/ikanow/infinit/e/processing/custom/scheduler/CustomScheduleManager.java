@@ -38,7 +38,6 @@ import com.ikanow.infinit.e.data_model.utils.MongoApplicationLock;
 import com.ikanow.infinit.e.processing.custom.utils.AuthUtils;
 import com.ikanow.infinit.e.processing.custom.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
-import com.mongodb.CommandResult;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
 import com.mongodb.WriteConcern;
@@ -285,12 +284,11 @@ public class CustomScheduleManager {
 								try {
 									//(does nothing if the share already exists)
 									WriteResult wr = DbManager.getCustom().getSavedQueryCache().insert(savedQueryShare.toDb(), WriteConcern.ACKNOWLEDGED);
-									
-									if (wr.getN() > 0) { // if we've actually done something, update the main share table also
+									if (wr.getN() > 0) {
 										savedQuery.getQueryInfo().setLastRun(now);
 										savedQueryShare.setShare(savedQuery.toApi());
 										// (this will overwrite the existing version)
-										DbManager.getSocial().getShare().save(savedQueryShare.toDb());								
+										DbManager.getSocial().getShare().save(savedQueryShare.toDb());																		
 									}//TESTED (by hand with prints)
 								}
 								catch (MongoException e) {} // just carry on - this is equivalent to getLastERror returning true

@@ -464,7 +464,7 @@ public class FileHarvester implements HarvesterInterface {
 									// (else *still* don't add this to updates because we've added the source URL or source key to the delete list)
 									// (hence approximate create with the updateId...)
 									if (null != doc.getUpdateId()) {
-										doc.setCreated(new Date(doc.getUpdateId().getTime()));
+										doc.setCreated(doc.getUpdateId().getDate());
 									}//TESTED									
 								}//TESTED
 							}

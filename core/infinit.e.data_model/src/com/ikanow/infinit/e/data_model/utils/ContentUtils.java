@@ -28,7 +28,7 @@ public class ContentUtils {
 	
 	public static String stripDiacritics(String str) {
 		// First check if I need to do anything:
-		if (!CONTAINS_NON_ASCII.matcher(str).find()) {
+		if (str==null || !CONTAINS_NON_ASCII.matcher(str).find()) {
 			return str;
 		}
 		str = Normalizer.normalize(str, Normalizer.Form.NFD).replace("\u0131", "i");

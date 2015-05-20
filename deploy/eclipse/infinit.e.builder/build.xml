@@ -15,6 +15,7 @@
 	<property name="gui" value="../../../visualization/frameworks/flex"/>
 	<property name="widgets" value="../../../visualization/widgets/flex"/>
 	<property name="rpm" value="../../rpm"/>
+	<property name="config_management_rpm" value="../../config_management_rpm"/>
 	
 	<!-- Convert to flat structure -->
 	<move todir=".." failonerror="false" verbose="false">
@@ -23,6 +24,7 @@
 		<fileset dir="${gui}" includes="**/*"/>
 		<fileset dir="${widgets}" includes="**/*"/>
 		<fileset dir="${rpm}" includes="**/*"/>
+		<fileset dir="${config_management_rpm}" includes="**/*"/>
 	</move>
 	
 	<!-- Link elasticsearch to the current highest production version -->
@@ -66,6 +68,17 @@
 	<property name="infinit.e-processing-engine.rpm.location" value="${basedir}/../infinit.e-processing-engine.rpm"/>
 	<property name="infinit.e-record-engine.rpm.location" value="${basedir}/../infinit.e-record-engine.rpm"/>
 	<property name="infinit.e-db-instance.rpm.location" value="${basedir}/../infinit.e-db-instance.rpm"/>
+
+    <!--
+    New RPMs
+    -->
+	<property name="ikanow-config.rpm.location" value="${basedir}/../config.rpm"/>
+	<property name="ikanow-index-engine.rpm.location" value="${basedir}/../index-engine.rpm"/>
+	<property name="ikanow-interface-engine.rpm.location" value="${basedir}/../interface-engine.rpm"/>
+	<property name="ikanow-processing-engine.rpm.location" value="${basedir}/../processing-engine.rpm"/>
+	<property name="ikanow-record-engine.rpm.location" value="${basedir}/../record-engine.rpm"/>
+	<property name="ikanow-db-instance.rpm.location" value="${basedir}/../db-instance.rpm"/>
+	
 	
 	<!-- =================================
 		target sub-projects
@@ -186,6 +199,27 @@
 		<ant antfile="${infinit.e-db-instance.rpm.location}/build.xml">
 			<property name="basedir" value="${infinit.e-db-instance.rpm.location}"/>
 		</ant>
+
+        <!-- New RPM Builders -->
+		<ant antfile="${ikanow-config.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-config.rpm.location}"/>
+		</ant>
+		<ant antfile="${ikanow-index-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-index-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${ikanow-interface-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-interface-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${ikanow-processing-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-processing-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${ikanow-record-engine.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-record-engine.rpm.location}"/>
+		</ant>
+		<ant antfile="${ikanow-db-instance.rpm.location}/build.xml">
+			<property name="basedir" value="${ikanow-db-instance.rpm.location}"/>
+		</ant>
+
 		
 	</target>
 

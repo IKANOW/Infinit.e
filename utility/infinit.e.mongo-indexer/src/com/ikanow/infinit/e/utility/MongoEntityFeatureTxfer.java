@@ -38,7 +38,7 @@ import com.ikanow.infinit.e.processing.generic.GenericProcessingController;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBCursor;
-import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
 import com.mongodb.MongoException;
 
 public class MongoEntityFeatureTxfer 
@@ -297,14 +297,14 @@ public class MongoEntityFeatureTxfer
 	private void doUnitTestCode(String sMongoDbHost, String sMongoDbPort, String sElasticHost, String sElasticPort, 
 			BasicDBObject query, int nLimit)
 	{		
-		Mongo mongoDB = null;
+		MongoClient mongoDB = null;
 		ElasticSearchManager elasticManager = null;
 		
 		
 		try {
 			// Initialize the DB:
 			
-			mongoDB = new Mongo(sMongoDbHost, Integer.parseInt(sMongoDbPort));
+			mongoDB = new MongoClient(sMongoDbHost, Integer.parseInt(sMongoDbPort));
 			DBCollection gazDB = mongoDB.getDB("feature").getCollection("entity");
 			
 			// Initialize the ES (create the index if it doesn't already):

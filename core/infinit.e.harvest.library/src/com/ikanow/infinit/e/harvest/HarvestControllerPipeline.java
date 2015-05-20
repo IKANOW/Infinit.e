@@ -53,10 +53,15 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourceRssConfigPojo.E
 import com.ikanow.infinit.e.data_model.store.config.source.SourceSearchFeedConfigPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.EntitySpecPojo;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
+import com.ikanow.infinit.e.data_model.store.document.ChangeAwareDocumentWrapper;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
+import com.ikanow.infinit.e.harvest.enrichment.custom.JavaScriptUtils;
 import com.ikanow.infinit.e.harvest.enrichment.custom.StructuredAnalysisHarvester;
 import com.ikanow.infinit.e.harvest.enrichment.custom.UnstructuredAnalysisHarvester;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
+import com.ikanow.infinit.e.harvest.enrichment.script.ScriptCallbackNotifier;
+import com.ikanow.infinit.e.harvest.enrichment.script.ScriptEngineContextAttributeNotifier;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester_searchEngineSubsystem;
 import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
@@ -64,6 +69,14 @@ import com.ikanow.infinit.e.harvest.utils.PropertiesManager;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
 
+/* Note the lifecycle of the pipeline controller is once per thread:
+new once per source:
+a) initializeState->clearState
+b) extractSource_preProcessingPipeline
+c) enrichSource_processingPipeline
+d) clearState
+the reason for the d) is that it frees a boat load of memory up
+ */
 public class HarvestControllerPipeline {
 
 	// Objects that persist across the sources
@@ -78,7 +91,15 @@ public class HarvestControllerPipeline {
 	public void setInterDocDelayTime(long nBetweenFeedDocs_ms) {
 		nInterDocDelay_ms = nBetweenFeedDocs_ms;
 	}
+	private CompiledScriptFactory compiledScriptFactory = null;
 	
+	public CompiledScriptFactory getCompiledScriptFactory() {
+		return compiledScriptFactory;
+	}
+
+	public void setCompiledScriptFactory(CompiledScriptFactory compiledScriptFactory) {
+		this.compiledScriptFactory = compiledScriptFactory;
+	}
 	protected String _defaultTextExtractor = null;
 	
 	// Distributed processing bypasses the pipeline and uses the custom processing
@@ -94,7 +115,7 @@ public class HarvestControllerPipeline {
 		_bypassHarvestPipeline = false;
 	}
 	
-	private void intializeState()
+	private void intializeState(SourcePojo source)
 	{
 		clearState();
 		
@@ -108,6 +129,8 @@ public class HarvestControllerPipeline {
 			_props = new PropertiesManager();	
 			nMaxTimeSpentInPipeline_ms = _props.getMaxTimePerSource();
 		}
+		_hc.initializeCompiledScripts(source);
+		setCompiledScriptFactory(_hc.getCompiledScriptFactory());
 	}//TESTED (by eye)
 	
 	/////////////////////////////////////////////////////////////////////////////////////////
@@ -126,12 +149,12 @@ public class HarvestControllerPipeline {
 	{
 		// Initialize some variables (since this pipeline can persist):
 		
-		intializeState();
+		_hc = hc;
+		intializeState(source);
 		StringBuffer unindexedFieldList = null;
 		
 		// Now run:
 		
-		_hc = hc;
 		StringBuffer globalScript = null;
 		for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
 			
@@ -352,10 +375,10 @@ public class HarvestControllerPipeline {
 		
 		// Initialize the script engines here:
 		if (null != _sah) {
-			_sah.intializeScriptEngine();
+			_sah.intializeScriptEngine(compiledScriptFactory);			
 		}//TESTED (imports_and_lookup_test_uahSah)
 		if (null != _uah) { // (will just use the SAH's engine if it exists)
-			_uah.intializeScriptEngine(null, null);
+			_uah.intializeScriptEngine(null, null,compiledScriptFactory);
 				// (script engine params get configured in the processing pipeline proper, see below)
 		}//TESTED (imports_and_lookup_test)
 		
@@ -484,10 +507,11 @@ public class HarvestControllerPipeline {
 					}
 				}//TESTED (doc_splitte_test)
 			}
-			else { 
+			else {
 				doc = docIt.next();
 			}//TESTED
-
+			
+			
 			boolean processSpawnedDocOrNotSpawnedDoc = null == doc.getSpawnedFrom(); // (initially: only true if not spawned doc...)
 
 			// (Do this at the top so don't get foxed by any continues in the code)
@@ -536,14 +560,21 @@ public class HarvestControllerPipeline {
 				// pxPipe.text: only if doc.fullText==null
 				// pxPipe.contentMetadata: only if doc.fullText==null
 				// pxPipe.featureEngine: only if doc.fullText==null
-							
+					
+				// create document wrapper
+				ChangeAwareDocumentWrapper caDoc = new ChangeAwareDocumentWrapper(doc);
+				ScriptCallbackNotifier attributeChangeListener = new ScriptCallbackNotifier(compiledScriptFactory,JavaScriptUtils.setDocumentAttributeScript,JavaScriptUtils.docAttributeName,JavaScriptUtils.docAttributeValue);
+				caDoc.setAttributeChangeListener(attributeChangeListener);
+				ScriptEngineContextAttributeNotifier dirtyChangeListener = new ScriptEngineContextAttributeNotifier(compiledScriptFactory,"_dirtyDoc",true);
+				caDoc.setDirtyChangeListener(dirtyChangeListener);
+
 				for (SourcePipelinePojo pxPipe: source.getProcessingPipeline()) { /// (must be non null if here)
 					//DEBUG
 					//System.out.println("PX EL: " + pxPipe.display + ", " + processSpawnedDocOrNotSpawnedDoc + ", " + doc.getUrl() + ": " + toAdd.size());
 					
 					// Spawned documents only enter at their spot in the pipeline:
 					if (!processSpawnedDocOrNotSpawnedDoc) {
-						if (pxPipe == doc.getSpawnedFrom()) { // (intentionally ptr ==)
+						if (pxPipe == caDoc.getSpawnedFrom()) { // (intentionally ptr ==)
 							processSpawnedDocOrNotSpawnedDoc = true; // (next pipeline element, start processing)
 						}
 						continue; // (skip past elements, including the spawnee)
@@ -601,7 +632,7 @@ public class HarvestControllerPipeline {
 								currentBranches = new HashSet<String>();
 							}
 							
-							if (!_sah.rejectDoc(newCriteria, doc, false)) {
+							if (!_sah.rejectDoc(newCriteria, caDoc, false)) {
 								if (null != branchNo) {
 									currentBranches.add(branchNo);								
 									Set<String> parentBranches = this._branchMappings.get(branchNo);
@@ -624,19 +655,6 @@ public class HarvestControllerPipeline {
 						}
 					}//TESTED (basic_criteria_test)
 					
-					//TODO (INF-2218): improve performance of doc serialization by only updating spec'd fields (note: need to change the js engine)
-					// and by sharing engine state between the SAH and UAH
-					
-					// Save metadata state so we know if we need to re-serialize the document 				
-					int nCurrMetaFields = 0;
-					Object ptr = doc.getMetadata();
-					// (Only needed for text engine or feature engine - otherwise the SAH cache is reset as needed)
-					if ((null != pxPipe.featureEngine) || (null != pxPipe.textEngine)) {
-						if ((null != _sah) && (null != ptr)) {
-							nCurrMetaFields = doc.getMetadata().size();
-						}					
-					}//TESTED (metadata_doc_cache_reset)
-					
 					try {					
 						// 3] Create new documents from existing ones
 						
@@ -645,14 +663,16 @@ public class HarvestControllerPipeline {
 								splitterList = new LinkedList<DocumentPojo>();
 							}
 							try {
-								splitDocuments(doc, source, pxPipe, splitterList);
+								// DO not remove until unless you want to debug for 2 days
+								//ScriptUtil.printEngineState(compiledScriptFactory);
+								splitDocuments(caDoc, source, pxPipe, splitterList);
 							}
 							catch (Exception e) {} // do nothing, still want to keep doc unless otherwise specified below
 							
 							if ((null == pxPipe.splitter.getDeleteExisting()) || pxPipe.splitter.getDeleteExisting()) {
 								// Don't keep original doc
 								docIt.remove();
-								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								caDoc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 								break;								
 							}//TESTED (test1,test2)
 							
@@ -665,9 +685,9 @@ public class HarvestControllerPipeline {
 							// OUT: doc.fullText, doc.title, doc.desc, (less common) doc.metadata.*
 							// POST: reset
 	
-							updateInterDocDelayState(doc, false);
+							updateInterDocDelayState(caDoc, false);
 							
-							String cachedFullText = _uah.doManualTextEnrichment(doc, pxPipe.text, source.getRssConfig());
+							String cachedFullText = _uah.doManualTextEnrichment(caDoc, pxPipe.text, source.getRssConfig());
 							if (null != _sah) {
 								_sah.resetDocumentCache();				
 							}
@@ -684,11 +704,11 @@ public class HarvestControllerPipeline {
 							// OUT: doc.* 
 							// POST: reset sah ent cache (_should_ change only metadata and text (+ents/assocs) so don't need to reset sah doc cache) 
 													
-							if (!handleTextEngine(pxPipe, doc, source)) {
+							if (!handleTextEngine(pxPipe, caDoc, source)) {
 								error_on_feed_count++;
 								
 								if ((null == pxPipe.textEngine.exitOnError) || pxPipe.textEngine.exitOnError) {
-									doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+									caDoc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 									docIt.remove();
 									break; // (no more processing)
 								}//TESTED (engines_exit_on_error)
@@ -703,7 +723,7 @@ public class HarvestControllerPipeline {
 							// OUT: doc.*
 							// POST: reset
 							
-							_sah.setDocumentMetadata(doc, pxPipe.docMetadata);
+							_sah.setDocumentMetadata(caDoc, pxPipe.docMetadata);
 							_sah.resetDocumentCache();
 						}
 						//TESTED (fulltext_docMetaTest.json)
@@ -713,22 +733,24 @@ public class HarvestControllerPipeline {
 							// OUT: doc.meta.*
 							// POST: reset
 							
-							updateInterDocDelayState(doc, false);
+							updateInterDocDelayState(caDoc, false);
 							
-							_uah.processMetadataChain(doc, pxPipe.contentMetadata, source.getRssConfig(), unstoredFields);
+							// DO not remove until unless you want to debug for 2 days
+							//ScriptUtil.printEngineState(compiledScriptFactory);
+							_uah.processMetadataChain(caDoc, pxPipe.contentMetadata, source.getRssConfig(), unstoredFields);
 							if (null != _sah) {
 								_sah.resetDocumentCache();				
 							}
 							
 							// Cache the full text if available
 							if ((null == _cachedRawFullText) && _cachedRawFullText_available) {
-								_cachedRawFullText = doc.getFullText();
+								_cachedRawFullText = caDoc.getFullText();
 							}//(TESTED: ((cache available) text_content_then_raw_to_boilerpipe (not available) text_default_then_content_then_default_test.json)
 						}
 						//TESTED (fulltext_regexTests.json, basic_web_uahRawText.json)
 						
 						if (null != pxPipe.joins) {
-							handleJoins(doc, pxPipe.joins);
+							handleJoins(caDoc, pxPipe.joins);
 						}
 						
 						// 6] Entities and Associations
@@ -739,7 +761,7 @@ public class HarvestControllerPipeline {
 							// OUT: doc.entities, sah.entityMap, sah.geoMap
 							// POST: no need to reset anything, sah.entities never read 
 							
-							_sah.setEntities(doc, pxPipe.entities);
+							_sah.setEntities(caDoc, pxPipe.entities);
 						}
 						//TESTED (fulltext_ents_and_assocs.json)
 						
@@ -748,7 +770,7 @@ public class HarvestControllerPipeline {
 							// OUT: doc.associations
 							// POST: no need to reset anything, sah.associations never read	
 							
-							_sah.setAssociations(doc, pxPipe.associations);
+							_sah.setAssociations(caDoc, pxPipe.associations);
 						}
 						//TESTED (fulltext_ents_and_assocs.json)
 						
@@ -757,11 +779,11 @@ public class HarvestControllerPipeline {
 							// OUT: doc.* 
 							// POST: reset sah ent cache (_should_ change only metadata, ents and assocs so don't need to reset sah doc cache)  
 							
-							if (!handleFeatureEngine(pxPipe, doc, source)) {
+							if (!handleFeatureEngine(pxPipe, caDoc, source)) {
 								error_on_feed_count++;
 								
 								if ((null == pxPipe.featureEngine.exitOnError) || pxPipe.featureEngine.exitOnError) {
-									doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+									caDoc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 									docIt.remove();
 									break; // (no more processing)
 									
@@ -777,13 +799,13 @@ public class HarvestControllerPipeline {
 							// OUT: doc.metadata.*
 							// POST: reset if metadata settings present
 							
-							if (!handleStorageSettings(pxPipe, doc)) {
+							if (!handleStorageSettings(pxPipe, caDoc)) {
 								// (this is a manual rejection not an error so we're good)
-								doc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
+								caDoc.setTempSource(null); // (can safely corrupt this doc since it's been removed)
 								
 								if ((null != pxPipe.storageSettings.deleteExistingOnRejection) && pxPipe.storageSettings.deleteExistingOnRejection) {
 									// Use another field to indicate that the doc has not only been rejected, it's going to delete the original also...
-									doc.setExplain(pxPipe.storageSettings); // otherwise will always be null
+									caDoc.setExplain(pxPipe.storageSettings); // otherwise will always be null
 								}//TESTED (under harvest_post_processor testing)								
 								
 								docIt.remove();
@@ -805,19 +827,19 @@ public class HarvestControllerPipeline {
 					
 					// Check metadata state so we know if we need to re-ingest the document
 					// (Only needed for text engine or feature engine - otherwise the SAH cache is reset as needed)
-					if ((null != pxPipe.featureEngine) || (null != pxPipe.textEngine)) {
-						Object ptrAfter = doc.getMetadata();
+/*					if ((null != pxPipe.featureEngine) || (null != pxPipe.textEngine)) {
+						Object ptrAfter = caDoc.getMetadata();
 						int nCurrMetaFieldsAfter = 0;
 						if (null != _sah) {
 							if (null != ptrAfter) {
-								nCurrMetaFieldsAfter = doc.getMetadata().size();						
+								nCurrMetaFieldsAfter = caDoc.getMetadata().size();						
 							}
 							if ((ptr != ptrAfter) || (nCurrMetaFieldsAfter != nCurrMetaFields))
 							{
 								_sah.resetDocumentCache();
 							}
 						}
-					}//TESTED (metadata_doc_cache_reset)
+					}//TESTED (metadata_doc_cache_reset) */
 					
 				}//end loop over per-document processing pipeline elements
 			}
@@ -1206,6 +1228,7 @@ public class HarvestControllerPipeline {
 	protected void requiresStructuredAnalysis() {
 		if (null == _sah) {
 			_sah = new StructuredAnalysisHarvester();
+			_sah.intializeScriptEngine(compiledScriptFactory);
 			_sah.setContext(_hc);
 			
 			if (null != _uah) {
@@ -1218,6 +1241,8 @@ public class HarvestControllerPipeline {
 		if (null == _uah) {
 			_uah = new UnstructuredAnalysisHarvester();
 			_uah.setContext(_hc);
+			_uah.intializeScriptEngine(null, null, compiledScriptFactory);
+
 			
 			if (null != _sah) {
 				_sah.addUnstructuredHandler(_uah);
@@ -1416,8 +1441,11 @@ public class HarvestControllerPipeline {
 			else { // normal case - run the 'follow web links' code to get the docs
 				source.getRssConfig().setSearchConfig(splitter.splitter);
 	
-				FeedHarvester_searchEngineSubsystem subsys = new FeedHarvester_searchEngineSubsystem();
-				subsys.generateFeedFromSearch(source, _hc, doc);
+				FeedHarvester_searchEngineSubsystem subsys = new FeedHarvester_searchEngineSubsystem(source, _hc);
+
+				// DO not remove until unless you want to debug for 2 days
+				//ScriptUtil.printEngineState(compiledScriptFactory);
+				subsys.generateFeedFromSearch(source, _hc, doc);				
 			}			
 			if (null != source.getRssConfig().getExtraUrls()) {
 				for (ExtraUrlPojo newDocInfo: source.getRssConfig().getExtraUrls()) {

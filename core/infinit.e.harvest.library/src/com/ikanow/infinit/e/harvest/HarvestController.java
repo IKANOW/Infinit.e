@@ -44,9 +44,9 @@ import org.bson.types.ObjectId;
 
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
+import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDocumentLevelException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelException;
-import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorDailyLimitExceededException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelMajorException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.ExtractorSourceLevelTransientException;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
@@ -70,6 +70,8 @@ import com.ikanow.infinit.e.harvest.enrichment.legacy.TextRankExtractor;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.alchemyapi.ExtractorAlchemyAPI_Metadata;
 import com.ikanow.infinit.e.harvest.enrichment.legacy.opencalais.ExtractorOpenCalais;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptWrapperUtility;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager_Integrated;
 import com.ikanow.infinit.e.harvest.extraction.document.DuplicateManager_Standalone;
@@ -121,6 +123,8 @@ public class HarvestController implements HarvestContext
 	public DuplicateManager getDuplicateManager() { return _duplicateManager; }
 	public HarvestStatus getHarvestStatus() { return _harvestStatus; }
 	boolean _bIsStandalone = false;
+	private CompiledScriptFactory compiledScriptFactory = null;
+
 	public boolean isStandalone() { return _bIsStandalone; }
 	public void setStandaloneMode(int nMaxDocs) {
 		setStandaloneMode(nMaxDocs, false); // (by default don't dedup, however you may want to test updates)
@@ -264,7 +268,7 @@ public class HarvestController implements HarvestContext
 			} 
 			else if (s.equalsIgnoreCase("feed")) {
 				try {
-					this.harvesters.add(new FeedHarvester());
+					this.harvesters.add(new FeedHarvester());					
 				}
 				catch (Exception e) {
 					logger.error(s + " not supported: " + e.getMessage());
@@ -429,13 +433,16 @@ public class HarvestController implements HarvestContext
 	 * The process currently is:
 	 * 1. Extract from source
 	 * 2. Enrich with metadata from toAdd (entity, fulltext, events, etc)
-	 * 
+	 * Note: This function is called once per thread, not once per source. The HarvestController object is reused! 
+	 * Use esetState() and initState() to reset variables. 
 	 * @param source The source to harvest
 	 */
 	public void harvestSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
 		nUrlErrorsThisSource = 0;
-
+		// set the compiled script factory to null to ensure no other thread is reusing it.
+		this.compiledScriptFactory = null;
+		initializeCompiledScripts(source);
 		if (HarvestController.isHarvestKilled()) { // Already spent too long - just bail out from here
 			source.setReachedMaxDocs();
 			return;
@@ -474,12 +481,13 @@ public class HarvestController implements HarvestContext
 		//   ... - but retain "created" date (and in the future artefacts like comments)]
 		extractSource(source, toAdd, toUpdate, toRemove, toDuplicate);
 		// (^^^ this adds toUpdate to toAdd) 
-
+		
 		// (temp location to store timings)
 		source.setModified(new Date());
 		
 		if (null != source.getProcessingPipeline()) {
 			procPipeline.setInterDocDelayTime(nBetweenFeedDocs_ms);
+			procPipeline.setCompiledScriptFactory(compiledScriptFactory);
 			try {
 				procPipeline.enrichSource_processingPipeline(source, toAdd, toUpdate, toRemove);
 			}
@@ -489,7 +497,7 @@ public class HarvestController implements HarvestContext
 		}
 		else { // Old logic (more complex, less functional)
 			enrichSource(source, toAdd, toUpdate, toRemove);
-		}		
+		}
 		completeEnrichmentProcess(source, toAdd, toUpdate, toRemove);
 
 		// (Now we've completed enrichment either normally or by cloning, add the dups back to the normal documents for generic processing)
@@ -527,6 +535,13 @@ public class HarvestController implements HarvestContext
 			}			
 		}//TESTED (as above)
 	}
+	
+	protected  void initializeCompiledScripts(SourcePojo source) {
+		if(this.compiledScriptFactory==null){
+			this.compiledScriptFactory= new CompiledScriptFactory(source,this);
+		}
+	}
+	
 	/**
 	 * Figures out what source extractors to use and then fills the toAdd list
 	 * with DocumentPojo objects from the extractors. 
@@ -536,7 +551,6 @@ public class HarvestController implements HarvestContext
 	 * @param end source to stop extracting at
 	 * @param toAdd A reference to the toAdd that should be filled with what the source extracts
 	 */
-	@SuppressWarnings("unchecked")
 	private void extractSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove, List<DocumentPojo> toDup)
 	{
 		boolean normalCase = true;
@@ -584,7 +598,12 @@ public class HarvestController implements HarvestContext
 							doc.setMediaType(source.getMediaType());
 							if ((null == source.getAppendTagsToDocs()) || source.getAppendTagsToDocs()) {
 								if (null != source.getTags()) {
-									doc.setTags(new HashSet<String>(source.getTags()));									
+									if (null == doc.getTags()) {
+										doc.setTags(new HashSet<String>(source.getTags()));
+									}
+									else {
+										doc.getTags().addAll(source.getTags());
+									}
 								}
 							}
 							ObjectId sCommunityId = source.getCommunityIds().iterator().next(); // (multiple communities handled below) 
@@ -651,22 +670,27 @@ public class HarvestController implements HarvestContext
 	// (LEGACY) Gets metadata using the extractors and appends to documents
 	//
 
-	private void enrichSource(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
+	private void enrichSource(SourcePojo source, List<DocumentPojo> toAddOrig, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
 		StructuredAnalysisHarvester sah = null;
 		UnstructuredAnalysisHarvester usah = null;
-
+		initializeCompiledScripts(source);
+		
+		List<DocumentPojo> toAdd = CompiledScriptWrapperUtility.convertToWrappedDocumentPojos(toAddOrig,compiledScriptFactory);
 		// Create metadata from the text using regex (also calculate header/footer information if desired)
 		if (source.getUnstructuredAnalysisConfig() != null)
 		{
+			initializeCompiledScripts(source);
 			usah = new UnstructuredAnalysisHarvester();
-
+			usah.intializeScriptEngine(source, source.getUnstructuredAnalysisConfig(), compiledScriptFactory);
 			// If performing structured analysis also then need to mux them
 			// since the UAH will run on the body/description potentially created by the SAH
 			// and the SAH will take the metadata generated by UAH to create entities and events
 			if (source.getStructuredAnalysisConfig() != null) {
 				sah = new StructuredAnalysisHarvester();
+				sah.intializeScriptEngine(compiledScriptFactory);
 				sah.addUnstructuredHandler(usah);
+				
 			}
 			else {
 				toAdd = usah.executeHarvest(this, source, toAdd);
@@ -679,6 +703,7 @@ public class HarvestController implements HarvestContext
 		{
 			if (null == sah) {
 				sah = new StructuredAnalysisHarvester();
+				sah.intializeScriptEngine(compiledScriptFactory);
 			}
 			toAdd = sah.executeHarvest(this, source, toAdd);
 			// (if usah exists then this runs usah)
@@ -709,7 +734,7 @@ public class HarvestController implements HarvestContext
 			catch (Exception e) {}
 		}		
 	}
-
+	
 	private void completeEnrichmentProcess(SourcePojo source, List<DocumentPojo> toAdd, List<DocumentPojo> toUpdate, List<DocumentPojo> toRemove)
 	{
 		// Map ontologies:
@@ -1420,4 +1445,11 @@ public class HarvestController implements HarvestContext
 		
 		return tempFileName;
 	}
+	/**
+	 * @return the compiledScriptFactory
+	 */
+	protected CompiledScriptFactory getCompiledScriptFactory() {
+		return compiledScriptFactory;
+	}
+	
 }

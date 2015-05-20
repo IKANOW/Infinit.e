@@ -968,7 +968,7 @@ public class SimpleFederatedQueryEngine implements IQueryExtension, ISimpleFeder
 		
 		if (!_staticInitializer) {
 			_staticInitializer = true;
-			endpointCacheCollection.ensureIndex(new BasicDBObject(SimpleFederatedCache.expiryDate_, 1));
+			endpointCacheCollection.createIndex(new BasicDBObject(SimpleFederatedCache.expiryDate_, 1));
 		}
 		BasicDBObject cacheObj = (BasicDBObject) endpointCacheCollection.findOne(new BasicDBObject(SimpleFederatedCache._id_, url));
 		if (null == cacheObj) {

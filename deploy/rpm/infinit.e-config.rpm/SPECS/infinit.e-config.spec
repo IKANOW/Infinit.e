@@ -4,7 +4,7 @@ Summary: Infinit.e system configuration
 Name: infinit.e-config
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: curl iptables dos2unix
+Requires: curl iptables dos2unix 
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -22,8 +22,17 @@ Infinit.e system configuration
 %pre
 
 ###########################################################################
+# Check to make sure that JDK8 is installed and in use
+ 
+	if ! readlink -f /usr/java/default | grep -q '^/usr/java/jdk1.8'; then 
+		echo "***ERROR: v0.5 requires JDK1.8 to be installed in /usr/java (eg via RPM)"
+		exit -1
+	fi
+
+###########################################################################
 # Check to make sure that 
 # /opt/infinite-install/config/infinite.configuration.properties exists 
+
 	if [[ ! -f "/opt/infinite-install/config/infinite.configuration.properties" ]]; then
 		echo "ERROR: /opt/infinite-install/config/infinite.configuration.properties is missing."
 		echo "Create a copy of infinite.configuration.properties.TEMPLATE and update the properties"

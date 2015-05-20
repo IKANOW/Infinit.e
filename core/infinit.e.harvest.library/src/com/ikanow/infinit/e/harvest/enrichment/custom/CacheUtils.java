@@ -8,7 +8,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.WeakHashMap;
 
-import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 
 import org.bson.types.ObjectId;
@@ -21,8 +20,8 @@ import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.social.sharing.SharePojo;
-import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.HarvestContext;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
 import com.mongodb.DBObject;
@@ -42,15 +41,15 @@ public class CacheUtils
 	 * @throws ScriptException
 	 * @throws JSONException 
 	 */	
-	public static List<String> addJSONCachesToEngine(Map<String, ObjectId> caches, ScriptEngine engine, IkanowSecurityManager secManager, Set<ObjectId> communityIds, ObjectId sourceOwnerId, HarvestContext _context2) throws ScriptException, JSONException 
+	public static List<String> addJSONCachesToEngine(Map<String, ObjectId> caches, CompiledScriptFactory factory, Set<ObjectId> communityIds, ObjectId sourceOwnerId, HarvestContext _context2) throws ScriptException, JSONException 
 	{
 		boolean testMode = _context2.isStandalone();
 		LinkedList<String> errors = new LinkedList<String>();
 		
-		if ( null != engine )
+		if (factory != null)
 		{
-			engine.eval("_cache = {}");
-			engine.eval("_custom = {}");
+			factory.executeCompiledScript(JavaScriptUtils.cacheEmptyScript);
+			factory.executeCompiledScript(JavaScriptUtils.customEmptyScript);
 			//get json from shares
 			for ( String cacheName : caches.keySet())
 			{
@@ -59,11 +58,11 @@ public class CacheUtils
 				
 				if (null == json) { // not a share, maybe it's a custom job?
 					try {
-						createCustomCache(engine, secManager, cacheName, shareId.toString(), sourceOwnerId, testMode);
+						createCustomCache(factory, cacheName, shareId.toString(), sourceOwnerId, testMode);
 					}
 					catch (Exception e) {
 						try {
-							createSourceCache(engine, secManager, cacheName, shareId.toString(), communityIds, testMode);
+							createSourceCache(factory, cacheName, shareId.toString(), communityIds, testMode);
 						}
 						catch (Exception e2) {
 							errors.add(e.getMessage());
@@ -73,8 +72,7 @@ public class CacheUtils
 				}
 				else { // is a share
 					JSONObject jsonObj = new JSONObject(json);
-					engine.put("tmpcache", jsonObj);				
-					engine.eval("_cache['"+cacheName+"'] = eval('(' + tmpcache + ')');");
+					factory.executeCompiledScript(JavaScriptUtils.putCacheFunction,"tmpcache", jsonObj,"cacheName",cacheName);
 				}		
 			}
 		}
@@ -108,7 +106,7 @@ public class CacheUtils
 	 * @throws ScriptException 
 	 */
 
-	public static synchronized void createCustomCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String jobNameOrShareId, ObjectId submitterId, boolean testMode) throws ScriptException {		
+	public static synchronized void createCustomCache(CompiledScriptFactory factory, String jobAlias, String jobNameOrShareId, ObjectId submitterId, boolean testMode) throws ScriptException {		
 		if (null == _customCache) {
 			_customCache = new HashMap<String, CustomCacheInJavascript>();
 		}
@@ -199,15 +197,14 @@ public class CacheUtils
 		
 		if (null != cacheElement) {
 			_customCache.put(jobNameOrShareId, cacheElement);
-			engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
-			engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
+			factory.executeCompiledScript(JavaScriptUtils.putCustomFunction,"cachewrapper",  new CustomCacheInJavascriptWrapper(cacheElement, factory),"jobAlias",jobAlias);				
 		}//TESTED
 	}
 	/**
 	 * Code for managing larger caches (represented as communities)
 	 * @throws ScriptException 
 	 */
-	public static synchronized void createSourceCache(ScriptEngine engine, IkanowSecurityManager secManager, String jobAlias, String sourceKeyOrId, Set<ObjectId> communityIds, boolean testMode) throws ScriptException
+	public static synchronized void createSourceCache(CompiledScriptFactory factory, String jobAlias, String sourceKeyOrId, Set<ObjectId> communityIds, boolean testMode) throws ScriptException
 	{
 		if (null == _customCache) {
 			_customCache = new HashMap<String, CustomCacheInJavascript>();
@@ -259,8 +256,7 @@ public class CacheUtils
 		
 		if (null != cacheElement) {
 			_customCache.put(sourceKeyOrId, cacheElement);
-			engine.put("cachewrapper", new CustomCacheInJavascriptWrapper(cacheElement, engine, secManager));
-			engine.eval("_custom['"+jobAlias+"'] = cachewrapper;");
+			factory.executeCompiledScript(JavaScriptUtils.putCustomFunction,"cachewrapper",  new CustomCacheInJavascriptWrapper(cacheElement, factory),"jobAlias",jobAlias);				
 			
 		}//TESTED
 	}//TESTED (except where noted)
@@ -304,7 +300,7 @@ public class CacheUtils
 			_cacheCollection = cacheCollection;
 			_keyField = keyField;
 		}
-		public synchronized Object get(String key, ScriptEngine engine, IkanowSecurityManager secManager) {
+		public synchronized Object get(String key, CompiledScriptFactory factory) {
 			Object returnVal = _cacheElement.get(key);
 			
 			if (returnVal instanceof Integer) {
@@ -313,18 +309,13 @@ public class CacheUtils
 			else if (null != returnVal) {
 				// (used to directly return the cached NativeObject but that was intermittently failing - see below)
 				try {
-					engine.put("tmpcache", returnVal);				
-					engine.eval("tmpcache = eval('(' + tmpcache + ')');");
+					factory.executeCompiledScript(JavaScriptUtils.tmpCacheScript,"tmpcache", returnVal);
 				} catch (ScriptException e) {}
 
-				return engine.get("tmpcache");
+				return factory.getScriptContext().getAttribute("tmpcache");
 			}
 			else { // not present lookup
 				BasicDBObject dbo = null;
-				if (null != secManager) {
-					secManager.setSecureFlag(false); // (ie _unset_ so I can perform a lookup)
-				}//TESTED
-				try {
 					BasicDBObject query  = null;
 					if (null != _baseQuery) {
 						query = (BasicDBObject) _baseQuery.clone();
@@ -356,22 +347,16 @@ public class CacheUtils
 							//  the array type (ie appearing as { 0: , 1: } instead of []) so
 							//  for safety will save the string and re-eval each call)
 							strToSave = dbo.toString();
-							engine.put("tmpcache", strToSave);				
-							engine.eval("tmpcache = eval('(' + tmpcache + ')');");
-							cacheVal = engine.get("tmpcache");
+							factory.executeCompiledScript(JavaScriptUtils.tmpCacheScript,"tmpcache", strToSave);
+							cacheVal = factory.getScriptContext().getAttribute("tmpcache");
 						}
 						catch (Exception e) {}
 						_cacheElement.put(key, strToSave);
 						return cacheVal;
 					}//TESTED
-				}
 				//DEBUG
 				//catch (Exception e) { e.printStackTrace(); return null; }
-				finally {
-					if (null != secManager) {
-						secManager.setSecureFlag(true); // (reset)
-					}
-				}//TESTED
+				
 			}
 		}
 		public synchronized void put(String key, Object value) {
@@ -380,18 +365,13 @@ public class CacheUtils
 	}
 	public static class CustomCacheInJavascriptWrapper {
 		CustomCacheInJavascript _cache;
-		ScriptEngine _engine;
-		IkanowSecurityManager _secManager;
-		CustomCacheInJavascriptWrapper(CustomCacheInJavascript cache, ScriptEngine engine, IkanowSecurityManager secManager) {
+		CompiledScriptFactory _factory;
+		CustomCacheInJavascriptWrapper(CustomCacheInJavascript cache,CompiledScriptFactory factory) {
 			_cache = cache;
-			_engine = engine;
-			_secManager = secManager;
+			_factory = factory;
 		}
 		public Object get(String key) {
-			//DEBUG
-			//System.out.println("HERE .. " + _cache + " , " + _engine + " , " + _secManager);
-			
-			return _cache.get(key, _engine, _secManager);
+			return _cache.get(key, _factory);
 		}
 	}
 }

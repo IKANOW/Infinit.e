@@ -33,6 +33,7 @@ import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
+import com.ikanow.infinit.e.api.utils.ProjectUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -65,6 +66,7 @@ public class SourceInterface extends ServerResource
 	private boolean bReturnFullText = false; // (used for test source)
 	private boolean bRealDedup = false; // (used for test source)
 	private boolean bStripped = false;
+	String project_id = null; 	
 	
 	@SuppressWarnings("unused")
 	private static final Logger logger = Logger.getLogger(SourceInterface.class);	
@@ -78,6 +80,7 @@ public class SourceInterface extends ServerResource
 		 cookie = request.getCookies().getFirstValue("infinitecookie",true);
 		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 bStripped = (null != queryOptions.get("stripped")) && Boolean.parseBoolean((String) queryOptions.get("stripped"));
+		 project_id = queryOptions.get(ProjectUtils.query_param);
 		 
 		 // communityid - all get/post methods need this value
 		 if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null)
@@ -283,15 +286,54 @@ public class SourceInterface extends ServerResource
 						 }
 						 else if ( action.equals("good") )
 						 {
-							 rp = this.source.getGoodSources(cookieLookup, communityid, bStripped);
+							 try
+							 {
+								 if ( project_id != null )
+								 {
+									 //then apply project filter
+									 communityid = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));							
+								 }									
+								 rp = this.source.getGoodSources(cookieLookup, communityid, bStripped);
+							 }
+							 catch (Exception ex)
+							 {
+								 rp = new ResponsePojo();
+								 rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));						
+							 }							 
 						 }
 						 else if ( action.equals("bad"))
 						 {
-							 rp = this.source.getBadSources(cookieLookup, communityid, bStripped);
+							 try
+							 {
+								 if ( project_id != null )
+								 {
+									 //then apply project filter
+									 communityid = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));							
+								 }									
+								 rp = this.source.getBadSources(cookieLookup, communityid, bStripped);
+							 }
+							 catch (Exception ex)
+							 {
+								 rp = new ResponsePojo();
+								 rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));						
+							 }							 
 						 }
 						 else if ( action.equals("pending"))
 						 {
-							 rp = this.source.getPendingSources(cookieLookup, communityid, bStripped);
+							 try
+							 {
+								 if ( project_id != null )
+								 {
+									 //then apply project filter
+									 communityid = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));							
+								 }									
+								 rp = this.source.getPendingSources(cookieLookup, communityid, bStripped);
+							 }
+							 catch (Exception ex)
+							 {
+								 rp = new ResponsePojo();
+								 rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));						
+							 }							 
 						 }
 						 else if ( action.equals("user"))
 						 {
@@ -304,7 +346,7 @@ public class SourceInterface extends ServerResource
 						 else if ( action.equals("suspend"))
 						 {
 							 rp = this.source.suspendSource(sourceid, communityid, cookieLookup, shouldSuspend);
-						 }
+						 }	
 					 }
 				 } // (end communities valid)
 			 } // (End login succeeded)

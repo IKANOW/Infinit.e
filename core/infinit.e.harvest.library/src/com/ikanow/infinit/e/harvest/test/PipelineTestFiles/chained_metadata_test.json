@@ -1,0 +1,41 @@
+{
+    "description": "Empty source",
+    "extractType": "Custom",
+    "isPublic": true,
+    "mediaType": "Report",
+    "processingPipeline": [
+        {
+            "web": {
+                "extraUrls": [
+                    {
+                        "description": "test",
+                        "url": "test",
+                        "fullText": "test",
+                        "title": "test"
+                    }
+                ]
+            },
+            "display": ""
+        },
+        {
+            "display": "",
+            "contentMetadata": [
+                {
+                    "script": "var x = {'test':'alex'}; x; ",
+                    "index": false,
+                    "store": true,
+                    "fieldName": "chain",
+                    "scriptlang": "javascript"
+                },
+                {
+                    "script": "var x = {'nest_test':_iterator}; x; ",
+                    "scriptlang": "javascript",
+                    "store": true,
+                    "index": false,
+                    "fieldName": "chain"
+                }
+            ]
+        }
+    ],
+    "title": "Custom source pipeline test"
+}

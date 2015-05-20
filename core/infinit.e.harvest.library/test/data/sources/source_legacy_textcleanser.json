@@ -1,0 +1,149 @@
+{
+    "_id": "5148e803e4b0cff96b75dffb",
+    "communityIds": ["50bcd6fffbf0fd0b27875a7c"],
+    "created": "Mar 19, 2013 10:34:43 PM UTC",
+    "description": "mailtest",
+    "extractType": "File",
+    "file": {
+        "domain": "WORKGROUP",
+        "password": "modus!",
+        "pathExclude": ".*html",
+        "username": "modus"
+    },
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "dev.ikanow.com.139.infinit.e_files.emailtest..2830",
+    "mediaType": "Email",
+    "modified": "Sep 10, 2013 12:36:13 PM UTC",
+    "ownerId": "506dc16dfbf042893dd6b8f2",
+    "shah256Hash": "sJVxUuM08mdenbh3LNudelelh7t9xJ7VXprqvi/745w=",
+    "structuredAnalysis": {
+        "associations": [{
+            "associations": [{
+                "assoc_type": "Event",
+                "entity1": "$SCRIPT( return _doc.metadata._FILE_METADATA_[0].metadata.Author[0];)",
+                "entity2": "$SCRIPT(return _value;)",
+                "iterateOver": "Message-To",
+                "time_start": "$SCRIPT( return _doc.publishedDate;)",
+                "verb": "emailed",
+                "verb_category": "emailed/communicated"
+            }],
+            "iterateOver": "email_meta"
+        }],
+        "entities": [
+            {
+                "dimension": "What",
+                "disambiguated_name": "$SCRIPT( return _doc.metadata._FILE_METADATA_[0].metadata.Author[0];)",
+                "type": "Account",
+                "useDocGeo": false
+            },
+            {
+                "entities": [{
+                    "dimension": "What",
+                    "disambiguated_name": "",
+                    "iterateOver": "Message-To",
+                    "type": "Account",
+                    "useDocGeo": false
+                }],
+                "iterateOver": "email_meta"
+            }
+        ],
+        "scriptEngine": "JavaScript",
+        "title": "$SCRIPT( return _doc.metadata._FILE_METADATA_[0].metadata.subject[0];)"
+    },
+    "tags": [
+        "email",
+        "cgs"
+    ],
+    "title": "mailtest",
+    "unstructuredAnalysis": {
+        "meta": [
+            {
+                "context": "All",
+                "fieldName": "_FILE_METADATA_",
+                "flags": "d",
+                "script": "if (null == _iterator) _iterator = [{}]; var x = _iterator[0]; var n = _doc.url.indexOf('emailtest/'); x['InfinitePath']=_doc.url.substring(n+10)+'.html'; x; ",
+                "scriptlang": "javascript"
+            },
+            {
+                "context": "All",
+                "fieldName": "email_meta",
+                "flags": "m",
+                "script": "var x=_metadata._FILE_METADATA_[0].metadata;x;",
+                "scriptlang": "javascript"
+            }
+        ],
+        "simpleTextCleanser": [
+            {
+                "field": "fullText",
+                "flags": "md",
+                "replacement": " ",
+                "script": "(?:\\[.*?\\])",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "description",
+                "flags": "md",
+                "replacement": " ",
+                "script": "(?:\\[.*?\\])",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "fullText",
+                "flags": "md",
+                "replacement": ". ",
+                "script": "<.*?>",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "description",
+                "flags": "md",
+                "replacement": ". ",
+                "script": "<.*?>",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "fullText",
+                "flags": "md",
+                "replacement": ". ",
+                "script": "(?:>|<)",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "description",
+                "flags": "md",
+                "replacement": ". ",
+                "script": "(?:>|<)",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "fullText",
+                "replacement": " ",
+                "script": "(?:[-]{4,}(.*[-]{4,}|\\n))",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "description",
+                "replacement": " ",
+                "script": "(?:[-]{4,}(.*[-]{4,}|\\n))",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "fullText",
+                "replacement": " ",
+                "script": "(?:\\*{2,})",
+                "scriptlang": "regex"
+            },
+            {
+                "field": "description",
+                "replacement": " ",
+                "script": "(?:\\*{2,})",
+                "scriptlang": "regex"
+            }
+        ]
+    },
+    "url": "smb://localhost:139/enron/enron_mail_20110402/maildir/allen-p/inbox/",
+    "useExtractor": "none",
+    "useTextExtractor": "none"
+}

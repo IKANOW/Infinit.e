@@ -184,7 +184,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			config.setBoolean("mapred.used.genericoptionsparser", true); // (just stops an annoying warning from appearing)
 			if (bLocalMode) { // local job tracker and FS mode
 				config.set("mapred.job.tracker", "local");
-				config.set("fs.default.name", "local");		
+				config.set("fs.defaultFS", "local");		
 			}
 			else {
 				if (bTestMode) { // run job tracker locally but FS mode remotely
@@ -194,8 +194,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 					String trackerUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
 					config.set("mapred.job.tracker", trackerUrl);
 				}
-				String fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.default.name");
-				config.set("fs.default.name", fsUrl);				
+				String fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.defaultFS");
+				config.set("fs.defaultFS", fsUrl);				
 			}
 			if (!dataModelLoaded && !(bTestMode || bLocalMode)) { // If running distributed and no data model loaded then add ourselves
 				Path jarToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/lib/", "infinit.e.data_model.jar", config);
@@ -388,7 +388,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			catch (Error e) { // (messing about with class loaders = lots of chances for errors!)
 				throw new RuntimeException(e.getMessage(), e);
 			}
-			if (bTestMode || bLocalMode) {				
+			if (bTestMode || bLocalMode) {
+				
 				hj.submit();
 				currThreadId = null;
 				Logger.getRootLogger().addAppender(this);
@@ -709,6 +710,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	
 	private String currLocalJobId = null;
 	private String currSanityCheck = null;
+	private boolean sanityCheckConfirmed = false;
 	private String currThreadId = null;
 	private String currJobName = null;
 	private StringBuffer currLocalJobErrs = new StringBuffer();
@@ -758,9 +760,17 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			if (arg0.getRenderedMessage().startsWith(currSanityCheck)) {
 				// This is to check we didn't accidentally get someone else's messages
 				if (!currThreadId.equals(arg0.getThreadName())) {
-					_logger.error("Drop all logging: thread mismatch for " + currLocalJobId);
-					currLocalJobErrs.setLength(0);
-					currThreadId = "ZXCVB";
+					if (!sanityCheckConfirmed) {
+						_logger.error("Drop all logging: thread mismatch for " + currLocalJobId);
+						currLocalJobErrs.setLength(0);
+						currThreadId = "ZXCVB";
+					}
+					else { // heh I guess the thread has changed? (map vs reduce probably?!)
+						currThreadId = arg0.getThreadName();
+					}
+				}
+				else {
+					sanityCheckConfirmed = true;
 				}
 			}
 		}//TESTED

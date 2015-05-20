@@ -24,6 +24,7 @@ import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
 
 public class PersonCommunityPojo extends BaseDbPojo 
 {
+	final public static String _id_ = "_id";
 	private ObjectId _id = null;
 	private String name = null;
 	private CommunityPojo.CommunityType type = null;

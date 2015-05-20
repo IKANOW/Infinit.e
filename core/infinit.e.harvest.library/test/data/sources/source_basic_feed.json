@@ -1,0 +1,31 @@
+{
+	"communityIds": ["54073207e4b00ebcc24e88bc"],
+	"description": "Gov Track Performance source",
+	"extractType": "Feed",
+	"isPublic": true,
+	"mediaType": "Report",
+	"processingPipeline": [
+    {
+        "display": "RSS test",
+        "feed": {
+            "extraUrls": [
+                {
+                    "url": "http://feeds.bbci.co.uk/news/rss.xml"
+                }
+            ],
+            "feedType": "rss",
+            "waitTimeOverride_ms": 100
+        }
+    },
+    {
+        "display": "",
+        "featureEngine": {
+            "engineName": "alchemyapi"
+        }
+    }
+],
+	"searchCycle_secs": -1,
+	"tags": [""],
+	"title": "Gov Track Performance source"
+}
+

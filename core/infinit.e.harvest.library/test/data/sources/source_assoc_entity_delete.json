@@ -1,0 +1,152 @@
+{
+    "communityIds": ["4d38b72c054548f038a0414a"],
+    "description": "Empty source",
+    "isPublic": true,
+    "mediaType": "Report",
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {"extraUrls": [
+                {
+                    "description": "test1",
+                    "fullText": "test1",
+                    "title": "test1",
+                    "url": "test1"
+                },
+                {
+                    "description": "test2",
+                    "fullText": "test2",
+                    "title": "test2",
+                    "url": "test2"
+                }
+            ]}
+        },
+        {
+            "display": "",
+            "entities": [
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}a",
+                    "frequency": "1",
+                    "type": "Test",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}a",
+                    "frequency": "1",
+                    "type": "Test2",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}b",
+                    "type": "Test",
+                    "useDocGeo": false
+                }
+            ]
+        },
+        {
+            "associations": [
+                {
+                    "assoc_type": "Fact",
+                    "entity1_index": "${title}a/test",
+                    "entity2_index": "${title}b/test",
+                    "verb_category": "test"
+                },
+                {
+                    "assoc_type": "Fact",
+                    "entity1_index": "${title}a/test2",
+                    "entity2_index": "${title}b/test",
+                    "verb_category": "test"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1_index": "${title}a/test2",
+                    "entity2_index": "${title}b/test",
+                    "verb_category": "test2_delete"
+                },
+                {
+                    "assoc_type": "Summary",
+                    "entity1_index": "${title}a/test",
+                    "entity2": "quotation or something",
+                    "verb_category": "nothing"
+                }
+            ],
+            "display": ""
+        },
+        {
+            "associations": [
+                {
+                    "entity1_index": "${title}a/test2",
+                    "entity2_index": "${title}b/test",
+                    "geo_index": "${title}a/test",
+                    "geotag": {
+                        "alternatives": [],
+                        "geoType": "manual",
+                        "lat": "4.0",
+                        "lon": "54.0",
+                        "ontology_type": "point"
+                    },
+                    "verb_category": "geo_event"
+                },
+                {
+                    "assoc_type": "Event",
+                    "entity1_index": "${title}b/test",
+                    "geo_index": "${title}a/test",
+                    "verb_category": "geo_only"
+                }
+            ],
+            "display": ""
+        },
+        {
+            "display": "",
+            "entities": [
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}a",
+                    "frequency": "$SCRIPT( return _doc.title == 'test1' ? -1 : 1; )",
+                    "type": "Test",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}a",
+                    "frequency": "1",
+                    "type": "Test",
+                    "useDocGeo": false
+                },
+                {
+                    "dimension": "What",
+                    "disambiguated_name": "${title}c",
+                    "type": "Test",
+                    "useDocGeo": false
+                }
+            ]
+        },
+        {
+            "associations": [
+                {
+                    "assoc_type": "Delete",
+                    "entity1_index": "${title}a/test2",
+                    "entity2_index": "${title}b/test",
+                    "verb_category": "test2_delete"
+                },
+                {
+                    "assoc_type": "Summary",
+                    "entity1_index": "${title}a/test2",
+                    "entity2": "quotation or something",
+                    "verb_category": "test_delete"
+                },
+                {
+                    "assoc_type": "Delete",
+                    "entity1_index": "${title}a/test2",
+                    "verb_category": "test_delete"
+                }
+            ],
+            "criteria": "$SCRIPT( return _doc.title == 'test1'; )"
+        }
+    ],
+    "tags": ["test"],
+    "title": "Pipeline unit testing"
+}

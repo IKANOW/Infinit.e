@@ -176,7 +176,7 @@ public class BaseDbPojo {
 		public JsonElement serialize(ObjectId id, Type typeOfT, JsonSerializationContext context)
 		{
 			JsonObject jo = new JsonObject();
-			jo.addProperty("$oid", id.toStringMongod());
+			jo.addProperty("$oid", id.toString());
 			return jo;
 		}
 	}	

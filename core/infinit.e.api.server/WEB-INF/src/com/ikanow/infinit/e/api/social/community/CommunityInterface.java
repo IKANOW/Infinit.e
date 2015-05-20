@@ -31,6 +31,7 @@ import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
+import com.ikanow.infinit.e.api.utils.ProjectUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -45,7 +46,7 @@ public class CommunityInterface extends ServerResource
 	private CommunityHandler community = new CommunityHandler();
 	
 	// 
-	private String communityId = null;
+	private String communityIdStr = null;
 	private String personId = null;
 	private String userType = null;
 	private String userStatus = null;
@@ -68,6 +69,7 @@ public class CommunityInterface extends ServerResource
 	private String resp = null;
 	private String urlStr = null;
 	private String json = null;
+	String project_id = null;
 	
 	private CommunityPojo.CommunityType communityType = null; // or "user" or "data" for the new groups split
 	
@@ -82,6 +84,8 @@ public class CommunityInterface extends ServerResource
 		cookie = request.getCookies().getFirstValue("infinitecookie", true);	
 		urlStr = request.getResourceRef().toString();
 		
+		project_id = queryOptions.get(ProjectUtils.query_param);
+		
 		if (urlStr.contains("/social/group/user/")) {
 			communityType = CommunityPojo.CommunityType.user;
 		}
@@ -93,7 +97,7 @@ public class CommunityInterface extends ServerResource
 		// Method.POST
 		if (request.getMethod() == Method.POST) 
 		{
-			communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+			communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 		}
 		
 		// Method.GET
@@ -109,7 +113,7 @@ public class CommunityInterface extends ServerResource
 			if (urlStr.contains("/community/get/") || urlStr.matches(".*/group/(user|data)/get/.*"))
 			{
 				if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null) 
-					communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+					communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				action = "getCommunity";
 			}
 			
@@ -120,6 +124,8 @@ public class CommunityInterface extends ServerResource
 			
 			else if (urlStr.contains("/community/getall")   || urlStr.matches(".*/group/(user|data)/getall.*"))
 			{
+				if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null) 
+					communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				action = "getAllCommunities";
 			}
 			
@@ -144,7 +150,7 @@ public class CommunityInterface extends ServerResource
 			
 			else if (urlStr.contains("/community/addwithid/") || urlStr.matches(".*/group/(user|data)/addwithid/.*")  )
 			{
-				communityId = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("id", attributes, queryOptions);
 				name = RESTTools.getUrlAttribute("name", attributes, queryOptions);
 				description = RESTTools.getUrlAttribute("description", attributes, queryOptions);
 				parentId = RESTTools.getUrlAttribute("parentid", attributes, queryOptions);
@@ -158,14 +164,14 @@ public class CommunityInterface extends ServerResource
 			
 			else if ( urlStr.contains("/community/remove/") || urlStr.matches(".*/group/(user|data)/remove/.*") )
 			{
-				communityId = RESTTools.getUrlAttribute("id", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("id", attributes, queryOptions);
 				action = "removeCommunityById";
 			}
 			
 			else if (urlStr.contains("/community/member/update/status") || urlStr.matches(".*/group/(user|data)/member/update/status.*")  )
 			{
 
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				userStatus = RESTTools.getUrlAttribute("userstatus", attributes, queryOptions);
 				action = "updateMemberStatus";
@@ -173,7 +179,7 @@ public class CommunityInterface extends ServerResource
 			
 			else if (urlStr.contains("/community/member/update/type") || urlStr.matches(".*/group/(user|data)/member/update/type.*")  )
 			{
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				userType = RESTTools.getUrlAttribute("usertype", attributes, queryOptions);
 				action = "updateMemberType";
@@ -181,7 +187,7 @@ public class CommunityInterface extends ServerResource
 			
 			else if ( urlStr.contains("/community/update/") || urlStr.matches(".*/group/(user|data)/update/.*") )
 			{
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				// Use URLDecoder on the json string
 				try 
 				{
@@ -199,21 +205,21 @@ public class CommunityInterface extends ServerResource
 			
 			else if ( urlStr.contains("/community/member/join/") || urlStr.matches(".*/group/(user|data)/member/join/.*"))
 			{
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				//personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "joinCommunity";
 			}
 			
 			else if (urlStr.contains("/community/member/leave/") || urlStr.matches(".*/group/(user|data)/member/leave/.*"))
 			{
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				//personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "leaveCommunity";
 			}
 			
 			else if (urlStr.contains("/community/member/invite/") || urlStr.matches(".*/group/(user|data)/member/invite/.*"))
 			{
-				communityId = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
+				communityIdStr = RESTTools.getUrlAttribute("communityid", attributes, queryOptions);
 				personId = RESTTools.getUrlAttribute("personid", attributes, queryOptions);
 				action = "inviteCommunity";
 			}
@@ -289,9 +295,9 @@ public class CommunityInterface extends ServerResource
 		 {
 			 if (action.equals("getCommunity"))
 			 {
-				 if ( SocialUtils.validateCommunityIds(cookieLookup, communityId) || (communityId.startsWith("*")) )
+				 if ( SocialUtils.validateCommunityIds(cookieLookup, communityIdStr) || (communityIdStr.startsWith("*")) )
 				 {
-					 rp = this.community.getCommunity(cookieLookup, communityId, showDocInfo, communityType);
+					 rp = this.community.getCommunity(cookieLookup, communityIdStr, showDocInfo, communityType);
 				 }
 				 else
 				 {
@@ -305,7 +311,20 @@ public class CommunityInterface extends ServerResource
 			 }
 			 else if (action.equals("getAllCommunities"))
 			 {
-				 rp = this.community.getCommunities(cookieLookup, communityType);
+				 try
+				 {					 
+					 if ( project_id != null )
+					 {
+						 //then apply project filter
+						 communityIdStr = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));							
+					 }									
+					 rp = this.community.getCommunities(cookieLookup, communityType, communityIdStr);
+				 }
+				 catch (Exception ex)
+				 {
+					 rp = new ResponsePojo();
+					 rp.setResponse(new ResponseObject("Project Lookup", false, ex.getMessage()));						
+				 }					 
 			 }
 			 else if (action.equals("getPublicCommunities"))
 			 {
@@ -318,19 +337,19 @@ public class CommunityInterface extends ServerResource
 			 else if (action.equals("updateMemberStatus"))
 			 {				 
 				 if (personId.contains(",")) {
-					 rp = this.community.bulkUpdateOperation("updateMemberStatus", cookieLookup, personId, null, userStatus, communityId, communityType, null);
+					 rp = this.community.bulkUpdateOperation("updateMemberStatus", cookieLookup, personId, null, userStatus, communityIdStr, communityType, null);
 				 }
 				 else { // (old version for robustness)
-					 rp = this.community.updateMemberStatus(cookieLookup, personId, communityId, userStatus, communityType);
+					 rp = this.community.updateMemberStatus(cookieLookup, personId, communityIdStr, userStatus, communityType);
 				 }
 			 }
 			 else if (action.equals("updateMemberType"))
 			 {
 				 if (personId.contains(",")) {
-					 rp = this.community.bulkUpdateOperation("updateMemberType", cookieLookup, personId, userType, null, communityId, communityType, null);
+					 rp = this.community.bulkUpdateOperation("updateMemberType", cookieLookup, personId, userType, null, communityIdStr, communityType, null);
 				 }
 				 else { // (old version for robustness)
-					 rp = this.community.updateMemberType(cookieLookup, personId, communityId, userType, communityType);
+					 rp = this.community.updateMemberType(cookieLookup, personId, communityIdStr, userType, communityType);
 				 }
 			 }
 			 else if (action.equals("addCommunity"))
@@ -339,32 +358,32 @@ public class CommunityInterface extends ServerResource
 			 }
 			 else if (action.equals("addCommunityWithId"))
 			 {
-				 rp = this.community.addCommunity(cookieLookup, communityId, name, description, parentId, 
+				 rp = this.community.addCommunity(cookieLookup, communityIdStr, name, description, parentId, 
 						 parentName, tags, ownerId, ownerDisplayName, ownerEmail, communityType);
 			 }
 			 else if ( action.equals("removeCommunityById"))
 			 {
-				 rp = this.community.removeCommunity(cookieLookup, communityId, communityType);
+				 rp = this.community.removeCommunity(cookieLookup, communityIdStr, communityType);
 			 }
 			 else if ( action.equals("updateCommunity"))
 			 {
-				 rp = this.community.updateCommunity(cookieLookup, communityId, json, communityType);
+				 rp = this.community.updateCommunity(cookieLookup, communityIdStr, json, communityType);
 			 }
 			 else if (action.equals("joinCommunity"))
 			 {
-				 rp = this.community.joinCommunity(cookieLookup, communityId, communityType);
+				 rp = this.community.joinCommunity(cookieLookup, communityIdStr, communityType);
 			 }
 			 else if ( action.equals("leaveCommunity"))
 			 {
-				 rp = this.community.leaveCommunity(cookieLookup, communityId, communityType);
+				 rp = this.community.leaveCommunity(cookieLookup, communityIdStr, communityType);
 			 }
 			 else if ( action.equals("inviteCommunity"))
 			 {
 				 if (personId.contains(",")) {
-					 rp = this.community.bulkUpdateOperation("inviteCommunity", cookieLookup, personId, null, null, communityId, communityType, skipInvitation);
+					 rp = this.community.bulkUpdateOperation("inviteCommunity", cookieLookup, personId, null, null, communityIdStr, communityType, skipInvitation);
 				 }
 				 else { // (old version for robustness)
-					 rp = this.community.inviteCommunity(cookieLookup, personId, communityId, skipInvitation, communityType);
+					 rp = this.community.inviteCommunity(cookieLookup, personId, communityIdStr, skipInvitation, communityType);
 				 }
 			 }
 		 }

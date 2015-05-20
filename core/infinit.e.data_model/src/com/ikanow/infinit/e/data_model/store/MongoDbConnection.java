@@ -19,6 +19,7 @@ import java.net.UnknownHostException;
 
 import com.ikanow.infinit.e.data_model.utils.PropertiesManager;
 import com.mongodb.Mongo;
+import com.mongodb.MongoClient;
 import com.mongodb.MongoException;
 import com.mongodb.ReadPreference;
 
@@ -34,7 +35,7 @@ public class MongoDbConnection {
 	/** 
 	  * Private Class Variables
 	  */
-	private Mongo mongo;
+	private MongoClient mongo;
 	private String server = "localhost";
 	private int port = 27017;
 	private boolean successful = true;
@@ -79,7 +80,7 @@ public class MongoDbConnection {
 	public MongoDbConnection() throws UnknownHostException, MongoException {
 		// Test to see of the mongo object is populated
 		if ( mongo == null ) 
-			mongo = new Mongo();	
+			mongo = new MongoClient();	
 	}
 	/**
 	 * Class Constructor used to establish the mongo object
@@ -90,7 +91,7 @@ public class MongoDbConnection {
 	 */
 	public MongoDbConnection(String server) throws UnknownHostException, MongoException {
 		this.server = server;
-		mongo = new Mongo(this.server);
+		mongo = new MongoClient(this.server);
 	}
 	/**
 	 * Class Constructor used to establish the mongo object
@@ -103,7 +104,7 @@ public class MongoDbConnection {
 	public MongoDbConnection(String server, int port) throws UnknownHostException, MongoException {
 		this.server = server;
 		this.port = port;
-		mongo = new Mongo(this.server, this.port);
+		mongo = new MongoClient(this.server, this.port);
 	}
 	
 	/**
@@ -119,7 +120,7 @@ public class MongoDbConnection {
 			this.server = properties.getDatabaseServer();
 			this.port = properties.getDatabasePort();
 		}
-		mongo = new Mongo(this.server, this.port);
+		mongo = new MongoClient(this.server, this.port);
 		
 		if (null != properties) {
 			if (properties.getDistributeAllDbReadsAcrossSlaves()) {
@@ -135,8 +136,4 @@ public class MongoDbConnection {
 		if ( mongo != null )
 			mongo.close();
 	}
-	
-	
-	
-	
 }

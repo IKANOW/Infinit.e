@@ -9,6 +9,7 @@ License: None
 Group: Infinit.e
 BuildArch: noarch
 Prefix: /mnt/opt
+Requires: tomcat6, infinit.e-config >= v0.5, infinit.e-interface-engine >= v0.5
 
 %description
 Infinit.e base enterprise install

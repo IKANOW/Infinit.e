@@ -23,7 +23,11 @@ import java.net.URL;
 import javax.script.ScriptEngine;
 import javax.script.ScriptException;
 
+import org.apache.commons.io.IOUtils;
+import org.apache.log4j.Logger;
+
 import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
 import com.mongodb.BasicDBList;
 //import com.mongodb.BasicDBObject; // (used directly in the javascript now)
 
@@ -33,20 +37,32 @@ import com.mongodb.BasicDBList;
  */
 public class JavaScriptUtils 
 {
-	// initScript - used to pass document in to the script engine
-	public static String initScript = "var _doc = eval('(' + document + ')'); \n";
+	private static final Logger logger = Logger.getLogger(JavaScriptUtils.class);
 	
 	// initScript - used to pass document in to the script engine
-	public static String initOnUpdateScript = "var _old_doc = eval('(' + old_document + ')'); \n";
-	
-	// scripts to pass entity and event json objects into javascript methods
-	public static String iteratorDocScript = "var _iterator = eval('(' + _iterator + ')'); \n";
-	
-	// scripts to pass entity and event json objects into javascript methods
-	public static String iteratorMetaScript = "var _metadata = eval('(' + _metadata + ')'); \n";
-	
+	public static String initOnUpdateScript = "var _old_doc = om2js('(' + old_document + ')'); \n";
+		
 	// genericFunctionCall - all functions passed in via $SCRIPT get the following name
 	public static String genericFunctionCall = "getValue";
+	
+	public static String s1FunctionScript = "s1(output);";
+
+	public static String cacheEmptyScript = "_cache = {}";
+	public static String customEmptyScript = "_custom = {}";
+	public static String putCacheFunction = "function putCache() { _cache[cacheName] = eval('(' + tmpcache + ')'); };putCache()";
+	//public static String putCacheFunctionName = "putCache";
+	public static String putCustomFunction = "function putCustom() { _custom[jobAlias] = cachewrapper;};putCustom()";
+	//public static String putCustomFunctionName = "putCustom";
+	public static String tmpCacheScript = "tmpcache = eval('(' + tmpcache + ')');";
+	private static String om2JsDeclarationScript = null;
+	private static String checkDirtyDoc = null;
+	private static String iteratorOm2Js = null;
+	public static String docAttributeName = "docAttributeName";
+	public static String docAttributeValue = "docAttributeValue";
+	public static String setDocumentAttributeScript = "if(!(typeof(_dirtyDoc)=='undefined') && !_dirtyDoc){ _doc["+docAttributeName+"] = "+docAttributeValue+";dprint('modified:'+"+docAttributeName+"); }";
+	public static String dprint = "dprint(message);";
+	public static String printState = "printState();";
+
 	
 	/**
 	 * getScript
@@ -77,6 +93,7 @@ public class JavaScriptUtils
 		}
 	}
 	
+
 	
 	/**
 	 * containsScript
@@ -227,5 +244,86 @@ public class JavaScriptUtils
 										"; if embedding JAVA, considering using eg \"X = '' + X\" to convert back to native JS strings.");
 		}
 	}
+
+	public static BasicDBList parseNativeJsObjectCompiled(Object returnVal, CompiledScriptFactory compiledScriptFactory) throws ScriptException
+	{		
+		try {			
+			// Use BasicDBObject directly so I can reduce memory usage by setting the initial capacity depending on the size of the JSON array
+			BasicDBList listFactory = new BasicDBList();
+			BasicDBList outList = new BasicDBList();
+			compiledScriptFactory.executeCompiledScript(s1FunctionScript,"output", returnVal,"listFactory", listFactory,"outList", outList);
+			return outList;
+		}
+		catch (Exception e) {
+			throw new RuntimeException("1 Cannot parse return non-JSON object: " + 
+										returnVal.getClass().toString() + ":" + returnVal.toString() + 
+										"; if embedding JAVA, considering using eg \"X = '' + X\" to convert back to native JS strings.");
+		}
+	}
 	
+	/**
+	 * getScript
+	 * Extracts JavaScript code from $SCRIPT() and wraps in getVal function
+	 * @param script - $SCRIPT()
+	 * @return String - function getVal()
+	 */
+	public static String createDollarScriptFunctionAndCall(String scriptlet)
+	{
+		// The start and stop index use to substring the script
+		int start = scriptlet.indexOf("(");
+		int end = scriptlet.lastIndexOf(")");
+		
+		try {
+			if (scriptlet.toLowerCase().startsWith("$script"))
+			{
+				// Remove $SCRIPT() wrapper and then wrap script in 'function getValue() { xxxxxx }'
+				return "function " + genericFunctionCall + "() { " + scriptlet.substring(start + 1, end) + " };"+genericFunctionCall+"();";
+			}		
+		}
+		catch (Exception e) {
+			throw new RuntimeException("Malformed script: " + scriptlet);
+		}
+		return "";
+	}
+
+	public static String getOm2jsDeclarationScript() {
+		if (om2JsDeclarationScript == null) {
+			synchronized (JavaScriptUtils.class) {
+				try {
+					om2JsDeclarationScript = IOUtils.toString(JavaScriptUtils.class
+							.getResourceAsStream("/com/ikanow/infinit/e/harvest/enrichment/script/js/om2js.js"));
+				} catch (Exception e) {
+					logger.error("Caught exception loading om2Js script", e);
+				}
+			}
+		}
+		return om2JsDeclarationScript;
+	}
+
+	public static String getCheckDirtyDoc() {
+		if (checkDirtyDoc == null) {
+			synchronized (JavaScriptUtils.class) {
+				try {
+					checkDirtyDoc = IOUtils.toString(JavaScriptUtils.class
+							.getResourceAsStream("/com/ikanow/infinit/e/harvest/enrichment/script/js/checkDirtyDoc.js"));
+				} catch (Exception e) {
+					logger.error("Caught exception loading docOm2Js script", e);
+				}
+			}
+		}
+		return checkDirtyDoc;
+	}
+	public static String getIteratorOm2js() {
+		if (iteratorOm2Js == null) {
+			synchronized (JavaScriptUtils.class) {
+				try {
+					iteratorOm2Js = IOUtils.toString(JavaScriptUtils.class
+							.getResourceAsStream("/com/ikanow/infinit/e/harvest/enrichment/script/js/iteratorOm2js.js"));
+				} catch (Exception e) {
+					logger.error("Caught exception loading iteratorOm2Js script", e);
+				}
+			}
+		}
+		return iteratorOm2Js;
+	}
 }

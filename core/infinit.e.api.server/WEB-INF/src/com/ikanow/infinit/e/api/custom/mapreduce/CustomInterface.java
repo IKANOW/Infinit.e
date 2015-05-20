@@ -29,6 +29,7 @@ import org.restlet.resource.Post;
 import org.restlet.resource.ResourceException;
 import org.restlet.resource.ServerResource;
 
+import com.ikanow.infinit.e.api.utils.ProjectUtils;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -71,6 +72,7 @@ public class CustomInterface extends ServerResource
 	private String sortStr = null;
 	private String commIds = null;
 	private boolean bCsv = false;
+	String project_id = null;
 	
 	private CustomHandler customhandler = null;
 	
@@ -137,6 +139,8 @@ public class CustomInterface extends ServerResource
 		 {
 			 bCsv = true;			 
 		 }
+		 
+		 project_id = queryOptions.get(ProjectUtils.query_param);
 		 
 		 
 		 //Method.POST
@@ -350,7 +354,17 @@ public class CustomInterface extends ServerResource
 				 }
 				 else if ( action.equals("getjobs"))
 				 {
-					 rp = this.customhandler.getJobOrJobs(cookieLookup, jobid, commIds);
+					 try
+					 {
+						 //if a project id was submitted, sub out the commids for the projects comms
+						 if ( project_id != null )
+							 commIds = ProjectUtils.getCommunityIdStr(ProjectUtils.authenticate(project_id, cookieLookup));
+						 rp = this.customhandler.getJobOrJobs(cookieLookup, jobid, commIds);
+					 }
+					 catch (Exception ex)
+					 {
+						 rp.setResponse(new ResponseObject("Schedule/Update MapReduce Job", false, ex.getMessage()));
+					 }
 				 }
 				 else if ( action.equals("removejob") )
 				 {

@@ -1,0 +1,59 @@
+{
+    "_id": "54fa1a9de4b015849c2e526f",
+    "communityIds": ["54073207e4b00ebcc24e88bc"],
+    "created": "Mar 6, 2015 09:22:37 PM UTC",
+    "description": "Link Following Chain test",
+    "extractType": "Feed",
+    "harvestBadSource": false,
+    "isApproved": true,
+    "isPublic": true,
+    "key": "test.7881",
+    "mediaType": "Report",
+    "modified": "Mar 6, 2015 09:22:37 PM UTC",
+    "ownerId": "53973d78e4b0e7c14274960b",
+    "processingPipeline": [
+        {
+            "display": "",
+            "web": {"extraUrls": [{
+                "description": "test",
+                "fullText": "test",
+                "title": "test",
+                "url": "test"
+            }]}
+        },
+        {
+            "display": "",
+            "globals": {
+                "scriptlang": "javascript",
+                "scripts": ["function followLinks(doc, meta) {\n    var doc = { 'url': 'test2', 'title': doc.title + ': test2', 'description': meta.chain[0], 'fullText': meta.chain[0] };\n    return doc;\n}"]
+            }
+        },
+        {
+            "display": "",
+            "links": {
+                "extraMeta": [
+                    {
+                        "fieldName": "chain",
+                        "script": "var x = {'test':'alex'}; x; ",
+                        "scriptlang": "javascript"
+                    },
+                    {
+                        "fieldName": "chain",
+                        "flags": "c",
+                        "script": "var x = {'nest_test':_iterator}; x;",
+                        "scriptlang": "javascript"
+                    }
+                ],
+                "numPages": 10,
+                "numResultsPerPage": 1,
+                "script": "var x = followLinks(_doc, _metadata); x;",
+                "scriptlang": "javascript",
+                "stopPaginatingOnDuplicate": false
+            }
+        }
+    ],
+    "searchCycle_secs": -1,
+    "shah256Hash": "mCwXRUIc6jqBhcyJpRjEDDWJ9RNKxNzVMWv18BXRq3c=",
+    "tags": [""],
+    "title": "Link Following Chain Test"
+}

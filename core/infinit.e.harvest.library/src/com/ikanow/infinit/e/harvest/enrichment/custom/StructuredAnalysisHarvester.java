@@ -22,24 +22,22 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
-import javax.script.*;
+import javax.script.ScriptContext;
+import javax.script.ScriptException;
 
+import org.apache.commons.beanutils.PropertyUtils;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
-import org.json.JSONArray;
 import org.json.JSONException;
-import org.json.JSONObject;
 
 import au.com.bytecode.opencsv.CSVParser;
 
-import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.ikanow.infinit.e.data_model.Globals;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -47,21 +45,22 @@ import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePipelinePojo.DocumentSpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.SourcePojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo;
-import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.GeoSpecPojo;
-import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.EntitySpecPojo;
 import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.AssociationSpecPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.EntitySpecPojo;
+import com.ikanow.infinit.e.data_model.store.config.source.StructuredAnalysisConfigPojo.GeoSpecPojo;
+import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
-import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.GeoPojo;
 import com.ikanow.infinit.e.data_model.store.feature.geo.GeoFeaturePojo;
+import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
 import com.ikanow.infinit.e.data_model.utils.GeoOntologyMapping;
-import com.ikanow.infinit.e.data_model.utils.IkanowSecurityManager;
 import com.ikanow.infinit.e.harvest.HarvestContext;
 import com.ikanow.infinit.e.harvest.HarvestController;
-import com.ikanow.infinit.e.harvest.utils.DateUtility;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptFactory;
+import com.ikanow.infinit.e.harvest.enrichment.script.CompiledScriptWrapperUtility;
 import com.ikanow.infinit.e.harvest.utils.AssociationUtils;
-import com.ikanow.infinit.e.data_model.utils.DimensionUtility;
+import com.ikanow.infinit.e.harvest.utils.DateUtility;
 import com.ikanow.infinit.e.harvest.utils.HarvestExceptionUtils;
 import com.mongodb.BasicDBList;
 import com.mongodb.BasicDBObject;
@@ -73,17 +72,14 @@ import com.mongodb.BasicDBObject;
 public class StructuredAnalysisHarvester 
 {
 	///////////////////////////////////////////////////////////////////////////////////////////
+	private CompiledScriptFactory compiledScriptFactory = null;
 	
+
 	// NEW PROCESSING PIPELINE INTERFACE
 	
 	public void setContext(HarvestContext context) {
 		_context = context;
-		_securityManager = _context.getSecurityManager();
 		// Setup some globals if necessary
-		if (null == _gson) {
-			GsonBuilder gb = new GsonBuilder();
-			_gson = gb.create();
-		}
 	}
 	
 	public void resetForNewDoc() {
@@ -103,7 +99,6 @@ public class StructuredAnalysisHarvester
 	}//TESTED (entity_cache_reset_test)
 	
 	public void resetDocumentCache() {
-		this._document = null;
 		this._docPojo = null;
 	}
 	
@@ -112,46 +107,14 @@ public class StructuredAnalysisHarvester
 	
 	public void loadGlobalFunctions(List<String> imports, List<String> scripts, String scriptLang) 
 	{
-		intializeScriptEngine();
+		intializeScriptEngine(compiledScriptFactory);
         // Pass scripts into the engine
-        try {
-        	// Retrieve and eval script files in s.scriptFiles
-        	if (imports != null) {
-        		for (String file : imports) {
-        			if (null != file) {
-        				try {
-        					_securityManager.eval(_scriptEngine, JavaScriptUtils.getJavaScriptFile(file, _securityManager));
-        				}
-        		        catch (Exception e) {
-        					this._context.getHarvestStatus().logMessage("ScriptException (imports): " + e.getMessage(), true);
-        					//DEBUG
-        					//logger.error("ScriptException (imports): " + e.getMessage(), e);
-        				}        
-        			}
-        		}
-        	}//(end load imports)
-        	
-        	// Eval script passed in s.script
-        	if (null != scripts) {
-        		for (String script: scripts) {
-        			if (null != script) {
-        				_securityManager.eval(_scriptEngine, script);
-        			}
-        		}
-        	}//(end load scripts)        	
-		} 
-        catch (ScriptException e) {
-			this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
-			//DEBUG
-			//logger.error("ScriptException (globals): " + e.getMessage(), e);
-		}        
 	}//TESTED (uah:import_and_lookup_test_uahSah.json)
 	
 	// Set the document level fields
 	
 	public void setDocumentMetadata(DocumentPojo doc, DocumentSpecPojo docMetadataConfig) throws JSONException, ScriptException {
-		Gson g = _gson;
-		intializeDocIfNeeded(doc, g);
+		intializeDocIfNeeded(doc);
 		
 		// We'll just basically duplicate the code from executeHarvest() since it's pretty simple
 		// and it isn't very easy to pull out the logic in there (which is unnecessarily complicated for
@@ -165,7 +128,7 @@ public class StructuredAnalysisHarvester
 					doc.setTitle((String)getValueFromScript(docMetadataConfig.title, null, null));
 				}
 				else {
-					doc.setTitle(getFormattedTextFromField(docMetadataConfig.title, null));
+					doc.setTitle(FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.title, null));
 				}
 			}
 		}
@@ -183,7 +146,7 @@ public class StructuredAnalysisHarvester
 					doc.setDisplayUrl((String)getValueFromScript(docMetadataConfig.displayUrl, null, null));
 				}
 				else {
-					doc.setDisplayUrl(getFormattedTextFromField(docMetadataConfig.displayUrl, null));
+					doc.setDisplayUrl(FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.displayUrl, null));
 				}
 			}
 		}
@@ -201,7 +164,7 @@ public class StructuredAnalysisHarvester
 					doc.setMediaType((String)getValueFromScript(docMetadataConfig.mediaType, null, null));
 				}
 				else {
-					doc.setMediaType(getFormattedTextFromField(docMetadataConfig.mediaType, null));
+					doc.setMediaType(FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.mediaType, null));
 				}
 			}
 		}
@@ -220,7 +183,7 @@ public class StructuredAnalysisHarvester
 					tagVals = (String)getValueFromScript(docMetadataConfig.tags, null, null);
 				}
 				else {
-					tagVals = getFormattedTextFromField(docMetadataConfig.tags, null);
+					tagVals = FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.tags, null);
 				}
 				CSVParser csv = new CSVParser();
 				String tags[] = csv.parseLine(tagVals);
@@ -256,7 +219,7 @@ public class StructuredAnalysisHarvester
 					doc.setDescription((String)getValueFromScript(docMetadataConfig.description, null, null));
 				}
 				else {
-					doc.setDescription(getFormattedTextFromField(docMetadataConfig.description, null));
+					doc.setDescription(FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.description, null));
 				}
 			}
 		}
@@ -275,7 +238,7 @@ public class StructuredAnalysisHarvester
 					doc.setFullText((String)getValueFromScript(docMetadataConfig.fullText, null, null));
 				}
 				else {
-					doc.setFullText(getFormattedTextFromField(docMetadataConfig.fullText, null));
+					doc.setFullText(FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.fullText, null));
 				}
 			}
 		}
@@ -295,14 +258,14 @@ public class StructuredAnalysisHarvester
 				}
 				else {
 					doc.setPublishedDate(new Date(
-							DateUtility.parseDate((String)getFormattedTextFromField(docMetadataConfig.publishedDate, null))));
+							DateUtility.parseDate((String)FieldExtractor.getFormattedTextFromField(_docPojo,docMetadataConfig.publishedDate, null))));
 				} 
 			}
 		}
 		catch (Exception e) {
 			this._context.getHarvestStatus().logMessage("publishedDate: " + e.getMessage(), true);
 			//DEBUG (don't output log messages per doc)
-			//logger.error("publishedDate: " + e.getMessage(), e);
+			//logger.error("publishedDate: " + e.getMessage()+" for document:"+_gson.toJson(_docPojo), e);
 		}
 		//TESTED (fulltext_docMetaTest)
 		
@@ -327,7 +290,7 @@ public class StructuredAnalysisHarvester
 	StructuredAnalysisConfigPojo _pipelineTmpConfig = null;
 	
 	public void setEntities(DocumentPojo doc, List<EntitySpecPojo> entSpecs) throws JSONException, ScriptException {
-		intializeDocIfNeeded(doc, _gson);
+		intializeDocIfNeeded(doc);
 		if (null == _pipelineTmpConfig) {
 			_pipelineTmpConfig = new StructuredAnalysisConfigPojo();
 		}
@@ -346,7 +309,7 @@ public class StructuredAnalysisHarvester
 		
 		//TODO (INF-1922): Allow setting of directed sentiment (here and in legacy code)
 		
-		intializeDocIfNeeded(doc, _gson);
+		intializeDocIfNeeded(doc);
 		if (null == _pipelineTmpConfig) {
 			_pipelineTmpConfig = new StructuredAnalysisConfigPojo();
 		}
@@ -362,32 +325,11 @@ public class StructuredAnalysisHarvester
 	///////////////////////////////////////////////////////////////////////////////////////////
 	
 	// (Utility function for optimization)
-	private void intializeDocIfNeeded(DocumentPojo f, Gson g) throws JSONException, ScriptException {
-		if (null == _document) {
-			// (don't need assocs or ents)
-			List<EntityPojo> ents = f.getEntities();
-			List<AssociationPojo> assocs = f.getAssociations();
-			f.setEntities(null);
-			f.setAssociations(null);
-			try {
-				
-				// Convert the DocumentPojo Object to a JSON document using GsonBuilder
-				String docStr = g.toJson(f);
-				_document = new JSONObject(docStr);
-				_docPojo = f;
-				// Add the document (JSONObject) to the engine
-				if (null != _scriptEngine) {
-			        _scriptEngine.put("document", docStr);
-			        _securityManager.eval(_scriptEngine, JavaScriptUtils.initScript);
-				}
-			}
-			finally {
-				f.setEntities(ents);
-				f.setAssociations(assocs);
-			}
-		}
-	}//TESTED
-	
+	protected void intializeDocIfNeeded(DocumentPojo f) throws JSONException, ScriptException {
+		_docPojo = f;
+		CompiledScriptWrapperUtility.initializeDocumentPojoInEngine(compiledScriptFactory,f);
+	}
+
 	///////////////////////////////////////////////////////////////////////////////////////////
 	
 	// Loads the caches into script
@@ -397,7 +339,8 @@ public class StructuredAnalysisHarvester
 		try
 		{
 			if (null != caches) {
-				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, _scriptEngine, _securityManager, communityIds, sourceOwnerId, _context);
+				//CacheUtils.addJSONCachesToEngineCompiled(caches, compiledScriptFactory, communityIds, _context);
+				List<String> errs = CacheUtils.addJSONCachesToEngine(caches, compiledScriptFactory, communityIds, sourceOwnerId, _context);
 				for (String err: errs) {
 					_context.getHarvestStatus().logMessage(err, true);
 				}
@@ -464,7 +407,7 @@ public class StructuredAnalysisHarvester
 	public boolean rejectDoc(String rejectDocCriteria, DocumentPojo f, boolean logMessage) throws JSONException, ScriptException
 	{
 		if (null != rejectDocCriteria) {			
-			intializeDocIfNeeded(f, _gson);			
+			intializeDocIfNeeded(f);			
 			
 			Object o = getValueFromScript(rejectDocCriteria, null, null, false);
 			if (null != o) {
@@ -502,7 +445,7 @@ public class StructuredAnalysisHarvester
 		// Compare the new and old docs in the case when this doc is an update
 		if ((null != onUpdateScript) && (null != f.getUpdateId())) {
 			// (note we must be in integrated mode - not called from source/test - if f.getId() != null)
-			intializeDocIfNeeded(f, _gson);			
+			intializeDocIfNeeded(f);			
 			
 			BasicDBObject query1 = new BasicDBObject(DocumentPojo._id_, f.getUpdateId());
 			BasicDBObject query2 = new BasicDBObject(DocumentPojo.updateId_, f.getUpdateId());
@@ -512,26 +455,18 @@ public class StructuredAnalysisHarvester
 			
 			if (null != docObj) {
 				
-				if (null == PARSING_SCRIPT) { // First time through, initialize parsing script 
-					// (to convert native JS return vals into something we can write into our metadata)
-					PARSING_SCRIPT = JavaScriptUtils.generateParsingScript();
-				}					
-				if (!_isParsingScriptInitialized) {
-					_securityManager.eval(_scriptEngine, PARSING_SCRIPT);
-					_isParsingScriptInitialized = true;
-				}
-				DocumentPojo doc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
-		        _scriptEngine.put("old_document", _gson.toJson(doc));
+				DocumentPojo oldDoc = DocumentPojo.fromDb(docObj, DocumentPojo.class);
 		        try {
-		        	_securityManager.eval(_scriptEngine,JavaScriptUtils.initOnUpdateScript);
-		        	Object returnVal = _securityManager.eval(_scriptEngine, onUpdateScript);
-					BasicDBList outList = JavaScriptUtils.parseNativeJsObject(returnVal, _scriptEngine);												
-					f.addToMetadata("_PERSISTENT_", outList.toArray());
+					// COMPILED_SCRIPT
+		        	compiledScriptFactory.executeCompiledScript(JavaScriptUtils.initOnUpdateScript,"old_document",oldDoc);
+		        	Object returnVal = compiledScriptFactory.executeCompiledScript(onUpdateScript);
+					BasicDBList outList = JavaScriptUtils.parseNativeJsObjectCompiled(returnVal, compiledScriptFactory);												
+					f.addToMetadata("_PERSISTENT_", outList.toArray());		        	
 		        }
 		        catch (Exception e) {
 		        	// Extra step here...
-		        	if (null != doc.getMetadata()) { // Copy persistent metadata across...
-		        		Object[] persist = doc.getMetadata().get("_PERSISTENT_");
+		        	if (null != oldDoc.getMetadata()) { // Copy persistent metadata across...
+		        		Object[] persist = oldDoc.getMetadata().get("_PERSISTENT_");
 		        		if (null != persist) {
 		        			f.addToMetadata("_PERSISTENT_", persist);
 		        		}						        		
@@ -543,11 +478,6 @@ public class StructuredAnalysisHarvester
 		        }								
 				//TODO (INF-1507): need to write more efficient code to deserialize metadata?
 			}
-			
-			_document = null;
-			_docPojo = null;
-			intializeDocIfNeeded(f, _gson);
-			
 		}//TESTED (end if callback-on-update)
 	}//TESTED (legacy code)
 	
@@ -557,21 +487,20 @@ public class StructuredAnalysisHarvester
 	
 	// Intialize script engine - currently only Java script is supported
 	
-	public void intializeScriptEngine()
+	public void intializeScriptEngine(CompiledScriptFactory compiledScriptFactory)
 	{
-		if (null == _scriptEngine) {
-			//set up the security manager
-			_securityManager = new IkanowSecurityManager();						
-			_scriptFactory = new ScriptEngineManager();
-			_scriptEngine = _scriptFactory.getEngineByName("JavaScript");
-			
-			if (null != _unstructuredHandler) { // Also initialize the scripting engine for the UAH
-				_unstructuredHandler.set_sahEngine(_scriptEngine);
-			}
-	        // Make the engine invocable so that we can call functions in the script
-	        // using the inv.invokeFunction(function) method
-	        _scriptInvoker = (Invocable) _scriptEngine;
-		}//(once only)
+		if(this.compiledScriptFactory==null){
+			this.compiledScriptFactory = compiledScriptFactory;
+	        try {
+	        	// COMPILED_SCRIPT initialization 
+	            this.compiledScriptFactory.executeCompiledScript(CompiledScriptFactory.GLOBAL);
+			} 
+	        catch (ScriptException e) {
+				this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
+				//DEBUG
+				//logger.error("ScriptException (globals): " + e.getMessage(), e);
+			}			
+		}			
 	}//TESTED
 	
 	///////////////////////////////////////////////////////////////////////////////////////////
@@ -581,14 +510,10 @@ public class StructuredAnalysisHarvester
 	// LEGACY CODE - USE TO SUPPORT OLD CODE FOR NOW + AS UTILITY CODE FOR THE PIPELINE LOGIC
 	
 	// Private class variables
-	@SuppressWarnings("unused")
 	private static Logger logger;
-	private JSONObject _document = null; //TODO (INF-2488): change all the JSONObject logic to LinkedHashMap and (generic) Array so can just replace this with a string...
-	private DocumentPojo _docPojo = null;
-	private Gson _gson = null;
-	private JSONObject _iterator = null;
+    DocumentPojo _docPojo = null;
+	private Object _iterator = null;
 	private String _iteratorIndex = null;
-	private static Pattern SUBSTITUTION_PATTERN = Pattern.compile("\\$([a-zA-Z._0-9]+)|\\$\\{([^}]+)\\}");
 	private HashMap<String, GeoPojo> _geoMap = null;
 	private HashSet<String> _entityMap = null;
 	private HashSet<String> _entitiesToDeleteMap = null; // has persistence of addEntities)
@@ -610,14 +535,6 @@ public class StructuredAnalysisHarvester
 	}
 	private UnstructuredAnalysisHarvester _unstructuredHandler = null;
 	
-	// 
-	private ScriptEngineManager _scriptFactory = null;
-	private ScriptEngine _scriptEngine = null;
-	private IkanowSecurityManager _securityManager = null;
-	private Invocable _scriptInvoker = null;
-	private static String PARSING_SCRIPT = null;
-	private boolean _isParsingScriptInitialized = false; // (needs to be done once per source)
-
 	/**
 	 * executeHarvest(SourcePojo source, List<DocumentPojo> feeds) extracts document GEO, Entities,
 	 * and Associations based on the DocGeoSpec, EntitySpec, and AssociationSpec information contained
@@ -630,12 +547,6 @@ public class StructuredAnalysisHarvester
 	public List<DocumentPojo> executeHarvest(HarvestController contextController, SourcePojo source, List<DocumentPojo> docs)
 	{
 		_context = contextController;
-		_securityManager = _context.getSecurityManager();
-		if (null == _gson) {
-			GsonBuilder gb = new GsonBuilder();
-			_gson = gb.create();
-		}
-		Gson g = _gson;
 		
 		// Skip if the StructuredAnalysis object of the source is null 
 		if (source.getStructuredAnalysisConfig() != null)
@@ -646,10 +557,10 @@ public class StructuredAnalysisHarvester
 			
 			// Instantiate a new ScriptEngineManager and create an engine to execute  
 			// the type of script specified in StructuredAnalysisPojo.scriptEngine
-			this.intializeScriptEngine();			
+			this.intializeScriptEngine(compiledScriptFactory);			
 						
-			this.loadLookupCaches(s.getCaches(), source.getCommunityIds(), source.getOwnerId());
-			
+			this.loadLookupCaches(s.getCaches(), source.getCommunityIds(), source.getOwnerId());			
+
 			// Iterate over each doc in docs, create entity and association pojo objects
 			// to add to the feed using the source entity and association spec pojos
 			Iterator<DocumentPojo> it = docs.iterator();
@@ -660,14 +571,12 @@ public class StructuredAnalysisHarvester
 				nDocs++;
 				try 
 				{ 
-					resetEntityCache();
-					_document = null;
-					_docPojo = null;
+					resetEntityCache();					
 						// (don't create this until needed, since it might need to be (re)serialized after a call
 						//  to the UAH which would obviously be undesirable)
 								        					
 					// If the script engine has been instantiated pass the feed document and any scripts
-					if (_scriptEngine != null)
+					if (compiledScriptFactory != null)
 					{
 						List<String> scriptList = null;
 						List<String> scriptFileList = null;
@@ -691,14 +600,14 @@ public class StructuredAnalysisHarvester
 					try {
 						if (s.getTitle() != null)
 						{
-							intializeDocIfNeeded(f, g);
+							intializeDocIfNeeded(f);
 							if (JavaScriptUtils.containsScript(s.getTitle()))
 							{
 								f.setTitle((String)getValueFromScript(s.getTitle(), null, null));
 							}
 							else
 							{
-								f.setTitle(getFormattedTextFromField(s.getTitle(), null));
+								f.setTitle(FieldExtractor.getFormattedTextFromField(_docPojo,s.getTitle(), null));
 							}
 							if (null == f.getTitle()) {
 								bTryTitleLater = true;
@@ -717,14 +626,14 @@ public class StructuredAnalysisHarvester
 					try {
 						if (s.getDisplayUrl() != null)
 						{
-							intializeDocIfNeeded(f, g);
+							intializeDocIfNeeded(f);
 							if (JavaScriptUtils.containsScript(s.getDisplayUrl()))
 							{
 								f.setDisplayUrl((String)getValueFromScript(s.getDisplayUrl(), null, null));
 							}
 							else
 							{
-								f.setDisplayUrl(getFormattedTextFromField(s.getDisplayUrl(), null));
+								f.setDisplayUrl(FieldExtractor.getFormattedTextFromField(_docPojo,s.getDisplayUrl(), null));
 							}
 							if (null == f.getDisplayUrl()) {
 								bTryDisplayUrlLater = true;
@@ -744,14 +653,14 @@ public class StructuredAnalysisHarvester
 					try {
 						if (s.getDescription() != null)
 						{
-							intializeDocIfNeeded(f, g);
+							intializeDocIfNeeded(f);
 							if (JavaScriptUtils.containsScript(s.getDescription()))
 							{
 								f.setDescription((String)getValueFromScript(s.getDescription(), null, null));
 							}
 							else
 							{
-								f.setDescription(getFormattedTextFromField(s.getDescription(), null));
+								f.setDescription(FieldExtractor.getFormattedTextFromField(_docPojo,s.getDescription(), null));
 							}
 							if (null == f.getDescription()) {
 								bTryDescriptionLater = true;
@@ -771,14 +680,14 @@ public class StructuredAnalysisHarvester
 					try {
 						if (s.getFullText() != null)
 						{
-							intializeDocIfNeeded(f, g);
+							intializeDocIfNeeded(f);
 							if (JavaScriptUtils.containsScript(s.getFullText()))
 							{
 								f.setFullText((String)getValueFromScript(s.getFullText(), null, null));
 							}
 							else
 							{
-								f.setFullText(getFormattedTextFromField(s.getFullText(), null));
+								f.setFullText(FieldExtractor.getFormattedTextFromField(_docPojo,s.getFullText(), null));
 							}
 							if (null == f.getFullText()) {
 								bTryFullTextLater = true;
@@ -805,7 +714,6 @@ public class StructuredAnalysisHarvester
 						{
 							try 
 							{
-								this._unstructuredHandler.set_sahEngine(_scriptEngine);
 								bMetadataChanged = this._unstructuredHandler.executeHarvest(_context, source, f, (1 == nDocs), it.hasNext());
 							}
 							catch (Exception e) {
@@ -858,9 +766,7 @@ public class StructuredAnalysisHarvester
 							// Ugly, but need to re-create doc json because metadata has changed
 							String sTmpFullText = f.getFullText();
 							f.setFullText(null); // (no need to serialize this, can save some cycles)
-							_document = null;
-							_docPojo = null;
-							intializeDocIfNeeded(f, g);							
+							intializeDocIfNeeded(f);							
 					        f.setFullText(sTmpFullText); //(restore)
 						}
 						
@@ -881,7 +787,7 @@ public class StructuredAnalysisHarvester
 					}
 						
 					// Now create document since there's no risk of having to re-serialize
-					intializeDocIfNeeded(f, g);
+					intializeDocIfNeeded(f);
 					
 			// 3. final doc-level metadata fields:
 					
@@ -890,14 +796,14 @@ public class StructuredAnalysisHarvester
 						try {
 							if (s.getTitle() != null)
 							{
-								intializeDocIfNeeded(f, g);
+								intializeDocIfNeeded(f);
 								if (JavaScriptUtils.containsScript(s.getTitle()))
 								{
 									f.setTitle((String)getValueFromScript(s.getTitle(), null, null));
 								}
 								else
 								{
-									f.setTitle(getFormattedTextFromField(s.getTitle(), null));
+									f.setTitle(FieldExtractor.getFormattedTextFromField(_docPojo,s.getTitle(), null));
 								}
 							}
 						}
@@ -914,14 +820,14 @@ public class StructuredAnalysisHarvester
 						try {
 							if (s.getDisplayUrl() != null)
 							{
-								intializeDocIfNeeded(f, g);
+								intializeDocIfNeeded(f);
 								if (JavaScriptUtils.containsScript(s.getDisplayUrl()))
 								{
 									f.setDisplayUrl((String)getValueFromScript(s.getDisplayUrl(), null, null));
 								}
 								else
 								{
-									f.setDisplayUrl(getFormattedTextFromField(s.getDisplayUrl(), null));
+									f.setDisplayUrl(FieldExtractor.getFormattedTextFromField(_docPojo,s.getDisplayUrl(), null));
 								}
 							}
 						}
@@ -939,14 +845,14 @@ public class StructuredAnalysisHarvester
 						try {
 							if (s.getDescription() != null)
 							{
-								intializeDocIfNeeded(f, g);
+								intializeDocIfNeeded(f);
 								if (JavaScriptUtils.containsScript(s.getDescription()))
 								{
 									f.setDescription((String)getValueFromScript(s.getDescription(), null, null));
 								}
 								else
 								{
-									f.setDescription(getFormattedTextFromField(s.getDescription(), null));
+									f.setDescription(FieldExtractor.getFormattedTextFromField(_docPojo,s.getDescription(), null));
 								}
 							}
 						}
@@ -963,14 +869,14 @@ public class StructuredAnalysisHarvester
 						try {
 							if (s.getFullText() != null)
 							{
-								intializeDocIfNeeded(f, g);
+								intializeDocIfNeeded(f);
 								if (JavaScriptUtils.containsScript(s.getFullText()))
 								{
 									f.setFullText((String)getValueFromScript(s.getFullText(), null, null));
 								}
 								else
 								{
-									f.setFullText(getFormattedTextFromField(s.getFullText(), null));
+									f.setFullText(FieldExtractor.getFormattedTextFromField(_docPojo,s.getFullText(), null));
 								}
 							}
 						}
@@ -1002,7 +908,7 @@ public class StructuredAnalysisHarvester
 							try 
 							{ 
 								f.setPublishedDate(new Date(
-										DateUtility.parseDate((String)getFormattedTextFromField(s.getPublishedDate(), null))));
+										DateUtility.parseDate((String)FieldExtractor.getFormattedTextFromField(_docPojo,s.getPublishedDate(), null))));
 							} 
 							catch (Exception e) 
 							{
@@ -1048,12 +954,7 @@ public class StructuredAnalysisHarvester
 					this._context.getHarvestStatus().logMessage("Unknown: " + e.getMessage(), true);						
 					//DEBUG (don't output log messages per doc)
 					//logger.error("Unknown: " + e.getMessage(), e);
-				}
-				finally
-				{
-					_document = null;
-					_docPojo = null;
-				}
+				}				
 			} // (end loop over documents)
 		} // (end if SAH specified)	
 		return docs;
@@ -1086,20 +987,19 @@ public class StructuredAnalysisHarvester
 		_entitiesToDeleteMap = null; // (do this at start and end, in case of exceptions)
 
 		// Iterate over each EntitySpecPojo and try to create an entity, or entities, from the data
-		JSONObject metadata = null;
-		if (_document.has("metadata")) {
-			metadata = _document.getJSONObject("metadata");
-		}
+		
 		for (EntitySpecPojo esp : esps)
 		{
 			try {
-				List<EntityPojo> tempEntities = getEntities(esp, f, metadata);
+				List<EntityPojo> tempEntities = getEntities(esp, f, _docPojo.getMetadataReadOnly());
 				for (EntityPojo e : tempEntities)
 				{
 					entities.add(e);
 				}
 			}
-			catch (Exception e) {} // (carry on, prob just a missing field in this doc)
+			catch (Exception e) {
+				logger.warn("getEntities caught exception:",e);
+			} // (carry on, prob just a missing field in this doc)
 		}
 		boolean actuallyDeletedEnts = false;
 		if (null != entities) {
@@ -1153,7 +1053,8 @@ public class StructuredAnalysisHarvester
 	 * @param f
 	 * @return
 	 */
-	private List<EntityPojo> getEntities(EntitySpecPojo esp, DocumentPojo f, JSONObject currObj)
+	@SuppressWarnings("rawtypes")
+	private List<EntityPojo> getEntities(EntitySpecPojo esp, DocumentPojo f, Object currObj)
 	{
 		List<EntityPojo> entities = new ArrayList<EntityPojo>();
 		
@@ -1168,37 +1069,41 @@ public class StructuredAnalysisHarvester
 				
 				Object itEl = null;
 				try {
-					itEl = currObj.get(iterateOver);
+					
+					itEl = PropertyUtils.getProperty(currObj, iterateOver);
 				}
-				catch (JSONException e) {} // carry on, trapped below...
+				catch (Exception e) {} // carry on, trapped below...
 				
 				if (null == itEl) {
 					return entities;
+				} 
+				logger.debug("getEntitis class itEl:"+itEl.getClass());
+				Object[] entityRecords = null;
+				if(itEl instanceof Object[]){
+					entityRecords = (Object[])itEl;
 				}
-				JSONArray entityRecords = null;
-				try {
-					entityRecords = currObj.getJSONArray(iterateOver);
+				else if(itEl instanceof List){
+					entityRecords = (Object[])((List)itEl).toArray();
+				}else{
+					entityRecords = new Object[1];
+					entityRecords[0]=itEl;					
 				}
-				catch (JSONException e) {} // carry on, trapped below...
-					
-				if (null == entityRecords) {
-					entityRecords = new JSONArray();
-					entityRecords.put(itEl);
-				}
-				//TESTED
+				//TESTED11
+				if (entityRecords.length > 0) {
 
 				// Get the type of object contained in EntityRecords[0]
-				String objType = entityRecords.get(0).getClass().toString();
+				Class<?> objType = entityRecords[0].getClass();
+				
+				logger.debug("getEntitis2 class entityRecords[0]:"+entityRecords[0].getClass());
 
-				/*
-				 *  EntityRecords is a simple String[] array of entities
-				 */
-				if (objType.equalsIgnoreCase("class java.lang.String"))
+				// EntityRecords is a simple String[] array of entities
+				
+				if (String.class.isAssignableFrom(objType))
 				{
 					// Iterate over array elements and extract entities
-					for (int i = 0; i < entityRecords.length(); ++i) 
+					for (int i = 0; i < entityRecords.length; ++i) 
 					{							
-						String field = entityRecords.getString(i);
+						String field = (String)entityRecords[i];
 						long nIndex = Long.valueOf(i);
 						
 						if (null != esp.getType()) { // (else cannot be a valid entity, must just be a list)
@@ -1232,20 +1137,21 @@ public class StructuredAnalysisHarvester
 					}
 				}
 
-				/*
-				 *  EntityRecords is a JSONArray
-				 */
-				else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
-				{
+				
+				 //  EntityRecords is a JSONArray
+				 
+				//else if (objType.equalsIgnoreCase("class org.json.JSONObject"))				
+				else if (Map.class.isAssignableFrom(objType))
+				{		
 					// Iterate over array elements and extract entities
-					for (int i = 0; i < entityRecords.length(); ++i) 
+					for (int i = 0; i < entityRecords.length; ++i) 
 					{
 						// Get JSONObject containing entity fields and pass entityElement
 						// into the script engine so scripts can access it
-						JSONObject savedIterator = null;
-						if (_scriptEngine != null) 
+						Object savedIterator = null;
+						if (compiledScriptFactory != null) 
 						{
-							_iterator = savedIterator = entityRecords.getJSONObject(i);
+							_iterator = savedIterator = entityRecords[i];
 						}
 
 						if (null != esp.getType()) { // (else cannot be a valid entity, must just be a list)
@@ -1268,18 +1174,17 @@ public class StructuredAnalysisHarvester
 								}
 							}
 						}
-					}
+					} // entityRecords
 				}
 
 				if (_iterator != currObj) { // (ie at the top level)
 					_iterator = null;
 				}
 			}
+			}
 			catch (Exception e)
 			{
-				//e.printStackTrace();
-				//System.out.println(e.getMessage());
-				//logger.error("Exception: " + e.getMessage());
+				//logger.error("Exception in getEntities: " , e);
 			}
 		}
 		
@@ -1292,7 +1197,7 @@ public class StructuredAnalysisHarvester
 				// Iterate over the entities and call getEntities recursively
 				for (EntitySpecPojo subEsp : esp.getEntities())
 				{	
-					List<EntityPojo> subEntities = getEntities(subEsp, f, currObj);
+					List<EntityPojo> subEntities = getEntities(subEsp, f,currObj);
 					for (EntityPojo e : subEntities)
 					{
 						entities.add(e);
@@ -1340,6 +1245,7 @@ public class StructuredAnalysisHarvester
 			}
 			
 			// Entity.disambiguous_name
+			Object dpOrIt = _iterator != null ? _iterator: _docPojo ;
 			String disambiguatedName = null;
 			if (JavaScriptUtils.containsScript(esp.getDisambiguated_name()))
 			{
@@ -1353,14 +1259,7 @@ public class StructuredAnalysisHarvester
 					}
 				}
 				// Field - passed in via simple string array from getEntities
-				if (field != null)
-				{
-					disambiguatedName = getFormattedTextFromField(esp.getDisambiguated_name(), field);
-				}
-				else
-				{
-					disambiguatedName = getFormattedTextFromField(esp.getDisambiguated_name(), field);
-				}
+				disambiguatedName = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getDisambiguated_name(), field);				
 			}
 			
 			// Only proceed if disambiguousName contains a meaningful value
@@ -1384,7 +1283,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					freq = getFormattedTextFromField(esp.getFrequency(), field);
+					freq = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getFrequency(), field);
 				}
 				// Since we've specified freq, we're going to enforce it
 				if (null == freq) { // failed to get it
@@ -1432,7 +1331,7 @@ public class StructuredAnalysisHarvester
 							_context.getHarvestStatus().logMessage("Warning: in actual_name, using global $metadata when iterating", true);
 						}
 					}
-					actualName = getFormattedTextFromField(esp.getActual_name(), field);
+					actualName = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getActual_name(), field);
 				}
 				// Since we've specified actual name, we're going to enforce it (unless otherwise specified)
 				if (null == actualName) { // failed to get it
@@ -1458,7 +1357,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					type = getFormattedTextFromField(esp.getType(), field);
+					type = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getType(), field);
 				}
 				// Since we've specified type, we're going to enforce it (unless otherwise specified)
 				if (null == type) { // failed to get it
@@ -1488,7 +1387,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					dimension = getFormattedTextFromField(esp.getDimension(), field);
+					dimension = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getDimension(), field);
 				}
 				// Since we've specified dimension, we're going to enforce it (unless otherwise specified)
 				if (null == dimension) { // failed to get it
@@ -1543,7 +1442,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					relevance = getFormattedTextFromField(esp.getRelevance(), field);
+					relevance = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getRelevance(), field);
 				}
 				// Since we've specified relevance, we're going to enforce it (unless otherwise specified)
 				if (null == relevance) { // failed to get it
@@ -1571,7 +1470,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					sentiment = getFormattedTextFromField(esp.getSentiment(), field);
+					sentiment = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getSentiment(), field);
 				}
 				// (sentiment is optional, even if specified)
 				if (null != sentiment) {
@@ -1603,7 +1502,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					linkdata = getFormattedTextFromField(esp.getLinkdata(), field);
+					linkdata = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getLinkdata(), field);
 				}
 				// linkdata is optional, even if specified
 				if (null != linkdata) {
@@ -1646,7 +1545,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					ontology_type = getFormattedTextFromField(esp.getOntology_type(), field);
+					ontology_type = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getOntology_type(), field);
 				}
 				// Allow this field to be intrinsically optional
 			}
@@ -1711,14 +1610,10 @@ public class StructuredAnalysisHarvester
 		_assocsToDeleteMap = null; // (do this at start and end, in case of exceptions)
 
 		// Iterate over each AssociationSpecPojo and try to create an entity, or entities, from the data
-		JSONObject metadata = null;
-		if (_document.has("metadata")) {
-			metadata = _document.getJSONObject("metadata");
-		}
 		for (AssociationSpecPojo esp : esps)
 		{
 			try {
-				List<AssociationPojo> tempAssocs = getAssociations(esp, f, metadata);
+				List<AssociationPojo> tempAssocs = getAssociations(esp, f, _docPojo.getMetadataReadOnly());
 				if (null != tempAssocs) {
 					for (AssociationPojo e : tempAssocs)
 					{
@@ -1753,7 +1648,8 @@ public class StructuredAnalysisHarvester
 	 * @param f
 	 * @return List<AssociationPojo>
 	 */
-	private List<AssociationPojo> getAssociations(AssociationSpecPojo esp, DocumentPojo f, JSONObject currObj)
+	@SuppressWarnings({ "rawtypes", "unchecked" })
+	private List<AssociationPojo> getAssociations(AssociationSpecPojo esp, DocumentPojo f, Object currObj)
 	{
 		List<AssociationPojo> associations = new ArrayList<AssociationPojo>();
 		try
@@ -1790,7 +1686,7 @@ public class StructuredAnalysisHarvester
 					{
 						for (String[] assocToCreate : assocsToCreate)
 						{
-							JSONObject currIt = new JSONObject();
+							LinkedHashMap currIt = new LinkedHashMap();
 							
 							AssociationSpecPojo newAssoc = new AssociationSpecPojo();
 							// Entity1
@@ -1842,8 +1738,8 @@ public class StructuredAnalysisHarvester
 							newAssoc.setGeotag(esp.getGeotag());
 
 							// Create an association from the AssociationSpecPojo and document
-							JSONObject savedIterator = _iterator; // (just in case this needs to be retained - i don't think it does)
-							if (null != _scriptEngine) { // (in case no script engine specified)
+							Object savedIterator = _iterator;
+							if (null != compiledScriptFactory) { // (in case no script engine specified)
 								_iterator = currIt;
 							}
 							AssociationPojo association = getAssociation(newAssoc, null, null, f);
@@ -1865,36 +1761,42 @@ public class StructuredAnalysisHarvester
 						
 						Object itEl = null;
 						try {
-							itEl = currObj.get(iterateOver);
+							itEl = PropertyUtils.getProperty(currObj, iterateOver);
+
 						}
-						catch (JSONException e) {} // carry on, trapped below...
+						catch (Exception e) {} // carry on, trapped below...
 						
 						if (null == itEl) {
 							return associations;
 						}
-						JSONArray assocRecords = null;
-						try {
-							assocRecords = currObj.getJSONArray(iterateOver);
+						logger.debug("getAssociations2 class itEl:"+itEl.getClass());
+						//	JSONArray entityRecords = null;
+						Object[] assocRecords = null;
+						
+						if(itEl instanceof Object[]){
+							assocRecords = (Object[])itEl;
 						}
-						catch (JSONException e) {} // carry on, trapped below...
-							
-						if (null == assocRecords) {
-							assocRecords = new JSONArray();
-							assocRecords.put(itEl);
+						else if(itEl instanceof List){
+							assocRecords = (Object[])((List)itEl).toArray();
+						}else{
+							assocRecords = new Object[1];
+							assocRecords[0]=itEl;					
 						}
 						//TESTED						
 
 						// Get the type of object contained in assocRecords[0]
-						if (assocRecords.length() > 0) {
-							String objType = assocRecords.get(0).getClass().toString();
+						if (assocRecords.length > 0) {
+							//String objType = assocRecords.get(0).getClass().toString();
+							Class<?> objType = assocRecords[0].getClass();
+							logger.debug("getAssopciations2 class entityRecords[0]:"+assocRecords[0].getClass());
 
 							// EntityRecords is a simple String[] array of associations
-							if (objType.equalsIgnoreCase("class java.lang.String"))
+							if (String.class.isAssignableFrom(objType))
 							{
 								// Iterate over array elements and extract associations
-								for (int i = 0; i < assocRecords.length(); ++i) 
+								for (int i = 0; i < assocRecords.length; ++i) 
 								{
-									String field = assocRecords.getString(i);
+									String field = (String)assocRecords[i];
 									long nIndex = Long.valueOf(i);
 									
 									if (null != esp.getVerb_category()) { // (ie a mandatory field is present)										
@@ -1929,17 +1831,19 @@ public class StructuredAnalysisHarvester
 							}
 
 							// EntityRecords is a JSONArray
-							else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
+							//else if (objType.equalsIgnoreCase("class org.json.JSONObject"))
+							else if (Map.class.isAssignableFrom(objType))
 							{
 								// Iterate over array elements and extract associations
-								for (int i = 0; i < assocRecords.length(); ++i) 
+								for (int i = 0; i < assocRecords.length; ++i) 
 								{
 									// Get JSONObject containing association fields and pass assocElement
 									// into the script engine so scripts can access it
-									JSONObject savedIterator = null;
-									if (_scriptEngine != null) 
+									Object savedIterator = null;
+									if (compiledScriptFactory != null) 
 									{
-										_iterator = savedIterator = assocRecords.getJSONObject(i);
+										//_iterator = savedIterator = assocRecords.getJSONObject(i);
+										_iterator = savedIterator = assocRecords[i];
 									}
 
 									if (null != esp.getVerb_category()) { // (ie a mandatory field is present)										
@@ -2357,6 +2261,7 @@ public class StructuredAnalysisHarvester
 				bDontResolveToIndices = true;
 			}
 
+			Object dpOrIt = _iterator != null ? _iterator: _docPojo ;
 			// Assoc.entity1
 			if ((esp.getEntity1() != null) || (esp.getEntity1_index() != null))
 			{
@@ -2375,7 +2280,7 @@ public class StructuredAnalysisHarvester
 								_context.getHarvestStatus().logMessage("Warning: in entity1_index, using global $metadata when iterating", true);
 							}
 						}
-						String s = getFormattedTextFromField(esp.getEntity1_index(), field);
+						String s = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getEntity1_index(), field);
 						if (null != s) e.setEntity1_index(s.toLowerCase());
 					}
 					if (null != e.getEntity1_index()) { // Convert to entity1
@@ -2416,7 +2321,7 @@ public class StructuredAnalysisHarvester
 								_context.getHarvestStatus().logMessage("Warning: in entity1, using global $metadata when iterating", true);
 							}
 						}
-						e.setEntity1(getFormattedTextFromField(esp.getEntity1(), field));
+						e.setEntity1(FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getEntity1(), field));
 					}
 					
 					if (!bDontResolveToIndices && (null == e.getEntity1_index()))
@@ -2488,7 +2393,7 @@ public class StructuredAnalysisHarvester
 								_context.getHarvestStatus().logMessage("Warning: in entity2_index, using global $metadata when iterating", true);
 							}
 						}
-						String s = getFormattedTextFromField(esp.getEntity2_index(), field);
+						String s = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getEntity2_index(), field);
 						if (null != s) e.setEntity2_index(s.toLowerCase());
 					}
 					if (null != e.getEntity2_index()) { // Convert to entity2
@@ -2529,7 +2434,7 @@ public class StructuredAnalysisHarvester
 								_context.getHarvestStatus().logMessage("Warning: in entity2, using global $metadata when iterating", true);
 							}
 						}
-						e.setEntity2(getFormattedTextFromField(esp.getEntity2(), field));
+						e.setEntity2(FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getEntity2(), field));
 					}
 					
 					if (!bDontResolveToIndices && (null == e.getEntity2_index()))
@@ -2592,7 +2497,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					e.setVerb(getFormattedTextFromField(esp.getVerb(), field));
+					e.setVerb(FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getVerb(), field));
 				}
 				if ((null == e.getVerb()) && (null == esp.getCreationCriteriaScript())) {
 					// Specified this, so going to insist on it
@@ -2613,7 +2518,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					String s = getFormattedTextFromField(esp.getVerb_category(), field);
+					String s = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getVerb_category(), field);
 					if (null != s) e.setVerb_category(s.toLowerCase());
 				}
 			}
@@ -2636,7 +2541,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						startTimeString = getFormattedTextFromField(esp.getTime_start(), field);
+						startTimeString = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getTime_start(), field);
 					}
 					if (null != startTimeString) {
 						e.setTime_start(DateUtility.getIsoDateString(startTimeString));
@@ -2663,7 +2568,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						endTimeString = getFormattedTextFromField(esp.getTime_end(), field);
+						endTimeString = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getTime_end(), field);
 					}
 					if (null != endTimeString) {
 						e.setTime_end(DateUtility.getIsoDateString(endTimeString));
@@ -2694,7 +2599,7 @@ public class StructuredAnalysisHarvester
 							_context.getHarvestStatus().logMessage("Warning: in geo_index, using global $metadata when iterating", true);
 						}
 					}
-					geo_entity = getFormattedTextFromField(esp.getGeo_index(), field);
+					geo_entity = FieldExtractor.getFormattedTextFromField(dpOrIt,esp.getGeo_index(), field);
 				}
 				if (null != geo_entity) {
 					geo_entity = geo_entity.toLowerCase();
@@ -2800,7 +2705,8 @@ public class StructuredAnalysisHarvester
 		catch (Exception e)
 		{
 			// This can happen as part of normal logic flow
-			//logger.error("Exception: " + e.getMessage());
+			// TODO comment out
+			logger.warn("Exception: ",e);
 			return null;
 		}
 	}
@@ -2817,77 +2723,15 @@ public class StructuredAnalysisHarvester
 	{
 		return getValueFromScript(script, value, index, true);
 	}
+
 	private Object getValueFromScript(String script, String value, String index, boolean errorOnNull) 
 	{
 		Object retVal = null;
+		fillScriptContext(value,index);
 		try
 		{
-			// Create script object from entity or association JSON
-			if (_iterator != null)
-			{
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}
-				_scriptEngine.put("_iterator", _iterator);
-				_securityManager.eval(_scriptEngine, JavaScriptUtils.iteratorDocScript);
-			}
-			else {
-				_scriptEngine.put("_iterator", null);				
-			}
 			
-			// Pass value into script as _value so it is accessible
-			if (value != null) { 
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}
-				_scriptEngine.put("_value", value); 
-			}
-			else {
-				_scriptEngine.put("_value", null);				
-			}
-			
-			//
-			if (index != null) { 
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}
-				_scriptEngine.put("_index", index); 
-			}
-			else if (_iteratorIndex != null) { 
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}
-				_scriptEngine.put("_index", _iteratorIndex); 
-			}
-			else {
-				_scriptEngine.put("_index", null); 				
-			}
-			
-			// $SCRIPT - string contains javacript to pass into the engine
-			// via .eval and then invoke to get a return value of type Object
-			if (script.toLowerCase().startsWith("$script"))
-			{
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}				
-				_securityManager.eval(_scriptEngine, JavaScriptUtils.getScript(script));
-				//must turn the security back on when invoking calls
-				_securityManager.setSecureFlag(true);
-				try {
-					retVal = _scriptInvoker.invokeFunction(JavaScriptUtils.genericFunctionCall);
-				}
-				finally {
-					_securityManager.setSecureFlag(false);
-				}
-			}
-			// $FUNC - string contains the name of a function to call (i.e. getSometing(); )
-			else if (script.toLowerCase().startsWith("$func"))
-			{
-				if (null == _scriptEngine) {
-					throw new RuntimeException("Using script without specifying 'scriptEngine' field in 'structuredAnalysis'");
-				}
-				retVal = _securityManager.eval(_scriptEngine, JavaScriptUtils.getScript(script));
-			}
+			retVal = compiledScriptFactory.executeCompiledScript(script);
 			if (errorOnNull && (null == retVal) && _context.isStandalone()) { // Display warning:
 				StringBuffer error = new StringBuffer("Failed to get value from: ");
 				error.append("script=").append(script).append("; iterator=").append(null==_iterator?"null":_iterator.toString()).
@@ -2911,8 +2755,8 @@ public class StructuredAnalysisHarvester
 			_context.getHarvestStatus().logMessage(error.toString(), true);
 		}
 		return retVal;
+
 	}
-	
 
 
 	/**
@@ -2940,7 +2784,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					latValue = getStringFromJsonField(d.getLat(), null);
+					latValue = FieldExtractor.getStringFromDocumentField(_docPojo,d.getLat(), null);
 				}
 
 				if (JavaScriptUtils.containsScript(d.getLat()))
@@ -2949,7 +2793,7 @@ public class StructuredAnalysisHarvester
 				}
 				else
 				{
-					lonValue = getStringFromJsonField(d.getLon(), null);
+					lonValue = FieldExtractor.getStringFromDocumentField(_docPojo,d.getLon(), null);
 				}
 			}
 
@@ -2969,7 +2813,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						city = getFormattedTextFromField(d.getCity(), null);
+						city = FieldExtractor.getFormattedTextFromField(_docPojo,d.getCity(), null);
 					}
 
 					g.setCity(city);
@@ -2984,7 +2828,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						region = getFormattedTextFromField(d.getStateProvince(), null);
+						region = FieldExtractor.getFormattedTextFromField(_docPojo,d.getStateProvince(), null);
 					}
 
 					g.setRegion(region);
@@ -2999,7 +2843,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						country = getFormattedTextFromField(d.getCountry(), null);
+						country = FieldExtractor.getFormattedTextFromField(_docPojo,d.getCountry(), null);
 					}
 
 					g.setCountry(country);
@@ -3014,7 +2858,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						countryCode = getFormattedTextFromField(d.getCountryCode(), null);
+						countryCode = FieldExtractor.getFormattedTextFromField(_docPojo,d.getCountryCode(), null);
 					}
 
 					g.setCountry_code(countryCode);
@@ -3068,6 +2912,7 @@ public class StructuredAnalysisHarvester
 			
 			if (gsp != null)
 			{
+				Object dpOrIt = _iterator != null ? _iterator:_docPojo;
 				String latValue = null;
 				String lonValue = null;
 				// The GeoSpecPojo already has lat and lon so we just need to retrieve the values
@@ -3078,7 +2923,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						latValue = getFormattedTextFromField(gsp.getLat(), field);
+						latValue = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getLat(), field);
 					}
 	
 					if (JavaScriptUtils.containsScript(gsp.getLon()))
@@ -3087,7 +2932,7 @@ public class StructuredAnalysisHarvester
 					}
 					else
 					{
-						lonValue = getFormattedTextFromField(gsp.getLon(), field);
+						lonValue = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getLon(), field);
 					}
 					
 					if (latValue != null && lonValue != null)
@@ -3112,7 +2957,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							city = getFormattedTextFromField(gsp.getCity(), null);
+							city = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getCity(), null);
 						}
 
 						gfp.setCity(city);
@@ -3127,7 +2972,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							region = getFormattedTextFromField(gsp.getStateProvince(), null);
+							region = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getStateProvince(), null);
 						}
 
 						gfp.setRegion(region);
@@ -3142,7 +2987,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							country = getFormattedTextFromField(gsp.getCountry(), null);
+							country = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getCountry(), null);
 						}
 
 						gfp.setCountry(country);
@@ -3157,7 +3002,7 @@ public class StructuredAnalysisHarvester
 						}
 						else
 						{
-							countryCode = getFormattedTextFromField(gsp.getCountryCode(), null);
+							countryCode = FieldExtractor.getFormattedTextFromField(dpOrIt,gsp.getCountryCode(), null);
 						}
 
 						gfp.setCountry_code(countryCode);
@@ -3211,233 +3056,28 @@ public class StructuredAnalysisHarvester
 	
 	/**
 	 * executeEntityAssociationValidation
-	 * @param s
+	 * @param script
 	 * @param j
 	 * @return
 	 */
-	private Boolean executeEntityAssociationValidation(String s, String value, String index)
+	private Boolean executeEntityAssociationValidation(String script, String value, String index)
 	{
-		Boolean retVal = null;
+		Boolean retVal = false;
 		try
 		{
 			// Run our script that checks whether or not the entity/association should be added
-			Object retValObj = getValueFromScript(s, value, index);
-			try {
+			Object retValObj = getValueFromScript(script, value, index);
+			if(retValObj!=null){
 				retVal = (Boolean) retValObj;
 			}
-			catch (Exception e) {} // case exception handled below
-			
-			if (null == retVal) { // If it's any string, then creation criteria == false and log message				
-				_context.getHarvestStatus().logMessage((String)retValObj, true);
-				retVal = false;
-			}//TESTED
 		}
 		catch (Exception e) 
 		{
 			_context.getHarvestStatus().logMessage(HarvestExceptionUtils.createExceptionMessage(e).toString(), true);
-			retVal = false;
 		}
 		return retVal;
 	}
 	
-	/**
-	 * getFormattedTextFromField
-	 * Accepts a string value that can contain a combination of literal text and
-	 * names of fields in the JSON document that need to be retrieved into the 
-	 * literal text, i.e.:
-	 * 'On $metadata.reportdatetime MPD reported that a $metadata.offense occurred.'
-	 * @param v - origString
-	 * @return String
-	 */
-	private String getFormattedTextFromField(String origString, String value)
-	{
-		// Don't bother running the rest of the code if there are no replacements to make (i.e. does not have $)
-		if (!origString.contains("$")) return origString;
-		
-		StringBuffer sb = new StringBuffer();
-		Matcher m = SUBSTITUTION_PATTERN.matcher(origString);
-		int ncurrpos = 0;
-		
-		// Iterate over each match found within the string and concatenate values together:
-		// string literal value + JSON field (matched pattern) retrieved
-		while (m.find()) 
-		{
-		   int nnewpos = m.start();
-		   sb.append(origString.substring(ncurrpos, nnewpos));
-		   ncurrpos = m.end();
-		   
-		   // Retrieve the field information matched with the RegEx
-		   String match = (m.group(1) != null) ? m.group(1): m.group(2);
-		   String sreplace;
-		   if ((null != match) && match.equals("$")) { // $ escaping via ${$}
-			   sreplace = "$";
-		   }//TESTED
-		   else {
-			   // Retrieve the data from the JSON field and append
-			   sreplace = getStringFromJsonField(match, value);
-		   }
-		   if (null == sreplace) {
-			   return null;
-		   }
-		   sb.append( sreplace );
-		}
-		sb.append(origString.substring(ncurrpos));
-		return sb.toString();
-	}
-	
-	
-	
-	
-	/**
-	 * getStringFromJsonField
-	 * Takes string in the form of: node1.nodeN.fieldName and returns
-	 * the value contained in the JSON for that field as an String
-	 * Note: supports leading $s in the field name, $s get stripped
-	 * out in getValueFromJsonField
-	 * @param fieldLocation
-	 * @return Object
-	 */
-	private String getStringFromJsonField(String fieldLocation, String value) 
-	{
-		try
-		{
-			if ((null != value) && fieldLocation.equalsIgnoreCase("value")) // ($value when iterating)
-			{
-				return value;
-			}//TESTED
-			if ((null == _iterator) && (null != _docPojo) && fieldLocation.equalsIgnoreCase("fullText")) { // another special case
-				return _docPojo.getFullText();
-			}//TESTED
-			return (String)getValueFromJsonField(fieldLocation);
-		}
-		catch (Exception e)
-		{
-			return null;
-		}
-	}
-	
-	
-	
-	
-	/**
-	 * getValueFromJsonField
-	 * Takes string in the form of: node1.node2.fieldName and returns
-	 * the value contained in the JSON for that field as an Object
-	 * Note: supports leading $s in the field name
-	 * @param fieldLocation
-	 * @return
-	 */
-	private Object getValueFromJsonField(String fieldLocation) 
-	{
-		try
-		{
-			// Strip out $ chars if present and then split on '.' 
-			// to get the JSON node hierarchy and field name
-			String[] field = fieldLocation.replace("$", "").split("\\.");
-
-			StringBuffer node = new StringBuffer();
-			// JSON node = all strings in field[] (except for the last string in the array)
-			// concatenated together with the '.' char
-			if (field.length > 1)
-			{
-				for ( int i = 0; i < field.length - 1; i++ ) 
-				{
-					if (node.length() > 0) node.append(".");
-					node.append(field[i]);
-				}
-			}
-
-			// The field name is the final value in the array
-			String fieldName = field[field.length - 1];
-			return getValueFromJson(node.toString(), fieldName);
-		}
-		catch (Exception e)
-		{
-			// This can happen as part of normal logic flow
-			//logger.error("getValueFromJsonField Exception: " + e.getMessage());
-			return null;
-		}
-	}
-	
-	
-	
-	
-	/**
-	 * getValueFromJson(String node, String field)
-	 * Attempts to retrieve a value from the node/field and return
-	 * and object containing the value to be converted by calling method
-	 * @param node
-	 * @param field
-	 * @return Object o
-	 */
-	private Object getValueFromJson(String node, String field)
-	{
-		JSONObject json = (_iterator != null) ? _iterator : _document;		
-		Object o = null;
-		try
-		{
-			if (node.length() > 1)
-			{
-				// (removed the [] case, you'll need to do that with scripts unless you want [0] for every field)
-				
-				// Mostly standard case $metadata(.object).+field
-				if (node.indexOf('.') > -1) {
-					String node_fields[] = node.split("\\.");
-					JSONObject jo = json; 
-					for (String f: node_fields) {
-						Object testJo = jo.get(f); 
-						if (testJo instanceof JSONArray) {
-							jo = ((JSONArray)testJo).getJSONObject(0);
-						}
-						else {
-							jo = (JSONObject)testJo;
-						}
-					}
-					Object testJo = jo.get(field); 
-					if (testJo instanceof JSONArray) {
-						o = ((JSONArray)testJo).getString(0);
-					}
-					else {
-						o = testJo;
-					}
-				}
-				// Standard case - $metadata.field
-				else
-				{
-					JSONObject jo = json.getJSONObject(node);
-					Object testJo = jo.get(field);
-					if (testJo instanceof JSONArray)
-					{
-						o = ((JSONArray)testJo).getString(0);
-					}
-					else
-					{
-						o = testJo;
-					}
-				}
-			}
-			else
-			{
-				Object testJo = json.get(field);
-				if (testJo instanceof JSONArray)
-				{
-					o = ((JSONArray)testJo).getString(0);
-				}
-				else
-				{
-					o = testJo;
-				}
-			}
-		}
-		catch (Exception e) 
-		{
-			// This can happen as part of normal logic flow
-			//logger.error("getValueFromJson Exception: " + e.getMessage());
-			return null;
-		}
-		return o;
-	}
-
 
 	/////////////////////////////////////////////////////
 	
@@ -3688,6 +3328,45 @@ public class StructuredAnalysisHarvester
 		
 		return sb.toString();
 	}
+
+	private ScriptContext fillScriptContext(String value, String index) {
+		ScriptContext scriptContext = null;
+	
+		try{
+		// Create script object from entity or association JSON
+		scriptContext = compiledScriptFactory.getScriptContext();
+		if (_iterator != null)
+		{
+			Object existingIteratorPojo = compiledScriptFactory.getScriptContext().getAttribute("iteratorPojo");
+			if(existingIteratorPojo!=_iterator){
+				compiledScriptFactory.executeCompiledScript(JavaScriptUtils.getIteratorOm2js(),"iteratorPojo", _iterator);
+				//logger.debug("iterator "+_iteratorO+"  OM mapped into JS.");
+			}else{
+				//logger.debug("iterator "+_iteratorO+" was already OM mapped into JS.");
+			}
+		}
+		else {
+			scriptContext.setAttribute("iteratorPojo", null,ScriptContext.ENGINE_SCOPE);
+		}
+		
+		// Pass value into script as _value so it is accessible
+    	scriptContext.setAttribute("_value", value,ScriptContext.ENGINE_SCOPE); 
+		
+		//
+		if (index != null) { 
+			scriptContext.setAttribute("_index", index,ScriptContext.ENGINE_SCOPE);  
+		}
+		else if (_iteratorIndex != null) { 
+			scriptContext.setAttribute("_index", _iteratorIndex,ScriptContext.ENGINE_SCOPE); ; 
+		}
+		else {
+			scriptContext.setAttribute("_index", null,ScriptContext.ENGINE_SCOPE);  				
+		}
+		}catch(ScriptException se){
+			logger.error("Fill ScripContxt caught Script Exception:",se);
+		}
+		return scriptContext;
+	}
 	
 	/////////////////////////////////////////////////////////////////////////////
 	
@@ -3804,6 +3483,8 @@ public class StructuredAnalysisHarvester
 		System.out.println("TEST2: ASSOCIATION ITERATION EXPANSION: ");
 		System.out.println(new GsonBuilder().setPrettyPrinting().create().toJson(s));
 	}
-
+	
+	
+	
 }
 

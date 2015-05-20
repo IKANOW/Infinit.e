@@ -1,0 +1,246 @@
+{
+	"_id":"5436e3b8eb83a795ca97ed2d",
+	"updateId":"5436e3b8eb83a795ca97ed2d",
+	"title": "This is what the commute in NYC looks like after #Sandy. What a mess: http://t.co/0Vb9gfIz",
+	"url": "smb://localhost:139/datasift/sandy_demo/hourly/2012_11_01_19/20121026-20121105_88d8z00mdw_2012_11_01_19_10_activities.json/427946031db75894ad28238ea5ab891f.json",
+	"created": "Nov 17, 2014 11:29:04 AM",
+	"modified": "Jul 24, 2013 2:22:33 PM",
+	"publishedDate": "Nov 1, 2012 7:10:01 PM",
+	"source": "Twitter Sandy Performance Test Source Pipeline",
+	"sourceKey": "localhost.139.datasift.sandy_demo.hourly.2012_11_01_19..1410",
+	"mediaType": "Social",
+	"description": "This is what the commute in NYC looks like after #Sandy. What a mess: http://t.co/0Vb9gfIz",
+	"entities": [{
+		"disambiguated_name": "commute",
+		"index": "commute/keyword",
+		"actual_name": "commute",
+		"type": "Keyword",
+		"relevance": 0.988097,
+		"frequency": 1,
+		"totalfrequency": -1,
+		"doccount": 0,
+		"dimension": "What",
+		"sentiment": -0.532653
+	},
+	{
+		"disambiguated_name": "mess",
+		"index": "mess/keyword",
+		"actual_name": "mess",
+		"type": "Keyword",
+		"relevance": 0.840478,
+		"frequency": 1,
+		"totalfrequency": -1,
+		"doccount": 0,
+		"dimension": "What",
+		"sentiment": -0.532653
+	},
+	{
+		"disambiguated_name": "NYC",
+		"index": "nyc/keyword",
+		"actual_name": "NYC",
+		"type": "Keyword",
+		"relevance": 0.756162,
+		"frequency": 1,
+		"totalfrequency": -1,
+		"doccount": 0,
+		"dimension": "What",
+		"sentiment": -0.532653
+	}],
+	"tags": [""],
+	"communityId": {
+		"_time": 1409759550,
+		"_machine": -458190820,
+		"_inc": -1786326187,
+		"_new": false
+	},
+	"sourceUrl": "smb://localhost:139/datasift/sandy_demo/hourly/2012_11_01_19/20121026-20121105_88d8z00mdw_2012_11_01_19_10_activities.json",
+	"metadata": {
+		"json": [{
+			"id": "tag:search.twitter.com,2005:264081880406716416",
+			"objectType": "activity",
+			"actor": {
+				"objectType": "person",
+				"id": "id:twitter.com:14769239",
+				"link": "http://www.twitter.com/nickmartin",
+				"displayName": "Nick Martin",
+				"postedTime": "2008-05-14T04:37:37.000Z",
+				"image": "http://a0.twimg.com/profile_images/2011747680/mug_normal.png",
+				"summary": "Acting Associate Editor for @TPM, helping oversee investigative and political coverage. Previously lived and worked in Arizona.",
+				"links": [{
+					"href": "http://www.talkingpointsmemo.com",
+					"rel": "me"
+				}],
+				"friendsCount": "1486",
+				"followersCount": "4122",
+				"listedCount": "221",
+				"statusesCount": "8425",
+				"twitterTimeZone": "Eastern Time (US \u0026 Canada)",
+				"verified": "false",
+				"utcOffset": "-18000",
+				"preferredUsername": "nickmartin",
+				"languages": ["en"],
+				"location": {
+					"objectType": "place",
+					"displayName": "New York City"
+				}
+			},
+			"verb": "post",
+			"postedTime": "2012-11-01T19:10:01.000Z",
+			"generator": {
+				"displayName": "web",
+				"link": "http://twitter.com"
+			},
+			"provider": {
+				"objectType": "service",
+				"displayName": "Twitter",
+				"link": "http://www.twitter.com"
+			},
+			"link": "http://twitter.com/nickmartin/statuses/264081880406716416",
+			"body": "This is what the commute in NYC looks like after #Sandy. What a mess: http://t.co/0Vb9gfIz",
+			"object": {
+				"objectType": "note",
+				"id": "object:search.twitter.com,2005:264081880406716416",
+				"summary": "This is what the commute in NYC looks like after #Sandy. What a mess: http://t.co/0Vb9gfIz",
+				"link": "http://twitter.com/nickmartin/statuses/264081880406716416",
+				"postedTime": "2012-11-01T19:10:01.000Z"
+			},
+			"location": {
+				"objectType": "place",
+				"displayName": "New York, NY",
+				"name": "New York",
+				"country_code": "United States",
+				"twitter_country_code": "US",
+				"link": "http://api.twitter.com/1/geo/id/27485069891a7938.json",
+				"geo": {
+					"type": "Polygon",
+					"coordinates": [[["-74.25909",
+					"40.477399"],
+					["-73.700272",
+					"40.477399"],
+					["-73.700272",
+					"40.917477"],
+					["-74.25909",
+					"40.917477"]]]
+				}
+			},
+			"object": {
+				"id": "tag:search.twitter.com,2005:261619477068795904",
+				"objectType": "activity",
+				"actor": {
+					"objectType": "person",
+					"id": "id:twitter.com:15520253",
+					"link": "http://www.twitter.com/news4buffalo",
+					"displayName": "WIVB News 4 Buffalo",
+					"postedTime": "2008-07-21T20:32:32.000Z",
+					"image": "http://a0.twimg.com/profile_images/1797069605/facebook_logo_normal.jpg",
+					"summary": "Buffalo's News Leader\r\nnewsroom@wivb.com\r\n716.874.4410",
+					"links": [{
+						"href": "http://www.wivb.com",
+						"rel": "me"
+					}],
+					"friendsCount": 1028,
+					"followersCount": 17975,
+					"listedCount": 492,
+					"statusesCount": 39056,
+					"twitterTimeZone": "Eastern Time (US & Canada)",
+					"verified": false,
+					"utcOffset": "-18000",
+					"preferredUsername": "news4buffalo",
+					"languages": ["en"],
+					"location": {
+						"objectType": "place",
+						"displayName": "Buffalo, NY"
+					}
+				},
+				"verb": "post",
+				"postedTime": "2012-10-26T00:05:18.000Z",
+				"generator": {
+					"displayName": "HootSuite",
+					"link": "http://www.hootsuite.com"
+				},
+				"provider": {
+					"objectType": "service",
+					"displayName": "Twitter",
+					"link": "http://www.twitter.com"
+				},
+				"link": "http://twitter.com/news4buffalo/statuses/261619477068795904",
+				"body": "Could #Buffalo be in for a mega-storm? Regardless if WNY gets hit, our region is aiding forecasters across the country: http://t.co/isyLpeXr",
+				"object": {
+					"objectType": "note",
+					"id": "object:search.twitter.com,2005:261619477068795904",
+					"summary": "Could #Buffalo be in for a mega-storm? Regardless if WNY gets hit, our region is aiding forecasters across the country: http://t.co/isyLpeXr",
+					"link": "http://twitter.com/news4buffalo/statuses/261619477068795904",
+					"postedTime": "2012-10-26T00:05:18.000Z"
+				},
+				"twitter_entities": {
+					"hashtags": [{
+						"text": "Buffalo",
+						"indices": [6,
+						14]
+					}],
+					"urls": [{
+						"indices": [120,
+						140],
+						"display_url": "ow.ly/eMeZi",
+						"url": "http://t.co/isyLpeXr",
+						"expanded_url": "http://ow.ly/eMeZi"
+					}],
+					"user_mentions": []
+				}
+			},
+			"twitter_entities": {
+				"hashtags": [{
+					"text": "Sandy",
+					"indices": ["49",
+					"55"]
+				}],
+				"user_mentions": [{
+					"indices": [3,
+					19],
+					"screen_name": "theupexperience",
+					"id_str": "9783572",
+					"name": "theupexperience",
+					"id": 9783572
+				},
+				{
+					"indices": [32,
+					42],
+					"screen_name": "monicayoo",
+					"id_str": "7740102",
+					"name": "Monica Yoo",
+					"id": 7740102
+				},
+				{
+					"indices": [44,
+					60],
+					"screen_name": "BarbaraCorcoran",
+					"id_str": "36728196",
+					"name": "Barbara Corcoran",
+					"id": 36728196
+				}],
+				"urls": [{
+					"expanded_url": "http://goo.gl/ZDYWd",
+					"indices": ["70",
+					"90"],
+					"display_url": "goo.gl/ZDYWd",
+					"url": "http://t.co/0Vb9gfIz"
+				}]
+			},
+			"retweetCount": "0",
+			"gnip": {
+				"language": {
+					"value": "en"
+				},
+				"matching_rules": [{
+					"value": "(place_contains:\", NY\" OR place_contains:\"NYC\") time_zone:\"Eastern Time (US \u0026 Canada)\" (hurricane OR contains:sandy OR contains:disaster OR contains:storm)"
+				}],
+				"klout_score": "62",
+				"urls": [{
+					"url": "http://t.co/0Vb9gfIz",
+					"expanded_url": "http://media.talkingpointsmemo.com/slideshow/nyc-commute-sandy"
+				}]
+			}
+		}]
+	},
+	"index": "doc_5407393ee4b0901c9586d355"
+}

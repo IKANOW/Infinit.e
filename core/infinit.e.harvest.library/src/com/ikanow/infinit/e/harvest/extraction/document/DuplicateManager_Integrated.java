@@ -383,7 +383,7 @@ public class DuplicateManager_Integrated implements DuplicateManager {
 		boolean bPrimary = true;		
 		if (_replicaSetDistributionRatio > 0) {
 			// (distribute based on source key, should ensure some reasonable cache grouping...)
-			if (0 != (parentSourceKey.hashCode() % _replicaSetDistributionRatio)) {
+			if (parentSourceKey!=null && (0 != (parentSourceKey.hashCode() % _replicaSetDistributionRatio))) {
 				bPrimary = false;
 			}
 		}	

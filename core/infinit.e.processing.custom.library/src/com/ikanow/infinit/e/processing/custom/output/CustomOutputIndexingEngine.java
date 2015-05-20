@@ -211,7 +211,7 @@ public class CustomOutputIndexingEngine {
 			// 2) set timestamp if not set by user:
 			Object ts = dbo.get("@timestamp");
 			if (null == ts) {
-				dbo.put("@timestamp", _dateFormat.format(new Date(_id.getTime())));
+				dbo.put("@timestamp", _dateFormat.format(_id.getDate()));
 			}
 			// 3) always overwrite sourceKey with job title
 			dbo.put("sourceKey", jobtitle);

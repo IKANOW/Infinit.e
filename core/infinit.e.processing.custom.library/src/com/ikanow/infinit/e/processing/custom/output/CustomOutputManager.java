@@ -60,7 +60,7 @@ public class CustomOutputManager {
 				//ensure indexes if necessary
 				if ((null != job.incrementalMode) && job.incrementalMode) {
 					target = DbManager.getCollection(job.getOutputDatabase(), job.outputCollection);
-					target.ensureIndex(new BasicDBObject("key", 1));
+					target.createIndex(new BasicDBObject("key", 1));
 				}//TODO (INF-2126): TOTEST
 			}				
 		}
@@ -74,7 +74,6 @@ public class CustomOutputManager {
 			try {
 				target = DbManager.getCollection(job.getOutputDatabase(), job.outputCollectionTemp);
 				target.drop();
-				DbManager.getDB(job.getOutputDatabase()).getLastError();
 			}
 			catch (Exception e) {} // That's fine, it probably just doesn't exist yet...
 		}
@@ -91,17 +90,17 @@ public class CustomOutputManager {
 				sortField = "_id";					
 			}
 			if (null != sortField) {
-				target.ensureIndex(new BasicDBObject(sortField, sortDir));
+				target.createIndex(new BasicDBObject(sortField, sortDir));
 			}
 			Object indexOrIndexes = postProcObject.get("indexes");
 			if (null != indexOrIndexes) {
 				if (indexOrIndexes instanceof BasicDBList) {
 					for (Object index: (BasicDBList)indexOrIndexes) {
-						target.ensureIndex((DBObject)index);
+						target.createIndex((DBObject)index);
 					}
 				}
 				else if (indexOrIndexes instanceof BasicDBObject) {
-					target.ensureIndex((DBObject)indexOrIndexes);					
+					target.createIndex((DBObject)indexOrIndexes);					
 				}
 			}//TOTEST
 		}//TOTEST
@@ -171,7 +170,7 @@ public class CustomOutputManager {
 					limitCollection(DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp), query, sortField, sortDir, limit);
 				}//TESTED
 				else if (hasSort) { // (will do nothing if already enabled)
-					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).ensureIndex(sort);				
+					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollectionTemp).createIndex(sort);				
 				}
 				
 				// Handle indexing, if any is set:
@@ -234,7 +233,7 @@ public class CustomOutputManager {
 					limitCollection(DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection), query, sortField, sortDir, limit);
 				}
 				else if (hasSort) {
-					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).ensureIndex(sort);				
+					DbManager.getCollection(cmr.getOutputDatabase(), cmr.outputCollection).createIndex(sort);				
 				}
 				// Handle indexing, if any is set:
 				try {
@@ -307,7 +306,7 @@ public class CustomOutputManager {
 	private static void limitCollection(DBCollection collToLimit, BasicDBObject query, String sortField, int sortDir, int limit) {
 		BasicDBObject sort = new BasicDBObject(sortField, sortDir); BasicDBObject inverseSort = new BasicDBObject(sortField, -sortDir);
 
-		collToLimit.ensureIndex(sort);
+		collToLimit.createIndex(sort);
 		BasicDBObject fields = new BasicDBObject(sortField, 1);
 		DBCursor cursor = null;
 		long current = collToLimit.count();

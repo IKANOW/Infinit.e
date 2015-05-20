@@ -89,8 +89,8 @@
 			<s:LinearGradient rotation="90">
 				<s:entries>
 					<s:GradientEntry 
-						color.down="0xCDCDCD"
-						color.over="0xCDCDCD"
+						color.down="0x969696"
+						color.over="0x969696"
 						color.up="0xE8E9E9" />
 					<s:GradientEntry 
 						color.down="0xF4F4F4"
