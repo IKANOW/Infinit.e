@@ -1,13 +1,19 @@
 package com.ikanow.infinit.e.lookup;
 
+
+
 import com.google.common.collect.MapMaker;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
+import com.ikanow.infinit.e.data_model.custom.InfiniteMongoConfigUtil;
 import com.ikanow.infinit.e.data_model.store.MongoDbConnection;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.custom.mapreduce.CustomMapReduceJobPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.mongodb.*;
 import com.mongodb.hadoop.util.MongoConfigUtil;
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.mapreduce.TaskInputOutputContext;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 import lookup.testing.InfiniteHadoopTestUtils;
@@ -18,8 +24,20 @@ import java.util.*;
  * Created by yuri on 12/15/14.
  */
 public class Lookup {
-    public static boolean TEST = false;
-    static Logger _logger = Logger.getLogger("Join_logger");
+
+    public interface ConfigurationGetter{
+        public Configuration getConfiguration();
+    }
+
+    private static boolean TEST = false;
+    private static ConfigurationGetter get_config;
+    public static void prepareForTest(ConfigurationGetter getConfig){
+        TEST = true;
+        get_config = getConfig;
+    }
+
+
+    static Logger _logger = Logger.getLogger("Lookup_logger");
 
     private MongoDbConnection con = null;
     private String dbName;
@@ -35,6 +53,7 @@ public class Lookup {
     private Map<String, Map<String, Object>> _cache;
     private Set<String> _negativeCache;
 
+    private TaskInputOutputContext<?, ?, ?, ?> context;
 
     public static class LookupConfig extends BaseApiPojo {
         public enum Condition {must_exist, may_exist, not_exists, exactly_one, more_than_one};
@@ -94,13 +113,14 @@ public class Lookup {
 
     }
 
-    public Lookup(String configJson){
-        this(Lookup.LookupConfig.fromApi(configJson, Lookup.LookupConfig.class));
+    public Lookup(String configJson, TaskInputOutputContext<?, ?, ?, ?> ctx){
+        this(Lookup.LookupConfig.fromApi(configJson, Lookup.LookupConfig.class), ctx);
     }
 
 
-    public Lookup(LookupConfig config) {
+    public Lookup(LookupConfig config, TaskInputOutputContext<?, ?, ?, ?> ctx) {
 
+        this.context = ctx;
         config.verify();
 
         String colName = null;
@@ -135,7 +155,7 @@ public class Lookup {
         }
 
         //ensure index
-        col.ensureIndex(new BasicDBObject(config.key, 1));
+        col.createIndex(new BasicDBObject(config.key, 1));
 
         if (config.valueIsConstant) {
             QueryBuilder qb = QueryBuilder.start(config.key);
@@ -168,14 +188,12 @@ public class Lookup {
 
         _cache = new MapMaker()
                 .softValues()
-                .maximumSize(10000)
                 .concurrencyLevel(1)
                 .makeMap();
 
         //http://docs.oracle.com/javase/6/docs/api/java/util/Collections.html#newSetFromMap%28java.util.Map%29
         Map<String, Boolean> tmp = new MapMaker()
                 .softValues()
-                .maximumSize(10000)
                 .concurrencyLevel(1)
                 .makeMap();
 
@@ -410,7 +428,7 @@ public class Lookup {
     private String getCollectionNameTest(String collectionName) {
         try {
             if (con == null) {
-                Configuration config = InfiniteHadoopTestUtils.getConfiguration();
+                Configuration config = get_config.getConfiguration();
                 MongoURI uri = MongoConfigUtil.getInputURI(config);
                 dbName = uri.getDatabase();
                 List<String> hosts = uri.getHosts();
@@ -434,6 +452,7 @@ public class Lookup {
             customJob = CustomMapReduceJobPojo.fromDb(
                     MongoDbManager.getCustom().getLookup().findOne(query),
                     CustomMapReduceJobPojo.class);
+
         }
         catch (Exception e) {
             // it's a job name
@@ -445,7 +464,56 @@ public class Lookup {
 
         if (customJob != null) {
             if (customJob.lastCompletionTime != null) {
-                //TODO: Get Communities  customJob.communityIds and check against user communities
+                ObjectId userId = InfiniteMongoConfigUtil.getUserId(context.getConfiguration());
+                boolean admin = InfiniteMongoConfigUtil.getIsAdmin(context.getConfiguration());
+
+                if (!admin) {
+                    List<ObjectId> jobCommunities = customJob.communityIds;
+                    String s = "";
+                    for (ObjectId i : jobCommunities){
+                        s+= i.toString() + ", ";
+                    }
+                    _logger.info ("Job communities are " + s);
+
+                    query = new BasicDBObject();
+                    query.put(PersonPojo._id_, userId);
+
+                    PersonPojo user = PersonPojo.fromDb(MongoDbManager.getSocial().getPerson().findOne(query), PersonPojo.class);
+                    if (user == null) {
+                        throw new RuntimeException("Unknown user " + userId.toString());
+                    }
+
+                    List<PersonCommunityPojo> userCommunities = user.getCommunities();
+                    s = "";
+                    for (PersonCommunityPojo p : userCommunities){
+                        s+= p.get_id().toString() + "/" + p.getName() + ", ";
+                    }
+                    _logger.info ("User communities are " + s);
+
+
+
+                    for (ObjectId jc : jobCommunities) {
+
+                        boolean found=false;
+                        for (PersonCommunityPojo c : userCommunities) {
+                            if (c.get_id().equals(jc)){
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found){
+                            throw new RuntimeException("User " + userId.toString() + " is not authorized to use one or more custom job communities");
+                        }
+
+                    }
+                    _logger.info("User " + userId.toString() + " is authorized to use Custom output of " + jobNameOrId);
+                }
+                else {
+                    _logger.info("User " + userId.toString() + " is an admin. Authentication bypassed");
+                }
+
+
+
                 dbName = customJob.getOutputDatabase();
                 db = MongoDbManager.getDB(dbName);
                 outputKeyType = customJob.outputKey;

@@ -394,7 +394,7 @@ public class GenericProcessingController {
 						boolean bSystemGroup = dbo.getBoolean("isSystemCommunity", false);
 						ObjectId parentCommunityId = (ObjectId) dbo.get("parentId");
 						
-						createCommunityDocIndex(communityId.toString(), parentCommunityId, bPersonalGroup, bSystemGroup, bDeleteDocs, j==0);
+						createCommunityDocIndex(communityId.toString(), parentCommunityId, bPersonalGroup, bSystemGroup, bDeleteDocs, j==0, DEFAULT_NUM_SHARDS);
 						
 					}//end loop over communities
 				}// end loop over communities - first time parents only
@@ -415,14 +415,19 @@ public class GenericProcessingController {
 	
 	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId,  boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex)
 	{
+		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, DEFAULT_NUM_SHARDS);
+	}
+	
+	public static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId,  boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, int num_shards)
+	{
 		if (!ElasticSearchManager.pingCluster()) {
 			throw new RuntimeException("Index not running");
 		}//TESTED (by hand)
-		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, false); 
+		createCommunityDocIndex(nameOrCommunityIdStr, parentCommunityId, bPersonalGroup, bSystemGroup, bClearIndex, false, num_shards); 
 	}
 	
 	protected static void createCommunityDocIndex(String nameOrCommunityIdStr, ObjectId parentCommunityId, 
-			boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, boolean bParentsOnly)
+			boolean bPersonalGroup, boolean bSystemGroup, boolean bClearIndex, boolean bParentsOnly, int num_shards)
 	{
 		//create elasticsearch indexes
 		PropertiesManager pm = new PropertiesManager();
@@ -454,7 +459,7 @@ public class GenericProcessingController {
 						
 			if (null == parentCommunityId) {
 			
-				int nShards = bSystemGroup? 10 : 5 ; // (system group is largest)
+				int nShards = bSystemGroup? 10 : num_shards ; // (system group is largest)
 				
 				// Remove the alias, in case it exists:
 				// Then create an index with this name:
@@ -695,6 +700,8 @@ public class GenericProcessingController {
 	private static String _assocIndex = null;
 	private static String _entityIndex = null;
 	private static CrossVersionImmutableMapOfImmutableMaps<AliasMetaData> _aliasInfo = null;
+	public static final int DEFAULT_NUM_SHARDS = 5;
+	public static final int MAX_NUM_SHARDS = 50;
 		
 	//TODO (INF-1136): Test and integrate this (phase 1), then implement the index splitting code (phase 2)
 	

@@ -192,7 +192,7 @@ public class CompiledScriptFactory {
 		return scriptContext;
 	}
 
-	public Object executeCompiledScript(String scriptlet,Object... attributes) throws ScriptException{
+	public Object executeCompiledScript(String scriptlet,Object... attributes) {
 		Object retVal = null;		
 		try{
 			for (int i = 0; i < 2*(attributes.length/2); i+=2) {
@@ -226,8 +226,8 @@ public class CompiledScriptFactory {
 				}
 			}
 		} catch (Exception e) {
-			logger.error("executeCompiledScript caught exception for script:\n"+scriptlet,e);
-			throw new ScriptException(e);
+			this.context.getHarvestStatus().logMessage("Error executing script:\n"+scriptlet+" \n"+e.getMessage(), true);						
+			logger.error("executeCompiledScript caught exception for script:\n"+scriptlet+" \n"+e.getMessage());
 		}finally {
 			securityManager.setSecureFlag(false);				
 		}
@@ -235,7 +235,7 @@ public class CompiledScriptFactory {
 	}
 	
 
-	public Object executeCompiledScript(int key) throws ScriptException{
+	public Object executeCompiledScript(int key) {
 		Object retVal = null;
 		try{
 			securityManager.setSecureFlag(true);				
@@ -252,6 +252,8 @@ public class CompiledScriptFactory {
 			} // ce!=null
 		} catch (Exception e) {
 			logger.error("executeCompiledScript caught exception:",e);
+			this.context.getHarvestStatus().logMessage("executeCompiledScript caught exception:\n"+e.getMessage(), true);						
+
 		}finally {
 			securityManager.setSecureFlag(false);				
 		}

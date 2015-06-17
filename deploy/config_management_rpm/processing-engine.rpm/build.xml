@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns:ivy="antlib:org.apache.ivy.ant" name="ikanow-processing-engine" default="rpm" basedir=".">
+	<!-- ================================= 
+		     Properties              
+	================================= -->
+	
+	<property name="dir.specs" value="./SPECS"/>
+	<property name="dir.src" value="./SOURCES"/>
+	<property name="dir.build" value="./BUILD"/>
+	<property name="dir.rpms" value="./RPMS"/>
+	
+	<!-- The horror: ANT/RPM moves - to _ while setting topdir, so... -->
+    <taskdef resource="net/sf/antcontrib/antlib.xml">
+       <classpath>
+           <pathelement location="${basedir}/ant-contrib.jar" />
+       </classpath>
+    </taskdef>
+	<propertyregex property="modified_name"
+					input="${ant.project.name}"
+					regexp="-"
+					replace= "_"
+					global="true"
+					defaultValue="${ant.project.name}_tmp"
+		/>
+	
+	<!-- Versioning: these are not set again if already set -->
+	
+	<property name="bamboo.majorBuild" value="localBuild"/>
+	<property name="bamboo.minorBuild" value="0"/>
+	<property name="bamboo.custom.svn.revision.number" value="0"/>
+	
+	<property name="infinite_version" value="${bamboo.majorBuild}.${bamboo.minorBuild}"/>
+	<property name="infinite_release" value="${bamboo.custom.svn.revision.number}"/>
+	
+	<!-- ================================= 
+		     target: clean              
+	================================= -->
+	
+	<target name="clean" description="Removing the all generated files.">
+		<delete dir="${dir.build}"/>
+		<delete dir="${dir.rpms}"/>
+		<delete file="${dir.src}/${ant.project.name}.tgz"/>
+		<symlink action="delete" link="../${modified_name}.rpm" failOnError="false"/>		
+
+		<!-- PROJECT SPECIFIC SETTING -->
+		
+		<delete>
+			<fileset dir="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/" includes="infinit.e*.jar"/>
+		</delete>
+			
+	</target>
+
+	<!-- ================================= 
+	     target: prepare             
+	================================= -->
+	<target name="prepare" depends="clean">
+		<mkdir dir="${dir.build}"/>
+		<mkdir dir="${dir.rpms}"/>
+		<symlink link="../${modified_name}.rpm" resource="${ant.project.name}.rpm" />
+		
+		<!-- PROJECT SPECIFIC SETTING -->
+		
+		<copy file="../infinit.e.data_model/dist/infinit.e.data_model.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.data_model-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.api.server/dist/infinit.e.query.library.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.query.library-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.harvest.library/dist/infinit.e.harvest.library.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.harvest.library-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.processing.custom.library/dist/infinit.e.processing.custom.library.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.processing.custom.library-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.processing.generic.library/dist/infinit.e.processing.generic.library.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.processing.generic.library-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.core.server/dist/opt/infinite-home/lib/infinit.e.core.server.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.core.server-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.mongo-indexer/dist/opt/infinite-home/lib/infinit.e.mongo-indexer.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/infinit.e.mongo-indexer-${infinite_version}-${infinite_release}.jar"/>
+		<copy file="../infinit.e.hadoop.prototyping_engine/build/jar/infinit.e.hadoop.prototyping_engine.jar" 
+			tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/plugins/infinit.e.hadoop.prototyping_engine-${infinite_version}-${infinite_release}.jar"/>
+
+		<!-- Haven't included these as normal for OSS reasons, but can bundle in RPM -->
+		<!--  (Note tika is a special case, we exclude it from bundling because it contains conflicts and we want it at the end of the classpath) -->
+		<copy todir="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/lib/unbundled/">
+			<fileset dir="../infinit.e.data_model/lib/" includes="GridFSZipFile.jar"/>
+			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar j-calais*.jar"/>
+		</copy>
+		
+		<!-- New! Now keep a copy of the current es-compat layer in the px engine and keep it up to date -->
+		<copy file="../infinit.e.elasticsearch.driver_1.4/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/es-compat/1.4/elasticsearch_compatibility.jar"/>
+
+		<copy file="../infinit.e.elasticsearch.driver_1.3/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/es-compat/1.3/elasticsearch_compatibility.jar"/>
+
+		<copy file="../infinit.e.elasticsearch.driver_1.0/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/es-compat/1.0/elasticsearch_compatibility.jar"/>
+		
+		<copy file="../infinit.e.elasticsearch.driver_0.19/lib/elasticsearch_compatibility.jar" 
+					tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/es-compat/0.19/elasticsearch_compatibility.jar"/>
+			
+	</target>
+	
+	<!-- ================================= 
+      target: resolve     
+      use apache ivy to pull in dependencies         
+     ================================= -->
+	<target name="resolve" depends="prepare" description="retrieve dependencies with ivy">
+	</target>
+	
+	<!-- ================================= 
+	  target: compile  
+	  compile the source code using javac            
+	================================= -->
+	<target name="compile" depends="resolve" description="Compilation of all source code.">
+	</target>
+	
+	<!-- =================================
+				target: compile-tests
+	==================================-->
+	<target name="compile-tests" depends="compile" description="Compilation of testing code.">
+	</target>
+	
+	<!-- =================================
+			target: test
+	==================================-->
+	<target name="test" depends="compile-tests" description="Run JUnit Tests">
+	</target>
+	
+	
+	<!-- =================================
+	target: rpm
+	create the RPM file
+	================================= -->
+	<target name="rpm" depends="compile" description="Generates ${ant.project.name}-{ant.version}.rpm file in to the '${dir.build.rpm}' directory.">
+		<tar tarfile="${dir.src}/${ant.project.name}.tgz" 
+		       basedir="${dir.src}/${ant.project.name}" 
+			   compression="gzip"
+		       includes="**"
+		       excludes=".svn" 
+			/>
+		<copy file="${dir.specs}/${ant.project.name}.spec" tofile="${dir.specs}/${ant.project.name}_tmp.spec"/>
+		<replace file="${dir.specs}/${ant.project.name}_tmp.spec">
+			<replacefilter token="INFINITE_VERSION" value="${infinite_version}"/>
+			<replacefilter token="INFINITE_RELEASE" value="${infinite_release}"/>
+		</replace>
+				
+		<rpm
+			topDir="."
+			command="-bb --buildroot ${basedir}/BUILD"
+			specFile="${ant.project.name}_tmp.spec"
+			failOnError="true"
+			/>
+		<delete file="${dir.src}/${ant.project.name}.tgz"/>
+		<delete file="${dir.specs}/${ant.project.name}_tmp.spec"/>
+	</target>
+	
+</project>

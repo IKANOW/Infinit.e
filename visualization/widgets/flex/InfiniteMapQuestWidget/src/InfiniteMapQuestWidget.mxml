@@ -506,6 +506,7 @@
 						var kmlOption:Object = kmlLayerNames.getItemAt( event.newIndex ) as Object;
 						kmlOption.toggled = false;
 						kmlLoaderPopup = KMLLoaderDialog( PopUpManager.createPopUp( this, KMLLoaderDialog, true ) );
+						kmlLoaderPopup.setWidgetTitle(Utils.getModuleName(this));
 						kmlLoaderPopup.setCommunities(communities);
 						PopUpManager.centerPopUp(kmlLoaderPopup);
 						kmlLoaderPopup.addEventListener(KMLLoaderEvent.LOADER_EVENT, kmlLoader_handler);

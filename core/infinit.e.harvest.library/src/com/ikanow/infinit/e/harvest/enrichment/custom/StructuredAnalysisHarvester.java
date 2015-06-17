@@ -495,7 +495,7 @@ public class StructuredAnalysisHarvester
 	        	// COMPILED_SCRIPT initialization 
 	            this.compiledScriptFactory.executeCompiledScript(CompiledScriptFactory.GLOBAL);
 			} 
-	        catch (ScriptException e) {
+	        catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
 				//DEBUG
 				//logger.error("ScriptException (globals): " + e.getMessage(), e);
@@ -3332,7 +3332,6 @@ public class StructuredAnalysisHarvester
 	private ScriptContext fillScriptContext(String value, String index) {
 		ScriptContext scriptContext = null;
 	
-		try{
 		// Create script object from entity or association JSON
 		scriptContext = compiledScriptFactory.getScriptContext();
 		if (_iterator != null)
@@ -3361,9 +3360,6 @@ public class StructuredAnalysisHarvester
 		}
 		else {
 			scriptContext.setAttribute("_index", null,ScriptContext.ENGINE_SCOPE);  				
-		}
-		}catch(ScriptException se){
-			logger.error("Fill ScripContxt caught Script Exception:",se);
 		}
 		return scriptContext;
 	}

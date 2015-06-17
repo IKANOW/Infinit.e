@@ -37,6 +37,7 @@ public class CsvToMetadataParser {
 	}
 	
 	private char _quoteChar = '"';
+	private String _sourceName = null;
 	
 	// Track approximate memory usage
 	private ObjectLength _memUsage = new ObjectLength();			
@@ -49,6 +50,10 @@ public class CsvToMetadataParser {
 		List<DocumentPojo> partials = new LinkedList<DocumentPojo>();
 		int docs = 0;
 		_memUsage.memory = 0;
+		_sourceName = source.getFileConfig().XmlSourceName;
+		if (null == _sourceName) {
+			_sourceName = "";
+		}
 		
 		CSVParser parser = null;
 		Object[] indexToField = null;
@@ -139,8 +144,8 @@ public class CsvToMetadataParser {
 							}
 						}
 					}
-					if ((null != primaryKey) && (null != source.getFileConfig().XmlSourceName)) {
-						newDoc.setUrl(source.getFileConfig().XmlSourceName + primaryKey);
+					if ((null != primaryKey) && (null != _sourceName)) {
+						newDoc.setUrl(_sourceName + primaryKey);
 					}//TESTED
 					newDoc.addToMetadata("csv", JsonToMetadataParser.convertJsonObjectToLinkedHashMap(json, _memUsage));					
 				}

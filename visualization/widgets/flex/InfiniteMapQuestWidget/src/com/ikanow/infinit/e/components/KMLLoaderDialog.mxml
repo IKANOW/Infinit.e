@@ -187,16 +187,16 @@
 			{
 				//save this widgetsave back to the server
 				widgetsaveCreateHttpService = new HTTPService();
-				var url:String = ENDPOINT_URL + "social/share?title="+URLEncoder.encode(WIDGET_TITLE)+"&description=updated%20by%20map%20widget&type=widgetsave&data_type=json";
+				var url:String = "";
 				if ( share_id != null )
 				{
-					url += "&id="+share_id;					
-					widgetsaveCreateHttpService.method = "PUT";
+					url = ENDPOINT_URL + "social/share/update/json/"+share_id+"/widgetsave/"+URLEncoder.encode(WIDGET_TITLE)+"/updated%20by%20map%20widget";				
+					widgetsaveCreateHttpService.method = URLRequestMethod.POST;
 				}
 				else
 				{
-					url += "&communityIds=" + dropDownCommunity.selectedItem._id;
-					widgetsaveCreateHttpService.method = "POST";
+					url = ENDPOINT_URL + "social/share?title="+URLEncoder.encode(WIDGET_TITLE)+"&description=updated%20by%20map%20widget&type=widgetsave&data_type=json&communityIds=" + dropDownCommunity.selectedItem._id;
+					widgetsaveCreateHttpService.method = URLRequestMethod.POST;
 				}
 				widgetsaveCreateHttpService.url = url;
 				widgetsaveCreateHttpService.addEventListener(ResultEvent.RESULT, widgetSaveComplete_resultHandler);
@@ -242,9 +242,17 @@
 			protected function titlewindow1_creationCompleteHandler(event:FlexEvent):void
 			{
 				//get this widgets name for saving
-				var module_name:String = Utils.getModuleName(this);
-				if ( module_name != null )
-					WIDGET_TITLE = module_name;				
+				//var module_name:String = Utils.getModuleName(this.parent);
+				//if ( module_name != null )
+				//	WIDGET_TITLE = module_name;				
+			}
+			
+			public function setWidgetTitle(title:String):void
+			{
+				if (title)
+				{
+					WIDGET_TITLE = title;
+				}
 			}
 			
 			private function close():void

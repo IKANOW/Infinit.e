@@ -280,22 +280,26 @@ public class EmbeddedRestletApp extends Application
         //BURCH changed the add community method to only allow a user adding it to himself, the
         //expanded function will be left in CommunityController for when we need to handle that
         //BETA NAMING
+        router.attach("/community/add",CommunityInterface.class);
         router.attach("/community/add/{name}/{description}/{tags}/",CommunityInterface.class);
         router.attach("/community/add/{name}/{description}/{tags}/{parentid}/",CommunityInterface.class);
         router.attach("/community/remove/{id}",CommunityInterface.class);
         router.attach("/community/update/{communityid}/", CommunityInterface.class); 
         //V0 NAMING
+        attach(router, "/social/community/add",CommunityInterface.class);
         attach(router, "/social/community/add/{name}/{description}/{tags}",CommunityInterface.class);
         attach(router, "/social/community/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
         attach(router, "/social/community/remove/{id}",CommunityInterface.class);
         attach(router, "/social/community/update/{communityid}", CommunityInterface.class); 
         // V1 NAMING
         // User groups:
+        attach(router, "/social/group/user/add",CommunityInterface.class);
         attach(router, "/social/group/user/add/{name}/{description}/{tags}",CommunityInterface.class);
         attach(router, "/social/group/user/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
         attach(router, "/social/group/user/remove/{id}",CommunityInterface.class);
         attach(router, "/social/group/user/update/{communityid}", CommunityInterface.class); 
         // Data groups:
+        attach(router, "/social/group/data/add",CommunityInterface.class);
         attach(router, "/social/group/data/add/{name}/{description}/{tags}",CommunityInterface.class);
         attach(router, "/social/group/data/add/{name}/{description}/{tags}/{parentid}",CommunityInterface.class);
         attach(router, "/social/group/data/remove/{id}",CommunityInterface.class);

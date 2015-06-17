@@ -21,6 +21,7 @@ import com.ikanow.infinit.e.lookup.Lookup;
 import com.mongodb.BasicDBObject;
 import com.mongodb.hadoop.io.BSONWritable;
 import com.mongodb.hadoop.util.MongoTool;
+import org.apache.hadoop.conf.Configuration;
 import org.apache.hadoop.mapreduce.Mapper;
 import org.apache.hadoop.mapreduce.Reducer;
 import org.apache.log4j.Logger;
@@ -53,13 +54,21 @@ public class TestMapReduceEngine extends MongoTool {
 		@Override
 		protected void setup(Context context) {
 			String args = context.getConfiguration().get("arguments");
+			/*
+            Lookup.prepareForTest(new Lookup.ConfigurationGetter() {
+                public Configuration getConfiguration(){
+                    return InfiniteHadoopTestUtils.getConfiguration();
+                }
+            });
+            */
+
 			if (null != args) {
 				_config = Lookup.LookupConfig.fromApi(args, Lookup.LookupConfig.class);
 			} else {
 				_config = new Lookup.LookupConfig();
 			}
 
-			_lookup = new Lookup(_config);
+			_lookup = new Lookup(_config, context);
 		}
 
 		@Override

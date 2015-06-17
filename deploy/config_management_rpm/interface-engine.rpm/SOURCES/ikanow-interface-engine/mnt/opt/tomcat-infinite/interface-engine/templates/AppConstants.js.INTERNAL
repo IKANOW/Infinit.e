@@ -1,0 +1,37 @@
+function getEndPointUrl() {
+	url = "http://localhost:8080/api/";
+	return url;
+}
+
+function getDomainUrl() {
+	domainURL = ""; // Non-cloud
+	return domainURL;
+}
+
+function getForgottenPasswordUrl() { 
+	forgotUrl = "";
+	return forgotUrl;
+}
+
+function getDomainLogoutUrl() {
+	logoutURL = ""; 
+	return logoutURL;
+
+}
+
+function getMapLicenseKey() {
+	url = "dummy";
+	return url;
+}
+
+function getTimeoutSeconds() {
+	return 1800;
+}
+
+function getSearchProvider() {
+	return "google";
+}
+
+function getSearchUrl(encodedSearchTerms) {
+	return "https://www.google.com/search?hl=en&q=" + encodedSearchTerms; // ui.logo.url=default
+}

@@ -23,6 +23,8 @@ public class CommunityAttributePojo {
 	private String type = null;
 	private String value = null;
 	
+	public static final String NUM_SHARDS_ATTRIBUTE = "num_shards";
+	
 	public CommunityAttributePojo()
 	{
 		

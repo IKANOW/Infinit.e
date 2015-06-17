@@ -308,9 +308,7 @@ public class CacheUtils
 			}//TESTED
 			else if (null != returnVal) {
 				// (used to directly return the cached NativeObject but that was intermittently failing - see below)
-				try {
-					factory.executeCompiledScript(JavaScriptUtils.tmpCacheScript,"tmpcache", returnVal);
-				} catch (ScriptException e) {}
+				factory.executeCompiledScript(JavaScriptUtils.tmpCacheScript,"tmpcache", returnVal);
 
 				return factory.getScriptContext().getAttribute("tmpcache");
 			}

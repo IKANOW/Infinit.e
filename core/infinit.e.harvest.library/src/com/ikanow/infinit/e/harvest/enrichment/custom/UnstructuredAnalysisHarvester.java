@@ -1642,7 +1642,7 @@ public class UnstructuredAnalysisHarvester {
 			try {
 				// COMPILED_SCRIPT initialization
 				this.compiledScriptFactory.executeCompiledScript(CompiledScriptFactory.GLOBAL);
-			} catch (ScriptException e) {
+			} catch (Exception e) {
 				this._context.getHarvestStatus().logMessage("ScriptException (globals): " + e.getMessage(), true);
 			}
 		

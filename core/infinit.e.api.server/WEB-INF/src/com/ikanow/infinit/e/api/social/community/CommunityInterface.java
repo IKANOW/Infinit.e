@@ -69,7 +69,7 @@ public class CommunityInterface extends ServerResource
 	private String resp = null;
 	private String urlStr = null;
 	private String json = null;
-	String project_id = null;
+	private String project_id = null;
 	
 	private CommunityPojo.CommunityType communityType = null; // or "user" or "data" for the new groups split
 	
@@ -256,6 +256,11 @@ public class CommunityInterface extends ServerResource
 				{
 					action = "updateCommunity";
 				}	
+				else if (urlStr.contains("/community/add") || urlStr.matches(".*/group/(user|data)/add.*") ||
+						urlStr.contains("/community/addwithid") || urlStr.matches(".*/group/(user|data)/addwithid.*")  )
+				{					
+					action = "addCommunityJSON";
+				}
 			}
 			catch (Exception e) 
 			{
@@ -352,14 +357,18 @@ public class CommunityInterface extends ServerResource
 					 rp = this.community.updateMemberType(cookieLookup, personId, communityIdStr, userType, communityType);
 				 }
 			 }
-			 else if (action.equals("addCommunity"))
+			 else if ( action.equals("addCommunityJSON"))
 			 {
+				 rp = this.community.addCommunity(cookieLookup, json, communityType);
+			 }
+			 else if (action.equals("addCommunity"))
+			 {				 
 				 rp = this.community.addCommunity(cookieLookup, name, description, parentId, tags, communityType);
 			 }
 			 else if (action.equals("addCommunityWithId"))
 			 {
 				 rp = this.community.addCommunity(cookieLookup, communityIdStr, name, description, parentId, 
-						 parentName, tags, ownerId, ownerDisplayName, ownerEmail, communityType);
+						 parentName, tags, ownerId, ownerDisplayName, ownerEmail, communityType, null, null);
 			 }
 			 else if ( action.equals("removeCommunityById"))
 			 {

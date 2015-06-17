@@ -297,6 +297,40 @@ public class CommunityHandler
 		return getCommunity(null, null, false, communityType);
 	}
 	
+	public ResponsePojo addCommunity(String userIdStr, String json, CommunityType communityType) {
+		ResponsePojo rp = new ResponsePojo();
+		CommunityPojo newCommunity = null;
+		try
+		{
+			newCommunity = ApiManager.mapFromApi(json, CommunityPojo.class, new CommunityPojoApiMap());
+		}
+		catch (Exception ex)
+		{
+			rp.setResponse(new ResponseObject("Add Community",false,"Add json is badly formatted, could not deserialize."));
+			return rp;
+		}
+		
+		//verify the necessary params are set
+		if (  newCommunity.getName() == null || newCommunity.getName().isEmpty() )
+		{
+			rp.setResponse(new ResponseObject("Add Community",false,"Name field is required"));
+			return rp;
+		}
+		if (  newCommunity.getDescription() == null || newCommunity.getDescription().isEmpty() )
+		{
+			rp.setResponse(new ResponseObject("Add Community",false,"Description field is required"));
+			return rp;
+		}
+		
+		String parent_id = null;
+		if (newCommunity.getParentId() != null ) parent_id = newCommunity.getParentId().toString();
+		String tags = null;
+		if ( newCommunity.getTags() != null ) tags = newCommunity.getTags().toString();
+		//pass them on to the regular create function
+		return addCommunity(userIdStr, newCommunity.getName(), newCommunity.getDescription(), parent_id, 
+				tags, communityType, newCommunity.getCommunityAttributes(), newCommunity.getCommunityUserAttribute());
+	}
+	
 	/**
 	 * addCommunity (REST)
 	 * Creates a new community
@@ -311,6 +345,11 @@ public class CommunityHandler
 	 * @return ResponsePojo
 	 */
 	public ResponsePojo addCommunity(String userIdStr, String name, String description, String parentIdStr, String tags, CommunityPojo.CommunityType communityType)
+	{
+		return addCommunity(userIdStr, name, description, parentIdStr, tags, communityType, null, null);
+	}
+	
+	public ResponsePojo addCommunity(String userIdStr, String name, String description, String parentIdStr, String tags, CommunityPojo.CommunityType communityType, Map<String, CommunityAttributePojo> community_attributes, Map<String, CommunityUserAttributePojo> user_attributes)
 	{
 		String userName = null;
 		String userEmail = null;
@@ -371,7 +410,7 @@ public class CommunityHandler
 		{
 			return new ResponsePojo(new ResponseObject("Add Community", false, "General Error: " + ex.getMessage()));
 		}
-		return addCommunity(userIdStr, name, description, parentIdStr, parentName, tags, userIdStr, userName, userEmail, communityType);
+		return addCommunity(userIdStr, name, description, parentIdStr, parentName, tags, userIdStr, userName, userEmail, communityType, community_attributes, user_attributes);
 	}
 	
 	/**
@@ -380,14 +419,14 @@ public class CommunityHandler
 	 */
 	private ResponsePojo addCommunity(String userIdStr, String name, String description, 
 			String parentIdStr, String parentName, String tags, String ownerIdStr, 
-			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType)
+			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType, Map<String, CommunityAttributePojo> community_attributes, Map<String, CommunityUserAttributePojo> user_attributes)
 	{
 		return addCommunity(userIdStr, null, name, description, parentIdStr, parentName, tags, 
-				ownerIdStr, ownerDisplayName, ownerEmail, communityType);	
+				ownerIdStr, ownerDisplayName, ownerEmail, communityType, community_attributes, user_attributes);	
 	}	
 	public ResponsePojo addCommunity(String userId, String idStr, String name, String description, 
 			String parentIdStr, String parentName, String tags, String ownerIdStr, 
-			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType)
+			String ownerDisplayName, String ownerEmail, CommunityPojo.CommunityType communityType, Map<String, CommunityAttributePojo> community_attributes, Map<String, CommunityUserAttributePojo> user_attributes)
 	{
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -439,17 +478,46 @@ public class CommunityHandler
 				c.setCommunityAttributes(getDefaultCommunityAttributes());
 				c.setCommunityUserAttribute(getDefaultCommunityUserAttributes());
 				
+				if ( community_attributes != null )
+					c.getCommunityAttributes().putAll(community_attributes);				
+				if ( user_attributes != null )
+					c.getCommunityUserAttribute().putAll(user_attributes);				
+				
 				// Insert new community document in the community collection
 				DBObject commObj = c.toDb();
 
 				// Create the index form of the community:
 				if (CommunityType.user != c.getType()) {
-					try {
-						GenericProcessingController.createCommunityDocIndex(c.getId().toString(), c.getParentId(), c.getIsPersonalCommunity(), c.getIsSystemCommunity(), false);
+					//check number of shards param
+					int num_shards = GenericProcessingController.DEFAULT_NUM_SHARDS;
+					if ( c.getCommunityAttributes().containsKey(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE))
+					{
+						try
+						{
+							num_shards = Integer.parseInt(c.getCommunityAttributes().get(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE).getValue());
+						}
+						catch (Exception ex)
+						{
+							rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of num_shards failure: " + ex.getMessage()));
+							return rp;
+						}
 					}
-					catch (Exception e) { // Can't create community
-						rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of index failure: " + e.getMessage()));
+					if ( num_shards == 0 )
+						num_shards = GenericProcessingController.DEFAULT_NUM_SHARDS;
+					if ( num_shards > GenericProcessingController.MAX_NUM_SHARDS )
+					{
+						rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because num_shards is set to too large of a value, was " + num_shards + " max is " + GenericProcessingController.MAX_NUM_SHARDS));
 						return rp;
+					}
+					if ( num_shards > 0 )
+					{
+						try {
+							GenericProcessingController.createCommunityDocIndex(c.getId().toString(), c.getParentId(), c.getIsPersonalCommunity(), c.getIsSystemCommunity(), false, num_shards);
+						}
+						catch (Exception e) { // Can't create community
+							rp.setResponse(new ResponseObject("Add Community", false, "Error adding new community because of index failure: " + e.getMessage()));
+							return rp;
+						}
 					}
 				}
 				//TESTED
@@ -1644,13 +1712,40 @@ public class CommunityHandler
 				if (null != updateCommunity.getTags()) {
 					cp.setTags(updateCommunity.getTags());					
 				}
+				int new_num_shards = -1;
 				if ((null != updateCommunity.getCommunityAttributes() && !updateCommunity.getCommunityAttributes().isEmpty()))
 				{
-					cp.setCommunityAttributes(updateCommunity.getCommunityAttributes());					
+					//handle shard logic
+					int prev_num_shards = 5;
+					if ( cp.getCommunityAttributes().containsKey(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE) )
+					{
+						prev_num_shards = Integer.parseInt( cp.getCommunityAttributes().get(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE).getValue() );
+					}
+					new_num_shards = 5;
+					if ( updateCommunity.getCommunityAttributes().containsKey(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE) )
+					{
+						new_num_shards = Integer.parseInt( updateCommunity.getCommunityAttributes().get(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE).getValue() );
+					}
+					if ( new_num_shards != prev_num_shards )
+					{
+						if (prev_num_shards >= 0 )
+						{
+							rp.setResponse(new ResponseObject("Update Community", false, "Can't change num_shards param from a positive value to anything else (can't update shard count once an index exists)"));
+							return rp;
+						}
+					}
+					else
+					{
+						new_num_shards = -1;
+					}
+					
+					//merge with existing (overwriting any changes) this way we keep the defaults
+					cp.getCommunityAttributes().putAll(updateCommunity.getCommunityAttributes());									
 				}
 				if ((null != updateCommunity.getCommunityUserAttribute() && !updateCommunity.getCommunityUserAttribute().isEmpty()))
 				{
-					cp.setCommunityUserAttribute(updateCommunity.getCommunityUserAttribute());					
+					//merge with existing (overwriting any changes) this way we keep the defaults
+					cp.getCommunityUserAttribute().putAll(updateCommunity.getCommunityUserAttribute());					
 				}
 				// Change owner: not allowed here, use community/update/status
 				if ((null != updateCommunity.getOwnerId()) && !updateCommunity.getOwnerId().equals(cp.getOwnerId()))
@@ -1672,6 +1767,19 @@ public class CommunityHandler
 					DBObject query_share = new BasicDBObject("communities.name", originalName);
 					DBObject update_share = new BasicDBObject("$set",new BasicDBObject("communities.$.name", updateCommunity.getName()));					
 					DbManager.getSocial().getShare().update(query_share, update_share, false, true);
+				}
+				
+				if ( new_num_shards == 0 )
+					new_num_shards = GenericProcessingController.DEFAULT_NUM_SHARDS;
+				if ( new_num_shards > 0 )
+				{
+					try {
+						GenericProcessingController.createCommunityDocIndex(cp.getId().toString(), cp.getParentId(), cp.getIsPersonalCommunity(), cp.getIsSystemCommunity(), false, new_num_shards);
+					}
+					catch (Exception e) { // Can't create community
+						rp.setResponse(new ResponseObject("Update Community", false, "Community updated successfully, error creating index: " + e.getMessage()));
+						return rp;
+					}
 				}
 				
 				
@@ -2265,5 +2373,5 @@ public class CommunityHandler
 		}
 		return query;
 	}//TESTED (by hand)
-	
+
 }

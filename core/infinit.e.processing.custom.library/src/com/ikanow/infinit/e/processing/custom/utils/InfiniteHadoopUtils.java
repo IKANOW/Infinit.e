@@ -257,6 +257,9 @@ public class InfiniteHadoopUtils {
 			else if ((null != share.getMediaType()) && (share.getMediaType().contains("zip"))) {
 				extension = ".cache.zip";
 			}
+			
+			//TODO (IN-461): handle reference shares (it's easy, see else clause below)			
+			
 			String tempFileName = assignNewJarLocation(prop_custom, shareid + extension);
 			File tempFile = new File(tempFileName);
 			

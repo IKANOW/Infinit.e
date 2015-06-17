@@ -2,6 +2,8 @@ package com.ikanow.infinit.e.api.social.community;
 
 import static org.junit.Assert.*;
 
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -20,6 +22,7 @@ import com.ikanow.infinit.e.data_model.driver.InfiniteDriver;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityAttributePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityUserAttributePojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
@@ -61,7 +64,25 @@ public class CommunityTest {
 	
 	public static CommunityPojo createTestCommunity(CommunityType type, InfiniteDriver driver, ResponseObject responseObject)
 	{
-		CommunityPojo cp = driver.createCommunity(test_comm_name_prefix + type + "_" + counter, "asdf", "test123", null, responseObject, type);
+		return createTestCommunity(type, driver, responseObject, null, null);
+	}
+	
+	public static CommunityPojo createTestCommunity(CommunityType type, InfiniteDriver driver, ResponseObject responseObject, Map<String, CommunityAttributePojo> community_attributes, Map<String, CommunityUserAttributePojo> user_attributes)
+	{
+		CommunityPojo cp = new CommunityPojo();
+		cp.setName(test_comm_name_prefix + type + "_" + counter);
+		cp.setDescription("asdf");		
+		cp.setTags(Arrays.asList("test123"));
+		cp.setParentId(null);
+		cp.setCommunityAttributes(community_attributes);
+		cp.setCommunityUserAttribute(user_attributes);
+		cp.setType(type);
+		//set no indexes (we shouldn't need them in test classes, use createShardTestCommunity instead if you do)
+		if ( community_attributes == null )
+			community_attributes = new HashMap<String, CommunityAttributePojo>();
+		community_attributes.put(CommunityAttributePojo.NUM_SHARDS_ATTRIBUTE, new CommunityAttributePojo("Integer", "-1"));
+		cp.setCommunityAttributes(community_attributes);
+		cp = driver.createCommunity(cp, responseObject);
 		counter++;
 		return cp;
 	}
@@ -979,5 +1000,44 @@ public class CommunityTest {
 		//test filtering to 2 communities
 		List<CommunityPojo> comm_double = driver_user.getAllCommunity(ro, commid1+","+commid2);
 		assertEquals(2, comm_double.size());
+	}
+	
+	@Test
+	public void testAddCommunityCustomAttributes()
+	{
+		Map<String, CommunityAttributePojo> community_attributes = new HashMap<String, CommunityAttributePojo>();
+		community_attributes.put("test_attr1", new CommunityAttributePojo("Boolean", "false"));
+		Map<String, CommunityUserAttributePojo> user_attributes = new HashMap<String, CommunityUserAttributePojo>();
+		user_attributes.put("test_attr2", new CommunityUserAttributePojo("Integer", "1", false));
+		CommunityPojo community_usergroup = createTestCommunity(CommunityType.user, driver_local, new ResponseObject(), community_attributes, user_attributes);
+		assertNotNull(community_usergroup);
+		assertEquals("false", community_usergroup.getCommunityAttributes().get("test_attr1").getValue());
+		assertEquals("1", community_usergroup.getCommunityUserAttribute().get("test_attr2").getDefaultValue());
+		
+		//test the defaults still exist
+		assertEquals("false", community_usergroup.getCommunityAttributes().get("isPublic").getValue());		
+	}
+	
+	@Test
+	public void testUpdateCommunityCustomAttributes()
+	{
+		CommunityPojo community_usergroup = createTestCommunity(CommunityType.user, driver_local, new ResponseObject());
+		//test the defaults still exist
+		assertEquals("false", community_usergroup.getCommunityAttributes().get("isPublic").getValue());
+		
+		//change teh attributes
+		Map<String, CommunityAttributePojo> community_attributes = new HashMap<String, CommunityAttributePojo>();
+		community_attributes.put("test_attr1", new CommunityAttributePojo("Boolean", "false"));
+		Map<String, CommunityUserAttributePojo> user_attributes = new HashMap<String, CommunityUserAttributePojo>();
+		user_attributes.put("test_attr2", new CommunityUserAttributePojo("Integer", "1", false));
+		community_usergroup.setCommunityAttributes(community_attributes);
+		community_usergroup.setCommunityUserAttribute(user_attributes);
+		driver_local.updateCommunity(community_usergroup.getId().toString(), community_usergroup, new ResponseObject());
+		community_usergroup = driver_local.getCommunity(community_usergroup.getId().toString(), new ResponseObject());
+		
+		//test the defaults still exist, and our new args
+		assertEquals("false", community_usergroup.getCommunityAttributes().get("isPublic").getValue());
+		assertEquals("false", community_usergroup.getCommunityAttributes().get("test_attr1").getValue());
+		assertEquals("1", community_usergroup.getCommunityUserAttribute().get("test_attr2").getDefaultValue());
 	}
 }

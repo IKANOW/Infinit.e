@@ -15,8 +15,6 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.harvest.enrichment.script;
 
-import javax.script.ScriptException;
-
 import org.apache.log4j.Logger;
 
 import com.ikanow.infinit.e.data_model.utils.IChangeListener;
@@ -51,7 +49,7 @@ public class ScriptCallbackNotifier implements IChangeListener {
 			}else if(whereParamName==null && whatParamName==null){
 				factory.executeCompiledScript(script);				
 			}
-		} catch (ScriptException e) {
+		} catch (Exception e) {
 			logger.error("ScriptCallbackChangeListener caught an exception",e);
 		}
 	}

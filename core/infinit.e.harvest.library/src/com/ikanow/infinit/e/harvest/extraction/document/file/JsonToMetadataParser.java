@@ -41,6 +41,7 @@ public class JsonToMetadataParser {
 		}
 		this.primaryKey = primaryKey;
 		this.sourceName = sourceName;
+		if (null == sourceName) this.sourceName = "";		
 		if (null != objectIdentifiers) {
 			for (String objectId: objectIdentifiers) {
 				if (objectId.startsWith("*")) {

@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Map.Entry;
 
 import javax.script.ScriptContext;
-import javax.script.ScriptException;
 
 import org.apache.log4j.Logger;
 import org.apache.log4j.PropertyConfigurator;
@@ -48,7 +47,7 @@ public class CompiledScriptAssemblerTest extends HarvesterTest {
 		
 		try {
 			compiledScriptFactory.executeCompiledScript(JavaScriptUtils.getCheckDirtyDoc(),"_docPojo",doc);
-		} catch (ScriptException e) {
+		} catch (Exception e) {
 			logger.error("testCompiledFactory caught an exception:",e);
 			Assert.fail(e.getMessage());
 		}

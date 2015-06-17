@@ -7,7 +7,7 @@
 	<classpathentry kind="lib" path="lib/jackson-core-asl-1.8.1.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-mapper-asl-1.8.1.jar"/>
 	<classpathentry kind="lib" path="lib/jackson-xc-1.8.1.jar"/>
-	<classpathentry kind="lib" path="lib/guava-r09.jar"/>
-    <classpathentry kind="lib" path="lib/infinit.e.data_model.jar"/>
+    <!--classpathentry kind="lib" path="lib/infinit.e.data_model.jar"/-->
+    <classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

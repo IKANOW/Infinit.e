@@ -23,8 +23,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.SimpleTimeZone;
 
-import javax.script.ScriptException;
-
 import org.apache.log4j.Logger;
 
 import com.google.gson.Gson;
@@ -95,11 +93,6 @@ public class ScriptUtil {
 	 * @param compiledScriptFactory
 	 */
 	public static void printEngineState(CompiledScriptFactory compiledScriptFactory) {
-		try {
-			compiledScriptFactory.executeCompiledScript(JavaScriptUtils.printState);
-		} catch (ScriptException e1) {			
-			e1.printStackTrace();
-		}
-		
+			compiledScriptFactory.executeCompiledScript(JavaScriptUtils.printState);		
 	}
 }

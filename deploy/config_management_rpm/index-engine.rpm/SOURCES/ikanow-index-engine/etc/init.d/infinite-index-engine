@@ -1,0 +1,130 @@
+#! /bin/bash
+### BEGIN INIT INFO
+# Provides:          elasticsearch-infinite
+# Required-Start:    $all
+# Required-Stop:     $all
+# Default-Start:      
+# Default-Stop:      0 1 6
+# Short-Description: Starts elasticsearch-infinite
+# chkconfig: - 80 15
+# Description: Elasticsearch        
+### END INIT INFO
+
+###########################################################################
+# Source function library.
+. /etc/rc.d/init.d/functions
+
+###########################################################################
+# Get instance specific config file
+if [ -r "/etc/sysconfig/infinite-index-engine" ]; then
+    . /etc/sysconfig/infinite-index-engine
+fi
+
+###########################################################################
+#
+ES_HOME=/usr/share/java/elasticsearch
+ES_USER=elasticsearch
+ES_INCLUDE=$ES_HOME/bin/elasticsearch.in.sh
+ES_INFINITE=/opt/elasticsearch-infinite/
+INFINITE_HOME=/opt/infinite-home/
+
+###########################################################################
+#
+DAEMON=$ES_HOME/bin/elasticsearch
+NAME=elasticsearch
+PID_FILE=${PIDFILE-/var/run/$NAME/$NAME.pid}
+LOCK_FILE=${LOCKFILE-/var/lock/subsys/infinite-index-engine}
+LOG_DIR=/var/log/$NAME
+DATA_DIR=$ES_INFINITE/data
+WORK_DIR=/tmp/$NAME
+
+CONFIG_FILE=$ES_INFINITE/config/elasticsearch-tmp.yml
+
+CONFIG_DIR=$ES_INFINITE/config
+DAEMON_OPTS="-Des.monitor.jvm.enabled=false -Des.path.conf=$CONFIG_DIR -Des.config=$CONFIG_FILE -Des.path.home=$ES_HOME -Des.path.logs=$LOG_DIR -Des.path.data=$DATA_DIR -Des.path.work=$WORK_DIR"
+
+###########################################################################
+sh /mnt/opt/elasticsearch-infinite/scripts/write_es_yml_files.sh
+
+###########################################################################
+# Handle multi node environment:
+if [ -z $ES_NUM_NODES ]; then
+   ES_NUM_NODES=1
+fi
+
+###########################################################################
+if [ ! -z $ES_MULTI_CLUSTER ]; then
+   #Count the nodes in the specified data directory
+   ES_NUM_NODES=`ls $ES_PATH_DATA/$ES_MULTI_CLUSTER/nodes/ | wc -l`
+fi
+
+###########################################################################
+start() {
+    for i in `seq 1 $ES_NUM_NODES`; do
+       echo -n $"Starting $NAME $i: "
+       mkdir -p $WORK_DIR
+       if [ -d /usr/share/elasticsearch ]; then
+          #1.0:
+          daemon --pidfile=${PID_FILE}.$i --user $ES_USER $DAEMON $JAVA_OPTS -p ${PID_FILE}.$i -d $DAEMON_OPTS
+       else
+          #0.19:
+          daemon --pidfile=${PID_FILE}.$i --user $ES_USER $DAEMON $JAVA_OPTS -p ${PID_FILE}.$i $DAEMON_OPTS
+       fi
+       	 
+       RETVAL=$?
+       echo
+       [ $RETVAL -ne 0 ] && break
+    done
+    [ $RETVAL -eq 0 ] && touch $LOCK_FILE
+    [ $RETVAL -ne 0 ] && stop
+    return $RETVAL
+}
+
+###########################################################################
+stop() {
+    # Slight complication: if no cluster specified but looks like one's in
+    # use then see if we can work out what's going on
+    if [ -z $ES_MULTI_CLUSTER ] && [ -f ${PID_FILE}.2 ] && [ $ES_NUM_NODES -eq 1 ]; then
+       ES_NUM_NODES=`ls ${PID_FILE}.* | wc -l`
+    fi
+    for i in `seq 1 $ES_NUM_NODES`; do
+       echo -n $"Stopping ${NAME} node $i: "
+       killproc -p ${PID_FILE}.$i -d 10 $DAEMON
+       RETVAL=$?
+       echo
+       [ $RETVAL = 0 ] && rm -f ${LOCK_FILE} ${PID_FILE}.$i
+    done
+    return $RETVAL
+}
+
+case "$1" in
+  start)
+    start
+    ;;
+  stop)
+    stop 
+    ;;
+  status)
+    # Slight complication: if no cluster specified but looks like one's in
+    # use then see if we can work out what's going on
+    if [ -z $ES_MULTI_CLUSTER ] && [ -f ${PID_FILE}.2 ] && [ $ES_NUM_NODES -eq 1 ]; then
+       ES_NUM_NODES=`ls ${PID_FILE}.* | wc -l`
+    fi
+    for i in `seq 1 $ES_NUM_NODES`; do
+       status -p ${PID_FILE}.$i $DAEMON
+       RETVAL=$?
+       [ $RETVAL -ne 0 ] && break
+    done
+    ;;
+  restart|force-reload)
+    stop
+    start
+    ;;
+  *)
+    N=/etc/init.d/$NAME
+    echo "Usage: $N {start|stop|restart|force-reload}" >&2
+    RETVAL=2
+    ;;
+esac
+
+exit $RETVAL

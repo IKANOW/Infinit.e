@@ -49,6 +49,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
 import com.ikanow.infinit.e.data_model.InfiniteEnums.HarvestEnum;
 import com.ikanow.infinit.e.data_model.api.ApiManager;
+import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.api.authentication.WordPressAuthPojo;
@@ -358,7 +359,39 @@ public class InfiniteDriver
 	
 	// SOCIAL - COMMUNITIES
 	
-	public CommunityPojo createCommunity(String communityName, String communityDesc, String communityTags,String parentid, ResponseObject responseObject, CommunityType communityType )
+	public CommunityPojo createCommunity(CommunityPojo communityToCreate, ResponseObject responseObject)
+	{
+		StringBuilder url = new StringBuilder(apiRoot).append("social/");
+		try
+		{
+			if ( communityToCreate.getType() == null)
+				url.append("community/");
+			else if ( communityToCreate.getType().equals(CommunityType.data))
+				url.append("group/data/");
+			else if ( communityToCreate.getType().equals(CommunityType.user))
+				url.append("group/user/");
+			
+			url.append("add");
+			
+			String communityresult = sendRequest(url.toString(), BaseApiPojo.getDefaultBuilder().create().toJson(communityToCreate));
+
+			ResponsePojo internal_responsePojo = ResponsePojo.fromApi(communityresult, ResponsePojo.class, CommunityPojo.class, new CommunityPojoApiMap()); 
+			ResponseObject internal_ro = internal_responsePojo.getResponse();
+			responseObject = shallowCopy(responseObject, internal_ro);
+			
+			return (CommunityPojo)internal_responsePojo.getData();
+
+		}
+		catch (Exception e)
+		{
+			e.printStackTrace();
+		}
+
+		return null;
+	}
+	
+	public CommunityPojo createCommunity(String communityName, String communityDesc, String communityTags,String parentid, ResponseObject responseObject, 
+			CommunityType communityType )
 	{
 		StringBuilder url = new StringBuilder(apiRoot).append("social/");
 		try
@@ -376,7 +409,7 @@ public class InfiniteDriver
 			//		URLEncoder.encode(communityDesc,"UTF-8") + "/" + URLEncoder.encode(communityTags,"UTF-8");
 			if (null != parentid)
 				url.append("/").append(URLEncoder.encode(parentid,"UTF-8"));
-				//createCommunityAddress += "/" + URLEncoder.encode(parentid,"UTF-8");
+				//createCommunityAddress += "/" + URLEncoder.encode(parentid,"UTF-8");						
 			
 			String communityresult = sendRequest(url.toString(), null);
 
@@ -1213,29 +1246,32 @@ public class InfiniteDriver
 	
 	// Queries are slightly different - the entire ResponsePojo is used.
 	
+	public ResponsePojo sendQuery(AdvancedQueryPojo query, String communityIdstring, ResponseObject response) {
+		StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/query/$communities?communities=").append(communityIdstring);			
+		String testResult = sendRequest(theUrl.toString(), query.toApi());
+		
+		ResponsePojo internal_response = ResponsePojo.fromApi(testResult, ResponsePojo.class);
+		shallowCopy(response, internal_response.getResponse());
+		
+		return internal_response;		
+	}	
 	
 	public ResponsePojo sendQuery(AdvancedQueryPojo query, ObjectId communityId, ResponseObject response) {
 		ArrayList<ObjectId> community = new ArrayList<ObjectId>(1);
 		community.add(communityId);
 		return sendQuery(query, community, response);		
 	}
-	
-	
+		
 	public ResponsePojo sendQuery(AdvancedQueryPojo query, Collection<ObjectId> communities, ResponseObject response) {	
-		StringBuffer theUrl = new StringBuffer(apiRoot).append("knowledge/document/query/");
+		StringBuilder sb = new StringBuilder();
 		boolean bFirstComm = true;
 		for (ObjectId commId: communities) {
 			if (!bFirstComm) 
-				theUrl.append(',');
-			theUrl.append(commId.toString());
+				sb.append(',');
+			sb.append(commId.toString());
 			bFirstComm = false;
-		}		
-		String testResult = sendRequest(theUrl.toString(), query.toApi());
-		
-		ResponsePojo internal_response = ResponsePojo.fromApi(testResult, ResponsePojo.class);
-		shallowCopy(response, internal_response.getResponse());
-		
-		return internal_response;
+		}	
+		return sendQuery(query, sb.toString(), response);
 	}
 	
 	//////////////////////////////////////////////////////////////////////////////////////////////

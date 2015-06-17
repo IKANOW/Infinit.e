@@ -69,6 +69,7 @@ public class XmlToMetadataParser {
 			this.bPreserveCase = XmlPreserveCase;
 		}
 		this.XmlSourceName = XmlSourceName;
+		if (null == XmlSourceName) this.XmlSourceName = "";
 		this.PKElement = XmlPrimaryKey;
 		setLevelOneField(levelOneFields);
 		setIgnoreField(ignoreFields);

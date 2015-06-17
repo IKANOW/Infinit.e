@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8"?>
+<s:VGroup xmlns:fx="http://ns.adobe.com/mxml/2009" 
+		  xmlns:s="library://ns.adobe.com/flex/spark" 
+		  xmlns:mx="library://ns.adobe.com/flex/mx" 
+		  xmlns:components="components.*"
+		  width="100%" height="100%" 
+		  horizontalAlign="center" gap="5" 
+		  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+	
+	<s:RichEditableText editable="false" multiline="true" maxWidth="450" >
+		<s:textFlow>
+			<s:TextFlow>
+				<s:p>The following provides some tips / guidelines for improving search relevance for yahoo sources.</s:p>
+				<s:p></s:p>
+				<s:p fontWeight="bold">Exact phrases:</s:p>
+				<s:p>To search for an exact phrase, simply put it in quotes i.e.:</s:p>	
+				<s:p paragraphStartIndent="25" fontStyle="italic">"crime rate increasing" site:msn.com</s:p>
+				<s:p fontWeight="bold">Require words:</s:p>
+				<s:p>In order to require a word be present in a result, put a plus sign before it:</s:p>
+				<s:p paragraphStartIndent="25" fontStyle="italic">competitive racing +automobile</s:p>
+				<s:p>Note that this requires that the word appear somewhere in the result page, not necessarily in the title.</s:p>
+				<s:p fontWeight="bold">Exclude words:</s:p>
+				<s:p>In order to make sure your results do not include a word, place a hyphen in front of it:</s:p>
+				<s:p paragraphStartIndent="25" fontStyle="italic">competitive racing -horse</s:p>
+				<s:p fontWeight="bold">Restrict results to a specific domain:</s:p>
+				<s:p>In order to restrict your results to a specific domain, use the keyword site: in the query:</s:p>
+				<s:p paragraphStartIndent="25" fontStyle="italic">space heater site:ebay.com</s:p>
+				<s:p fontWeight="bold">Combining features:</s:p>
+				<s:p>These features can be combined to form complex queries:</s:p>
+				<s:p paragraphStartIndent="25" fontStyle="italic">competitive racing +automobile site:msn.com</s:p>
+				<s:p paragraphStartIndent="25" fontStyle="italic">"crime rate increasing" -larceny site:reuters.com</s:p>
+				<s:p fontWeight="bold">Resources:</s:p>				
+				<s:p><s:a href="https://help.yahoo.com/kb/search/yahoo-search-sln2242.html">https://help.yahoo.com/kb/search/yahoo-search-sln2242.html</s:a></s:p>
+				<s:p><s:a href="https://help.yahoo.com/kb/search/advanced-search-sln2194.html">https://help.yahoo.com/kb/search/advanced-search-sln2194.html</s:a></s:p>
+				<s:p>It's worth running a few test queries on yahoo.com before you create your source in order to make sure you are getting the sort of results you expect.</s:p>
+			</s:TextFlow>
+		</s:textFlow>
+	</s:RichEditableText>
+	<fx:Declarations>
+		<!-- Place non-visual elements (e.g., services, value objects) here -->
+	</fx:Declarations>
+</s:VGroup>

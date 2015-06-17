@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.IndexExistsUtils;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.settings.UpdateSettingsUtils;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -1061,6 +1063,12 @@ public class ElasticSearchManager {
 		}
 	}//TESTED
 		
+	public Settings getIndexStats()
+	{				
+		GetSettingsResponse response = _elasticClient.admin().indices().getSettings(new GetSettingsRequest()).actionGet();
+		return response.getIndexToSettings().get(_sIndexName);
+	}
+	
 	///////////////////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////////////////
 

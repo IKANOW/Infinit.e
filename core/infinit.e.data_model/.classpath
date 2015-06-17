@@ -15,7 +15,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-hadoop-2.0.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/GridFSZipFile.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/mongo-java-driver-2.12.4.jar"/>
-	<classpathentry exported="true" kind="lib" path="lib/guava-11.0.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/hadoop-core-2.5.0-mr1-cdh5.3.1.jar"/>
 	<classpathentry exported="true" kind="lib" path="standalone_libs/hadoop-common-2.5.0-cdh5.3.1-IKANOW_LOCAL_NOCRC.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/spring-core-4.1.6.RELEASE.jar"/>
@@ -24,5 +23,6 @@
 	<classpathentry exported="true" kind="lib" path="lib/commons-beanutils-1.9.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-collections4-4.0.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/commons-collections-3.2.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/guava-16.0.1.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
