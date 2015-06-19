@@ -25,7 +25,11 @@ import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.client.action.search.SearchRequestBuilder;
+import org.elasticsearch.cluster.metadata.MappingMetaData;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.hppc.cursors.ObjectObjectCursor;
 import org.elasticsearch.index.query.BoolFilterBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.CrossVersionQueryBuilders;
@@ -41,6 +45,8 @@ import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogram.Interval;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramBuilder;
+import org.elasticsearch.search.aggregations.bucket.nested.Nested;
+import org.elasticsearch.search.aggregations.bucket.nested.NestedBuilder;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.facet.Facet;
 import org.elasticsearch.search.facet.Facets;
@@ -56,6 +62,7 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.GeoAggregationPojo;
 import com.ikanow.infinit.e.data_model.api.knowledge.AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo;
+import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.document.AssociationPojo;
 import com.ikanow.infinit.e.data_model.store.document.DocumentPojo;
 import com.ikanow.infinit.e.data_model.store.document.EntityPojo;
@@ -211,6 +218,46 @@ public class AggregationUtils {
 				}
 				moments.put("times", dbl);				
 			}
+			else
+			{
+				if (null == moments) {
+					moments = new HashMap<String, List<? extends Object>>();
+				}
+				DateHistogram val = (DateHistogram)agg.getValue();
+				BasicDBList dbl = new BasicDBList();
+				for (DateHistogram.Bucket dateBucket: val.getBuckets()) {
+					if (dateBucket.getKeyAsNumber().longValue() > 0) {
+						BasicDBObject dataBucketDbo = new BasicDBObject();
+						dataBucketDbo.put("time", dateBucket.getKeyAsNumber().longValue());
+						dataBucketDbo.put("count", dateBucket.getDocCount());						
+						for (Map.Entry<String, Aggregation> dateAggs: dateBucket.getAggregations().asMap().entrySet()) {
+							if (dateAggs.getKey().equals("moments.assoc.nested")) {
+								
+								BasicDBList dbl_assoc = new BasicDBList();
+								Nested nestedVal = (Nested) dateAggs.getValue();
+								MultiBucketsAggregation assocVal = (MultiBucketsAggregation)nestedVal.getAggregations().asList().get(0);
+								long nHighestCount = Long.MIN_VALUE;
+							
+								for (MultiBucketsAggregation.Bucket assocBucket: assocVal.getBuckets()) {
+									BasicDBObject assocDbo = new BasicDBObject(2);
+									assocDbo.put("key", assocBucket.getKey());
+									assocDbo.put("docCount", assocBucket.getDocCount());
+									dbl_assoc.add(assocDbo);
+									
+									if ( assocBucket.getDocCount() > nHighestCount) { // (the counts can be modified by the add command above)
+										nHighestCount =  assocBucket.getDocCount();
+									}
+								}
+								
+								dataBucketDbo.put("maxAssocCount", nHighestCount);
+								dataBucketDbo.put("assoc", dbl_assoc);
+							}
+						}
+						dbl.add(dataBucketDbo);
+					}									
+					moments.put("assocs", dbl);
+				}
+			}
 		}//(end loop over generated aggregations)		
 		
 		if ((null != moments) && !moments.isEmpty()) {
@@ -225,7 +272,7 @@ public class AggregationUtils {
 	
 	public static void parseOutputAggregation(AdvancedQueryPojo.QueryOutputPojo.AggregationOutputPojo aggregation, AliasLookupTable aliasLookup,
 			boolean geoLowAccuracy,
-			String[] entTypeFilterStrings, String[] assocVerbFilterStrings, SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj)
+			String[] entTypeFilterStrings, String[] assocVerbFilterStrings, SearchRequestBuilder searchSettings, BoolFilterBuilder parentFilterObj, String[] communityIdStrs)
 	{
 		// 1.] Go through aggregation list
 		
@@ -279,6 +326,21 @@ public class AggregationUtils {
 				TermsBuilder geoAgg = AggregationBuilders.terms("geo").field(DocumentPojo.locs_).size(aggregation.moments.geoNumReturn);
 				timeAgg.subAggregation(geoAgg);
 				searchSettings.addAggregation(timeAgg);
+			}
+			
+			//TODO (CORE-89)
+			if ( null != aggregation.moments.associationsNumReturn && aggregation.moments.associationsNumReturn >= 0)
+			{		
+				//TODO need to check if indexes mapping use doc.associations.assoc_index == docValue
+				//fail out or don't include those communities if they don't
+				if ( validateAssociationMapping(communityIdStrs) )
+				{					
+					DateHistogramBuilder assocTimeAgg = AggregationBuilders.dateHistogram("moments.assoc").field(DocumentPojo.publishedDate_).interval(new Interval(aggregation.moments.timesInterval));
+					TermsBuilder assocAgg = AggregationBuilders.terms("assoc").field(AssociationPojo.assoc_index_).size(aggregation.moments.associationsNumReturn);				
+					NestedBuilder nested = AggregationBuilders.nested("moments.assoc.nested").path(DocumentPojo.associations_).subAggregation(assocAgg);
+					assocTimeAgg.subAggregation(nested);
+					searchSettings.addAggregation(assocTimeAgg);
+				}
 			}
 			
 			if (null != aggregation.moments.entityList) {
@@ -497,6 +559,55 @@ public class AggregationUtils {
 		 
 	} //TESTED
 	
+	/**
+	 * Until we can verify that all instances have moved over to our new mapping, we need to
+	 * handcheck all index mappings to make sure they have doc.associations.assoc_index as a doc value
+	 * 
+	 * @param communityIdStrs
+	 * @return
+	 */
+	@SuppressWarnings("unchecked")
+	private static boolean validateAssociationMapping(String[] communityIdStrs) {
+		//get all index mappings associated with these commids
+		String[] mappings = new String[communityIdStrs.length];
+		StringBuilder sb = new StringBuilder(", ");
+		for ( int i = 0; i < communityIdStrs.length; i++)
+		{
+			String s = communityIdStrs[i];
+			mappings[i] = "doc_" + s + "*";
+			sb.append("doc_").append(s).append("*, ");
+		}
+		ElasticSearchManager esm = ElasticSearchManager.getIndex(sb.substring(2, sb.length()));
+		GetMappingsResponse response = esm.getRawClient().admin().indices().prepareGetMappings(mappings).get();
+		for (ObjectObjectCursor<String, ImmutableOpenMap<String, MappingMetaData>> mapping :  response.getMappings() )
+		{
+			ImmutableOpenMap<String, MappingMetaData> mappingVal = mapping.value;
+			MappingMetaData mapping_meta = mappingVal.get("document_index");
+			try
+			{
+				Map<String, Object> map = mapping_meta.getSourceAsMap();
+				Map<String, Object> props = (Map<String, Object>) map.get("properties");
+				Map<String, Object> assocs = (Map<String, Object>) props.get(DocumentPojo.associations_);
+				Map<String, Object> assocs_props = (Map<String, Object>) assocs.get("properties");
+				Map<String, Object> assoc_index = (Map<String, Object>) assocs_props.get(AssociationPojo.assoc_index_);
+				if ( !assoc_index.containsKey("doc_values") ||
+						!((Boolean)assoc_index.get("doc_values")))
+				{
+					//doc values doesn't exist in mapping or was false
+					return false;
+				}
+				
+			}
+			catch (Exception ex) 
+			{
+				//failed somehow
+				return false;
+			}
+		}		
+		//if we fell through, all the checked indexes had the doc_value field set
+		return true;
+	}
+
 	// 3.1] Utility to parse individual aggregation (facet) element
 	
 	private static Pattern eventIndexParser = Pattern.compile("([^|]+/[^/|]+)?\\|([^|]+)?\\|([^|]+/[^|/]+)?\\|(.+)?");

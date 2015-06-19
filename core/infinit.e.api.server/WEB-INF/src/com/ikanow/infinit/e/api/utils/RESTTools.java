@@ -41,6 +41,7 @@ public class RESTTools
 	private static final Logger logger = Logger.getLogger(RESTTools.class);
 	private static final long COOKIE_TIMEOUT = 900000; //1000ms * 60s * 15m
 	public static final String AUTH_TOKEN_NAME = "inf_token";
+	private static InMemoryCache<String> cache = new InMemoryCache<String>(5000); //5s
 	
 	public static ObjectId generateRandomId() {
 		SecureRandom randomBytes = new SecureRandom();
@@ -162,6 +163,12 @@ public class RESTTools
 	{
 		if ((null == cookieIdStr) || cookieIdStr.equalsIgnoreCase("null") || cookieIdStr.isEmpty())
 			return null;
+		
+		//check cache first
+		String entry = cache.getEntry(cookieIdStr);
+		if ( entry != null )
+			return entry;
+		
 		try
 		{
 			//remove any old cookie for this user
@@ -203,6 +210,8 @@ public class RESTTools
 			if (null == userid) {
 				return null;
 			}
+			//put in cache
+			cache.addEntry(cookieIdStr, userid.toString());
 			return userid.toString();
 		}
 		catch (Exception e )

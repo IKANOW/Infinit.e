@@ -872,5 +872,91 @@ var SAMPLE_SOURCES = {
 			                    	   }
 			                       }
 			                       ]
+		},
+		
+		"data_bucket": {
+			"description": "This object generates a V2 data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
+			"extractType": "V2DataBucket",
+			"isPublic": true,
+			"mediaType": "Record",
+			"title": "Template V2 data bucket",
+			"processingPipeline": [
+			                       {
+			                    	   "display": "Currently this is the only supported element in the pipeline (TODO: enable other elements to be added, and aggregate them into a single bucket)owner_id",
+			                    	   "data_bucket": {
+			                    		   "full_name": "/bucket/path/here",
+			                    		   "multi_node_enabled": false,
+			                    		   "node_list_rules": [],
+			                    		   "aliases": [],
+			                    		   "harvest_technology_name_or_id": "/app/aleph2/library/import/harvest/tech/XXX",
+			                    		   "harvest_configs": 
+			                    			   [
+                		                       {
+                		                    	   "name": "harvester_1",
+                		                    	   "enabled": false,
+                		                    	   "library_ids_or_names": [],
+                		                    	   "config": {
+                		                    		   "key1": "value1"
+                		                    	   }
+                		                       }
+                		                       ],
+			                    		   "master_enrichment_type": "streaming",
+			                    		   "streaming_enrichment_topology":
+		                    			  {
+	         		                    	   "name": "streaming_topology_1",
+	         		                    	   "dependencies": [],
+	         		                    	   "enabled": false,
+	         		                    	   "library_ids_or_names": [],
+	         		                    	   "config": {
+	         		                    		   "key1": "value1"
+	         		                    	   } 
+		                    			  },
+			                    		   "batch_enrichment_configs": 
+			                    			  [
+                		                       {
+                		                    	   "name": "batch_module_1",
+                		                    	   "dependencies": [],
+                		                    	   "enabled": false,
+                		                    	   "library_ids_or_names": [],
+                		                    	   "config": {
+                		                    		   "key1": "value1"
+                		                    	   }                		                    	   
+                		                       }
+                		                    ],
+			                    		   "data_schema": {
+			                    			   "storage_schema": {
+			                    				   "enabled": true,
+			                    				   "json_grouping_time_period": "week"
+			                    			   },
+			                    			   "document_schema": {
+			                    				   "enabled": false,
+			                    				   "deduplicate": true,
+			                    				   "deduplication_fields": [ "url" ],
+			                    				   "technology_override_schema": {}
+			                    			   },
+			                    			   "search_index_schema": {
+			                    				   "enabled": true,
+			                    				   "technology_override_schema": {}
+			                    			   },
+			                    			   "columnar_schema": {
+			                    				   "enabled": true,
+			                    				   "field_include_list": [],
+			                    				   "field_exclude_list": [],
+			                    				   "field_include_regex": "",
+			                    				   "field_exclude_regex": "",
+			                    				   "field_type_include_list": [],
+			                    				   "field_type_exclude_list": [],
+			                    				   "technology_override_schema": {}
+			                    			   },
+			                    			   "temporal_schema": {
+			                    				   "enabled": true,
+			                    				   "grouping_time_period": "day",
+			                    				   "exist_age_max": "month",
+			                    				   "technology_override_schema": {}
+			                    			   },
+			                    		   },
+			                    	   }
+			                       }
+			                       ]
 		}
 }

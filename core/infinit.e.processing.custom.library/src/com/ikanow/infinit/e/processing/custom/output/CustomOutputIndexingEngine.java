@@ -176,8 +176,7 @@ public class CustomOutputIndexingEngine {
 		}
 		
 		Builder localSettingsEvent = ImmutableSettings.settingsBuilder();
-		localSettingsEvent.put("number_of_shards", numShards).put("number_of_replicas", 0);
-		//TODO: (no replicas for now ... in theory can always re-generate this .. though in practice need a post proc tool to make it easier)
+		localSettingsEvent.put("number_of_shards", numShards).put("number_of_replicas", 1);
 		ElasticSearchManager customIndex = IndexManager.createIndex(indexToBuild, "custom", false, null, null, localSettingsEvent);
 			// (don't need to set the mapping - that happens automatically because I've registered a template)
 		

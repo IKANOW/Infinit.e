@@ -188,7 +188,12 @@ public class QueryHandler {
 		ResponsePojo rp = new ResponsePojo();
 		
 		// communityIdList is CSV
-		String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
+		String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList, true);
+		if ( communityIdStrs.length == 0 )
+		{
+			errorString.append("All communities were removed because they don't contain data (no ES index exception)");
+			return null;
+		}
 		
 		//(timing)
 		long nQuerySetupTime = System.currentTimeMillis();
@@ -378,10 +383,11 @@ public class QueryHandler {
 					// (allow source aggregation)
 				}
 			}
+			
 			AggregationUtils.parseOutputAggregation(query.output.aggregation, _aliasLookup, 
 														(null != manualGeoNumReturn),
 														tempFilterInfo.entityTypeFilterStrings, tempFilterInfo.assocVerbFilterStrings, 
-															searchSettings, bSpecialCase?tempFilterInfo.parentFilterObj:null);
+															searchSettings, bSpecialCase?tempFilterInfo.parentFilterObj:null, communityIdStrs);
 
 			// In partial accuracy case, restore aggregation
 			if (null != manualEntsNumReturn) {

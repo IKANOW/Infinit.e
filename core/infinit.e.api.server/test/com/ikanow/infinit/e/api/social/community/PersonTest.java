@@ -29,12 +29,12 @@ public class PersonTest {
 	@BeforeClass
 	public static void setUpBeforeClass() throws Exception {
 		driver_local = new InfiniteDriver(apiRootUrl, apiKey);
+		deleteTestUsers(driver_local, new ResponseObject());
 	}
 
 	@AfterClass
 	public static void tearDownAfterClass() throws Exception {		
 		deleteTestUsers(driver_local, new ResponseObject());
-		CommunityTest.removeTestCommunities(driver_local, new ResponseObject());
 	}
 
 	@Before
@@ -76,8 +76,15 @@ public class PersonTest {
 	}
 
 	@Test
-	public void test() {
-		fail("Not yet implemented");
+	public void testAccountType() {
+		ResponseObject ro = new ResponseObject();
+		PersonPojo person = createTestUser("user", driver_local, ro);
+		assertNotNull(person);
+		assertEquals("user", person.getAccountType());
+		
+		person = createTestUser("admin", driver_local, ro);
+		assertNotNull(person);
+		assertEquals("admin", person.getAccountType());
 	}
 
 }

@@ -35,7 +35,7 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	@SuppressWarnings("unchecked")
 	static public TypeToken<List<AuthenticationPojo>> listType() { return new TypeToken<List<AuthenticationPojo>>(){}; }
 	
-	
+	public final static String _id_ = "_id";
 	private ObjectId _id = null;
 	private ObjectId profileId = null;
 	private String username = null;

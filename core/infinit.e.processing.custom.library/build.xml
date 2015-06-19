@@ -35,7 +35,7 @@
 	<property name="implementation.vendor" value="IKANOW"/>
 				
 	<path id="infinit.e.data_model.classpath">
-	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>		
 	</path>
 	<path id="infinit.e.query.library.classpath">
 	     <pathelement location="${infinit.e.query.library.location}/dist/infinit.e.query.library.jar"/>
@@ -49,6 +49,13 @@
 
     <path id="infinit.e.processing.custom.library.classpath">
         <pathelement location="${dir.build.classes}"/>
+    	
+		<!-- the minimal subset of hadoop libs needed to build is data_model/standalone libs
+		     but this doesn't require much more and keeps the dependencies a bit more standalone
+		-->
+    	<fileset dir="standalone_libs">
+        	<include name="**/*.jar"/>
+        </fileset>    	
     	
     	<fileset dir="lib">
         	<include name="**/*.jar"/>

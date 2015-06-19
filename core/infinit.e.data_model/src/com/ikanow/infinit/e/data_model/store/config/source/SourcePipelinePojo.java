@@ -406,33 +406,8 @@ public class SourcePipelinePojo extends BaseDbPojo {
 		public String sourceTemplateId; // (can point to share id, source id, or source key ... else just paste doc pipeline options in at the end of this..)
 	}	
 	
-	////////////////////////////////////////////////////////////////////
-	////////////////////////////////////////////////////////////////////
-	
-	// C] UTILITIES
-	
-	// Utility function to return the URL to use to generate the source key
-	
-	public static String getUrl(List<SourcePipelinePojo> pxPipe) {
-		if ((null != pxPipe) && !pxPipe.isEmpty()) {
-			SourcePipelinePojo firstEl = pxPipe.iterator().next();
-			if (null != firstEl.database) {
-				return firstEl.database.getUrl();
-			}
-			else if (null != firstEl.file) {
-				return firstEl.file.getUrl();				
-			}
-			else if ((null != firstEl.feed) || (null != firstEl.web)) {
-				SourceRssConfigPojo feed = (null != firstEl.feed) ? firstEl.feed : firstEl.web;
-				if (null != feed.getUrl()) {
-					return feed.getUrl();
-				}
-				else if ((null != feed.getExtraUrls()) && !feed.getExtraUrls().isEmpty()) {
-					return feed.getExtraUrls().iterator().next().url;
-				}
-				else return null; //(fail)
-			}
-		}
-		return null;
-	}//TOTEST	
+	// C] V2 INTEGRATION
+
+	public LinkedHashMap<String, Object> data_bucket; // (free form object)
+	public LinkedHashMap<String, Object> analytic_thread; // (free form object)
 }

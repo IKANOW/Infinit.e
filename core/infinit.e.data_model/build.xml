@@ -46,6 +46,10 @@
         	<include name="**/*.jar"/>
         </fileset>
 
+    	<fileset dir="standalone_libs">
+        	<include name="**/*.jar"/>
+        </fileset>
+
     	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
         <path refid="infinit.e.elasticsearch.driver.classpath"/>    	
 	</path>

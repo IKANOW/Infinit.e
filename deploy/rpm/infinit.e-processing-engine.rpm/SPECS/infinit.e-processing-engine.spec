@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: infinit.e-config >= v0.5, infinit.e-db-instance, infinit.e-index-engine >= v0.5, infinit.e-hadoop-installer.online >= v0.5
+Requires: infinit.e-config >= v0.5, infinit.e-db-instance, infinit.e-index-engine >= v0.5, infinit.e-hadoop-installer.online >= v1.0
 License: None
 Group: Infinit.e
 BuildArch: noarch

@@ -1,15 +1,20 @@
 package com.ikanow.infinit.e.api.utils;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.data_model.index.ElasticSearchManager;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
@@ -206,32 +211,87 @@ public class SocialUtils
 		return person;
 	}
 	
-	// Utility function to get communities entered in the following formats:
-		// "*" for all user communities
-		// "*<regex>" to apply a regex to the community names
-		// "<id1>,<id2>,etc"
+	
+	private static Map<String, CommunityIndexStatus> communityIdsIndexStatus = new HashMap<String, CommunityIndexStatus>();
+	static class CommunityIndexStatus
+	{
+		public boolean hasIndex;
+		public long timeChecked;
+		public CommunityIndexStatus(boolean hasIndex, long timeChecked) {
+			this.hasIndex = hasIndex;
+			this.timeChecked = timeChecked;
+		}
 		
-		static public String[] getCommunityIds(String userIdStr, String communityIdStrList) {
+	}
+	/**
+	 * Utility funciton to return community id's entered in the following formats:
+	 * "*" for all user communities
+	 * "*<regex>" to apply a regex to the community names
+	 * "<id1>,<id2>,etc"
+	 * 
+	 * @param userIdStr
+	 * @param communityIdStrList
+	 * @param commsWithIndexOnly
+	 * @return
+	 */
+	public static String[] getCommunityIds(String userIdStr, String communityIdStrList, boolean returnCommIdsWithIndexesOnly) {
+		Set<String> communitiesToReturn;
+		
+		if (communityIdStrList.charAt(0) < 0x30) {
+			communitiesToReturn = new HashSet<String>();
+			Pattern communityRegex = null;
+			if (communityIdStrList.length() > 1) {
+				communityRegex = Pattern.compile(communityIdStrList.substring(1), Pattern.CASE_INSENSITIVE);
+			}
+			HashSet<ObjectId> allCommunities = getUserCommunities(userIdStr, communityRegex);
+			//String[] communityIds = new String[allCommunities.size()];
+			//int i = 0; 
+			for (ObjectId oid: allCommunities) {
+				communitiesToReturn.add(oid.toString());
+				//communityIds[i] = oid.toString();
+				//++i;
+			}
+			//communityIds;
+		}
+		else {
+			 communitiesToReturn = new HashSet<String>(Arrays.asList( communityIdStrList.split("\\s*,\\s*") ));
+			 
+		}
+		if ( returnCommIdsWithIndexesOnly )
+		{
+			//TODO fix this so if a comm changes from non-index to index, this will still work
+			//NOTE: can't multiple things be looking at this at once, so we don't really want to
+			//mess with the stream, maybe we should fix this later
 			
-			if (communityIdStrList.charAt(0) < 0x30) {
-				Pattern communityRegex = null;
-				if (communityIdStrList.length() > 1) {
-					communityRegex = Pattern.compile(communityIdStrList.substring(1), Pattern.CASE_INSENSITIVE);
-				}
-				HashSet<ObjectId> allCommunities = getUserCommunities(userIdStr, communityRegex);
-				String[] communityIds = new String[allCommunities.size()];
-				int i = 0; 
-				for (ObjectId oid: allCommunities) {
-					communityIds[i] = oid.toString();
-					++i;
-				}
-				return communityIds;
-			}
-			else {
-				 String[] communityIdStrs = communityIdStrList.split("\\s*,\\s*");
-				 return communityIdStrs;
-			}
-		} //TESTED
+			//filter out any comms that don't have indexes
+			communitiesToReturn = communitiesToReturn.stream()
+				.filter( commId -> {
+					if ( !communityIdsIndexStatus.containsKey(commId) )
+					{
+						communityIdsIndexStatus.put(commId, new CommunityIndexStatus( getCommunityIndexStatus(commId), System.currentTimeMillis()));
+					}
+					return communityIdsIndexStatus.get(commId).hasIndex;
+				})
+				.collect(Collectors.toSet());
+				
+		}
+		return communitiesToReturn.toArray(new String[communitiesToReturn.size()]);
+	}
+	
+	// Utility function to get communities entered in the following formats:
+	// "*" for all user communities
+	// "*<regex>" to apply a regex to the community names
+	// "<id1>,<id2>,etc"				
+	static public String[] getCommunityIds(String userIdStr, String communityIdStrList) {
+		return getCommunityIds(userIdStr, communityIdStrList, false);			
+	} //TESTED
+	
+	private static Boolean getCommunityIndexStatus(String commId) {
+		//we can do this 2 ways, 
+		//1. get commid and check the num_shards attribute, if something went wrong during creation, it might still not have an index
+		//2. we can try to get the index from ES, will be correct 100% of the time, but checking for non-existant indexes takes forever for some reason		
+		return ElasticSearchManager.pingIndex("doc_" + commId + "*");
+	}
 		
 		// Get a list of communities from a user and an optional regex
 		

@@ -90,6 +90,16 @@ public class PersonHandler
 			BasicDBObject dbo = (BasicDBObject) DbManager.getSocial().getPerson().findOne(personQuery.toDb());
 			PersonPojo person = PersonPojo.fromDb(dbo, PersonPojo.class);
 			
+			if ( person != null )
+			{
+				//retrieve account type from security.authentication db
+				AuthenticationPojo authpojo = AuthenticationPojo.fromDb( 
+						MongoDbManager.getSecurity().getAuthentication().findOne(
+								new BasicDBObject(AuthenticationPojo._id_, person.get_id())), AuthenticationPojo.class);
+				if ( authpojo != null )
+					person.setAccountType(authpojo.getAccountType());
+			}
+			
 			rp.setData(person, new PersonPojoApiMap());
 			rp.setResponse(new ResponseObject("Person Info", true, "Person info returned successfully"));	
 		} 

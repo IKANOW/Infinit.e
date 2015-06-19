@@ -37,6 +37,11 @@
         	<include name="**/*.jar"/>
         </fileset>
 
+		<!-- data model no longer contains the JARs itself, so need to grab them from its libs dir, bit messy but will have to do for now -->
+    	<fileset dir="${infinit.e.data_model.location}/standalone_libs">
+        	<include name="**/*.jar"/>
+        </fileset>		
+    	
         <path refid="infinit.e.data_model.classpath"/>
 	</path>
 	

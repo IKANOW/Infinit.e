@@ -68,6 +68,9 @@ public class PersonPojo extends BaseDbPojo
 	private String SubscriptionStartDate = null;
 	private String SubscriptionEndDate = null;
 	
+	//accountType field for returning
+	private String accountType = null;
+	
 	// Public getters and setters
 	/**
 	 * @param _id the _id to set
@@ -385,5 +388,11 @@ public class PersonPojo extends BaseDbPojo
 		return SubscriptionEndDate;
 	}
 	////////////////////////////////////////////////// END WORDPRESS FIELDS/////////////////////////////////
+	public String getAccountType() {
+		return accountType;
+	}
+	public void setAccountType(String accountType) {
+		this.accountType = accountType;
+	}
 	
 }

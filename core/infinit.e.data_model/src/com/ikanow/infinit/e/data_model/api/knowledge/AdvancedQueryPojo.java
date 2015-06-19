@@ -199,7 +199,8 @@ public class AdvancedQueryPojo extends BaseApiPojo {
 				public List<String> entityList; // List of entities to grab
 				public Integer geoNumReturn = null; // Number of geo-counts to store per time, 0/null to not display at all			
 				//TODO (INF-955): NOT IMPLEMENTED YET:
-				public Boolean entityCountOnly = null; // If true counts only (default); if false then provides sentiment (if available), significance and total counts  
+				public Boolean entityCountOnly = null; // If true counts only (default); if false then provides sentiment (if available), significance and total counts
+				public Integer associationsNumReturn = null;
 			};
 			public TemporalAggregationOutputPojo moments = null;
 			

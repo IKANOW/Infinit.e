@@ -348,9 +348,9 @@ limitations under the License.
 						<td bgcolor="#ffffff" width="70%">
 							<select name="accounttype" id="accounttype">
 								<option value="Unknown">Unknown</option>
-								<option value="admin">Admin</option>
-								<option value="admin-enabled">Admin-On-Request</option>
-								<option value="user">User</option>
+								<option value="admin" <%if(accounttype.equals("admin")) out.print("selected"); %>>Admin</option>
+								<option value="admin-enabled" <%if(accounttype.equals("admin-enabled")) out.print("selected"); %>>Admin-On-Request</option>
+								<option value="user" <%if(accounttype.equals("user")) out.print("selected"); %>>User</option>							
 							</select>
 						</td>							
 					</tr>
@@ -671,6 +671,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 				lastName = person.getString("lastName");
 				displayName = person.getString("displayName");
 				email = person.getString("email");
+				accounttype = person.getString("accountType").toLowerCase();
 				if (person.has("phone")) phone = person.getString("phone");
 				
 				// Output user communities
@@ -812,6 +813,7 @@ private void clearForm()
 	password = "";
 	passwordConfirmation = "";
 	listOfCommunities = "";
+	accounttype = "";
 }  // TESTED
 
 

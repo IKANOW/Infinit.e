@@ -157,6 +157,15 @@ public class MongoDbManager {
 		return _custom.get();
 	}	
 	
+	private static ThreadLocal<SecurityMonogDb> _security = new ThreadLocal<SecurityMonogDb>() {
+        @Override protected SecurityMonogDb initialValue() {
+        	return new SecurityMonogDb(_connections.get().getMongo());
+        }
+	};
+	public static SecurityMonogDb getSecurity() {
+		return _security.get();
+	}	
+	
 	// 3. Database-specific collection management
 	
 	// 3.1. Social collections
@@ -382,6 +391,21 @@ public class MongoDbManager {
 				_config_customSavedQueryCache = DBCollectionProxyFactory.get(_savedMongo.getDB("custommr").getCollection("saved_query_cache"));										
 			}
 			return _config_customSavedQueryCache;
+		}
+	}
+	
+	public static class SecurityMonogDb
+	{
+		SecurityMonogDb(Mongo mongo) { _savedMongo = mongo; }		
+		private Mongo _savedMongo;
+
+		private DBCollection _security_authentication;
+		
+		public DBCollection getAuthentication() {
+			if (null == _security_authentication) {
+				_security_authentication = _savedMongo.getDB("security").getCollection("authentication");										
+			}
+			return _security_authentication;
 		}
 	}
 	

@@ -49,5 +49,18 @@ public class InMemoryCacheTest {
 		assertEquals(null,cache.getEntry("test1"));
 		assertEquals(0, cache.getCacheStats().hits);
 	}
+	
+	@Test
+	public void testCacheCleanup() throws InterruptedException {
+		InMemoryCache<String> cache = new InMemoryCache<String>(0);
+		assertEquals(0, cache.getCacheStats().inserts);
+		
+		cache.addEntry("test1", "1");
+		cache.addEntry("test2", "2");
+		
+		Thread.sleep(61000); //cache defaults to cleanup every 60s
+		
+		assertEquals(2, cache.getCacheStats().removals);
+	}
 
 }

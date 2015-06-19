@@ -97,6 +97,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 	@SuppressWarnings({ "unchecked", "rawtypes" })
 	public String runHadoopJob(CustomMapReduceJobPojo job, String tempJarLocation) throws IOException, SAXException, ParserConfigurationException
 	{
+		boolean yarn_mode = false;
+		
 		StringWriter xml = new StringWriter();
 		String outputCollection = job.outputCollectionTemp;// (non-append mode) 
 		if ( ( null != job.appendResults ) && job.appendResults) 
@@ -137,6 +139,11 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			config.addResource(new Path(hadoopConfigPath + "core-site.xml"));
 			config.addResource(new Path(hadoopConfigPath + "mapred-site.xml"));
 			config.addResource(new Path(hadoopConfigPath + "hadoop-site.xml"));
+			if (new File(hadoopConfigPath + "yarn-site.xml").exists()) {
+				yarn_mode = true;
+				config.addResource(new Path(hadoopConfigPath + "yarn-site.xml"));
+			}
+			
 		}//TESTED
 		
 		try {
@@ -182,17 +189,28 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			}
 
 			config.setBoolean("mapred.used.genericoptionsparser", true); // (just stops an annoying warning from appearing)
+			if (yarn_mode) { // YARN config that is missing from HDP that is common to all modes)
+				config.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");									
+			}
 			if (bLocalMode) { // local job tracker and FS mode
 				config.set("mapred.job.tracker", "local");
-				config.set("fs.defaultFS", "local");		
+				config.set("fs.defaultFS", "local");
+				config.unset("mapreduce.framework.name");
 			}
 			else {
+				if (yarn_mode) { // HDFS configuration that is common to HDFS
+					config.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");									
+					config.set("fs.AbstractFileSystem.hdfs.impl", "org.apache.hadoop.fs.Hdfs");									
+				}
 				if (bTestMode) { // run job tracker locally but FS mode remotely
 					config.set("mapred.job.tracker", "local");					
+					config.unset("mapreduce.framework.name");
 				}
 				else { // normal job tracker
 					String trackerUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
-					config.set("mapred.job.tracker", trackerUrl);
+					if (null != trackerUrl) { // MRv1 legacy mode
+						config.set("mapred.job.tracker", trackerUrl);
+					}
 				}
 				String fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.defaultFS");
 				config.set("fs.defaultFS", fsUrl);				
@@ -724,6 +742,8 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		return false;
 	}
 
+	//TODO: need to handle YARN logging
+	
 	@Override
 	protected void append(LoggingEvent arg0) {
 		

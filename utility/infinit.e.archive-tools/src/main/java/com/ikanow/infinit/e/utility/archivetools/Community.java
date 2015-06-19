@@ -214,7 +214,7 @@ public class Community extends MongoCli {
      * @return True on success, false on failure.
      * @throws FileFoundException
      */
-    public boolean archive(String communityId, String zipFilename) throws FileFoundException {
+    public boolean archive(final String communityId, String zipFilename) throws FileFoundException {
 
         if (communityId == null) {
             throw new IllegalArgumentException("CommunityId is required");
@@ -282,6 +282,9 @@ public class Community extends MongoCli {
                         public BSONObject prepareBsonObject(BSONObject record) {
                             if( record.containsField("sourceKey") ) {
                                 sourceKeyMap.mapKey((String)record.get("sourceKey"));
+                            }
+                            if( record.containsField("index") ){
+                                record.removeField("index");
                             }
                             record.put("communityId", "%community_id%");
                             return record;

@@ -4,7 +4,7 @@ Summary: Infinit.e index engine SOLR API
 Name: infinit.e-index-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: elasticsearch >= 1.4, infinit.e-config
+Requires: elasticsearch >= 1.4, infinit.e-config, python-simplejson
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -255,6 +255,7 @@ Infinit.e index engine using ElasticSearch
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/master_backup_index.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/write_es_yml_files.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/check_es_indices.sh
+%attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/esindexcheck.py
 %config /mnt/opt/elasticsearch-infinite/config/elasticsearch.yml.TEMPLATE
 %config /mnt/opt/elasticsearch-infinite/config/logging.yml
 

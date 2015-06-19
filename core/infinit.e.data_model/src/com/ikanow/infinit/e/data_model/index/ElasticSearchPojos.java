@@ -101,8 +101,10 @@ public class ElasticSearchPojos {
 		public String index_analyzer = null;
 		public String search_analyzer = null;
 		public Boolean include_in_all = null;
+		public Boolean doc_values = null;
 		
-		public FieldStringPojo(String store_, String index_, Double boost_) { store = store_; index = index_; boost = boost_; }
+		public FieldStringPojo(String store_, String index_, Double boost_) { this(store_, index_, boost_, null); }
+		public FieldStringPojo(String store_, String index_, Double boost_, Boolean doc_values_) { store = store_; index = index_; boost = boost_; doc_values = doc_values_; }
 			// Anything more complicated, do it by hand
 		
 		public FieldStringPojo excludeFromAll() { include_in_all = false; return this; }

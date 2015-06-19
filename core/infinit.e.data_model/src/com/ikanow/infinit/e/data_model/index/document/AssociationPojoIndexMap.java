@@ -102,7 +102,8 @@ public class AssociationPojoIndexMap implements BasePojoIndexMap<AssociationPojo
 		public final String type = "nested";
 		
 		public static class RootProperties {
-			public ElasticSearchPojos.FieldStringPojo assoc_index = new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null).excludeFromAll();
+			public ElasticSearchPojos.FieldStringPojo assoc_index = new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null, true); 
+					// new ElasticSearchPojos.FieldStringPojo("yes", "not_analyzed", null).excludeFromAll();
 			public ElasticSearchPojos.FieldStringPojo entity1 = new ElasticSearchPojos.FieldStringPojo("no", "analyzed", null).excludeFromAll();
 			public ElasticSearchPojos.FieldStringPojo entity1_index = new ElasticSearchPojos.FieldStringPojo("no", "not_analyzed", null).excludeFromAll();
 			public ElasticSearchPojos.FieldStringPojo entity2 = new ElasticSearchPojos.FieldStringPojo("no", "analyzed", null).excludeFromAll();

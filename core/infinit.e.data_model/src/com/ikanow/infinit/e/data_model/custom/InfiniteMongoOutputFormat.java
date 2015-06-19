@@ -712,7 +712,7 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 			public String getUser() {
 				// TODO Auto-generated method stub
 				return null;
-			}			
+			}		
 		}
 		public static class UpdatingReducerDummyIterator implements RawKeyValueIterator { // just needed in the c'tor
 			public void close() throws IOException {}

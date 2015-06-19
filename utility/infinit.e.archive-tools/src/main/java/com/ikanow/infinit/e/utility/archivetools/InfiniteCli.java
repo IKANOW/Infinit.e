@@ -28,7 +28,6 @@ public class InfiniteCli extends Cli {
         cmd.add( String.format( "%s/infinite_indexer.sh", indexerPath ));
         cmd.add("--doc");
         cmd.add("--rebuild");
-        cmd.add("--chunks=all");
         cmd.add("--query");
         cmd.add( String.format( "{\"communityId\":{\"$oid\":\"%s\"}}", communityId) );
 
@@ -36,7 +35,7 @@ public class InfiniteCli extends Cli {
 
         ProcessResult pr = getProcessResult(getProcess(cmdArr));
 
-        if( pr.hasStdErr() || pr.getExitCode() != 0 ){
+        if( pr.getExitCode() != 0 ){
             System.out.printf("[InfiniteCli->indexCommunity] Indexer failed (%d): %s%n", pr.getExitCode(), new String(pr.getStdErr()) );
             return false;
         }

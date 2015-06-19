@@ -12,7 +12,7 @@
 	<classpathentry kind="lib" path="lib/jackson-xc-1.8.1.jar"/>
 	<classpathentry kind="lib" path="lib/gson-1.6.jar"/>
 	<classpathentry kind="lib" path="lib/log4j-1.2.16.jar"/>
-	<classpathentry kind="lib" path="lib/infinit.e.data_model.jar"/>
 	<classpathentry kind="lib" path="lib/mongo-hadoop-core.jar"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

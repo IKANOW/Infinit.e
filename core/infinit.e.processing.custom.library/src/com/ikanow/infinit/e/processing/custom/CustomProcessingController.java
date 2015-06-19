@@ -15,12 +15,14 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.processing.custom;
 
+import java.io.File;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
 import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.mapred.JobClient;
 import org.apache.hadoop.mapred.JobID;
 import org.apache.hadoop.mapred.JobStatus;
@@ -68,8 +70,19 @@ public class CustomProcessingController {
 		
 		_bLocalMode = prop_custom.getHadoopLocalMode();
 		try {
+			Configuration config = new Configuration();
+			String hadoopConfigPath = prop_custom.getHadoopConfigPath() + "/hadoop/";
+			config.addResource(new Path(hadoopConfigPath + "core-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "mapred-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "hadoop-site.xml"));
+			if (new File(hadoopConfigPath + "yarn-site.xml").exists()) {
+				config.addResource(new Path(hadoopConfigPath + "yarn-site.xml"));
+				config.set("fs.hdfs.impl", "org.apache.hadoop.hdfs.DistributedFileSystem");									
+				config.set("fs.file.impl", "org.apache.hadoop.fs.LocalFileSystem");									
+				config.set("fs.AbstractFileSystem.hdfs.impl", "org.apache.hadoop.fs.Hdfs"); // (workaround for HDP issue)
+			}
 			@SuppressWarnings("unused")
-			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), new Configuration());
+			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(config), config);
 			if (_bLocalMode) {
 				System.out.println("Will run hadoop locally (infrastructure appears to exist).");				
 			}
@@ -240,7 +253,15 @@ public class CustomProcessingController {
 			}//TESTED (actually a bit pointless usually because is then overwritten by the source publish)
 			
 			Configuration conf = new Configuration();
-			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), conf);
+			String hadoopConfigPath = prop_custom.getHadoopConfigPath() + "/hadoop/";
+			conf.addResource(new Path(hadoopConfigPath + "core-site.xml"));
+			conf.addResource(new Path(hadoopConfigPath + "mapred-site.xml"));
+			conf.addResource(new Path(hadoopConfigPath + "hadoop-site.xml"));
+			if (new File(hadoopConfigPath + "yarn-site.xml").exists()) {
+				conf.addResource(new Path(hadoopConfigPath + "yarn-site.xml"));
+				conf.set("fs.AbstractFileSystem.hdfs.impl", "org.apache.hadoop.fs.Hdfs"); // (workaround for HDP issue)
+			}
+			JobClient jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(conf), conf);
 			jc.setConf(conf); // (doesn't seem to be set by the above call)
 
 			RunningJob jobToKill = jc.getJob(new JobID(jobToKillInfo.jobidS, jobToKillInfo.jobidN));
@@ -285,6 +306,17 @@ public class CustomProcessingController {
 		{
 			JobClient jc = null;
 			
+			// Build a configuration:
+			Configuration config = new Configuration();
+			String hadoopConfigPath = prop_custom.getHadoopConfigPath() + "/hadoop/";
+			config.addResource(new Path(hadoopConfigPath + "core-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "mapred-site.xml"));
+			config.addResource(new Path(hadoopConfigPath + "hadoop-site.xml"));
+			if (new File(hadoopConfigPath + "yarn-site.xml").exists()) {
+				config.addResource(new Path(hadoopConfigPath + "yarn-site.xml"));
+				config.set("fs.AbstractFileSystem.hdfs.impl", "org.apache.hadoop.fs.Hdfs"); // (workaround for HDP issue)
+			}
+			
 			CustomMapReduceJobPojo cmr = jobOverride;
 			if (null == cmr)
 				cmr = CustomScheduleManager.getJobsToMakeComplete(_bHadoopEnabled, incompleteJobsMap);
@@ -302,8 +334,8 @@ public class CustomProcessingController {
 					if (null == jc) 
 					{
 						try 
-						{
-							jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(prop_custom), new Configuration());
+						{							
+							jc = new JobClient(InfiniteHadoopUtils.getJobClientConnection(config), config);
 						}
 						catch (Exception e) 
 						{ 
@@ -315,7 +347,7 @@ public class CustomProcessingController {
 							continue;
 						}
 					}
-					
+
 					//check if job is done, and update if it is					
 					JobStatus[] jobs = jc.getAllJobs();
 					boolean bFound = false;

@@ -1,3 +1,4 @@
+%define _unpackaged_files_terminate_build 0
 ###########################################################################
 #
 # Spec file for Infinit.e system configuration.
@@ -147,6 +148,9 @@ Infinit.e search engine REST API
 %dir /mnt/opt/tomcat-infinite/interface-engine/logs
 %dir /mnt/opt/tomcat-infinite/interface-engine/webapps
 %dir /mnt/opt/tomcat-infinite/interface-engine/scripts
+#%dir /usr/share/java-1.8.0
+#%dir /usr/lib/java-1.8.0
+#%dir /usr/lib/jvm-exports/jre
 
 %config /etc/sysconfig/tomcat6-interface-engine
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.policy

@@ -2,9 +2,9 @@
 <classpath>
 	<classpathentry kind="src" path="WEB-INF/src"/>
 	<classpathentry kind="src" path="test"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.data_model"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.harvest.library"/>
-	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/jackson-core-asl-1.8.1.jar"/>
 	<classpathentry kind="lib" path="WEB-INF/lib/jackson-mapper-asl-1.8.1.jar"/>

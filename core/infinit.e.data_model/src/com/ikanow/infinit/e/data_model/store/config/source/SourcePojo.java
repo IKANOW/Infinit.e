@@ -903,6 +903,12 @@ public class SourcePojo extends BaseDbPojo {
 			else if (null != px.feature_datastoreQuery) {
 				return "inf://proc/feature/" + this.title.replaceAll("\\s+", "_");																
 			}
+			else if (null != px.data_bucket) {
+				return "aleph://bucket/" + this.title.replaceAll("\\s+", "_");																				
+			}
+			else if (null != px.analytic_thread) {
+				return "aleph://analytic/" + this.title.replaceAll("\\s+", "_");																				
+			}
 			//(END DISTRIBUTED CASES)
 			else {
 				SourceRssConfigPojo webOrFeed = px.feed;
@@ -948,6 +954,12 @@ public class SourcePojo extends BaseDbPojo {
 				{
 					this.extractType = "Custom";
 				}				
+				else if (null != px.data_bucket) {
+					this.extractType = "V2DataBucket";																				
+				}
+				else if (null != px.analytic_thread) {
+					this.extractType = "V2AnalyticThread";																				
+				}
 				
 				if (null != px.docMetadata) {
 					if (null != px.docMetadata.appendTagsToDocs) {

@@ -207,13 +207,13 @@ IKANOW  harvesting and cleansing services
 # jars
 ###########################################################################
 
-%dir /mnt/opt/hadoop-infinite/standalone_lib/
-/mnt/opt/hadoop-infinite/standalone_lib/avro.jar
-/mnt/opt/hadoop-infinite/standalone_lib/commons-configuration-1.6.jar
-/mnt/opt/hadoop-infinite/standalone_lib/hadoop-annotations-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/standalone_lib/hadoop-auth-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/standalone_lib/hadoop-hdfs-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/standalone_lib/protobuf-java-2.5.0.jar
+%dir /mnt/opt/hadoop-infinite/lib/
+/mnt/opt/hadoop-infinite/lib/avro.jar
+/mnt/opt/hadoop-infinite/lib/commons-configuration-1.6.jar
+/mnt/opt/hadoop-infinite/lib/hadoop-annotations-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib/hadoop-auth-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib/hadoop-hdfs-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib/protobuf-java-2.5.0.jar
 
 ###########################################################################
 # Install scripts

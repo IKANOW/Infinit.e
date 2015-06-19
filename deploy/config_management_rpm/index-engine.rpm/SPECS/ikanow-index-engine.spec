@@ -4,7 +4,7 @@ Summary: IKANOW index engine SOLR API
 Name: ikanow-index-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: elasticsearch >= 1.4, ikanow-config
+Requires: elasticsearch >= 1.4, ikanow-config, python-simplejson
 License: None
 Group: ikanow
 BuildArch: noarch
@@ -106,6 +106,8 @@ IKANOW index engine using ElasticSearch
 			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/bigdesk.zip
 			rm -rf head
 			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/head.zip
+			rm -rf elasticsearch-hdfs
+			unzip /mnt/opt/elasticsearch-infinite/plugins/1.4/elasticsearch-hdfs.zip
 							
 			USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
 			rm -rf cloud-aws
@@ -235,6 +237,7 @@ IKANOW index engine using ElasticSearch
 /mnt/opt/elasticsearch-infinite/plugins/1.4/bigdesk.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.4/cloud-aws.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.4/head.zip
+/mnt/opt/elasticsearch-infinite/plugins/1.4/elasticsearch-hdfs.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/analysis-icu.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/bigdesk.zip
 /mnt/opt/elasticsearch-infinite/plugins/1.3/head.zip
@@ -255,6 +258,7 @@ IKANOW index engine using ElasticSearch
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/master_backup_index.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/write_es_yml_files.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/check_es_indices.sh
+%attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/esindexcheck.py
 %config /mnt/opt/elasticsearch-infinite/config/elasticsearch.yml.TEMPLATE
 %config /mnt/opt/elasticsearch-infinite/config/logging.yml
 

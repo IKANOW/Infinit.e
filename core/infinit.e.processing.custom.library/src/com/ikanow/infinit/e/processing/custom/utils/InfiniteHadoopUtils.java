@@ -481,12 +481,16 @@ public class InfiniteHadoopUtils {
 	 * @throws IOException
 	 * @throws ParserConfigurationException
 	 */
-	public static InetSocketAddress getJobClientConnection(PropertiesManager prop_custom) throws SAXException, IOException, ParserConfigurationException
+	public static InetSocketAddress getJobClientConnection(Configuration config) throws SAXException, IOException, ParserConfigurationException
 	{
-		String jobclientAddress = HadoopUtils.getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/mapred-site.xml", "mapred.job.tracker");
-		String[] parts = jobclientAddress.split(":");
+		String job_tracker = config.get("yarn.resourcemanager.address");
+		if (null == job_tracker) {
+			job_tracker = config.get("mapred.job.tracker");
+		}
+		String[] parts = job_tracker.split(":");
 		String hostname = parts[0];
 		int port = Integer.parseInt(parts[1]);		
+		
 		return new InetSocketAddress(hostname, port);
 	}
 	
