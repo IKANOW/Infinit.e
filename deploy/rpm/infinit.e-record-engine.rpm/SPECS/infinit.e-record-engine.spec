@@ -9,7 +9,7 @@ License: None
 Group: Infinit.e
 BuildArch: noarch
 Prefix: /mnt/opt
-Requires: tomcat6, infinit.e-config >= v0.5, infinit.e-interface-engine >= v0.5
+Requires: tomcat7, infinit.e-config >= v0.5, infinit.e-interface-engine >= v0.5
 
 %description
 Infinit.e base enterprise install
@@ -46,8 +46,8 @@ Infinit.e base enterprise install
 	if [ $1 -eq 0 ]; then
 		# Handle relocation:
 		if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
-			if [ -h /opt/elasticsearch-infinite ]; then
-				rm /opt/elasticsearch-infinite
+			if [ -h /opt/logstash-infinite ]; then
+				rm /opt/logstash-infinite
 			fi
 		fi
 	fi

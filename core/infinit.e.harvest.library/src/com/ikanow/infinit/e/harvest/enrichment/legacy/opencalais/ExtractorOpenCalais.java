@@ -19,6 +19,7 @@ import java.io.File;
 import java.io.UnsupportedEncodingException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -64,7 +65,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	public String getName() { return "opencalais"; }
 		
 	private Map<EntityExtractorEnum, String> _capabilities = new HashMap<EntityExtractorEnum, String>();
-	private static final String CALAIS_URL = "http://api.opencalais.com/tag/rs/enrich";
+	private static final String CALAIS_URL_LEGACY = "http://api.opencalais.com/tag/rs/enrich";
+	private static final String CALAIS_URL_CURRENT = "https://api.thomsonreuters.com/permid/calais";
 	private String CALAIS_LICENSE = null;
     private HttpClient client;
     private Map<String,EntityPojo> entityNameMap = new HashMap<String, EntityPojo>();
@@ -260,7 +262,8 @@ public class ExtractorOpenCalais implements IEntityExtractor
 									//resolution nodes are arrays
 									JsonNode resolutionFirst = resolutionNode.get(0);
 									ep.setSemanticLinks(new ArrayList<String>());
-									ep.getSemanticLinks().add(resolutionFirst.get("id").getTextValue()); //this is a link to an alchemy page
+									if ( resolutionFirst.get("id") != null ) 
+										ep.getSemanticLinks().add(resolutionFirst.get("id").getTextValue()); //this is a link to an alchemy page
 									ep.setDisambiguatedName(resolutionFirst.get("name").getTextValue());
 									//check if we need to create a geo object
 									if ( null != resolutionFirst.get("latitude") )
@@ -412,11 +415,20 @@ public class ExtractorOpenCalais implements IEntityExtractor
 	//_______________________________________________________________________
 	
 	private PostMethod createPostMethod(String text) throws UnsupportedEncodingException {
-
+		if ( CALAIS_LICENSE.trim().length() >= 32 ) {
+			return createPostMethodCurrent(text);
+		} else {
+			return createPostMethodLegacy(text);
+		}
+		
+    }
+	
+	//Documentation States this legacy api will die on August 31, 2015
+	private PostMethod createPostMethodLegacy(String text) throws UnsupportedEncodingException {
 		if (text.length() > MAX_LENGTH) {
 			text = text.substring(0, MAX_LENGTH);
 		}		
-        PostMethod method = new PostMethod(CALAIS_URL);
+        PostMethod method = new PostMethod(CALAIS_URL_LEGACY);
 
         // Set mandatory parameters
         method.setRequestHeader("x-calais-licenseID", CALAIS_LICENSE.trim());
@@ -431,7 +443,28 @@ public class ExtractorOpenCalais implements IEntityExtractor
         // Enable Social Tags processing
         method.setRequestEntity(new StringRequestEntity(text,"text/plain","UTF-8"));
         return method;
-    }
+	}
+	
+	private PostMethod createPostMethodCurrent(String text) throws UnsupportedEncodingException {
+		if (text.length() > MAX_LENGTH) {
+			text = text.substring(0, MAX_LENGTH);
+		}		
+        PostMethod method = new PostMethod(CALAIS_URL_CURRENT);
+
+        // Set mandatory parameters
+        method.setRequestHeader("x-ag-access-token", CALAIS_LICENSE.trim());
+        
+        // Set input content type
+        method.setRequestHeader("Content-Type", "text/raw; charset=UTF-8");
+
+		// Set response/output format
+        method.setRequestHeader("outputFormat", "application/json");
+
+        method.setRequestHeader("enableMetadataType","GenericRelations");
+        // Enable Social Tags processing
+        method.setRequestEntity(new StringRequestEntity(text,"text/plain","UTF-8"));
+        return method;
+	}
 	
 	/**
 	 * Checks if the entity is in our map and returns
@@ -480,73 +513,81 @@ public class ExtractorOpenCalais implements IEntityExtractor
 		{
 			ep = new AssociationPojo();
 			//entity 1
-			if ( null != esp.entity1column && null != current_node.get(esp.entity1column) ) 
-			{
-				JsonNode ent1node = current_node.get(esp.entity1column);
-				if ( ent1node.isArray() )
+			for ( String ent1column : getColumnNames(esp.entity1column)) {
+				if ( null != ent1column && null != current_node.get(ent1column) ) 
 				{
-					Iterator<JsonNode> entiter = ent1node.getElements();
-					curr_ent = entiter.next().getTextValue().toLowerCase();
-					EntityPojo matchEnt1 = findMappedEntityName(curr_ent); 
-					if ( null != matchEnt1)
+					JsonNode ent1node = current_node.get(ent1column);
+					if ( ent1node.isArray() )
 					{
-						ep.setEntity1(matchEnt1.getActual_name());
-						ep.setEntity1_index(createEntityIndex(matchEnt1));
-						if ( ep.getGeotag() == null && matchEnt1.getGeotag() != null) //try to set geotag if it already hasn't been
-							ep.setGeotag(matchEnt1.getGeotag().deepCopy());
-					}
-					else
-						ep.setEntity1(curr_ent);					
-					
-					if ( entiter.hasNext())
-					{
+						Iterator<JsonNode> entiter = ent1node.getElements();
 						curr_ent = entiter.next().getTextValue().toLowerCase();
-						EntityPojo matchEnt12 = findMappedEntityName(curr_ent); 
-						if ( null != matchEnt12 )
+						EntityPojo matchEnt1 = findMappedEntityName(curr_ent); 
+						if ( null != matchEnt1)
 						{
-							ep.setEntity2(matchEnt12.getActual_name());
-							ep.setEntity2_index(createEntityIndex(matchEnt12));
-							if ( ep.getGeotag() == null && matchEnt12.getGeotag() != null) //try to set geotag if it already hasn't been
-								ep.setGeotag(matchEnt12.getGeotag().deepCopy());
+							ep.setEntity1(matchEnt1.getActual_name());
+							ep.setEntity1_index(createEntityIndex(matchEnt1));
+							if ( ep.getGeotag() == null && matchEnt1.getGeotag() != null) //try to set geotag if it already hasn't been
+								ep.setGeotag(matchEnt1.getGeotag().deepCopy());
 						}
 						else
-							ep.setEntity2(curr_ent);						
-					}
-				}
-				else
-				{
-					curr_ent = current_node.get(esp.entity1column).getTextValue().toLowerCase();
-					EntityPojo matchEnt1Only = findMappedEntityName(curr_ent);
-					if ( null != matchEnt1Only )
-					{
-						ep.setEntity1(matchEnt1Only.getActual_name());
-						ep.setEntity1_index(createEntityIndex(matchEnt1Only)); 
-						if ( ep.getGeotag() == null && matchEnt1Only.getGeotag() != null ) //try to set geotag if it already hasn't been
-							ep.setGeotag(matchEnt1Only.getGeotag().deepCopy());
-					}
-					else
-						ep.setEntity1(curr_ent);					
-				}
-			}			
-			//entity 2			
-			if ( null != esp.entity2column && null != current_node.get(esp.entity2column)  ) 
-			{
-				JsonNode ent2node = current_node.get(esp.entity2column);
-				if ( ent2node.isTextual() )
-				{
-					curr_ent = current_node.get(esp.entity2column).getTextValue().toLowerCase();
-					EntityPojo matchEnt2 = findMappedEntityName(curr_ent);
-					if ( null != matchEnt2 )
-					{
-						ep.setEntity2(matchEnt2.getActual_name());
-						ep.setEntity2_index(createEntityIndex(matchEnt2));
-						if ( ep.getGeotag() == null && matchEnt2.getGeotag() != null ) //try to set geotag if it already hasn't been
-							ep.setGeotag(matchEnt2.getGeotag().deepCopy());
+							ep.setEntity1(curr_ent);					
+						
+						if ( entiter.hasNext())
+						{
+							curr_ent = entiter.next().getTextValue().toLowerCase();
+							EntityPojo matchEnt12 = findMappedEntityName(curr_ent); 
+							if ( null != matchEnt12 )
+							{
+								ep.setEntity2(matchEnt12.getActual_name());
+								ep.setEntity2_index(createEntityIndex(matchEnt12));
+								if ( ep.getGeotag() == null && matchEnt12.getGeotag() != null) //try to set geotag if it already hasn't been
+									ep.setGeotag(matchEnt12.getGeotag().deepCopy());
+							}
+							else
+								ep.setEntity2(curr_ent);						
+						}
 					}
 					else
-						ep.setEntity2(curr_ent);
-				}
+					{
+						curr_ent = current_node.get(ent1column).getTextValue().toLowerCase();
+						EntityPojo matchEnt1Only = findMappedEntityName(curr_ent);
+						if ( null != matchEnt1Only )
+						{
+							ep.setEntity1(matchEnt1Only.getActual_name());
+							ep.setEntity1_index(createEntityIndex(matchEnt1Only)); 
+							if ( ep.getGeotag() == null && matchEnt1Only.getGeotag() != null ) //try to set geotag if it already hasn't been
+								ep.setGeotag(matchEnt1Only.getGeotag().deepCopy());
+						}
+						else
+							ep.setEntity1(curr_ent);					
+					}
+					break;
+				}	
 			}
+			//entity 2	
+			for ( String entity2column : getColumnNames(esp.entity2column)) {
+				if ( null != entity2column && null != current_node.get(entity2column)  ) 
+				{
+					JsonNode ent2node = current_node.get(entity2column);
+					if ( ent2node.isTextual() )
+					{
+						curr_ent = current_node.get(entity2column).getTextValue().toLowerCase();
+						EntityPojo matchEnt2 = findMappedEntityName(curr_ent);
+						if ( null != matchEnt2 )
+						{
+							ep.setEntity2(matchEnt2.getActual_name());
+							ep.setEntity2_index(createEntityIndex(matchEnt2));
+							if ( ep.getGeotag() == null && matchEnt2.getGeotag() != null ) //try to set geotag if it already hasn't been
+								ep.setGeotag(matchEnt2.getGeotag().deepCopy());
+						}
+						else
+							ep.setEntity2(curr_ent);
+					}
+					break;
+				}
+				
+			}
+			
 			//verb and verb category (if there is a verb cat, assign that and then get column value)
 			if ( null != esp.verbcategory )
 			{
@@ -612,6 +653,18 @@ public class ExtractorOpenCalais implements IEntityExtractor
 			logger.info("OpenCalais extractor does not have an event_schema for: " + entity_type);
 		}
 		return ep;
+	}
+	
+	/**
+	 * Returns back a list of strings from the comma delim param columnNames
+	 * 
+	 * @param columnNames
+	 * @return
+	 */
+	private List<String> getColumnNames(String columnNames) {
+		if ( columnNames != null )
+			return Arrays.asList(columnNames.split("\\s*,\\s*"));
+		return new ArrayList<String>();
 	}
 	
 	/**

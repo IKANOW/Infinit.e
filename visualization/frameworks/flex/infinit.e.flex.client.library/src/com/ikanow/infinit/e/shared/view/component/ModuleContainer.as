@@ -18,11 +18,14 @@ package com.ikanow.infinit.e.shared.view.component
 	import com.ikanow.infinit.e.shared.event.WidgetEvent;
 	import com.ikanow.infinit.e.shared.model.constant.Constants;
 	import com.ikanow.infinit.e.shared.model.constant.PDFConstants;
+	import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManager;
 	import com.ikanow.infinit.e.shared.model.vo.User;
 	import com.ikanow.infinit.e.shared.util.PDFGenerator;
 	import com.ikanow.infinit.e.widget.library.components.WidgetModule;
+	import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
 	import com.ikanow.infinit.e.widget.library.widget.IWidget;
 	import com.ikanow.infinit.e.widget.library.widget.IWidgetModule;
+	
 	import flash.display.DisplayObject;
 	import flash.events.DataEvent;
 	import flash.events.ErrorEvent;
@@ -39,9 +42,11 @@ package com.ikanow.infinit.e.shared.view.component
 	import flash.utils.ByteArray;
 	import flash.utils.clearTimeout;
 	import flash.utils.setTimeout;
+	
 	import mx.collections.ArrayCollection;
 	import mx.controls.Alert;
 	import mx.events.CloseEvent;
+	import mx.events.DynamicEvent;
 	import mx.events.ModuleEvent;
 	import mx.events.ResizeEvent;
 	import mx.modules.ModuleLoader;
@@ -321,6 +326,9 @@ package com.ikanow.infinit.e.shared.view.component
 		[Inject( "userManager.currentUser", bind = "true" )]
 		public var currentUser:User;
 		
+		[Inject("widgetModuleManager", bind="true")]
+		public var widgetManager:WidgetModuleManager;
+		
 		//======================================
 		// private properties 
 		//======================================
@@ -473,6 +481,7 @@ package com.ikanow.infinit.e.shared.view.component
 					child.addEventListener( "headerMouseOut", headerMouseOutHandler );
 					child.addEventListener( "headerMouseUp", headerMouseUpHandler );
 					child.addEventListener( "export", export );
+					child.addEventListener("kmlLayerEvent", onKmlLayerAdded); // will dispatch only from the map widget. no other widget will not use it
 					IWidgetModule( child ).title = title;
 					IWidgetModule( child ).allowDrag = allowDrag;
 					IWidgetModule( child ).closeButtonVisible = closeButtonVisible;
@@ -552,6 +561,17 @@ package com.ikanow.infinit.e.shared.view.component
 				WidgetModule( child ).exportDropDownList.dataProvider = exportFormats;
 				IWidgetModule( child ).exportButtonVisible = true;
 			}
+		}
+		
+		private function onKmlLayerAdded(event:DynamicEvent):void{
+			//event.communityId,    event.shareUrl,    event.layerName
+			var widgetSave:WidgetSaveObject = widgetManager.widgetSaveMap.get(event.currentTarget.title);
+			if(!widgetSave)
+				return;
+			var object:Object = widgetSave.communitySave.get(event.communityId);
+			object[event.layerName] = event.shareUrl;
+			widgetSave.communitySave.put(event.communityId, object);
+			
 		}
 	}
 }

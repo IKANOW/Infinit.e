@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER/org.eclipse.jdt.internal.debug.ui.launcher.StandardVMType/JavaSE-1.6"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/sigar/sigar-1.6.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/antlr-runtime-3.5.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/apache-log4j-extras-1.2.17.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/asm-4.1.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/asm-commons-4.1.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/elasticsearch-1.7.1.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/groovy-all-2.4.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/jna-4.1.0.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/jts-1.13.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/log4j-1.2.17.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-analyzers-common-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-core-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-expressions-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-grouping-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-highlighter-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-join-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-memory-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-misc-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-queries-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-queryparser-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-sandbox-4.10.4.jar"/>
+	<classpathentry kind="lib" path="/infinit.e.elasticsearch.driver/lib/lucene-spatial-4.10.4.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

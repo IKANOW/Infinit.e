@@ -46,8 +46,8 @@ IKANOW base enterprise install
 	if [ $1 -eq 0 ]; then
 		# Handle relocation:
 		if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
-			if [ -h /opt/elasticsearch-infinite ]; then
-				rm /opt/elasticsearch-infinite
+			if [ -h /opt/logstash-infinite ]; then
+				rm /opt/logstash-infinite
 			fi
 		fi
 	fi

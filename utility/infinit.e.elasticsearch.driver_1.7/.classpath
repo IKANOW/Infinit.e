@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry exported="true" kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry exported="true" kind="lib" path="lib/sigar/sigar-1.6.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/antlr-runtime-3.5.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/apache-log4j-extras-1.2.17.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/asm-4.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/asm-commons-4.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-1.7.1.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/groovy-all-2.4.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jna-4.1.0.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/jts-1.13.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/log4j-1.2.17.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-analyzers-common-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-core-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-expressions-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-grouping-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-highlighter-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-join-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-memory-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-misc-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-queries-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-queryparser-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/lucene-sandbox-4.10.4.jar"/>
+	<classpathentry exported="true" kind="lib" path="lib/elasticsearch_compatibility.jar"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>

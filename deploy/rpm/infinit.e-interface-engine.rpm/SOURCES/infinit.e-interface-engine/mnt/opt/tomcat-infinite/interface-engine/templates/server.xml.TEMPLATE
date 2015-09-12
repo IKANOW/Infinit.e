@@ -28,8 +28,6 @@
   <!-- Prevent memory leaks due to use of particular java/javax APIs-->
   <Listener className="org.apache.catalina.core.JreMemoryLeakPreventionListener" />
   <!-- JMX Support for the Tomcat server. Documentation at /docs/non-existent.html -->
-  <Listener className="org.apache.catalina.mbeans.ServerLifecycleListener" />
-  <Listener className="org.apache.catalina.mbeans.GlobalResourcesLifecycleListener" />
 
   <!-- Global JNDI resources
        Documentation at /docs/jndi-resources-howto.html
@@ -73,7 +71,7 @@
     __INF_SSL_ENABLED -->           
     
     <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
-               connectionTimeout="600000" secure="true" 
+               maxThreads="200" connectionTimeout="600000" secure="true" 
 				compression="on"
 				compressionMinSize="2048"
 				compressableMimeType="text/html,text/xml,application/json"
@@ -94,12 +92,12 @@
 	<Connector port="8080" enableLookups="false" redirectPort="443"/>
     
     <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
-               maxThreads="150" scheme="https" secure="true"
+               maxThreads="200" scheme="https" secure="true"
 				compression="on"
 				compressionMinSize="2048"
 				compressableMimeType="text/html,text/xml,application/json"
                clientAuth="false" sslProtocol="TLS" URIEncoding="UTF-8"
-               keystorePass="SSL_PASSPHRASE" keystoreFile="/usr/share/tomcat6/tomcat.keystore"
+               keystorePass="SSL_PASSPHRASE" keystoreFile="/usr/share/tomcat7/tomcat.keystore"
               />
     __INF_SSL_ENABLED-->
 

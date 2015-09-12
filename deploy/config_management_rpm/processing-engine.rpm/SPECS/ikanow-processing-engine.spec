@@ -69,6 +69,8 @@ IKANOW  harvesting and cleansing services
 		
 		echo "tomcat    soft    nofile          65536" >> /etc/security/limits.conf
 		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
+		echo "tomcat    soft    nproc          4096" >> /etc/security/limits.conf
+		echo "tomcat    hard    nproc          4096" >> /etc/security/limits.conf
 	fi
 
 	# Install Hadoop prototyping engine
@@ -144,7 +146,7 @@ IKANOW  harvesting and cleansing services
 %dir /mnt/opt/infinite-home/bin
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
-%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite_indexer.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh

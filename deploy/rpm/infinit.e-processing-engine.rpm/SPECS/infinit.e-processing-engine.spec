@@ -5,7 +5,7 @@ Summary: Infinit.e processing (harvesting, enrichment, generic and custom proces
 Name: infinit.e-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: infinit.e-config >= v0.5, infinit.e-db-instance, infinit.e-index-engine >= v0.5, infinit.e-hadoop-installer.online >= v1.0
+Requires: infinit.e-config >= v1.0, infinit.e-db-instance, infinit.e-index-engine >= v0.5, infinit.e-hadoop-installer.online >= v1.0
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -65,6 +65,8 @@ Infinit.e harvesting and cleansing services
 		
 		echo "tomcat    soft    nofile          65536" >> /etc/security/limits.conf
 		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
+		echo "tomcat    soft    nproc          4096" >> /etc/security/limits.conf
+		echo "tomcat    hard    nproc          4096" >> /etc/security/limits.conf
 	fi
 
 	# Install Hadoop prototyping engine
@@ -141,7 +143,7 @@ Infinit.e harvesting and cleansing services
 %dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
-%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite_indexer.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh

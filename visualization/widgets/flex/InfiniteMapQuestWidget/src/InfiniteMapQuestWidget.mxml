@@ -65,6 +65,7 @@
 			import mx.controls.LinkButton;
 			import mx.controls.Menu;
 			import mx.events.CloseEvent;
+			import mx.events.DynamicEvent;
 			import mx.events.FlexEvent;
 			import mx.events.FlexMouseEvent;
 			import mx.events.MenuEvent;
@@ -548,6 +549,11 @@
 				{
 					this.widgetOptions.openKMLLayers.push(remoteColl.name);					
 				}
+				var eve:DynamicEvent = new DynamicEvent("kmlLayerEvent");
+				eve.communityId = event.community_id;
+				eve.shareUrl = event.url;
+				eve.layerName = event.name;
+				dispatchEvent(eve);
 			}
 			
 			protected function ontologyMenuChangeEvent( event:MenuEvent ):void

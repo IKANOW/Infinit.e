@@ -71,7 +71,7 @@
     __INF_SSL_ENABLED -->           
     
     <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
-               connectionTimeout="600000" secure="true" 
+               maxThreads="200" connectionTimeout="600000" secure="true" 
 				compression="on"
 				compressionMinSize="2048"
 				compressableMimeType="text/html,text/xml,application/json"
@@ -92,7 +92,7 @@
 	<Connector port="8080" enableLookups="false" redirectPort="443"/>
     
     <Connector port="8443" protocol="HTTP/1.1" SSLEnabled="true"
-               maxThreads="150" scheme="https" secure="true"
+               maxThreads="200" scheme="https" secure="true"
 				compression="on"
 				compressionMinSize="2048"
 				compressableMimeType="text/html,text/xml,application/json"

@@ -7,7 +7,7 @@ Summary: Infinit.e search engine REST API
 Name: infinit.e-interface-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat6, infinit.e-config >= v0.5, infinit.e-index-engine >= v0.5, infinit.e-processing-engine >= v0.5
+Requires: tomcat7, tomcat7-webapps, tomcat7-admin-webapps, infinit.e-config >= v1.0, infinit.e-index-engine >= v0.5, infinit.e-processing-engine >= v1.0
 License: None
 Group: Infinit.e
 BuildArch: noarch
@@ -30,7 +30,13 @@ Infinit.e search engine REST API
 #
 # THIS IS AN UPGRADE
 #
-		service tomcat6-interface-engine stop || :
+		if [ -f /etc/init.d/tomcat7-interface-engine ]; then
+			service tomcat7-interface-engine stop || :		
+		else
+			service tomcat6-interface-engine stop || :
+			chkconfig tomcat6-interface-engine off
+			chkconfig --del tomcat6-interface-engine			
+		fi		
 		
 		#Remove some work directory artfacts that have occasionally not been updated on restart
 		rm -rf /mnt/opt/tomcat-infinite/interface-engine/work/Catalina/		 
@@ -52,7 +58,7 @@ Infinit.e search engine REST API
 		fi
 	done	
 
-	# (tomcat6 instance initialization)
+	# (tomcat instance initialization)
 	cd $RPM_BUILD_DIR/mnt/opt/tomcat-infinite/interface-engine/
 	ln -s -f infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.api.server.war
 	ln -s -f infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.web.war
@@ -76,9 +82,9 @@ Infinit.e search engine REST API
 #
 # INSTALL *AND* UPGRADE
 #	
-	# Add tomcat6 instance to start-up-on-boot list
-	chkconfig --add tomcat6-interface-engine
-	chkconfig tomcat6-interface-engine on
+	# Add tomcat7 instance to start-up-on-boot list
+	chkconfig --add tomcat7-interface-engine
+	chkconfig tomcat7-interface-engine on
 	
 	# Handle relocation:
 	if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
@@ -98,11 +104,19 @@ Infinit.e search engine REST API
 #
 # THIS IS AN *UN"INSTALL NOT AN UPGRADE
 #
-		# (Stop tomcat6 instance)
-		service tomcat6-interface-engine stop
-		# (Remove tomcat6 instance from the start-up-on-boot list)
-		chkconfig tomcat6-interface-engine off
-		chkconfig --del tomcat6-interface-engine
+		# (Stop tomcat6/7 instance)
+		# (Remove tomcat6/7 instance from the start-up-on-boot list)
+		if [ -f /etc/init.d/tomcat6-interface-engine ]; then 
+			service tomcat6-interface-engine stop
+			chkconfig tomcat6-interface-engine off
+			chkconfig --del tomcat6-interface-engine
+		fi
+		#(tomcat 7)
+		if [ -f /etc/init.d/tomcat7-interface-engine ]; then 
+			service tomcat7-interface-engine stop
+			chkconfig tomcat7-interface-engine off
+			chkconfig --del tomcat7-interface-engine
+		fi
 		# Handle relocation:
 		if [ "$RPM_INSTALL_PREFIX" != "/opt" ]; then
 			if [ -h /opt/tomcat-infinite ]; then
@@ -134,7 +148,8 @@ Infinit.e search engine REST API
 	#(App constants file is copied to relevant locations by start code below)
 
 	# Start service
-	service tomcat6-interface-engine start
+	
+	service tomcat7-interface-engine start
 	
 ###########################################################################
 #
@@ -145,10 +160,14 @@ Infinit.e search engine REST API
 %defattr(-,tomcat,tomcat)
 /mnt/opt/infinite-home/db-scripts/insert_or_update_widgets.sh
 
-%config %attr(755,root,root) /etc/init.d/tomcat6-interface-engine
-%config %attr(-,root,root) /etc/cron.d/tomcat6-interface-engine
+#(moved this to prevent accidental tomcat6 use moving forwards)
+%config %attr(755,root,root) /mnt/opt/tomcat-infinite/interface-engine/scripts/old_tomcat6/init.d/tomcat6-interface-engine
+%config %attr(-,root,root) /mnt/opt/tomcat-infinite/interface-engine/scripts/old_tomcat6/cron.d/tomcat6-interface-engine
+%config %attr(755,root,root) /etc/init.d/tomcat7-interface-engine
+%config %attr(-,root,root) /etc/cron.d/tomcat7-interface-engine
 %dir /mnt/opt/tomcat-infinite/
 %config %attr(755,root,root) /mnt/opt/tomcat-infinite/tomcat6
+%config %attr(755,root,root) /mnt/opt/tomcat-infinite/tomcat7
 %dir /mnt/opt/tomcat-infinite/interface-engine
 %dir /mnt/opt/tomcat-infinite/interface-engine/conf
 %dir /mnt/opt/tomcat-infinite/interface-engine/lib
@@ -157,6 +176,7 @@ Infinit.e search engine REST API
 %dir /mnt/opt/tomcat-infinite/interface-engine/scripts
 
 %config /etc/sysconfig/tomcat6-interface-engine
+%config /etc/sysconfig/tomcat7-interface-engine
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.policy
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/context.xml
@@ -177,6 +197,8 @@ Infinit.e search engine REST API
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_entity_list.js
 /mnt/opt/tomcat-infinite/interface-engine/scripts/random_query_generator.sh
 /mnt/opt/tomcat-infinite/interface-engine/scripts/create_appconstants.sh
-%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase1.sh
-%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase2.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat6_phase1.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat6_phase2.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat7_phase1.sh
+%attr(755,tomcat,tomcat) /mnt/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat7_phase2.sh
 /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.TEMPLATE

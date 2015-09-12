@@ -53,7 +53,7 @@
 		<entity1column>attacker</entity1column>
 		<verbcolumn>attacktype</verbcolumn>
 		<verbcategory>armed attack</verbcategory>
-		<entity2column>attacked</entity2column>
+		<entity2column>attacked,casualties</entity2column>
 		<locationcolumn>location</locationcolumn>
 		<timecolumnstart>date</timecolumnstart>
 		<timecolumnend>datestring</timecolumnend>
@@ -651,9 +651,9 @@
 	</event>
 	<event>
 		<eventtype>personlocation</eventtype>
-		<entity1column>person</entity1column>
+		<entity1column>person,persongroup</entity1column>
 		<verbcategory>person location</verbcategory>
-		<locationcolumn>location</locationcolumn>
+		<locationcolumn>location,locationstring</locationcolumn>
 		<metatype>Fact</metatype>
 	</event>
 	<event>
@@ -740,9 +740,9 @@
 	</event>
 	<event>
 		<eventtype>quotation</eventtype>
-		<entity1column>person</entity1column>
+		<entity1column>person,speaker</entity1column>
 		<verbcategory>quotation</verbcategory>
-		<entity2column>quote</entity2column>
+		<entity2column>quote,quotation</entity2column>
 		<metatype>Event</metatype>
 	</event>
 	<event>

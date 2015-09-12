@@ -70,20 +70,24 @@ public class MongoDbManager {
 	
 	// 1. MongoDB connection management
 	
-	private static ThreadLocal<MongoDbConnection> _connections = new ThreadLocal<MongoDbConnection>() {
-        @Override protected MongoDbConnection initialValue() {
-            try {
-				return new MongoDbConnection(new PropertiesManager());
-			} catch (Exception e) {
+	public static class MongoDbContainer {
+		private MongoDbConnection _conn = null;
+		public synchronized MongoDbConnection get() {
+			if (null == _conn) {
 				try {
-					return new MongoDbConnection(); // (default to localhost:27017)
+					_conn = new MongoDbConnection(new PropertiesManager());
 				} 
-				catch (Exception e1) {
-					return null;
-				} 
+				catch (Exception e) {
+					try {
+						_conn = new MongoDbConnection(); // (default to localhost:27017)
+					} 
+					catch (Exception e1) {} 
+				}
 			}
-        }
-	};
+			return _conn;
+		}
+	}	
+	private static MongoDbContainer _connection = new MongoDbContainer();
 	
 	private static DB initializeFastWriteDB(String dbName, Mongo savedMongo) {
 		DB db = savedMongo.getDB(dbName);
@@ -95,10 +99,10 @@ public class MongoDbManager {
 	// Generic database access:
 	
 	public static DB getDB(String dbName) {
-		return _connections.get().getMongo().getDB(dbName);
+		return _connection.get().getMongo().getDB(dbName);
 	}
 	public static DBCollection getCollection(String dbName, String collectionName) {
-		return DBCollectionProxyFactory.get(_connections.get().getMongo().getDB(dbName).getCollection(collectionName));
+		return DBCollectionProxyFactory.get(_connection.get().getMongo().getDB(dbName).getCollection(collectionName));
 	}
 	
 	// 2. MongoDB database management
@@ -107,7 +111,7 @@ public class MongoDbManager {
 	
 	private static ThreadLocal<SocialMongoDb> _social = new ThreadLocal<SocialMongoDb>() {
         @Override protected SocialMongoDb initialValue() {
-        	return new SocialMongoDb(_connections.get().getMongo());
+        	return new SocialMongoDb(_connection.get().getMongo());
         }
 	};
 	public static SocialMongoDb getSocial() {
@@ -118,7 +122,7 @@ public class MongoDbManager {
 	
 	private static ThreadLocal<DocumentMongoDb> _doc = new ThreadLocal<DocumentMongoDb>() {
         @Override protected DocumentMongoDb initialValue() {
-        	return new DocumentMongoDb(_connections.get().getMongo());
+        	return new DocumentMongoDb(_connection.get().getMongo());
         }
 	};
 	public static DocumentMongoDb getDocument() {
@@ -129,7 +133,7 @@ public class MongoDbManager {
 	
 	private static ThreadLocal<FeatureMongoDb> _feature = new ThreadLocal<FeatureMongoDb>() {
         @Override protected FeatureMongoDb initialValue() {
-        	return new FeatureMongoDb(_connections.get().getMongo());
+        	return new FeatureMongoDb(_connection.get().getMongo());
         }
 	};
 	public static FeatureMongoDb getFeature() {
@@ -140,7 +144,7 @@ public class MongoDbManager {
 	
 	private static ThreadLocal<IngestMongoDb> _ingest = new ThreadLocal<IngestMongoDb>() {
         @Override protected IngestMongoDb initialValue() {
-        	return new IngestMongoDb(_connections.get().getMongo());
+        	return new IngestMongoDb(_connection.get().getMongo());
         }
 	};
 	public static IngestMongoDb getIngest() {
@@ -150,7 +154,7 @@ public class MongoDbManager {
 	//CALEB NUMBERING SCHEME HERE
 	private static ThreadLocal<CustomMongoDb> _custom = new ThreadLocal<CustomMongoDb>() {
         @Override protected CustomMongoDb initialValue() {
-        	return new CustomMongoDb(_connections.get().getMongo());
+        	return new CustomMongoDb(_connection.get().getMongo());
         }
 	};
 	public static CustomMongoDb getCustom() {
@@ -159,7 +163,7 @@ public class MongoDbManager {
 	
 	private static ThreadLocal<SecurityMonogDb> _security = new ThreadLocal<SecurityMonogDb>() {
         @Override protected SecurityMonogDb initialValue() {
-        	return new SecurityMonogDb(_connections.get().getMongo());
+        	return new SecurityMonogDb(_connection.get().getMongo());
         }
 	};
 	public static SecurityMonogDb getSecurity() {
