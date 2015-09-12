@@ -19,7 +19,7 @@ limitations under the License.
 						 xmlns:s="library://ns.adobe.com/flex/spark"
 						 xmlns:mx="library://ns.adobe.com/flex/mx"
 						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
-						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }">
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }" xmlns:components1="components.*">
 	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
 		<fx:Style>
 		@namespace s "library://ns.adobe.com/flex/spark";
@@ -324,7 +324,7 @@ limitations under the License.
 				var one_time_cost:Number = 0;
 				var search_depth:Number = Number(searchDepthTextInput.text);
 				var search_cycle:Number = Number(searchCycleTextInput.text);
-				var search_cycle_secs:Number = search_cycle/3600; //convert from hours to seconds
+				var search_cycle_secs:Number = search_cycle*3600; //convert from hours to seconds
 				//if ( search_cycle_secs == 0 ) //if seconds are 0, set to 10yrs because harvester doesn't have a run once function
 				//	search_cycle_secs = 315360000; //10yr in sec
 				var templates_ac:ArrayCollection = new ArrayCollection();
@@ -349,7 +349,7 @@ limitations under the License.
 								var num_queries:Number = getNumberOfQueries(template);
 								if ( search_cycle > 0 )
 								{																		
-									var this_request_cost:Number = template_cost*num_queries*(search_depth+1)*(3600/search_cycle_secs);
+									var this_request_cost:Number = template_cost*num_queries*(search_depth+1)*((3600*24)/search_cycle_secs);
 									running_cost += this_request_cost;
 									
 								}
@@ -853,7 +853,10 @@ limitations under the License.
 	com.ikanow.infinit.e.widget.library.components.* items looking for components
 	prefixed with Widget*.  Other components may be added to the header as well.
 	-->
-	<components:headerContent>
+	<components:helpContent>
+		<components1:Help/>
+	</components:helpContent>
+	<components:leftHeaderContent>
 		<s:HGroup gap="-3">
 			<!-- Ignore Filter Toggle Button -->
 			<components:WidgetToggleButton id="buttonTemplate"
@@ -870,7 +873,7 @@ limitations under the License.
 										   visible="false" includeInLayout="false"
 										   click="buttonFiles_clickHandler(event)" enabled="false" toolTip="Coming Soon"/>
 		</s:HGroup>
-	</components:headerContent>	
+	</components:leftHeaderContent>	
 	
 	<components:states>
 		<s:State name="templateState" />

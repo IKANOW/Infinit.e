@@ -57,6 +57,9 @@ import javax.xml.xpath.XPathFactory;
 
 import org.apache.commons.lang.StringEscapeUtils;
 import org.apache.log4j.Logger;
+import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
+import org.apache.tika.metadata.Metadata;
 import org.bson.types.ObjectId;
 import org.htmlcleaner.CleanerProperties;
 import org.htmlcleaner.DomSerializer;
@@ -294,11 +297,28 @@ public class UnstructuredAnalysisHarvester {
 			if (null != metadataHeaderObj) {
 				doc.addToMetadata("__FEED_METADATA__", metadataHeaderObj);
 			}//TESTED
-			s = new Scanner(urlStream, "UTF-8");
-			doc.setFullText(s.useDelimiter("\\A").next());
+			
+			String contentType = urlConnect.getContentType();
+			
+			if ((null != contentType) && contentType.contains("html")) { // HTML
+				s = new Scanner(urlStream, "UTF-8");
+				s.useDelimiter("\\A");
+				doc.setFullText(s.next());																			
+			}
+			else { // not HTML, send to tika instead
+				if (null == _tika) {
+					_tika = new Tika();
+				}
+				Metadata metadata = new Metadata();
+				String text = _tika.parseToString(urlStream, metadata);
+				doc.setFullText(text);					
+				TextExtractorTika.addMetadata(doc, metadata);
+			}//TESTED			
 		}
 		catch (MalformedURLException me) { // This one is worthy of a more useful error message
 			throw new MalformedURLException(me.getMessage() + ": Likely because the document has no full text (eg JSON) and you are calling a contentMetadata block without setting flags:'m' or 'd'");
+		} catch (TikaException e) {
+			throw new MalformedURLException(e.getMessage() + ": tika error on binary data");
 		}
 		finally { //(release resources)
 			if (null != s) {
@@ -329,6 +349,7 @@ public class UnstructuredAnalysisHarvester {
 
 	// Using Tika to process documents:
 	TextExtractorTika tikaExtractor = null;
+	protected Tika _tika = null;  // (mutually exclusive case where we override because it's a binary file)
 	
 	private HarvestContext _context = null;
 	private Logger logger = Logger
@@ -429,8 +450,8 @@ public class UnstructuredAnalysisHarvester {
 							// Special case: if tika enabled then do that first
 							if (null == tikaExtractor) {
 								tikaExtractor = new TextExtractorTika();
-								tikaExtractor.extractText(d);
 							}
+							tikaExtractor.extractText(d);
 						}
 						else {
 							this.getRawTextFromUrlIfNeeded(d, source.getRssConfig());

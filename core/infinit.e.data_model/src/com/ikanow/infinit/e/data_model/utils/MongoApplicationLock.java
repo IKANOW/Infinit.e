@@ -65,48 +65,53 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	// Interface
 	
 	@Override
-	public synchronized boolean acquire(long nTimeout_ms, boolean bTryToAcquireAfterTimeoutIfRemote) {
-		throw new RuntimeException("Option not supported");
+	public boolean acquire(long nTimeout_ms, boolean bTryToAcquireAfterTimeoutIfRemote) {
+		synchronized (synch_object) {
+			throw new RuntimeException("Option not supported");
+		}
 	}
 	
 	@Override
-	public synchronized boolean acquire(long nTimeout_ms) {
-		if (null == _thread) {
-			_thread = new Thread(this);
-			_thread.start();
-				
-			//logger.debug("Starting thread: " + _instanceThread.getName());
-		}
-		long nThen = new Date().getTime();
-		while (!getToken()) {
-			try {
-				Thread.sleep(100);
-			} catch (Exception e) {}
-			
-			long nNow = new Date().getTime();
-			if ((nNow - nThen) > nTimeout_ms) {
-				return false;
+	public boolean acquire(long nTimeout_ms) {
+		synchronized (synch_object) {
+			if (null == _thread) {
+				_thread = new Thread(this);
+				_thread.start();
+					
+				//logger.debug("Starting thread: " + _instanceThread.getName());
 			}
+			long nThen = new Date().getTime();
+			while (!getToken()) {
+				try {
+					Thread.sleep(100);
+				} catch (Exception e) {}
+				
+				long nNow = new Date().getTime();
+				if ((nNow - nThen) > nTimeout_ms) {
+					return false;
+				}
+			}		
+			return true;
 		}		
-		return true;
-		
 	}//TESTED
 	
 	@Override
-	public synchronized void release() {
-		if (!_bReleasable) {
-			return;
-		}
-		if (null != _thread) {
-			_bKillMe = true;
-
-			while (_thread.isAlive()) {
-				try {
-					Thread.sleep(1000);
-				} catch (InterruptedException e) {}
+	public void release() {
+		synchronized (synch_object) {
+			if (!_bReleasable) {
+				return;
 			}
-			removeToken();
-			_bKillMe = false; // (in case we want to acquire it again)
+			if (null != _thread) {
+				_bKillMe = true;
+	
+				while (_thread.isAlive()) {
+					try {
+						Thread.sleep(1000);
+					} catch (InterruptedException e) {}
+				}
+				removeToken();
+				_bKillMe = false; // (in case we want to acquire it again)
+			}
 		}
 	}//TOTEST
 	
@@ -132,6 +137,7 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 	public static void registerAppShutdown() {
 		_bAppClosingDown = true;	
 	}
+	private Object synch_object = new Object(); // (can't use synchronized in the method definitions because of race conditions vs its super class MongoTransactionLock)
 	
 	///////////////////////////////////////////////////////////////////////////
 	///////////////////////////////////////////////////////////////////////////
@@ -154,3 +160,6 @@ public class MongoApplicationLock extends MongoTransactionLock implements Runnab
 		}		
 	}//TESTED
 }
+
+
+

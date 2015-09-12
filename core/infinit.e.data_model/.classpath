@@ -17,6 +17,7 @@
 	<classpathentry exported="true" kind="lib" path="lib/elasticsearch-hadoop-2.0.2.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/GridFSZipFile.jar"/>
 	<classpathentry exported="true" kind="lib" path="lib/mongo-java-driver-2.12.4.jar"/>
+	<classpathentry kind="lib" path="lib/spring-core-4.1.6.RELEASE.jar"/>
 	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
 	<classpathentry combineaccessrules="false" exported="true" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="output" path="bin"/>

@@ -609,7 +609,7 @@ public class AggregationManager {
 			if (props.getAggregationDisabled()) { // (no need to do this)
 				return;
 			}
-			DBCollection outColl = DbManager.getDB("doc_metadata").getCollection(outCollection);
+			DBCollection outColl = DbManager.getCollection("doc_metadata", outCollection);
 			
 			DBCursor dbc = outColl.find();
 			for (DBObject dbo: dbc) {

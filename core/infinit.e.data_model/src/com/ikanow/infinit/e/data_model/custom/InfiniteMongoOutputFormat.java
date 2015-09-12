@@ -23,9 +23,11 @@ import java.util.Iterator;
 //import java.util.Spliterator;
 //import java.util.function.Consumer;
 
+
 import com.ikanow.infinit.e.data_model.store.MongoDbUtil;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBCollection;
+import com.mongodb.DBCollectionProxyFactory;
 import com.mongodb.DBCursor;
 import com.mongodb.DBObject;
 import com.mongodb.MongoException;
@@ -75,10 +77,14 @@ public class InfiniteMongoOutputFormat<K,V> extends MongoOutputFormat<K, V> {
 	@Override
 	public RecordWriter<K, V> getRecordWriter(final TaskAttemptContext context){
 		if (InfiniteMongoConfigUtil.getUpdateModeIncremental(context.getConfiguration())) {
-			return new InfiniteMongoRecordWriter<K, V>(MongoConfigUtil.getOutputCollection( context.getConfiguration() ), context, "key");			
+			return new InfiniteMongoRecordWriter<K, V>(
+					DBCollectionProxyFactory.get(MongoConfigUtil.getOutputCollection( context.getConfiguration() )), 
+					context, "key");			
 		}
 		else {
-			return new InfiniteMongoRecordWriter<K, V>(MongoConfigUtil.getOutputCollection( context.getConfiguration() ), context);
+			return new InfiniteMongoRecordWriter<K, V>(
+					DBCollectionProxyFactory.get(
+							MongoConfigUtil.getOutputCollection( context.getConfiguration() )), context);
 		}
 	}
 
