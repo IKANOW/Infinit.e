@@ -521,7 +521,7 @@
 						<textInput:InfTextInput id="numDocsToReturn"
 							text="{ model.documentOptions.numReturn.toString() }"
 							width="60"
-							maxChars="3"
+							maxChars="4"
 							styleName="infTextInput"
 							toolTip="{ resourceManager.getString( 'infinite', 'workspaceSettings.maxDocsToolTip' ) }"
 							restrict="0-9" />

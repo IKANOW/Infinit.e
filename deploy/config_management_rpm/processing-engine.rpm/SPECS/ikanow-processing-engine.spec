@@ -53,10 +53,14 @@ IKANOW  harvesting and cleansing services
 	if [ $1 -eq 1 ]; then
 		ln -s /usr/share/java/elasticsearch/lib/ /mnt/opt/infinite-home/lib/es-libs 
 	fi
-	
 #
 # INSTALL *AND* UPGRADE
 #	
+	# Create symlink to hadoop-infinite if it doesn't already exist
+	if [ ! -f /opt/hadoop-infinite ]; then
+		ln -s /mnt/opt/hadoop-infinite /opt/hadoop-infinite
+	fi
+	
 	# Increase tomcat limits
 	if [ -d /etc/security ]; then
 		if [ -f /etc/security/limits.conf ]; then
@@ -138,7 +142,6 @@ IKANOW  harvesting and cleansing services
 %attr(-,root,root) /etc/cron.d/infinite-px-engine
 %dir /mnt/opt/infinite-home
 %dir /mnt/opt/infinite-home/bin
-%dir /mnt/opt/infinite-home/lib/plugins
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/hadoop-setup.sh
@@ -201,19 +204,55 @@ IKANOW  harvesting and cleansing services
 
 %dir /mnt/opt/hadoop-infinite/
 %dir /mnt/opt/hadoop-infinite/mapreduce/
+%dir /mnt/opt/hadoop-infinite/mapreduce/hadoop/
 %dir /mnt/opt/hadoop-infinite/jars/
+%dir /mnt/opt/hadoop-infinite/scripts/
 
 ###########################################################################
 # jars
 ###########################################################################
 
-%dir /mnt/opt/hadoop-infinite/lib/
-/mnt/opt/hadoop-infinite/lib/avro.jar
-/mnt/opt/hadoop-infinite/lib/commons-configuration-1.6.jar
-/mnt/opt/hadoop-infinite/lib/hadoop-annotations-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/lib/hadoop-auth-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/lib/hadoop-hdfs-2.5.0-cdh5.3.1.jar
-/mnt/opt/hadoop-infinite/lib/protobuf-java-2.5.0.jar
+%dir /mnt/opt/hadoop-infinite/lib_hadoop/
+/mnt/opt/hadoop-infinite/lib_hadoop/avro.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/commons-cli-1.2.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/commons-configuration-1.6.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/hadoop-annotations-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/hadoop-auth-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/hadoop-common-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/hadoop-core-2.5.0-mr1-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/hadoop-hdfs-2.5.0-cdh5.3.1.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/jackson-all-1.8.10.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/protobuf-java-2.5.0.jar
+/mnt/opt/hadoop-infinite/lib_hadoop/slf4j-api-1.7.12.jar
+
+%dir /mnt/opt/hadoop-infinite/lib_yarn/
+/mnt/opt/hadoop-infinite/lib_yarn/commons-configuration-1.6.jar
+/mnt/opt/hadoop-infinite/lib_yarn/protobuf-java-2.5.0.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-mapreduce-client-shuffle-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/avro.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jackson-core-asl-1.9.13.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jaxb-api-2.2.2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-mapreduce-client-common-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jackson-xc-1.9.13.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-yarn-api-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jsr305-1.3.9.jar
+/mnt/opt/hadoop-infinite/lib_yarn/commons-cli-1.2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jackson-mapper-asl-1.9.13.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jackson-jaxrs-1.9.13.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-mapreduce-client-core-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/htrace-core-3.0.4.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-yarn-common-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jersey-client-1.9.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-mapreduce-client-jobclient-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jersey-core-1.9.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-hdfs-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jetty-util-6.1.26.hwx.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-common-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-yarn-client-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-auth-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/hadoop-annotations-2.6.0.2.2.4.2-2.jar
+/mnt/opt/hadoop-infinite/lib_yarn/jackson-core-2.2.3.jar
+/mnt/opt/hadoop-infinite/lib_yarn/slf4j-api-1.7.12.jar
 
 ###########################################################################
 # Install scripts

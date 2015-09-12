@@ -25,11 +25,13 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Scanner;
+import java.util.TreeSet;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -51,6 +53,7 @@ import org.restlet.resource.ServerResource;
 import com.ikanow.infinit.e.application.data_model.DashboardPojo;
 import com.ikanow.infinit.e.application.data_model.DashboardProxyResultPojo;
 import com.ikanow.infinit.e.application.data_model.DashboardProxySearchResultPojo;
+import com.ikanow.infinit.e.application.handlers.polls.V2SynchronizationPollHandler;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.driver.InfiniteDriver;
@@ -232,11 +235,17 @@ public class RecordInterface extends ServerResource {
 	{
 		// Authentication:
 		HashSet<String> communityIds = null;
-		
-		_driver = new InfiniteDriver("http://localhost:8080/api/");
-		//DEBUG
-		//_driver = new InfiniteDriver("http://localhost:8184/");
-		//_driver = new InfiniteDriver("http://URL/api/", "APIKEY");
+	
+		String debug_api_key = System.getProperty("INFINITE_RECORDS_DEBUG_API_KEY");
+		if (null != debug_api_key) {
+			_driver = new InfiniteDriver(debug_api_key);
+		}
+		else {
+			_driver = new InfiniteDriver("http://localhost:8080/api/");
+			//DEBUG
+			//_driver = new InfiniteDriver("http://localhost:8184/");
+			//_driver = new InfiniteDriver("http://URL/api/", "APIKEY");
+		}
 		
 		_driver.useExistingCookie(_cookie);
 		ResponseObject response = new ResponseObject();
@@ -343,6 +352,17 @@ public class RecordInterface extends ServerResource {
 				personCommunityIds = communityIds;
 			}
 			
+			// Grab a collection of V2 buckets
+			HashMap<String, String> v2Buckets = new HashMap<String, String>();
+			TreeSet<String> v2BucketSet = new TreeSet<String>();
+			boolean v2_enabled = false; // (if use ls-/logstash-/_all then enabled - or explicity if specify an actual index)
+			if (showRecords) for (String commIdStr: communityIds) {
+				Map<String, String> v2BucketsForComm = V2SynchronizationPollHandler.getV2BucketsInCommunity(commIdStr);
+				v2Buckets.putAll(v2BucketsForComm);
+				v2BucketSet.addAll(v2BucketsForComm.values());
+			}
+			//TESTED (by hand)
+			
 			// Create a regex of user's communities
 			StringBuffer indexBuffer = new StringBuffer();
 			for (String communityId: communityIds) {
@@ -378,6 +398,7 @@ public class RecordInterface extends ServerResource {
 				String[] indexList = _indexOrAdminCommand.split("\\s*,\\s*");
 				for (String index: indexList) {
 					if (index.startsWith("logstash-") || index.startsWith("ls-")) { // 2]
+						v2_enabled = true;
 						// will treat these as a proxy for "everything I can see" - also means must be in live mode
 						if (_indexCommand.equals("_aliases")) { // 2]
 							if (0 != indexBuffer.length()) {
@@ -387,13 +408,13 @@ public class RecordInterface extends ServerResource {
 							if (index.startsWith("ls-")) {
 								inclusive = true;
 								if (showRecords) {
-									indexBuffer.append(index.replace("ls-", "recs_t_*_"));
+									indexBuffer.append(index.replace("ls-", "recs_t_*_") + "*");
 								}
 							}//TESTED (11)
 							else {
 								inclusive = true;
 								if (showRecords) {
-									indexBuffer.append(index.replace("logstash-", "recs_t_*_"));
+									indexBuffer.append(index.replace("logstash-", "recs_t_*_") + "*");
 								}
 							}//TESTED (11)
 						}
@@ -413,7 +434,7 @@ public class RecordInterface extends ServerResource {
 						// Not supported:
 						return returnError("Record", "Command error - malformed index: " + index);							
 					}//TOTEST
-					else { // These are probably indexes returned from the alias, so just double check the security // 5]
+					else { // These are probably indexes returned from the alias, so just double check the security // 5]						
 						if (index.startsWith("custom")) { // custom job - means don't add all of them
 							customJobSpecified = true;
 						}
@@ -430,6 +451,18 @@ public class RecordInterface extends ServerResource {
 							}
 							indexBuffer.append(index);
 						}
+						else if (v2Buckets.containsKey(index) //(v1.key==v2._id without ;)
+								|| v2Buckets.containsKey(index + ";") //(v1.key==v2._id without ;)
+								|| prefixMatch(index, v2BucketSet) //(elasticsearch base index vs elasticsearch index with time)
+								) 
+						{ // various combos of V2 bucket specification
+							inclusive = true;
+							if (0 != indexBuffer.length()) {
+								indexBuffer.append(',');
+							}
+							indexBuffer.append(index);							
+						}//TESTED (by hand)
+						
 					}//TESTED (5)
 				}
 				if (!inclusive) {
@@ -438,6 +471,7 @@ public class RecordInterface extends ServerResource {
 			}
 			String[] indexes = null;
 			if (_indexOrAdminCommand.equals("_all")) { // Basically must be in stashed mode
+				v2_enabled = true;
 				if (communityIds.size() > 0) {
 					int numIndexMulti = 0;
 					if (showRecords) numIndexMulti++;
@@ -449,7 +483,7 @@ public class RecordInterface extends ServerResource {
 					int i = 0;
 					for (String communityId: communityIds) {
 						if (showRecords) {
-							indexes[i] = "recs_" + communityId;
+							indexes[i] = "recs_" + communityId + "*";
 							i++;
 						}
 						if (showCustom) {
@@ -457,7 +491,7 @@ public class RecordInterface extends ServerResource {
 							i++;
 						}//TESTED
 						if (showDocs) {
-							indexes[i] = "docs_" + communityId;
+							indexes[i] = "docs_" + communityId + "*";
 							i++;
 						}//TESTED
 					}						
@@ -484,7 +518,7 @@ public class RecordInterface extends ServerResource {
 							i++;
 						}//TESTED (by hand)
 						if (showDocs && !docsSpecified) { // Append all possible doc communities onto the end
-							indexes[i] = "docs_" + communityId;
+							indexes[i] = "docs_" + communityId + "*";
 							i++;
 						}//TESTED (by hand)
 					}
@@ -564,6 +598,20 @@ public class RecordInterface extends ServerResource {
 				}				
 				
 			}//TESTED (by hand - custom only and combined)
+			
+			//SOME V2 HANDLING
+			//TODO (ALEPH-14): this is currently oversimplistic, doesnt' take time into account, need to rework
+			//to recalculate indexes based on the received time count 
+			if (v2_enabled) {
+				for (String v2s: v2Buckets.values()) {
+					if (0 != indexBuffer.length()) {
+						indexBuffer.append(',');
+					}
+					indexBuffer.append(v2s + "*");
+				}
+			}
+			//END V2 HANDLING
+			
 			if (0 == indexBuffer.length()) {
 				indexBuffer.append(RECS_DUMMY_INDEX); // (will return nothing)				
 			}//TESTED (by hand)
@@ -891,4 +939,19 @@ public class RecordInterface extends ServerResource {
 	//
 	// 7] DELETE http://localhost:8185/proxy/kibana-int/dashboard/May%2014%20Demo?mode=stashed
 	// (run 5] after this to check add records with communities)
+	
+	// V2 UTILS:
+	
+	protected boolean prefixMatch(final String index, final TreeSet<String> prefix_tree) {
+		final String largest_lte = prefix_tree.floor(index);
+		if (null == largest_lte) {
+			return false;
+		}
+		else {
+			return index.startsWith(largest_lte);
+		}
+	}//TESTED (by hand: 
+	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8954_2015-07 - true
+	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8955_2015-07 - false
+	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8953_2015-07 - false
 }

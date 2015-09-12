@@ -95,7 +95,7 @@ public class PersonHandler
 				//retrieve account type from security.authentication db
 				AuthenticationPojo authpojo = AuthenticationPojo.fromDb( 
 						MongoDbManager.getSecurity().getAuthentication().findOne(
-								new BasicDBObject(AuthenticationPojo._id_, person.get_id())), AuthenticationPojo.class);
+								new BasicDBObject(AuthenticationPojo.profileId_, person.get_id())), AuthenticationPojo.class);
 				if ( authpojo != null )
 					person.setAccountType(authpojo.getAccountType());
 			}
@@ -136,7 +136,17 @@ public class PersonHandler
 			
 			if (dbc.hasNext())
 			{
-				rp.setData(PersonPojo.listFromDb(dbc, PersonPojo.listType()), new PersonPojoApiMap());
+				//add in account type info
+				List<PersonPojo> other_users = PersonPojo.listFromDb(dbc, PersonPojo.listType());
+				for ( PersonPojo other_user : other_users ) {
+					//retrieve account type from security.authentication db
+					AuthenticationPojo authpojo = AuthenticationPojo.fromDb( 
+							MongoDbManager.getSecurity().getAuthentication().findOne(
+									new BasicDBObject(AuthenticationPojo.profileId_, other_user.get_id())), AuthenticationPojo.class);
+					if ( authpojo != null )
+						other_user.setAccountType(authpojo.getAccountType());
+				}
+				rp.setData(other_users, new PersonPojoApiMap());
 				rp.setResponse(new ResponseObject("People List", true, "List returned successfully"));				
 			}
 			else

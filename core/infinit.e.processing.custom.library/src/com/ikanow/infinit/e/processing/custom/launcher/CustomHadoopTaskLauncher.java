@@ -28,10 +28,12 @@ import java.io.Writer;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
@@ -270,8 +272,14 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				
 			}//TESTED (by hand)			
 
-			if (bTestMode || bLocalMode) { // If running locally, turn "snappy" off - tomcat isn't pointing its native library path in the right place
+			if (bTestMode || bLocalMode) {
+				// If running locally, turn "snappy" off - tomcat isn't pointing its native library path in the right place
 				config.set("mapred.map.output.compression.codec", "org.apache.hadoop.io.compress.DefaultCodec");
+				
+				// Set the sort IO size down really small for testing/debugging
+				if (yarn_mode) { 
+					config.set("mapreduce.task.io.sort.mb", "64");
+				}
 			}			
 			
 			// Manually specified caches
@@ -592,6 +600,7 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 		}
 		boolean tmpIncMode = ( null != incrementalMode) && incrementalMode; 
 		
+		String otherCollections = null;
 		Date fromOverride = null;
 		Date toOverride = null;
 		Object fromOverrideObj = oldQueryObj.remove("$tmin");
@@ -633,7 +642,15 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 				oldQueryObj.put("_id", InfiniteHadoopUtils.createDateRange(fromOverride, toOverride, false));
 			}//TESTED
 			//get the custom table (and database)
-			input = CustomOutputManager.getCustomDbAndCollection(input);
+			
+			String[] candidateInputs = input.split("\\s*,\\s*");
+			input = CustomOutputManager.getCustomDbAndCollection(candidateInputs[0]);
+			if (candidateInputs.length > 1) {				
+				otherCollections = Arrays.stream(candidateInputs)
+											.skip(1L)
+											.map(i -> CustomOutputManager.getCustomDbAndCollection(i))
+											.map(i -> "mongodb://"+dbserver+"/"+i).collect(Collectors.joining("|"));
+			}
 		}		
 		query = oldQueryObj.toString();
 		
@@ -696,6 +713,12 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 			originalOutputCollection  = "mongodb://"+dbserver+"/" + outputDatabase + "." + originalOutputCollection;
 			out.write(
 					"\n\t<property><!-- This jobs output collection for passing into the mapper along with input collection [optional] --><name>infinit.e.selfMerge</name><value>"+originalOutputCollection+"</value></property>"
+					);
+		}
+		if (null != otherCollections) {
+			
+			out.write(
+					"\n\t<property><!-- Run on multiple collections [optional] --><name>infinit.e.otherCollections</name><value>"+otherCollections+"</value></property>"
 					);
 		}
 		

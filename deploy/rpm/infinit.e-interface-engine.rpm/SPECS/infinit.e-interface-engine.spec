@@ -45,6 +45,13 @@ Infinit.e search engine REST API
 #
 # INSTALL *AND* UPGRADE
 #	
+	# Check some required tomcat/j8 dirs:
+	for i in /usr/share/java-1.8.0 /usr/lib/java-1.8.0 /usr/lib/jvm-exports/jre; do
+		if [ ! -d $i ]; then
+			mkdir -p $i 
+		fi
+	done	
+
 	# (tomcat6 instance initialization)
 	cd $RPM_BUILD_DIR/mnt/opt/tomcat-infinite/interface-engine/
 	ln -s -f infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.api.server.war
@@ -148,9 +155,6 @@ Infinit.e search engine REST API
 %dir /mnt/opt/tomcat-infinite/interface-engine/logs
 %dir /mnt/opt/tomcat-infinite/interface-engine/webapps
 %dir /mnt/opt/tomcat-infinite/interface-engine/scripts
-#%dir /usr/share/java-1.8.0
-#%dir /usr/lib/java-1.8.0
-#%dir /usr/lib/jvm-exports/jre
 
 %config /etc/sysconfig/tomcat6-interface-engine
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.policy
@@ -162,6 +166,7 @@ Infinit.e search engine REST API
 %config /mnt/opt/tomcat-infinite/interface-engine/templates/AppConstants.js.INTERNAL
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/tomcat-users.xml
 /mnt/opt/tomcat-infinite/interface-engine/lib/ExtendedAccessLogValve.jar
+/mnt/opt/tomcat-infinite/interface-engine/lib/ecj-4.3.1.jar
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server-INFINITE_VERSION-INFINITE_RELEASE.war
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.api.server.war
 /mnt/opt/tomcat-infinite/interface-engine/infinit.e.web-INFINITE_VERSION-INFINITE_RELEASE.war

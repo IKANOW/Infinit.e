@@ -657,9 +657,10 @@ function clock()
 			}
 
 			
-			if (null != srcObj.processingPipeline) { // (handle the 3 pipeline cases, logstash, custom, and JS)
+			if (null != srcObj.processingPipeline) { // (handle the 4 pipeline cases, logstash, custom, and JS ... and now V2)
 				var globals = null;		
 				var isCustomJob = false;
+				var isV2Job = false;
 				for (var x in srcObj.processingPipeline) {
 					var pxPipe = srcObj.processingPipeline[x];
 					if (pxPipe.logstash) {
@@ -678,8 +679,17 @@ function clock()
 						isCustomJob = true;
 						pxPipe.scriptingEngine.globalScript = uah;
 					}
+					if (pxPipe.data_bucket) {
+						isV2Job = true;
+						if (!pxPipe.data_bucket.scripting) {
+							pxPipe.data_bucket.scripting = { "sub_prefix": "$$SCRIPT_", "sub_suffix": "$$" };
+						}
+						pxPipe.data_bucket.scripting.js = { "script": uah, "separator_regex": "//ALEPH2_MODULE-.*" };
+						break;
+						
+					}
 				}
-				if (!isCustomJob) {
+				if (!isCustomJob && !isV2Job) {
 					if ((null != uah) && (uah.trim() != "")) {
 						if (null == globals) { // no globals, insert
 							globals = {};
@@ -735,6 +745,7 @@ function clock()
 			}
 			else if (srcObj.processingPipeline) {
 				var isCustomJob = false;
+				var isV2Job = false;
 				var globals = null;
 				sourceJsonEditor_logstash.setValue("");
 				for (var x in srcObj.processingPipeline) {
@@ -743,6 +754,14 @@ function clock()
 						if (null != pxPipe.logstash.config) {
 							sourceJsonEditor_logstash.setValue(pxPipe.logstash.config);
 						}
+					}
+					if (pxPipe.data_bucket) {
+						if ((null != pxPipe.data_bucket.scripting) && (null != pxPipe.data_bucket.scripting.js) && (null != pxPipe.data_bucket.scripting.js.script))
+						{
+							isV2Job = true;
+							globals = pxPipe.data_bucket.scripting.js.script;
+						}
+						break;						
 					}
 					if (pxPipe.globals) {
 						globals = pxPipe.globals;
@@ -755,7 +774,7 @@ function clock()
 						globals = pxPipe.scriptingEngine;
 					}
 				}
-				if (!isCustomJob) {
+				if (!isCustomJob && !isV2Job) {
 					if ((null == globals) || (null == globals.scripts) || (0 == globals.scripts.length)) { 
 						// no globals, set script to be blank
 						sourceJsonEditor_uah.setValue("");					
@@ -772,6 +791,9 @@ function clock()
 					else {
 						sourceJsonEditor_uah.setValue(globals.globalScript);
 					}
+				}
+				else if (isV2Job) {
+					sourceJsonEditor_uah.setValue(globals);
 				}
 			}
 			else {
@@ -1026,6 +1048,11 @@ function clock()
 			}
 			// Convert source JSON text into JSON
 			var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+			
+			if (srcObj.extractType == "V2DataBucket") {
+				alert("V2 sources not currently supported in the source builder UI");
+				return;
+			}
 			
 			// CHECK FOR A COMMON USE CASE - ACCIDENTALLY CLICK ON A NON FLOW SOURCE
 			if ((null != srcObj.templateProcessingFlow))

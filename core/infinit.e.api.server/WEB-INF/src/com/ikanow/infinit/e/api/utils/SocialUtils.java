@@ -19,6 +19,7 @@ import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.MongoDbManager;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityMemberPojo;
 import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo;
+import com.ikanow.infinit.e.data_model.store.social.community.CommunityPojo.CommunityType;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonCommunityPojo;
 import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.mongodb.BasicDBObject;
@@ -302,18 +303,41 @@ public class SocialUtils
 		static public HashSet<ObjectId> getUserCommunities(String userIdStr, Pattern regex) {
 			PersonPojo person = SocialUtils.getPerson(userIdStr);
 			HashSet<ObjectId> memberOf = new HashSet<ObjectId>();
+			HashSet<ObjectId> userGroupIds = new HashSet<ObjectId>();
+			//STEP 1: collect all user communities matching regex
 			if (null != person) {
 				if (null != person.getCommunities()) {
 					for (PersonCommunityPojo community: person.getCommunities()) {
-						if ((null == regex) || regex.matcher(community.getName()).find()) {
+						if (matchesCommunityRegex(regex, community.getName())) {
 							memberOf.add(community.get_id());
 						}
+						//bulk up the usergroups for step2
+						//TODO also need to add in any communities that a usergroup we are member of is a member of e.g. userIdStr -> usergroupA -> datagroupB
+						if ( community.getType() == CommunityType.user) {		
+							userGroupIds.add(community.get_id());													
+						} 
 					}
 				}
 			}
+			//STEP 2 create a mega query to look at community.members._id for any of the usergroups we bulked up
+			BasicDBObject in_query = new BasicDBObject(MongoDbManager.in_, userGroupIds);
+			BasicDBObject query = new BasicDBObject(CommunityPojo.members_ + "." + CommunityMemberPojo._id_, in_query);
+			DBCursor dbc = DbManager.getSocial().getCommunity().find(query);
+			while ( dbc.hasNext() ) {
+				CommunityPojo cp = CommunityPojo.fromDb(dbc.next(), CommunityPojo.class);
+				//add any matches into memberOf
+				if ( matchesCommunityRegex(regex, cp.getName()) ) {
+					memberOf.add(cp.getId());
+				}
+			}
+			
 			return memberOf;
 		}//TESTED
-				
+		
+		private static boolean matchesCommunityRegex(Pattern regex, String community_name) {
+			return (null == regex) || regex.matcher(community_name).find();
+		}
+		
 		/**
 		 * validateCommunityIds
 		 * @param userIdStr
@@ -336,51 +360,14 @@ public class SocialUtils
 			}
 			
 			String[] communities =  communityIdStrList.split(",");
-
-			HashSet<ObjectId> communityObjects = new HashSet<ObjectId>();
-			for (int i = 0; i < communities.length; i++)
-			{
-				communityObjects.add(new ObjectId(communities[i]));
-			}
 			
-			// Get object Id for owner test
-			ObjectId userId = null;
-			try {
-				userId = new ObjectId(userIdStr);
+			//calling get commids code and verifying we match
+			HashSet<ObjectId> user_comms = getUserCommunities(userIdStr);
+			for ( String comm : communities ) {
+				ObjectId commid = new ObjectId(comm);
+				if ( !user_comms.contains(commid) )
+					return false;
 			}
-			catch (Exception e) {
-				userId = new ObjectId("0"); // (dummy user id)
-			}			
-			try
-			{
-				//check in mongo a user is part of these groups		
-				BasicDBObject query = new BasicDBObject("_id",new BasicDBObject("$in",communityObjects) ); 
-				List<CommunityPojo> retCommunities = CommunityPojo.listFromDb(DbManager.getSocial().getCommunity().find(query), CommunityPojo.listType());
-				if ( retCommunities.size() == communityObjects.size() ) //make sure it found a group for all the id's
-				{
-					for (CommunityPojo cp: retCommunities)
-					{
-						//check to make sure user is a member or is his personal community (communityid and userid will be the same)
-						if ( !cp.getId().equals(new ObjectId(userIdStr))) //this is NOT a personal group so check we are a member
-						{
-							if (!userId.equals(cp.getOwnerId())) { // (if you're owner you can always have it)
-								if ( !cp.isMember(new ObjectId(userIdStr)) ) { //if user is not a member of this group, return false
-									return false;
-								}
-							}
-						}
-					}
-				}
-				else
-				{
-					//error wrong number of groups returned meaning incorrect community ids were sent (groups dont exist)
-					return false;				
-				}
-			}
-			catch (Exception ex)
-			{
-				return false;
-			}		
 			return true; //made it thru the gauntlet, return successful
 		}	
 }

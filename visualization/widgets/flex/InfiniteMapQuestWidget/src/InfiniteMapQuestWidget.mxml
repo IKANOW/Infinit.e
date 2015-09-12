@@ -1195,7 +1195,7 @@
 			}
 			
 			private var loadingRemoteCollections:ArrayCollection = new ArrayCollection();
-			private var loadingRCTimer:Timer = new Timer(10000);
+			private var loadingRCTimer:Timer = new Timer(180000);
 			/**
 			 * Sets up a timer to wait 5s and displays an error if we didn't receieve new kml
 			 */

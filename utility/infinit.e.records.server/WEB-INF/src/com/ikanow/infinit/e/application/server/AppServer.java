@@ -34,6 +34,7 @@ import com.ikanow.infinit.e.application.handlers.polls.LogstashIndexAgeOutPollHa
 import com.ikanow.infinit.e.application.handlers.polls.LogstashSourceDeletionPollHandler;
 import com.ikanow.infinit.e.application.handlers.polls.LogstashTestRequestPollHandler;
 import com.ikanow.infinit.e.application.handlers.polls.PollingThread;
+import com.ikanow.infinit.e.application.handlers.polls.V2SynchronizationPollHandler;
 import com.ikanow.infinit.e.data_model.Globals;
 
 public class AppServer extends Application {
@@ -59,7 +60,10 @@ public class AppServer extends Application {
         poll3.startThread();
         
         PollingThread poll4 = new PollingThread(new LogstashSourceDeletionPollHandler(), 10*1000L); 
-        poll4.startThread();        
+        poll4.startThread();
+        
+        PollingThread poll5 = new PollingThread(new V2SynchronizationPollHandler(), 5*1000L);
+        poll5.startThread();
 	}
 	
 	///////////////////////////////////////////////////////////////////////

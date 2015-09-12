@@ -23,11 +23,13 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 	import com.ikanow.infinit.e.shared.model.constant.NavigationConstants;
 	import com.ikanow.infinit.e.shared.model.constant.QueryConstants;
 	import com.ikanow.infinit.e.shared.model.constant.ServiceConstants;
+	import com.ikanow.infinit.e.shared.model.constant.settings.QueryAdvancedSettingsConstants;
 	import com.ikanow.infinit.e.shared.model.constant.types.QueryOperatorTypes;
 	import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManager;
 	import com.ikanow.infinit.e.shared.model.manager.WidgetModuleManagerCopy;
 	import com.ikanow.infinit.e.shared.model.presentation.base.PresentationModel;
 	import com.ikanow.infinit.e.shared.model.vo.QueryOutputRequest;
+	import com.ikanow.infinit.e.shared.model.vo.QueryScoreOptions;
 	import com.ikanow.infinit.e.shared.model.vo.QueryStringRequest;
 	import com.ikanow.infinit.e.shared.model.vo.User;
 	import com.ikanow.infinit.e.shared.model.vo.Widget;
@@ -41,6 +43,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 	import com.ikanow.infinit.e.widget.library.data.WidgetContext;
 	import com.ikanow.infinit.e.widget.library.frameworkold.QueryResults;
 	import com.ikanow.infinit.e.widget.library.widget.IResultSet;
+	import com.ikanow.infinit.e.workspace.model.presentation.settings.WorkspaceSettingsModel;
 	
 	import flash.desktop.Clipboard;
 	import flash.desktop.ClipboardFormats;
@@ -204,6 +207,15 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 		//======================================
 		// public methods 
 		//======================================
+		[Inject( "queryManager.scoreOptions", bind = "true" )]
+		/**
+		 * The advanced scoring options
+		 */
+		public var scoreOptions:QueryScoreOptions;
+		
+		[Bindable]
+		[Inject]
+		public var model:WorkspaceSettingsModel;
 		
 		/**
 		 * Clear Widget Filters
@@ -211,6 +223,7 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 		public function clearWidgetFilters():void
 		{
 			dispatcher.dispatchEvent( new WidgetEvent( WidgetEvent.CLEAR_WIDGET_FILTERS ) );
+			
 		}
 		
 		/**
@@ -388,6 +401,8 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 			
 			numberFormatter.fractionalDigits = 0;
 			
+			//model.scoreOptionsFormValues = scoreOptions;
+			
 			if ( value )
 			{
 				if ( isNaN( value.avgScore ) )
@@ -396,7 +411,16 @@ package com.ikanow.infinit.e.model.presentation.dashboard.workspaces.header
 				}
 				else
 				{
-					resultsCountMessage = ResourceManager.getInstance().getString( 'infinite', 'workspacesHeader.resultsCount', [ numberFormatter.format( queryStatistics.found ) ] );
+					var numAnalyze:int = model.scoreOptions.numAnalyze;
+					if(queryStatistics.found > numAnalyze)
+					{
+						resultsCountMessage = ResourceManager.getInstance().getString( 'infinite', 'workspacesHeader.resultsCount', [ numberFormatter.format( queryStatistics.found ) ] ) + " (" + numAnalyze.toString() + " being analyzed) " ;
+					}
+					else
+					{
+						resultsCountMessage = ResourceManager.getInstance().getString( 'infinite', 'workspacesHeader.resultsCount', [ numberFormatter.format( queryStatistics.found ) ] ) + " (" + queryStatistics.found.toString() + " being analyzed) " ;
+					}
+					
 				}
 			}
 			else

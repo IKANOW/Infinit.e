@@ -50,6 +50,16 @@ public class InfiniteMongoInputFormat extends MongoInputFormat
 		final InfiniteMongoConfig conf = new InfiniteMongoConfig( hadoopConfiguration );
 		List<InputSplit> splits = InfiniteMongoSplitter.calculateSplits(conf);
 		
+		if ( conf.getOtherCollections() != null)
+		{
+			String[] otherCollections = conf.getOtherCollections().split("\\s*[|]\\s*");
+			for (String otherCollection: otherCollections) {
+				final Configuration existingConfiguration = context.getConfiguration();
+				existingConfiguration.set("mongo.input.uri", otherCollection);
+				final InfiniteMongoConfig anotherConf = new InfiniteMongoConfig( existingConfiguration );
+				splits.addAll( InfiniteMongoSplitter.calculateSplits(anotherConf) );
+			}
+		}
 		if ( conf.getSelfMerge() != null )
 		{
 			//check if we need to grab existing records and add them to the splits

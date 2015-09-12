@@ -1815,7 +1815,7 @@ public class SourceHandler
 	public ResponsePojo suspendSource(String sourceIdStr, String communityIdStr, String personIdStr, boolean shouldSuspend) 
 	{
 		ResponsePojo rp = new ResponsePojo();
-		boolean isApproved = isOwnerModeratorOrSysAdmin(communityIdStr, personIdStr);
+		boolean isApproved = isOwnerModeratorOrContentPublisherOrSysAdmin(communityIdStr, personIdStr);
 		if ( isApproved )
 		{
 			//get source

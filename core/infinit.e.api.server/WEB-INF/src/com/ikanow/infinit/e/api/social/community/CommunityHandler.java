@@ -129,26 +129,30 @@ public class CommunityHandler
 				}
 			}
 			else // Get all public communities and all private communities to which the user belongs
-			{
-				// Set up the query
-				BasicDBObject queryTerm1 = new BasicDBObject("communityAttributes.isPublic.value", "true");
-				BasicDBObject queryTerm2 = new BasicDBObject("members._id", new ObjectId(userIdStr));
-				BasicDBObject queryTerm3 = new BasicDBObject("ownerId", new ObjectId(userIdStr));
-				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryTerm1, queryTerm2, queryTerm3));
+			{							
 				
+				// Set up the query
+//				BasicDBObject queryTerm1 = new BasicDBObject("communityAttributes.isPublic.value", "true");
+//				BasicDBObject queryTerm2 = new BasicDBObject("members._id", new ObjectId(userIdStr));
+//				BasicDBObject queryTerm3 = new BasicDBObject("ownerId", new ObjectId(userIdStr));
+//				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryTerm1, queryTerm2, queryTerm3));
+				BasicDBObject queryPublic = new BasicDBObject("communityAttributes.isPublic.value", "true");
+				
+				//THIS GETS ALL OUR PRIVATE COMMUNITIES
 				Set<ObjectId> communityIdSet = null;
-				if (communityIdStrList != null)
-				{
-					String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
-					communityIdSet = new TreeSet<ObjectId>();
-					for (String s: communityIdStrs) {
-						ObjectId communityId = new ObjectId(s); 
-						communityIdSet.add(communityId);
-					}
-					query.put(CommunityPojo._id_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
-					//communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
-					//query.put("_id", new ObjectId(communityIdStr));
+				if (communityIdStrList == null)
+					communityIdStrList = "*";
+				String[] communityIdStrs = SocialUtils.getCommunityIds(userIdStr, communityIdStrList);
+				communityIdSet = new TreeSet<ObjectId>();
+				for (String s: communityIdStrs) {
+					ObjectId communityId = new ObjectId(s); 
+					communityIdSet.add(communityId);
 				}
+				BasicDBObject queryPrivate = new BasicDBObject(CommunityPojo._id_, new BasicDBObject(MongoDbManager.in_, communityIdSet));
+				//communityIdStr = allowCommunityRegex(userIdStr, communityIdStr);
+				//query.put("_id", new ObjectId(communityIdStr));
+				BasicDBObject query = new BasicDBObject(MongoDbManager.or_, Arrays.asList(queryPrivate, queryPublic));
+				
 				addCommunityTypeTerm(query, communityType);
 
 				DBCursor dbc = DbManager.getSocial().getCommunity().find(query);				

@@ -37,6 +37,10 @@
 	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
 	<path id="infinit.e.data_model.classpath">
 	     <pathelement location="${infinit.e.data_model.location}/dist/infinit.e.data_model.jar"/>
+		<!-- (ugh complications because yarn vs mrv1 need different versions of jackson, compile vs the old one, link vs whichever one is installed) -->
+    	<fileset dir="${infinit.e.data_model.location}/standalone_libs">
+        	<include name="jackson*.jar"/>
+        </fileset>
 	</path>
 	<path id="infinit.e.harvest.library.classpath">
 	     <pathelement location="${infinit.e.harvest.library.location}/dist/infinit.e.harvest.library.jar"/>

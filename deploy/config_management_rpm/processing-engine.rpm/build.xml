@@ -84,6 +84,14 @@
 			<fileset dir="../infinit.e.harvest.library/lib/" includes="tika-app-*.jar jcifs-*.jar j-calais*.jar"/>
 		</copy>
 		
+		<!-- Copy hadoop JARs across from processing library -->
+		<copy todir="./SOURCES/ikanow-processing-engine/mnt/opt/hadoop-infinite/lib_hadoop/">
+			<fileset dir="../infinit.e.processing.custom.library/standalone_libs/" includes="*.jar"/>
+		</copy>		
+		<copy todir="./SOURCES/ikanow-processing-engine/mnt/opt/hadoop-infinite/lib_yarn/">
+			<fileset dir="../infinit.e.processing.custom.library/standalone_libs_yarn/" includes="*.jar"/>
+		</copy>		
+		
 		<!-- New! Now keep a copy of the current es-compat layer in the px engine and keep it up to date -->
 		<copy file="../infinit.e.elasticsearch.driver_1.4/lib/elasticsearch_compatibility.jar" 
 					tofile="./SOURCES/ikanow-processing-engine/mnt/opt/infinite-home/es-compat/1.4/elasticsearch_compatibility.jar"/>

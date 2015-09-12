@@ -13,8 +13,8 @@ CATALINA_HOME=/usr/share/tomcat7
 CATALINA_BASE=/opt/tomcat-infinite/interface-engine
 CATALINA_TMPDIR=/tmp
 # Shouldn't be necessary, but appears to be:
-TOMCAT_CFG=/etc/sysconfig/tomcat6-interface-engine
-CATALINA_PID=/var/run/tomcat6-interface-engine.pid
+TOMCAT_CFG=/etc/sysconfig/tomcat7-interface-engine
+CATALINA_PID=/var/run/tomcat7-interface-engine.pid
 CATALINA_OPTS="$JAVA_OPTS -Djava.security.policy=$CATALINA_BASE/conf/catalina.policy -XX:OnOutOfMemoryError=/opt/tomcat-infinite/interface-engine/scripts/restart_tomcat_phase1.sh"
 #(Later tomcat6 scripts don't seem to work, so I've saved one which does...)
 TOMCAT_SCRIPT=/opt/tomcat-infinite/tomcat7

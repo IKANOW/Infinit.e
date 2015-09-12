@@ -36,6 +36,7 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	static public TypeToken<List<AuthenticationPojo>> listType() { return new TypeToken<List<AuthenticationPojo>>(){}; }
 	
 	public final static String _id_ = "_id";
+	public final static String profileId_ = "profileId";
 	private ObjectId _id = null;
 	private ObjectId profileId = null;
 	private String username = null;

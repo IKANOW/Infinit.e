@@ -143,7 +143,7 @@ public class MongoEntityFeatureTxfer
 		// Create the index if necessary
 		String sMapping = new Gson().toJson(new EntityFeaturePojoIndexMap.Mapping(), EntityFeaturePojoIndexMap.Mapping.class);
 		Builder localSettings = ImmutableSettings.settingsBuilder();
-		localSettings.put("number_of_shards", 1).put("number_of_replicas", 0);			
+		localSettings.put("number_of_shards", 10).put("number_of_replicas", 1);
 		localSettings.put("index.analysis.analyzer.suggestAnalyzer.tokenizer", "standard");
 		localSettings.putArray("index.analysis.analyzer.suggestAnalyzer.filter", "standard", "lowercase");
 		

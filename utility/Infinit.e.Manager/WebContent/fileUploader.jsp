@@ -419,6 +419,13 @@ limitations under the License.
 		return toReturn + "</select>";
 	}
 
+	private String escapeAttrs(String attr) {
+		return attr.replace("&", "&amp;").replace("\"", "&quot;").replace("'", "&#39;");
+	}
+	private String restoreAttrs(String attr) {
+		return attr.replace("&#39;", "'").replace("&quot;", "\"").replace("&amp;", "&");
+	}
+	
 	private String populatePreviousUploads(HttpServletRequest request,
 			HttpServletResponse response) {
 		String toReturn = "";
@@ -471,14 +478,16 @@ limitations under the License.
 					}
 					
 					if (ext == null) {
-						String value = info._id + delim + info.created + delim
+						String value = (info._id + delim + info.created + delim
 								+ info.title + delim + info.description + delim
-								+ SHARE_ROOT + info._id + delim;
+								+ SHARE_ROOT + info._id + delim)
+								
+								;
 						for (shareCommunity scomm : info.communities) {
 							value += scomm._id + ",";
 						}
 						value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
-						toReturn += "<option value=\"" + value
+						toReturn += "<option value=\"" + escapeAttrs(value)
 								+ "\" > <b>Edit:</b> " + info.title
 								+ "</option>";
 					} 
@@ -503,7 +512,7 @@ limitations under the License.
 									value += scomm._id + ",";
 								}
 								value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
-								toReturn += "<option value=\"" + value
+								toReturn += "<option value=\"" + escapeAttrs(value)
 										+ "\" > <b>Edit:</b> " + info.title
 										+ "</option>";
 							}
@@ -521,7 +530,7 @@ limitations under the License.
 								value += scomm._id + ",";
 							}
 							value += delim + owner + delim + info.binaryId + delim + info.type + delim + docRefId + delim + readWrite + delim;
-							toReturn += "<option value=\"" + value
+							toReturn += "<option value=\"" + escapeAttrs(value)
 									+ "\" > <b>Edit:</b> " + info.title
 									+ "</option>";
 						}
@@ -569,7 +578,7 @@ limitations under the License.
 						selected_text = "selected";
 					}
 
-					toReturn += "<option " + selected_text + " value=\"" + mt
+					toReturn += "<option " + selected_text + " value=\"" + escapeAttrs(mt)
 							+ "\" > " + mt + "</option>";
 				}
 
@@ -897,6 +906,9 @@ visibility: hidden;
 			editShareWindow.close();
 		}
 				
+		// Need to unescape attributes in 'list'
+		list = list.replace(/&#39/g, "'").replace(/&quot;/g, "\"").replace(/&amp;/g, "");
+		
 		if (list == "new")
 		{
 			$("#editJsonButton").attr("disabled", "disabled");

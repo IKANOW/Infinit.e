@@ -70,4 +70,13 @@ public class InfiniteMongoConfig extends MongoConfig
 	public String getSelfMerge() {
 		return InfiniteMongoConfigUtil.getSelfMerge( _conf );
 	}
+    public String getOtherCollections()
+    {
+		return InfiniteMongoConfigUtil.getOtherCollections( _conf );		
+    }
+    public void setOtherCollections(String otherCollections)
+    {
+		InfiniteMongoConfigUtil.setOtherCollections( _conf, otherCollections );
+    }
+	
 }

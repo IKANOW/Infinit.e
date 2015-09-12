@@ -33,6 +33,7 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     public static final String SOURCE_TAGS = "infinit.e.source.tags.filter";
     public static final String CACHE_LIST = "infinit.e.cache.list";
 	public static final String SELF_MERGE = "infinit.e.selfMerge";    
+	public static final String OTHER_COLLECTIONS = "infinit.e.otherCollections";    
     public static final String IS_ADMIN = "infinit.e.is.admin";
     public static final String USERID = "infinit.e.userid";
     
@@ -93,4 +94,12 @@ public class InfiniteMongoConfigUtil extends MongoConfigUtil
     	conf.set(SELF_MERGE, selfMerge);
     }
     
+    public static String getOtherCollections(Configuration conf)
+    {
+    	return conf.get(OTHER_COLLECTIONS);
+    }
+    public static void setOtherCollections(Configuration conf, String otherCollections)
+    {
+    	conf.set(OTHER_COLLECTIONS, otherCollections);
+    }
 }

@@ -104,6 +104,6 @@ public class AssociationFeaturePojoIndexMap implements BasePojoIndexMap<Associat
 			RootProperties properties = new RootProperties();
 		} 
 		
-		RootObject event_index = new RootObject();
+		RootObject association_index = new RootObject();
 	}
 }

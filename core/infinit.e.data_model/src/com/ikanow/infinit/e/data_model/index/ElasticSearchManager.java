@@ -30,6 +30,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasUtils;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.admin.indices.exists.IndexExistsUtils;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -59,6 +60,7 @@ import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.ImmutableSettings.Builder;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
+import org.elasticsearch.common.util.concurrent.UncategorizedExecutionException;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.query.BaseFilterBuilder;
 import org.elasticsearch.index.query.BaseQueryBuilder;
@@ -847,10 +849,13 @@ public class ElasticSearchManager {
 						cir.mapping(_sIndexType, sMapping);
 					}
 					cir.settings(settings.build());
-					_elasticClient.admin().indices().create(cir).actionGet();
+					@SuppressWarnings("unused")
+					CreateIndexResponse ciresp = _elasticClient.admin().indices().create(cir).actionGet();
 					
 					//(Wait for above operation to be completed)
-					_elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
+					
+					@SuppressWarnings("unused")
+					ClusterHealthResponse chresp = _elasticClient.admin().cluster().health(new ClusterHealthRequest(_sIndexName).waitForYellowStatus()).actionGet();
 					//(in this case ignore if we're status red, that _should_ sort itself out)
 					break;
 				}
@@ -865,10 +870,10 @@ public class ElasticSearchManager {
 					}
 					catch (Exception e2) {} // (ignore)					
 				}
-				catch (IndexCreationException e) {
+				catch (UncategorizedExecutionException|IndexCreationException e) {
 					if (e.getRootCause() instanceof IllegalArgumentException) {
 						// (probably the mapping is invalid)
-						throw new RuntimeException(e.getMessage());
+						throw new RuntimeException(e.getRootCause().getMessage());
 					}
 					// (probably just exists)
 					break;

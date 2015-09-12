@@ -928,12 +928,6 @@ var SAMPLE_SOURCES = {
 			                    				   "enabled": true,
 			                    				   "json_grouping_time_period": "week"
 			                    			   },
-			                    			   "document_schema": {
-			                    				   "enabled": false,
-			                    				   "deduplicate": true,
-			                    				   "deduplication_fields": [ "url" ],
-			                    				   "technology_override_schema": {}
-			                    			   },
 			                    			   "search_index_schema": {
 			                    				   "enabled": true,
 			                    				   "technology_override_schema": {}
@@ -942,8 +936,8 @@ var SAMPLE_SOURCES = {
 			                    				   "enabled": true,
 			                    				   "field_include_list": [],
 			                    				   "field_exclude_list": [],
-			                    				   "field_include_regex": "",
-			                    				   "field_exclude_regex": "",
+			                    				   "field_include_pattern_list": [],
+			                    				   "field_exclude_pattern_list": [],
 			                    				   "field_type_include_list": [],
 			                    				   "field_type_exclude_list": [],
 			                    				   "technology_override_schema": {}
@@ -951,7 +945,6 @@ var SAMPLE_SOURCES = {
 			                    			   "temporal_schema": {
 			                    				   "enabled": true,
 			                    				   "grouping_time_period": "day",
-			                    				   "exist_age_max": "month",
 			                    				   "technology_override_schema": {}
 			                    			   },
 			                    		   },

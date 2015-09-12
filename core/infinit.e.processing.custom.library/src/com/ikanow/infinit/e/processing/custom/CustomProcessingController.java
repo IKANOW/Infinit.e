@@ -92,6 +92,7 @@ public class CustomProcessingController {
 				System.out.println("Will run hadoop locally (no infrastructure).");				
 			}
 			else {
+				e.printStackTrace();
 				System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
 			}
 			_bHadoopEnabled = false;			
@@ -101,6 +102,7 @@ public class CustomProcessingController {
 				System.out.println("Will run hadoop locally (no infrastructure).");				
 			}
 			else {
+				e.printStackTrace();
 				System.out.println("No hadoop infrastructure installed, will just look for saved queries.");
 			}
 			_bHadoopEnabled = false;
