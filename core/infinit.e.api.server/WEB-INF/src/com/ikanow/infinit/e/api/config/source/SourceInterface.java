@@ -66,6 +66,8 @@ public class SourceInterface extends ServerResource
 	private boolean bReturnFullText = false; // (used for test source)
 	private boolean bRealDedup = false; // (used for test source)
 	private boolean bStripped = false;
+	private boolean bCommunityFilter = true; // admin only, returns all sources for /source/user
+	private Boolean bUserFilter = null; //tri-state for /source/user .. if null default admin==false, user==true 
 	String project_id = null; 	
 	
 	@SuppressWarnings("unused")
@@ -81,6 +83,9 @@ public class SourceInterface extends ServerResource
 		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 bStripped = (null != queryOptions.get("stripped")) && Boolean.parseBoolean((String) queryOptions.get("stripped"));
 		 project_id = queryOptions.get(ProjectUtils.query_param);
+		 bCommunityFilter = (null == queryOptions.get("communityFilter")) || Boolean.parseBoolean((String) queryOptions.get("communityFilter"));
+		 if (null != queryOptions.get("userFilter")) bUserFilter = Boolean.parseBoolean((String) queryOptions.get("userFilter"));
+		 
 		 
 		 // communityid - all get/post methods need this value
 		 if (RESTTools.getUrlAttribute("communityid", attributes, queryOptions) != null)
@@ -337,7 +342,7 @@ public class SourceInterface extends ServerResource
 						 }
 						 else if ( action.equals("user"))
 						 {
-							 rp = this.source.getUserSources(cookieLookup, bStripped);
+							 rp = this.source.getUserSources(cookieLookup, bStripped, bCommunityFilter, bUserFilter);
 						 }
 						 else if ( action.equals("delete") || action.equals("deletedocs"))
 						 {

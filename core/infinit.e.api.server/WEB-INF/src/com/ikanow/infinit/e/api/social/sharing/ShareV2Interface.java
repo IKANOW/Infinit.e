@@ -26,6 +26,7 @@ import java.util.Map;
 import org.bson.types.ObjectId;
 import org.mozilla.universalchardet.UniversalDetector;
 import org.restlet.Request;
+import org.restlet.data.Disposition;
 import org.restlet.data.MediaType;
 import org.restlet.representation.Representation;
 import org.restlet.representation.StringRepresentation;
@@ -66,6 +67,7 @@ public class ShareV2Interface extends ServerResource
 	private String description = null;
 	private String searchby = null;
 	private String communityIds = null;
+	private String filename = null;
 	private boolean searchParent = false;	 
 	private boolean ignoreAdmin = false;	
 	private boolean readWrite = false;
@@ -96,6 +98,7 @@ public class ShareV2Interface extends ServerResource
 		if (queryOptions.get("title") != null) title = queryOptions.get("title");
 		if (queryOptions.get("description") != null) description = queryOptions.get("description");
 		if (queryOptions.get("communityIds") != null) communityIds = queryOptions.get("communityIds");
+		if (queryOptions.get("filename") != null) filename = queryOptions.get("filename");
 		
 		if ((queryOptions.get("ignoreAdmin") != null) && (queryOptions.get("ignoreAdmin").equalsIgnoreCase("true"))) {
 			ignoreAdmin = true;				
@@ -138,8 +141,14 @@ public class ShareV2Interface extends ServerResource
 					{			
 						try
 						{							 
-							ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(share.getMediaType()));
+							ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(share.getMediaType()));							
 							rep.setOutputBytes(share.getBinaryData());
+							if ( null != filename && !filename.isEmpty() ) {
+								 Disposition disp = new Disposition(Disposition.TYPE_ATTACHMENT);
+								 disp.setFilename(filename);
+								 disp.setSize(share.getBinaryData().length);
+								 rep.setDisposition(disp);
+							 }
 							return rep;							 
 						}
 						catch (Exception ex )

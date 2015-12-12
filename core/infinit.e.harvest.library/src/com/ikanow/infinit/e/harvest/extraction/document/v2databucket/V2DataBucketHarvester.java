@@ -57,13 +57,15 @@ public class V2DataBucketHarvester implements HarvesterInterface {
 						.filter(m -> m instanceof Map) // (also checks for null)
 						.map(m -> (Map<String, Object>) m)
 					;
+			long max_startup_time = 120; //amount of time we wait for test to startup
 			long max_run_time = 300; //amount of time we wait for test to run
-			long startup_wait_time = 120; //amount of time we wait for test to startup
 			try {
 				BasicDBObject test_params = new BasicDBObject();
 				// Mandatory:
 				test_params.put("requested_num_objects", test_options.map(m -> m.get("requested_num_objects")).orElse(new Long(context.getStandaloneMaxDocs())));
 				max_run_time = Math.round(test_options.map(m-> (Double)m.get("max_run_time_secs")).orElse(300.0));
+				max_startup_time = Math.round(test_options.map(m-> (Double)m.get("max_startup_time_secs")).orElse(120.0));
+				test_params.put("max_startup_time_secs", max_startup_time); //5 minutes
 				test_params.put("max_run_time_secs", max_run_time); //5 minutes
 				max_run_time = (long) (max_run_time * 1.25); //increase how long we wait by 25%
 				// Optional:
@@ -83,7 +85,7 @@ public class V2DataBucketHarvester implements HarvesterInterface {
 				boolean serviced = false;
 				String error = null;
 				//long end_time = System.currentTimeMillis() + 480 * 1000; //now+8min
-				long end_time = System.currentTimeMillis() + startup_wait_time * 1000; //now+2min
+				long end_time = System.currentTimeMillis() + max_startup_time * 1000; //now+2min
 				//wait 2 min for startup time
 				while ( System.currentTimeMillis() < end_time ) {
 					try

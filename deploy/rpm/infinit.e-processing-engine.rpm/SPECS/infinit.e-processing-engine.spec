@@ -144,6 +144,7 @@ Infinit.e harvesting and cleansing services
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop_clients.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite_indexer.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh

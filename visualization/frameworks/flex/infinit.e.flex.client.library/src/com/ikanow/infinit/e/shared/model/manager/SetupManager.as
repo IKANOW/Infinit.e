@@ -142,7 +142,6 @@ package com.ikanow.infinit.e.shared.model.manager
 					}
 				}
 			}
-			
 			return widgetOptions;
 		}
 		

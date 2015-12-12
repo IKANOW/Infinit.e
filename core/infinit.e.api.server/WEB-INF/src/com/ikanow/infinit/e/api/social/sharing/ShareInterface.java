@@ -27,6 +27,7 @@ import java.util.Map;
 
 import org.mozilla.universalchardet.UniversalDetector;
 import org.restlet.Request;
+import org.restlet.data.Disposition;
 import org.restlet.data.MediaType;
 import org.restlet.data.Method;
 import org.restlet.data.Status;
@@ -64,6 +65,7 @@ public class ShareInterface extends ServerResource
 	private String skip = null;
 	private String limit = null;
 	private String type = null;
+	private String filename = null;
 	private String title = null;
 	private String description = null;
 	private String documentId = null; // addref not currently supported
@@ -149,6 +151,7 @@ public class ShareInterface extends ServerResource
 			if (queryOptions.get("searchby") != null) searchby = queryOptions.get("searchby");
 			if (queryOptions.get("json") != null) json = queryOptions.get("json");
 			if (queryOptions.get("type") != null) type = queryOptions.get("type");
+			if (queryOptions.get("filename") != null) filename = queryOptions.get("filename");
 			if ((queryOptions.get("ignoreAdmin") != null) && (queryOptions.get("ignoreAdmin").equalsIgnoreCase("true"))) {
 				ignoreAdmin = true;				
 			}
@@ -436,6 +439,12 @@ public class ShareInterface extends ServerResource
 							 {							 
 								 ByteArrayOutputRepresentation rep = new ByteArrayOutputRepresentation(MediaType.valueOf(share.getMediaType()));
 								 rep.setOutputBytes(share.getBinaryData());
+								 if ( null != filename && !filename.isEmpty() ) {
+									 Disposition disp = new Disposition(Disposition.TYPE_ATTACHMENT);
+									 disp.setFilename(filename);
+									 disp.setSize(share.getBinaryData().length);
+									 rep.setDisposition(disp);
+								 }
 								 return rep;							 
 							 }
 							 catch (Exception ex )

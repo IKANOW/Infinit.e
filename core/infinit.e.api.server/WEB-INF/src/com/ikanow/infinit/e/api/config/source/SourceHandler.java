@@ -25,6 +25,7 @@ import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeSet;
 
@@ -756,6 +757,23 @@ public class SourceHandler
 					DbManager.getIngest().getLogHarvesterQ().save(logStashMessage);
 					// (the rest of this is async, so we're done here)
 				}//TESTED	
+				//v2 source
+				if ((null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("v2databucket")
+						&& bDocsOnly) {
+					//only do this if we are deleting docs, bucket deletion is picked up via the bucket sync service instead
+					//of the purge service
+					//Need to requery for full source object
+					DBObject fullSrcDbo =  DbManager.getIngest().getSource().findOne(queryDbo);
+					SourcePojo full_source = SourcePojo.fromDb(fullSrcDbo, SourcePojo.class);
+					BasicDBObject v2Message = new BasicDBObject();
+					v2Message.put("_id", full_source.getId());
+					v2Message.put("source", full_source.toDb());
+					v2Message.put("status", "submitted");
+		
+					// Step 0: place request on Q
+					DbManager.getIngest().getV2DataBucketPurgeQ().save(v2Message);														
+					// (the rest of this is async, so we're done here)
+				}
 				if ((null != source.getExtractType()) && 
 						(source.getExtractType().equalsIgnoreCase("post_processing")||
 									source.getExtractType().equalsIgnoreCase("custom")||
@@ -1120,17 +1138,20 @@ public class SourceHandler
 	 * @param userId
 	 * @return
 	 */
-	public ResponsePojo getUserSources(String userIdStr, boolean bStrip) 
+	public ResponsePojo getUserSources(String userIdStr, boolean bStrip, boolean bCommunityFilter, Boolean bUserFilter) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try 
 		{	
 			boolean bAdmin = RESTTools.adminLookup(userIdStr);
+			boolean userFilter = Optional.ofNullable(bUserFilter).orElse(!bAdmin);
 			HashSet<ObjectId> userCommunities = SocialUtils.getUserCommunities(userIdStr);
 			
 			DBCursor dbc = null;
-			BasicDBObject query = new BasicDBObject(); 
-			query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, userCommunities));
+			BasicDBObject query = new BasicDBObject();
+			if (!bAdmin || bCommunityFilter) {
+				query.put(SourcePojo.communityIds_, new BasicDBObject(MongoDbManager.in_, userCommunities));
+			}
 			BasicDBObject fields = new BasicDBObject();
 			if (bStrip) {
 				setStrippedFields(fields);
@@ -1145,8 +1166,8 @@ public class SourceHandler
 					}					
 				}
 			}
-			// Get all sources for admins
-			if (bAdmin)
+			// Get all selected sources for admins (if user filter disabled) 
+			if (!userFilter)
 			{
 				dbc = DbManager.getIngest().getSource().find(query, fields);
 			}

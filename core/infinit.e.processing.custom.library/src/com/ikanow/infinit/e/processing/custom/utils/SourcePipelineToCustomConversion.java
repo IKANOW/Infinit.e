@@ -789,7 +789,10 @@ public class SourcePipelineToCustomConversion {
 			query = (BasicDBObject) com.mongodb.util.JSON.parse(queryStr); 
 		}
 		if ((null != srcTags) && !srcTags.isEmpty()) {
-			query.put("$srctags", srcTags);
+			Object parsedSrcTags = srcTags.trim().startsWith("{")
+					? com.mongodb.util.JSON.parse(srcTags)
+					: srcTags; 
+			query.put("$srctags", parsedSrcTags);
 		}// 
 		if ((null != tmin) && !tmin.isEmpty()) {
 			query.put("$tmin", tmin);

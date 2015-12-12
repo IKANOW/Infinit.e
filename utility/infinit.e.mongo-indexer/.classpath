@@ -7,5 +7,6 @@
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.elasticsearch.driver"/>
 	<classpathentry kind="lib" path="lib/commons-cli-1.2.jar"/>
 	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.harvest.library"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/infinit.e.processing.custom.library"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>

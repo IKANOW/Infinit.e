@@ -215,7 +215,11 @@ public class CustomHadoopTaskLauncher extends AppenderSkeleton {
 					}
 				}
 				String fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.defaultFS");
+				if (null == fsUrl) {
+					fsUrl = HadoopUtils.getXMLProperty(props_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "dfs.namenode.rpc-address");
+				}
 				config.set("fs.defaultFS", fsUrl);				
+				config.set("dfs.namenode.rpc-address", fsUrl); //(HA equivalent)			
 			}
 			if (!dataModelLoaded && !(bTestMode || bLocalMode)) { // If running distributed and no data model loaded then add ourselves
 				Path jarToCache = InfiniteHadoopUtils.cacheLocalFile("/opt/infinite-home/lib/", "infinit.e.data_model.jar", config);

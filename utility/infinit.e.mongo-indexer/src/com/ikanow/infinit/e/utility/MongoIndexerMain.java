@@ -46,8 +46,9 @@ public class MongoIndexerMain {
 			allOps.addOption("n", "entity", false, "Entity feature transfer");
 			allOps.addOption("a", "assoc", false, "Association feature transfer");
 			allOps.addOption("A", "associations", false, "Association feature transfer");
+			allOps.addOption("m", "custom", false, "Custom (map/reduce) collection transfer");
 			// Common
-			allOps.addOption("q", "query", true, "MongoDB query to select records to transfer");
+			allOps.addOption("q", "query", true, "MongoDB query to select records to transfer (for '--entity --verify' is <db.collection>; for '--custom' is the job name or id");
 			allOps.addOption("D", "delete", false, "Delete the records in both MongoDB and Elasticsearch (instead of transferring them)");
 			allOps.addOption("c", "config", true, "Override the default config path");
 			allOps.addOption("l", "limit", true, "Caps the number of records to act upon");
@@ -135,6 +136,9 @@ public class MongoIndexerMain {
 			if (cliOpts.hasOption("doc")) {
 				MongoDocumentTxfer.main(configOverride, query, bDelete, bRebuildIndex, bVerifyIndex, bUpdateFeatures, nSkip, nLimit, chunksDescription);
 			}
+			if (cliOpts.hasOption("custom")) {
+				MongoCustomTxfer.main(configOverride, query, bDelete);
+			}
 			else if (cliOpts.hasOption("assoc")||cliOpts.hasOption("association")) {
 				MongoAssociationFeatureTxfer.main(configOverride, query, bDelete, bRebuildIndex, nSkip, nLimit, chunksDescription);			
 			}
@@ -148,7 +152,7 @@ public class MongoIndexerMain {
 				}
 			}
 			else {
-				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity [--rebuild] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
+				System.out.println("Usage: MongoIndexerMain --doc|--assoc|--entity|--custom [--rebuild] [--query <query>] [--config <path>] [--delete] [--skip <start record>] [--limit <max records>]");
 				System.exit(-1);
 			}
 		}

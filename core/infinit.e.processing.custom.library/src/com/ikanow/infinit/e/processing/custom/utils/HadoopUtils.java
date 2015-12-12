@@ -282,7 +282,11 @@ public class HadoopUtils {
 		}
 		else {
 			String fsUrl = getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "fs.defaultFS");
+			if (null == fsUrl) {
+				fsUrl = HadoopUtils.getXMLProperty(prop_custom.getHadoopConfigPath() + "/hadoop/core-site.xml", "dfs.namenode.rpc-address");
+			}
 			conf.set("fs.defaultFS", fsUrl);				
+			conf.set("dfs.namenode.rpc-address", fsUrl); //(HA equivalent)
 		}		
 		return conf;
 	}//TOTEST

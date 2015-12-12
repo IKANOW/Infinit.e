@@ -147,6 +147,7 @@ IKANOW  harvesting and cleansing services
 /mnt/opt/infinite-home/bin/STOPFILE
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/custommr.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop.sh
+%attr(755,tomcat,tomcat) /mnt/opt/infinite-home/scripts/setup_hadoop_clients.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/reindex_from_db.sh
 %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/infinite_indexer.sh
 %config %attr(755,tomcat,tomcat) /mnt/opt/infinite-home/bin/do_harvest_cycle.sh
@@ -256,8 +257,11 @@ IKANOW  harvesting and cleansing services
 /mnt/opt/hadoop-infinite/lib_yarn/jackson-core-2.2.3.jar
 /mnt/opt/hadoop-infinite/lib_yarn/slf4j-api-1.7.12.jar
 
+# 3rd Party Extractors
+/mnt/opt/infinite-home/lib/unbundled/aws-java-sdk-1.4.2.jar
 ###########################################################################
 # Install scripts
 ###########################################################################
 %attr(755,tomcat,tomcat) /mnt/opt/hadoop-infinite/scripts/install_fuse.sh
+%attr(755,tomcat,tomcat) /mnt/opt/hadoop-infinite/scripts/mount-fuse.sh
 

@@ -49,12 +49,18 @@ elif [ "$CDH" -gt 0 ]; then
     if [ $? -ne 0 ]; then
         echo "Failed to create symlink"
     fi
+    runuser hdfs -c "hadoop fs -mkdir /user/"
+    runuser hdfs -c "hadoop fs -mkdir /user/tomcat"
+    runuser hdfs -c "hadoop fs -chmod a+w /user/tomcat"
 elif [ "$HDP" -gt 0 ]; then
     rm /opt/hadoop-infinite/lib
     ln -s /opt/hadoop-infinite/lib_yarn /opt/hadoop-infinite/lib
     if [ $? -ne 0 ]; then
         echo "Failed to create symlink"
     fi
+    runuser hdfs -c "hadoop fs -mkdir /user/"
+    runuser hdfs -c "hadoop fs -mkdir /user/tomcat"
+    runuser hdfs -c "hadoop fs -chmod a+w /user/tomcat"
 else
     echo "Failed to find CDH or HDP"
     exit 1
