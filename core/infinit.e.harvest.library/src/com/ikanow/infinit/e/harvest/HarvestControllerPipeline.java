@@ -213,6 +213,11 @@ public class HarvestControllerPipeline {
 				_bypassHarvestPipeline = true;
 				return;
 			}
+			else if (null != pxPipe.data_bucket) {
+				source.setExtractType("V2DataBucket");
+				_bypassHarvestPipeline = true;
+				return;
+			}
 			else if ((null != pxPipe.docs_datastoreQuery) || (null != pxPipe.docs_documentQuery) ||
 					(null != pxPipe.custom_file) || (null != pxPipe.custom_datastoreQuery) ||
 					(null != pxPipe.records_indexQuery) || (null != pxPipe.feature_datastoreQuery))

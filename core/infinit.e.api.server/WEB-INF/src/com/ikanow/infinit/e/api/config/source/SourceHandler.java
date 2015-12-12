@@ -1419,10 +1419,11 @@ public class SourceHandler
 					// Also some logstash/custom specific logic - these aren't docs so just output the entire record
 					boolean isLogstash = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("logstash");
 					boolean isCustom = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("custom");
+					boolean isV2 = (null != source.getExtractType()) && source.getExtractType().equalsIgnoreCase("v2databucket");
 					List<BasicDBObject> records = null;
-					if (bReturnFullText || isLogstash || isCustom) {
+					if (bReturnFullText || isLogstash || isCustom || isV2) {
 						for (DocumentPojo doc: toAdd) {
-							if (isLogstash || isCustom) {
+							if (isLogstash || isCustom || isV2) {
 								if (null == records) {
 									records = new ArrayList<BasicDBObject>(toAdd.size());									
 								}
@@ -1487,7 +1488,7 @@ public class SourceHandler
 	 * @return
 	 */
 	private boolean isOwnerModeratorOrContentPublisherOrSysAdmin(String communityIdStr, String ownerIdStr)
-	{
+	{		
 		isOwnerOrModerator = SocialUtils.isOwnerOrModeratorOrContentPublisher(communityIdStr, ownerIdStr);
 		if (!isOwnerOrModerator) {
 			isSysAdmin = RESTTools.adminLookup(ownerIdStr, false); // (admin doesn't need to be enabled if "admin-on-request")

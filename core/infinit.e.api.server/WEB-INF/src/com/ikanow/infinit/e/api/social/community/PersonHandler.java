@@ -245,7 +245,7 @@ public class PersonHandler
 	 * @param wpauth
 	 * @return
 	 */
-	public ResponsePojo registerWPUser(String cookieLookup, String wpuser, String wpauth, String wpsetup) 
+	public ResponsePojo registerWPUser(String cookieLookup, String wpuser, String wpauth, String wpsetup, boolean returnPerson) 
 	{		
 		ResponsePojo rp = new ResponsePojo();
 		
@@ -435,6 +435,10 @@ public class PersonHandler
 			logger.error("Exception Message: " + ex.getMessage(), ex);
 			rp.setResponse(new ResponseObject("WP Register User",false,"error while saving wp objects"));
 		}
+		
+		if ( rp.getResponse().isSuccess() && returnPerson ) {
+			rp = getPerson(profileId.toString(), false);			
+		}
 		return rp;
 	}//TESTED
 	
@@ -447,7 +451,7 @@ public class PersonHandler
 	 * @param wpauth
 	 * @return
 	 */
-	public ResponsePojo updateWPUser(String wpuser, String wpauth, String wpsetup, String personIdStr) 
+	public ResponsePojo updateWPUser(String wpuser, String wpauth, String wpsetup, String personIdStr, boolean returnPerson) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 				
@@ -665,6 +669,11 @@ public class PersonHandler
 			logger.error("Exception Message: " + ex.getMessage(), ex);
 			rp.setResponse(new ResponseObject("WP Update User",false,"error while updating wp objects"));
 		}
+		
+		if ( rp.getResponse().isSuccess() && returnPerson ) {
+			rp = getPerson(personIdStr, false);			
+		}
+		
 		return rp;
 	}//TOTEST
 	

@@ -888,6 +888,9 @@ var SAMPLE_SOURCES = {
 			                    		   "multi_node_enabled": false,
 			                    		   "node_list_rules": [],
 			                    		   "aliases": [],
+			                    		   "test_params": {
+			                    			   "max_run_time_secs": 60
+			                    		   },
 			                    		   "harvest_technology_name_or_id": "/app/aleph2/library/import/harvest/tech/XXX",
 			                    		   "harvest_configs": 
 			                    			   [
@@ -948,6 +951,8 @@ var SAMPLE_SOURCES = {
 			                    				   "technology_override_schema": {}
 			                    			   },
 			                    		   },
+			                    		   "poll_frequency": "daily",
+			                    		   "misc_properties": {}
 			                    	   }
 			                       }
 			                       ]

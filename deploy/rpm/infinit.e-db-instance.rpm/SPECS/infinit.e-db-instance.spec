@@ -8,7 +8,7 @@ License: None
 Group: Infinit.e
 BuildArch: noarch
 Prefix: /mnt/opt
-Requires: mongodb-org-server, mongodb-org-tools, mongodb-org-shell, mongodb-org-mongos, vim-common
+Requires: mongodb-org-server, mongodb-org-tools, mongodb-org-shell, mongodb-org-mongos, vim-common, infinit.e-config
 
 %description
 Infinit.e Mongo DB installation and update

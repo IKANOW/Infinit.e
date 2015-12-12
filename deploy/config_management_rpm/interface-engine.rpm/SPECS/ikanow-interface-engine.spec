@@ -6,7 +6,7 @@ Summary: IKANOW search engine REST API
 Name: ikanow-interface-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: tomcat7, ikanow-config >= v0.5, ikanow-index-engine >= v0.5, ikanow-processing-engine >= v0.5
+Requires: tomcat7, ikanow-config >= v0.5, ikanow-index-engine >= v0.5, ikanow-processing-engine >= v0.5, iptables
 License: None
 Group: ikanow
 BuildArch: noarch
@@ -51,20 +51,6 @@ Infinit.e search engine REST API
 	ln -s -f infinit.e.manager-INFINITE_VERSION-INFINITE_RELEASE.war infinit.e.manager.war
 
 %post
-
-#
-# INSTALL *AND* UPGRADE
-#	
-	# Increase tomcat limits
-	if [ -d /etc/security ]; then
-		if [ -f /etc/security/limits.conf ]; then
-			sed -i /"^tomcat.*"/d /etc/security/limits.conf
-		fi
-		
-		echo "tomcat    soft    nofile          65536" >> /etc/security/limits.conf
-		echo "tomcat    hard    nofile          65536" >> /etc/security/limits.conf
-	fi
-
 #
 # INSTALL *AND* UPGRADE
 #	
@@ -152,6 +138,7 @@ Infinit.e search engine REST API
 %dir /usr/lib/jvm-exports/jre
 
 %config /etc/sysconfig/tomcat-interface-engine
+%config /etc/security/limits.d/ikanow-interface-engine.conf
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.policy
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/catalina.properties
 %config /mnt/opt/tomcat-infinite/interface-engine/conf/context.xml

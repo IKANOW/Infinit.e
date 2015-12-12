@@ -70,6 +70,7 @@ public class CommunityInterface extends ServerResource
 	private String urlStr = null;
 	private String json = null;
 	private String project_id = null;
+	private boolean returnCommunity = false;
 	
 	private CommunityPojo.CommunityType communityType = null; // or "user" or "data" for the new groups split
 	
@@ -85,6 +86,12 @@ public class CommunityInterface extends ServerResource
 		urlStr = request.getResourceRef().toString();
 		
 		project_id = queryOptions.get(ProjectUtils.query_param);
+		
+		String returnCommStr =  queryOptions.get("return_community");		
+		 if ((null != returnCommStr) && (returnCommStr.equalsIgnoreCase("true") || returnCommStr.equalsIgnoreCase("1")))
+		 {
+			 returnCommunity = true;
+		 }
 		
 		if (urlStr.contains("/social/group/user/")) {
 			communityType = CommunityPojo.CommunityType.user;
@@ -376,7 +383,7 @@ public class CommunityInterface extends ServerResource
 			 }
 			 else if ( action.equals("updateCommunity"))
 			 {
-				 rp = this.community.updateCommunity(cookieLookup, communityIdStr, json, communityType);
+				 rp = this.community.updateCommunity(cookieLookup, communityIdStr, json, communityType, returnCommunity);
 			 }
 			 else if (action.equals("joinCommunity"))
 			 {

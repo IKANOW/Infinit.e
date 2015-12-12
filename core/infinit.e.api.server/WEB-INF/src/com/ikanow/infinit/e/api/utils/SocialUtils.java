@@ -93,7 +93,13 @@ public class SocialUtils
 				}
 				else
 				{
+					//TODO also need to check if a usergroup is moderator/contentpub
+					HashSet<ObjectId> userGroupIds = getUserCommunities(personIdStr);
+					//check if user is owner/mod/contentpub
 					isOwnerOrModerator = isModerator(personIdStr, community, bAllowContentPublisher);
+					//if not, check usergroups until we get one
+					if ( !isOwnerOrModerator )
+						isOwnerOrModerator = userGroupIds.stream().map(ObjectId::toString).anyMatch(id -> isModerator(id, community, bAllowContentPublisher));
 				}
 			}
 		} 

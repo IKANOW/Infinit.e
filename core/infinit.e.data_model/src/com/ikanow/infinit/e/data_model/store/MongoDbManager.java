@@ -341,6 +341,7 @@ public class MongoDbManager {
 		private DBCollection _ingest_log_harvester_q;
 		private DBCollection _ingest_log_harvester_slaves;
 		private DBCollection _ingest_federated_cache;
+		private DBCollection _ingest_v2_harvester_q;
 		
 		public DBCollection getSource() {
 			if (null == _ingest_source) {
@@ -371,6 +372,12 @@ public class MongoDbManager {
 				_ingest_federated_cache = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("federated_cache"));										
 			}
 			return _ingest_federated_cache;
+		}
+		public DBCollection getV2DataBucketHarvesterQ() {
+			if (null == _ingest_v2_harvester_q) {
+				_ingest_v2_harvester_q = DBCollectionProxyFactory.get(_savedMongo.getDB("ingest").getCollection("v2_test_q"));										
+			}
+			return _ingest_v2_harvester_q;
 		}
 	}
 

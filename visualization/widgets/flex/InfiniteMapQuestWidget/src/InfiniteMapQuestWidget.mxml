@@ -117,7 +117,6 @@
 			// 3.1.2] Constants
 			
 			private const API_KEY:String = flash.external.ExternalInterface.call( "getMapLicenseKey" );
-			
 			private const ENDPOINT_URL:String = flash.external.ExternalInterface.call( "getEndPointUrl" );
 			
 			// 3.1.3] Bindable parameters / other GUI-specific objects
@@ -1461,6 +1460,7 @@
 				kmlCollection.addItem(new RemoteCollection()); //fake object
 				kmlLayers.addEventListener(DropDownClickEvent.CLICK_EVENT, dropDownClickEvent_Handler);
 				onMapReady( null );
+				_map.tileMap.showMobileCursor = true;
 			}
 			
 			private var communities:ArrayCollection = new ArrayCollection();

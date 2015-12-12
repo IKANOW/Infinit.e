@@ -43,7 +43,7 @@ if [ "$END_POINT_URL" != "" ]; then
 	#(else set automatically below)
 fi
 sed -i "s|DOMAIN_URL|$DOMAIN_URL|g" $CONSTANTS_CONF_LOCATION
-sed -i "s|GOOGLE_MAPS_API_KEY|$GOOGLE_MAPS_API_KEY|g" $CONSTANTS_CONF_LOCATION
+sed -i "s@GOOGLE_MAPS_API_KEY@$GOOGLE_MAPS_API_KEY@g" $CONSTANTS_CONF_LOCATION
 sed -i "s|ACCESS_TIMEOUT|$ACCESS_TIMEOUT|g" $CONSTANTS_CONF_LOCATION
 # Next 2 params depend on whether system is SaaS or not:
 # (revert to non-SaaS if param=="")

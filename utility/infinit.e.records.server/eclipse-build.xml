@@ -110,6 +110,7 @@
 		<war destfile="${dir.dist}/${ant.project.name}.war" webxml="WEB-INF/web.xml">
 			<classes dir="${dir.build.classes}"/>
 			<fileset dir="WebContent" />
+			<metainf file="META-INF/context.xml" />
 			<lib dir="${dir.lib}" includes="**/*.jar"/>
 		</war>
 	</target>

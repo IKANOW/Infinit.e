@@ -27,6 +27,7 @@ public class InfiniteEnums
 	public static final int POSTPROC = 64;
 	public static final int CUSTOM = 128;
 	public static final int FEDERATED = 256;
+	public static final int V2DATABUCKET = 512;
 	
 	public static int castExtractType(String type)
 	{
@@ -46,6 +47,8 @@ public class InfiniteEnums
 			return CUSTOM;
 		else if ( type.toLowerCase().equals("federated"))
 			return FEDERATED;
+		else if ( type.toLowerCase().equals("v2databucket"))
+			return V2DATABUCKET;
 		return 0;
 	}
 	

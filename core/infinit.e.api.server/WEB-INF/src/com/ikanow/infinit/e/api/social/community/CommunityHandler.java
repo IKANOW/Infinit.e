@@ -904,6 +904,9 @@ public class CommunityHandler
 		 BasicDBObject breakdown = new BasicDBObject();
 		 breakdown.put("succeeded", succeeded);
 		 breakdown.put("failed", failed);
+		 ResponsePojo comm = getCommunity(callerIdStr, communityIdStr, false, communityType);
+		 if ( comm.getResponse().isSuccess() )
+			 breakdown.put("community", (CommunityPojo)comm.getData());
 		 rp.getResponse().setMessage("succeeded=" + num_succeeded + " failed=" + num_failed);
 		 rp.setData(breakdown, (BasePojoApiMap<BasicDBObject>)null);
 		 
@@ -1636,9 +1639,10 @@ public class CommunityHandler
 	 * @param userIdStr
 	 * @param communityIdStr
 	 * @param json
+	 * @param returnCommunity 
 	 * @return
 	 */
-	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json, CommunityPojo.CommunityType communityType) 
+	public ResponsePojo updateCommunity(String userIdStr, String communityIdStr, String json, CommunityPojo.CommunityType communityType, boolean returnCommunity) 
 	{
 		ResponsePojo rp = new ResponsePojo();
 		try {
@@ -1800,6 +1804,9 @@ public class CommunityHandler
 
 				
 				rp.setResponse(new ResponseObject("Update Community", true, "Community updated successfully."));
+				if ( returnCommunity ) {
+					rp = getCommunity(userIdStr, communityIdStr, false, communityType);
+				}
 			}
 			else
 			{

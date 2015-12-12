@@ -32,4 +32,9 @@
     <Valve className="org.apache.catalina.valves.CometConnectionManagerValve" />
     -->
 
+	<!-- Default contexts: add V1 classpath: -->
+   	 <Loader className="org.apache.catalina.loader.VirtualWebappLoader"
+         	virtualClasspath="/usr/share/java/elasticsearch/lib/*.jar;/opt/hadoop-infinite/lib/*.jar;/opt/infinite-home/lib/*.jar;/opt/infinite-home/lib/extractors/*.jar;/opt/infinite-home/lib/unbundled/*.jar"
+         />
+
 </Context>

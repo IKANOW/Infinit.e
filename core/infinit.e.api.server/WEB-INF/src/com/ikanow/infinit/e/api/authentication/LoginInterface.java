@@ -32,6 +32,7 @@ import org.restlet.resource.ServerResource;
 import org.restlet.util.Series;
 
 import com.ikanow.infinit.e.api.Parameters;
+import com.ikanow.infinit.e.api.social.community.PersonHandler;
 import com.ikanow.infinit.e.api.utils.PropertiesManager;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo;
@@ -61,6 +62,9 @@ public class LoginInterface extends ServerResource
 	private boolean multi = false;
 	private boolean override = true;
 	private boolean returnCookieInJson = false;
+	private boolean returnUser = false;
+	private PersonHandler personHandler = new PersonHandler();
+	private String login_profile_id = null;
 
 	//public LoginInterface(Context context, Request request, Response response) throws IOException 
 	@Override
@@ -76,10 +80,15 @@ public class LoginInterface extends ServerResource
 		Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		admuser = queryOptions.get("admuser");
 		admpass = queryOptions.get("admpass");
-		String returnCookieInJsonStr =  queryOptions.get("return_tmp_key");
+		String returnCookieInJsonStr =  queryOptions.get("return_tmp_key");		
 		if ((null != returnCookieInJsonStr) && (returnCookieInJsonStr.equalsIgnoreCase("true") || returnCookieInJsonStr.equalsIgnoreCase("1")))
 		{
 			returnCookieInJson = true;
+		}
+		String returnUserStr =  queryOptions.get("return_user");		
+		if ((null != returnUserStr) && (returnUserStr.equalsIgnoreCase("true") || returnUserStr.equalsIgnoreCase("1")))
+		{
+			returnUser = true;
 		}
 
 		if ( urlStr.contains("auth/login") )
@@ -163,6 +172,7 @@ public class LoginInterface extends ServerResource
 						if (bAdmin) logMsg.append(" admin=true");
 						logMsg.append(" success=").append(isLogin);
 						logger.info(logMsg.toString());
+						login_profile_id = authuser.getProfileId().toString();
 					}
 				}
 			}
@@ -289,6 +299,8 @@ public class LoginInterface extends ServerResource
 			rp = new ResponsePojo(new ResponseObject("Login",isLogin,null));
 			if (returnCookieInJson)
 				rp.setData((String)cookieLookup, null);
+			else if ( returnUser )
+				rp.setData(personHandler.getPerson(login_profile_id, false));
 		}
 		else if ( action.equals("admin-keepalive"))
 		{

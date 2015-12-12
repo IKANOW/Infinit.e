@@ -58,6 +58,7 @@ public class PersonInterface extends ServerResource
 	private String cookie = null;
 	private boolean needCookie = true;
 	private String ipAddress = null;
+	private boolean returnUser = false;
 	
 	@Override	
 	public void doInit() 
@@ -74,6 +75,12 @@ public class PersonInterface extends ServerResource
 		 Map<String, String> queryOptions = this.getQuery().getValuesMap();
 		 admuser = queryOptions.get("admuser");
 		 admpass = queryOptions.get("admpass");
+		 
+		 String returnUserStr =  queryOptions.get("return_user");		
+		 if ((null != returnUserStr) && (returnUserStr.equalsIgnoreCase("true") || returnUserStr.equalsIgnoreCase("1")))
+		 {
+			 returnUser = true;
+		 }
 		 
 		 String urlStr = request.getResourceRef().toString();
 		 
@@ -193,11 +200,11 @@ public class PersonInterface extends ServerResource
 			 {
 				 if ( action.equals("register"))
 				 {
-					 rp = this.person.registerWPUser(cookieLookup, wpuser,wpauth,wpsetup);
+					 rp = this.person.registerWPUser(cookieLookup, wpuser,wpauth,wpsetup, returnUser);
 				 }
 				 else if ( action.equals("wpupdate"))
 				 {
-					 rp = this.person.updateWPUser(wpuser,wpauth,wpsetup, null);
+					 rp = this.person.updateWPUser(wpuser,wpauth,wpsetup, null, returnUser);
 				 }
 				 else if ( action.equals("delete"))
 				 {
@@ -208,7 +215,7 @@ public class PersonInterface extends ServerResource
 				 
 				 if ( action.equals("wpupdate") && (null != (cookieLookup = RESTTools.cookieLookup(cookie))))
 				 {
-					 rp = this.person.updateWPUser(wpuser,wpauth,wpsetup, cookieLookup);
+					 rp = this.person.updateWPUser(wpuser,wpauth,wpsetup, cookieLookup, returnUser);
 				 }
 				 else {
 					 rp.setResponse(new ResponseObject("Cookie Lookup",false,"Insufficient privileges or not logged in"));

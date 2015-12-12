@@ -61,11 +61,6 @@ IKANOW base enterprise install
 		sh /mnt/opt/logstash-infinite/scripts/logstash_install.sh --norpm
 	fi	
 
-	#Centos5 doesn't support the logstash repo so remove
-	 if cat /etc/redhat-release | grep -iq 'release 5'; then
-	 	rm -f /etc/yum.repos.d/logstash.repo
-	 fi	
-
 	#Update template and ensure recs_dummy exists and has a non-trivial mapping:
 	sh /opt/logstash-infinite/scripts/load_custom_template_into_es.sh > /dev/null
 
@@ -107,7 +102,6 @@ IKANOW base enterprise install
 %defattr(-,tomcat,tomcat)
 
 %attr(-,root,root) /etc/cron.d/infinite-logstash
-%attr(-,root,root) /etc/yum.repos.d/logstash.repo
 /etc/profile.d/infinite-logstash.sh
 
 %dir /mnt/opt/logstash-infinite

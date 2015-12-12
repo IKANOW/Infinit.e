@@ -84,6 +84,7 @@ import com.ikanow.infinit.e.harvest.extraction.document.distributed.DistributedH
 import com.ikanow.infinit.e.harvest.extraction.document.file.FileHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.logstash.LogstashHarvester;
 import com.ikanow.infinit.e.harvest.extraction.document.rss.FeedHarvester;
+import com.ikanow.infinit.e.harvest.extraction.document.v2databucket.V2DataBucketHarvester;
 import com.ikanow.infinit.e.harvest.extraction.text.boilerpipe.TextExtractorBoilerpipe;
 import com.ikanow.infinit.e.harvest.extraction.text.externalscript.TextExtractorExternalScript;
 import com.ikanow.infinit.e.harvest.extraction.text.legacy.TextExtractorTika;
@@ -206,7 +207,7 @@ public class HarvestController implements HarvestContext
 		PropertiesManager props = new PropertiesManager();
 		String sTypes = props.getHarvesterTypes();
 		if (overrideTypeSettings) { // (override API settings in test mode)
-			sTypes = "Feed,File,Database,Logstash,Distributed,Post_processing";
+			sTypes = "Feed,File,Database,Logstash,Distributed,Post_processing,V2DataBucket";
 				//(the post_processor isn't needed for harvester testing - but is needed for actual harvesting,... 
 				//...so they're included here for consistency - custom type scheduling is set up at publish time, so it isn't needed)
 				//(similar comments apply for logstash)
@@ -248,6 +249,17 @@ public class HarvestController implements HarvestContext
 				catch(NoClassDefFoundError e) {
 					logger.error(s + " not supported: " + e.getMessage());
 				}								
+			}
+			else if ( s.equalsIgnoreCase("v2databucket")) {
+				try {
+					this.harvesters.add(new V2DataBucketHarvester());
+				} catch (Exception e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}
+				catch(NoClassDefFoundError e) {
+					logger.error(s + " not supported: " + e.getMessage());
+				}	
+				
 			}
 			else if (s.equalsIgnoreCase("file")) {
 
@@ -1329,7 +1341,17 @@ public class HarvestController implements HarvestContext
 					}
 				}
 				if (0 == nMatches) {
-					throw new RuntimeException("Extractor not shared across source communities");					
+					//check if source.owner.comms has a match in share.comms
+					Set<ObjectId> source_owner_commids = AuthUtils.getUserCommunities(source.getOwnerId().toString(), null);
+					for (ShareCommunityPojo commObj: extractorInfo.getCommunities()) {
+						if ( source_owner_commids.contains(commObj.get_id())) {
+							nMatches++;
+							break;
+						}
+					}
+					if (0 == nMatches) {
+						throw new RuntimeException("Extractor not shared across source communities OR not shared with source owners communities");
+					}
 				}//TESTED
 				
 				savedClassLoader = Thread.currentThread().getContextClassLoader();

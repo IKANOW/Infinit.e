@@ -163,7 +163,11 @@
 		__INF_LOGGING_ENABLED-->
 
     <!-- Search Engine webapp -->
-    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true" useHttpOnly="true"/>
+    <Context docBase="../infinit.e.api.server.war" path="/api" reloadable="true" useHttpOnly="true">
+    	 <Loader className="org.apache.catalina.loader.VirtualWebappLoader"
+          	virtualClasspath="/usr/share/java/elasticsearch/lib/*.jar;/opt/hadoop-infinite/lib/*.jar;/opt/infinite-home/lib/*.jar;/opt/infinite-home/lib/extractors/*.jar;/opt/infinite-home/lib/unbundled/*.jar"
+          />
+    </Context>
 
 	<!-- Visualization GUI -->
 	<Context docBase="../infinit.e.web.war" path="" reloadable="true" useHttpOnly="true"/>
@@ -172,10 +176,13 @@
 	<Context docBase="../infinit.e.manager.war" path="/manager" reloadable="true" useHttpOnly="true"/>
 	
 	<!-- Manager, internal access -->
+	<!-- (internal IP addresses only) -->
+	<!-- (remove this, no longer in general use)
 	<Context docBase="../infinit.e.manager.war" path="/internal" reloadable="true" useHttpOnly="true">
             <Valve className="org.apache.catalina.valves.RemoteAddrValve" allow="127\.0\.0\.1,0:0:0:0:0:0:0:1"/> 
-				<!-- (internal IP addresses only) -->
     </Context>
+    -->
+    
       </Host>
       
       <!-- OTHER VIRTUAL HOSTS HERE DO NOT ADD CODE BETWEEN THIS AND ENGINE CLOSE TAG -->

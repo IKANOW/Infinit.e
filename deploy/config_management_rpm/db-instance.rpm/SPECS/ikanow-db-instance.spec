@@ -8,7 +8,7 @@ License: None
 Group: ikanow
 BuildArch: noarch
 Prefix: /mnt/opt
-Requires: mongodb-org-server, mongodb-org-tools, mongodb-org-shell, mongodb-org-mongos, vim-common
+Requires: mongodb-org-server, mongodb-org-tools, mongodb-org-shell, mongodb-org-mongos, vim-common, ikanow-config
 
 %description
 IKANOW Mongo DB installation and update
@@ -21,12 +21,13 @@ IKANOW Mongo DB installation and update
 	zcat $RPM_SOURCE_DIR/ikanow-db-instance.tgz | tar -xvf -
 
 %pre
-	if [ $1 -eq 2 ]; then
+    # Commenting this out to not stop or restart after an update of the package
+	#if [ $1 -eq 2 ]; then
 	###########################################################################
 	# THIS IS AN UPGRADE
 		# (Stop mongodb)
-		service mongo_infinite soft_stop
-	fi
+	#	service mongo_infinite soft_stop
+	#fi 
 	
 %install
 

@@ -40,12 +40,15 @@ public class DBCollectionProxyFactory {
 							try {
 								Object o = methodProxy.invokeSuper(object, args);
 								//THIS CODE DOESN'T APPPEAR TO BE NEEDED, BUT LEAVE HERE IN CASE IT PROVES TO
+								//(NOTE: this is included in aleph2 where I've seen it error and where cursor access
+								// is heavily dominated by important management activities vs data read .. this might be needed
+								// if this code is ever ported across to the MongoInput/OutputFormat code)
 								//if (o instanceof DBCursor) {
 								//	o =  getCursor((DBCursor) o);
 								//}							
 								return o;
 							}
-							catch (com.mongodb.CommandFailureException e) {
+							catch (com.mongodb.MongoException e) {
 								if (count < 60) {
 									continue;
 								}
@@ -93,7 +96,7 @@ public class DBCollectionProxyFactory {
 								Object o = methodProxy.invokeSuper(object, args);
 								return o;
 							}
-							catch (com.mongodb.CommandFailureException e) {
+							catch (com.mongodb.MongoException e) {
 								if (count < 60) {
 									continue;
 								}

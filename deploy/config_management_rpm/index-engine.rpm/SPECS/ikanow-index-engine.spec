@@ -4,7 +4,7 @@ Summary: IKANOW index engine SOLR API
 Name: ikanow-index-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: elasticsearch >= 1.4, ikanow-config, python-simplejson
+Requires: elasticsearch >= 1.7, elasticsearch < 1.8, ikanow-config, python-simplejson
 License: None
 Group: ikanow
 BuildArch: noarch
@@ -20,12 +20,11 @@ IKANOW index engine using ElasticSearch
 	zcat $RPM_SOURCE_DIR/ikanow-index-engine.tgz | tar -xvf -
 
 %pre
-	if [ $1 -eq 2 ]; then
-
+#	if [ $1 -eq 2 ]; then
 ###########################################################################
 # PRE: THIS IS AN UPGRADE
-		service infinite-index-engine stop || :
-	fi
+#		service infinite-index-engine stop || :
+#	fi
 	
 ###########################################################################
 # PRE: INSTALL *AND* UPGRADE
@@ -42,16 +41,6 @@ IKANOW index engine using ElasticSearch
 
 ###########################################################################
 # POST: INSTALL *AND* UPGRADE
-
-	if [ -d /etc/security ]; then
-		if [ -f /etc/security/limits.conf ]; then
-			sed -i /"^elasticsearch.*"/d /etc/security/limits.conf
-		fi
-		
-		echo "elasticsearch    soft    nofile          262144" >> /etc/security/limits.conf
-		echo "elasticsearch    hard    nofile          262144" >> /etc/security/limits.conf
-		echo "elasticsearch    -       memlock         unlimited" >> /etc/security/limits.conf
-	fi
 
 	# VERSION 1.x additional steps
 	if [ -d /usr/share/elasticsearch/ ]; then
@@ -175,11 +164,6 @@ IKANOW index engine using ElasticSearch
 			fi
 		fi
 		
-		# Reset limits
-		if [ -f /etc/security/limits.conf ]; then
-			sed -i /"^elasticsearch.*"/d /etc/security/limits.conf
-		fi
-		
 		# Let the world know I no longer exist
 		USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
 		if [ "$USE_AWS" = "1" ]; then
@@ -199,7 +183,7 @@ IKANOW index engine using ElasticSearch
 ###########################################################################
 # POST-TRANS: FINAL STEP FOR INSTALLS AND UPGRADES
 	# Start service
-	service infinite-index-engine start
+	#service infinite-index-engine start
 	
 	# Let the world know I exist
 	USE_AWS=`grep "^use.aws=" /mnt/opt/infinite-home/config/infinite.service.properties | sed s/'use.aws='// | sed s/' '//g`
@@ -234,6 +218,7 @@ IKANOW index engine using ElasticSearch
 
 %config %attr(755,root,root) /etc/init.d/infinite-index-engine
 %config /etc/sysconfig/infinite-index-engine
+%config /etc/security/limits.d/elasticsearch.conf
 %attr(-,root,root) /etc/cron.d/infinite-index-engine
 
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/master_backup_index.sh
