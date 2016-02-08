@@ -272,8 +272,8 @@ public class PersonHandler
 		//its in the WPUserPojo that comes across
 		ObjectId profileId = new ObjectId();
 		PersonPojo pp = new PersonPojo();
-		pp.set_id(profileId);
-		pp.setAccountStatus("active");
+		pp.set_id(profileId);		
+		pp.setAccountStatus(AccountStatus.ACTIVE.toString().toLowerCase());
 		if ((null == wpu.getEmail()) || (0 == wpu.getEmail().size())) {
 			rp.setResponse(new ResponseObject("WP Register User",false,"Need to specify email"));
 			return rp;
@@ -349,7 +349,11 @@ public class PersonHandler
 		ap.setId(profileId);
 		ap.setProfileId(profileId);
 		ap.setUsername(pp.getEmail());
-		ap.setAccountStatus(AccountStatus.ACTIVE);
+		if (null != wpa.getAccountStatus()) {
+			ap.setAccountStatus(wpa.getAccountStatus());
+			pp.setAccountStatus(wpa.getAccountStatus().toString().toLowerCase());
+		}
+		else ap.setAccountStatus(AccountStatus.ACTIVE);
 		if (null == wpa.getPassword()) { // Obligatory
 			rp.setResponse(new ResponseObject("WP Register User",false,"Need to specify password"));
 			return rp;
@@ -595,6 +599,10 @@ public class PersonHandler
 				if (null == personIdStr) { // (this means you're admin and hence can upgrade users to admins)
 					ap.setAccountType(wpa.getAccountType());
 				}
+			}
+			if (null != wpa.getAccountStatus()) {
+				ap.setAccountStatus(wpa.getAccountStatus());
+				pp.setAccountStatus(wpa.getAccountStatus().toString().toLowerCase());
 			}
 			// (can't change WPUserId obv)
 			
@@ -898,11 +906,13 @@ public class PersonHandler
 						CommunityPojo.removeDatagroupFromUserOrUsergroup(person, null, commToRemove);						
 					}
 					else
-					{
+					{						
 						//TODO (INF-1214): (not thread safe)
 						communities.remove(communityIndex);	
 						person.setModified(new Date());					
 						DbManager.getSocial().getPerson().update(personQuery.toDb(), person.toDb());
+						//is a UG, need to cleanup any DG we gained membership of because of this UG
+						CommunityPojo.removeDatagroupReason(commToRemove.getId().toString(), person);
 					}
 					rp.setData(person, new PersonPojoApiMap());
 					rp.setResponse(new ResponseObject("Remove community status",true,"Community removed successfully."));	

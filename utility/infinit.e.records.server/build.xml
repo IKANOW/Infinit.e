@@ -18,6 +18,7 @@
 	<property name="dir.dist" value="dist"/>
 	<property name="infinit.e.data_model.location" value="../infinit.e.data_model"/>
 	<property name="infinit.e.kibana_connector.location" value="../infinit.e.kibana_connector"/>
+	<property name="infinit.e.v2_connector.location" value="../infinit.e.v2_connector"/>
 	<property name="es.lib.location" value="../infinit.e.elasticsearch.driver_1.0/lib/"/>
 	<property name="target" value="1.6"/>
 	<property name="source" value="1.6"/>
@@ -64,6 +65,12 @@
 		<copy todir="${dir.static}/InfiniteKibanaConnector/">
 			<filelist dir="${infinit.e.kibana_connector.location}/dist/">
 				<file name="InfiniteKibanaConnector.swf"/>
+				<file name="Thumbnail.png"/>
+			</filelist>
+		</copy>
+		<copy todir="${dir.static}/InfiniteV2KibanaConnector/">
+			<filelist dir="${infinit.e.v2_connector.location}/dist/">
+				<file name="InfiniteV2KibanaConnector.swf"/>
 				<file name="Thumbnail.png"/>
 			</filelist>
 		</copy>

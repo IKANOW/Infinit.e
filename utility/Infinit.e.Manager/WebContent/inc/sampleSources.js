@@ -875,14 +875,14 @@ var SAMPLE_SOURCES = {
 		},
 		
 		"data_bucket": {
-			"description": "This object generates a V2 data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
+			"description": "This object generates a V2 harvest data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
 			"extractType": "V2DataBucket",
 			"isPublic": true,
 			"mediaType": "Record",
-			"title": "Template V2 data bucket",
+			"title": "Template V2 harvest data bucket",
 			"processingPipeline": [
 			                       {
-			                    	   "display": "Currently this is the only supported element in the pipeline (TODO: enable other elements to be added, and aggregate them into a single bucket)owner_id",
+			                    	   "display": "Data bucket object (no other elements allowed)",
 			                    	   "data_bucket": {
 			                    		   "full_name": "/bucket/path/here",
 			                    		   "multi_node_enabled": false,
@@ -895,21 +895,18 @@ var SAMPLE_SOURCES = {
 			                    		   "harvest_configs": 
 			                    			   [
                 		                       {
-                		                    	   "name": "harvester_1",
+                		                    	   "name": "sample_harvester_1",
                 		                    	   "enabled": false,
-                		                    	   "library_ids_or_names": [],
                 		                    	   "config": {
                 		                    		   "key1": "value1"
                 		                    	   }
                 		                       }
                 		                       ],
-			                    		   "master_enrichment_type": "streaming",
+			                    		   "master_enrichment_type": "none",
 			                    		   "streaming_enrichment_topology":
 		                    			  {
-	         		                    	   "name": "streaming_topology_1",
-	         		                    	   "dependencies": [],
+	         		                    	   "name": "example_streaming_topology_1",
 	         		                    	   "enabled": false,
-	         		                    	   "library_ids_or_names": [],
 	         		                    	   "config": {
 	         		                    		   "key1": "value1"
 	         		                    	   } 
@@ -917,10 +914,8 @@ var SAMPLE_SOURCES = {
 			                    		   "batch_enrichment_configs": 
 			                    			  [
                 		                       {
-                		                    	   "name": "batch_module_1",
-                		                    	   "dependencies": [],
+                		                    	   "name": "example_batch_module_1",
                 		                    	   "enabled": false,
-                		                    	   "library_ids_or_names": [],
                 		                    	   "config": {
                 		                    		   "key1": "value1"
                 		                    	   }                		                    	   
@@ -928,33 +923,188 @@ var SAMPLE_SOURCES = {
                 		                    ],
 			                    		   "data_schema": {
 			                    			   "storage_schema": {
-			                    				   "enabled": true,
-			                    				   "json_grouping_time_period": "week"
+			                    				   "enabled": false,
+			                    				   "technology_override_schema": {}
+			                    			   },
+			                    			   "document_schema": {
+			                    				   "enabled": false,
+			                    				   "technology_override_schema": {}
 			                    			   },
 			                    			   "search_index_schema": {
 			                    				   "enabled": true,
 			                    				   "technology_override_schema": {}
 			                    			   },
 			                    			   "columnar_schema": {
-			                    				   "enabled": true,
-			                    				   "field_include_list": [],
-			                    				   "field_exclude_list": [],
-			                    				   "field_include_pattern_list": [],
-			                    				   "field_exclude_pattern_list": [],
-			                    				   "field_type_include_list": [],
-			                    				   "field_type_exclude_list": [],
+			                    				   "enabled": false,
 			                    				   "technology_override_schema": {}
 			                    			   },
 			                    			   "temporal_schema": {
-			                    				   "enabled": true,
-			                    				   "grouping_time_period": "day",
+			                    				   "enabled": false,
 			                    				   "technology_override_schema": {}
-			                    			   },
+			                    			   }
 			                    		   },
-			                    		   "poll_frequency": "daily",
+			                    		   "poll_frequency": "hourly",
 			                    		   "misc_properties": {}
 			                    	   }
 			                       }
 			                       ]
+		},
+		
+		"analytics_bucket": {
+			"description": "This object generates a V2 analytics thread / data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
+			"extractType": "V2DataBucket",
+			"isPublic": true,
+			"mediaType": "Record",
+			"title": "Template V2 analytics data bucket",
+			"processingPipeline": [{
+			                   	  "display": "Data bucket object (no other elements allowed)",
+			                       "data_bucket": {
+            						"analytic_thread": {"jobs": 
+										[
+										{
+							                "analytic_technology_name_or_id": "BatchEnrichmentService",
+                							"analytic_type": "batch",
+                							"config": {"enrich_pipeline": [
+                							]},
+                							"enabled": false,
+                							"inputs": [
+                    						{
+                        						"config": {
+                            						"time_max": "2 days",
+                            						"time_min": "4 days"
+                        						},
+												"filter": {},
+                        						"data_service": "search_index_service",
+                        						"enabled": false,
+                        						"resource_name_or_id": "/some/bucket"
+                    						},
+                    						{
+                        						"config": {
+                            						"time_max": "2 days",
+                            						"time_min": "4 days"
+                        						},
+                        						"data_service": "storage_service",
+                        						"enabled": false,
+                        						"resource_name_or_id": "/some/other/bucket"
+                    						},
+                    						{
+                        						"config": {"test_record_limit_request": 20},
+						                        "data_service": "document_service.V1DocumentService",
+            						            "enabled": false,
+			            			            "filter": {
+													":srctags": { "$in": [ "V1_SRC_TAG" ] }
+												},
+			                        			"resource_name_or_id": "/aleph2_external/COMMIDS"
+			            			        }
+						   			 ],
+			                		"library_names_or_ids": ["/app/aleph2/library/enrichment_utils.jar"],
+            			    		"name": "SAMPLE_BATCH_ANALYTIC_JOB",
+                					"output": {
+	                    				"is_transient": true,
+    	    	    	        		"preserve_existing_data": false
+        	    	    			}
+            					},
+								{
+							        "analytic_technology_name_or_id": "/app/aleph2/library/sample_analytic_job.jar",
+                					"analytic_type": "batch",
+									"dependencies": ["SAMPLE_BATCH_ANALYTIC_JOB"],
+									"config": {},
+									"name": "SAMPLE_DEPENDENT_JOB",
+									"enabled": false,
+									"inputs": [{
+										"enabled": false,
+										"data_service": "batch",
+			                        	"resource_name_or_id": "SAMPLE_BATCH_ANALYTIC_JOB"
+									},
+									{
+										"enabled": false,
+										"data_service": "batch",
+										"resource_name_or_id": ""
+									}
+									],									
+                					"output": {
+	                    				"is_transient": false,
+    	    	    	        		"preserve_existing_data": false
+        	    	    			}
+								},
+								{
+							        "analytic_technology_name_or_id": "StreamingEnrichmentService",
+                					"analytic_type": "streaming",
+									"module_name_or_id": "/app/aleph2/library/some_streaming_topology.jar",
+									"config": {},
+									"name": "SAMPLE_STANDALONE_STREAMING_JOB",
+									"enabled": false,
+									"inputs": [
+									{
+										"enabled": false,
+										"data_service": "streaming",
+										"resource_name_or_id": "/some/other/bucket"
+									},
+									{
+										"enabled": false,
+										"data_service": "streaming",
+										"resource_name_or_id": ""
+									}],
+                					"output": {
+	                    				"is_transient": false,
+    	    	    	        		"preserve_existing_data": true
+        	    	    			}
+								}
+							],
+             			   "trigger_config": {
+						   		"enabled": false,
+         			           "auto_calculate": false,
+							   "schedule": "5min",
+            			        "trigger": {
+          			              "dependency_list": [
+          		                  	{
+    		                            "resource_name_or_id": "",
+     		                           "type": "file"
+         		                   },
+             		               {
+                  		              "resource_name_or_id": "/bucket/test/enrichment/batch",
+              		                  "type": "bucket"
+                    		        }
+                    			    ],
+                       			 	"op": "and"
+                  				  }
+         					   }
+							},									   
+			                "full_name": "/bucket/path/here",
+			                "multi_node_enabled": false,
+			                "node_list_rules": [],
+			                "aliases": [],
+			                "test_params": {
+			                	"max_run_time_secs": 120
+			                 },
+			                 "master_enrichment_type": "none",
+			                 "data_schema": {
+			                 	"storage_schema": {
+			                    	"enabled": false,
+			                    	"technology_override_schema": {}
+			                    },
+			                    "document_schema": {
+			                    	"enabled": false,
+			                    	"technology_override_schema": {}
+								},
+								"search_index_schema": {
+			                    	"enabled": true,
+			                    	"technology_override_schema": {}
+			                    },
+			                    "columnar_schema": {
+			                    	"enabled": false,
+			                    	"technology_override_schema": {}
+			                    },
+			                    "temporal_schema": {
+			                    	"enabled": false,
+			                    	"technology_override_schema": {}
+			                    }
+			              	},
+			                "poll_frequency": "hourly",
+			                "misc_properties": {}
+			            }
+			         }
+			  ]
 		}
+		
 }

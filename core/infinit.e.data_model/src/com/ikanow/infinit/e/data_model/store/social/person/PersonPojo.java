@@ -41,7 +41,6 @@ public class PersonPojo extends BaseDbPojo
 	final public static String _id_ = "_id";
 	private Date created = null;
 	private Date modified = null;
-	private String accountStatus = null;
 	private String email = null;
 	private String firstName = null;
 	private String lastName = null;
@@ -70,6 +69,8 @@ public class PersonPojo extends BaseDbPojo
 	
 	//accountType field for returning
 	private String accountType = null;
+	//accountStatus field for returning
+	private String accountStatus = null;
 	
 	// Public getters and setters
 	/**

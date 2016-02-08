@@ -7,6 +7,8 @@ if [ "$1" != "--norpm" ]; then
 	else
 		yes | yum install logstash-1.4.0 logstash-contrib-1.4.0
 	fi
+else
+    shift
 fi
 
 chkconfig logstash off 

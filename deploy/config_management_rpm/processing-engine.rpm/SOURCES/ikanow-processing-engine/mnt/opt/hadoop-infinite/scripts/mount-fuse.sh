@@ -13,4 +13,4 @@ done
 #echo $CLASSPATH
 export CLASSPATH
 #/usr/hdp/2.2.4.2-2/hadoop/bin/fuse_dfs
-/usr/hdp/2.2.4.2-2/hadoop/bin/fuse_dfs rw -oserver=$DB -oport=8020 /opt/hadoop-fileshare
+/usr/hdp/2.2.4.2-2/hadoop/bin/fuse_dfs rw -ononempty -oserver=$DB -oport=8020 /opt/hadoop-fileshare

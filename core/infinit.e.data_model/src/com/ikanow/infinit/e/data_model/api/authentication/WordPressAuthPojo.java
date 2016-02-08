@@ -15,6 +15,7 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.data_model.api.authentication;
 
+import com.ikanow.infinit.e.data_model.InfiniteEnums.AccountStatus;
 import com.ikanow.infinit.e.data_model.api.BaseApiPojo;
 
 public class WordPressAuthPojo extends BaseApiPojo
@@ -26,6 +27,8 @@ public class WordPressAuthPojo extends BaseApiPojo
 	private String accountType = null; // (optional, defaults to "user")
 	private String created = null; // (optional)
 	private String modified = null; // (optional)
+	
+	private AccountStatus accountStatus = null;	//(optional, defaults to "active")
 	
 	private String apiKey = null; // (optional, allows API key access if enabled)
 	
@@ -46,6 +49,12 @@ public class WordPressAuthPojo extends BaseApiPojo
 	}
 	public String getAccountType() {
 		return accountType;
+	}
+	public AccountStatus getAccountStatus() {
+		return accountStatus;
+	}
+	public void setAccountStatus(AccountStatus accountStatus) {
+		this.accountStatus = accountStatus;
 	}
 	public void setCreated(String created) {
 		this.created = created;

@@ -43,6 +43,7 @@ public class AppServer extends Application {
 	
 	protected void setupActionHandlers(Router router) {
         // EXAMPLE - ATTACH ExampleAction to URL "/test"
+        attachPrefix(router, "/proxy/v2/{proxyterms}", RecordInterface.class); 
         attachPrefix(router, "/proxy/{proxyterms}", RecordInterface.class); 
     }
 	

@@ -30,10 +30,12 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Scanner;
-import java.util.TreeSet;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import java.util.stream.Collectors;
 
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -81,9 +83,12 @@ public class RecordInterface extends ServerResource {
 	String _proxyUrl;
 	String _indexOrAdminCommand;
 	String _indexCommand;
+	boolean _v2Mode = false;
+	boolean _kib3Mode = false; // Kibana 3 makes some bizarre decisions in terms of its use of aliases, so we work around them here)
 	
 	String _urlParams;	
 	Map<String, String> _queryOptions;
+	String _queryCacheKey;
 	
 	InfiniteDriver _driver;
 	//___________________________________________________________________________________
@@ -114,19 +119,47 @@ public class RecordInterface extends ServerResource {
 		 Map<String,Object> attributes = request.getAttributes();	
 		 _proxyUrl = getRequest().getOriginalRef().toUri().getPath();
 		 _indexOrAdminCommand = (String) attributes.get("proxyterms");
-		 int length = CONTROL_REF.length() + _indexOrAdminCommand.length() + 1; // +1 for the trailing /
+		 int prefix_length = CONTROL_REF.length();
+		 int length = prefix_length + _indexOrAdminCommand.length() + 1; // +1 for the trailing /
 		 if (!_proxyUrl.startsWith("/infinit.e.records/")) { //deployment vs dev...
 			 length -= 18;
+			 prefix_length -= 18;
+		 }
+		 if (_proxyUrl.startsWith("/v2/", prefix_length)) {
+			 _v2Mode = true;
+			 length += 3;
 		 }
 		 if (_proxyUrl.length() > length) {
-			 _indexCommand = _proxyUrl.substring(1 + length);
+			 _indexCommand = _proxyUrl.substring(1 + length); //(+1 for the /)
 		 }
+		 
 		 //TESTED (see URLs below)
+
+		 //DEBUG
+		 //System.out.println("V2 MODE: " + _v2Mode + " URL " + _proxyUrl + " | " + _indexOrAdminCommand + " | " + _indexCommand + " | " + this.getQuery().getQueryString());
 		 
 		 //DEBUG
 		 //System.out.println(_proxyUrl + " ... " + _indexOrAdminCommand + " THEN " + _indexCommand);
 		
 		 _queryOptions = this.getQuery().getValuesMap();
+		 _queryCacheKey = this.getQuery().getQueryString();
+		 
+		 // Secondary way of enabling v2:
+		 if (Optional.ofNullable(_queryOptions.get("v2"))
+				 .filter(o -> o instanceof String)
+				 .map(o -> (String)o)
+				 .filter(s -> s.equals("1") || s.equalsIgnoreCase("TRUE")).isPresent())
+		 {
+			 _v2Mode = true;
+		 }
+		 // Kibana3 mode
+		 if (Optional.ofNullable(_queryOptions.get("kib3"))
+				 .filter(o -> o instanceof String)
+				 .map(o -> (String)o)
+				 .filter(s -> s.equals("1") || s.equalsIgnoreCase("TRUE")).isPresent())
+		 {
+			 _kib3Mode = true;
+		 }		 
 		 
 		 if (null != _indexOrAdminCommand) if (_indexOrAdminCommand.startsWith("$")) {
 			 String subVar = _queryOptions.get(_indexOrAdminCommand.substring(1));
@@ -217,7 +250,6 @@ public class RecordInterface extends ServerResource {
 	
 	//___________________________________________________________________________________
 	
-	// TODO: (INF-2533): Handle the following cases
 	// Here are the different commands that we proxy:
 	// 1] GET  _nodes - used to check the versions (PROXY: need to remove everything but the versions for security)
 	// 2] GET  {TENATIVE_INDEXLIST}/_aliases - used to get the date-generated list of indexes that actually exist
@@ -233,12 +265,19 @@ public class RecordInterface extends ServerResource {
 	@Get
 	public Representation get() 
 	{
-		// Authentication:
+		// Authorization:
 		HashSet<String> communityIds = null;
-	
+		HashSet<String> v2BucketIdSet = new HashSet<String>();
+
+		String debug_api_url = System.getProperty("INFINITE_RECORDS_DEBUG_API_URL");
 		String debug_api_key = System.getProperty("INFINITE_RECORDS_DEBUG_API_KEY");
-		if (null != debug_api_key) {
-			_driver = new InfiniteDriver(debug_api_key);
+		if ((null != debug_api_key) || (null != debug_api_url)) {
+			if (null != debug_api_key) {				
+				_driver = new InfiniteDriver(debug_api_url, debug_api_key);				
+			}
+			else {
+				_driver = new InfiniteDriver(debug_api_url);
+			}
 		}
 		else {
 			_driver = new InfiniteDriver("http://localhost:8080/api/");
@@ -275,17 +314,57 @@ public class RecordInterface extends ServerResource {
 			String commIdStrList = this._queryOptions.get("cids");
 			HashSet<String> commIdOverrideSet = null;
 			HashSet<String> dashboardOnly_fullCommunitySet = null;
-			if (null != commIdStrList) {
-				String[] commIdStrArray = commIdStrList.split("\\s*,\\s*");
-				if ((commIdStrArray.length > 1) || !commIdStrArray[0].isEmpty()) {
-					commIdOverrideSet = new HashSet<String>(Arrays.asList(commIdStrArray));
-					if (commIdOverrideSet.isEmpty()) { // not specified - all communities
-						commIdOverrideSet = null;
+			HashSet<String> bucketList = null;
+			Set<String> negativeBucketKeyList = null;
+			if (_v2Mode) {
+				//For v2 specific cases, these are sources or virtual paths
+				if (null != commIdStrList) {
+					// 2 possibilities:
+					// 1) a list of sources (either paths or keys)
+					// 2) a list of communities followed by a list of _negative_ selectors
+					final Map<Boolean, List<String>> unknown_type_list = 
+							Arrays.asList(commIdStrList.split("\\s*,\\s*")).stream().collect(Collectors.partitioningBy(s -> { 
+								try {							
+									new org.bson.types.ObjectId(s);
+									return true; // community
+								}
+								catch (Exception e) { // source
+									return false;
+								}
+							}));
+					
+					if (unknown_type_list.containsKey(true) && !unknown_type_list.get(true).isEmpty()) {
+						// This is a negative selector
+						commIdOverrideSet = new HashSet<String>(unknown_type_list.get(true));
+						negativeBucketKeyList = 
+								unknown_type_list.get(false)
+									.stream().map(x -> x.startsWith("/") ? x : (x.endsWith(";") ? x : (x + ";")))
+									.collect(Collectors.toSet())
+									;
+					}//TESTED
+					else {
+						bucketList = new HashSet<String>(unknown_type_list.get(false));
+					}//TESTED
+				}
+				else {
+					bucketList = new HashSet<String>();
+					bucketList.add("/**");
+				}
+			}//TESTED
+			else { // in v1 mode, this enables users to override the set of communities
+				if (null != commIdStrList) {
+					String[] commIdStrArray = commIdStrList.split("\\s*,\\s*");
+					if ((commIdStrArray.length > 1) || !commIdStrArray[0].isEmpty()) {
+						commIdOverrideSet = new HashSet<String>(Arrays.asList(commIdStrArray));
+						if (commIdOverrideSet.isEmpty()) { // not specified - all communities
+							commIdOverrideSet = null;
+						}
 					}
 				}
-			}
+			}//TESTED
 			// Complication: for viewing dashboards, not allowed to ignore while adding new dashboard
 			// (for any other type, the CIDs aren't present)
+			
 			
 			boolean isDashboard = _indexOrAdminCommand.equals("kibana-int") && (null != mode);
 			if (!isDashboard) { // dashboard specific processing
@@ -303,27 +382,55 @@ public class RecordInterface extends ServerResource {
 					dashboardOnly_fullCommunitySet = new HashSet<String>();
 				}				
 			}//TESTED (by hand)
-
+			
+			// For ALEPH-2 integration
+			
 			// Which stores are we examining
-			boolean showRecords = true;
+			boolean showRecords = true; // (==show records from v2)
 			boolean showCustom = false;
 			boolean showDocs = false; // (this one is a bit more complex)			
-			String showRecordsVal = this._queryOptions.get("records");
-			if ((null != showRecordsVal) && (showRecordsVal.equals("0") || showRecordsVal.equalsIgnoreCase("false"))) {
+			boolean showV2Objects = false;
+			boolean showV2Tests = false;
+			boolean showV2Logging = false;
+			if (_v2Mode) {
+				showV2Objects = true; //(reset defaults)
 				showRecords = false;
+				String showDataVal = this._queryOptions.get("data");
+				if ((null != showDataVal) && (showDataVal.equals("0") || showDataVal.equalsIgnoreCase("false"))) {
+					showV2Objects = false;
+				}
+				String showTestsVal = this._queryOptions.get("test_results");
+				if ((null != showTestsVal) && (showTestsVal.equals("1") || showTestsVal.equalsIgnoreCase("true"))) {
+					showV2Tests = true;
+				}
+				String showLogsVal = this._queryOptions.get("logging");
+				if ((null != showLogsVal) && (showLogsVal.equals("1") || showLogsVal.equalsIgnoreCase("true"))) {
+					showV2Logging = true;
+				}
+				if (!showV2Objects && !showV2Tests && !showV2Logging) {
+					return returnError("Record", "Command error - must show at least one of data, test_results, logging");											
+				}				
+			}//TESTED
+			else { // v1 specific settings
+				String showRecordsVal = this._queryOptions.get("records");
+				if ((null != showRecordsVal) && (showRecordsVal.equals("0") || showRecordsVal.equalsIgnoreCase("false"))) {
+					showRecords = false;
+				}
+				String showCustomVal = this._queryOptions.get("custom");
+				if ((null != showCustomVal) && (showCustomVal.equals("1") || showCustomVal.equalsIgnoreCase("true"))) {
+					showCustom = true;
+				}
+				String showDocsVal = this._queryOptions.get("docs");
+				if ((null != showDocsVal) && (showDocsVal.equals("1") || showDocsVal.equalsIgnoreCase("true"))) {
+					showDocs = true;
+				}
+				if (!showRecords && !showCustom && !showDocs) {
+					return returnError("Record", "Command error - must show at least one of records, custom, docs");											
+				}
+				//(TESTED: records, custom)
 			}
-			String showCustomVal = this._queryOptions.get("custom");
-			if ((null != showCustomVal) && (showCustomVal.equals("1") || showCustomVal.equalsIgnoreCase("true"))) {
-				showCustom = true;
-			}
-			String showDocsVal = this._queryOptions.get("docs");
-			if ((null != showDocsVal) && (showDocsVal.equals("1") || showDocsVal.equalsIgnoreCase("true"))) {
-				showDocs = true;
-			}
-			if (!showRecords && !showCustom && !showDocs) {
-				return returnError("Record", "Command error - must show at least one of records, custom, docs");											
-			}
-			//(TESTED: records, custom)
+			
+			// More user authorization settings
 			
 			communityIds = new HashSet<String>();
 			HashSet<String> personCommunityIds = null;
@@ -354,14 +461,30 @@ public class RecordInterface extends ServerResource {
 			
 			// Grab a collection of V2 buckets
 			HashMap<String, String> v2Buckets = new HashMap<String, String>();
-			TreeSet<String> v2BucketSet = new TreeSet<String>();
 			boolean v2_enabled = false; // (if use ls-/logstash-/_all then enabled - or explicity if specify an actual index)
-			if (showRecords) for (String commIdStr: communityIds) {
-				Map<String, String> v2BucketsForComm = V2SynchronizationPollHandler.getV2BucketsInCommunity(commIdStr);
-				v2Buckets.putAll(v2BucketsForComm);
-				v2BucketSet.addAll(v2BucketsForComm.values());
+			if (_v2Mode) {
+				v2_enabled = true; //(obviously!)
+				if (null != negativeBucketKeyList) {
+					for (String commIdStr: communityIds) {
+						Map<String, String> v2BucketsForComm = V2SynchronizationPollHandler.getV2BucketsInCommunity(commIdStr, negativeBucketKeyList, me.get_id().toString(), showV2Objects, showV2Tests, showV2Logging, _queryCacheKey);						
+						v2Buckets.putAll(v2BucketsForComm);
+						v2BucketIdSet.addAll(v2BucketsForComm.values().stream().map(b -> getBucketUniqueId(b)).filter(b -> !b.isEmpty()).collect(Collectors.toSet()));
+					}//TESTED
+				}
+				else {
+					Map<String, String> v2BucketsForComm = V2SynchronizationPollHandler.getV2BucketsInCommunity(bucketList, communityIds, me.get_id().toString(), showV2Objects, showV2Tests, showV2Logging, _queryCacheKey);
+					v2Buckets.putAll(v2BucketsForComm);
+					v2BucketIdSet.addAll(v2BucketsForComm.values().stream().map(b -> getBucketUniqueId(b)).filter(b -> !b.isEmpty()).collect(Collectors.toSet()));
+				}
+			}//TESTED (x2 clauses)
+			else { //v1 mode
+				if (showRecords) for (String commIdStr: communityIds) {
+					Map<String, String> v2BucketsForComm = V2SynchronizationPollHandler.getV2BucketsInCommunity(commIdStr, null, me.get_id().toString(), true, false, false, _queryCacheKey);
+					v2Buckets.putAll(v2BucketsForComm);
+					v2BucketIdSet.addAll(v2BucketsForComm.values().stream().map(b -> getBucketUniqueId(b)).filter(b -> !b.isEmpty()).collect(Collectors.toSet()));
+				}
+				//TESTED (by hand)
 			}
-			//TESTED (by hand)
 			
 			// Create a regex of user's communities
 			StringBuffer indexBuffer = new StringBuffer();
@@ -398,6 +521,8 @@ public class RecordInterface extends ServerResource {
 				String[] indexList = _indexOrAdminCommand.split("\\s*,\\s*");
 				for (String index: indexList) {
 					if (index.startsWith("logstash-") || index.startsWith("ls-")) { // 2]
+						final int max_aliases_for_v2 = 50;
+						
 						v2_enabled = true;
 						// will treat these as a proxy for "everything I can see" - also means must be in live mode
 						if (_indexCommand.equals("_aliases")) { // 2]
@@ -407,16 +532,40 @@ public class RecordInterface extends ServerResource {
 							// (replace with "recs_t_*_" to avoid exploding the command line, will then tidy up community permissions on the other side)
 							if (index.startsWith("ls-")) {
 								inclusive = true;
-								if (showRecords) {
+								if (_v2Mode) {
+									if (v2Buckets.size() < max_aliases_for_v2) {
+										final String tmp_index = index;
+										final String replacer = v2Buckets.values().stream()
+																	.map(s -> tmp_index.replace("ls-", s + "_") + "*")
+																	.collect(Collectors.joining(";"));
+										indexBuffer.append(replacer);
+									}
+									else { // too many, don't want to explode command line - as above, will tidy up later
+										indexBuffer.append(index.replace("ls-", "r__*_") + "*");										
+									}
+								}
+								else if (showRecords) {
 									indexBuffer.append(index.replace("ls-", "recs_t_*_") + "*");
 								}
 							}//TESTED (11)
 							else {
 								inclusive = true;
-								if (showRecords) {
+								if (_v2Mode) {
+									if (v2Buckets.size() < max_aliases_for_v2) {
+										final String tmp_index = index;
+										final String replacer = v2Buckets.values().stream()
+																	.map(s -> tmp_index.replace("logstash-", s + "_") + "*")
+																	.collect(Collectors.joining(";"));
+										indexBuffer.append(replacer);
+									}
+									else { // too many, don't want to explode command line - as above, will tidy up later
+										indexBuffer.append(index.replace("logstash-", "r__*_") + "*");										
+									}
+								}
+								else if (showRecords) {
 									indexBuffer.append(index.replace("logstash-", "recs_t_*_") + "*");
 								}
-							}//TESTED (11)
+							}//TESTED (11)							
 						}
 						else { // don't think this will happen, in theory need to explode into communities
 							return returnError("Record", "Command error - Logstash alias used in conjunction with search? - " + _proxyUrl);							
@@ -434,7 +583,9 @@ public class RecordInterface extends ServerResource {
 						// Not supported:
 						return returnError("Record", "Command error - malformed index: " + index);							
 					}//TOTEST
-					else { // These are probably indexes returned from the alias, so just double check the security // 5]						
+					else { // These are probably indexes returned from the alias, so just double check the security
+						
+						// 5]						
 						if (index.startsWith("custom")) { // custom job - means don't add all of them
 							customJobSpecified = true;
 						}
@@ -444,7 +595,7 @@ public class RecordInterface extends ServerResource {
 						if (index.startsWith("doc_")) { // (doc_ not allowed - you have to use docs_)
 							index = RECS_DUMMY_INDEX;
 						}
-						if (commRegex.matcher(index).find()) {
+						if (!_v2Mode && commRegex.matcher(index).find()) {
 							inclusive = true;
 							if (0 != indexBuffer.length()) {
 								indexBuffer.append(',');
@@ -453,7 +604,7 @@ public class RecordInterface extends ServerResource {
 						}
 						else if (v2Buckets.containsKey(index) //(v1.key==v2._id without ;)
 								|| v2Buckets.containsKey(index + ";") //(v1.key==v2._id without ;)
-								|| prefixMatch(index, v2BucketSet) //(elasticsearch base index vs elasticsearch index with time)
+								|| v2BucketIdSet.contains(getBucketUniqueId(index)) //(elasticsearch base index vs elasticsearch index with time)
 								) 
 						{ // various combos of V2 bucket specification
 							inclusive = true;
@@ -469,10 +620,19 @@ public class RecordInterface extends ServerResource {
 					indexBuffer.append(RECS_DUMMY_INDEX); // (will return nothing)
 				}//TESTED
 			}
+			
 			String[] indexes = null;
 			if (_indexOrAdminCommand.equals("_all")) { // Basically must be in stashed mode
 				v2_enabled = true;
-				if (communityIds.size() > 0) {
+				if (_v2Mode) {
+					indexes = new String[v2Buckets.size()];
+					int i = 0;
+					for (String index: v2Buckets.values()) {
+						indexes[i] = index + "*";
+						i++;
+					}
+				}//TESTED
+				else if (communityIds.size() > 0) {
 					int numIndexMulti = 0;
 					if (showRecords) numIndexMulti++;
 					if (showCustom) numIndexMulti++;
@@ -499,7 +659,7 @@ public class RecordInterface extends ServerResource {
 				}
 				
 			}//TESTED (3, 4)
-			else {
+			else { // is in live mode
 				int indexSize = 0;
 				if (showCustom && !customJobSpecified) { // Append all possible custom jobs onto the end
 					indexSize += communityIds.size();
@@ -528,7 +688,7 @@ public class RecordInterface extends ServerResource {
 			//DEBUG
 			//System.out.println("?? " + indexBuffer.toString() + " VS " + Arrays.toString(indexes));
 			
-			if (null != indexes) {
+			if ((null != indexes) && (indexes.length > 0)) {
 				// Convert this generic list into a list of indexes that actually exists 
 				// (ie duplicate the _alias call that is made in non-timestamp cases)
 				// (https://github.com/elasticsearch/elasticsearch/blob/master/src/main/java/org/elasticsearch/rest/action/admin/indices/alias/get/RestGetIndicesAliasesAction.java)
@@ -600,9 +760,8 @@ public class RecordInterface extends ServerResource {
 			}//TESTED (by hand - custom only and combined)
 			
 			//SOME V2 HANDLING
-			//TODO (ALEPH-14): this is currently oversimplistic, doesnt' take time into account, need to rework
 			//to recalculate indexes based on the received time count 
-			if (v2_enabled) {
+			if (!_v2Mode && v2_enabled) { // (this is just for bw compatibility, is oversimplistic etc)
 				for (String v2s: v2Buckets.values()) {
 					if (0 != indexBuffer.length()) {
 						indexBuffer.append(',');
@@ -610,6 +769,7 @@ public class RecordInterface extends ServerResource {
 					indexBuffer.append(v2s + "*");
 				}
 			}
+			
 			//END V2 HANDLING
 			
 			if (0 == indexBuffer.length()) {
@@ -719,18 +879,37 @@ public class RecordInterface extends ServerResource {
 		}		
 		
 		// Tidy up data in some cases
-		//TODO (INF-2533): for _nodes remove everything except versioning information: data.nodes.version
 		
-		if ((null != _indexCommand) && _indexCommand.equals("_aliases")) {
+		if ((null != _indexCommand) && _indexCommand.equals("_aliases") && (null != communityIds)) {
 			//need to remove un-authorized indexes from _alias
-			Pattern replacerRegex = Pattern.compile("recs_(?:t_)?([0-9a-zA-Z]+)_[0-9.]+");
+			Pattern replacerRegex = _v2Mode
+					? Pattern.compile("(?:r__)?[^\"]*__[a-f0-9]{12}(?:_[0-9.]+)?(?:_[0-9]+)?")
+					: Pattern.compile("recs_(?:t_)?([0-9a-zA-Z]+)_[0-9.]+")
+					;
+					
 			Matcher m = replacerRegex.matcher(data);
 			StringBuffer newData = new StringBuffer();
 			boolean found = false;
 			while (m.find()) {
 				found = true;
-				if (!communityIds.contains(m.group(1))) {
+				if (!_v2Mode && !communityIds.contains(m.group(1))) {
 					m.appendReplacement(newData, "recs_forbidden_2000-01-01");
+				}
+				else if (_v2Mode) {
+					// There's a few cases here:					
+					// 1) If it begins "r__" and we're in kib3 mode then just dummy-ify					
+					// 2) Otherwise, check it has a valid "id"
+					final String index = m.group();
+					boolean readIndex = index.startsWith("r__");
+					if (readIndex && _kib3Mode) {
+						m.appendReplacement(newData, RECS_DUMMY_INDEX);
+					}//TESTED
+					else if (!v2BucketIdSet.contains(getBucketUniqueId(index))) { // case2
+						m.appendReplacement(newData, RECS_DUMMY_INDEX);						
+					}//TESTED (needed to set max_aliases_for_v1 to -1 and run)
+					else { // add the string itself
+						m.appendReplacement(newData, m.group());
+					}//TESTED
 				}
 				else { // add the string itself
 					m.appendReplacement(newData, m.group());
@@ -942,16 +1121,12 @@ public class RecordInterface extends ServerResource {
 	
 	// V2 UTILS:
 	
-	protected boolean prefixMatch(final String index, final TreeSet<String> prefix_tree) {
-		final String largest_lte = prefix_tree.floor(index);
-		if (null == largest_lte) {
-			return false;
+	final static Pattern _UNIQUE_ID_REGEX = Pattern.compile("^(?:r__)?.*__([0-9a-f]{12}).*$");
+	protected static String getBucketUniqueId(final String index) {
+		final Matcher m = _UNIQUE_ID_REGEX.matcher(index);
+		if (m.matches()) {
+			return m.group(1);
 		}
-		else {
-			return index.startsWith(largest_lte);
-		}
-	}//TESTED (by hand: 
-	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8954_2015-07 - true
-	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8955_2015-07 - false
-	//bucket_external_test_take2__7964202e8954 VS bucket_external_test_take2__7964202e8953_2015-07 - false
+		else return "";
+	}//TESTED (by habd)
 }

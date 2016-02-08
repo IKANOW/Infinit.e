@@ -653,7 +653,8 @@ private void createSourceTemplateSelect(HttpServletRequest request, HttpServletR
 	sources.append("<option value=\"infinite_custom_ingest\">Infinit.e Custom Analytics Example</option>");
 	sources.append("<option value=\"database\">Basic SQL Database Example</option>");
 	sources.append("<option value=\"logstash\">Logstash Template</option>");
-	sources.append("<option value=\"data_bucket\">V2 Data Bucket Template</option>");
+	sources.append("<option value=\"data_bucket\">V2 Harvest Data Bucket Template</option>");
+	sources.append("<option value=\"analytics_bucket\">V2 Analytics Data Bucket Template</option>");
 	sources.append("<option value=\"\">------------------User/Shared templates:</option>");
 	
 	StringBuffer sources_edit = new StringBuffer();

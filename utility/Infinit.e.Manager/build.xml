@@ -26,6 +26,9 @@
 	<property name="chrome.extension.source-updater.location"
 		value="../chrome.extension.source-updater" />
 
+	<property name="InfiniteSourceMonitor.location" value="../InfiniteSourceMonitor/"/>
+	<property name="InfiniteCustomMonitor.location" value="../InfiniteCustomMonitor/"/>
+		
 	<path id="infinit.e.manager.classpath">
 		<pathelement location="${dir.build.classes}" />
 		<fileset dir="${dir.lib}">
@@ -92,11 +95,23 @@
 		</copy>
 	</target>
 
+	<target name="copy" depends="compile" description="Copy and move the flex applications into the manager">
+		<!-- Copy the InfiniteSourceMonitor -->
+		<copy todir="WebContent/">
+			<fileset dir="${InfiniteSourceMonitor.location}/dist"/>
+		</copy>
+		<!-- Copy the InfiniteCustomMonitor -->
+		<copy todir="WebContent/">
+			<fileset dir="${InfiniteCustomMonitor.location}/dist"/>
+		</copy>		
+	</target>
+	
+	
 	<!-- =================================
 				 target: jar
 		================================= -->
 	<target name="jar"
-		depends="compile"
+		depends="copy"
 		description="Generates ${ant.project.name}.jar file in to the '${dir.build.jar}' directory.">
 		<mkdir dir="${dir.dist}" />
 	</target>

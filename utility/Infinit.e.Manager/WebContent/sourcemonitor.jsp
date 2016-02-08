@@ -73,7 +73,7 @@ max-width:1400px;
 }
 </style>
 <div align="center">
-<iframe src="../InfiniteSourceMonitor.html" width="100%" height="700px"></iframe>
+<iframe src="./InfiniteSourceMonitor.html" width="100%" height="700px"></iframe>
 </div>
 <%
 	}

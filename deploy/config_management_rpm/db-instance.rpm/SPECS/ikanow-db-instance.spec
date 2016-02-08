@@ -39,22 +39,24 @@ IKANOW Mongo DB installation and update
 ###########################################################################
 # INSTALL *AND* UPGRADE
 
-	if [ -d /etc/security ]; then
-		if [ -f /etc/security/limits.conf ]; then
-			sed -i -r /"^(soft|hard) (nofile|nproc).*"/d /etc/security/limits.conf
-			sed -i -r /"^mongod.*"/d /etc/security/limits.conf
-		fi		
-		echo 'mongod soft nofile 64000' >> /etc/security/limits.conf
-		echo 'mongod hard nofile 64000' >> /etc/security/limits.conf
-		echo 'mongod soft nproc 32000' >> /etc/security/limits.conf
-		echo 'mongod hard nproc 32000' >> /etc/security/limits.conf
-	fi
-	if [ -d /etc/security/limits.d/ ]; then
-		echo 'mongod soft nproc 32000' > /etc/security/limits.d/99-mongod.conf
-		echo 'mongod hard nproc 32000' >> /etc/security/limits.d/99-mongod.conf
-		echo 'mongod soft nofile 64000' >> /etc/security/limits.d/99-mongod.conf
-		echo 'mongod hard nofile 64000' >> /etc/security/limits.d/99-mongod.conf
-	fi
+    # SYA-168 - Disabling limits file generation from within the rpm
+    # This file now is owned by the rpm as a config
+	#if [ -d /etc/security ]; then
+	#	if [ -f /etc/security/limits.conf ]; then
+	#		sed -i -r /"^(soft|hard) (nofile|nproc).*"/d /etc/security/limits.conf
+	#		sed -i -r /"^mongod.*"/d /etc/security/limits.conf
+	#	fi		
+	#	echo 'mongod soft nofile 64000' >> /etc/security/limits.conf
+	#	echo 'mongod hard nofile 64000' >> /etc/security/limits.conf
+	#	echo 'mongod soft nproc 32000' >> /etc/security/limits.conf
+	#	echo 'mongod hard nproc 32000' >> /etc/security/limits.conf
+	#fi
+	#if [ -d /etc/security/limits.d/ ]; then
+	#	echo 'mongod soft nproc 32000' > /etc/security/limits.d/99-mongod.conf
+	#	echo 'mongod hard nproc 32000' >> /etc/security/limits.d/99-mongod.conf
+	#	echo 'mongod soft nofile 64000' >> /etc/security/limits.d/99-mongod.conf
+	#	echo 'mongod hard nofile 64000' >> /etc/security/limits.d/99-mongod.conf
+	#fi
 
 	###########################################################################
 	# Handle relocation:
@@ -118,32 +120,41 @@ IKANOW Mongo DB installation and update
 		
 		rm -rf /data
 		ln -sf /opt/db-home/data/ /data
-		
-		service mongo_infinite start
-		sh /opt/db-home/setupAdminShards.sh
+	
+        
+        # Disabling to simplify install (SYA-168). If the app starts up on rpm install, it will start writing
+        # to the wrong directories. Especially if disks havent been mounted yet. Also configs may 
+        # not be updated. Also causes the rpm install to hang while mongo starts and creates oplogs.
+        # After the rpm is install, make sure disks are mounted, THEN start the app. Once its started,
+        # run the sh /opt/db-home/setupAdminShards.sh script. 	
+		#service mongo_infinite start
+		#sh /opt/db-home/setupAdminShards.sh
 			
+
+        # Commenting out below SYA-168
+        # This requires mongo to be up and running. Causes rpm install to hang.
 		################################################################################
 		# echo "untar geo collection and add it to the MongoDB server via mongorestore"
 		################################################################################
-		GEO=`mongo localhost/feature --quiet --eval '{ db.geo.count() }'`
-		if [ "$GEO" = "0" ]; then
-			CONFIG_PROPS=/opt/infinite-install/config/infinite.configuration.properties
-			GEO_LOC=`grep "^db.geo_archive=" $CONFIG_PROPS | sed s/'db.geo_archive='// | sed s/' '//g`
-			GEO_FILE_LOC=/opt/infinite-install/data/feature/geo.bson.tar.gz
-				#(also hardwired below)
-			mkdir -p /opt/infinite-install/data/feature
-			
-			echo "$GEO_LOC" | grep -q -P "^https?://" && curl -L "$GEO_LOC" -o $GEO_FILE_LOC 
-			echo "$GEO_LOC" | grep -q -P "^s3://" && s3cmd get $GEO_LOC $GEO_FILE_LOC
-			echo "$GEO_LOC" | grep -q -P "^/" && if [ "$GEO_LOC" != "$GEO_FILE_LOC" ]; then cp $GEO_LOC $GEO_FILE_LOC; fi
-			 
-			if [ -f $GEO_FILE_LOC ]; then
-				cd /opt/infinite-install/data/feature/
-				tar -zxvf geo.bson.tar.gz
-				mongorestore /opt/infinite-install/data/feature/geo.bson
-				rm -f /opt/infinite-install/data/feature/geo.bson
-			fi
-		fi
+		#GEO=`mongo localhost/feature --quiet --eval '{ db.geo.count() }'`
+		#if [ "$GEO" = "0" ]; then
+		#	CONFIG_PROPS=/opt/infinite-install/config/infinite.configuration.properties
+		#	GEO_LOC=`grep "^db.geo_archive=" $CONFIG_PROPS | sed s/'db.geo_archive='// | sed s/' '//g`
+		#	GEO_FILE_LOC=/opt/infinite-install/data/feature/geo.bson.tar.gz
+		#		#(also hardwired below)
+		#	mkdir -p /opt/infinite-install/data/feature
+		#	
+		#	echo "$GEO_LOC" | grep -q -P "^https?://" && curl -L "$GEO_LOC" -o $GEO_FILE_LOC 
+		#	echo "$GEO_LOC" | grep -q -P "^s3://" && s3cmd get $GEO_LOC $GEO_FILE_LOC
+		#	echo "$GEO_LOC" | grep -q -P "^/" && if [ "$GEO_LOC" != "$GEO_FILE_LOC" ]; then cp $GEO_LOC $GEO_FILE_LOC; fi
+		#	 
+		#	if [ -f $GEO_FILE_LOC ]; then
+		#		cd /opt/infinite-install/data/feature/
+		#		tar -zxvf geo.bson.tar.gz
+		#		mongorestore /opt/infinite-install/data/feature/geo.bson
+		#		rm -f /opt/infinite-install/data/feature/geo.bson
+		#	fi
+		#fi
 	fi
 	
 ###########################################################################
@@ -193,7 +204,9 @@ IKANOW Mongo DB installation and update
 # FINAL STEP FOR INSTALLS AND UPGRADES
 
 	# (Start mongo if it isn't already running (else does nothing)	
-	service mongo_infinite start
+    # Disabled per SYA-168
+    # We don't want this to autostart during rpm install. It hangs install
+	#service mongo_infinite start
 
 ###########################################################################
 # FILE LISTS
@@ -216,4 +229,5 @@ IKANOW Mongo DB installation and update
 %attr(755,mongod,mongod) /mnt/opt/db-home/
 %attr(755,mongod,mongod) /usr/bin/infdb
 %attr(755,mongod,mongod) /etc/rc.d/init.d/mongo_infinite
+%config /etc/security/limits.d/mongod.conf
 %attr(644,root,root) /etc/cron.d/infinite-db

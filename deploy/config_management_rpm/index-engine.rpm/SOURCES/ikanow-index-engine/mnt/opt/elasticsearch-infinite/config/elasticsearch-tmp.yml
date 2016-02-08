@@ -1,0 +1,16 @@
+# Cluster Settings
+node:
+  data: true
+cluster:
+  name: default
+discovery:
+  type: zen
+  zen.minimum_master_nodes: 0
+  #zen only:
+  zen.ping.multicast.enabled: false
+  zen.ping.unicast.hosts: 
+bootstrap:
+  mlockall:
+script.native.decayscript.type:
+  com.ikanow.infinit.e.api.knowledge.processing.QueryDecayFactory
+

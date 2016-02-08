@@ -73,7 +73,7 @@ max-width:1400px;
 }
 </style>
 <div align="center">
-<iframe src="../InfiniteCustomMonitor.html" width="100%" height="700px"></iframe>
+<iframe src="./InfiniteCustomMonitor.html" width="100%" height="700px"></iframe>
 </div>
 <%
 	}

@@ -1102,7 +1102,7 @@ public class CommunityHandler
 							//otherwise go ahead and add as a member
 							if ( requiresApproval )
 							{
-								cp.addMember(personOrUserGroupId, pp, userGroup, true);
+								cp.addMember(personOrUserGroupId, pp, userGroup, true, false);
 								//write both objects back to db now
 								/////////////////////////////////////////////////////////////////////////////////////////////////
 								// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
@@ -1335,7 +1335,7 @@ public class CommunityHandler
 								if (isSysAdmin && skipInvite) // Can only skip invite if user is Admin
 								{
 									// Update community with new member
-									cp.addMember(personOrUserGroupId, pp, userGroup, false); // Member status set to Active
+									cp.addMember(personOrUserGroupId, pp, userGroup, false, false); // Member status set to Active
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set
@@ -1360,7 +1360,7 @@ public class CommunityHandler
 								}
 								else
 								{
-									cp.addMember(personOrUserGroupId, pp, userGroup, true); // Member status set to Pending
+									cp.addMember(personOrUserGroupId, pp, userGroup, true, false); // Member status set to Pending
 									/////////////////////////////////////////////////////////////////////////////////////////////////
 									// TODO (INF-1214): Make this code more robust to handle changes to the community that need to
 									// Caleb: this means change update to $set

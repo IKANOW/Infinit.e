@@ -15,12 +15,22 @@
  ******************************************************************************/
 package com.ikanow.infinit.e.application.handlers.polls;
 
+import java.net.URLDecoder;
+import java.nio.file.FileSystems;
+import java.nio.file.PathMatcher;
 import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Map;
+import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentNavigableMap;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
@@ -39,12 +49,134 @@ import com.mongodb.QueryBuilder;
 public class V2SynchronizationPollHandler implements PollHandler {
 	private static final Logger _logger = Logger.getLogger(V2SynchronizationPollHandler.class);
 
-	private static ConcurrentHashMap<String, Map<String, String>> _v2_mapping = new ConcurrentHashMap<>();
-	// comm id -> (v1 key -> v2 es index)* 
+	protected final static ConcurrentHashMap<String, Map<String, String>> _v2_bucket_cache = new ConcurrentHashMap<>();	
 	
-	public static Map<String, String> getV2BucketsInCommunity(final String comm_id_str) {
-		return Collections.unmodifiableMap(_v2_mapping.getOrDefault(comm_id_str, Collections.emptyMap()));
+	private static ConcurrentHashMap<String, Map<String, BucketPathInfo>> _v2_mapping = new ConcurrentHashMap<>();
+	// comm id -> (v1 key -> v2 es index)* 
+
+	public static class BucketPathInfo {
+		BucketPathInfo(String key, String path, String index, String comm_id) {
+			this.key = key;
+			this.path = path;
+			this.index = index;
+			this.comm_id = comm_id;
+		}
+		final String key;
+		final String path;
+		final String index;
+		final String comm_id;
+	}//TESTED
+	
+	// Alternative view of the same data
+	private static ConcurrentNavigableMap<String, BucketPathInfo> _v2_path_or_key_mapping = new ConcurrentSkipListMap<>();
+	// v1.key AND v2.path -> (v2 es index, community_ids)
+	
+	/**
+	 * @param comm_id_str
+	 * @param negative_set
+	 * @param user_id
+	 * @param show_objects
+	 * @param show_tests
+	 * @param show_logging
+	 * @param cache_key
+	 * @return key (path or source) -> index prefix (not including data suffix or any wildcards)
+	 */
+	public static Map<String, String> getV2BucketsInCommunity(final String comm_id_str, final Set<String> negative_set, final String user_id, boolean show_objects, boolean show_tests, boolean show_logging, final String cache_key) {
+		final String final_cache_key = user_id + ":" + cache_key;
+		try {
+			return _v2_bucket_cache.computeIfAbsent(final_cache_key, __ -> {
+				return _v2_mapping.getOrDefault(comm_id_str, Collections.emptyMap()).entrySet().stream()
+						.filter(kv -> (null == negative_set) || !negative_set.contains(kv.getKey()))
+						.flatMap(kv -> {
+							return Stream.concat(
+									show_objects ? Stream.of(kv.getValue()) : Stream.empty()
+									,
+									show_tests ? Stream.of(getTestVersion(kv.getValue(), user_id)) : Stream.empty()
+									);					
+						})
+						.collect(Collectors.toMap(info -> info.key, info -> info.index))
+						;
+			})
+			;
+		}
+		catch (Throwable t) { return new HashMap<String, String>(); } // won't happen in practice
+		//TESTED
 	}
+
+	/**
+	 * @param bucket_paths
+	 * @param comm_ids
+	 * @param user_id
+	 * @param show_objects
+	 * @param show_tests
+	 * @param show_logging
+	 * @param cache_key
+	 * @return key (path or source) -> index prefix (not including data suffix or any wildcards)
+	 */
+	public static Map<String, String> getV2BucketsInCommunity(final HashSet<String> bucket_paths, final HashSet<String> comm_ids, final String user_id, boolean show_objects, boolean show_tests, boolean show_logging, final String cache_key) {
+		final String final_cache_key = user_id + ":" + cache_key;
+		try {
+			return _v2_bucket_cache.computeIfAbsent(final_cache_key, __ -> {
+					return bucket_paths.stream()
+							.map(s -> { try { return URLDecoder.decode(s, "UTF-8"); } catch (Throwable t) { return s; } })
+							.collect(Collectors.partitioningBy(s -> s.startsWith("/") && s.matches(".*[*?].*")))
+							.entrySet()
+							.stream()
+							.filter(kv -> !kv.getValue().isEmpty())
+							.flatMap(kv -> {
+								if (kv.getKey()) { // this is a wildcarded path, which is nice
+									return kv.getValue().stream()
+											.flatMap(s -> matchWildcardedPath(s))
+											;
+								}
+								else { // this is a nice easy case, it's a source key (or a wildcard-less path, treat both the same...)
+									return kv.getValue().stream()
+											.map(ss -> (!ss.startsWith("/") && !ss.endsWith(";")) ? (ss + ";") : ss)
+											.map(ss -> _v2_path_or_key_mapping.get(ss))
+											.filter(ret -> null != ret)
+											;
+								}
+							})//TESTED x2
+							.filter(info -> comm_ids.contains(info.comm_id)) //(ie have permission)
+							.flatMap(info -> {
+								return Stream.concat(
+										show_objects ? Stream.of(info) : Stream.empty()
+										,
+										show_tests ? Stream.of(getTestVersion(info, user_id)) : Stream.empty()
+										);
+							})//TESTED x3
+							.collect(Collectors.toMap(info -> info.key, info -> info.index))
+							;
+			});
+		}
+		catch (Throwable t) { return new HashMap<String, String>(); } // won't happen in practice
+		
+	}//TESTED
+	
+	public static Stream<BucketPathInfo> matchWildcardedPath(final String path) {
+		final String longest_subpath = path.replaceFirst("[*?].*", "");
+		
+		final ConcurrentNavigableMap<String, BucketPathInfo> tail_map = _v2_path_or_key_mapping.tailMap(longest_subpath, true);
+		final LinkedList<BucketPathInfo> mutable_matching = new LinkedList<>();
+		
+		PathMatcher matcher = null;
+		
+		for (Map.Entry<String,BucketPathInfo> kv: tail_map.entrySet()) {		
+			if (!kv.getKey().startsWith(longest_subpath)) break; //(all done)
+			
+			// We're hierarchically below this entry, is it match vs the glob though?
+			
+			if (null == matcher) {
+				matcher = FileSystems.getDefault().getPathMatcher("glob:" + path);
+			}
+			final java.nio.file.Path p = FileSystems.getDefault().getPath(kv.getKey());
+			if (matcher.matches(p)) {
+				mutable_matching.add(kv.getValue());
+			}
+		}		
+		return mutable_matching.stream();
+	}//TESTED
+	
 	
 	private ObjectId _last_checked_id = new ObjectId(new Date());
 	private Date _last_checked_time = new Date(0L);
@@ -90,6 +222,7 @@ public class V2SynchronizationPollHandler implements PollHandler {
 			else {
 				return;
 			}
+			_v2_bucket_cache.clear(); // (clears the cache because something has changed)
 			//TESTED (by hand)
 			
 			// If so, or alternatively every 5 minutes, recheck everything
@@ -116,7 +249,7 @@ public class V2SynchronizationPollHandler implements PollHandler {
 				// Find any changed sources:
 				if (null != comm_ids) for (Object comm_id_obj: comm_ids) {
 					String comm_id_str = comm_id_obj.toString();
-					Map<String, String> s = _v2_mapping.computeIfAbsent(comm_id_str, __ -> {
+					Map<String, BucketPathInfo> s = _v2_mapping.computeIfAbsent(comm_id_str, __ -> {
 						comm_id_set.add(comm_id_str);
 						return new ConcurrentHashMap<>();
 					});
@@ -152,10 +285,13 @@ public class V2SynchronizationPollHandler implements PollHandler {
 						String comm_id = v2_query_builder.get(_id);
 						
 						if (null != comm_id) {
-							final String index = getBaseIndexName(path);
+							final String index = "r__" + getBaseIndexName(path);
 							
-							Map<String, String> s = _v2_mapping.computeIfAbsent(comm_id, __ -> new ConcurrentHashMap<>());
-							s.put(_id, index);
+							Map<String, BucketPathInfo> s = _v2_mapping.computeIfAbsent(comm_id, __ -> new ConcurrentHashMap<>());
+							final BucketPathInfo path_info = new BucketPathInfo(_id, path, index, comm_id);
+							s.put(_id, path_info);
+							_v2_path_or_key_mapping.put(_id, path_info);
+							_v2_path_or_key_mapping.put(path, path_info);
 							
 							added++;
 						}
@@ -166,7 +302,7 @@ public class V2SynchronizationPollHandler implements PollHandler {
 			//TESTED (by hand)			
 			
 			int removed = 0;
-			for (Map<String, String> v1s: _v2_mapping.values()) {
+			for (Map<String, BucketPathInfo> v1s: _v2_mapping.values()) {
 				HashSet<String> to_remove = new HashSet<>();
 				for (String key: v1s.keySet()) {
 					if (!all_keys.contains(key)) {
@@ -176,6 +312,10 @@ public class V2SynchronizationPollHandler implements PollHandler {
 				}
 				for (String s: to_remove) {
 					v1s.remove(s);
+					final BucketPathInfo path_info_to_remove = _v2_path_or_key_mapping.remove(s);
+					if (null != path_info_to_remove) {
+						_v2_path_or_key_mapping.remove(path_info_to_remove.path);
+					}
 				}
 			}
 			//TESTED
@@ -185,6 +325,7 @@ public class V2SynchronizationPollHandler implements PollHandler {
 			
 			if (on_startup) {
 				_logger.info("Imported v2 sources: " + _v2_mapping.toString());
+				_logger.info("Imported v2 paths: " + _v2_path_or_key_mapping.values().stream().map(info -> info.path).collect(Collectors.joining(";")));
 				on_startup = false;
 			}
 		}
@@ -200,6 +341,17 @@ public class V2SynchronizationPollHandler implements PollHandler {
 	
 	// INDEX NAMES
 	
+	public static BucketPathInfo getTestVersion(final BucketPathInfo info, String user_id) {
+		final String new_path = "/aleph2_testing/" + user_id + info.path;
+		return new BucketPathInfo("test:" + info.key, 
+				new_path,
+				"r__" + getBaseIndexName(new_path),
+				info.comm_id
+				);
+	}//TESTED
+	
+	private static final int MAX_COLL_COMP_LEN = 16;
+	
 	/** Returns the base index name (before any date strings, splits etc) have been appended
 	 *  Generated by taking 1-3 directories from the path and then appening the end of a UUID
 	 * @param bucket
@@ -207,24 +359,40 @@ public class V2SynchronizationPollHandler implements PollHandler {
 	 */
 	public static String getBaseIndexName(final String path) {
 		
-		String[] components = path.substring(1).split("[/]");
+		final String[] components = Optional.of(path)
+				.map(p -> p.startsWith("/") ? p.substring(1) : p)
+				.get()
+				.split("[/]");
+
 		if (1 == components.length) {
-			return tidyUpIndexName(components[0]) + generateUuidSuffix(path);
+			return tidyUpIndexName(safeTruncate(components[0], MAX_COLL_COMP_LEN))
+					+ "__" + generateUuidSuffix(path);
 		}
 		else if (2 == components.length) {
-			return tidyUpIndexName(components[0] + "_" + components[1]) + generateUuidSuffix(path);
+			return tidyUpIndexName(safeTruncate(components[0], MAX_COLL_COMP_LEN) 
+					+ "_" + safeTruncate(components[1], MAX_COLL_COMP_LEN))
+					+ "__" + generateUuidSuffix(path);
 		}
 		else { // take the first and the last 2
 			final int n = components.length;
-			return tidyUpIndexName(components[0] + "_" + components[n-2] + "_" + components[n-1]) + generateUuidSuffix(path);
+			return tidyUpIndexName(safeTruncate(components[0], MAX_COLL_COMP_LEN)
+					+ "_" + safeTruncate(components[n-2], MAX_COLL_COMP_LEN) 
+					+ "_" + safeTruncate(components[n-1], MAX_COLL_COMP_LEN))
+					+ "__" + generateUuidSuffix(path);
 		}
 	}
 	// Utils for getBaseIndexName
+	private static String safeTruncate(final String in, final int max_len) {
+		return in.length() < max_len ? in : in.substring(0, max_len);
+	}
 	private static String tidyUpIndexName(final String in) {
-		return in.toLowerCase().replaceAll("[^a-z0-9_-]", "_").replaceAll("__+", "_");
+		return Optional.of(in.toLowerCase().replaceAll("[^a-z0-9_]", "_").replaceAll("__+", "_"))
+				.map(s -> s.endsWith("_") ? s.substring(0, s.length() - 1) : s)
+				.get()
+				;
 	}
 	private static String generateUuidSuffix(final String in) {
-		return "__" + java.util.UUID.nameUUIDFromBytes(in.getBytes()).toString().substring(24);
+		return java.util.UUID.nameUUIDFromBytes(in.getBytes()).toString().substring(24);
 	}
-	
+
 }

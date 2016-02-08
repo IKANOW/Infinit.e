@@ -1,0 +1,792 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+Copyright 2012, The Infinit.e Open Source Project
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+-->
+
+<components:WidgetModule xmlns:fx="http://ns.adobe.com/mxml/2009"
+						 xmlns:components="com.ikanow.infinit.e.widget.library.components.*"
+						 xmlns:flexiframe="http://code.google.com/p/flex-iframe/"
+						 xmlns:s="library://ns.adobe.com/flex/spark"
+						 xmlns:fw="com.ikanow.infinit.e.widget.library.framework.*"
+						 xmlns:mx="library://ns.adobe.com/flex/mx"
+						 implements="com.ikanow.infinit.e.widget.library.widget.IWidget"
+						 widgetClose="widgetmodule1_closeHandler(event)"
+						 dragStart="widgetmodule1_dragStartHandler(event)"
+						 dragEnter="widgetmodule1_dragEnterHandler(event)"
+						 dragExit="widgetmodule1_dragExitHandler(event)"
+						 dragDrop="widgetmodule1_dragDropHandler(event)"
+						 widgetDrop="widgetmodule1_widgetDropHandler(event)"
+						 creationComplete="{ try { onWidgetCreationComplete(); } catch (e:Error) {  } dispatchEvent(new Event('Done Loading')); }" xmlns:classes="classes.*">	
+	<fx:Style source="/com/ikanow/infinit/e/assets/styles/infiniteStyles.css" />
+		<fx:Style>
+		@namespace s "library://ns.adobe.com/flex/spark";
+		@namespace mx "library://ns.adobe.com/flex/mx";
+		/* If you need to override a style in our stylesheet, or add another
+		style that we did not support you can do so here, an example has been commented out
+		Please see documentation about over-riding MX component styles to display fonts*/
+		/*
+		mx|Text
+		{
+		font-family: infiniteNonCFFFont;
+		}
+		*/
+	</fx:Style>
+	<fx:Script>
+		<![CDATA[			
+			import com.ikanow.infinit.e.widget.library.components.InfiniteFlexIFrame;
+			import com.ikanow.infinit.e.widget.library.data.WidgetDragObject;
+			import com.ikanow.infinit.e.widget.library.events.WidgetDropEvent;
+			import com.ikanow.infinit.e.widget.library.framework.WidgetSaveObject;
+			import com.ikanow.infinit.e.widget.library.utility.JSONDecoder;
+			import com.ikanow.infinit.e.widget.library.utility.JSONEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.URLEncoder;
+			import com.ikanow.infinit.e.widget.library.utility.WidgetDragUtil;
+			import com.ikanow.infinit.e.widget.library.widget.IWidget;
+			import com.ikanow.infinit.e.widget.library.widget.IWidgetContext;
+			
+			import flash.events.Event;
+			
+			import mx.collections.ArrayCollection;
+			import mx.collections.ArrayList;
+			import mx.collections.Sort;
+			import mx.collections.SortField;
+			import mx.controls.Alert;
+			import mx.core.IUIComponent;
+			import mx.events.CloseEvent;
+			import mx.events.DragEvent;
+			import mx.events.FlexEvent;
+			import mx.events.FlexMouseEvent;
+			import mx.managers.DragManager;
+			import mx.managers.PopUpManager;
+			import mx.olap.QueryCubeBuilder;
+			import mx.rpc.events.FaultEvent;
+			import mx.rpc.events.ResultEvent;
+			
+			import org.alivepdf.layout.Size;
+			import org.alivepdf.pdf.PDF;
+			
+			import spark.components.TitleWindow;
+			
+			import system._Environment;
+			
+			private var _savedCommunity:int = -1;
+			private var _savedUsername:String = "";
+			private var _savedCode:String = null;
+			
+			private var _context:IWidgetContext;
+			
+			private var titleArray:ArrayCollection = new ArrayCollection();
+			
+			private var API_SERVER:String = flash.external.ExternalInterface.call("getEndPointUrl");
+			
+			private var queryGen:kibanaQueryGenerator;
+			
+			[Bindable]
+			private var INITIAL_URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json";
+//			private var INITIAL_URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html";  //flex.client URL
+//			private var INITIAL_URL:String = "../../../../frameworks/flex/infinit.e.flex.client/bin-debug/kibana.html";  //flex.client URL
+			
+			[Bindable]
+			private var viewLive:Boolean = false;
+			[Bindable]
+			private var viewStashed:Boolean = false;
+			[Bindable]
+			private var viewData:Boolean = true;
+			[Bindable]
+			private var viewTests:Boolean = false;
+			[Bindable]
+			private var viewLogs:Boolean = false;
+			[Bindable]
+			private var viewCommunityFilter:Boolean = false;
+			
+			//Drag and Drop IFrame
+			[Bindable]
+			private var showDragInfo:Boolean = false;
+			
+			private var t:Timer;
+			
+				
+			/**
+			 * Allow users to export the widget contents in the specified format
+			 * @format filename: the filename+path to which the data will be written (in case it needs to be embedded)
+			 * @param format: the format from the "supportedFormats" call
+			 *
+			 * @returns a ByteArray containing the data to output
+			 */
+			public function onGenerateExportData( filename:String, format:String ):ByteArray
+			{
+				return null;
+			}
+			
+			/**
+			 * This function gets called when the user clicks to output
+			 * data to a PDF. Return null if custom PDF generation is
+			 * not desired.
+			 *
+			 * @return a new alivePdf Page containing the converted data
+			 */
+			public function onGeneratePDF( printPDF:PDF, title:String ):PDF
+			{
+				return null;
+			}
+			
+			/**
+			 * IWidget interface to receive data object (IWidgetContext).
+			 * Store the iwidgetcontext so we can receieve data later.
+			 */
+			public function onInit( context:IWidgetContext ):void
+			{
+				_context = context;
+			}
+			
+			/**
+			 * If a save object has been saved from 'onSaveWidgetOptions' then
+			 * when the app gets reloaded the last save string
+			 * will be passed to this function.
+			 *
+			 * @param widgetOptions the last save object or null if there was none
+			 */
+			public function onLoadWidgetOptions( widgetOptions:WidgetSaveObject ):void
+			{
+				if ( widgetOptions != null && widgetOptions.userSave != null )
+				{
+					//TODO: can't get the page reload working, so just disable saving this for the moment
+//					if ( widgetOptions.userSave.viewStashed != null )
+//					{
+//						this.viewStashed = widgetOptions.userSave.viewStashed;
+//						//(default)
+//					}
+//					if ( widgetOptions.userSave.viewLive != null )
+//					{
+//						this.viewLive = widgetOptions.userSave.viewLive;
+//						if (this.viewLive) {
+//							this.liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+//							this.stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+//							setTimeout(reloadHomePage, 500);
+//						}
+//					}
+					if ( widgetOptions.userSave.viewCommunityFilter != null )
+					{
+						this.viewCommunityFilter = widgetOptions.userSave.viewCommunityFilter;
+						if (this.viewCommunityFilter) {
+							this.filterToggle.label = "ON";
+							this.filterToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewTests != null )
+					{
+						this.viewTests = widgetOptions.userSave.viewTests;
+						if (this.viewTests) {
+							this.testToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewLogs != null )
+					{
+						this.viewLogs = widgetOptions.userSave.viewLogs;
+						if (this.viewLogs) {
+							this.logToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+						}
+					}
+					if ( widgetOptions.userSave.viewData != null )
+					{
+						this.viewData = widgetOptions.userSave.viewData;
+						//(default)
+						if (!this.viewData) {
+							this.dataToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));							
+						}
+					}
+				}
+			}
+			
+			/**
+			 * function to rescale the component when the parent container is being resized
+			 *
+			 * @param newHeight The new height the component needs to be set to
+			 * @param newWidth The new width the component needs to be set to
+			 */
+			public function onParentResize( newHeight:Number, newWidth:Number ):void
+			{
+				this.height = newHeight;
+				this.width = newWidth;
+			}
+			
+			/**
+			 * IWidget interface that fires when a new filter is done (including from ourself)
+			 * We can access the data fromt he filter by using our
+			 * iwidgetcontext object _context.getQuery_FilteredResults().getTopDocuments();
+			 */
+			public function onReceiveNewFilter():void
+			{
+				//Nothing to do
+			}
+			
+			/**
+			 * IWidget interface that fires when a new query is done.
+			 * We can access the data from the query by using our
+			 * iwidgetcontext object context.getQuery_TopResults().getTopDocuments();
+			 * 
+			 */
+			public function onReceiveNewQuery():void
+			{
+			}
+			
+			/**
+			 * This function gets called when the workspace is being saved.
+			 * return null if no save object is needed.
+			 *
+			 * @return an object this widget can use to reload state
+			 */
+			public function onSaveWidgetOptions():Object
+			{
+				var savedOptions:Object = new Object();
+				
+				//TODO: can't get the page reload working, so just disable saving this for the moment
+				//savedOptions.viewStashed = this.viewStashed;
+				//savedOptions.viewLive = this.viewLive;
+				savedOptions.viewCommunityFilter = this.viewCommunityFilter;				
+				savedOptions.viewTests = this.viewTests;
+				savedOptions.viewLogs = this.viewLogs;
+				savedOptions.viewData = this.viewData;
+				
+				//(nothing to do)
+				return savedOptions;
+			}
+			
+			/**
+			 * @returns A list of supported formats, displayed in a context menu in the format
+			 * "Export <string>" - these are called with "generateExportData"
+			 * Note this doesn't cover the "built-in" Alive PDF export.
+			 * However if the developer specifies PDF and generatePdf() returns non-null then this will be used.
+			 */
+			
+			public function supportedExportFormats():ArrayCollection
+			{
+				return null;
+			}
+			// CALLBACK
+			public function getCommunityIds(requestName:String):String
+			{
+				var lockCommunityFilter:Boolean = false;
+				if ((null != requestName) && (requestName.indexOf("kibana-int") > 0)) {
+					lockCommunityFilter = true;
+				}
+				try {
+					if (lockCommunityFilter || this.viewCommunityFilter)
+					{
+						var query:Object = _context.getCurrentQuery();						
+						var communityIds = query.communityIds;
+						var sources:String = "";
+						try {
+							sources = query.input.sources;
+						}
+						catch (eee:Error) {}
+						if (!query.input.srcInclude || (sources == "")) {
+							//(negative selection)
+							sources = communityIds + "," + sources;						
+						}
+						return sources;						
+					}
+					else {
+						return "";
+					}
+					
+				}
+				catch (e:Error) {
+					return "error";
+					Alert.show("getCommunityIds: " + e.message);
+				}
+				return "";
+			}
+			
+			public function getDatasetFlags():String {
+				var retVal:String = "&v2=true&kib3=true";
+				if (!this.viewData) {
+					retVal += "&data=false";
+				}
+				if (this.viewTests) {
+					retVal += "&test_results=true";
+				}
+				if (this.viewLogs) {
+					retVal += "&logging=true";
+				}
+				if (!this.viewCommunityFilter) {
+					retVal += "&commFilter=false";
+				}
+				return retVal;
+			}
+			
+			/**
+			 * Method fired when module is done loading.  Sends
+			 * message to parent letting it know that module is
+			 * ready to receive data.
+			 */
+			private function onWidgetCreationComplete():void
+			{
+				try {
+					ExternalInterface.addCallback( "getCommunityIds", getCommunityIds );
+					ExternalInterface.addCallback( "getDatasetFlags", getDatasetFlags );
+					this.viewStashed = true;
+					this.viewCommunityFilter = false;
+					this.viewTests = false;
+					this.viewData = true;
+					this.viewLogs = false;
+					this.dataToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					this.stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+				}
+				catch (e:Error) {
+					Alert.show("getCommunityIds: " + e.message);
+				}				
+			}
+			
+			protected function widgetmodule1_closeHandler(event:Event):void
+			{
+				jsIFrameKibana.removeIFrame();
+			}
+			
+			protected function jsIFrameKibana_frameLoadHandler(event:Event):void
+			{
+				// For some reason some annoying scroll bars get added to the parent div
+				// going to remove them:
+				var jsCall:String = "document.getElementById(\"" + jsIFrameKibana.getDivId().substring(7) + "\").style.overflow = \"hidden\";";
+				flash.external.ExternalInterface.call("eval", jsCall); 
+			}
+			//1 for live toggle button, 0 for stashed toggle button
+			private function switchToLiveToggle(buttonId:int):void {
+			
+				if(buttonId == 1){
+					if(liveToggle.selected==true){
+						stashedToggle.selected = false;
+						stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}else if(liveToggle.selected==false){
+						stashedToggle.selected = true;
+						stashedToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}
+				} else if(buttonId == 0){
+					if(stashedToggle.selected ==true){
+						liveToggle.selected= false;
+						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}else if(stashedToggle.selected == false){
+						liveToggle.selected=true;
+						liveToggle.dispatchEvent(new MouseEvent(MouseEvent.ROLL_OUT));
+					}
+				}
+				this.viewStashed = stashedToggle.selected;
+				this.viewLive = liveToggle.selected;
+
+				reloadHomePage();
+			}
+
+			private function reloadHomePage():void {
+				var divid:String = "document.getElementById(\""+jsIFrameKibana.getDivId()+"\").contentWindow";
+				var fn:String = divid+".infiniteJsConnector.setLive";
+				ExternalInterface.call(fn, this.viewLive);				
+			}
+			
+			private function showDatasetToggle():void
+			{
+				this.viewLogs = this.logToggle.selected;
+				this.viewData = this.dataToggle.selected;
+				this.viewTests = this.testToggle.selected;
+				
+				refreshKibana();
+			}
+			
+			private function cidFilterToggle():void
+			{
+				this.viewCommunityFilter = !this.viewCommunityFilter;
+				if(viewCommunityFilter){
+					filterToggle.label = "ON";
+					filterToggle.selected = true;
+				}
+				else {
+					filterToggle.label = "OFF";
+					filterToggle.selected = false;
+				}
+				
+				refreshKibana();
+			}
+			
+			protected function widgetmodule1_widgetDropHandler( event:WidgetDropEvent ):void
+			{
+				showDragInfo = false;
+				handleWidgetDrop(event);					
+			}
+			
+			private function handleWidgetDrop(event:WidgetDropEvent ):void				
+			{				
+
+				if ( (event.entities != null && event.entities.length > 0) || (event.associations != null && event.associations.length > 0) || (event.queryElements != null && event.queryElements.length > 0) )					
+				{					
+					createQueryGenerator(event);
+				}
+				showDragInfo = false;
+				
+			}
+			
+			private function createQueryGenerator(event:WidgetDropEvent):void{
+				
+				
+				queryGen = PopUpManager.createPopUp(this, kibanaQueryGenerator, false) as kibanaQueryGenerator;
+				queryGen.title = "Apply ";
+				var types:Number = 0;
+				if (event.entities.length > 0)
+				{
+					queryGen.title += event.entities.length + " Entities ";
+					types++;
+				}
+				if (event.associations.length > 0)
+				{
+					if (types > 0)
+						queryGen.title += ", ";
+					queryGen.title += event.associations.length + " Associations ";
+				}
+				if (event.queryElements.length > 0)
+				{
+					if (types > 0)
+						queryGen.title += ", ";
+					queryGen.title += event.queryElements.length + " Query Elements ";
+				}
+				
+				queryGen.title += "from " + event.dragWidgetName;
+
+				queryGen.entities = event.entities;
+				queryGen.associations = event.associations;
+				if (null != event.queryElements && event.queryElements.length > 0)
+					queryGen.addQueryElementsToEntitiesList(event.queryElements);
+				queryGen.jsIFrameKibana = jsIFrameKibana;
+	
+				PopUpManager.centerPopUp(queryGen);
+				queryGen.addEventListener("mouseDownOutside", closeQueryGenerator);
+			}
+			
+			private function assocationsToEntities(entities:ArrayCollection):ArrayCollection{
+				return null;
+			}
+			
+			private function closeQueryGenerator(event:FlexMouseEvent):void{
+				if (null != queryGen)
+				{
+					PopUpManager.removePopUp(queryGen);
+				}
+			}
+			
+			
+			protected function widgetmodule1_dragExitHandler( event:DragEvent ):void
+			{
+				if (showDragInfo == true)
+				{
+					var mouse_x:Number = this.contentMouseX;
+					var mouse_y:Number = this.contentMouseY;
+					if (mouse_x >= 0 && mouse_x <= this.width && mouse_y >= 0 && mouse_y <= this.height)
+					{
+						return; //This happens when the mouse rolls over children
+					}
+					showDragInfo = false;
+				}
+			}
+			
+			protected function widgetmodule1_dragStartHandler( event:DragEvent ):void
+			{
+				handleWidgetDragging(event);
+			}
+			
+			protected function widgetmodule1_dragOverHandler( event:DragEvent ):void
+			{
+				handleWidgetDragging(event);
+			}
+			
+			protected function widgetmodule1_dragEnterHandler( event:DragEvent ):void
+			{
+				handleWidgetDragging(event);
+			}
+			
+			//For some reason dragOver and dragStart can't be the same function. So I did this
+			private function handleWidgetDragging( event:DragEvent ): void
+			{
+				if (showDragInfo == false)
+				{
+					if ( event.dragSource.hasFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) )
+					{
+						var dragObject:WidgetDragObject = event.dragSource.dataForFormat( WidgetDragUtil.WIDGET_DRAG_FORMAT ) as WidgetDragObject;
+
+						if ( (dragObject.entities != null && dragObject.entities.length > 0) || (dragObject.associations != null && dragObject.associations.length > 0) || (dragObject.queryElements != null && dragObject.queryElements.length > 0) )
+						{
+							showDragInfo = true;
+							trace("++++++++++++++++++++++++++++++++ENTITIES++++++++++++++++++++++");
+							trace(JSONEncoder.encode(dragObject.entities));
+							trace("\n\n++++++++++++++++++++++++++++++++ASSOCIATIONS++++++++++++++++++++++");
+							trace(JSONEncoder.encode(dragObject.associations));
+							trace("\n\n++++++++++++++++++++++++++++++++QUERY ELEMENTS++++++++++++++++++++++");
+							trace(JSONEncoder.encode(dragObject.queryElements));
+							trace("\n\n");
+							
+						}
+					}
+				}
+			}
+			
+			private function addDocQueryToKibana():void
+			{		
+				var current_query:Object = _context.getCurrentQuery();
+				if (null != current_query && null != current_query.qt && current_query.qt.length > 0)
+				{
+					queryGen = PopUpManager.createPopUp(this, kibanaQueryGenerator, false) as kibanaQueryGenerator;
+					queryGen.title = "Apply " + current_query.qt.length + " Entities from IKANOW Query";
+					var i:Number;
+					var entities:ArrayCollection = new ArrayCollection();
+					for( i = 0; i < current_query.qt.length; i++ ){
+						var term = current_query.qt[i];
+						entities.addItem(term);
+					}
+					queryGen.entities = entities;
+					queryGen.associations = null;
+					queryGen.jsIFrameKibana = jsIFrameKibana;
+					PopUpManager.centerPopUp(queryGen);
+					queryGen.addEventListener("mouseDownOutside", closeQueryGenerator);
+				}
+				else
+				{
+					Alert.show("Query Does Not Exist. Please add to IKANOW query to continue");
+				}
+				
+				addDocQuery.selected = false;
+
+			}
+			
+			public function widgetmodule1_dragDropHandler(event:DragEvent):void
+			{		
+				showDragInfo = false;
+			}
+			
+			protected function jsIFrameKibana_creationCompleteHandler(event:FlexEvent):void
+			{
+				t = new Timer(5000);
+				t.addEventListener(TimerEvent.TIMER, updateTimer);
+				startTimer();
+			}
+			
+			
+			private var current_sources:String = null;
+			private function updateTimer(event:TimerEvent):void {
+				if (viewCommunityFilter)
+				{
+					var query:Object = _context.getCurrentQuery();						
+					var communityIds = query.communityIds;
+					var sources:String = "";
+					try {
+						sources = query.input.sources;
+					}
+					catch (eee:Error) {}
+					if (!query.input.srcInclude || (sources == "")) {
+						//(negative selection)
+						sources = communityIds + "," + sources;						
+					}
+					
+					if (current_sources != sources)
+					{
+						current_sources = sources;
+						refreshKibana();
+					}
+				}
+				
+			}
+			
+			private function startTimer():void{
+				t.start();
+			}
+			
+			private function stopTimer():void{
+				t.stop();
+			}
+			
+			private function refreshKibana():void{
+				if (null != jsIFrameKibana)
+					jsIFrameKibana.callIFrameFunction('refreshKibana');
+			}
+		]]>
+	</fx:Script>
+	<fx:Declarations>
+		<!--
+		<s:HTTPService id="getCommunityService"
+		result="getCommunityServiceResult(event)"
+		fault="getCommunityServiceFault(event)"/>
+		-->
+	</fx:Declarations>
+	
+	<components:helpContent>
+		<s:VGroup width="100%" height="100%" 
+				  horizontalAlign="center" gap="5" 
+				  paddingTop="5" paddingBottom="5" paddingLeft="10" paddingRight="10" >
+			
+			<s:RichEditableText editable="false" multiline="true" maxWidth="300" >
+				<s:textFlow>
+					<s:TextFlow>
+						<s:p>
+							The Infinit.e V2 Viewer uses elasticsearch's Kibana to view data objects of different types generated by the hybrid V1/V2 capability. Currently this widget does not provide much integration with the other widgets, eg the ability to share queries and results - these will be added as the capability matures.   
+						</s:p>
+					</s:TextFlow>
+				</s:textFlow>
+			</s:RichEditableText>
+		</s:VGroup>
+	</components:helpContent>
+	
+	<!-- Header -->
+	<components:leftHeaderContent>
+		
+		<!-- Try to live without this, save some space
+		<components:WidgetHeaderLabel text="View:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+		-->
+		
+		<components:WidgetToggleButton id="liveToggle"
+									   label="Live"
+										toolTip="View streaming records"
+										selected="{viewLive}"
+										click="switchToLiveToggle(1);" />
+		
+		<components:WidgetToggleButton id="stashedToggle"
+										label="Saved"
+										toolTip="View saved/demonstration record sets"
+										selected="{viewStashed}"
+										click="switchToLiveToggle(0);" />
+		
+		<components:WidgetHeaderLabel text="Bucket Filter:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+		
+		<components:WidgetToggleButton id="filterToggle"
+									   label="OFF"
+									   toolTip="Toggle bucket (source) filtering"
+									   selected="{viewCommunityFilter}"
+									   click="cidFilterToggle();" />
+		
+		<components:WidgetHeaderLabel text="Show:"
+									  height="100%"
+									  styleName="workspacesWidgetHeaderLabel"
+									  paddingLeft="8"
+									  paddingRight="10"
+									  paddingTop="2"
+									  verticalAlign="middle"
+									  maxDisplayedLines="1" />
+
+		<components:WidgetToggleButton id="dataToggle"
+									   label="Data"
+									   toolTip="View data objects"
+									   selected="{viewData}"
+									   click="showDatasetToggle();" />
+		<components:WidgetToggleButton id="testToggle"
+									   label="Tests"
+									   toolTip="View test results"
+									   selected="{viewTests}"
+									   click="showDatasetToggle();" />
+		<components:WidgetToggleButton id="logToggle"
+									   label="Logs"
+									   toolTip="View user logs"
+									   selected="{viewLogs}"
+									   click="showDatasetToggle();" />
+		
+		
+		<components:WidgetToggleButton id="addDocQuery"
+								 label="Pull Query"
+								 toolTip="Pull current document query to Kibana"
+								 click="addDocQueryToKibana();" />
+		
+	</components:leftHeaderContent>
+	
+	<components:InfiniteFlexIFrame id="jsIFrameKibana"
+								   frameLoad="jsIFrameKibana_frameLoadHandler(event)" creationComplete="jsIFrameKibana_creationCompleteHandler(event)"					     
+								   label="JS"
+								   width="100%"
+								   height="100%"
+								   overlayDetection="true"
+								   source="{INITIAL_URL}" />
+	
+	<s:Group visible="{showDragInfo}" width="100%" height="100%">
+		<s:Rect width="100%" height="100%">
+			<s:fill><s:SolidColor color="#242424" /></s:fill>
+		</s:Rect>
+		<s:VGroup id="dragGroup" width="100%" height="100%">
+			<s:Group
+				width="100%"
+				height="100%"
+				y="0" >
+				<s:Rect id = "rect"
+						width="100%"
+						height="100%">
+					<s:fill>
+						<!-- Darker Grey like color  -->
+						<s:SolidColor 
+							color="#DDDDDD" 
+							alpha=".5" />
+					</s:fill>
+				</s:Rect>
+				<s:VGroup id="dragbox"
+						  width="100%"
+						  height="100%"
+						  horizontalAlign="center"
+						  verticalAlign="middle">
+					<s:Group 
+						width="365"
+						height="220">
+						<s:Rect 
+							width="100%"
+							height="100%"
+							bottomLeftRadiusX="7"
+							bottomLeftRadiusY="7"
+							bottomRightRadiusX="7"
+							bottomRightRadiusY="7"
+							topLeftRadiusX="7"
+							topLeftRadiusY="7"
+							topRightRadiusX="7"
+							topRightRadiusY="7">
+							<s:stroke>
+								<s:SolidColorStroke color="#AAAAAA" />
+							</s:stroke>
+							<s:fill>
+								<s:SolidColor color="#CCCCCC" />
+							</s:fill>
+						</s:Rect>
+						<s:VGroup id="insideVbox"
+								  width="100%"
+								  height="100%"
+								  horizontalAlign="center"
+								  paddingBottom="10"
+								  paddingLeft="10"
+								  paddingRight="10"
+								  paddingTop="5"
+								  verticalAlign="middle">
+							<s:Label text="Drop Entities, Associations and/or Query Elements Here"/>
+							<mx:Spacer height="5" />
+						</s:VGroup>
+					</s:Group>
+				</s:VGroup>
+			</s:Group>
+		</s:VGroup>
+	</s:Group>
+	
+	
+	
+</components:WidgetModule>

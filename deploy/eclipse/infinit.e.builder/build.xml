@@ -56,6 +56,7 @@
 	<property name="InfiniteCustomMonitor.location" value="${basedir}/../InfiniteCustomMonitor"/>
 	<property name="InfiniteEntityProfiler.location" value="${basedir}/../InfiniteEntityProfiler"/>
 	<property name="InfiniteKibanaConnector.location" value="${basedir}/../infinit.e.kibana_connector"/>
+	<property name="InfiniteV2KibanaConnector.location" value="${basedir}/../infinit.e.v2_connector"/>
 	
 	<property name="chrome.extension.source-updater.location" value="${basedir}/../chrome.extension.source-updater"/>
 	<property name="infinit.e.records.server.location" value="${basedir}/../infinit.e.records.server"/>
@@ -161,6 +162,9 @@
 		</ant>
 		<ant antfile="${InfiniteKibanaConnector.location}/build/build.xml">
 			<property name="basedir" value="${InfiniteKibanaConnector.location}"/>
+		</ant>
+		<ant antfile="${InfiniteV2KibanaConnector.location}/build/build.xml">
+			<property name="basedir" value="${InfiniteV2KibanaConnector.location}"/>
 		</ant>
 
 		<!-- Non widgets that need to be built after the widget -->

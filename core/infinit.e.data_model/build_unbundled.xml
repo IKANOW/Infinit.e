@@ -15,8 +15,8 @@
 	<!-- ELASTICSEARCH - note these are just the binaries, no source mods here -->
 	<property name="infinit.e.elasticsearch.driver.location" value="../infinit.e.elasticsearch.driver"/>
 	
-	<property name="target" value="1.6"/>
-	<property name="source" value="1.6"/>
+	<property name="target" value="1.8"/>
+	<property name="source" value="1.8"/>
 	
 	<property name="debuglevel" value="source,lines,vars"/>	
 	<property name="test.pattern" value="**/**Test.java" />

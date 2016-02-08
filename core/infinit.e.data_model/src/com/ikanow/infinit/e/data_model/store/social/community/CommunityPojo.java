@@ -24,6 +24,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import org.apache.commons.collections4.map.HashedMap;
 import org.bson.types.ObjectId;
@@ -368,7 +369,7 @@ public class CommunityPojo extends BaseDbPojo
 	 */
 	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup) throws Exception 
 	{
-		addMember(personOrUserGroupId, user, userGroup, false);		
+		addMember(personOrUserGroupId, user, userGroup, false, false);		
 	}
 	
 	
@@ -383,7 +384,7 @@ public class CommunityPojo extends BaseDbPojo
 	 * @param isInvite
 	 * @throws Exception 
 	 */
-	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup, boolean isInvite) throws Exception 
+	public void addMember(ObjectId personOrUserGroupId, PersonPojo user, CommunityPojo userGroup, boolean isInvite, boolean ignoreDatagroupUpdate) throws Exception 
 	{
 		CommunityMemberPojo old_cmp = null;
 		for ( CommunityMemberPojo cmp : this.getMembers() )
@@ -419,11 +420,31 @@ public class CommunityPojo extends BaseDbPojo
 			else
 			{
 				cmp.setUserStatus("active");
-				//if user gets set to active and this is datagroup
-				if ( this.type == CommunityType.data )
-				{
-					//add dg to user/usergroup
-					addDatagroupToUserOrUserGroup(this, user, userGroup);
+				if ( !ignoreDatagroupUpdate ) {
+					//if user gets set to active and this is datagroup
+					if ( this.type == CommunityType.data )
+					{
+						//add dg to user/usergroup
+						addDatagroupToUserOrUserGroup(this, user, userGroup);
+					} else {
+						//is a ug, add user to all dg
+						//1. get all DG that ug is a member of
+						List<CommunityPojo> datagroups = getDatagroupsThatUsergroupIsMemberOf(this._id);
+						//2. add u to all dg					
+						List<Exception> ex = datagroups.stream().map(datagroup-> { 
+							try {
+								addDatagroupToUser(datagroup, user, this._id.toString());
+								return null;
+							} catch (Exception e) {
+								return e;
+							}
+						}).collect(Collectors.toList());
+						//if we had an exceptions while trying to add Dg to u, throw exception
+						for ( Exception e : ex ) {
+							if ( e != null )
+								throw e;
+						}
+					}
 				}
 			}
 
@@ -497,6 +518,13 @@ public class CommunityPojo extends BaseDbPojo
 	
 	
 
+	private List<CommunityPojo> getDatagroupsThatUsergroupIsMemberOf(
+			ObjectId usergroup_id) {
+		final BasicDBObject query = new BasicDBObject(CommunityPojo.members_ + "." + CommunityMemberPojo._id_, usergroup_id);
+		final List<CommunityPojo> ug_comms = CommunityPojo.listFromDb(DbManager.getSocial().getCommunity().find(query), CommunityPojo.listType());
+		return ug_comms.stream().filter(comm->comm.type==CommunityType.data).collect(Collectors.toList());
+	}
+
 	/**
 	 * Adds datagroup and reason to usergroup users or user
 	 * 
@@ -507,48 +535,57 @@ public class CommunityPojo extends BaseDbPojo
 	 */
 	public static void addDatagroupToUserOrUserGroup(CommunityPojo dataGroup,
 			PersonPojo user, CommunityPojo userGroup) throws Exception 
-	{
+	{		
+		if ( user != null ) {
+			//if user is spec'd, just call w/ reason DG
+			addDatagroupToUser(dataGroup, user, dataGroup._id.toString());
+		} else {
+			//if ug is spec'd, call for each member w/ reason UG	
+			List<Exception> ex =userGroup.getMembers().stream().map(member-> {
+				try{
+					addDatagroupToUser(dataGroup, PersonPojo.fromDb( DbManager.getSocial().getPerson().findOne(new BasicDBObject(PersonPojo._id_, member.get_id())), PersonPojo.class), userGroup._id.toString());
+					return null;
+				} catch (Exception e){
+					return e;
+				}
+			}).collect(Collectors.toList());
+			//throw any exc that occured during call
+			for ( Exception e : ex ) {
+				if ( e != null )
+					throw e;
+			}
+		}
+	}
+	
+	public static void addDatagroupToUser(CommunityPojo dataGroup, PersonPojo user, String reason) throws Exception {
 		if ( dataGroup.type == CommunityType.data )
-		{
-			List<PersonPojo> usersToUpdate = new ArrayList<PersonPojo>();
-			if ( user != null )
-				usersToUpdate.add(user);
-			if ( userGroup != null )
-			{
-				for ( CommunityMemberPojo member : userGroup.getMembers() )
-				{
-					PersonPojo person = PersonPojo.fromDb( DbManager.getSocial().getPerson().findOne(new BasicDBObject(PersonPojo._id_, member.get_id())), PersonPojo.class);
-					if ( person != null )
-					{
-						usersToUpdate.add(person);
-					}
-				}			
-			}
+		{		
+			//add datagroup to user.communities			
+			user.addCommunity(dataGroup);
+			//if we are just adding this datagroup as the reason, we don't need to add the user, its already in that process
+			if ( !dataGroup._id.toString().equals(reason) )
+				dataGroup.addMember(user.get_id(), user, null, false, true);
+			DbManager.getSocial().getCommunity().update(new BasicDBObject(CommunityPojo._id_, dataGroup._id), dataGroup.toDb());
+			
+			//add usergroup to user.datagroup_reason
+			Map<String, Set<String>> datagroup_reason = user.getDatagroupReason();
+			if ( datagroup_reason == null )
+				datagroup_reason = new HashedMap<String, Set<String>>();
+			
+			if ( !datagroup_reason.containsKey(dataGroup.getId().toString()) )
+				datagroup_reason.put(dataGroup.getId().toString(), new HashSet<String>());
+			
+//				if ( user != null )
+//					datagroup_reason.get(dataGroup.getId().toString()).add(user.get_id().toString());
+//				//TODO I think there is a bug, if I add a user to a UG, this gets called but only with the user object, and it set dg_reason as the user, but its really you got added to the dg because of the ug and tahts not reflected, we'll see if it breaks when I go fix removeDG
+//				if ( userGroup != null )
+//					datagroup_reason.get(dataGroup.getId().toString()).add(userGroup.getId().toString());
+			datagroup_reason.get(dataGroup.getId().toString()).add(reason);
 			
 			
-			for ( PersonPojo person : usersToUpdate )
-			{
-				//add datagroup to user.communities
-				person.addCommunity(dataGroup);
-				
-				//add usergroup to user.datagroup_reason
-				Map<String, Set<String>> datagroup_reason = person.getDatagroupReason();
-				if ( datagroup_reason == null )
-					datagroup_reason = new HashedMap<String, Set<String>>();
-				
-				if ( !datagroup_reason.containsKey(dataGroup.getId().toString()) )
-					datagroup_reason.put(dataGroup.getId().toString(), new HashSet<String>());
-				
-				if ( user != null )
-					datagroup_reason.get(dataGroup.getId().toString()).add(user.get_id().toString());
-				if ( userGroup != null )
-					datagroup_reason.get(dataGroup.getId().toString()).add(userGroup.getId().toString());
-				
-				
-				person.setDatagroupReason(datagroup_reason);
-				//TODO don't use save, use $set and such
-				DbManager.getSocial().getPerson().update(new BasicDBObject(PersonPojo._id_, person.get_id()), person.toDb());
-			}
+			user.setDatagroupReason(datagroup_reason);
+			//TODO don't use save, use $set and such
+			DbManager.getSocial().getPerson().update(new BasicDBObject(PersonPojo._id_, user.get_id()), user.toDb());			
 		}
 		else
 		{
@@ -572,7 +609,7 @@ public class CommunityPojo extends BaseDbPojo
 			List<PersonPojo> usersToUpdate = new ArrayList<PersonPojo>();
 			if ( userBeingRemoved != null )
 			{
-				reason = userBeingRemoved.get_id();
+				reason = communityLeaving.getId();
 				usersToUpdate.add(userBeingRemoved);
 			}
 			else
@@ -607,6 +644,38 @@ public class CommunityPojo extends BaseDbPojo
 			List<PersonPojo> usersToUpdate = PersonPojo.listFromDb(MongoDbManager.getSocial().getPerson().find(new BasicDBObject(PersonPojo.communities_ + "." + PersonCommunityPojo._id_, communityBeingRemoved.getId())), PersonPojo.listType());
 			removeDatagroupReason(communityBeingRemoved, usersToUpdate, null);
 		}						
+	}
+	
+
+	/**
+	 * Removes the usergroup from any datagroup_reason that list it for this user
+	 * 
+	 * @param usergroupToRemove
+	 */
+	public static void removeDatagroupReason(final String usergroup_id_to_remove, final PersonPojo person) {
+		Map<String, Set<String>> datagroup_reason = person.getDatagroupReason();
+		//loop over each datagroup and remove the usergroup if it is a reason
+		Set<String> keys_to_remove = new HashSet<String>();
+		for ( String key : datagroup_reason.keySet() ) {
+			Set<String> val = datagroup_reason.get(key);
+			if ( val.remove(usergroup_id_to_remove) ) {
+				if (val.isEmpty()) {
+					//removed last reason, get rid of community
+					final CommunityPojo cp = CommunityPojo.fromDb(DbManager.getSocial().getCommunity().findOne(new BasicDBObject(CommunityPojo._id_, new ObjectId(key))), CommunityPojo.class);
+					person.removeCommunity(cp);
+					cp.removeMember(person.get_id());
+					DbManager.getSocial().getCommunity().update(new BasicDBObject(CommunityPojo._id_, new ObjectId(key)), cp.toDb());
+					keys_to_remove.add(key);
+				} else {
+					datagroup_reason.put(key, val);
+				}
+			}
+		}
+		keys_to_remove.stream().forEach(key->datagroup_reason.remove(key));
+		//save back datagroup_reason
+		person.setDatagroupReason(datagroup_reason);
+		//TODO don't use save, use $set and such
+		DbManager.getSocial().getPerson().update(new BasicDBObject(PersonPojo._id_, person.get_id()), person.toDb());
 	}
 	
 	/**

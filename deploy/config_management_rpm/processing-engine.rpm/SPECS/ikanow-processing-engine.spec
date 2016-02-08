@@ -5,7 +5,7 @@ Summary: IKANOW processing (harvesting, enrichment, generic and custom processin
 Name: ikanow-processing-engine
 Version: INFINITE_VERSION
 Release: INFINITE_RELEASE
-Requires: ikanow-config >= v0.5, ikanow-db-instance, ikanow-index-engine >= v0.5
+Requires: ikanow-config >= v0.5, ikanow-db-instance, ikanow-index-engine >= v0.5, fuse, fuse-libs
 License: None
 Group: ikanow
 BuildArch: noarch
@@ -59,6 +59,9 @@ IKANOW  harvesting and cleansing services
 	# Create symlink to hadoop-infinite if it doesn't already exist
 	if [ ! -f /opt/hadoop-infinite ]; then
 		ln -s /mnt/opt/hadoop-infinite /opt/hadoop-infinite
+        # Make the mountpoint for fuse - cannot be part of rpm since it will
+        # cause cpio errors if already mounted
+        mkdir -p /opt/hadoop-fileshare
 	fi
 	
 	# Increase tomcat limits

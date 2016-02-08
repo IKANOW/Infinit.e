@@ -225,6 +225,8 @@ IKANOW index engine using ElasticSearch
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/write_es_yml_files.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/check_es_indices.sh
 %attr(755,elasticsearch,elasticsearch) /mnt/opt/elasticsearch-infinite/scripts/esindexcheck.py
+# SYA-168 Default config
+%config /mnt/opt/elasticsearch-infinite/config/elasticsearch-tmp.yml
 %config /mnt/opt/elasticsearch-infinite/config/elasticsearch.yml.TEMPLATE
 %config /mnt/opt/elasticsearch-infinite/config/logging.yml
 
