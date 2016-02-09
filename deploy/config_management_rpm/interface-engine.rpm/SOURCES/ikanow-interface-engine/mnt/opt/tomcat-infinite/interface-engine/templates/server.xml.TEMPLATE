@@ -70,7 +70,7 @@
     <!--
     __INF_SSL_ENABLED -->           
     
-    <Connector port="8080" protocol="HTTP/1.1" proxyPort="80"
+    <Connector port="8080" protocol="HTTP/1.1"
                maxThreads="200" connectionTimeout="600000" secure="true" 
 				compression="on"
 				compressionMinSize="2048"
@@ -150,7 +150,11 @@
         <Valve className="org.apache.catalina.authenticator.SingleSignOn" />
         -->
 
-        <Valve className="org.apache.catalina.valves.RemoteIpValve"/>
+        <Valve className="org.apache.catalina.valves.RemoteIpValve"
+			remoteIpHeader="x-forwarded-for"
+   			proxiesHeader="x-forwarded-by"
+   			protocolHeader="x-forwarded-proto"
+        />
         	<!-- (allows X-F-F support eg in logging below) -->
             	
         <!-- Access log processes all example.

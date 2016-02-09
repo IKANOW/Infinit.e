@@ -22,7 +22,8 @@
 #LS_USER=logstash
 
 # logstash logging
-#LS_LOG_FILE=/var/log/logstash/logstash-web.log
+#DISABLE LOGGING:
+LS_LOG_FILE=/dev/null
 #LS_USE_GC_LOGGING="true"
 
 # logstash configuration directory

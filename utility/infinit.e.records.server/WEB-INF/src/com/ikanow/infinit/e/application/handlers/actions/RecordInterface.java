@@ -25,6 +25,7 @@ import java.net.URL;
 import java.net.URLEncoder;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -337,7 +338,7 @@ public class RecordInterface extends ServerResource {
 						// This is a negative selector
 						commIdOverrideSet = new HashSet<String>(unknown_type_list.get(true));
 						negativeBucketKeyList = 
-								unknown_type_list.get(false)
+								Optional.ofNullable(unknown_type_list.get(false)).orElse(Collections.emptyList())
 									.stream().map(x -> x.startsWith("/") ? x : (x.endsWith(";") ? x : (x + ";")))
 									.collect(Collectors.toSet())
 									;

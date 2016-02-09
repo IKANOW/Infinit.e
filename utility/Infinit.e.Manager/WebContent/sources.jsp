@@ -50,138 +50,145 @@ limitations under the License.
 
 <%!
 	// 
-	int currentPage = 1;
-	int itemsToShowPerPage = 18;
-	String action = "";
-	String logoutAction = "";
-	String listFilter = "";
-
-	//
-	String shareid = "";
-	String sourceid = "";
-	String sourceShowRss = "style=\"display: none\";";
-	String sourceShowLogstash = "style=\"display: none\";";
-	String sourceOnyShowLogstash = "style=\"display: none\";";	
-	String enableOrDisable = "";
-	String formShareId = "";
-	String shareJson = "";
-	String sourceJson = "";
-	String communityId = "";
-	String shareCreated = "";
-	String shareTitle = "";
-	String shareMediaType = "null";
-	String shareTags = "";
-	String shareDescription = "";
-	String shareType = "";
-	String shareModified = "";
-	String shareOwnerName = "";
-	String shareOwnerEmail = "";
+	static class Session {
+		int currentPage = 1;
+		int itemsToShowPerPage = 18;
+		String action = "";
+		String logoutAction = "";
+		String listFilter = "";
 	
+		//
+		String shareid = "";
+		String sourceid = "";
+		String sourceShowRss = "style=\"display: none\";";
+		String sourceShowLogstash = "style=\"display: none\";";
+		String sourceOnyShowLogstash = "style=\"display: none\";";	
+		String enableOrDisable = "";
+		String formShareId = "";
+		String shareJson = "";
+		String sourceJson = "";
+		String communityId = "";
+		String shareCreated = "";
+		String shareTitle = "";
+		String shareMediaType = "null";
+		String shareTags = "";
+		String shareDescription = "";
+		String shareType = "";
+		String shareModified = "";
+		String shareOwnerName = "";
+		String shareOwnerEmail = "";
+		
+		
+		// !----------  ----------!
+		String harvesterOutput = "";
+		
+		// !----------  ----------!
+		String actionToTake = "";
 	
-	// !----------  ----------!
-	String harvesterOutput = "";
-	
-	// !----------  ----------!
-	String actionToTake = "";
-
-	// !----------  ----------!
-	String sourcePageNo = "0";
-	String sourceTemplateSelect = "";
-	String selectedSourceTemplate = "";
-	String communityIdSelect = "";
-	String mediaTypeSelect = "";
-	String getFullText = "";
-	String getFullTextChecked = "";
-	String getTestUpdateLogic = "";
-	String getTestUpdateLogicChecked = "";
-	String numberOfDocuments = "";
-	
-	boolean pipelineMode = false; // new source pipeline logic
-	boolean enterpriseMode = true; // access to source builder GUI
-	boolean flowBuilderMode = true; // access to flow builder GUI
-	
+		// !----------  ----------!
+		String sourcePageNo = "0";
+		String sourceTemplateSelect = "";
+		String selectedSourceTemplate = "";
+		String communityIdSelect = "";
+		String mediaTypeSelect = "";
+		String getFullText = "";
+		String getFullTextChecked = "";
+		String getTestUpdateLogic = "";
+		String getTestUpdateLogicChecked = "";
+		String numberOfDocuments = "";
+		
+		boolean pipelineMode = false; // new source pipeline logic
+		boolean enterpriseMode = true; // access to source builder GUI
+		boolean flowBuilderMode = true; // access to flow builder GUI
+		boolean bucketBuilderMode = true; // access to "Bucket Builder" UI
+		
+		String messageToDisplay = "";
+	}
 %>
 
 <%
-	messageToDisplay = "";
-	enableOrDisable = (String)request.getAttribute("localized_DisableSource");
+	final Session session = new Session();
+
+	session.messageToDisplay = "";
+	session.enableOrDisable = (String)request.getAttribute("localized_DisableSource");
 	
 	// Check if source builder is installed:
 	String enterpriseBaseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e.source.builder";
-	enterpriseMode = new File(enterpriseBaseDir).exists(); 	
+	session.enterpriseMode = new File(enterpriseBaseDir).exists(); 	
 	String flowBaseDir =  System.getProperty("catalina.base") + "/webapps/infinit.e.flow.builder";
-	flowBuilderMode = new File(flowBaseDir).exists(); 	
-	
+	session.flowBuilderMode = new File(flowBaseDir).exists(); 	
+	String bucketBuilderBaseDir = System.getProperty("catalina.base") + "/webapps/aleph2_bucket_builder";
+	session.bucketBuilderMode = new File(bucketBuilderBaseDir).exists(); 	
 	// 
 	if (isLoggedIn) 
 	{	
 		// Capture value in the left handed table filter field
 		if (request.getParameter("listFilter") != null) 
 		{
-			listFilter = request.getParameter("listFilter");
+			session.listFilter = request.getParameter("listFilter");
 		}
 		else if (request.getParameter("listFilterStr") != null) 
 		{
-			listFilter = request.getParameter("listFilterStr");
+			session.listFilter = request.getParameter("listFilterStr");
 		}
 		else
 		{
-			listFilter = "";
+			session.listFilter = "";
 		}
 		
 		// Determine which action to perform on postback/request
-		action = "";
-		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
-		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
-		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
-		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
-		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
-		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
-		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
-		if (request.getParameter("deleteDocsFromSelected") != null) action = request.getParameter("deleteDocsFromSelected").toLowerCase();
-		if (request.getParameter("suspendSelected") != null) action = request.getParameter("suspendSelected").toLowerCase();
-		if (request.getParameter("resumeSelected") != null) action = request.getParameter("resumeSelected").toLowerCase();
+		session.action = "";
+		if (request.getParameter("action") != null) session.action = request.getParameter("action").toLowerCase();
+		if (request.getParameter("dispatchAction") != null) session.action = request.getParameter("dispatchAction").toLowerCase();
+		if (request.getParameter("clearForm") != null) session.action = request.getParameter("clearForm").toLowerCase();
+		if (request.getParameter("filterList") != null) session.action = request.getParameter("filterList").toLowerCase();
+		if (request.getParameter("clearFilter") != null) session.action = request.getParameter("clearFilter").toLowerCase();
+		if (request.getParameter("logoutButton") != null) session.action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) session.action = request.getParameter("deleteSelected").toLowerCase();
+		if (request.getParameter("deleteDocsFromSelected") != null) session.action = request.getParameter("deleteDocsFromSelected").toLowerCase();
+		if (request.getParameter("suspendSelected") != null) session.action = request.getParameter("suspendSelected").toLowerCase();
+		if (request.getParameter("resumeSelected") != null) session.action = request.getParameter("resumeSelected").toLowerCase();
 		
-		if (request.getParameter("testSource") != null) action = "testSource";
-		if (request.getParameter("saveSource") != null) action = "saveSource";
-		if (request.getParameter("saveSourceAsTemplate") != null) action = "saveSourceAsTemplate";
-		if (request.getParameter("publishSource") != null) action = "publishSource";
-		if (request.getParameter("deleteDocs") != null) action = "deleteDocs";
-		if (request.getParameter("newSource") != null) action = "newSource";
-		if (request.getParameter("revertSource") != null) action = "revertSource";
+		if (request.getParameter("testSource") != null) session.action = "testSource";
+		if (request.getParameter("saveSource") != null) session.action = "saveSource";
+		if (request.getParameter("saveSourceAsTemplate") != null) session.action = "saveSourceAsTemplate";
+		if (request.getParameter("publishSource") != null) session.action = "publishSource";
+		if (request.getParameter("deleteDocs") != null) session.action = "deleteDocs";
+		if (request.getParameter("newSource") != null) session.action = "newSource";
+		if (request.getParameter("revertSource") != null) session.action = "revertSource";
 		
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
 		{
-			currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
+			session.currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
 		}
 		else
 		{
-			currentPage = 1;
+			session.currentPage = 1;
 		}
 		
 		try
 		{
 			// Always clear the form first so there is no bleed over of values from previous requests
-			clearForm();
+			clearForm(session);
 
 			// Read in values from the edit form
-			shareid = (request.getParameter("shareid") != null) ? request.getParameter("shareid") : "";
-			formShareId = (request.getParameter("shareId") != null) ? request.getParameter("shareId") : "";
-			sourceid = (request.getParameter("sourceid") != null) ? request.getParameter("sourceid") : "";
-			communityId = (request.getParameter("Community_ID") != null) ? request.getParameter("Community_ID") : "";
-			shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
-			shareMediaType = (request.getParameter("shareMediaType") != null) ? request.getParameter("shareMediaType") : "";
-			shareTags = (request.getParameter("shareTags") != null) ? request.getParameter("shareTags") : "";
-			shareTitle = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(shareTitle);
-			shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
-			sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
-			selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
-			numberOfDocuments = (request.getParameter("numOfDocs") != null) ? request.getParameter("numOfDocs") : "10";
-			getFullText = (request.getParameter("fullText") != null) ? "true" : "false";
-			getFullTextChecked = (getFullText.equalsIgnoreCase("true")) ? "CHECKED" : "";
-			getTestUpdateLogic = (request.getParameter("testUpdateLogic") != null) ? "true" : "false";
-			getTestUpdateLogicChecked = (getTestUpdateLogic.equalsIgnoreCase("true")) ? "CHECKED" : "";
+			session.shareid = (request.getParameter("shareid") != null) ? request.getParameter("shareid") : "";
+			session.formShareId = (request.getParameter("shareId") != null) ? request.getParameter("shareId") : "";
+			session.sourceid = (request.getParameter("sourceid") != null) ? request.getParameter("sourceid") : "";
+			session.communityId = (request.getParameter("Community_ID") != null) ? request.getParameter("Community_ID") : "";
+			session.shareTitle = (request.getParameter("shareTitle") != null) ? request.getParameter("shareTitle") : "";
+			session.shareMediaType = (request.getParameter("shareMediaType") != null) ? request.getParameter("shareMediaType") : "";
+			session.shareTags = (request.getParameter("shareTags") != null) ? request.getParameter("shareTags") : "";
+			session.shareTitle = org.apache.commons.lang.StringEscapeUtils.unescapeHtml(session.shareTitle);
+			session.shareDescription = (request.getParameter("shareDescription") != null) ? request.getParameter("shareDescription") : "";
+			session.sourceJson = (request.getParameter("Source_JSON") != null) ? request.getParameter("Source_JSON") : "";
+			session.selectedSourceTemplate = (request.getParameter("sourceTemplateSelect") != null) ? request.getParameter("sourceTemplateSelect") : "";
+			session.numberOfDocuments = (request.getParameter("numOfDocs") != null) ? request.getParameter("numOfDocs") : "10";
+			session.getFullText = (request.getParameter("fullText") != null) ? "true" : "false";
+			session.getFullTextChecked = (session.getFullText.equalsIgnoreCase("true")) ? "CHECKED" : "";
+			session.getTestUpdateLogic = (request.getParameter("testUpdateLogic") != null) ? "true" : "false";
+			session.getTestUpdateLogicChecked = (session.getTestUpdateLogic.equalsIgnoreCase("true")) ? "CHECKED" : "";
 			
 			Boolean redirect = false;
 			
@@ -189,60 +196,60 @@ limitations under the License.
 			if (redirect) 
 			{
 				String urlParams = "";
-				if (listFilter.length() > 0) urlParams = "&listFilterStr="+ listFilter;
-				if (currentPage > 1) urlParams += "&page=" + currentPage;
+				if (session.listFilter.length() > 0) urlParams = "&listFilterStr="+ session.listFilter;
+				if (session.currentPage > 1) urlParams += "&page=" + session.currentPage;
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?action=edit&shareid=" 
-					+ shareid + urlParams + "\">");
+					+ session.shareid + urlParams + "\">");
 			}
 			
-			if (action.equals("clearform")) 
+			if (session.action.equals("clearform")) 
 			{
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage + "\">");
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + session.currentPage + "\">");
 			}
-			else if (action.equals("edit")) 
+			else if (session.action.equals("edit")) 
 			{
-				populateEditForm(shareid, request, response);
+				populateEditForm(session.shareid, request, response, session);
 			}
-			else if (action.equals("sharefromsource"))
+			else if (session.action.equals("sharefromsource"))
 			{
 				// Create a new share from the source object
-				String newshareid = createShareFromSource(sourceid, request, response);
+				String newshareid = createShareFromSource(session.sourceid, request, response, session);
 				// redirect user to edit source page
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + currentPage;
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
+				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + session.currentPage;
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?" + urlArgs + "\">");
 			}
-			else if (action.equals("revertSource"))
+			else if (session.action.equals("revertSource"))
 			{				
 				// First delete the existing share:
-				deleteShare(shareid, request, response);
+				deleteShare(session.shareid, request, response, session);
 				
 				// Then Create a new share from the source object
-				String newshareid = createShareFromSource(sourceid, request, response);
+				String newshareid = createShareFromSource(session.sourceid, request, response, session);
 				// redirect user to edit source page
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + currentPage;
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
+				String urlArgs = "action=edit&shareid=" + newshareid + listFilterString + "&page=" + session.currentPage;
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?" + urlArgs + "\">");
 			}
-			else if (action.equals("delete")) 
+			else if (session.action.equals("delete")) 
 			{
-				deleteShare(shareid, request, response);
+				deleteShare(session.shareid, request, response, session);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + session.currentPage + listFilterString + "\">");
 			}
-			else if (action.equals("deletesource")) 
+			else if (session.action.equals("deletesource")) 
 			{
-				deleteSourceObject(sourceid, false, request, response);
+				deleteSourceObject(session.sourceid, false, request, response, session);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + session.currentPage + listFilterString + "\">");
 			}
-			else if (action.equals("deleteselected")) 
+			else if (session.action.equals("deleteselected")) 
 			{
-				saveShare(request, response);
+				saveShare(request, response, session);
 				
 				String[] ids= request.getParameterValues("sourcesToProcess");
 				
@@ -252,30 +259,30 @@ limitations under the License.
 				for (String id: ids) {
 					if (id.startsWith("_")) {
 						id = id.substring(1);
-						if (!deleteSourceObject(id, false, request, response)) {
+						if (!deleteSourceObject(id, false, request, response, session)) {
 							nFailed++;
 						}
 						else nDeletedSources++;						
 					}
 					else {
-						if (!deleteShare(id, request, response)) {
+						if (!deleteShare(id, request, response, session)) {
 							nFailed++;
 						}
 						else nDeletedShares++;						
 					}
 				}
-				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkDeletion"), 
+				session.messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkDeletion"), 
 													(Object)nDeletedSources, (Object)nDeletedShares, (Object)nFailed);
 				
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) {
-					out.print("&listFilterStr=" + listFilter);					
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) {
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if (action.equals("deletedocsfromselected")) 
+			else if (session.action.equals("deletedocsfromselected")) 
 			{
-				saveShare(request, response);
+				saveShare(request, response, session);
 				
 				String[] ids= request.getParameterValues("sourcesToProcess");
 				
@@ -285,7 +292,7 @@ limitations under the License.
 				for (String id: ids) {
 					if (id.startsWith("_")) {
 						id = id.substring(1);
-						if (!deleteSourceObject(id, true, request, response)) {
+						if (!deleteSourceObject(id, true, request, response, session)) {
 							nFailed++;
 						}
 						else nDeletedSources++;						
@@ -294,21 +301,21 @@ limitations under the License.
 						nFailed++;
 					}
 				}
-				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_MixedBulkDeletion"), 
+				session.messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_MixedBulkDeletion"), 
 													(Object)nDeletedSources, (Object)nFailed);
 
 				if (nFailed > 0) {
-					messageToDisplay += " " + (String)request.getAttribute("locale_SourceResult_MixedBulkDeletionFail");
+					session.messageToDisplay += " " + (String)request.getAttribute("locale_SourceResult_MixedBulkDeletionFail");
 				}				
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) {
-					out.print("&listFilterStr=" + listFilter);					
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) {
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if ( action.equals("suspendselected"))
+			else if ( session.action.equals("suspendselected"))
 			{
-				saveShare(request, response);
+				saveShare(request, response, session);
 				
 				int num_suspended = 0;
 				int num_failed = 0;
@@ -318,29 +325,29 @@ limitations under the License.
 				{					
 					for (String id: ids) 
 					{
-						id = getSourceId(id, request, response);
+						id = getSourceId(id, request, response, session);
 						if ( id != null )
 						{
-							if (!suspendSourceObject(id, true, request, response)) 
+							if (!suspendSourceObject(id, true, request, response, session)) 
 								num_failed++;
 							else 
 								num_suspended++;
 						}												
 					}
 				}				
-				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkSuspend"), 
+				session.messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkSuspend"), 
 													 (Object)num_suspended, (Object)num_failed);
 				
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) 
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) 
 				{
-					out.print("&listFilterStr=" + listFilter);					
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if ( action.equals("resumeselected"))
+			else if ( session.action.equals("resumeselected"))
 			{
-				saveShare(request, response);
+				saveShare(request, response, session);
 				
 				int num_suspended = 0;
 				int num_failed = 0;
@@ -350,90 +357,90 @@ limitations under the License.
 				{
 					for (String id: ids) 
 					{
-						id = getSourceId(id, request, response);
+						id = getSourceId(id, request, response, session);
 						if ( id != null )
 						{
-							if (!suspendSourceObject(id, false, request, response)) 
+							if (!suspendSourceObject(id, false, request, response, session)) 
 								num_failed++;
 							else 
 								num_suspended++;
 						}										
 					}
 				}				
-				messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkResume"), 
+				session.messageToDisplay = String.format((String)request.getAttribute("locale_SourceResult_SourceBulkResume"), 
 													 (Object)num_suspended, (Object)num_failed);
 				
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) 
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) 
 				{
-					out.print("&listFilterStr=" + listFilter);					
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if (action.equals("filterlist")) 
+			else if (session.action.equals("filterlist")) 
 			{
-				saveShare(request, response);
-				currentPage = 1;
-				populateEditForm(shareid, request, response);
+				saveShare(request, response, session);
+				session.currentPage = 1;
+				populateEditForm(session.shareid, request, response, session);
 			}
-			else if (action.equals("clearfilter")) 
+			else if (session.action.equals("clearfilter")) 
 			{
-				saveShare(request, response);
-				currentPage = 1;
-				listFilter = "";
-				populateEditForm(shareid, request, response);
+				saveShare(request, response, session);
+				session.currentPage = 1;
+				session.listFilter = "";
+				populateEditForm(session.shareid, request, response, session);
 			}
-			else if (action.equals("saveSource")) 
+			else if (session.action.equals("saveSource")) 
 			{
-				saveShare(request, response);
-				populateEditForm(shareid, request, response);
+				saveShare(request, response, session);
+				populateEditForm(session.shareid, request, response, session);
 			}
-			else if (action.equals("saveSourceAsTemplate")) 
+			else if (session.action.equals("saveSourceAsTemplate")) 
 			{
-				saveShare(request, response);
-				saveShareAsTemplate(request, response);
-				populateEditForm(shareid, request, response);
+				saveShare(request, response, session);
+				saveShareAsTemplate(request, response, session);
+				populateEditForm(session.shareid, request, response, session);
 			}
-			else if (action.equals("publishSource")) 
+			else if (session.action.equals("publishSource")) 
 			{
-				saveShare(request, response); // (save even though about to delete it...because if the pub fails i can restore)
-				boolean published = publishSource(request, response);
+				saveShare(request, response, session); // (save even though about to delete it...because if the pub fails i can restore)
+				boolean published = publishSource(request, response, session);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
 				if (published) {
-					out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + currentPage + listFilterString + "\">");
+					out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp" + "?page=" + session.currentPage + listFilterString + "\">");
 				}
 				else {
-					populateEditForm(shareid, request, response);
+					populateEditForm(session.shareid, request, response, session);
 				}
 			}
-			else if (action.equals("deleteDocs")) 
+			else if (session.action.equals("deleteDocs")) 
 			{
-				saveShare(request, response);
-				deleteSourceObject(sourceid, true, request, response);
+				saveShare(request, response, session);
+				deleteSourceObject(session.sourceid, true, request, response, session);
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?action=edit&shareid=" + shareid + "&page=" + currentPage + listFilterString + "\">");
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=sources.jsp?action=edit&shareid=" + session.shareid + "&page=" + session.currentPage + listFilterString + "\">");
 			}
-			else if (action.equals("newSource")) 
+			else if (session.action.equals("newSource")) 
 			{
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=newsource.jsp\">");
 			}
-			else if (action.equals("testSource")) 
+			else if (session.action.equals("testSource")) 
 			{
-				testSource(request, response);
+				testSource(request, response, session);
 			}
-			else if (action.equals("logout")) 
+			else if (session.action.equals("logout")) 
 			{
 				logOut(request, response);
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
 			}
 			else {
-				populateEditForm(shareid, request, response);				
+				populateEditForm(session.shareid, request, response, session);				
 			}
 			
-			createCommunityIdSelect(request, response);
-			mediaTypeSelect = createMediaTypeSelect(request);
+			createCommunityIdSelect(request, response, session);
+			session.mediaTypeSelect = createMediaTypeSelect(request, session);
 		}
 		catch (Exception e)
 		{
@@ -1078,6 +1085,160 @@ function clock()
 			$(sourceBuilder).css("width", "90%");
 			$(sourceBuilder).css("height", "90%");
 		}
+		// bucket builder
+		function showBucketBuilder() 
+		{
+			try {
+				// Check overall JSON format is OK first
+				if (!checkFormat(false)) {
+					return;
+				}
+				
+				// Convert source JSON text into JSON
+				var srcObj = eval('(' + sourceJsonEditor.getValue() + ')');
+				
+				// CHECK FOR A COMMON USE CASE - ACCIDENTALLY CLICK ON A NON FLOW SOURCE
+				if ((null == srcObj.templateProcessingFlow) && (null != srcObj.processingPipeline) && (srcObj.processingPipeline.length > 0))
+				{
+					if (!confirm("This source doesn't not appear to be card-based - continuing will delete your existing source logic. To continue, select 'OK'. Select 'CANCEL' to edit the source from the editor or source builder UI.")) {
+						return;
+					}
+				}								
+				
+				//only checks if source works as it was before. Does not check the correctness of the 
+				//flowbuilder source object.
+				var errMsg = checkSourceCompatibleWithSourceBuilder(srcObj);
+				if (null != errMsg) {
+					alert(errMsg);
+					return;
+				}
+				
+				// Set up parent variables:
+				window.aleph2_json_builder__root_element = (srcObj.extractType != "V2DataBucket" ? "Source" : "Bucket");
+				window.aleph2_json_builder__generated_input_obj = 
+					srcObj.extractType != "V2DataBucket" 
+					?
+					{ "processingPipeline": [] } 
+					:
+					{ "processingPipeline": [{ "data_bucket": {} }] } 
+
+				window.aleph2_json_builder__get_input_root_fn = 
+					srcObj.extractType != "V2DataBucket" 
+					?					
+					function(input) { return input.processingPipeline; }
+					:
+					function(input) { return input.processingPipeline[0].data_bucket; }
+				
+				window.aleph2_json_builder__config_input_obj = srcObj.templateProcessingFlow;
+				
+				window.aleph2_json_builder__template_url = "/api/social/share/search?type=aleph2-bucket-template";
+
+                window.aleph2_json_builder__template_conversion_fn = function(input) {
+                    // (ok this is a bit complicated because of the lack of map in JS)
+                    var output = [];
+                    if (null != input.data) {
+                        for (i in input.data) {
+                            var el = input.data[i];
+                            if (null != el.share) {
+                                try {
+                                    var el_obj = JSON.parse(el.share);
+                                    if (Array.isArray(el_obj)) {
+                                        for (j in el_obj) output.push(el_obj[j]);
+                                    }
+                                    else if (el_obj.templates) {
+                                        for (j in el_obj.templates) output.push(el_obj.templates[j]);
+                                    }
+                                    else {
+                                        output.push(el_obj);
+                                    }
+                                }
+                                catch (e) {
+                                    console.log(e.message);
+                                }
+                            }
+                        }
+                    }
+                    return output;
+				}
+				
+				//DEBUG
+//				window.aleph2_json_builder__template_url = "/aleph2_bucket_builder/assets/json/sample_templates.json";
+//				window.aleph2_json_builder__template_conversion_fn = function(input) { return input.ret_val; } 
+
+				
+				window.aleph2_json_builder__config_output_str  = "{}";
+				window.aleph2_json_builder__generated_output_str = "{}";
+				
+				// Resize
+
+				$(bucketBuilder).css("width", "98%");
+				$(bucketBuilder).css("height", "95%");
+
+				// Reload
+				
+				document.getElementById('bucketbuilderInfinitIframe').contentWindow.location.reload(true)
+				
+				// Show
+				
+				$(bucketBuilder).css("z-index", "1000");
+				$(bucketBuilder_overlay).show();
+				$('#bucketbuilderIframeClose').show();
+				$(bucketBuilder).show();
+				
+			}
+			catch (e) {
+				alert(e.message);
+			}
+		}
+		function hideBucketBuilder()
+		{
+			if (!checkFormat(false)) {
+				return;
+			}
+			try {
+				//Grab iframe for flowbuilder
+				fbWindow = document.getElementById('bucketbuilderInfinitIframe').contentWindow; 
+
+				/* SHOULD PORT THIS OVER TO BB
+				var errors = fbWindow.fbDataFlowObj.graphErrors;
+				if(errors !== ""){
+					if (!window.confirm("The following errors have been found:\n\n"+errors+"\n\n Do you wish to return to editor anyways? Flow source will not be saved.")) { 
+						  return
+					}
+				}else */
+				{
+					//alert("No flow errors found");
+				
+					var srcObj  = JSON.parse(fbWindow.aleph2_json_builder__generated_output_str);
+					var flowObj = JSON.parse(fbWindow.aleph2_json_builder__config_output_str);
+					
+					flowObj.start_pos = fbWindow.aleph2_json_builder__output_start_pos;
+					srcObj.templateProcessingFlow = flowObj;
+					
+					// Copy fields into original src
+					var oldSrcObj = JSON.parse(sourceJsonEditor.getValue());
+					oldSrcObj.processingPipeline = []; //(should get overwritten)
+					for (x in srcObj) {
+						oldSrcObj[x] = srcObj[x]
+					}
+					sourceJsonEditor.setValue(JSON.stringify(oldSrcObj, null, "    "));
+				}
+			}
+			catch (err) {
+				if (!confirm('Error reading GUI config - click OK to continue back to the source editor (WILL LOSE YOUR CHANGES)'))
+				{
+					return;
+				}
+			}		
+			
+			
+			$('#bucketbuilderIframeClose').hide();
+			$(bucketBuilder).css("width", "0%");
+			$(bucketBuilder).css("height", "0%");
+			$(bucketBuilder).hide();
+			$(bucketBuilder_overlay).hide();
+		}
+		
 		// flowbuilder
 		function showFlowBuilder()		
 		{
@@ -1146,28 +1307,28 @@ function clock()
 
 <%
 	// !-- Create JavaScript Popup --
-	if ((messageToDisplay.length() > 0) && 
-			(action.equalsIgnoreCase("deleteDocs") || action.equalsIgnoreCase("publishSource") || action.equalsIgnoreCase("saveSourceAsTemplate") 
-					|| action.equalsIgnoreCase("delete") || action.equalsIgnoreCase("deletesource")
-					|| action.equalsIgnoreCase("deleteSelected") || action.equalsIgnoreCase("deletedocsfromselected")
-					|| action.equalsIgnoreCase("suspendSelected") || action.equalsIgnoreCase("resumeSelected")
+	if ((session.messageToDisplay.length() > 0) && 
+			(session.action.equalsIgnoreCase("deleteDocs") || session.action.equalsIgnoreCase("publishSource") || session.action.equalsIgnoreCase("saveSourceAsTemplate") 
+					|| session.action.equalsIgnoreCase("delete") || session.action.equalsIgnoreCase("deletesource")
+					|| session.action.equalsIgnoreCase("deleteSelected") || session.action.equalsIgnoreCase("deletedocsfromselected")
+					|| session.action.equalsIgnoreCase("suspendSelected") || session.action.equalsIgnoreCase("resumeSelected")
 					))
 	{ 
 %>
 	<script language="javascript" type="text/javascript">
-		alert('<%=messageToDisplay.replace("'", "\\'").replaceAll("[\n\r]", " ") %>');
+		alert('<%=session.messageToDisplay.replace("'", "\\'").replaceAll("[\n\r]", " ") %>');
 	</script>
 <% } %>
 
 
 <% 
 	//!-- Open new window to show source test results --
-	if (harvesterOutput.length() > 0) 
+	if (session.harvesterOutput.length() > 0) 
 	{
-		String messageToOutput = URLEncoder.encode(messageToDisplay, "UTF-8");
-		String output = URLEncoder.encode(harvesterOutput, "UTF-8");
-		harvesterOutput = "";
-		messageToDisplay = "";
+		String messageToOutput = URLEncoder.encode(session.messageToDisplay, "UTF-8");
+		String output = URLEncoder.encode(session.harvesterOutput, "UTF-8");
+		session.harvesterOutput = "";
+		session.messageToDisplay = "";
 %>
 	<script language="javascript" type="text/javascript">
 		openTestSourceWindow("<fmt:message key='source.result.test.title'/>", '<%=messageToOutput %>', '<%=output %>', "<fmt:message key='source.editor.popups_blocked'/>");
@@ -1196,11 +1357,11 @@ function clock()
 				<td align="right"><input type="text" id="listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="20" value="<%=listFilter %>"/><button name="filterList" 
+					name="listFilter" size="20" value="<%=session.listFilter %>"/><button name="filterList" 
 					value="filterList"><fmt:message key='source.list.action.filter'/></button><button name="clearFilter" value="clearFilter"><fmt:message key='source.list.action.clear'/></button></td>
 			</tr>
 			<tr>
-				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
+				<td colspan="2" bgcolor="white"><%=listItems(request, response, session) %></td>
 			</tr>
 			<tr>
 				<td colspan="2" >
@@ -1224,14 +1385,14 @@ function clock()
 					<div id="tbSplitter">
 					<div id="Top" class="Pane">
 					<table class="standardSubTable" cellpadding="3" cellspacing="1" width="100%" >
-<% if (!shareid.equalsIgnoreCase("")) { %>
+<% if (!session.shareid.equalsIgnoreCase("")) { %>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.functions.title'/></td>
 							<td bgcolor="white" width="70%" colspan="2">
 
 								<input type="button" 
 									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false)) invertEnabledOrDisabled();" 
-									id="enableOrDisable" value="<%= enableOrDisable %>" />
+									id="enableOrDisable" value="<%= session.enableOrDisable %>" />
 								<button name="testSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="testSource"><fmt:message key='source.editor.action.test_source'/></button>
 								<button name="saveSource" onclick="switchToEditor(sourceJsonEditor, false); return checkFormat(false)" value="saveSource"><fmt:message key='source.editor.action.save_source'/></button>
 								<button name="saveSourceAsTemplate" onclick="switchToEditor(sourceJsonEditor, false); return removeStatusFields()" value="saveSourceAsTemplate"><fmt:message key='source.editor.action.save_template'/></button>
@@ -1240,7 +1401,7 @@ function clock()
 									onclick="switchToEditor(sourceJsonEditor, false); if (checkFormat(false) && confirm('<fmt:message key='source.editor.action.publish_source.confirm'/>'))  return true; return false;"
 -									><fmt:message key='source.editor.action.publish_source'/></button>
 									
-<% if ((null != sourceid) && !sourceid.equalsIgnoreCase("")) { %>
+<% if ((null != session.sourceid) && !session.sourceid.equalsIgnoreCase("")) { %>
 								<button name="deleteDocs" value="deleteDocs" 
 									onclick="switchToEditor(sourceJsonEditor, false); if (confirm('<fmt:message key='source.editor.action.delete_docs.confirm'/>')) return true; return false;"
 									><fmt:message key='source.editor.action.delete_docs'/></button>
@@ -1251,50 +1412,50 @@ function clock()
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.title.title'/></td>
 							<td bgcolor="white" width="70%"  colspan="2">
-								<input type="text" id="shareTitle" name="shareTitle" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTitle)%>" size="60" />
+								<input type="text" id="shareTitle" name="shareTitle" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(session.shareTitle)%>" size="60" />
 							</td>		
 						</tr>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.share_id.title'/></td>
 							<td bgcolor="white" width="70%"  colspan="2">
-								<input type="text" id="shareId" name="shareId" value="<%=shareid%>" size="35" READONLY />
+								<input type="text" id="shareId" name="shareId" value="<%=session.shareid%>" size="35" READONLY />
 							</td>		
 						</tr>
 						<tr valign="top">
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.description.title'/></td>
 							<td bgcolor="white" width="70%"  colspan="2">
-								<textarea cols="45" rows="3" id="shareDescription" name="shareDescription"><%=shareDescription%></textarea>
+								<textarea cols="45" rows="3" id="shareDescription" name="shareDescription"><%=session.shareDescription%></textarea>
 							</td>		
 						</tr>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.tags.title'/></td>
 							
 							<td bgcolor="white" width="28%">
-								<input type="text" id="shareTags" name="shareTags" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(shareTags)%>" size="60" />
+								<input type="text" id="shareTags" name="shareTags" value="<%=org.apache.commons.lang.StringEscapeUtils.escapeHtml(session.shareTags)%>" size="60" />
 							</td>
 							
 							<td bgcolor="white" width="42%" align="left">
 								<fmt:message key='source.editor.mediaType.title'/>
 								<select id="shareMediaType" name="shareMediaType">
-									<%= mediaTypeSelect %>
+									<%= session.mediaTypeSelect %>
 								</select>
 							</td>									
 						</tr>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.owner.title'/></td>
-							<td bgcolor="white" width="70%" colspan="2"><%=shareOwnerName%> - <%=shareOwnerEmail%></td>		
+							<td bgcolor="white" width="70%" colspan="2"><%=session.shareOwnerName%> - <%=session.shareOwnerEmail%></td>		
 						</tr>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.community.title'/></td>
-							<td bgcolor="white" width="70%" colspan="2"><%=communityIdSelect%></td>		
+							<td bgcolor="white" width="70%" colspan="2"><%=session.communityIdSelect%></td>		
 						</tr>
 						<tr>
 							<td bgcolor="white" width="30%"><fmt:message key='source.editor.test_parameters.title'/></td>
 							<td bgcolor="white" width="70%" style="height:21px" colspan="2">
-								<fmt:message key='source.editor.params.full_text'/> <input type="checkbox" name="fullText" value="true" <%=getFullTextChecked %>/>
-								<fmt:message key='source.editor.params.num_docs'/> <input type="text" id="numOfDocs" name="numOfDocs" value="<%=numberOfDocuments %>"
+								<fmt:message key='source.editor.params.full_text'/> <input type="checkbox" name="fullText" value="true" <%=session.getFullTextChecked %>/>
+								<fmt:message key='source.editor.params.num_docs'/> <input type="text" id="numOfDocs" name="numOfDocs" value="<%=session.numberOfDocuments %>"
 									size="3" title="Maximum of 100" />
-								<fmt:message key='source.editor.params.update_mode'/> <input type="checkbox" name="testUpdateLogic" value="true" <%=getTestUpdateLogicChecked %>/>							
+								<fmt:message key='source.editor.params.update_mode'/> <input type="checkbox" name="testUpdateLogic" value="true" <%=session.getTestUpdateLogicChecked %>/>							
 							</td>		
 						</tr>
 					</table>
@@ -1303,14 +1464,14 @@ function clock()
 						<input type="button" title="<fmt:message key='source.code.show_full_source.tooltip'/>" style="font-weight:bold" onclick="switchToEditor(sourceJsonEditor)" id="toJson" value="JSON" />
 <%
 						// If in pipelineMode 
-						if (pipelineMode)
+						if (session.pipelineMode)
 						{
 %>
-						<input type="button" title="<fmt:message key='source.code.show_js.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJs" value="JS" <%=sourceOnyShowLogstash %> />
-						<input type="button" title="<fmt:message key='source.code.show_logstash.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_logstash)" id="toJsLog" value="LS" <%=sourceShowLogstash%> />
+						<input type="button" title="<fmt:message key='source.code.show_js.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJs" value="JS" <%=session.sourceOnyShowLogstash %> />
+						<input type="button" title="<fmt:message key='source.code.show_logstash.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_logstash)" id="toJsLog" value="LS" <%=session.sourceShowLogstash%> />
 <%
 						// If in pipelineMode 
-						if (enterpriseMode)
+						if (session.enterpriseMode)
 						{
 %>
 						<input type="button" title="<fmt:message key='source.code.show_ui.tooltip'/>" onclick="showSourceBuilder()" id="toUI" value="SRC UI"/>
@@ -1318,27 +1479,34 @@ function clock()
 <% } else { %>
 						<input type="button" title="<fmt:message key='source.code.show_uah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_uah)" id="toJsU" value="JS-U" />
 						<input type="button" title="<fmt:message key='source.code.show_sah.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_sah)" id="toJsS" value="JS-S" />
-						<input type="button" title="<fmt:message key='source.code.show_rss.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_rss)" id="toJsRss" value="JS-RSS" <%=sourceShowRss%> />
+						<input type="button" title="<fmt:message key='source.code.show_rss.tooltip'/>" onclick="switchToEditor(sourceJsonEditor_rss)" id="toJsRss" value="JS-RSS" <%=session.sourceShowRss%> />
 <% } // (end pipelineMode) %>
 <%
 						// If in flowBuilderMode 
-						if (flowBuilderMode)
+						if (session.flowBuilderMode)
 						{
 %>
 						<input type="button" title="<fmt:message key='source.code.show_flowbuilder.tooltip'/>" onclick="showFlowBuilder()" id="flowbuilderUI" value="FLOW UI" />
 <% } // (end flowBuilderMode) %>
+
+<%
+						if (session.bucketBuilderMode)
+						{
+%>
+						<input type="button" title="<fmt:message key='source.code.show_bucketbuilder.tooltip'/>" onclick="showBucketBuilder()" id="bucketbuilderUI" value="CARD UI" />
+<% } // (end bucketBuilderMode) %>
 						
 						<input type="submit" class="rightButton" name="revertSource" value="<fmt:message key='source.code.action.revert'/>" onclick="return confirm('<fmt:message key='source.code.action.revert.confirm'/>');" value="revertSource"/>				
 						<input type="button" onclick="checkFormat(true)" value="<fmt:message key='source.code.action.check_format'/>" class="rightButton" />
 						<input type="button" title="<fmt:message key='source.code.action.scrub.tooltip'/>" onclick="removeStatusFields()" value="<fmt:message key='source.code.action.scrub'/>" class="rightButton" />
 <%
 						// If in pipelineMode 
-						if (!pipelineMode)
+						if (!session.pipelineMode)
 						{
 %>
 						<input type="button" title="<fmt:message key='source.code.action.convert.tooltip'/>" onclick="if (confirm('<fmt:message key='source.code.action.convert.confirm'/>')) convertOldSource();" value="<fmt:message key='source.code.action.convert'/>" class="rightButton" />
 <% } // (end !pipelineMode) %>
-						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=sourceJson%></textarea>
+						<textarea cols="90" rows="25" id="Source_JSON" name="Source_JSON"><%=session.sourceJson%></textarea>
 						<textarea id="Source_JSON_uahScript" name="Source_JSON_uahScript"></textarea>
 						<textarea id="Source_JSON_sahScript" name="Source_JSON_sahScript"></textarea>
 						<textarea id="Source_JSON_rssScript" name="Source_JSON_rssScript"></textarea>
@@ -1350,7 +1518,7 @@ function clock()
 			</table>
 		</div><!--  Right -->
 	</div><!-- lrSplitter -->
-	<input type="hidden" name="sourceid" id="sourceid" value="<%=sourceid%>"/>
+	<input type="hidden" name="sourceid" id="sourceid" value="<%=session.sourceid%>"/>
 	
 	<%@ include file="inc/footer.jsp" %>
 
@@ -1421,7 +1589,7 @@ function clock()
 
 <%
 	// If in pipelineMode and enterpriseMode
-	if (pipelineMode && enterpriseMode)
+	if (session.pipelineMode && session.enterpriseMode)
 	{
 %>
 	<div id="sourceBuilder_overlay" 
@@ -1436,7 +1604,7 @@ function clock()
 <% } %>
 <%
 	// If in flowBuilderMode
-	if (flowBuilderMode)
+	if (session.flowBuilderMode)
 	{
 %>
 	<!-- Location of this Div to be moved in order to facilitate user access restrictions -->
@@ -1451,6 +1619,23 @@ function clock()
 		<iframe id="flowbuilderInfinitIframe" src="/infinit.e.flow.builder/" style="width: 100%; height: 100%;"></iframe> <!-- dev -->
 	</div>
 <% } %>
+<%
+	// If in bucketBuilderMode
+	if (session.bucketBuilderMode)
+	{
+%>
+	<!-- Location of this Div to be moved in order to facilitate user access restrictions -->
+	<div id="bucketBuilder_overlay" 
+			style="width: 100%; height: 100%; position:absolute; top: 0px; left: 0px; z-index: 999; opacity: .5; background-color: Black; display: none;"
+			onclick="hideBucketBuilder()"
+			>
+	</div>
+	<div id="bucketBuilder" style="width: 10px; height: 10px; position:absolute; top: 10px; left: 10px; right: 10px; right: 10px; z-index: -1; ">
+		<!-- Bucketbuilder webapp location to be moved from localhost -->
+		<a class="bucketbuilderIframeClose" id="bucketbuilderIframeClose" onclick="hideBucketBuilder()" style="color:white">Return to Editor</a>
+		<iframe id="bucketbuilderInfinitIframe" src="/aleph2_bucket_builder/assets/html/embed_index.html#/home" style="width: 100%; height: 100%;"></iframe> <!-- dev -->
+	</div>
+<% } %>
 
 </body>
 </html>
@@ -1459,17 +1644,17 @@ function clock()
 <%!
 
 // saveShare - 
-private void saveShare(HttpServletRequest request, HttpServletResponse response) 
+private void saveShare(HttpServletRequest request, HttpServletResponse response, Session session) 
 {
 	// (exceptions out nicely if called without a valid share, ie from filter when nothing is selected)
 	
 	try 
 	{
-		String oldId = formShareId;
+		String oldId = session.formShareId;
 		
 		String apiAddress = "";
-		String urlShareTitle = URLEncoder.encode(shareTitle.trim(), "UTF-8");
-		String urlShareDescription = URLEncoder.encode(shareDescription.trim(), "UTF-8");
+		String urlShareTitle = URLEncoder.encode(session.shareTitle.trim(), "UTF-8");
+		String urlShareDescription = URLEncoder.encode(session.shareDescription.trim(), "UTF-8");
 		
 		if (oldId != null)
 		{
@@ -1481,44 +1666,44 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 		}
 		
 		//
-		JSONObject source = new JSONObject(sourceJson);
+		JSONObject source = new JSONObject(session.sourceJson);
 		source.remove("title");
-		source.put("title", shareTitle.trim());
+		source.put("title", session.shareTitle.trim());
 		source.remove("tags");
-		String trimmedShareTags = shareTags.trim();
+		String trimmedShareTags = session.shareTags.trim();
 		if (!trimmedShareTags.isEmpty())
 			source.put("tags", new JSONArray(trimmedShareTags.split("(?:\\s*,\\s*|\\s+)")));
 		source.remove("description");
-		source.put("description", shareDescription.trim());
-		if (!shareMediaType.equalsIgnoreCase("null")) {
-			source.put("mediaType", shareMediaType);
+		source.put("description", session.shareDescription.trim());
+		if (!session.shareMediaType.equalsIgnoreCase("null")) {
+			source.put("mediaType", session.shareMediaType);
 		}
 		
 		// CommunityID Array - Delete and replace with id from community id dropdown list
-		if (communityId.length() > 0)
+		if (session.communityId.length() > 0)
 		{
 			source.remove("communityIds");
 			JSONArray communityIds = new JSONArray();
-			communityIds.put(communityId);
+			communityIds.put(session.communityId);
 			source.put("communityIds", communityIds);
 		} //TESTED
-		sourceJson = source.toString(4);
+		session.sourceJson = source.toString(4);
 
 		// Post the update to our rest API and check the results of the post
-		JSONObject json_response = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response)).getJSONObject("response");
+		JSONObject json_response = new JSONObject(postToRestfulApi(apiAddress, session.sourceJson, request, response)).getJSONObject("response");
 		
 		if (json_response.getString("success").equalsIgnoreCase("true")) 
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + json_response.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + json_response.getString("message");
 		}
 		else
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + json_response.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + json_response.getString("message");
 		}
 	} 
 	catch (Exception e) 
 	{
-		messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+		session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 	}
 } // TESTED
 
@@ -1526,64 +1711,64 @@ private void saveShare(HttpServletRequest request, HttpServletResponse response)
 // publishSource - 
 // 1. Add/update ingest.source object
 // 2. Delete the share object, shazam
-private boolean publishSource(HttpServletRequest request, HttpServletResponse response) 
+private boolean publishSource(HttpServletRequest request, HttpServletResponse response, Session session) 
 {
 	try 
 	{
-		JSONObject source = new JSONObject(sourceJson);
+		JSONObject source = new JSONObject(session.sourceJson);
 		source.remove("title");
-		source.put("title", shareTitle.trim());
-		source.put("tags", shareTags.split("(?:\\s*,\\s*|\\s+)"));
-		if (!shareMediaType.equalsIgnoreCase("null")) {
-			source.put("mediaType", shareMediaType);
+		source.put("title", session.shareTitle.trim());
+		source.put("tags", session.shareTags.split("(?:\\s*,\\s*|\\s+)"));
+		if (!session.shareMediaType.equalsIgnoreCase("null")) {
+			source.put("mediaType", session.shareMediaType);
 		}
 		source.remove("description");
-		source.put("description", shareDescription.trim());
+		source.put("description", session.shareDescription.trim());
 		// CommunityID Array - Delete and replace with id from community id dropdown list
-		if (communityId.length() > 0)
+		if (session.communityId.length() > 0)
 		{
 			source.remove("communityIds");
 			JSONArray communityIds = new JSONArray();
-			communityIds.put(communityId);
+			communityIds.put(session.communityId);
 			source.put("communityIds", communityIds);
 		} //TESTED
 		// Always remove from quarantine:
 		source.put("harvestBadSource", false);
-		sourceJson = source.toString(4);
+		session.sourceJson = source.toString(4);
 		
-		String sourceApiString = "config/source/save/" + communityId;
+		String sourceApiString = "config/source/save/" + session.communityId;
 		
 		// Post the update to our rest API and check the results of the post
-		JSONObject result = new JSONObject(postToRestfulApi(sourceApiString, sourceJson, request, response));
+		JSONObject result = new JSONObject(postToRestfulApi(sourceApiString, session.sourceJson, request, response));
 		JSONObject JSONresponse = result.getJSONObject("response");
 		
 		if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
 			// Delete the share object - shareId
-			String apiAddress = "social/share/remove/" + shareid;
+			String apiAddress = "social/share/remove/" + session.shareid;
 
 			// Post the update to our rest API and check the results of the post
 			JSONObject shareResponse = new JSONObject(callRestfulApi(apiAddress, request, response)).getJSONObject("response");
 			if (shareResponse.getString("success").equalsIgnoreCase("true")) 
 			{
-				messageToDisplay += " (" + shareResponse.getString("message") + ")";
+				session.messageToDisplay += " (" + shareResponse.getString("message") + ")";
 			}
 			else
 			{
-				messageToDisplay += " (" + shareResponse.getString("message") + ")";
+				session.messageToDisplay += " (" + shareResponse.getString("message") + ")";
 			}
 			return true;
 		}
 		else
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
 			return false;
 		}
 	} 
 	catch (Exception e) 
 	{
-		messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+		session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 		return false;
 	}
 } // 
@@ -1591,18 +1776,18 @@ private boolean publishSource(HttpServletRequest request, HttpServletResponse re
 
 
 // saveSourceAsTemplate - 
-private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse response) 
+private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse response, Session session) 
 {
 	try 
 	{
-		JSONObject source = new JSONObject(sourceJson);
+		JSONObject source = new JSONObject(session.sourceJson);
 		source.remove("title");
-		source.put("title", shareTitle.trim());
-		source.put("tags", shareTags.split("(?:\\s*,\\s*|\\s+)"));
+		source.put("title", session.shareTitle.trim());
+		source.put("tags", session.shareTags.split("(?:\\s*,\\s*|\\s+)"));
 		source.remove("description");
-		source.put("description", shareDescription.trim());
-		if (!shareMediaType.equalsIgnoreCase("null")) {
-			source.put("mediaType", shareMediaType);
+		source.put("description", session.shareDescription.trim());
+		if (!session.shareMediaType.equalsIgnoreCase("null")) {
+			source.put("mediaType", session.shareMediaType);
 		}
 
 		// Remove any non-functional things:
@@ -1617,21 +1802,21 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 		source.remove("ownerId");
 		source.remove("shah256Hash");
 		
-		sourceJson = source.toString(4);
+		session.sourceJson = source.toString(4);
 		
-		String urlShareTitle = URLEncoder.encode(shareTitle + " - Template", "UTF-8");
-		String urlShareDescription = URLEncoder.encode(shareDescription, "UTF-8");
+		String urlShareTitle = URLEncoder.encode(session.shareTitle + " - Template", "UTF-8");
+		String urlShareDescription = URLEncoder.encode(session.shareDescription, "UTF-8");
 		String apiAddress = "social/share/add/json/source_template/" + urlShareTitle + "/$desc?desc=" + urlShareDescription;
 		
-		JSONObject JSONresponseTop = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
+		JSONObject JSONresponseTop = new JSONObject(postToRestfulApi(apiAddress, session.sourceJson, request, response));
 		JSONObject JSONresponseStatus = JSONresponseTop.getJSONObject("response");
 		if (JSONresponseStatus.getString("success").equalsIgnoreCase("true")) 
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponseStatus.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponseStatus.getString("message");
 		}
 		else
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponseStatus.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponseStatus.getString("message");
 		}
 		Object responseData = JSONresponseTop.get("data");
 		String shareId = null;
@@ -1649,43 +1834,43 @@ private void saveShareAsTemplate(HttpServletRequest request, HttpServletResponse
 		
 		// Now share the source vs the selected community
 		if (null != shareId) {
-			apiAddress = "social/share/add/community/" + shareId + "/Created+As+Template/" + communityId;
+			apiAddress = "social/share/add/community/" + shareId + "/Created+As+Template/" + session.communityId;
 			callRestfulApi(apiAddress, request, response);
 		}
 		
 	} 
 	catch (Exception e) 
 	{
-		messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+		session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 	}
 } //
 
 
 
 // deleteShare -
-private boolean deleteShare(String shareId, HttpServletRequest request, HttpServletResponse response)
+private boolean deleteShare(String shareId, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	if (shareId != null && shareId != "") 
 	{
-		JSONObject source = getSourceJSONObjectFromShare(shareId, request, response);
+		JSONObject source = getSourceJSONObjectFromShare(shareId, request, response, session);
 		String apiAddress = "social/share/remove/" + shareId + "/";
 		try 
 		{
 			JSONObject JSONresponse = new JSONObject(callRestfulApi(apiAddress, request, response)).getJSONObject("response");
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 			{
-				messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
+				session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
 				return true;
 			}
 			else
 			{
-				messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
+				session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
 				return false;
 			}
 		}
 		catch (Exception e)
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 			return false;
 		}
 	}
@@ -1694,7 +1879,7 @@ private boolean deleteShare(String shareId, HttpServletRequest request, HttpServ
 
 
 // getSourceJSONObject
-private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletRequest request, HttpServletResponse response)
+private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	try
 	{
@@ -1706,7 +1891,7 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 		JSONObject data = json_response.getJSONObject("data");
 		
 		// Get the share object and make sure it is encoded properly for display
-		shareJson = data.toString();
+		session.shareJson = data.toString();
 		return new JSONObject(data.getString("share"));
 	}
 	catch (Exception e)
@@ -1718,9 +1903,9 @@ private JSONObject getSourceJSONObjectFromShare(String shareId, HttpServletReque
 
 
 // populateEditForm - 
-private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response) 
+private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response, Session session) 
 {
-	clearForm();
+	clearForm(session);
 	if (id != null && id != "") 
 	{
 		try 
@@ -1733,34 +1918,34 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 			JSONObject data = json_response.getJSONObject("data");
 			
 			// Get the share object and make sure it is encoded properly for display
-			shareJson = data.toString();
+			session.shareJson = data.toString();
 			JSONObject source = new JSONObject(data.getString("share"));
 			JSONObject owner = data.getJSONObject("owner");
 			
-			pipelineMode = source.has("processingPipeline");
+			session.pipelineMode = source.has("processingPipeline");
 			
 			try
 			{
-				communityId = source.getJSONArray("communityIds").getString(0);
+				session.communityId = source.getJSONArray("communityIds").getString(0);
 			}
 			catch (Exception ex) { }
 			
 			// Copy fields to the edit source form
-			sourceJson = source.toString(4); // Formatted with indents for display
+			session.sourceJson = source.toString(4); // Formatted with indents for display
 			if (source.has("_id")) {
-				sourceid = source.getString("_id");
+				session.sourceid = source.getString("_id");
 			}
 			if (source.has("title")) {
-				shareTitle = data.getString("title");
+				session.shareTitle = data.getString("title");
 			}
-			if ((null == shareTitle) || shareTitle.isEmpty()) {
-				shareTitle = source.getString("title");				
+			if ((null == session.shareTitle) || session.shareTitle.isEmpty()) {
+				session.shareTitle = source.getString("title");				
 			}
 			if (source.has("mediaType")) {
-				shareMediaType = source.getString("mediaType");
+				session.shareMediaType = source.getString("mediaType");
 			}
-			if ((null == shareMediaType) || shareMediaType.isEmpty()) {
-				shareMediaType = "null";
+			if ((null == session.shareMediaType) || session.shareMediaType.isEmpty()) {
+				session.shareMediaType = "null";
 			}
 			if (source.has("tags")) {
 				StringBuilder stags = new StringBuilder();
@@ -1768,47 +1953,47 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 				for (int i = 0; i < arrTags.length(); ++i) {
 					stags.append(arrTags.get(i)).append(' ');
 				}
-				shareTags = stags.toString();
+				session.shareTags = stags.toString();
 			}
 			if (source.has("description")) {
-				shareDescription = data.getString("description");
+				session.shareDescription = data.getString("description");
 			}
-			if ((null == shareDescription) || shareDescription.isEmpty()) {
-				shareDescription = source.getString("description");				
+			if ((null == session.shareDescription) || session.shareDescription.isEmpty()) {
+				session.shareDescription = source.getString("description");				
 			}
 			if (source.has("searchCycle_secs")) {
 				int searchCycle_secs = source.getInt("searchCycle_secs");
 				if (searchCycle_secs >= 0) {
-					enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+					session.enableOrDisable = (String) request.getAttribute("localized_DisableSource");
 				}
 				else {
-					enableOrDisable = (String) request.getAttribute("locale_EnableSource");
+					session.enableOrDisable = (String) request.getAttribute("locale_EnableSource");
 				}
 			} 
 			else {
-				enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+				session.enableOrDisable = (String) request.getAttribute("localized_DisableSource");
 			}
 					
 			String shareType = data.getString("type");
 			if (!shareType.equalsIgnoreCase("source_template")) 
 			{
-				shareid = data.getString("_id");
-				shareOwnerName = owner.getString("displayName");
-				shareOwnerEmail = owner.getString("email");
-				shareCreated = data.getString("created");
-				shareModified = data.getString("modified");
+				session.shareid = data.getString("_id");
+				session.shareOwnerName = owner.getString("displayName");
+				session.shareOwnerEmail = owner.getString("email");
+				session.shareCreated = data.getString("created");
+				session.shareModified = data.getString("modified");
 			}
 			//
 			else
 			{
-				shareid = "";
-				shareJson = "";
+				session.shareid = "";
+				session.shareJson = "";
 			}
 			
 			// Finally, decide whether to show JS-RSS tab
-			sourceShowRss = "style=\"display: none\";";
-			sourceShowLogstash = "style=\"display: none\";";
-			sourceOnyShowLogstash = "";
+			session.sourceShowRss = "style=\"display: none\";";
+			session.sourceShowLogstash = "style=\"display: none\";";
+			session.sourceOnyShowLogstash = "";
 			try {
 				String sourceType = source.getString("extractType"); 
 				if ((null != sourceType) && sourceType.equalsIgnoreCase("Feed")) {
@@ -1816,19 +2001,19 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 					if (null != rss) {
 						JSONObject searchConfig = rss.getJSONObject("searchConfig");
 						if (null != searchConfig) {
-							sourceShowRss = "";
+							session.sourceShowRss = "";
 						}
 					}
 				}
 				if ((null != sourceType) && sourceType.equalsIgnoreCase("Logstash")) {
-					sourceShowLogstash = "";
-					sourceOnyShowLogstash = "style=\"display: none\";";
+					session.sourceShowLogstash = "";
+					session.sourceOnyShowLogstash = "style=\"display: none\";";
 				}
 			}catch (Exception e) {} // do nothing, this block doesn't exist
 		} 
 		catch (Exception e) 
 		{
-			sourceJson = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage();
+			session.sourceJson = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage();
 		}
 	}
 }  // TESTED
@@ -1836,30 +2021,30 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 
 
 // clearForm
-private void clearForm()
+private void clearForm(Session session)
 {
-	shareid = "";
-	sourceid = "";
-	shareTitle = "";
-	shareMediaType = "null";
-	shareTags = "";
-	shareDescription = "";
-	shareType = "";
-	shareOwnerName = "";
-	shareOwnerEmail = "";
-	shareCreated = "";
-	shareModified = "";
-	shareJson = "";
-	sourceJson = "";
+	session.shareid = "";
+	session.sourceid = "";
+	session.shareTitle = "";
+	session.shareMediaType = "null";
+	session.shareTags = "";
+	session.shareDescription = "";
+	session.shareType = "";
+	session.shareOwnerName = "";
+	session.shareOwnerEmail = "";
+	session.shareCreated = "";
+	session.shareModified = "";
+	session.shareJson = "";
+	session.sourceJson = "";
 }  // TESTED
 
 
 
 // listItems -
-private String listItems(HttpServletRequest request, HttpServletResponse response)
+private String listItems(HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	StringBuffer sources = new StringBuffer();
-	TreeMultimap<String, String> listOfSources = getUserSourcesAndShares(request, response, listFilter);
+	TreeMultimap<String, String> listOfSources = getUserSourcesAndShares(request, response, session.listFilter);
 	
 	if (listOfSources.size() > 0)
 	{
@@ -1874,11 +2059,11 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Page = 1, item = 1
 		// Page = X, item = ( ( currentPage - 1 ) * itemsToShowPerPage ) + 1;
 		int startItem = 1;
-		int endItem = startItem + itemsToShowPerPage - 1;
-		if (currentPage > 1)
+		int endItem = startItem + session.itemsToShowPerPage - 1;
+		if (session.currentPage > 1)
 		{
-			startItem = ( ( currentPage - 1 ) * itemsToShowPerPage ) + 1;
-			endItem = ( startItem + itemsToShowPerPage ) - 1;
+			startItem = ( ( session.currentPage - 1 ) * session.itemsToShowPerPage ) + 1;
+			endItem = ( startItem + session.itemsToShowPerPage ) - 1;
 		}
 
 		int currentItem = 1;
@@ -1894,14 +2079,14 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 					String editLink = "";
 					String deleteLink = "";
 					String listFilterString = "";
-					if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+					if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
 					
 					if (name.endsWith(" (*)"))
 					{
-						editLink = "<a href=\"sources.jsp?action=edit&shareid=" + id + "&page=" + currentPage 
+						editLink = "<a href=\"sources.jsp?action=edit&shareid=" + id + "&page=" + session.currentPage 
 								+ listFilterString + "\" title=\""+(String)request.getAttribute("locale_SourceList_EditShare")+"\">" + name + "</a>";
 	
-						deleteLink = "<a href=\"sources.jsp?action=delete&shareid=" + id + "&page=" + currentPage 
+						deleteLink = "<a href=\"sources.jsp?action=delete&shareid=" + id + "&page=" + session.currentPage 
 								+ listFilterString + "\" title=\""+(String)request.getAttribute("locale_SourceList_DeleteShare")+"\" "
 								+ "onclick='return confirm(\""+(String)request.getAttribute("locale_SourceList_DeleteShare_Confirm")+" "
 								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/minus_button.png\" border=0></a>";
@@ -1909,10 +2094,10 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 					else
 					{
 						prefixedid = "_" + id; // (so we know in the JSP what we're deleting...)
-						editLink = "<a href=\"sources.jsp?action=sharefromsource&sourceid=" + id + "&page=" + currentPage 
+						editLink = "<a href=\"sources.jsp?action=sharefromsource&sourceid=" + id + "&page=" + session.currentPage 
 								+ listFilterString + "\" title=\""+(String)request.getAttribute("locale_SourceList_CreateShare")+"\">" + name + "</a>";
 								
-						deleteLink = "<a href=\"sources.jsp?action=deletesource&sourceid=" + id + "&page=" + currentPage 
+						deleteLink = "<a href=\"sources.jsp?action=deletesource&sourceid=" + id + "&page=" + session.currentPage 
 								+ listFilterString + "\" title=\""+(String)request.getAttribute("locale_SourceList_DeleteSource")+"\" "
 								+ "onclick='return confirm(\""+(String)request.getAttribute("locale_SourceList_DeleteSource_Confirm")+" "
 								+ name.replace("\"", "\\\"") + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
@@ -1920,7 +2105,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		
 					// Create the HTML table row
 					sources.append("<tr valign=\"top\">");
-					if (id.equals(shareid)) {
+					if (id.equals(session.shareid)) {
 						sources.append("<td bgcolor=\"white\" width=\"100%\"><b>" + editLink + "</b></td>");						
 					}
 					else {
@@ -1947,10 +2132,10 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("sources.jsp?action=page");
-		if (listFilter.length() > 0) baseUrl.append('&').append("listFilterStr=").append(listFilter);
-		if (shareid.length() > 0) baseUrl.append('&').append("shareid=").append(shareid);
+		if (session.listFilter.length() > 0) baseUrl.append('&').append("listFilterStr=").append(session.listFilter);
+		if (session.shareid.length() > 0) baseUrl.append('&').append("shareid=").append(session.shareid);
 		baseUrl.append("&page=");
-		sources.append( createPageString( sortedKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
+		sources.append( createPageString( sortedKeys.size(), session.itemsToShowPerPage, session.currentPage, baseUrl.toString() ));
 		sources.append("</td></tr>");
 		// --------------------------------------------------------------------------------
 		sources.append("</table>");
@@ -1965,7 +2150,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 
 
 // createShareFromSource
-private String createShareFromSource(String sourceId, HttpServletRequest request, HttpServletResponse response)
+private String createShareFromSource(String sourceId, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	try
 	{
@@ -1994,7 +2179,7 @@ private String createShareFromSource(String sourceId, HttpServletRequest request
 		JSONObject json_data = new JSONObject ( jsonObject.getString("data") );
 		
 		//clearForm();
-		//populateEditForm(json_data.getString("_id"), request, response);
+		//populateEditForm(json_data.getString("_id"), request, response, session);
 		
 		// Return new shareid to caller
 		return json_data.getString("_id");
@@ -2007,7 +2192,7 @@ private String createShareFromSource(String sourceId, HttpServletRequest request
 }
 
 // createMediaTypeSelect
-private String createMediaTypeSelect(HttpServletRequest request)
+private String createMediaTypeSelect(HttpServletRequest request, Session session)
 {
 	StringBuffer html = new StringBuffer();
 	String baseList = (String)request.getAttribute("local_mediaType_values");
@@ -2021,7 +2206,7 @@ private String createMediaTypeSelect(HttpServletRequest request)
 	String[] baseElements = baseList.split("\\s*,\\s*");
 	boolean selected = false;
 	for (String baseElement: baseElements) {
-		if (!selected && baseElement.equalsIgnoreCase(shareMediaType)) {
+		if (!selected && baseElement.equalsIgnoreCase(session.shareMediaType)) {
 			html.append("<option selected=\"selected\"'>");
 			selected = true;
 		}
@@ -2045,7 +2230,7 @@ private String createMediaTypeSelect(HttpServletRequest request)
 
 // createCommunityIdSelect -
 // Create select control with list of communityids available to user
-private void createCommunityIdSelect(HttpServletRequest request, HttpServletResponse response) 
+private void createCommunityIdSelect(HttpServletRequest request, HttpServletResponse response, Session session) 
 {
 	try 
 	{
@@ -2064,12 +2249,12 @@ private void createCommunityIdSelect(HttpServletRequest request, HttpServletResp
 				if (source.has("type") && source.getString("type").equals("user")) {
 					continue;
 				}
-				String selectedString = (id.equalsIgnoreCase(communityId)) ? " SELECTED" : "";
+				String selectedString = (id.equalsIgnoreCase(session.communityId)) ? " SELECTED" : "";
 				html.append("<option value=\"" + id + "\"" + selectedString + ">" + name + "</option>");
 			}				
 		}
 		html.append("</select>");
-		communityIdSelect = html.toString();
+		session.communityIdSelect = html.toString();
 	} 
 	catch (Exception e) 
 	{
@@ -2079,54 +2264,54 @@ private void createCommunityIdSelect(HttpServletRequest request, HttpServletResp
 
 
 // testSource -
-private void testSource(HttpServletRequest request, HttpServletResponse response)
+private void testSource(HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	int numDocs = 10;
 	try
 	{
-		numDocs = Integer.parseInt(numberOfDocuments);
+		numDocs = Integer.parseInt(session.numberOfDocuments);
 		if (numDocs < 1 || numDocs > 100) numDocs = 10;
 	}
 	catch (Exception e)
 	{
 		numDocs = 10;
 	}
-	String apiAddress = "config/source/test?returnFullText=" + getFullText + "&numReturn=" + String.valueOf(numDocs) + "&testUpdates=" + getTestUpdateLogic;
-	harvesterOutput = "";
-	messageToDisplay = "";
+	String apiAddress = "config/source/test?returnFullText=" + session.getFullText + "&numReturn=" + String.valueOf(numDocs) + "&testUpdates=" + session.getTestUpdateLogic;
+	session.harvesterOutput = "";
+	session.messageToDisplay = "";
 	
 	try 
 	{
 		// (just used for )
-		JSONObject source = new JSONObject(sourceJson);
-		pipelineMode = source.has("processingPipeline");
+		JSONObject source = new JSONObject(session.sourceJson);
+		session.pipelineMode = source.has("processingPipeline");
 		String newCommunity = null;
 		
 		// Overwrite the community id if that is required:
 		// (the tabs/type/title etc are still out of date, but that doesn't typically result in problems so we'll live with that)
 		if (!source.has("communityIds")) { 
-			newCommunity = communityId;
+			newCommunity = session.communityId;
 		}//TESTED
 		else { // check community vs dropdown
 			JSONArray com = source.getJSONArray("communityIds");
 			if (1 == com.length()) {
 				String tempCommunityId = com.getString(0);
-				if (!communityId.equals(tempCommunityId)) {
-					newCommunity = communityId;
+				if (!session.communityId.equals(tempCommunityId)) {
+					newCommunity = session.communityId;
 				}
 			}//TESTED
 			else {
-				newCommunity = communityId;
+				newCommunity = session.communityId;
 			}//TESTED
 		}
 		if (null != newCommunity) {
 			JSONArray communityIds = new JSONArray();
 			communityIds.put(newCommunity);
 			source.put("communityIds", communityIds);
-			sourceJson = source.toString(4);			
+			session.sourceJson = source.toString(4);			
 		}//TESTED
 		
-		JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, sourceJson, request, response));
+		JSONObject jsonObject = new JSONObject(postToRestfulApi(apiAddress, session.sourceJson, request, response));
 		JSONObject JSONresponse = jsonObject.getJSONObject("response");
 		
 		try
@@ -2134,20 +2319,20 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 			if (source.has("searchCycle_secs")) {
 				int searchCycle_secs = source.getInt("searchCycle_secs");
 				if (searchCycle_secs >= 0) {
-					enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+					session.enableOrDisable = (String) request.getAttribute("localized_DisableSource");
 				}
 				else {
-					enableOrDisable = (String) request.getAttribute("locale_EnableSource");
+					session.enableOrDisable = (String) request.getAttribute("locale_EnableSource");
 				}
 			} 
 			else {
-				enableOrDisable = (String) request.getAttribute("localized_DisableSource");
+				session.enableOrDisable = (String) request.getAttribute("localized_DisableSource");
 			}
 			
 			// Finally, decide whether to show JS-RSS tab
-			sourceShowRss = "style=\"display: none\";";
-			sourceShowLogstash = "style=\"display: none\";";
-			sourceOnyShowLogstash = "";
+			session.sourceShowRss = "style=\"display: none\";";
+			session.sourceShowLogstash = "style=\"display: none\";";
+			session.sourceOnyShowLogstash = "";
 			try {
 				String sourceType = source.getString("extractType"); 
 				if ((null != sourceType) && sourceType.equalsIgnoreCase("Feed")) {
@@ -2155,17 +2340,17 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 					if (null != rss) {
 						JSONObject searchConfig = rss.getJSONObject("searchConfig");
 						if (null != searchConfig) {
-							sourceShowRss = "";
+							session.sourceShowRss = "";
 						}
 					}
 				}
 				if ((null != sourceType) && sourceType.equalsIgnoreCase("Logstash")) {
-					sourceShowLogstash = "";
-					sourceOnyShowLogstash = "style=\"display: none\";";
+					session.sourceShowLogstash = "";
+					session.sourceOnyShowLogstash = "style=\"display: none\";";
 				}
 			}catch (Exception e) {} // do nothing, this block doesn't exist
 			
-			messageToDisplay = JSONresponse.getString("message");
+			session.messageToDisplay = JSONresponse.getString("message");
 			
 			if (jsonObject.has("data"))
 			{
@@ -2179,24 +2364,24 @@ private void testSource(HttpServletRequest request, HttpServletResponse response
 					s.append(jo.toString(4));
 				}
 				
-				harvesterOutput = s.toString();
+				session.harvesterOutput = s.toString();
 			}
 		}
 		catch (Exception ex)
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Test") + JSONresponse.getString("message");
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Test") + JSONresponse.getString("message");
 		}
-		if (harvesterOutput.length() < 1) harvesterOutput = " ";
+		if (session.harvesterOutput.length() < 1) session.harvesterOutput = " ";
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+		session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 	}
 } // TESTED
 
 
 // deleteSourceObject -
-private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletRequest request, HttpServletResponse response)
+private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	if (sourceId != null && sourceId != "") 
 	{
@@ -2212,18 +2397,18 @@ private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServl
 			
 			if (JSONresponse.getString("success").equalsIgnoreCase("true")) 
 			{
-				messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
+				session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Success") + JSONresponse.getString("message");
 				return true;
 			}
 			else
 			{
-				messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
+				session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + JSONresponse.getString("message");
 				return false;
 			}
 		}
 		catch (Exception e)
 		{
-			messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
+			session.messageToDisplay = (String)request.getAttribute("locale_SourceResult_Error") + e.getMessage() + " " + e.getStackTrace().toString();
 			return false;
 		}
 	}
@@ -2231,7 +2416,7 @@ private boolean deleteSourceObject(String sourceId, boolean bDocsOnly, HttpServl
 }
 
 //suspend/resume source
-private boolean suspendSourceObject(String sourceId, boolean shouldSuspend, HttpServletRequest request, HttpServletResponse response)
+private boolean suspendSourceObject(String sourceId, boolean shouldSuspend, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	if (sourceId != null && sourceId != "") 
 	{
@@ -2262,7 +2447,7 @@ private boolean suspendSourceObject(String sourceId, boolean shouldSuspend, Http
 	return false;
 }
 
-private String getSourceId(String id, HttpServletRequest request, HttpServletResponse response)
+private String getSourceId(String id, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	String sourceId = null;
 	if (id.startsWith("_")) 
@@ -2276,7 +2461,7 @@ private String getSourceId(String id, HttpServletRequest request, HttpServletRes
 		{
 			//share objects that are connected to sources will have an _id so get
 			//the share object and check for that
-			JSONObject source = getSourceJSONObjectFromShare(id, request, response);
+			JSONObject source = getSourceJSONObjectFromShare(id, request, response, session);
 			if ( source != null && source.has("_id") )
 			{
 				sourceId = source.getString("_id");

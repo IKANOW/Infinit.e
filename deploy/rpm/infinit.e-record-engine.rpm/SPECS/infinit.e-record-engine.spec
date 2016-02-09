@@ -85,8 +85,12 @@ Infinit.e base enterprise install
 		fi
 	elif [ -d /etc/logstash/conf.d/ ]; then
 		#Kill any templates with old-style protocols
-		for i in `ls /etc/logstash/conf.d/*.auto.conf`; do 
-			if ! grep -q 'protocol => "transport"' $i; then 
+		for i in `ls /etc/logstash/conf.d/*.{auto,v2}.conf`; do 
+			if grep -q 'elasticsearch' $i && grep -q 'protocol => "transport"' $i; then 
+				echo "Deleting old stream $i (will be regenerated in a few minutes)"
+				rm -f $i; 
+			fi; 
+			if grep -q 'elasticsearch_http' $i; then 
 				echo "Deleting old stream $i (will be regenerated in a few minutes)"
 				rm -f $i; 
 			fi; 
@@ -99,6 +103,19 @@ Infinit.e base enterprise install
 	# Restart hosting service (tomcat), unless just restarted
 	find /var/run/ -name "tomcat6-interface-engine.pid" -mmin +10 | grep -q pid && service tomcat6-interface-engine restart
 	true
+	
+    # Install plugins (note: duplicated in LS install)
+    if [ -f /opt/logstash/bin/plugin ]; then
+	    # Install Dependencies
+	    /opt/logstash/bin/plugin unpack /mnt/opt/logstash-infinite/plugins/plugins_package.tar.gz
+	    
+	    /opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-mongodb-2.0.3.gem
+	    #(this is mainly for V1 anyway so just install HDFS, will have to be hand installed to work with V2)
+	    #/opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-webhdfs-2.0.2.gem
+	    /opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-s3-2.0.4.gem
+
+        #/bin/find /opt/logstash/vendor/local_gems -name "logstash-output-webhdfs.gemspec"|xargs sed -i 's/ö/o/g'
+	fi	
 	
 ###########################################################################
 # FILE LISTS
@@ -113,6 +130,12 @@ Infinit.e base enterprise install
 %dir /mnt/opt/logstash-infinite
 %dir /mnt/opt/logstash-infinite/scripts
 %dir /mnt/opt/logstash-infinite/templates
+
+# Plugins
+%attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/plugins/logstash-output-mongodb-2.0.3.gem 
+%attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/plugins/logstash-output-webhdfs-2.0.2.gem
+%attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/plugins/logstash-output-s3-2.0.4.gem
+%attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/plugins/plugins_package.tar.gz
 
 %attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/scripts/logstash_install.sh
 %attr(755,tomcat,tomcat) /mnt/opt/logstash-infinite/scripts/insert_or_update_widgets.sh

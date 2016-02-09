@@ -126,9 +126,12 @@ public class LogstashConfigUtils {
 			String inputType = m.group(2).toLowerCase();
 			
 			// If it's a file-based plugin then replace sincedb_path (check that it's not used during the JSON-ification):
-			if (inputType.equalsIgnoreCase("file") || inputType.equalsIgnoreCase("s3")) {
+			if (inputType.equalsIgnoreCase("file")) {
 				config = _validationRegexInputReplace.matcher(config).replaceFirst("$1\n      sincedb_path => \"_XXX_DOTSINCEDB_XXX_\"\n");
 			}//TESTED
+			else if (inputType.equalsIgnoreCase("s3")) {
+				config = _validationRegexInputReplace.matcher(config).replaceFirst("$1\n      sincedb_path => \"_XXX_DOTSINCEDB_XXX_\"\n      temporary_directory => \"_XXX_LSTEMPDIR_XXX_\"");
+			}//TOTEST
 
 		}//TESTED
 		

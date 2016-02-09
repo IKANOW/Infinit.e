@@ -18,74 +18,78 @@ limitations under the License.
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%!
-	// 
-	int currentPage = 1; 
-	int itemsToShowPerPage = 10;
-	
 	//
-	String action = "";
-	String lastaction = "";
-	String logoutAction = "";
-	
-	// 
-	String listFilter = "";
-
-	//
-	String editTableTitle = "Register New User Account";
+	static class Session {
+		int currentPage = 1; 
+		int itemsToShowPerPage = 10;
 		
-	//
-	String personid = "";
-	String visiblePersonId = "";
-	String firstName = "";
-	String lastName = "";
-	String displayName = "";
-	String accountStatus = "";
-	String apiKey = "";
-	String phone = "";
-	String email = "";
-	String oldemail = "";
-	String accounttype = "";
-	String listOfCommunities = "";
-	String password = "";
-	String passwordConfirmation = "";
-	String accountTypeHidden = "style=\"display:none;\"";
-	String isRequestAdminVisible = "style=\"display:none;\"";
-	String isDemoteAdminVisible = "style=\"display:none;\"";
+		//
+		String action = "";
+		String lastaction = "";
+		String logoutAction = "";
 		
+		// 
+		String listFilter = "";
+	
+		//
+		String editTableTitle = "Register New User Account";
+			
+		//
+		String personid = "";
+		String visiblePersonId = "";
+		String firstName = "";
+		String lastName = "";
+		String displayName = "";
+		String accountStatus = "";
+		String apiKey = "";
+		String phone = "";
+		String email = "";
+		String oldemail = "";
+		String accounttype = "";
+		String listOfCommunities = "";
+		String password = "";
+		String passwordConfirmation = "";
+		String accountTypeHidden = "style=\"display:none;\"";
+		String isRequestAdminVisible = "style=\"display:none;\"";
+		String isDemoteAdminVisible = "style=\"display:none;\"";
+		String messageToDisplay = "";
+	}		
 %>
 
 <%
-	messageToDisplay = "";
+	Session session = new Session();
+
+	session.messageToDisplay = "";
 	
 	// 
 	if (isLoggedIn) 
 	{	
 		// Capture value in the left handed table filter field
-		if (request.getParameter("listFilter") != null) 
+		if (request.getParameter("session.listFilter") != null) 
 		{
-			listFilter = request.getParameter("listFilter");
+			session.listFilter = request.getParameter("session.listFilter");
 		}
 		else if (request.getParameter("listFilterStr") != null) 
 		{
-			listFilter = request.getParameter("listFilterStr");
+			session.listFilter = request.getParameter("listFilterStr");
 		}
 		else
 		{
-			listFilter = "";
+			session.listFilter = "";
 		}
 		
-		// Determine which action to perform on postback/request
-		action = "";
-		if (request.getParameter("action") != null) action = request.getParameter("action").toLowerCase();
-		lastaction = action;
-		if (request.getParameter("dispatchAction") != null) action = request.getParameter("dispatchAction").toLowerCase();
-		if (request.getParameter("clearForm") != null) action = request.getParameter("clearForm").toLowerCase();
-		if (request.getParameter("filterList") != null) action = request.getParameter("filterList").toLowerCase();
-		if (request.getParameter("clearFilter") != null) action = request.getParameter("clearFilter").toLowerCase();
-		if (request.getParameter("logoutButton") != null) action = request.getParameter("logoutButton").toLowerCase();
-		if (request.getParameter("deleteSelected") != null) action = request.getParameter("deleteSelected").toLowerCase();
+		// Determine which session.action to perform on postback/request
+		session.action = "";
+		if (request.getParameter("session.action") != null) session.action = request.getParameter("session.action").toLowerCase();
+		session.lastaction = session.action;
+		if (request.getParameter("dispatchAction") != null) session.action = request.getParameter("dispatchAction").toLowerCase();
+		if (request.getParameter("clearForm") != null) session.action = request.getParameter("clearForm").toLowerCase();
+		if (request.getParameter("filterList") != null) session.action = request.getParameter("filterList").toLowerCase();
+		if (request.getParameter("clearFilter") != null) session.action = request.getParameter("clearFilter").toLowerCase();
+		if (request.getParameter("logoutButton") != null) session.action = request.getParameter("logoutButton").toLowerCase();
+		if (request.getParameter("deleteSelected") != null) session.action = request.getParameter("deleteSelected").toLowerCase();
 		
-		// Capture values sent by button clicks, these will override the action value as appropriate 
+		// Capture values sent by button clicks, these will override the session.action value as appropriate 
 		String saveAccount = "";
 		String createAccount = "";
 		String updatePassword = "";
@@ -104,11 +108,11 @@ limitations under the License.
 		// Capture input for page value if passed to handle the page selected in the left hand list of items
 		if (request.getParameter("page") != null) 
 		{
-			currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
+			session.currentPage = Integer.parseInt( request.getParameter("page").toLowerCase() );
 		}
 		else
 		{
-			currentPage = 1;
+			session.currentPage = 1;
 		}
 		
 		Boolean bIsAdmin = null;
@@ -118,73 +122,73 @@ limitations under the License.
 		}
 		bIsAdmin = isLoggedInAsAdmin_GetAdmin(bRequestAdmin, request, response);
 		if (null == bIsAdmin) { //inactive admin
-			accountTypeHidden = "style=\"display:none;\"";
-			isRequestAdminVisible = "";			
-			isDemoteAdminVisible = "style=\"display:none;\"";
+			session.accountTypeHidden = "style=\"display:none;\"";
+			session.isRequestAdminVisible = "";			
+			session.isDemoteAdminVisible = "style=\"display:none;\"";
 		}
 		else if (bIsAdmin) { // admin active
-			accountTypeHidden = "";
-			isRequestAdminVisible = "style=\"display:none;\"";	
-			isDemoteAdminVisible = "";
+			session.accountTypeHidden = "";
+			session.isRequestAdminVisible = "style=\"display:none;\"";	
+			session.isDemoteAdminVisible = "";
 		}
 		else { // not admin
-			accountTypeHidden = "style=\"display:none;\"";
-			isRequestAdminVisible = "style=\"display:none;\"";
-			isDemoteAdminVisible = "style=\"display:none;\"";
+			session.accountTypeHidden = "style=\"display:none;\"";
+			session.isRequestAdminVisible = "style=\"display:none;\"";
+			session.isDemoteAdminVisible = "style=\"display:none;\"";
 		}
 		
 		try
 		{
 			// Always clear the form first so there is no bleed over of values from previous requests
-			clearForm();
+			clearForm(session);
 
 			// Read in values from the edit form
 			String visiblePersonId = (request.getParameter("visiblePersonId") != null) ? request.getParameter("visiblePersonId") : "";
-			personid = (request.getParameter("personid") != null) ? request.getParameter("personid") : "";
-			firstName = (request.getParameter("firstName") != null) ? request.getParameter("firstName") : "";
-			lastName = (request.getParameter("lastName") != null) ? request.getParameter("lastName") : "";
-			displayName = (request.getParameter("displayName") != null) ? request.getParameter("displayName") : "";
-			phone = (request.getParameter("phone") != null) ? request.getParameter("phone") : "";
-			email = (request.getParameter("email") != null) ? request.getParameter("email") : "";
-			oldemail = (request.getParameter("oldemail") != null) ? request.getParameter("oldemail") : "";
-			passwordConfirmation = (request.getParameter("passwordConfirmation") != null) ? request.getParameter("passwordConfirmation") : "";
-			password = (request.getParameter("password") != null) ? request.getParameter("password") : "";
-			accounttype = (request.getParameter("accounttype") != null) ? request.getParameter("accounttype") : "";
-			apiKey = (request.getParameter("apiKey") != null) ? request.getParameter("apiKey") : "";
+			session.personid = (request.getParameter("session.personid") != null) ? request.getParameter("session.personid") : "";
+			session.firstName = (request.getParameter("firstName") != null) ? request.getParameter("firstName") : "";
+			session.lastName = (request.getParameter("lastName") != null) ? request.getParameter("lastName") : "";
+			session.displayName = (request.getParameter("displayName") != null) ? request.getParameter("displayName") : "";
+			session.phone = (request.getParameter("phone") != null) ? request.getParameter("phone") : "";
+			session.email = (request.getParameter("email") != null) ? request.getParameter("email") : "";
+			session.oldemail = (request.getParameter("oldemail") != null) ? request.getParameter("oldemail") : "";
+			session.passwordConfirmation = (request.getParameter("passwordConfirmation") != null) ? request.getParameter("passwordConfirmation") : "";
+			session.password = (request.getParameter("password") != null) ? request.getParameter("password") : "";
+			session.accounttype = (request.getParameter("accounttype") != null) ? request.getParameter("accounttype") : "";
+			session.apiKey = (request.getParameter("apiKey") != null) ? request.getParameter("apiKey") : "";
 			
 			Boolean redirect = false;
 			
-			// If user has clicked save, create, or update buttons do those actions before handling the action param
+			// If user has clicked save, create, or update buttons do those actions before handling the session.action param
 			if (saveAccount.equals("saveaccount") || saveAccount.equals("save user account")) 
 			{
-				if ( validateFormFields() )
+				if ( validateFormFields(session) )
 				{
-					savePerson(false, request, response);
+					savePerson(false, request, response, session);
 				}
 			}
 			if (createAccount.equals("createaccount") || createAccount.equals("create user account")) 
 			{
-				if ( validateFormFields() && validatePassword() )
+				if ( validateFormFields(session) && validatePassword(session) )
 				{
-					savePerson(true, request, response);
+					savePerson(true, request, response, session);
 					redirect = true;
 				}
 			}
 			if (updatePassword.equals("updatepassword") || updatePassword.equals("update password")) 
 			{
-				if ( validatePassword() )
+				if ( validatePassword(session) )
 				{
-					updateAccountPassword(request, response);
+					updateAccountPassword(request, response, session);
 				}
 			}
 			if (addto.length() > 0)
 			{
-				addPersonToCommunity(personid, addto, request, response);
+				addPersonToCommunity(session.personid, addto, request, response, session);
 				redirect = true;
 			}
 			if (removefrom.length() > 0)
 			{
-				removePersonFromCommunity(personid, removefrom, request, response);
+				removePersonFromCommunity(session.personid, removefrom, request, response, session);
 				redirect = true;
 			}
 			
@@ -192,61 +196,61 @@ limitations under the License.
 			if (redirect) 
 			{
 				String urlParams = "";
-				if (listFilter.length() > 0) urlParams = "&listFilterStr="+ listFilter;
-				if (currentPage > 1) urlParams += "&page=" + currentPage;
-				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?action=edit&personid=" 
-					+ personid + urlParams + "\">");
+				if (session.listFilter.length() > 0) urlParams = "&listFilterStr="+ session.listFilter;
+				if (session.currentPage > 1) urlParams += "&page=" + session.currentPage;
+				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?session.action=edit&session.personid=" 
+					+ session.personid + urlParams + "\">");
 			}
 			
-			if (action.equals("new user")) 
+			if (session.action.equals("new user")) 
 			{
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp\">");
 			}
-			else if (action.equals("edit")) 
+			else if (session.action.equals("edit")) 
 			{
-				populateEditForm(personid, request, response);
+				populateEditForm(session.personid, request, response, session);
 			}
-			else if (action.equals("delete")) 
+			else if (session.action.equals("delete")) 
 			{
-				deleteAccount(personid, request, response);
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) {
-					out.print("&listFilterStr=" + listFilter);					
+				deleteAccount(session.personid, request, response, session);
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) {
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if (action.equals("deleteselected")) 
+			else if (session.action.equals("deleteselected")) 
 			{
 				String[] ids= request.getParameterValues("peopleToDelete");
 				
 				int nDeleted = 0;
 				int nFailed = 0;
 				for (String id: ids) {
-					if (!deleteAccount(id, request, response)) {
+					if (!deleteAccount(id, request, response, session)) {
 						nFailed++;
 					}
 					else nDeleted++;
 				}
-				messageToDisplay = "Bulk person deletion: deleted " + nDeleted + ", failed: " + nFailed; 
+				session.messageToDisplay = "Bulk person deletion: deleted " + nDeleted + ", failed: " + nFailed; 
 				
-				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + currentPage);
-				if (listFilter.length() > 0) {
-					out.print("&listFilterStr=" + listFilter);					
+				out.print("<meta http-equiv=\"refresh\" content=\"0;url=people.jsp?page=" + session.currentPage);
+				if (session.listFilter.length() > 0) {
+					out.print("&listFilterStr=" + session.listFilter);					
 				}
 				out.println("\">");
 			}
-			else if (action.equals("filterlist")) 
+			else if (session.action.equals("filterlist")) 
 			{
-				currentPage = 1; // (don't perpetuate this action across page jumps)
-				populateEditForm(personid, request, response);
+				session.currentPage = 1; // (don't perpetuate this session.action across page jumps)
+				populateEditForm(session.personid, request, response, session);
 			}
-			else if (action.equals("clear")) 
+			else if (session.action.equals("clear")) 
 			{
-				currentPage = 1; // (don't perpetuate this action across page jumps)
-				listFilter = "";
-				populateEditForm(personid, request, response);
+				session.currentPage = 1; // (don't perpetuate this session.action across page jumps)
+				session.listFilter = "";
+				populateEditForm(session.personid, request, response, session);
 			}
-			else if (action.equals("logout")) 
+			else if (session.action.equals("logout")) 
 			{
 				logOut(request, response);
 				out.println("<meta http-equiv=\"refresh\" content=\"0;url=index.jsp\">");
@@ -273,10 +277,10 @@ limitations under the License.
 
 <%
 	// !-- Create JavaScript Popup --
-	if (messageToDisplay.length() > 0) { 
+	if (session.messageToDisplay.length() > 0) { 
 %>
 	<script language="javascript" type="text/javascript">
-		alert("<%=messageToDisplay.replace('"', '\'') %>");
+		alert("<%=session.messageToDisplay.replace('"', '\'') %>");
 	</script>
 <% 
 	} 
@@ -304,14 +308,14 @@ limitations under the License.
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
 				<td class="headerLink">People</td>
-				<td align="right"><input type="text" id="listFilter" 
+				<td align="right"><input type="text" id="session.listFilter" 
 					onkeydown="if (event.keyCode == 13) { setDipatchAction('filterList'); 
 					document.getElementById('filterList').click(); }" 
-					name="listFilter" size="20" value="<%=listFilter %>"/><input name="filterList" type="submit"
+					name="session.listFilter" size="20" value="<%=session.listFilter %>"/><input name="filterList" type="submit"
 					value="Filter"/><input name="clearFilter" value="Clear" type="submit"/></td>
 			</tr>
 			<tr>
-				<td colspan="2" bgcolor="white"><%=listItems(request, response) %></td>
+				<td colspan="2" bgcolor="white"><%=listItems(request, response, session) %></td>
 			</tr>
 			<tr>
 				<td colspan="2" >
@@ -319,10 +323,10 @@ limitations under the License.
 				<input type="checkbox" name="selectall" onchange="var cbs = document.getElementsByName('peopleToDelete'); for(var i=0; i < cbs.length; i++) if(cbs[i].type == 'checkbox') cbs[i].checked=selectall.checked" value=""></input>
 				</td>
 			</tr>
-			<tr <%= isRequestAdminVisible %>>
+			<tr <%= session.isRequestAdminVisible %>>
 				<td colspan="2" ><button name="requestAdmin" name="requestAdmin" value="requestAdmin">Grab temp admin rights</button></td>
 			</tr>
-			<tr  <%= isDemoteAdminVisible %> >
+			<tr  <%= session.isDemoteAdminVisible %> >
 				<td colspan="2" ><button name="demoteAdmin" name="demoteAdmin" value="demoteAdmin">Relinquish temp admin rights</button></td>
 			</tr>			
 			</table>
@@ -333,7 +337,7 @@ limitations under the License.
 		
 			<table class="standardTable" cellpadding="5" cellspacing="1" width="100%">
 			<tr>
-				<td class="headerLink"><%=editTableTitle %></td>
+				<td class="headerLink"><%=session.editTableTitle %></td>
 				<td align="right"><input name="clearForm" id="clearForm" value="New User" type="submit"/></td>
 			</tr>
 			<tr>
@@ -341,50 +345,50 @@ limitations under the License.
 					<table class="standardSubTable" cellpadding="5" cellspacing="1" width="100%">
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Account Status:</td>
-						<td bgcolor="#ffffff" width="70%"><%=accountStatus %></td>
+						<td bgcolor="#ffffff" width="70%"><%=session.accountStatus %></td>
 					</tr>
-					<tr <%=accountTypeHidden %>>
+					<tr <%=session.accountTypeHidden %>>
 						<td bgcolor="#ffffff" width="30%">Account Type (Admin Only):</td>
 						<td bgcolor="#ffffff" width="70%">
 							<select name="accounttype" id="accounttype">
 								<option value="Unknown">Unknown</option>
-								<option value="admin" <%if(accounttype.equals("admin")) out.print("selected"); %>>Admin</option>
-								<option value="admin-enabled" <%if(accounttype.equals("admin-enabled")) out.print("selected"); %>>Admin-On-Request</option>
-								<option value="user" <%if(accounttype.equals("user")) out.print("selected"); %>>User</option>							
+								<option value="admin" <%if(session.accounttype.equals("admin")) out.print("selected"); %>>Admin</option>
+								<option value="admin-enabled" <%if(session.accounttype.equals("admin-enabled")) out.print("selected"); %>>Admin-On-Request</option>
+								<option value="user" <%if(session.accounttype.equals("user")) out.print("selected"); %>>User</option>							
 							</select>
 						</td>							
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Account Id:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="personid" name="personid" value="<%=visiblePersonId %>" size="50" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="session.personid" name="session.personid" value="<%=session.visiblePersonId %>" size="50" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">First Name:*</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" id="firstName" name="firstName" value="<%=firstName%>" size="50" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" id="firstName" name="firstName" value="<%=session.firstName%>" size="50" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Last Name:*</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" id="lastName" name="lastName" value="<%=lastName%>" size="50" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" id="lastName" name="lastName" value="<%=session.lastName%>" size="50" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Display Name:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="displayName" name="displayName" value="<%=displayName%>" size="50" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" readonly id="displayName" name="displayName" value="<%=session.displayName%>" size="50" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Phone Number:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" id="phone" name="phone" value="<%=phone%>" size="30" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" id="phone" name="phone" value="<%=session.phone%>" size="30" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Email Address (User Name):</td>
-						<td bgcolor="#ffffff" width="70%"><input type="text" id="email" name="email" value="<%=email%>" size="75" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="text" id="email" name="email" value="<%=session.email%>" size="75" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Password:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="password" id="password" name="password" autocomplete="off" value="<%=password%>" size="20" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="password" id="password" name="password" autocomplete="off" value="<%=session.password%>" size="20" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">Password Confirmation:</td>
-						<td bgcolor="#ffffff" width="70%"><input type="password" id="passwordConfirmation" name="passwordConfirmation" value="<%=passwordConfirmation%>" size="20" /></td>
+						<td bgcolor="#ffffff" width="70%"><input type="password" id="passwordConfirmation" name="passwordConfirmation" value="<%=session.passwordConfirmation%>" size="20" /></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%">API key:</td>
@@ -392,13 +396,13 @@ limitations under the License.
 					</tr>
 					<tr valign="top">
 						<td bgcolor="#ffffff" width="30%">Communities:</td>
-						<td bgcolor="#ffffff" width="70%"><%=listOfCommunities %></td>
+						<td bgcolor="#ffffff" width="70%"><%=session.listOfCommunities %></td>
 					</tr>
 					<tr>
 						<td bgcolor="#ffffff" width="30%"></td>
 						<td bgcolor="#ffffff" width="70%">
 <%
-	if (personid.length() > 0) {
+	if (session.personid.length() > 0) {
 %>
 							<input name="saveAccount" id="saveAccount" value="Save User Account" type="submit"
 									onclick="if (confirm('Are you sure you want to change these account details?'))  return true; return false;"
@@ -430,7 +434,7 @@ limitations under the License.
 		
 	<tr>
 	</table>
-	<input type="hidden" name="oldemail" id="oldemail" value="<%=email%>"/>
+	<input type="hidden" name="oldemail" id="oldemail" value="<%=session.email%>"/>
 	</form>
 <%
 	}
@@ -446,34 +450,34 @@ limitations under the License.
 <%!
 
 // validateFormFields
-private boolean validateFormFields()
+private boolean validateFormFields(Session session)
 {
 	boolean isValid = true;
 	ArrayList<String> al = new ArrayList<String>();
-	if (firstName.length() < 1) al.add("First Name");
-	if (lastName.length() < 1) al.add("Last Name");
-	if (email.length() < 1) al.add("Email");
+	if (session.firstName.length() < 1) al.add("First Name");
+	if (session.lastName.length() < 1) al.add("Last Name");
+	if (session.email.length() < 1) al.add("Email");
 	if (al.size() > 0)
 	{
 		isValid = false;
-		messageToDisplay = "Error, the following required fields are missing: " + al.toString();
+		session.messageToDisplay = "Error, the following required fields are missing: " + al.toString();
 	}
 	return isValid;
 }  // TESTED
 
 
 //validateFormFields
-private boolean validatePassword()
+private boolean validatePassword(Session session)
 {
 	boolean isValid = true;
 	ArrayList<String> al = new ArrayList<String>();
-	if (password.length() < 6) al.add("Password must be greater than 5 characters in length");
-	if (!password.equals(passwordConfirmation)) al.add("The Password and Password Confirmation fields must match");
+	if (session.password.length() < 6) al.add("Password must be greater than 5 characters in length");
+	if (!session.password.equals(session.passwordConfirmation)) al.add("The Password and Password Confirmation fields must match");
 	if (al.size() > 0)
 	{
 		isValid = false;
-		messageToDisplay = "Error: " + al.toString();
-		//System.out.print(messageToDisplay);
+		session.messageToDisplay = "Error: " + al.toString();
+		//System.out.print(session.messageToDisplay);
 	}
 	return isValid;
 }  // TESTED
@@ -481,16 +485,16 @@ private boolean validatePassword()
 
 
 // savePerson -
-private boolean savePerson( boolean isNewAccount, HttpServletRequest request, HttpServletResponse response )
+private boolean savePerson( boolean isNewAccount, HttpServletRequest request, HttpServletResponse response, Session session )
 {
 	try
 	{
 		String newPassword = "";
-		if (password.length() > 0 || isNewAccount)
+		if (session.password.length() > 0 || isNewAccount)
 		{
-			if (validatePassword())
+			if (validatePassword(session))
 			{
-				newPassword = ", \"password\" : \"" + password + "\"";
+				newPassword = ", \"password\" : \"" + session.password + "\"";
 			}
 			else
 			{
@@ -498,30 +502,30 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 			}
 		}
 		String apiKeyJson = "";
-		if (!apiKey.equals("")) {
-			apiKeyJson = ", \"apiKey\" : \""+apiKey+"\"";
+		if (!session.apiKey.equals("")) {
+			apiKeyJson = ", \"apiKey\" : \""+session.apiKey+"\"";
 		}
 		
 		String accountType = "";
-		if (!accounttype.equalsIgnoreCase("unknown")) {
-			accountType = ", \"accountType\" : \""+accounttype+"\"";
+		if (!session.accounttype.equalsIgnoreCase("unknown")) {
+			accountType = ", \"accountType\" : \""+session.accounttype+"\"";
 		}
 		else if (isNewAccount) { accountType = ", \"accountType\" : \"user\""; }
 		
-		if (null == phone) {
-			phone = "";
+		if (null == session.phone) {
+			session.phone = "";
 		}
 		String userJson = "" +
 		"{" + 
 		"    \"user\": " +
 		"        {" +
-		"            \"firstname\" : \"" + firstName + "\", " +
-		"            \"lastname\" : \"" + lastName + "\", " +
-		"            \"displayName\" : \"" + displayName + "\", " +
-		"            \"phone\" : \"" + phone + "\", " +
-		"            \"email\" : [ \"" + email + "\" ] " +
+		"            \"firstname\" : \"" + session.firstName + "\", " +
+		"            \"lastname\" : \"" + session.lastName + "\", " +
+		"            \"displayName\" : \"" + session.displayName + "\", " +
+		"            \"phone\" : \"" + session.phone + "\", " +
+		"            \"email\" : [ \"" + session.email + "\" ] " +
 		"        }," +
-		"    \"auth\" : { \"username\" : \"" + oldemail + "\" " + accountType + newPassword + apiKeyJson + " } " +
+		"    \"auth\" : { \"username\" : \"" + session.oldemail + "\" " + accountType + newPassword + apiKeyJson + " } " +
 		"}";
 		
 		JSONObject actionResponse = null;
@@ -529,7 +533,7 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		{
 			actionResponse = new JSONObject(postToRestfulApi("social/person/register", userJson, request, response));
 			JSONObject dataVal = new JSONObject(actionResponse.getString("data"));
-			personid = dataVal.getString("_id");
+			session.personid = dataVal.getString("_id");
 		}
 		else
 		{
@@ -539,68 +543,68 @@ private boolean savePerson( boolean isNewAccount, HttpServletRequest request, Ht
 		
 		if (responseVal.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: User account information saved."; return true;
+			session.messageToDisplay = "Success: User account information saved."; return true;
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to save the user's account information. (" + responseVal.getString("message") + ")"; 
+			session.messageToDisplay = "Error: Unable to save the user's account information. (" + responseVal.getString("message") + ")"; 
 			return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to the save user's account information. (" + e.getMessage() + ")"; return false;
+		session.messageToDisplay = "Error: Unable to the save user's account information. (" + e.getMessage() + ")"; return false;
 	}
 } // TESTED
 
 
 // updateAccountPassword -
-private boolean updateAccountPassword( HttpServletRequest request, HttpServletResponse response )
+private boolean updateAccountPassword( HttpServletRequest request, HttpServletResponse response, Session session )
 {
 	try
 	{
-		JSONObject updateResponse = new JSONObject ( new JSONObject ( updatePassword(email, Utils.encrypt(password), request, response) ).getString("response") );
+		JSONObject updateResponse = new JSONObject ( new JSONObject ( updatePassword(session.email, Utils.encrypt(session.password), request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Password updated."; return true;
+			session.messageToDisplay = "Success: Password updated."; return true;
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to update password."; return false;
+			session.messageToDisplay = "Error: Unable to update password."; return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to update password. (" + e.getMessage() + ")"; return false;
+		session.messageToDisplay = "Error: Unable to update password. (" + e.getMessage() + ")"; return false;
 	}
 }  // TESTED
 
 
 //deleteAccount -
-private boolean deleteAccount( String id, HttpServletRequest request, HttpServletResponse response )
+private boolean deleteAccount( String id, HttpServletRequest request, HttpServletResponse response, Session session )
 {
 	try
 	{
 		JSONObject updateResponse = new JSONObject ( new JSONObject ( deletePerson(id, request, response) ).getString("response") );
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
-			messageToDisplay = "Success: Account Deleted."; return true;
+			session.messageToDisplay = "Success: Account Deleted."; return true;
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to Delete Account."; return false;
+			session.messageToDisplay = "Error: Unable to Delete Account."; return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to Delete Account. (" + e.getMessage() + ")"; return false;
+		session.messageToDisplay = "Error: Unable to Delete Account. (" + e.getMessage() + ")"; return false;
 	}
 }  // TESTED
 
 
 
 // addPersonToCommunity
-private boolean addPersonToCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
+private boolean addPersonToCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	try
 	{
@@ -608,23 +612,23 @@ private boolean addPersonToCommunity(String person, String community, HttpServle
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
 			// Don't output a message, the visual feedback is sufficient
-			//messageToDisplay = "Success: Person added to community."; 
+			//session.messageToDisplay = "Success: Person added to community."; 
 			return true;
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to add person to community."; return false;
+			session.messageToDisplay = "Error: Unable to add person to community."; return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; return false;
+		session.messageToDisplay = "Error: Unable to add person to community. (" + e.getMessage() + ")"; return false;
 	}
 }  // TESTED
 
 
 // removePersonFromCommunity
-private boolean removePersonFromCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response)
+private boolean removePersonFromCommunity(String person, String community, HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	try
 	{
@@ -632,17 +636,17 @@ private boolean removePersonFromCommunity(String person, String community, HttpS
 		if (updateResponse.getString("success").equalsIgnoreCase("true"))
 		{
 			// Don't output a message, the visual feedback is sufficient
-			//messageToDisplay = "Success: Person removed from community."; 
+			//session.messageToDisplay = "Success: Person removed from community."; 
 			return true;
 		}
 		else
 		{
-			messageToDisplay = "Error: Unable to remove person from community."; return false;
+			session.messageToDisplay = "Error: Unable to remove person from community."; return false;
 		}
 	}
 	catch (Exception e)
 	{
-		messageToDisplay = "Error: Unable to remove person from community. (" + e.getMessage() + ")"; return false;
+		session.messageToDisplay = "Error: Unable to remove person from community. (" + e.getMessage() + ")"; return false;
 	}
 }
 
@@ -651,32 +655,32 @@ private boolean removePersonFromCommunity(String person, String community, HttpS
 
 
 // populateEditForm - 
-private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response) 
+private void populateEditForm(String id, HttpServletRequest request, HttpServletResponse response, Session session) 
 {
-	clearForm();
+	clearForm(session);
 	if (id != null && id != "") 
 	{
 		try 
 		{
-			editTableTitle = "Edit User Account";
+			session.editTableTitle = "Edit User Account";
 			
 			// Get person from API
 			JSONObject personResponse = new JSONObject( getPerson(id, request, response) );
 			if (personResponse.has("data")) { // (otherwise trying to get someone else's info but aren't admin...)
 				JSONObject person = personResponse.getJSONObject("data");
 				String status = person.getString("accountStatus").substring(0,1).toUpperCase() + person.getString("accountStatus").substring(1);
-				accountStatus =  status;
-				visiblePersonId = id;
-				firstName = person.getString("firstName");
-				lastName = person.getString("lastName");
-				displayName = person.getString("displayName");
-				email = person.getString("email");
-				accounttype = person.getString("accountType").toLowerCase();
-				if (person.has("phone")) phone = person.getString("phone");
+				session.accountStatus =  status;
+				session.visiblePersonId = id;
+				session.firstName = person.getString("firstName");
+				session.lastName = person.getString("lastName");
+				session.displayName = person.getString("displayName");
+				session.email = person.getString("email");
+				session.accounttype = person.getString("accountType").toLowerCase();
+				if (person.has("phone")) session.phone = person.getString("phone");
 				
 				// Output user communities
 				JSONArray communities = person.getJSONArray("communities");
-				listOfCommunities = getListOfCommunities(communities, request, response);
+				session.listOfCommunities = getListOfCommunities(communities, request, response, session);
 			}
 		} 
 		catch (Exception e) 
@@ -693,7 +697,7 @@ private void populateEditForm(String id, HttpServletRequest request, HttpServlet
 // 2. If user is a member have option to remove user from the community
 // 3. If user is not a member have the option to sign them up (users should not be able to sign them selves up
 //	  unless the community supports self registration.)
-private String getListOfCommunities(JSONArray memberOf, HttpServletRequest request, HttpServletResponse response)
+private String getListOfCommunities(JSONArray memberOf, HttpServletRequest request, HttpServletResponse response, Session session)
 {	
 	StringBuffer communityList = new StringBuffer();
 	communityList.append("<table width=\"100%\">");
@@ -746,16 +750,16 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 						communityList.append("<td width=\"5%\">");
 						
 						String listFilterString = "";
-						if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+						if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
 						String pageString = "";
-						if (currentPage > 1) pageString = "&page=" + currentPage;
+						if (session.currentPage > 1) pageString = "&page=" + session.currentPage;
 						
-						String deleteLink = "<a href=\"people.jsp?action=edit&personid=" + personid
+						String deleteLink = "<a href=\"people.jsp?session.action=edit&session.personid=" + session.personid
 								+ pageString + listFilterString + "&removefrom=" + community.getString("_id") 
 								+ "\" title=\"Remove User from Community\" >"
 								+ "<img src=\"image/minus_button.png\" border=0></a>";
 								
-						String addLink = "<a href=\"people.jsp?action=edit&personid=" + personid
+						String addLink = "<a href=\"people.jsp?session.action=edit&session.personid=" + session.personid
 								+ pageString + listFilterString + "&addto=" + community.getString("_id") 
 								+ "\" title=\"Add User to Community\"><img src=\"image/plus_button.png\" border=0></a>";
 						
@@ -799,26 +803,26 @@ private String getListOfCommunities(JSONArray memberOf, HttpServletRequest reque
 
 
 // clearForm
-private void clearForm()
+private void clearForm(Session session)
 {
-	editTableTitle = "Add New User Account";
-	visiblePersonId = "";
-	accountStatus =  "";
-	firstName = "";
-	lastName = "";
-	displayName = "";
-	email = "";
-	oldemail = "";
-	phone = "";
-	password = "";
-	passwordConfirmation = "";
-	listOfCommunities = "";
-	accounttype = "";
+	session.editTableTitle = "Add New User Account";
+	session.visiblePersonId = "";
+	session.accountStatus =  "";
+	session.firstName = "";
+	session.lastName = "";
+	session.displayName = "";
+	session.email = "";
+	session.oldemail = "";
+	session.phone = "";
+	session.password = "";
+	session.passwordConfirmation = "";
+	session.listOfCommunities = "";
+	session.accounttype = "";
 }  // TESTED
 
 
 // listItems -
-private String listItems(HttpServletRequest request, HttpServletResponse response)
+private String listItems(HttpServletRequest request, HttpServletResponse response, Session session)
 {
 	StringBuffer people = new StringBuffer();
 	Map<String, String> listOfPeople = getListOfAllPeople(request, response);
@@ -835,9 +839,9 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		List<String> sortedAndFilteredKeys = new ArrayList<String>();
 		for (String key : sortedKeys)
 		{
-			if ( listFilter.length() > 0 )
+			if ( session.listFilter.length() > 0 )
 			{
-				if ( key.toLowerCase().contains( listFilter.toLowerCase() ) ) sortedAndFilteredKeys.add( key );
+				if ( key.toLowerCase().contains( session.listFilter.toLowerCase() ) ) sortedAndFilteredKeys.add( key );
 			}
 			else
 			{
@@ -851,11 +855,11 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Page = 1, item = 1
 		// Page = X, item = ( ( currentPage - 1 ) * itemsToShowPerPage ) + 1;
 		int startItem = 1;
-		int endItem = startItem + itemsToShowPerPage - 1;
-		if (currentPage > 1)
+		int endItem = startItem + session.itemsToShowPerPage - 1;
+		if (session.currentPage > 1)
 		{
-			startItem = ( ( currentPage - 1 ) * itemsToShowPerPage ) + 1;
-			endItem = ( startItem + itemsToShowPerPage ) - 1;
+			startItem = ( ( session.currentPage - 1 ) * session.itemsToShowPerPage ) + 1;
+			endItem = ( startItem + session.itemsToShowPerPage ) - 1;
 		}
 
 		int currentItem = 1;
@@ -869,11 +873,11 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 				String deleteLink = "";
 	
 				String listFilterString = "";
-				if (listFilter.length() > 0) listFilterString = "&listFilterStr="+ listFilter;
+				if (session.listFilter.length() > 0) listFilterString = "&listFilterStr="+ session.listFilter;
 				
-				editLink = "<a href=\"people.jsp?action=edit&personid=" + id + "&page=" + currentPage 
+				editLink = "<a href=\"people.jsp?session.action=edit&session.personid=" + id + "&page=" + session.currentPage 
 						+ listFilterString + "\" title=\"Edit User Account\">" + name + "</a>";
-				deleteLink = "<a href=\"people.jsp?action=delete&personid=" + id+ "&page=" + currentPage
+				deleteLink = "<a href=\"people.jsp?session.action=delete&session.personid=" + id+ "&page=" + session.currentPage
 						+ listFilterString + "\" title=\"Delete User Account\" "
 						+ "onclick='return confirm(\"Do you really wish to delete the user account for: "
 						+ name + "?\");'><img src=\"image/delete_x_button.png\" border=0></a>";
@@ -894,10 +898,10 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		// Create base URL for each page
 		StringBuffer baseUrl = new StringBuffer();
 		baseUrl.append("people.jsp?");
-		if (listFilter.length() > 0) baseUrl.append("listFilterStr=").append(listFilter).append('&');
+		if (session.listFilter.length() > 0) baseUrl.append("listFilterStr=").append(session.listFilter).append('&');
 		
-		String actionString = (lastaction.equals("edit")) ? "action=" + lastaction : "";
-		String personIdString = (personid.length() > 0) ? "personid=" + personid : "";
+		String actionString = (session.lastaction.equals("edit")) ? "session.action=" + session.lastaction : "";
+		String personIdString = (session.personid.length() > 0) ? "session.personid=" + session.personid : "";
 		
 		if (actionString.length() > 0) baseUrl.append(actionString);
 		if (actionString.length() > 0 && personIdString.length() > 0) baseUrl.append("&");
@@ -905,7 +909,7 @@ private String listItems(HttpServletRequest request, HttpServletResponse respons
 		if (actionString.length() > 0 || personIdString.length() > 0) baseUrl.append("&");
 		
 		baseUrl.append("page=");
-		people.append( createPageString( sortedAndFilteredKeys.size(), itemsToShowPerPage, currentPage, baseUrl.toString() ));
+		people.append( createPageString( sortedAndFilteredKeys.size(), session.itemsToShowPerPage, session.currentPage, baseUrl.toString() ));
 		people.append("</td></tr>");
 		// --------------------------------------------------------------------------------
 		people.append("</table>");

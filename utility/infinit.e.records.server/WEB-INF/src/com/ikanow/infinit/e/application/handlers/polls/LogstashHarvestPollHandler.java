@@ -315,7 +315,11 @@ public class LogstashHarvestPollHandler implements PollHandler {
 			return;				
 		}//TESTED
 		
-		logstashConfig = logstashConfig.replace("_XXX_DOTSINCEDB_XXX_", LOGSTASH_WD + ".sincedb_" + src.getId().toString());
+		logstashConfig = logstashConfig
+					.replace("_XXX_DOTSINCEDB_XXX_", LOGSTASH_WD + ".sincedb_" + src.getId().toString())
+					.replace("_XXX_LSTEMPDIR_XXX_", System.getProperty("java.io.tmpdir") + "/logstash-runtime/" + src.getId().toString())
+					;
+		
 		// Replacement for #LOGSTASH{host} - currently only replacement supported (+ #IKANOW{} in main code)
 		try {
 			logstashConfig = logstashConfig.replace("#LOGSTASH{host}", java.net.InetAddress.getLocalHost().getHostName());

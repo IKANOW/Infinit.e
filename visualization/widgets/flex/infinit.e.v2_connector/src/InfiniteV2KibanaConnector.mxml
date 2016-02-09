@@ -94,7 +94,7 @@ limitations under the License.
 			private var queryGen:kibanaQueryGenerator;
 			
 			[Bindable]
-			private var INITIAL_URL:String = "./infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json";
+			private var INITIAL_URL:String = "/infinit.e.records/static/kibana/index.html#/dashboard/file/Kibana_StashedTemplate.json";
 //			private var INITIAL_URL:String = "../../../../widgets/flex/infinit.e.kibana_connector/bin-debug/dist/index.html";  //flex.client URL
 //			private var INITIAL_URL:String = "../../../../frameworks/flex/infinit.e.flex.client/bin-debug/kibana.html";  //flex.client URL
 			
@@ -292,7 +292,7 @@ limitations under the License.
 							sources = query.input.sources;
 						}
 						catch (eee:Error) {}
-						if (!query.input.srcInclude || (sources == "")) {
+						if (!query.input || !query.input.srcInclude || (sources == "")) {
 							//(negative selection)
 							sources = communityIds + "," + sources;						
 						}

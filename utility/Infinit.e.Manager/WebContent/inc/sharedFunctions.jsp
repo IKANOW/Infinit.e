@@ -60,6 +60,8 @@ limitations under the License.
 <%!
 	// !----------  ----------!
 	String API_ROOT = null;
+	String SSO_LOGIN_URL = null;
+	String SSO_LOGOUT_URL = null;
 	String LOGO_URL = null;
 	boolean showIkanowLogo = true;
 	Pattern showLogoPattern = Pattern.compile("[?#&]nopowered(?:[#&]|$)");
@@ -96,10 +98,26 @@ limitations under the License.
 		try
 		{
 			engine.eval(appConstantFile);
-			engine.eval("output = getEndPointUrl();");
-			API_ROOT = (String) engine.get("output");
-			engine.eval("output2 = getLogoUrl();");
-			LOGO_URL = (String) engine.get("output2");
+			try {
+				engine.eval("output = getEndPointUrl();");
+				API_ROOT = (String) engine.get("output");
+			}
+			catch (Exception ee) {}
+			try {
+				engine.eval("output2 = getLogoUrl();");
+				LOGO_URL = (String) engine.get("output2");
+			}
+			catch (Exception ee) {}
+			try {
+				engine.eval("output3 = getSsoLogin();");
+				SSO_LOGIN_URL = (String) engine.get("output3");
+			}
+			catch (Exception ee) {}
+			try {
+				engine.eval("output4 = getSsoLogout();");
+				SSO_LOGOUT_URL = (String) engine.get("output4");
+			}
+			catch (Exception ee) {}
 		}
 		catch (Exception e)
 		{
@@ -121,10 +139,11 @@ limitations under the License.
 			Matcher matcher = showLogoPattern.matcher(LOGO_URL);
 			showIkanowLogo = !(matcher.find());
 		}
+		if (null == SSO_LOGOUT_URL) {
+			SSO_LOGOUT_URL = "?action=logout";
+		}
 		
 	}
-
-
 	boolean isLoggedIn = false;
 	messageToDisplay = "";
 	
@@ -146,7 +165,6 @@ limitations under the License.
 
 %>
 
-	
 <%!	
 //!---------- SSL handling -------------!
 

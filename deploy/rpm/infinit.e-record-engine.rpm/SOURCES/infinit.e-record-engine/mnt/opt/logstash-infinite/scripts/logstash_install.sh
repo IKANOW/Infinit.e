@@ -1,12 +1,7 @@
 #!/bin/bash
 # Install via YUM
 if [ "$1" != "--norpm" ]; then
-	#(so can be called from RPM)
-	if test -e /opt/infinite-install/rpms/logstash-1.4.0*; then
-		rpm -U /opt/infinite-install/rpms/logstash-1.4.0* /opt/infinite-install/rpms/logstash-contrib-1.4.0*
-	else
-		yes | yum install logstash-1.4.0 logstash-contrib-1.4.0
-	fi
+	yes | yum install logstash-2.1.2
 else
     shift
 fi
@@ -21,6 +16,16 @@ cd /opt/logstash-infinite
 ln -s /opt/logstash
 chown -h tomcat.tomcat logstash
 /bin/cp /opt/logstash-infinite/templates/etc_sysconfig_logstash /etc/sysconfig/logstash
+
+#Install/update the plugins: (note this is duplicated in the rpm)
+export JAVA_HOME=/usr/java/default
+/opt/logstash/bin/plugin unpack /mnt/opt/logstash-infinite/plugins/plugins_package.tar.gz
+/opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-mongodb-2.0.3.gem
+#(don't try to install webhdfs for now)
+#/opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-webhdfs-2.0.2.gem
+/opt/logstash/bin/plugin install --local --no-verify /mnt/opt/logstash-infinite/plugins/logstash-output-s3-2.0.4.gem
+#(See above)
+#/bin/find /opt/logstash/vendor/local_gems -name "logstash-output-webhdfs.gemspec"|xargs sed -i 's/ö/o/g'
 
 #TO INSTALL THE LOGSTASH HARVESTER, SIMPLY:
 if [[ "$1" == "full" || "$1" == "slave" ]]; then

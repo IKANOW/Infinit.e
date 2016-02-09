@@ -20,7 +20,7 @@ limitations under the License.
 <%@page import="org.apache.commons.fileupload.FileItemIterator"%>
 <%@page import="org.apache.commons.fileupload.disk.DiskFileItemFactory"%>
 <%@page import="org.apache.commons.fileupload.servlet.ServletFileUpload"%>
-<%@ page contentType="text/html; charset=utf-8" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*" errorPage="" %>
+<%@ page contentType="text/html; charset=utf-8"  isThreadSafe="false" language="java" import="java.io.*, java.util.*,java.net.*,com.google.gson.Gson, org.apache.commons.io.*,sun.misc.BASE64Encoder,java.security.*" errorPage="" %>
 <%@ include file="inc/sharedFunctions.jsp" %>
 <%!
 	static String SHARE_ROOT = "$infinite/share/get/";

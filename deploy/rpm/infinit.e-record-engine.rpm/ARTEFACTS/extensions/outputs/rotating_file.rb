@@ -2,10 +2,13 @@
 require "logstash/namespace"
 require "logstash/outputs/base"
 require "zlib"
+require "stud/buffer"
+
 
 # This output will write events to files on disk. You can use fields
 # from the event as parts of the filename and/or path.
 class LogStash::Outputs::File < LogStash::Outputs::Base
+  include Stud::Buffer
 
   config_name "rotating_file"
   milestone 2
@@ -46,9 +49,14 @@ class LogStash::Outputs::File < LogStash::Outputs::Base
   # Gzip the output stream before writing to disk.
   config :gzip, :validate => :boolean, :default => false
 
+  @ls_mutex = Mutex.new
+
   public
   def register
     require "fileutils" # For mkdir_p
+    require "thread"
+
+    @ls_mutex = Mutex.new
 
     workers_not_supported
 
@@ -60,14 +68,30 @@ class LogStash::Outputs::File < LogStash::Outputs::Base
     max_size = @max_size.to_i
     @stale_cleanup_interval = 10
     segment_period = @segment_period.to_i
+    @last_write_log = now - 1000
+    
+    # Create a buffer that will generate "ping"s for us
+    buffer_initialize(
+      :max_interval => @stale_cleanup_interval
+    )
+    # Ensure that always have an object
+    buffer_receive([])
+    
   end # def register
 
   public
   def receive(event)
+  begin
+  @ls_mutex.synchronize {
     if not output?(event)
-       close_stale_files
+       # (Don't need this any more since using buffer)
+       #close_stale_files
        return
     end
+    
+    #(Always update stale cycle to minimize buffer vs event collision - if this vaguely works probably need to put a mutex in...)
+    now = Time.now
+    @last_stale_cleanup_cycle = now
 
     path = event.sprintf(@path)
 	if @final_path
@@ -94,13 +118,20 @@ class LogStash::Outputs::File < LogStash::Outputs::Base
 	  end
       @files.delete(path)
 	else
-       flush(fd)
+       internal_flush(fd)
     end
     close_stale_files
+  }
+  rescue Exception => e
+    return unless Time.now - @last_write_log >= 600
+    @last_write_log = Time.now  
+    @logger.error("Exception while writing: %s" % e.backtrace.join(":"), :exception => e)
+  end
   end # def receive
 
   def teardown
     @logger.debug("Teardown: closing files")
+    buffer_clear_pending
     @files.each do |path, fd|
       begin
         fd.close
@@ -109,14 +140,28 @@ class LogStash::Outputs::File < LogStash::Outputs::Base
         end
         @logger.debug("Closed file #{path}", :fd => fd)
       rescue Exception => e
-        @logger.error("Excpetion while flushing and closing files.", :exception => e)
+        @logger.error("Exception while flushing and closing files.", :exception => e)
       end
     end
     finished
   end
 
+  # (called from stud/buffer)
+  def flush(events, teardown=false)
+    begin
+    @ls_mutex.synchronize {
+       close_stale_files
+  
+       # Ensure that always have an object
+       buffer_receive([])
+    }
+    rescue Exception => e
+      @logger.error("Exception while calling buffer flush: %s" % e.backtrace.join(":"), :exception => e)
+    end     
+  end  
+
   private
-  def flush(fd)
+  def internal_flush(fd)
     if flush_interval > 0
       flush_pending_files
     else

@@ -24,4 +24,6 @@ MAILTO=""
 
 */10 * * * * root	sh /opt/logstash-infinite/scripts/remove_logstash_tmpfiles.sh
 
+* * * * * root /sbin/service logstash status >> /dev/null; RETCODE=$?; if [ $(find /etc/logstash/conf.d/ -name "*.conf"|wc -l) -gt 0 ] && [ $RETCODE -eq 2 ] ; then touch /opt/logstash-infinite/RESTART_LOGSTASH; fi
+
 #(EOL defender!)

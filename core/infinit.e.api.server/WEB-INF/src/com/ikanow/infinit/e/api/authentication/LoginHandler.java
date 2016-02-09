@@ -18,6 +18,7 @@ package com.ikanow.infinit.e.api.authentication;
 import java.net.URLEncoder;
 import java.util.Date;
 import java.util.Random;
+
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
@@ -27,6 +28,8 @@ import com.ikanow.infinit.e.data_model.api.ResponsePojo;
 import com.ikanow.infinit.e.data_model.api.ResponsePojo.ResponseObject;
 import com.ikanow.infinit.e.data_model.store.DbManager;
 import com.ikanow.infinit.e.data_model.store.social.authentication.AuthenticationPojo;
+import com.ikanow.infinit.e.data_model.store.social.cookies.CookiePojo;
+import com.ikanow.infinit.e.data_model.store.social.person.PersonPojo;
 import com.ikanow.infinit.e.data_model.InfiniteEnums;
 import com.mongodb.BasicDBObject;
 import com.mongodb.DBObject;
@@ -227,5 +230,25 @@ public class LoginHandler
 		}		
 		rp.setResponse(new ResponseObject("Logout",true,"User logged out successfully"));
 		return rp;
+	}
+
+
+	/**
+	 * Function to remove user cookies and apiKey (called from PersonHandler.updateWPUser() when status is set to DISABLED)
+	 * Similar to disabled call here in login but actually works (removes the api key also)
+	 * 
+	 * @param pp
+	 */
+	public static void disableUser(PersonPojo pp) {
+		if ( pp != null ) {
+			//remove any cookies
+			BasicDBObject personQuery = new BasicDBObject(CookiePojo.profileId_, pp.get_id());
+			DbManager.getSocial().getCookies().remove(personQuery);
+			
+			//remove any api keys
+			BasicDBObject authQuery = new BasicDBObject(AuthenticationPojo.profileId_, pp.get_id());
+			BasicDBObject authUpdate = new BasicDBObject(DbManager.unset_, new BasicDBObject(AuthenticationPojo.apiKey_, ""));
+			DbManager.getSocial().getCookies().update(authQuery, authUpdate);
+		}
 	}
 }

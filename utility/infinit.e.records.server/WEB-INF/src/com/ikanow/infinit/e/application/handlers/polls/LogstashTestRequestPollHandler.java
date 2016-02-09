@@ -35,6 +35,7 @@ import org.apache.commons.io.IOUtils;
 
 
 
+
 import com.ikanow.infinit.e.application.data_model.TestLogstashExtractorPojo;
 import com.ikanow.infinit.e.application.utils.LogstashConfigUtils;
 import com.ikanow.infinit.e.data_model.store.DbManager;
@@ -148,7 +149,12 @@ public class LogstashTestRequestPollHandler implements PollHandler {
 			
 			String outputConf = _testOutputTemplate.replace("_XXX_COLLECTION_XXX_", testInfo._id.toString()); //TESTED
 			String sinceDbPath = LOGSTASH_WD + ".sincedb_" + testInfo._id.toString();
-			String conf = logstashConfig.replace("_XXX_DOTSINCEDB_XXX_", sinceDbPath) + outputConf.replace("_XXX_SOURCEKEY_XXX_", testInfo.sourceKey);
+			String conf = logstashConfig
+					.replace("_XXX_DOTSINCEDB_XXX_", sinceDbPath)
+					.replace("_XXX_LSTEMPDIR_XXX_", System.getProperty("java.io.tmpdir") + "/logstash-test/" + testInfo._id.toString())
+					 + 
+					 outputConf.replace("_XXX_SOURCEKEY_XXX_", testInfo.sourceKey)
+					;
 
 			boolean allWorked = false;
 			Process logstashProcess = null;

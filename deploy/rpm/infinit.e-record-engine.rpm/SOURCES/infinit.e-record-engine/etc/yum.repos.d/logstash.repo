@@ -1,5 +1,6 @@
-[logstash-1.4]
-name=logstash repository for 1.4.x packages
-baseurl=http://packages.elasticsearch.org/logstash/1.4/centos
+[logstash-2.1]
+name=Logstash repository for 2.1.x packages
+baseurl=http://packages.elastic.co/logstash/2.1/centos
 gpgcheck=0
+gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1

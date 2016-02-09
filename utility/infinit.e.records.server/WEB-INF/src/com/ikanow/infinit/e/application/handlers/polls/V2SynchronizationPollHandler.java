@@ -82,7 +82,7 @@ public class V2SynchronizationPollHandler implements PollHandler {
 	 * @return key (path or source) -> index prefix (not including data suffix or any wildcards)
 	 */
 	public static Map<String, String> getV2BucketsInCommunity(final String comm_id_str, final Set<String> negative_set, final String user_id, boolean show_objects, boolean show_tests, boolean show_logging, final String cache_key) {
-		final String final_cache_key = user_id + ":" + cache_key;
+		final String final_cache_key = comm_id_str + ":" + user_id + ":" + cache_key; //(is called individually for each community)
 		try {
 			return _v2_bucket_cache.computeIfAbsent(final_cache_key, __ -> {
 				return _v2_mapping.getOrDefault(comm_id_str, Collections.emptyMap()).entrySet().stream()

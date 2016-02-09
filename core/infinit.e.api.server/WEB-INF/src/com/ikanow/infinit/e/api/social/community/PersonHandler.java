@@ -25,6 +25,7 @@ import java.util.List;
 import org.apache.log4j.Logger;
 import org.bson.types.ObjectId;
 
+import com.ikanow.infinit.e.api.authentication.LoginHandler;
 import com.ikanow.infinit.e.api.authentication.PasswordEncryption;
 import com.ikanow.infinit.e.api.utils.RESTTools;
 import com.ikanow.infinit.e.api.utils.SocialUtils;
@@ -647,6 +648,11 @@ public class PersonHandler
 			DbManager.getSocial().getAuthentication().update(authQuery.toDb(), ap.toDb());			
 			rp.setResponse(new ResponseObject("WP Update User",true,"User Updated Successfully"));
 			rp.setData(ap, new AuthenticationPojoApiMap());
+			
+			//if we were disabling a user, make sure their coookies/apikey are turned off
+			if ( ap.getAccountStatus() == AccountStatus.DISABLED ) {
+				LoginHandler.disableUser(pp);
+			}
 			
 			//update communities if necessary
 			if (bNeedToUpdateCommunities) 

@@ -1,5 +1,20 @@
 <!-- Begin login_form.jsp  -->
 
+<% if (null != SSO_LOGIN_URL) { 
+
+   // New location to be redirected
+	final String curr_page_enc = 
+	(null == request.getQueryString())
+	? java.net.URLEncoder.encode(request.getRequestURL().toString())
+	: java.net.URLEncoder.encode(request.getRequestURL().toString() + "?" + request.getQueryString())
+	;
+   String site = SSO_LOGIN_URL.replace("$curr_page_enc", curr_page_enc);
+   response.setStatus(response.SC_MOVED_TEMPORARILY);
+   response.setHeader("Location", site); 
+
+} else { 	
+%>
+
 <br />
 <br />
 <br />
@@ -30,4 +45,6 @@
 <br />
 <br />
 <br />
+<% }%>
+
 <!-- End login_form.jsp  -->

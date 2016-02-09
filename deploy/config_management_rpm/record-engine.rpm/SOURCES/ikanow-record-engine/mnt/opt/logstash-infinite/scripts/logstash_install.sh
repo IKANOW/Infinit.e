@@ -2,10 +2,10 @@
 # Install via YUM
 if [ "$1" != "--norpm" ]; then
 	#(so can be called from RPM)
-	if test -e /opt/infinite-install/rpms/logstash-1.4.0*; then
-		rpm -U /opt/infinite-install/rpms/logstash-1.4.0* /opt/infinite-install/rpms/logstash-contrib-1.4.0*
+	if test -e /opt/infinite-install/rpms/logstash-2.1.1*; then
+		rpm -U /opt/infinite-install/rpms/logstash-2.1.1*
 	else
-		yes | yum install logstash-1.4.0 logstash-contrib-1.4.0
+		yes | yum install logstash-2.1.1
 	fi
 else
     shift

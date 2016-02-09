@@ -874,237 +874,1545 @@ var SAMPLE_SOURCES = {
 			                       ]
 		},
 		
-		"data_bucket": {
-			"description": "This object generates a V2 harvest data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
-			"extractType": "V2DataBucket",
-			"isPublic": true,
-			"mediaType": "Record",
-			"title": "Template V2 harvest data bucket",
-			"processingPipeline": [
-			                       {
-			                    	   "display": "Data bucket object (no other elements allowed)",
-			                    	   "data_bucket": {
-			                    		   "full_name": "/bucket/path/here",
-			                    		   "multi_node_enabled": false,
-			                    		   "node_list_rules": [],
-			                    		   "aliases": [],
-			                    		   "test_params": {
-			                    			   "max_run_time_secs": 60
-			                    		   },
-			                    		   "harvest_technology_name_or_id": "/app/aleph2/library/import/harvest/tech/XXX",
-			                    		   "harvest_configs": 
-			                    			   [
-                		                       {
-                		                    	   "name": "sample_harvester_1",
-                		                    	   "enabled": false,
-                		                    	   "config": {
-                		                    		   "key1": "value1"
-                		                    	   }
-                		                       }
-                		                       ],
-			                    		   "master_enrichment_type": "none",
-			                    		   "streaming_enrichment_topology":
-		                    			  {
-	         		                    	   "name": "example_streaming_topology_1",
-	         		                    	   "enabled": false,
-	         		                    	   "config": {
-	         		                    		   "key1": "value1"
-	         		                    	   } 
-		                    			  },
-			                    		   "batch_enrichment_configs": 
-			                    			  [
-                		                       {
-                		                    	   "name": "example_batch_module_1",
-                		                    	   "enabled": false,
-                		                    	   "config": {
-                		                    		   "key1": "value1"
-                		                    	   }                		                    	   
-                		                       }
-                		                    ],
-			                    		   "data_schema": {
-			                    			   "storage_schema": {
-			                    				   "enabled": false,
-			                    				   "technology_override_schema": {}
-			                    			   },
-			                    			   "document_schema": {
-			                    				   "enabled": false,
-			                    				   "technology_override_schema": {}
-			                    			   },
-			                    			   "search_index_schema": {
-			                    				   "enabled": true,
-			                    				   "technology_override_schema": {}
-			                    			   },
-			                    			   "columnar_schema": {
-			                    				   "enabled": false,
-			                    				   "technology_override_schema": {}
-			                    			   },
-			                    			   "temporal_schema": {
-			                    				   "enabled": false,
-			                    				   "technology_override_schema": {}
-			                    			   }
-			                    		   },
-			                    		   "poll_frequency": "hourly",
-			                    		   "misc_properties": {}
-			                    	   }
-			                       }
-			                       ]
-		},
-		
-		"analytics_bucket": {
-			"description": "This object generates a V2 analytics thread / data bucket if the V2 migration plugin is installed.\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
-			"extractType": "V2DataBucket",
-			"isPublic": true,
-			"mediaType": "Record",
-			"title": "Template V2 analytics data bucket",
-			"processingPipeline": [{
-			                   	  "display": "Data bucket object (no other elements allowed)",
-			                       "data_bucket": {
-            						"analytic_thread": {"jobs": 
-										[
-										{
-							                "analytic_technology_name_or_id": "BatchEnrichmentService",
-                							"analytic_type": "batch",
-                							"config": {"enrich_pipeline": [
-                							]},
-                							"enabled": false,
-                							"inputs": [
-                    						{
-                        						"config": {
-                            						"time_max": "2 days",
-                            						"time_min": "4 days"
-                        						},
-												"filter": {},
-                        						"data_service": "search_index_service",
-                        						"enabled": false,
-                        						"resource_name_or_id": "/some/bucket"
-                    						},
-                    						{
-                        						"config": {
-                            						"time_max": "2 days",
-                            						"time_min": "4 days"
-                        						},
-                        						"data_service": "storage_service",
-                        						"enabled": false,
-                        						"resource_name_or_id": "/some/other/bucket"
-                    						},
-                    						{
-                        						"config": {"test_record_limit_request": 20},
-						                        "data_service": "document_service.V1DocumentService",
-            						            "enabled": false,
-			            			            "filter": {
-													":srctags": { "$in": [ "V1_SRC_TAG" ] }
-												},
-			                        			"resource_name_or_id": "/aleph2_external/COMMIDS"
-			            			        }
-						   			 ],
-			                		"library_names_or_ids": ["/app/aleph2/library/enrichment_utils.jar"],
-            			    		"name": "SAMPLE_BATCH_ANALYTIC_JOB",
-                					"output": {
-	                    				"is_transient": true,
-    	    	    	        		"preserve_existing_data": false
-        	    	    			}
-            					},
-								{
-							        "analytic_technology_name_or_id": "/app/aleph2/library/sample_analytic_job.jar",
-                					"analytic_type": "batch",
-									"dependencies": ["SAMPLE_BATCH_ANALYTIC_JOB"],
-									"config": {},
-									"name": "SAMPLE_DEPENDENT_JOB",
-									"enabled": false,
-									"inputs": [{
-										"enabled": false,
-										"data_service": "batch",
-			                        	"resource_name_or_id": "SAMPLE_BATCH_ANALYTIC_JOB"
-									},
-									{
-										"enabled": false,
-										"data_service": "batch",
-										"resource_name_or_id": ""
-									}
-									],									
-                					"output": {
-	                    				"is_transient": false,
-    	    	    	        		"preserve_existing_data": false
-        	    	    			}
-								},
-								{
-							        "analytic_technology_name_or_id": "StreamingEnrichmentService",
-                					"analytic_type": "streaming",
-									"module_name_or_id": "/app/aleph2/library/some_streaming_topology.jar",
-									"config": {},
-									"name": "SAMPLE_STANDALONE_STREAMING_JOB",
-									"enabled": false,
-									"inputs": [
-									{
-										"enabled": false,
-										"data_service": "streaming",
-										"resource_name_or_id": "/some/other/bucket"
-									},
-									{
-										"enabled": false,
-										"data_service": "streaming",
-										"resource_name_or_id": ""
-									}],
-                					"output": {
-	                    				"is_transient": false,
-    	    	    	        		"preserve_existing_data": true
-        	    	    			}
-								}
-							],
-             			   "trigger_config": {
-						   		"enabled": false,
-         			           "auto_calculate": false,
-							   "schedule": "5min",
-            			        "trigger": {
-          			              "dependency_list": [
-          		                  	{
-    		                            "resource_name_or_id": "",
-     		                           "type": "file"
-         		                   },
-             		               {
-                  		              "resource_name_or_id": "/bucket/test/enrichment/batch",
-              		                  "type": "bucket"
-                    		        }
-                    			    ],
-                       			 	"op": "and"
-                  				  }
-         					   }
-							},									   
-			                "full_name": "/bucket/path/here",
-			                "multi_node_enabled": false,
-			                "node_list_rules": [],
-			                "aliases": [],
-			                "test_params": {
-			                	"max_run_time_secs": 120
-			                 },
-			                 "master_enrichment_type": "none",
-			                 "data_schema": {
-			                 	"storage_schema": {
-			                    	"enabled": false,
-			                    	"technology_override_schema": {}
-			                    },
-			                    "document_schema": {
-			                    	"enabled": false,
-			                    	"technology_override_schema": {}
-								},
-								"search_index_schema": {
-			                    	"enabled": true,
-			                    	"technology_override_schema": {}
-			                    },
-			                    "columnar_schema": {
-			                    	"enabled": false,
-			                    	"technology_override_schema": {}
-			                    },
-			                    "temporal_schema": {
-			                    	"enabled": false,
-			                    	"technology_override_schema": {}
-			                    }
-			              	},
-			                "poll_frequency": "hourly",
-			                "misc_properties": {}
-			            }
-			         }
-			  ]
-		}
-		
+		"data_bucket": 
+{
+    "description": "This object generates a V2 analytics thread / data bucket if the V2 migration plugin is installed.\r\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
+    "extractType": "V2DataBucket",
+    "isPublic": true,
+    "mediaType": "Record",
+    "processingPipeline": [
+        {
+            "data_bucket": {
+                "data_schema": {
+                    "search_index_schema": {},
+                    "storage_schema": {}
+                },
+                "harvest_configs": [
+                    {
+                        "config": {}
+                    }
+                ]
+            }
+        }
+    ],
+    "title": "Template V2 analytics data bucket",
+    "templateProcessingFlow": {
+        "root": true,
+        "label": "Bucket",
+        "children": [
+            {
+                "root": false,
+                "label": "Bucket Metadata",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Bucket Metadata",
+                    "summary": "",
+                    "row": 0,
+                    "col": 0,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": false,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {"poll_frequency": "10 min"},
+                    "template": {
+                        "display_name": "Bucket Metadata",
+                        "key": "data_bucket",
+                        "categories": [
+                            "Metadata"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "expandable": false,
+                        "form_info": "General bucket parameters",
+                        "schema": [
+                            {
+                                "key": "full_name",
+                                "type": "horizontalInput",
+                                "templateOptions": {
+                                    "label": "Bucket Path",
+                                    "placeholder": "The virtual bucket path, eg /path/to/bucket",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "poll_frequency",
+                                "type": "horizontalInput",
+                                "templateOptions": {
+                                    "label": "Poll Frequency",
+                                    "placeholder": "Human readable frequency (eg '10min', '1 day') for how often this harvester is polled",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "template": "<hr/>"
+                            },
+                            {
+                                "key": "show_test_settings",
+                                "type": "checkbox",
+                                "templateOptions": {
+                                    "label": "Show Test Settings"
+                                }
+                            },
+                            {
+                                "key": "requested_num_objects",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "100",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Requested Data Objects",
+                                    "placeholder": "The desired number of data objects to be returned by the test",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_startup_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "60",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Startup Time (s)",
+                                    "placeholder": "The maximum number of seconds to wait for the test to startup",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_run_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "120",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Run Time (s)",
+                                    "placeholder": "The maximum number of seconds to wait for the test to run, after it has started up",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_storage_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "86400",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Test Storage Time (s)",
+                                    "placeholder": "The maximum time (secs) to keep the test result data",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "overwrite_existing_data",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalCheckbox",
+                                "defaultValue": true,
+                                "templateOptions": {
+                                    "label": "Overwrite existing data",
+                                    "required": false
+                                }
+                            }
+                        ],
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { \n  curr_obj.full_name = template.element.form_model.full_name;\n    \tvar pf = template.element.form_model.poll_frequency; \n  curr_obj.poll_frequency = (pf || '').length > 0 ? pf : undefined; \t\tif (template.element.form_model.requested_num_objects) { curr_obj.test_params = {};\n\t\tvar doc = curr_obj.test_params;\n\t\tdoc.requested_num_objects = parseInt(template.element.form_model.requested_num_objects);\n\t\tdoc.max_startup_time_secs = parseInt(template.element.form_model.max_startup_time_secs);\n\t\tdoc.max_run_time_secs = parseInt(template.element.form_model.max_run_time_secs);\n\t\tif ((template.element.form_model.max_storage_time_secs || '').length > 0) doc.max_storage_time_secs = parseInt(template.element.form_model.max_storage_time_secs);\n\t\tdoc.overwrite_existing_data = template.element.form_model.overwrite_existing_data; }\n\n}"
+                        }
+                    }
+                },
+                "children": []
+            },
+            {
+                "root": false,
+                "label": "Data Schema Container",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Data Schema Container",
+                    "summary": "",
+                    "row": 0,
+                    "col": 1,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": true,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Data Schema Container",
+                        "key": "data_schema",
+                        "categories": [
+                            "Metadata"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "child_filters": [
+                            "data_service_schema"
+                        ],
+                        "expandable": true,
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.data_schema = {}; return curr_obj.data_schema; }"
+                        },
+                        "form_info": "<p>This is a container for the data schema for the different attributes of the stored data</p>\n<p>It has no attributes of its own - instead expand it using the <a class=\"glyphicon glyphicon-fullscreen\"></a> icon\n and then add the desired attributes from those available.\n</p>\n"
+                    }
+                },
+                "children": [
+                    {
+                        "root": false,
+                        "label": "Raw JSON Search Index Schema",
+                        "element": {
+                            "enabled": true,
+                            "short_name": "Raw JSON Search Index Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 0,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Search Index Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty search index schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Search Index Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.search_index_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Storage Schema",
+                        "element": {
+                            "enabled": true,
+                            "short_name": "Raw JSON Storage Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 1,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": true,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Storage Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": true,
+                                "form_info": "For advanced users: create an empty storage schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Storage Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.storage_schema = JSON.parse(template.element.form_model.schema || '{}'); return curr_obj.storage_schema; }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Temporal Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Temporal Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 2,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Temporal Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty temporal schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Temporal Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.temporal_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Document Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Document Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 3,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": true,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Document Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": true,
+                                "child_filters": [
+                                    "enrichment_meta"
+                                ],
+                                "form_info": "For advanced users: create an empty document schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Document Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.document_schema = JSON.parse(template.element.form_model.schema || '{}'); curr_obj.document_schema.custom_deduplication_configs = []; return curr_obj.document_schema.custom_deduplication_configs; }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Columnar Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Columnar Schema",
+                            "summary": "",
+                            "row": 1,
+                            "col": 0,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Columnar Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty columnar schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Columnar Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.columnar_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "root": false,
+                "label": "Generic Harvester",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Generic Harvester",
+                    "summary": "",
+                    "row": 1,
+                    "col": 0,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": false,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Generic Harvester",
+                        "key": "harvest_engine",
+                        "categories": [
+                            "Harvester"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "expandable": false,
+                        "form_info": "For advanced users: create an empty Harvester Config that users can build with the form; and configure by writing raw JSON",
+                        "schema": [
+                            {
+                                "key": "harvest_technology_name_or_id",
+                                "type": "horizontalInput",
+                                "templateOptions": {
+                                    "label": "Technology Library Name",
+                                    "placeholder": "The path to the technology, eg /app/aleph2/library/harvester.jar",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "template": "<hr/>"
+                            },
+                            {
+                                "key": "show_advanced",
+                                "type": "checkbox",
+                                "templateOptions": {
+                                    "label": "Show Advanced Options"
+                                }
+                            },
+                            {
+                                "key": "module_name_or_id",
+                                "type": "horizontalInput",
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Technology Module Name",
+                                    "placeholder": "For harvesters with pluggable modules, the path to the module, eg /app/aleph2/library/harvester_module.jar",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "entry_point",
+                                "type": "horizontalInput",
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Entry Point Override",
+                                    "placeholder": "For harvest modules with multiple entry points, specifies the JVM class to execute, eg com.ikanow.aleph2.harvest.module.Module1EntryPoint",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "library_names_or_ids",
+                                "type": "multiInput",
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Additional Library Modules",
+                                    "inputOptions": {
+                                        "type": "input",
+                                        "templateOptions": {
+                                            "label": "Technology Module Name",
+                                            "placeholder": "For harvesters that need additional library modules, the path to the module, eg /app/aleph2/library/harvester_module.jar",
+                                            "required": false
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "key": "node_list_rules",
+                                "type": "horizontalInput",
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Node rules",
+                                    "placeholder": "Comma-separated list of rules determining on which nodes this harvester will run",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "multi_node_enabled",
+                                "type": "horizontalCheckbox",
+                                "defaultValue": false,
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Harvester multi-node enabled",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "lock_to_nodes",
+                                "type": "horizontalCheckbox",
+                                "defaultValue": true,
+                                "hideExpression": "!model.show_advanced",
+                                "templateOptions": {
+                                    "label": "Lock harvester to the same node/set of nodes (recommend leave as true)",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "template": "<hr/>"
+                            },
+                            {
+                                "key": "config",
+                                "type": "code_input",
+                                "defaultValue": "{\n}",
+                                "templateOptions": {
+                                    "label": "Harvest Configuration JSON",
+                                    "codemirror": {
+                                        "lineNumbers": true,
+                                        "smartIndent": true,
+                                        "mode": "javascript"
+                                    }
+                                }
+                            }
+                        ],
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { \n   curr_obj.harvest_technology_name_or_id = template.element.form_model.harvest_technology_name_or_id; \n  if (template.element.form_model.node_list_rules && (template.element.form_model.node_list_rules.length > 0)) {\n\t  curr_obj.node_list_rules = (template.element.form_model.node_list_rules || '').replace(/\\s*,\\s*/g, \",\").split(\",\");\n}\n\t  curr_obj.multi_node_enabled = template.element.form_model.multi_node_enabled;\n  curr_obj.lock_to_nodes = template.element.form_model.lock_to_nodes;\n  curr_obj.harvest_configs = [\n    {\n      module_name_or_id: template.element.form_model.module_name_or_id, \n      library_names_or_ids: template.element.form_model.library_names_or_ids,\n      entry_point: template.element.form_model.entry_point, \n      config: JSON.parse(template.element.form_model.config || '{}') \n    }]; \n}"
+                        }
+                    }
+                },
+                "children": []
+            },
+            {
+                "root": false,
+                "label": "Batch Enrichment Pipeline",
+                "element": {
+                    "enabled": false,
+                    "short_name": "Batch Enrichment Pipeline",
+                    "summary": "",
+                    "row": 2,
+                    "col": 0,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": true,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Batch Enrichment Pipeline",
+                        "key": "enrichment_engine",
+                        "categories": [
+                            "Enrichment"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "child_filters": [
+                            "batch_enrichment_meta",
+                            "enrichment_meta"
+                        ],
+                        "expandable": true,
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.master_enrichment_type = 'batch'; curr_obj.batch_enrichment_configs = []; return curr_obj.batch_enrichment_configs; }"
+                        },
+                        "form_info": "<p>This is a container for a batch enrichment pipeline that will transform incoming objects before writing them into the bucket output.</p>\n<p>It has no attributes of its own - instead expand it using the <a class=\"glyphicon glyphicon-fullscreen\"></a> icon\n and then add the desired attributes from those available.\n</p>\n"
+                    }
+                },
+                "children": []
+            },
+            {
+                "root": false,
+                "label": "Streaming Enrichment Topology",
+                "element": {
+                    "enabled": false,
+                    "short_name": "Streaming Enrichment Topology",
+                    "summary": "",
+                    "row": 2,
+                    "col": 1,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": true,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Streaming Enrichment Topology",
+                        "key": "enrichment_engine",
+                        "categories": [
+                            "Enrichment"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "child_filters": [
+                            "stream_enrichment_meta",
+                            "enrichment_meta"
+                        ],
+                        "expandable": true,
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.master_enrichment_type = 'streaming'; curr_obj.streaming_enrichment_topology = {}; return curr_obj.streaming_enrichment_topology; }"
+                        },
+                        "form_info": "<p>This is a container for a streaming enrichment engine that will transform incoming objects before writing them into the bucket output.</p>\n<p>It has no attributes of its own - instead expand it using the <a class=\"glyphicon glyphicon-fullscreen\"></a> icon\n and then add the desired attributes from those available.\n</p>\n"
+                    }
+                },
+                "children": []
+            }
+        ]
+    }
+}
+,
+
+		"analytics_bucket": 		
+{
+    "description": "This object generates a V2 analytics thread / data bucket if the V2 migration plugin is installed.\r\n Note created/modified/_id/display_name/tags/owner_id/access_rights are taken from the parent source.",
+    "extractType": "V2DataBucket",
+    "isPublic": true,
+    "mediaType": "Record",
+    "processingPipeline": [
+        {
+            "data_bucket": {
+                "data_schema": {
+                    "search_index_schema": {},
+                    "storage_schema": {}
+                },
+                "analytic_thread": {
+                    "jobs": [],
+                    "trigger_config": {
+                        "auto_calculate": false,
+                        "schedule": "10 min"
+                    }
+                }
+            }
+        }
+    ],
+    "title": "Template V2 analytics data bucket",
+    "templateProcessingFlow": {
+        "root": true,
+        "label": "Bucket",
+        "children": [
+            {
+                "root": false,
+                "label": "Bucket Metadata",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Bucket Metadata",
+                    "summary": "",
+                    "row": 0,
+                    "col": 0,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": false,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Bucket Metadata",
+                        "key": "data_bucket",
+                        "categories": [
+                            "Metadata"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "expandable": false,
+                        "form_info": "General bucket parameters",
+                        "schema": [
+                            {
+                                "key": "full_name",
+                                "type": "horizontalInput",
+                                "templateOptions": {
+                                    "label": "Bucket Path",
+                                    "placeholder": "The virtual bucket path, eg /path/to/bucket",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "poll_frequency",
+                                "type": "horizontalInput",
+                                "templateOptions": {
+                                    "label": "Poll Frequency",
+                                    "placeholder": "Human readable frequency (eg '10min', '1 day') for how often this harvester is polled",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "template": "<hr/>"
+                            },
+                            {
+                                "key": "show_test_settings",
+                                "type": "checkbox",
+                                "templateOptions": {
+                                    "label": "Show Test Settings"
+                                }
+                            },
+                            {
+                                "key": "requested_num_objects",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "100",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Requested Data Objects",
+                                    "placeholder": "The desired number of data objects to be returned by the test",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_startup_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "60",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Startup Time (s)",
+                                    "placeholder": "The maximum number of seconds to wait for the test to startup",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_run_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "120",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Run Time (s)",
+                                    "placeholder": "The maximum number of seconds to wait for the test to run, after it has started up",
+                                    "required": true
+                                }
+                            },
+                            {
+                                "key": "max_storage_time_secs",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalInput",
+                                "defaultValue": "86400",
+                                "templateOptions": {
+                                    "pattern": "[0-9]+",
+                                    "label": "Max Test Storage Time (s)",
+                                    "placeholder": "The maximum time (secs) to keep the test result data",
+                                    "required": false
+                                }
+                            },
+                            {
+                                "key": "overwrite_existing_data",
+                                "hideExpression": "!model.show_test_settings",
+                                "type": "horizontalCheckbox",
+                                "defaultValue": true,
+                                "templateOptions": {
+                                    "label": "Overwrite existing data",
+                                    "required": false
+                                }
+                            }
+                        ],
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { \n  curr_obj.full_name = template.element.form_model.full_name;\n    \tvar pf = template.element.form_model.poll_frequency; \n  curr_obj.poll_frequency = (pf || '').length > 0 ? pf : undefined; \t\tif (template.element.form_model.requested_num_objects) { curr_obj.test_params = {};\n\t\tvar doc = curr_obj.test_params;\n\t\tdoc.requested_num_objects = parseInt(template.element.form_model.requested_num_objects);\n\t\tdoc.max_startup_time_secs = parseInt(template.element.form_model.max_startup_time_secs);\n\t\tdoc.max_run_time_secs = parseInt(template.element.form_model.max_run_time_secs);\n\t\tif ((template.element.form_model.max_storage_time_secs || '').length > 0) doc.max_storage_time_secs = parseInt(template.element.form_model.max_storage_time_secs);\n\t\tdoc.overwrite_existing_data = template.element.form_model.overwrite_existing_data; }\n\n}"
+                        }
+                    }
+                },
+                "children": []
+            },
+            {
+                "root": false,
+                "label": "Data Schema Container",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Data Schema Container",
+                    "summary": "",
+                    "row": 0,
+                    "col": 1,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": true,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Data Schema Container",
+                        "key": "data_schema",
+                        "categories": [
+                            "Metadata"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "child_filters": [
+                            "data_service_schema"
+                        ],
+                        "expandable": true,
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.data_schema = {}; return curr_obj.data_schema; }"
+                        },
+                        "form_info": "<p>This is a container for the data schema for the different attributes of the stored data</p>\n<p>It has no attributes of its own - instead expand it using the <a class=\"glyphicon glyphicon-fullscreen\"></a> icon\n and then add the desired attributes from those available.\n</p>\n"
+                    }
+                },
+                "children": [
+                    {
+                        "root": false,
+                        "label": "Raw JSON Search Index Schema",
+                        "element": {
+                            "enabled": true,
+                            "short_name": "Raw JSON Search Index Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 0,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Search Index Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty search index schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Search Index Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.search_index_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Storage Schema",
+                        "element": {
+                            "enabled": true,
+                            "short_name": "Raw JSON Storage Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 1,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": true,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Storage Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": true,
+                                "form_info": "For advanced users: create an empty storage schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Storage Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.storage_schema = JSON.parse(template.element.form_model.schema || '{}'); return curr_obj.storage_schema; }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Temporal Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Temporal Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 2,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Temporal Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty temporal schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Temporal Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.temporal_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Document Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Document Schema",
+                            "summary": "",
+                            "row": 0,
+                            "col": 3,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": true,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Document Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": true,
+                                "child_filters": [
+                                    "enrichment_meta"
+                                ],
+                                "form_info": "For advanced users: create an empty document schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Document Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.document_schema = JSON.parse(template.element.form_model.schema || '{}'); curr_obj.document_schema.custom_deduplication_configs = []; return curr_obj.document_schema.custom_deduplication_configs; }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Raw JSON Columnar Schema",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Raw JSON Columnar Schema",
+                            "summary": "",
+                            "row": 1,
+                            "col": 0,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Raw JSON Columnar Schema",
+                                "key": "data_service_schema",
+                                "categories": [
+                                    "Schema"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty columnar schema JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schema",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Columnar Schema JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.columnar_schema = JSON.parse(template.element.form_model.schema || '{}'); }"
+                                }
+                            }
+                        },
+                        "children": []
+                    }
+                ]
+            },
+            {
+                "root": false,
+                "label": "Analytic Thread Container",
+                "element": {
+                    "enabled": true,
+                    "short_name": "Analytic Thread Container",
+                    "summary": "",
+                    "row": 1,
+                    "col": 0,
+                    "sizeX": 1,
+                    "sizeY": 1,
+                    "expandable": true,
+                    "configurable": true,
+                    "deletable": true,
+                    "form_model": {},
+                    "template": {
+                        "display_name": "Analytic Thread Container",
+                        "key": "analytic_thread",
+                        "categories": [
+                            "Analytics"
+                        ],
+                        "filters": [
+                            "Bucket"
+                        ],
+                        "child_filters": [
+                            "analytic_job",
+                            "analytic_trigger"
+                        ],
+                        "expandable": true,
+                        "building_function": {
+                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.analytic_thread = { jobs: [] }; return curr_obj.analytic_thread; }"
+                        },
+                        "form_info": "<p>This is a container for the analytic jobs that fill the bucket with data</p>\n<p>It has no attributes of its own - instead expand it using the <a class=\"glyphicon glyphicon-fullscreen\"></a> icon\n and then add the desired attributes from those available.\n</p>\n"
+                    }
+                },
+                "children": [
+                    {
+                        "root": false,
+                        "label": "Raw JSON Analytic Trigger",
+                        "element": {
+                            "enabled": true,
+                            "short_name": "Raw JSON Analytic Trigger",
+                            "summary": "",
+                            "row": 0,
+                            "col": 0,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": false,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {
+                                "trigger": "{\n  \"auto_calculate\": false\n}",
+                                "schedule": "10 min"
+                            },
+                            "template": {
+                                "display_name": "Raw JSON Analytic Trigger",
+                                "key": "analytic_trigger",
+                                "categories": [
+                                    "Scheduling"
+                                ],
+                                "filters": [
+                                    "Bucket/analytic_thread"
+                                ],
+                                "expandable": false,
+                                "form_info": "For advanced users: create an empty trigger JSON object that can be Raw JSON to provide the desired functionality\n",
+                                "schema": [
+                                    {
+                                        "key": "schedule",
+                                        "type": "horizontalInput",
+                                        "templateOptions": {
+                                            "label": "Trigger Check Schedule",
+                                            "placeholder": "Human readable frequency (eg '10min', '1 day') for how often this harvester is polled",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "template": "<hr/>"
+                                    },
+                                    {
+                                        "key": "trigger",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Analytic Thread Trigger JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.trigger_config = JSON.parse(template.element.form_model.trigger || '{}'); var pf = template.element.form_model.schedule; curr_obj.trigger_config.schedule = (pf || '').length > 0 ? pf : undefined; }"
+                                }
+                            }
+                        },
+                        "children": []
+                    },
+                    {
+                        "root": false,
+                        "label": "Generic Analytic Job",
+                        "element": {
+                            "enabled": false,
+                            "short_name": "Generic Analytic Job",
+                            "summary": "",
+                            "row": 0,
+                            "col": 1,
+                            "sizeX": 1,
+                            "sizeY": 1,
+                            "expandable": true,
+                            "configurable": true,
+                            "deletable": true,
+                            "form_model": {},
+                            "template": {
+                                "display_name": "Generic Analytic Job",
+                                "key": "analytic_job",
+                                "categories": [
+                                    "Generic Processing"
+                                ],
+                                "filters": [
+                                    "Bucket/**"
+                                ],
+                                "child_filters": [
+                                    "analytic_input",
+                                    "analytic_output"
+                                ],
+                                "expandable": true,
+                                "form_info": "A streaming or batch analytic job that performs processing on input or stored data. ",
+                                "schema": [
+                                    {
+                                        "key": "_short_name",
+                                        "type": "horizontalInput",
+                                        "templateOptions": {
+                                            "label": "Unique Job Name",
+                                            "pattern": "[a-zA-Z0-9_]+",
+                                            "placeholder": "A Short Name For This Element (Alphanumeric/_ only, no spaces - used for dependencies etc)",
+                                            "required": true
+                                        }
+                                    },
+                                    {
+                                        "key": "analytic_type",
+                                        "type": "horizontalSelect",
+                                        "templateOptions": {
+                                            "required": true,
+                                            "label": "Analytic Type",
+                                            "options": [
+                                                {
+                                                    "name": "Batch",
+                                                    "value": "batch"
+                                                },
+                                                {
+                                                    "name": "Streaming",
+                                                    "value": "streaming"
+                                                }
+                                            ]
+                                        }
+                                    },
+                                    {
+                                        "key": "dependencies",
+                                        "type": "horizontalInput",
+                                        "hideExpression": "model.analytic_type !== \"batch\"",
+                                        "templateOptions": {
+                                            "label": "Dependencies",
+                                            "placeholder": "A comma-separated list of dependencies on other analytic jobs",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "template": "<hr/>"
+                                    },
+                                    {
+                                        "key": "analytic_technology_name_or_id",
+                                        "type": "horizontalInput",
+                                        "templateOptions": {
+                                            "label": "Technology Library Name",
+                                            "placeholder": "The path to the technology, eg /app/aleph2/library/analytic_technology.jar",
+                                            "required": true
+                                        }
+                                    },
+                                    {
+                                        "template": "<hr/>"
+                                    },
+                                    {
+                                        "key": "show_advanced",
+                                        "type": "checkbox",
+                                        "templateOptions": {
+                                            "label": "Show Advanced Options"
+                                        }
+                                    },
+                                    {
+                                        "key": "module_name_or_id",
+                                        "type": "horizontalInput",
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Technology Module Name",
+                                            "placeholder": "For analytic technologies with pluggable modules, the path to the module, eg /app/aleph2/library/harvester_module.jar",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "key": "entry_point",
+                                        "type": "horizontalInput",
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Entry Point Override",
+                                            "placeholder": "For analytics modules with multiple entry points, specifies the JVM class to execute, eg com.ikanow.aleph2.harvest.module.Module1EntryPoint",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "key": "library_names_or_ids",
+                                        "type": "multiInput",
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Additional Library Modules",
+                                            "inputOptions": {
+                                                "type": "input",
+                                                "templateOptions": {
+                                                    "label": "Technology Module Name",
+                                                    "placeholder": "For analytics that need additional library modules, the path to the module, eg /app/aleph2/library/analytic_module_lib.jar",
+                                                    "required": false
+                                                }
+                                            }
+                                        }
+                                    },
+                                    {
+                                        "key": "node_list_rules",
+                                        "type": "horizontalInput",
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Node rules",
+                                            "placeholder": "Comma-separated list of rules determining on which nodes this analytic job will run",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "key": "lock_to_nodes",
+                                        "type": "horizontalCheckbox",
+                                        "defaultValue": false,
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Lock analytic job to the same node/set of nodes (recommend leave as false)",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "key": "external_emit_paths",
+                                        "type": "horizontalInput",
+                                        "hideExpression": "!model.show_advanced",
+                                        "templateOptions": {
+                                            "label": "Allowed external output paths",
+                                            "placeholder": "Comma-separated list of paths/globs to which the bucket is allowed to 'externalEmit'",
+                                            "required": false
+                                        }
+                                    },
+                                    {
+                                        "template": "<hr/>"
+                                    },
+                                    {
+                                        "key": "config",
+                                        "type": "code_input",
+                                        "defaultValue": "{\n}",
+                                        "templateOptions": {
+                                            "label": "Analytic Job Configuration JSON",
+                                            "codemirror": {
+                                                "lineNumbers": true,
+                                                "smartIndent": true,
+                                                "mode": "javascript"
+                                            }
+                                        }
+                                    }
+                                ],
+                                "building_function": {
+                                    "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { \n  root_obj.external_emit_paths = template.element.form_model.external_emit_paths;\n var new_obj = { inputs: [] };\n  new_obj.name = template.element.short_name; new_obj.lock_to_nodes = template.element.form_model.lock_to_nodes; new_obj.analytic_type = template.element.form_model.analytic_type; \n  if (template.element.form_model.dependencies && (template.element.form_model.dependencies.length > 0)) {\n  \tnew_obj.dependencies = (template.element.form_model.dependencies || '').replace(\"\\\\s*,\\\\s*\", \",\").split(\",\");\n  }\n  new_obj.analytic_technology_name_or_id = template.element.form_model.analytic_technology_name_or_id; \n  new_obj.module_name_or_id = template.element.form_model.module_name_or_id; \n  new_obj.entry_point = template.element.form_model.entry_point; \n  new_obj.library_names_or_ids = template.element.form_model.library_names_or_ids; \n  if (template.element.form_model.node_list_rules && (template.element.form_model.node_list_rules.length > 0)) {\n\t  new_obj.node_list_rules = (template.element.form_model.node_list_rules || '').replace(\"\\\\s*,\\\\s*\", \",\").split(\",\");\n  }\n  new_obj.config = JSON.parse(template.element.form_model.config || '{}'); \n  curr_obj.jobs.push(new_obj);\n  return new_obj;\n}"
+                                }
+                            }
+                        },
+                        "children": [
+                            {
+                                "root": false,
+                                "label": "Basic Output",
+                                "element": {
+                                    "enabled": true,
+                                    "short_name": "Basic Output",
+                                    "summary": "",
+                                    "row": 1,
+                                    "col": 0,
+                                    "sizeX": 1,
+                                    "sizeY": 1,
+                                    "expandable": false,
+                                    "configurable": true,
+                                    "deletable": true,
+                                    "form_model": {
+                                        "is_transient": "false",
+                                        "preserve_existing_data": "false"
+                                    },
+                                    "template": {
+                                        "display_name": "Basic Output",
+                                        "categories": [
+                                            "Output"
+                                        ],
+                                        "key": "analytic_output",
+                                        "filters": [
+                                            "Bucket/**"
+                                        ],
+                                        "expandable": false,
+                                        "schema": [
+                                            {
+                                                "key": "is_transient",
+                                                "type": "horizontalCheckbox",
+                                                "defaultValue": "false",
+                                                "templateOptions": {
+                                                    "label": "Is Transient?",
+                                                    "required": false
+                                                }
+                                            },
+                                            {
+                                                "key": "preserve_existing_data",
+                                                "type": "horizontalCheckbox",
+                                                "defaultValue": "false",
+                                                "templateOptions": {
+                                                    "label": "Preserve existing data?",
+                                                    "required": false
+                                                }
+                                            }
+                                        ],
+                                        "form_info": "Input element for adding bucket data",
+                                        "building_function": {
+                                            "_fn": "function (errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) {               \n        var obj = {};\n        obj.is_transient = template.element.form_model.is_transient || false;\n        obj.preserve_existing_data = template.element.form_model.preserve_existing_data || false;        \n        curr_obj.output = obj;\n      }"
+                                        }
+                                    }
+                                },
+                                "children": []
+                            },
+                            {
+                                "root": false,
+                                "label": "Bucket Input",
+                                "element": {
+                                    "enabled": false,
+                                    "short_name": "Bucket Input",
+                                    "summary": "",
+                                    "row": 0,
+                                    "col": 0,
+                                    "sizeX": 1,
+                                    "sizeY": 1,
+                                    "expandable": false,
+                                    "configurable": true,
+                                    "deletable": true,
+                                    "form_model": {
+                                        "data_service": "search_index_service",
+                                        "resource_name_or_id": "/some/other/bucket",
+                                        "time_max": "2 days",
+                                        "time_min": "4 days"
+                                    },
+                                    "template": {
+                                        "display_name": "Bucket Input",
+                                        "categories": [
+                                            "Input"
+                                        ],
+                                        "key": "analytic_input",
+                                        "filters": [
+                                            "Bucket/**"
+                                        ],
+                                        "expandable": false,
+                                        "schema": [
+                                            {
+                                                "key": "data_service",
+                                                "type": "horizontalInput",
+                                                "defaultValue": "search_index_service",
+                                                "templateOptions": {
+                                                    "label": "Data Service",
+                                                    "placeholder": "Name of the data service you want to read from (search_index_service, storage_service, document_service.V1DocumentService)",
+                                                    "required": true
+                                                }
+                                            },
+                                            {
+                                                "key": "resource_name_or_id",
+                                                "type": "horizontalInput",
+                                                "defaultValue": "/some/other/bucket",
+                                                "templateOptions": {
+                                                    "label": "Resource Name",
+                                                    "placeholder": "Path or ID of the data service you want e.g. bucket full name",
+                                                    "required": true
+                                                }
+                                            },
+                                            {
+                                                "key": "time_max",
+                                                "type": "horizontalInput",
+                                                "defaultValue": "2 days",
+                                                "templateOptions": {
+                                                    "label": "Time Max",
+                                                    "placeholder": "Max days to check (?)",
+                                                    "required": true
+                                                }
+                                            },
+                                            {
+                                                "key": "time_min",
+                                                "type": "horizontalInput",
+                                                "defaultValue": "4 days",
+                                                "templateOptions": {
+                                                    "label": "Time Min",
+                                                    "placeholder": "Min days to check (?)",
+                                                    "required": true
+                                                }
+                                            }
+                                        ],
+                                        "form_info": "Input element for adding bucket data",
+                                        "building_function": {
+                                            "_fn": "function (errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) {               \n        var obj = {};\n        obj.data_service = template.element.form_model.data_service;\n        obj.enabled = true;\n        obj.resource_name_or_id = template.element.form_model.resource_name_or_id;\n        var config_obj = {};\n        config_obj.time_max = template.element.form_model.time_max;\n        config_obj.time_min = template.element.form_model.time_min;\n        obj.config = config_obj;\n        curr_obj.inputs.push(obj);\n      }"
+                                        }
+                                    }
+                                },
+                                "children": []
+                            },
+                            {
+                                "root": false,
+                                "label": "Raw JSON Analytic Input",
+                                "element": {
+                                    "enabled": false,
+                                    "short_name": "Raw JSON Analytic Input",
+                                    "summary": "",
+                                    "row": 0,
+                                    "col": 1,
+                                    "sizeX": 1,
+                                    "sizeY": 1,
+                                    "expandable": false,
+                                    "configurable": true,
+                                    "deletable": true,
+                                    "form_model": {},
+                                    "template": {
+                                        "display_name": "Raw JSON Analytic Input",
+                                        "key": "analytic_input",
+                                        "categories": [
+                                            "Input"
+                                        ],
+                                        "filters": [
+                                            "Bucket/**"
+                                        ],
+                                        "expandable": false,
+                                        "form_info": "Empty JSON object used to configure an input for this analytic job\n",
+                                        "schema": [
+                                            {
+                                                "key": "input",
+                                                "type": "code_input",
+                                                "defaultValue": "{\n}",
+                                                "templateOptions": {
+                                                    "label": "Analytic Input JSON",
+                                                    "codemirror": {
+                                                        "lineNumbers": true,
+                                                        "smartIndent": true,
+                                                        "mode": "javascript"
+                                                    }
+                                                }
+                                            }
+                                        ],
+                                        "building_function": {
+                                            "_fn": "function(errs, template, curr_obj, all_templates, root_obj, hierarchy, rows, cols) { curr_obj.inputs.push(JSON.parse(template.element.form_model.input || '{}')); }"
+                                        }
+                                    }
+                                },
+                                "children": []
+                            }
+                        ]
+                    }
+                ]
+            }
+        ]
+    }
+}
 }

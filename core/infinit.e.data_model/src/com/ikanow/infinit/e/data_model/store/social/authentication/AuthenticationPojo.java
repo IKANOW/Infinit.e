@@ -37,6 +37,7 @@ public class AuthenticationPojo extends BaseDbPojo  {
 	
 	public final static String _id_ = "_id";
 	public final static String profileId_ = "profileId";
+	public final static String apiKey_ = "apiKey";
 	private ObjectId _id = null;
 	private ObjectId profileId = null;
 	private String username = null;

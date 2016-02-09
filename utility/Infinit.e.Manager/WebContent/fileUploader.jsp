@@ -24,13 +24,16 @@ limitations under the License.
 <%@ include file="inc/sharedFunctions.jsp" %>
 
 <%!
-	static String SHARE_ROOT = "$infinite/share/get/";
-	static Boolean DEBUG_MODE = false;
-	static Boolean showAll = false;
-	static Boolean localCookie = false;
-	static String user = null;
-	static String communityList = null; // (ensures that generateCommunityList is called)
+static String SHARE_ROOT = "$infinite/share/get/";
+static Boolean DEBUG_MODE = false;
 
+	static class fileu_session {
+		Boolean showAll = false;
+		Boolean localCookie = false;
+		String user = null;
+		String communityList = null; // (ensures that generateCommunityList is called)
+	}
+	
 	static class personGet {
 		static class resp {
 			String action;
@@ -162,7 +165,7 @@ limitations under the License.
 	}
 
 	private Boolean logMeIn(String username, String pword,
-			HttpServletRequest request, HttpServletResponse response)
+			HttpServletRequest request, HttpServletResponse response, fileu_session fileu_session)
 			throws IOException, NoSuchAlgorithmException,
 			UnsupportedEncodingException, URISyntaxException {
 		String json = callRestfulApi("auth/login/" + username + "/"
@@ -170,7 +173,7 @@ limitations under the License.
 		logIn login = new Gson().fromJson(json, logIn.class);
 		if (login == null)
 			return false;
-		user = username;
+		fileu_session.user = username;
 		return login.response.success;
 	}
 
@@ -192,7 +195,7 @@ limitations under the License.
 	private String UpdateToShare(byte[] bytes, String mimeType, String title,
 			String description, String prevId, Set<String> communities, boolean isJson, 
 			String type, boolean newShare, boolean isRef, String docloc, String docid, boolean readWrite,
-			HttpServletRequest request, HttpServletResponse response) {
+			HttpServletRequest request, HttpServletResponse response, fileu_session fileu_session) {
 		String charset = "UTF-8";
 		String url = "";
 		try 
@@ -261,7 +264,7 @@ limitations under the License.
 				{
 					if ( jr.data != null && jr.data._id != null )
 					{
-						addRemoveCommunities(jr.data._id, communities, readWrite, request, response);
+						addRemoveCommunities(jr.data._id, communities, readWrite, request, response, fileu_session);
 						return jr.data._id; //When a new upload, mr.data contains the ShareID for the upload
 					}
 				} 
@@ -277,12 +280,12 @@ limitations under the License.
 				{
 					if (prevId != null && mr.data == null) 
 					{
-						addRemoveCommunities(prevId, communities, readWrite, request, response);
+						addRemoveCommunities(prevId, communities, readWrite, request, response, fileu_session);
 						return prevId;
 					}
 					else
 					{
-						addRemoveCommunities(mr.data, communities, readWrite, request, response);
+						addRemoveCommunities(mr.data, communities, readWrite, request, response, fileu_session);
 						return mr.data; //When a new upload, mr.data contains the ShareID for the upload
 					}
 				} 
@@ -298,10 +301,10 @@ limitations under the License.
 	}
 
 	private void addRemoveCommunities(String shareId, Set<String> commsToAdd, boolean readWrite,
-			HttpServletRequest request, HttpServletResponse response) 
+			HttpServletRequest request, HttpServletResponse response, fileu_session fileu_session) 
 	{
 		personGet.community[] userCommunities = getUserCommunities(request,
-				response);
+				response, fileu_session);
 
 		for (personGet.community userComm : userCommunities) {
 			if (stringInSet(userComm._id, commsToAdd))
@@ -387,7 +390,7 @@ limitations under the License.
 	}
 
 	private personGet.community[] getUserCommunities(
-			HttpServletRequest request, HttpServletResponse response) {
+			HttpServletRequest request, HttpServletResponse response, fileu_session fileu_session) {
 		try {
 			String charset = "UTF-8";
 
@@ -396,7 +399,7 @@ limitations under the License.
 			
 			personGet pg = new Gson().fromJson(json, personGet.class);
 			if (pg != null) {
-				user = pg.data.email;
+				fileu_session.user = pg.data.email;
 				return pg.data.communities;
 			}
 			return null;
@@ -407,9 +410,9 @@ limitations under the License.
 	}
 
 	public String generateCommunityList(HttpServletRequest request,
-			HttpServletResponse response) {
+			HttpServletResponse response, fileu_session fileu_session) {
 		String toReturn = "<select multiple=\"multiple\" name=\"communities\" id=\"communities\">";
-		personGet.community[] pgs = getUserCommunities(request, response);
+		personGet.community[] pgs = getUserCommunities(request, response, fileu_session);
 		if (pgs != null) {
 			for (personGet.community comm : pgs) {
 				toReturn += "<option value=\"" + comm._id + "\">" + comm.name
@@ -427,7 +430,7 @@ limitations under the License.
 	}
 	
 	private String populatePreviousUploads(HttpServletRequest request,
-			HttpServletResponse response) {
+			HttpServletResponse response, fileu_session fileu_session) {
 		String toReturn = "";
 		String delim = "$$$";
 		String ext = null;
@@ -451,9 +454,9 @@ limitations under the License.
 			if (gs != null && gs.data != null) 
 			{
 				for (shareData info : gs.data) {
-					if ((showAll == false) && (info.owner != null)
+					if ((fileu_session.showAll == false) && (info.owner != null)
 							&& (info.owner.email != null)
-							&& !user.equalsIgnoreCase(info.owner.email)) {
+							&& !fileu_session.user.equalsIgnoreCase(info.owner.email)) {
 						continue;
 					}
 
@@ -543,7 +546,7 @@ limitations under the License.
 	}
 
 	private String populateMediaTypes(HttpServletRequest request,
-			HttpServletResponse response) {
+			HttpServletResponse response, fileu_session fileu_session) {
 		String toReturn = "<option> See All </option>";
 		String json = callRestfulApi("social/share/search/?nocontent=true", request,
 				response);
@@ -559,9 +562,9 @@ limitations under the License.
 				Set<String> set = new TreeSet<String>(
 						String.CASE_INSENSITIVE_ORDER);
 				for (shareData info : gs.data) {
-					if ((showAll == false) && (info.owner != null)
+					if ((fileu_session.showAll == false) && (info.owner != null)
 							&& (info.owner.email != null)
-							&& !user.equalsIgnoreCase(info.owner.email)) {
+							&& !fileu_session.user.equalsIgnoreCase(info.owner.email)) {
 						continue;
 					}
 					if (info.mediaType != null && !set.contains(info.mediaType)) {
@@ -627,11 +630,13 @@ visibility: hidden;
 
 <body onload="populate()">
 <%
+	final fileu_session fileu_session = new fileu_session();
+
 	if (isLoggedIn == true) 
 	{
-		showAll = (request.getParameter("sudo") != null);
+		fileu_session.showAll = (request.getParameter("sudo") != null);
 		DEBUG_MODE = (request.getParameter("debug") != null);
-		communityList = generateCommunityList(request, response);
+		fileu_session.communityList = generateCommunityList(request, response, fileu_session);
 
 		if (request.getParameter("logout") != null) 
 		{
@@ -734,7 +739,7 @@ visibility: hidden;
 				{
 					String shareId = request.getAttribute("DBId").toString();
 					if (shareId != null && shareId != "")
-						addRemoveCommunities(shareId, communities, readWrite, request, response);					
+						addRemoveCommunities(shareId, communities, readWrite, request, response, fileu_session);					
 				} 
 				else 
 				{
@@ -759,7 +764,7 @@ visibility: hidden;
 						{												
 							fileId = shareId;
 							if (shareId != null && shareId != "")
-								addRemoveCommunities(shareId, communities, readWrite, request, response);							
+								addRemoveCommunities(shareId, communities, readWrite, request, response, fileu_session);							
 							out.println("File was not set, just updated communities (can't edit type/title/etc without also re-uploading the file).");
 						}
 						else if ( !ref.equals("null")  )
@@ -772,7 +777,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, true, docLoc, docId, readWrite, request, response);							
+									.toString(), newUpload, true, docLoc, docId, readWrite, request, response, fileu_session);							
 						}
 						else if ( bin.equals("null")) //is a json file, make sure its okay and upload it
 						{
@@ -781,7 +786,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, true, request.getAttribute("type")
-									.toString(), newUpload, false, null, null, readWrite, request, response);
+									.toString(), newUpload, false, null, null, readWrite, request, response, fileu_session);
 						}
 						else //is a binary, do normal
 						{
@@ -790,7 +795,7 @@ visibility: hidden;
 									request.getAttribute("description")
 											.toString(), shareId,
 									communities, false, request.getAttribute("type")
-									.toString(), newUpload, false, null, null, readWrite, request, response);
+									.toString(), newUpload, false, null, null, readWrite, request, response, fileu_session);
 						}
 
 						if (fileId.contains("Failed")) 
@@ -1240,12 +1245,12 @@ visibility: hidden;
 	        		<label for="ext">Filter On</label>
 					  <select name="ext" id="ext" onchange="if (allow_filter_change()) this.form.submit();">
 					    <%
-					    	out.print(populateMediaTypes(request, response));
+					    	out.print(populateMediaTypes(request, response, fileu_session));
 					    %>
 					  </select>
 					 </div>
 					 <%
-					 	if (showAll)
+					 	if (fileu_session.showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 %>	        		
 	        	</form>
@@ -1255,13 +1260,13 @@ visibility: hidden;
 	        		<option value="newJSON">Upload New JSON</option>
 	        		<option value=newRef>Share existing object</option> 
 	        		<%
- 	out.print(populatePreviousUploads(request, response));
+ 	out.print(populatePreviousUploads(request, response, fileu_session));
  %></select>
 	        		<input type="submit" name="deleteButton" id="deleteButton" class="hidden" value="Delete" />
 	        		<input type="hidden" name="deleteId" id="deleteId" />
 	        		<input type="hidden" name="deleteFile" id="deleteFile" />
 					 <%
-					 	if (showAll)
+					 	if (fileu_session.showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 %>	        		
 	        	</form>
@@ -1285,7 +1290,7 @@ visibility: hidden;
 	                  <tr>
 	                  	<td>Communities:</td>
 	                  	<td><%
-	                  		out.print(communityList);
+	                  		out.print(fileu_session.communityList);
 	                  	%></td>
 	                  </tr>
 	                  <tr>
@@ -1343,7 +1348,7 @@ visibility: hidden;
 					<input type="hidden" name="binary" id="binary" />
 					<input type="hidden" name="reference" id="reference" />
 					 <%
-					 	if (showAll)
+					 	if (fileu_session.showAll)
 					 				out.print("<input type=\"hidden\" name=\"sudo\" id=\"sudo\" value=\"true\" />");
 					 %>	        		
 				</form>
@@ -1364,8 +1369,8 @@ visibility: hidden;
 					|| request.getParameter("passwordtext") != null) {
 				if (logMeIn(request.getParameter("logintext"),
 						request.getParameter("passwordtext"), request,
-						response)) {
-					showAll = (request.getParameter("sudo") != null);
+						response, fileu_session)) {
+					fileu_session.showAll = (request.getParameter("sudo") != null);
 					out.println("<meta http-equiv=\"refresh\" content=\"0\">");
 					out.println("Login Success");
 				} else {
